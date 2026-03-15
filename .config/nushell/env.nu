@@ -20,6 +20,8 @@ $env.TMUX_TMPDIR = "/tmp"
 $env.PATH = (
     $env.PATH
     | prepend [
+        "/opt/homebrew/bin"
+        "/opt/homebrew/sbin"
         "/Applications/Ghostty.app/Contents/MacOS"
         ($home | path join "bin")
         ($home | path join ".local" "bin")
