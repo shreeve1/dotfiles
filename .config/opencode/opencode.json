@@ -2,6 +2,7 @@
   "plugin": [
     "opencode-antigravity-auth@1.6.0",
     "opencode-openai-codex-auth",
+    "@gotgenes/opencode-agent-identity",
   ],
   "agent": {
     "build": {
