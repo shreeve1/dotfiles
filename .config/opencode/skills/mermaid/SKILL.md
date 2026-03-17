@@ -1,18 +1,6 @@
 ---
 name: mermaid
-description: Must read guide on creating/editing mermaid charts with valiation tools
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/mermaid/SKILL.md
-  original_name: mermaid
----
-
-# Mermaid Skill
-
-Converted from `/Users/james/.pi/agent/skills/mermaid/SKILL.md`. Imported as `mermaid` for OpenCode.
-
-## Compatibility Notes
-
+description: Validate and create Mermaid diagrams using the official Mermaid CLI. Use when creating, editing, or validating Mermaid charts, flowcharts, sequence diagrams, or any diagram that will be embedded in Markdown.
 ---
 
 Use this skill to quickly validate Mermaid diagrams by parsing + rendering them with the official Mermaid CLI.

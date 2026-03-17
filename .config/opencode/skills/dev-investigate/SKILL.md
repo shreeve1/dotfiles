@@ -1,23 +1,9 @@
 ---
 name: dev-investigate
 description: Use when debugging unclear bugs, unexpected behavior, missing root causes, or when you need to find where a symptom originates in code before proposing a fix.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/dev-investigate/SKILL.md
-  original_name: dev-investigate
 ---
 
 # Dev Investigate
-
-Converted from `/Users/james/.pi/agent/skills/dev-investigate/SKILL.md`. Imported as `dev-investigate` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill to diagnose a problem before proposing or implementing a fix. It fits cases where the symptom is real but the cause is unclear, the relevant code path is unknown, or a quick search would likely produce guesses instead of evidence. Do not use it when the root cause is already known and the task is straightforward implementation.
 

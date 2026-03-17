@@ -1,23 +1,9 @@
 ---
 name: dev-test
 description: Use when the user wants to run tests, generate or expand test coverage, analyze failing tests, or verify an implementation against a plan, acceptance criteria, or validation commands.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-dev-test/SKILL.md
-  original_name: pi-dev-test
 ---
 
 # Dev Test
-
-Converted from `/Users/james/.pi/agent/skills/pi-dev-test/SKILL.md`. Imported as `dev-test` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill to orchestrate testing work: run existing tests, inspect coverage and test gaps, generate or expand tests when appropriate, and verify implementations against plans or acceptance criteria. Choose the lightest mode that fits the request. Do not use this skill for manual exploratory QA or root-cause debugging of a specific failing test when the primary need is diagnosis rather than test orchestration.
 

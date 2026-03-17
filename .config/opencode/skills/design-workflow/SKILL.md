@@ -1,23 +1,9 @@
 ---
 name: design-workflow
 description: Create and iterate on UI design directions before implementation. Use when the user wants mockups, theme explorations, multiple visual directions, a design gallery, or a structured UI concept workflow for an existing app or component.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/design-workflow/SKILL.md
-  original_name: design-workflow
 ---
 
 # Design Workflow
-
-Converted from `/Users/james/.pi/agent/skills/design-workflow/SKILL.md`. Imported as `design-workflow` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when the user wants to explore UI directions before building the final implementation. It is meant for generating structured design artifacts — context, variants, gallery, selection, and validation notes — not for immediately editing product code.
 
@@ -141,7 +127,7 @@ Use `bash` to run `gallery-generator.js` and produce a gallery in the session ro
 Example:
 
 ```bash
-node /Users/james/.opencode/skills/design-workflow/gallery-generator.js \
+node "$(dirname "$0")/gallery-generator.js" \
   --mockups-dir "$SESSION_DIR/variants" \
   --output "$SESSION_DIR/gallery"
 ```

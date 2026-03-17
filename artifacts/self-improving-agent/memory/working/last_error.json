@@ -1,0 +1,18 @@
+{
+  "id": "ep-604a7e1d-f459-4997-82f3-ee517bbe0e99",
+  "timestamp": "2026-03-17T04:16:07.473Z",
+  "session_id": "ses_30d42732dffe28ehiWvFRRRNlc",
+  "message_id": "msg_cfa0152670019LWIP4JpBQfJK7",
+  "call_id": "toolu_01GBK2WYrHE2Qjrr1szbtUmJ",
+  "tool": "edit",
+  "status": "error",
+  "title": null,
+  "args": {
+    "filePath": "/Users/james/dotfiles/.config/opencode/skills/dev-prd/SKILL.md",
+    "oldString": "---\nname: dev-prd\ndescription: Create a lean, buildable product requirements document from a raw idea, note, or spec through phased interviewing, light research, and structured requirement capture. Use when the user wants to turn an idea into a PRD, spec, product brief, or developer-ready requirements document before planning or coding, even if they ask casually like \"help me think this through,\" \"write a PRD,\" or \"turn these notes into something buildable.\"\ncompatibility: adapted-for-opencode\nmetadata:\n  source: /Users/james/.pi/agent/skills/dev-prd/SKILL.md\n  original_name: dev-prd\n---\n\n# Create a Product Requirements Document\n\nConverted from `/Users/james/.pi/agent/skills/dev-prd/SKILL.md`. Imported as `dev-prd` for OpenCode.\n\n## Compatibility Notes\n\n- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.\n- Tool names were rewritten to the closest OpenCode equivalents where possible.\n- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.\n\n---\n\nUse this skill when the user has an idea, rough notes, or an early concept and wants a structured PRD",
+    "newString": "---\nname: dev-prd\ndescription: Create a lean, buildable product requirements document from a raw idea, note, or spec through phased interviewing, light research, and structured requirement capture. Use when the user wants to turn an idea into a PRD, spec, product brief, or developer-ready requirements document before planning or coding, even if they ask casually like \"help me think this through,\" \"write a PRD,\" or \"turn these notes into something buildable.\"\n---\n\n# Create a Product Requirements Document\n\nUse this skill when the user has an idea, rough notes, or an early concept and wants a structured PRD"
+  },
+  "output_preview": "Error: Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.",
+  "metadata": null,
+  "source_hook": "event:message.part.updated"
+}

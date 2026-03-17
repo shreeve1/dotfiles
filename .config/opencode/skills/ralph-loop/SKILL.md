@@ -1,25 +1,11 @@
 ---
 name: ralph-loop
-description: Create a requirements file from project context and run an autonomous development loop that executes tasks iteratively using fresh pi sessions. Use when the user wants to set up a Ralph-style autonomous loop, hands-off development cycle, continuous autonomous coding, or says things like "loop on this", "build this autonomously", "run a loop", or "set it and forget it.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-ralph-loop/SKILL.md
-  original_name: pi-ralph-loop
+description: Create a requirements file from project context and run an autonomous development loop that executes tasks iteratively using fresh OpenCode sessions. Use when the user wants to set up a Ralph-style autonomous loop, hands-off development cycle, continuous autonomous coding, or says things like "loop on this", "build this autonomously", "run a loop", or "set it and forget it."
 ---
 
 # Autonomous Development Loop
 
-Converted from `/Users/james/.pi/agent/skills/pi-ralph-loop/SKILL.md`. Imported as `ralph-loop` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
-
-Set up and run an autonomous development loop. Phase 1 interactively builds a requirements file from the project context and user input. Phase 2 launches a bash loop that calls `pi -p` repeatedly, working through tasks one at a time with fresh sessions, circuit breaker protection, and live progress monitoring.
+Set up and run an autonomous development loop. Phase 1 interactively builds a requirements file from the project context and user input. Phase 2 launches a bash loop that calls `opencode -p` repeatedly, working through tasks one at a time with fresh sessions, circuit breaker protection, and live progress monitoring.
 
 Do not use this for quick one-off edits or when the user wants interactive back-and-forth on implementation details.
 

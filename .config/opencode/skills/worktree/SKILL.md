@@ -1,23 +1,9 @@
 ---
 name: worktree
 description: Create, manage, and clean up git worktrees for isolated feature work. Use when starting implementation that needs branch isolation, before executing plans, or when the user asks to set up a worktree. Handles first-time setup automatically including directory creation and .gitignore configuration.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-worktree/SKILL.md
-  original_name: pi-worktree
 ---
 
 # Git Worktree Management
-
-Converted from `/Users/james/.pi/agent/skills/pi-worktree/SKILL.md`. Imported as `worktree` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Create isolated git worktrees for feature work with zero manual setup required. Handles first-time projects, .gitignore safety, branch conflicts, and bootstrap automatically.
 

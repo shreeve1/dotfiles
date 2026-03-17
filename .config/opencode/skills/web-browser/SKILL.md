@@ -1,23 +1,9 @@
 ---
 name: web-browser
-description: Allows to interact with web pages by performing actions such as clicking buttons, filling out forms, and navigating links. It works by remote controlling Google Chrome or Chromium browsers using the Chrome DevTools Protocol (CDP). When Claude needs to browse the web, it can use this skill to do so.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/web-browser/SKILL.md
-  original_name: web-browser
+description: Interact with web pages by performing actions such as clicking buttons, filling out forms, and navigating links. Works by remote controlling Google Chrome or Chromium via the Chrome DevTools Protocol (CDP). Use when OpenCode needs to browse the web, interact with a live page, or automate browser actions.
 ---
 
-# Web Browser Skill
-
-Converted from `/Users/james/.pi/agent/skills/web-browser/SKILL.md`. Imported as `web-browser` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# Web Browser
 
 Minimal CDP tools for collaborative site exploration.
 

@@ -1,23 +1,9 @@
 ---
 name: brainstorm
 description: Use when the user wants to brainstorm, explore ideas, compare directions, think creatively, generate options before implementation, or re-plan after validation shows a plan is not feasible for the current repo.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-brainstorm/SKILL.md
-  original_name: pi-brainstorm
 ---
 
-# Pi Brainstorm
-
-Converted from `/Users/james/.pi/agent/skills/pi-brainstorm/SKILL.md`. Imported as `brainstorm` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# Brainstorm
 
 Use this skill when the goal is collaborative idea generation and directional thinking, especially before committing to a build plan. It is also the required re-planning skill when `dev-validate` determines a plan is `not-feasible` for the current repository. Do not use it when the user already wants a concrete implementation plan or direct code changes; in those cases, finish the brainstorming quickly or hand off to planning.
 

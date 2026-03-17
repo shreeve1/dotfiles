@@ -1,23 +1,9 @@
 ---
 name: brainstorm-idea
 description: Explore a raw idea creatively with light project context, optional web research, and collaborative generative discussion. Use when the user wants to riff on an idea, expand possibilities, make unexpected connections, or see where a concept could go before turning it into a plan or implementation.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/brainstorm-idea/SKILL.md
-  original_name: brainstorm-idea
 ---
 
 # Brainstorm Idea
-
-Converted from `/Users/james/.pi/agent/skills/brainstorm-idea/SKILL.md`. Imported as `brainstorm-idea` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill for exploratory, idea-generating conversations where the goal is discovery rather than commitment. Prefer it when the user says things like "help me brainstorm," "I have an idea," "riff on this," "what could this become," or "explore possibilities." Do not use it when the user already wants a concrete implementation plan, code changes, or strict requirements gathering.
 

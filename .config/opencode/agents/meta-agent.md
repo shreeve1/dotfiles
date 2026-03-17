@@ -4,7 +4,7 @@ mode: subagent
 model: anthropic/claude-opus-4-20250514
 tools:
   write: true
-  edit: false
+  edit: true
   bash: true
   webfetch: true
   mcp__firecrawl_mcp__firecrawl_scrape: true

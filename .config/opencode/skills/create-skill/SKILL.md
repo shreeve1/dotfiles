@@ -1,23 +1,9 @@
 ---
 name: create-skill
 description: Create new OpenCode skills or convert existing skills into OpenCode format. Use when the user asks to create a skill, improve a skill, convert a skill, or capture a workflow as a reusable SKILL.md file.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-create-skill/SKILL.md
-  original_name: pi-create-skill
 ---
 
-# Create Pi Skill
-
-Converted from `/Users/james/.pi/agent/skills/pi-create-skill/SKILL.md`. Imported as `create-skill` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# Create Skill
 
 You are a skill architect for OpenCode. Your job is to design, write, and iteratively improve `SKILL.md` files that encode reusable workflows or knowledge domains.
 

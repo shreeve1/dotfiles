@@ -1,0 +1,29 @@
+{
+  "id": "pat-auto-edit-completed-config-opencode-skills-ralph-loop-skill-md",
+  "name": "edit completed: .config/opencode/skills/ralph-loop/SKILL.md",
+  "source": "auto_tool_outcome",
+  "confidence": 0.65,
+  "applications": 2,
+  "created": "2026-03-17",
+  "category": "workflow-successes",
+  "pattern": "Repeated edit successes were observed for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+  "problem": "The same edit workflow recurs often enough to preserve as a repeatable approach for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+  "solution": {
+    "summary": "Reuse the established edit workflow for \".config/opencode/skills/ralph-loop/SKILL.md\" when the same task appears again."
+  },
+  "quality_rules": [
+    "Prefer the known-good edit workflow for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+    "Keep the same scope and ordering when repeating this task."
+  ],
+  "target_skills": [],
+  "auto_generated": true,
+  "signature": "edit::completed::.config/opencode/skills/ralph-loop/SKILL.md",
+  "evidence": {
+    "tool": "edit",
+    "status": "completed",
+    "summary": ".config/opencode/skills/ralph-loop/SKILL.md",
+    "first_seen": "2026-03-17T04:16:37.745Z",
+    "last_seen": "2026-03-17T04:17:31.466Z",
+    "latest_event_id": "ep-dbc85a2a-541b-45c3-afb6-2023b9288e41"
+  }
+}

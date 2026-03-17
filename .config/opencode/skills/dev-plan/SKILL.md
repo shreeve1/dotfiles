@@ -1,23 +1,9 @@
 ---
 name: dev-plan
 description: Use when the user wants a structured implementation plan, technical approach, phased roadmap, or task breakdown for a feature, fix, refactor, or enhancement before writing code.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-dev-plan/SKILL.md
-  original_name: pi-dev-plan
 ---
 
 # Create Implementation Plan
-
-Converted from `/Users/james/.pi/agent/skills/pi-dev-plan/SKILL.md`. Imported as `dev-plan` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when the user needs a concrete engineering plan before implementation: a roadmap, phased task list, technical design, or execution spec for a feature, fix, refactor, or enhancement. Ground the plan in the actual codebase and any available source documents so the result is specific, traceable, and ready to execute. Do not use it when the user wants immediate coding, a quick answer, or debugging rather than planning.
 

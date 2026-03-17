@@ -1,23 +1,9 @@
 ---
 name: api-docs-fetcher
 description: Fetches API documentation from a URL or existing spec, restructures it into an LLM-friendly `apidocs/` directory, and generates per-resource reference files plus a navigable index. Use when the user asks to pull API docs, download an OpenAPI or Swagger spec, turn developer portal docs into local markdown, build an API reference set, or organize external API documentation for later lookup.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/api-docs-fetcher/SKILL.md
-  original_name: api-docs-fetcher
 ---
 
 # API Docs Fetcher
-
-Converted from `/Users/james/.pi/agent/skills/api-docs-fetcher/SKILL.md`. Imported as `api-docs-fetcher` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when the user wants API documentation gathered from a URL, repository, or machine-readable spec and saved locally in a structured `apidocs/` folder. Prefer other skills when the task is ordinary web research, one-off endpoint lookup, or documenting an API that already lives in the current codebase.
 

@@ -1,11 +1,9 @@
 ---
 name: dev-prd
-description: Create a lean, buildable product requirements document from a raw idea, note, or spec through phased interviewing, light research, and structured requirement capture. Use when the user wants to turn an idea into a PRD, spec, product brief, or developer-ready requirements document before planning or coding, even if they ask casually like “help me think this through,” “write a PRD,” or “turn these notes into something buildable.”
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/dev-prd/SKILL.md
-  original_name: dev-prd
+description: Create a lean, buildable product requirements document from a raw idea, note, or spec through phased interviewing, light research, and structured requirement capture. Use when the user wants to turn an idea into a PRD, spec, product brief, or developer-ready requirements document before planning or coding, even if they ask casually like "help me think this through," "write a PRD," or "turn these notes into something buildable."
 ---
+
+# Create a Product Requirements Document
 
 # Create a Product Requirements Document
 

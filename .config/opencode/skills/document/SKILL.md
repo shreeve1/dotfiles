@@ -1,23 +1,9 @@
 ---
 name: document
 description: Extract documentation from a session or user input and save to artifacts/docs/ with navigation hub management
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-document/SKILL.md
-  original_name: pi-document
 ---
 
-# Pi Document
-
-Converted from `/Users/james/.pi/agent/skills/pi-document/SKILL.md`. Imported as `document` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# Document
 
 Extract, organize, and save documentation to the project's `artifacts/docs/` directory structure. Works in two modes: session-based (captures knowledge from the current conversation) or input-based (documents a topic the user describes). Use this skill whenever the user asks to document something, save knowledge from a session, or create a reference doc. Do not use this skill for general file-writing tasks unrelated to documentation.
 

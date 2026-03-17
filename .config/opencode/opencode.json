@@ -3,11 +3,15 @@
     "opencode-antigravity-auth@1.6.0",
     "opencode-openai-codex-auth",
     "@gotgenes/opencode-agent-identity",
+    "file:///Users/james/.config/opencode/plugins/self-improving-agent",
+    "file:///Users/james/.config/opencode/plugins/terminal-bell",
+    "@tarquinen/opencode-dcp@latest",
   ],
   "agent": {
     "build": {
-      "model": "openai/gpt-5.4",
-      "permission": "allow"
+      "model": "anthropic/claude-sonnet-4-6",
+      "permission": "allow",
+      "color": "error"
     },
     "plan": {
       "model": "anthropic/claude-opus-4-6"
@@ -25,10 +29,10 @@
       "model": "zai-coding-plan/glm-4.7"
     },
     "document-writer": {
-      "model": "anthropic/claude-opus-4-6"
+      "model": "anthropic/claude-sonnet-4-6"
     }
   },
-  "default_agent": "general",
+  "default_agent": "build",
   "provider": {
     "opencode": {
       "name": "OpenCode Zen",

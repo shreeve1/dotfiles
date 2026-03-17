@@ -1,23 +1,9 @@
 ---
 name: dev-build
 description: Use when executing a multi-step implementation plan with dependencies, parallelizable tasks, and progress tracking across waves of work.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-dev-build/SKILL.md
-  original_name: pi-dev-build
 ---
 
 # Execute Implementation Plan
-
-Converted from `/Users/james/.pi/agent/skills/pi-dev-build/SKILL.md`. Imported as `dev-build` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when the user wants to carry out a written implementation plan, especially when the work includes dependencies, multiple task groups, or opportunities for safe parallel execution. Treat the plan system as the source of truth for task readiness and progress, and only parallelize work that is genuinely independent. Do not use this skill for quick one-off edits, simple fixes, or work that does not have a written plan.
 

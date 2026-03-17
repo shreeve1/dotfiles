@@ -1,23 +1,9 @@
 ---
 name: tmux
 description: Remote control tmux sessions for interactive CLIs (python, gdb, etc.) by sending keystrokes and scraping pane output.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/tmux/SKILL.md
-  original_name: tmux
 ---
 
-# tmux Skill
-
-Converted from `/Users/james/.pi/agent/skills/tmux/SKILL.md`. Imported as `tmux` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# tmux
 
 Use tmux as a programmable terminal multiplexer for interactive work. Works on Linux and macOS with stock tmux; avoid custom config by using a private socket.
 

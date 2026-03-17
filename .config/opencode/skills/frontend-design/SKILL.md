@@ -1,23 +1,9 @@
 ---
 name: frontend-design
 description: Design and implement distinctive, production-ready frontend interfaces with strong aesthetic direction. Use when asked to create or restyle web pages, components, or applications (HTML/CSS/JS, React, Vue, etc.).
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/frontend-design/SKILL.md
-  original_name: frontend-design
 ---
 
-# Frontend Design Skill
-
-Converted from `/Users/james/.pi/agent/skills/frontend-design/SKILL.md`. Imported as `frontend-design` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
+# Frontend Design
 
 Design and implement memorable frontend interfaces with a clear, intentional aesthetic. The output must be real, working code — not just mood boards. This skill is about **design thinking + execution**: every visual choice should be rooted in purpose and context.
 

@@ -1,0 +1,967 @@
+{
+  "patterns": {
+    "pat-auto-todowrite-completed-0-todos": {
+      "id": "pat-auto-todowrite-completed-0-todos",
+      "name": "todowrite completed: 0 todos",
+      "source": "auto_tool_outcome",
+      "confidence": 0.65,
+      "applications": 2,
+      "created": "2026-03-17",
+      "category": "workflow-successes",
+      "pattern": "Repeated todowrite successes were observed for \"0 todos\".",
+      "problem": "The same todowrite workflow recurs often enough to preserve as a repeatable approach for \"0 todos\".",
+      "solution": {
+        "summary": "Reuse the established todowrite workflow for \"0 todos\" when the same task appears again."
+      },
+      "quality_rules": [
+        "Prefer the known-good todowrite workflow for \"0 todos\".",
+        "Keep the same scope and ordering when repeating this task."
+      ],
+      "target_skills": [],
+      "auto_generated": true,
+      "signature": "todowrite::completed::0 todos",
+      "evidence": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "0 todos",
+        "first_seen": "2026-03-17T03:00:53.979Z",
+        "last_seen": "2026-03-17T03:37:53.036Z",
+        "latest_event_id": "ep-1a2908ff-ce6b-4cae-9bfe-77a0e34baff4"
+      }
+    },
+    "pat-auto-read-completed-config-opencode-skills-brainstorm-idea-skill-": {
+      "id": "pat-auto-read-completed-config-opencode-skills-brainstorm-idea-skill-",
+      "name": "read completed: .config/opencode/skills/brainstorm-idea/SKILL.md",
+      "source": "auto_tool_outcome",
+      "confidence": 0.65,
+      "applications": 2,
+      "created": "2026-03-17",
+      "category": "workflow-successes",
+      "pattern": "Repeated read successes were observed for \".config/opencode/skills/brainstorm-idea/SKILL.md\".",
+      "problem": "The same read workflow recurs often enough to preserve as a repeatable approach for \".config/opencode/skills/brainstorm-idea/SKILL.md\".",
+      "solution": {
+        "summary": "Reuse the established read workflow for \".config/opencode/skills/brainstorm-idea/SKILL.md\" when the same task appears again."
+      },
+      "quality_rules": [
+        "Prefer the known-good read workflow for \".config/opencode/skills/brainstorm-idea/SKILL.md\".",
+        "Keep the same scope and ordering when repeating this task."
+      ],
+      "target_skills": [],
+      "auto_generated": true,
+      "signature": "read::completed::.config/opencode/skills/brainstorm-idea/SKILL.md",
+      "evidence": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/brainstorm-idea/SKILL.md",
+        "first_seen": "2026-03-17T02:56:45.272Z",
+        "last_seen": "2026-03-17T04:11:53.788Z",
+        "latest_event_id": "ep-4d980fbe-576f-4220-a491-b3777cf3bcb1"
+      }
+    },
+    "pat-auto-read-completed-config-opencode-skills-dev-prd-skill-md": {
+      "id": "pat-auto-read-completed-config-opencode-skills-dev-prd-skill-md",
+      "name": "read completed: .config/opencode/skills/dev-prd/SKILL.md",
+      "source": "auto_tool_outcome",
+      "confidence": 0.65,
+      "applications": 2,
+      "created": "2026-03-17",
+      "category": "workflow-successes",
+      "pattern": "Repeated read successes were observed for \".config/opencode/skills/dev-prd/SKILL.md\".",
+      "problem": "The same read workflow recurs often enough to preserve as a repeatable approach for \".config/opencode/skills/dev-prd/SKILL.md\".",
+      "solution": {
+        "summary": "Reuse the established read workflow for \".config/opencode/skills/dev-prd/SKILL.md\" when the same task appears again."
+      },
+      "quality_rules": [
+        "Prefer the known-good read workflow for \".config/opencode/skills/dev-prd/SKILL.md\".",
+        "Keep the same scope and ordering when repeating this task."
+      ],
+      "target_skills": [],
+      "auto_generated": true,
+      "signature": "read::completed::.config/opencode/skills/dev-prd/SKILL.md",
+      "evidence": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-prd/SKILL.md",
+        "first_seen": "2026-03-17T04:11:56.295Z",
+        "last_seen": "2026-03-17T04:17:00.169Z",
+        "latest_event_id": "ep-d88cb661-443d-440b-be2f-5bfbb11f33b0"
+      }
+    },
+    "pat-auto-edit-completed-config-opencode-skills-design-workflow-skill-": {
+      "id": "pat-auto-edit-completed-config-opencode-skills-design-workflow-skill-",
+      "name": "edit completed: .config/opencode/skills/design-workflow/SKILL.md",
+      "source": "auto_tool_outcome",
+      "confidence": 0.65,
+      "applications": 2,
+      "created": "2026-03-17",
+      "category": "workflow-successes",
+      "pattern": "Repeated edit successes were observed for \".config/opencode/skills/design-workflow/SKILL.md\".",
+      "problem": "The same edit workflow recurs often enough to preserve as a repeatable approach for \".config/opencode/skills/design-workflow/SKILL.md\".",
+      "solution": {
+        "summary": "Reuse the established edit workflow for \".config/opencode/skills/design-workflow/SKILL.md\" when the same task appears again."
+      },
+      "quality_rules": [
+        "Prefer the known-good edit workflow for \".config/opencode/skills/design-workflow/SKILL.md\".",
+        "Keep the same scope and ordering when repeating this task."
+      ],
+      "target_skills": [],
+      "auto_generated": true,
+      "signature": "edit::completed::.config/opencode/skills/design-workflow/SKILL.md",
+      "evidence": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/design-workflow/SKILL.md",
+        "first_seen": "2026-03-17T04:15:48.839Z",
+        "last_seen": "2026-03-17T04:17:25.924Z",
+        "latest_event_id": "ep-8c3b1140-4744-4121-b68c-404f0d03091e"
+      }
+    },
+    "pat-auto-edit-completed-config-opencode-skills-ralph-loop-skill-md": {
+      "id": "pat-auto-edit-completed-config-opencode-skills-ralph-loop-skill-md",
+      "name": "edit completed: .config/opencode/skills/ralph-loop/SKILL.md",
+      "source": "auto_tool_outcome",
+      "confidence": 0.65,
+      "applications": 2,
+      "created": "2026-03-17",
+      "category": "workflow-successes",
+      "pattern": "Repeated edit successes were observed for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+      "problem": "The same edit workflow recurs often enough to preserve as a repeatable approach for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+      "solution": {
+        "summary": "Reuse the established edit workflow for \".config/opencode/skills/ralph-loop/SKILL.md\" when the same task appears again."
+      },
+      "quality_rules": [
+        "Prefer the known-good edit workflow for \".config/opencode/skills/ralph-loop/SKILL.md\".",
+        "Keep the same scope and ordering when repeating this task."
+      ],
+      "target_skills": [],
+      "auto_generated": true,
+      "signature": "edit::completed::.config/opencode/skills/ralph-loop/SKILL.md",
+      "evidence": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/ralph-loop/SKILL.md",
+        "first_seen": "2026-03-17T04:16:37.745Z",
+        "last_seen": "2026-03-17T04:17:31.466Z",
+        "latest_event_id": "ep-dbc85a2a-541b-45c3-afb6-2023b9288e41"
+      }
+    }
+  },
+  "metadata": {
+    "schema_version": 1,
+    "created_by": "self-improving-agent-plugin",
+    "updated_at": "2026-03-17T04:18:22.533Z",
+    "auto_patterns": {
+      "read::completed::.config/opencode/skills/brainstorm-idea/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/brainstorm-idea/SKILL.md",
+        "first_seen": "2026-03-17T02:56:45.272Z",
+        "last_seen": "2026-03-17T04:11:53.788Z",
+        "occurrences": 2,
+        "latest_event_id": "ep-4d980fbe-576f-4220-a491-b3777cf3bcb1"
+      },
+      "task::completed::Read all OpenCode skill files": {
+        "tool": "task",
+        "status": "completed",
+        "summary": "Read all OpenCode skill files",
+        "first_seen": "2026-03-17T03:00:17.099Z",
+        "last_seen": "2026-03-17T03:00:17.099Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-81425d37-2eac-4685-8758-68a09a296511"
+      },
+      "todowrite::completed::2 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "2 todos",
+        "first_seen": "2026-03-17T03:00:23.192Z",
+        "last_seen": "2026-03-17T03:00:23.192Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-68a34ad3-349d-45a3-a903-4fdec58b46c6"
+      },
+      "todowrite::completed::0 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "0 todos",
+        "first_seen": "2026-03-17T03:00:53.979Z",
+        "last_seen": "2026-03-17T03:37:53.036Z",
+        "occurrences": 2,
+        "latest_event_id": "ep-1a2908ff-ce6b-4cae-9bfe-77a0e34baff4"
+      },
+      "todowrite::completed::4 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "4 todos",
+        "first_seen": "2026-03-17T03:34:49.589Z",
+        "last_seen": "2026-03-17T03:34:49.589Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-dff51b62-6be8-4f10-a698-80231fbde921"
+      },
+      "read::completed::.config/opencode/skills/restart/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/restart/SKILL.md",
+        "first_seen": "2026-03-17T03:35:09.968Z",
+        "last_seen": "2026-03-17T03:35:09.968Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-0b2dfe06-d669-43b0-ba99-e14267b8c36a"
+      },
+      "read::completed::.config/opencode/skills/commit/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/commit/SKILL.md",
+        "first_seen": "2026-03-17T03:35:10.743Z",
+        "last_seen": "2026-03-17T03:35:10.743Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-cd47eee1-f544-407f-8363-f7e039dfce63"
+      },
+      "read::completed::.config/opencode/skills/init/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/init/SKILL.md",
+        "first_seen": "2026-03-17T03:35:10.897Z",
+        "last_seen": "2026-03-17T03:35:10.897Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b5bcf52c-9a65-41e9-ba79-ba686e0a3639"
+      },
+      "read::completed::.config/opencode/skills/question/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/question/SKILL.md",
+        "first_seen": "2026-03-17T03:35:11.336Z",
+        "last_seen": "2026-03-17T03:35:11.336Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-0cd476be-3374-430e-8af2-752326a5f6aa"
+      },
+      "read::completed::.config/opencode/skills/continue/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/continue/SKILL.md",
+        "first_seen": "2026-03-17T03:35:11.771Z",
+        "last_seen": "2026-03-17T03:35:11.771Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d467f9c4-5568-48c1-a9b2-ba5e440c07e1"
+      },
+      "read::completed::.config/opencode/skills/interview/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/interview/SKILL.md",
+        "first_seen": "2026-03-17T03:35:12.247Z",
+        "last_seen": "2026-03-17T03:35:12.247Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-5250e48c-f00a-4009-994f-7d882054b196"
+      },
+      "read::completed::.config/opencode/skills/loop/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/loop/SKILL.md",
+        "first_seen": "2026-03-17T03:35:12.715Z",
+        "last_seen": "2026-03-17T03:35:12.715Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b8a1a38b-bd11-4c5b-84e1-337655a5ebff"
+      },
+      "read::completed::.config/opencode/skills/merge/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/merge/SKILL.md",
+        "first_seen": "2026-03-17T03:35:13.104Z",
+        "last_seen": "2026-03-17T03:35:13.104Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-1a60851f-8226-4c01-9c37-12759decdff0"
+      },
+      "read::completed::.config/opencode/skills/prime/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/prime/SKILL.md",
+        "first_seen": "2026-03-17T03:35:13.149Z",
+        "last_seen": "2026-03-17T03:35:13.149Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-72f8db61-a8f2-48b2-b995-b26a726748b9"
+      },
+      "todowrite::completed::3 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "3 todos",
+        "first_seen": "2026-03-17T03:35:18.632Z",
+        "last_seen": "2026-03-17T03:35:18.632Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-66287f13-f241-4b55-8384-e19a9e55cedd"
+      },
+      "bash::success::Check commands directory locations": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Check commands directory locations",
+        "first_seen": "2026-03-17T03:35:27.633Z",
+        "last_seen": "2026-03-17T03:35:27.633Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-913fc02f-e2c2-46e8-b46a-f867a0adf8f1"
+      },
+      "bash::success::Check for commands directories": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Check for commands directories",
+        "first_seen": "2026-03-17T03:35:32.642Z",
+        "last_seen": "2026-03-17T03:35:32.642Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-3e39f4a3-e36f-45f6-931e-66b7ced9dc57"
+      },
+      "bash::success::Create commands dir in dotfiles": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Create commands dir in dotfiles",
+        "first_seen": "2026-03-17T03:35:37.041Z",
+        "last_seen": "2026-03-17T03:35:37.041Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-de162f60-4c0f-4009-baa5-56129be88fb2"
+      },
+      "write::completed::.config/opencode/commands/restart.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/restart.md",
+        "first_seen": "2026-03-17T03:35:55.847Z",
+        "last_seen": "2026-03-17T03:35:55.847Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-16c274b0-bcf4-4125-a7ec-5f23eab42daa"
+      },
+      "write::completed::.config/opencode/commands/commit.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/commit.md",
+        "first_seen": "2026-03-17T03:36:13.014Z",
+        "last_seen": "2026-03-17T03:36:13.014Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d086bb95-1076-45dc-ba78-6c6e68526565"
+      },
+      "write::completed::.config/opencode/commands/init.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/init.md",
+        "first_seen": "2026-03-17T03:36:26.243Z",
+        "last_seen": "2026-03-17T03:36:26.243Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d3ccfccf-8ccc-4ca0-bcaf-b676fdb4314e"
+      },
+      "write::completed::.config/opencode/commands/question.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/question.md",
+        "first_seen": "2026-03-17T03:36:34.861Z",
+        "last_seen": "2026-03-17T03:36:34.861Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-0e3cc58f-4fe6-4801-8852-a7a0798b8cbf"
+      },
+      "write::completed::.config/opencode/commands/continue.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/continue.md",
+        "first_seen": "2026-03-17T03:36:47.181Z",
+        "last_seen": "2026-03-17T03:36:47.181Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8991acd5-1c0e-42b6-9b8f-e35308b9e019"
+      },
+      "write::completed::.config/opencode/commands/interview.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/interview.md",
+        "first_seen": "2026-03-17T03:37:00.690Z",
+        "last_seen": "2026-03-17T03:37:00.690Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b710a4e3-055e-4d9e-a9f3-780f27c7e38d"
+      },
+      "write::completed::.config/opencode/commands/loop.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/loop.md",
+        "first_seen": "2026-03-17T03:37:15.912Z",
+        "last_seen": "2026-03-17T03:37:15.912Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d4553a84-f516-4e6b-b0c4-1349380349fd"
+      },
+      "write::completed::.config/opencode/commands/merge.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/merge.md",
+        "first_seen": "2026-03-17T03:37:30.153Z",
+        "last_seen": "2026-03-17T03:37:30.153Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8f463b93-4dd9-4e1b-ba77-550a0937a791"
+      },
+      "write::completed::.config/opencode/commands/prime.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/prime.md",
+        "first_seen": "2026-03-17T03:37:38.199Z",
+        "last_seen": "2026-03-17T03:37:38.199Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-4fba1cee-77ad-41ca-aec7-f0ce9be4cc7f"
+      },
+      "bash::success::Symlink commands dir to live path": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Symlink commands dir to live path",
+        "first_seen": "2026-03-17T03:37:42.508Z",
+        "last_seen": "2026-03-17T03:37:42.508Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-2a87a835-4155-441b-98bd-c7f802519d81"
+      },
+      "bash::success::Verify commands symlink and contents": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Verify commands symlink and contents",
+        "first_seen": "2026-03-17T03:37:47.090Z",
+        "last_seen": "2026-03-17T03:37:47.090Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-9900cb05-125d-477b-a080-88e68ea5a963"
+      },
+      "bash::success::Verify repo commands directory": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Verify repo commands directory",
+        "first_seen": "2026-03-17T03:37:48.229Z",
+        "last_seen": "2026-03-17T03:37:48.229Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-f94bd22b-2353-4a65-937b-dd699ff9d840"
+      },
+      "bash::success::List current skills directory": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "List current skills directory",
+        "first_seen": "2026-03-17T04:08:57.024Z",
+        "last_seen": "2026-03-17T04:08:57.024Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-c4f9e6e0-8cc2-4397-af7a-d4f44a0e2978"
+      },
+      "bash::success::Remove converted skill directories": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Remove converted skill directories",
+        "first_seen": "2026-03-17T04:09:00.779Z",
+        "last_seen": "2026-03-17T04:09:00.779Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8ca5d41e-d944-4f0d-80ea-4225f9e5dfac"
+      },
+      "bash::success::Verify remaining skills": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Verify remaining skills",
+        "first_seen": "2026-03-17T04:09:03.768Z",
+        "last_seen": "2026-03-17T04:09:03.768Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-2eda3d22-aa86-4229-95aa-e8c3b759b673"
+      },
+      "bash::success::Show git status after removals": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Show git status after removals",
+        "first_seen": "2026-03-17T04:09:04.477Z",
+        "last_seen": "2026-03-17T04:09:04.477Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-dbbb8674-33d3-4a42-a73d-a9b00a3f89c1"
+      },
+      "bash::success::List remaining skills": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "List remaining skills",
+        "first_seen": "2026-03-17T04:11:49.555Z",
+        "last_seen": "2026-03-17T04:11:49.555Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-c8d1a46c-a276-4d62-a29b-dd47be7319a1"
+      },
+      "read::completed::.config/opencode/skills/api-docs-fetcher/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/api-docs-fetcher/SKILL.md",
+        "first_seen": "2026-03-17T04:11:52.919Z",
+        "last_seen": "2026-03-17T04:11:52.919Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-e8049c9a-221a-49b4-a413-783e2319d08b"
+      },
+      "read::completed::.config/opencode/skills/brainstorm/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/brainstorm/SKILL.md",
+        "first_seen": "2026-03-17T04:11:53.361Z",
+        "last_seen": "2026-03-17T04:11:53.361Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b6010a57-a4aa-45cc-9958-2edad5100b45"
+      },
+      "read::completed::.config/opencode/skills/chrome-devtools/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/chrome-devtools/SKILL.md",
+        "first_seen": "2026-03-17T04:11:54.294Z",
+        "last_seen": "2026-03-17T04:11:54.294Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-68f58306-140d-4cfe-9278-27a10ea6a536"
+      },
+      "read::completed::.config/opencode/skills/create-skill/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/create-skill/SKILL.md",
+        "first_seen": "2026-03-17T04:11:54.600Z",
+        "last_seen": "2026-03-17T04:11:54.600Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8d91bcc3-c453-47cc-98bb-895c9f656d59"
+      },
+      "read::completed::.config/opencode/skills/dev-build/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-build/SKILL.md",
+        "first_seen": "2026-03-17T04:11:55.009Z",
+        "last_seen": "2026-03-17T04:11:55.009Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-155de040-302c-4fb7-957e-704025f2f373"
+      },
+      "read::completed::.config/opencode/skills/dev-investigate/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-investigate/SKILL.md",
+        "first_seen": "2026-03-17T04:11:55.442Z",
+        "last_seen": "2026-03-17T04:11:55.442Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-f327ce25-5987-4637-a80a-4a5fe16f0ac9"
+      },
+      "read::completed::.config/opencode/skills/dev-plan/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-plan/SKILL.md",
+        "first_seen": "2026-03-17T04:11:55.873Z",
+        "last_seen": "2026-03-17T04:11:55.873Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-9c24af86-d94d-4e66-8483-fd7497ccb15f"
+      },
+      "read::completed::.config/opencode/skills/dev-prd/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-prd/SKILL.md",
+        "first_seen": "2026-03-17T04:11:56.295Z",
+        "last_seen": "2026-03-17T04:17:00.169Z",
+        "occurrences": 2,
+        "latest_event_id": "ep-d88cb661-443d-440b-be2f-5bfbb11f33b0"
+      },
+      "read::completed::.config/opencode/skills/dev-test/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-test/SKILL.md",
+        "first_seen": "2026-03-17T04:11:56.714Z",
+        "last_seen": "2026-03-17T04:11:56.714Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-128c1fbc-2f84-40a0-a03f-3da8b9686cbd"
+      },
+      "read::completed::.config/opencode/skills/dev-validate/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-validate/SKILL.md",
+        "first_seen": "2026-03-17T04:11:57.460Z",
+        "last_seen": "2026-03-17T04:11:57.460Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-7dcc1055-abce-49e5-8d1d-eb9202c5fce1"
+      },
+      "read::completed::.config/opencode/skills/document/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/document/SKILL.md",
+        "first_seen": "2026-03-17T04:11:57.585Z",
+        "last_seen": "2026-03-17T04:11:57.585Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-e5bdf68f-aa9a-4299-a0e2-de71c7dd149a"
+      },
+      "read::completed::.config/opencode/skills/dotfiles/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dotfiles/SKILL.md",
+        "first_seen": "2026-03-17T04:11:57.814Z",
+        "last_seen": "2026-03-17T04:11:57.814Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-e7809872-ee63-4bb0-984d-e694e9488987"
+      },
+      "read::completed::.config/opencode/skills/frontend-design/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/frontend-design/SKILL.md",
+        "first_seen": "2026-03-17T04:12:02.605Z",
+        "last_seen": "2026-03-17T04:12:02.605Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-36b2e101-5801-400a-98af-25d33a144546"
+      },
+      "read::completed::.config/opencode/skills/google-workspace/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/google-workspace/SKILL.md",
+        "first_seen": "2026-03-17T04:12:03.119Z",
+        "last_seen": "2026-03-17T04:12:03.119Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-0c04bf69-6738-495c-9725-d07cd98af2cd"
+      },
+      "read::completed::.config/opencode/skills/mem/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/mem/SKILL.md",
+        "first_seen": "2026-03-17T04:12:03.516Z",
+        "last_seen": "2026-03-17T04:12:03.516Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b8590a91-2c8f-4d9d-a1b4-05e0a4efab82"
+      },
+      "read::completed::.config/opencode/skills/mermaid/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/mermaid/SKILL.md",
+        "first_seen": "2026-03-17T04:12:03.927Z",
+        "last_seen": "2026-03-17T04:12:03.927Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-c2783811-6b7f-465a-a5ab-ca7415ae704a"
+      },
+      "read::completed::.config/opencode/skills/metaprompt-opencode/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/metaprompt-opencode/SKILL.md",
+        "first_seen": "2026-03-17T04:12:04.386Z",
+        "last_seen": "2026-03-17T04:12:04.386Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-4b8f1ac6-96d6-4ebd-ab2e-34e74b9808a8"
+      },
+      "read::completed::.config/opencode/skills/npm-audit-cron/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/npm-audit-cron/SKILL.md",
+        "first_seen": "2026-03-17T04:12:05.190Z",
+        "last_seen": "2026-03-17T04:12:05.190Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-84961ac1-5f9d-4b86-a017-9cf2cbeb9445"
+      },
+      "read::completed::.config/opencode/skills/playwright-browser/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/playwright-browser/SKILL.md",
+        "first_seen": "2026-03-17T04:12:05.673Z",
+        "last_seen": "2026-03-17T04:12:05.673Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-30a4c42c-37b0-4b7c-bc18-17ce20f3c4ef"
+      },
+      "read::completed::.config/opencode/skills/ralph-loop/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/ralph-loop/SKILL.md",
+        "first_seen": "2026-03-17T04:12:06.068Z",
+        "last_seen": "2026-03-17T04:12:06.068Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-ea66f75b-218f-419c-b29d-2e5c5355b056"
+      },
+      "read::completed::.config/opencode/skills/save/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/save/SKILL.md",
+        "first_seen": "2026-03-17T04:12:06.489Z",
+        "last_seen": "2026-03-17T04:12:06.489Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-1dbda9fc-2f32-484f-8cdd-8fcb877e63dc"
+      },
+      "read::completed::.config/opencode/skills/self-improving-agent/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/self-improving-agent/SKILL.md",
+        "first_seen": "2026-03-17T04:12:07.316Z",
+        "last_seen": "2026-03-17T04:12:07.316Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-3f0181c3-b20b-48f7-b314-8556cb2b8107"
+      },
+      "read::completed::.config/opencode/skills/tmux/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/tmux/SKILL.md",
+        "first_seen": "2026-03-17T04:12:07.732Z",
+        "last_seen": "2026-03-17T04:12:07.732Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-5ce8350b-9203-4329-aed2-2395c913c31c"
+      },
+      "read::completed::.config/opencode/skills/ui-review/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/ui-review/SKILL.md",
+        "first_seen": "2026-03-17T04:12:08.153Z",
+        "last_seen": "2026-03-17T04:12:08.153Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-6e06341f-acea-43bd-9c53-955a91631c59"
+      },
+      "read::completed::.config/opencode/skills/web-browser/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/web-browser/SKILL.md",
+        "first_seen": "2026-03-17T04:12:08.529Z",
+        "last_seen": "2026-03-17T04:12:08.529Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-04570f47-5d39-4a33-8109-a1087f15fb83"
+      },
+      "read::completed::.config/opencode/skills/worktree/SKILL.md": {
+        "tool": "read",
+        "status": "completed",
+        "summary": ".config/opencode/skills/worktree/SKILL.md",
+        "first_seen": "2026-03-17T04:12:08.939Z",
+        "last_seen": "2026-03-17T04:12:08.939Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-45769bf7-4afe-4eb7-b517-565d4252c96b"
+      },
+      "todowrite::completed::8 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "8 todos",
+        "first_seen": "2026-03-17T04:15:16.463Z",
+        "last_seen": "2026-03-17T04:15:16.463Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-6e62e59a-6a6e-4614-a513-1abd42f78d7c"
+      },
+      "edit::completed::.config/opencode/skills/api-docs-fetcher/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/api-docs-fetcher/SKILL.md",
+        "first_seen": "2026-03-17T04:15:31.300Z",
+        "last_seen": "2026-03-17T04:15:31.300Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-9c944e58-4bcf-40f3-8aca-bc2eb69af5e6"
+      },
+      "edit::completed::.config/opencode/skills/brainstorm/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/brainstorm/SKILL.md",
+        "first_seen": "2026-03-17T04:15:35.485Z",
+        "last_seen": "2026-03-17T04:15:35.485Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-857c7e3b-823b-4d2e-bb5c-6cb1d678b030"
+      },
+      "edit::completed::.config/opencode/skills/brainstorm-idea/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/brainstorm-idea/SKILL.md",
+        "first_seen": "2026-03-17T04:15:40.353Z",
+        "last_seen": "2026-03-17T04:15:40.353Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8a7936d0-2143-48b7-8c70-ea8e96d4fcca"
+      },
+      "edit::completed::.config/opencode/skills/create-skill/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/create-skill/SKILL.md",
+        "first_seen": "2026-03-17T04:15:44.435Z",
+        "last_seen": "2026-03-17T04:15:44.435Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-cb3913f2-a2d9-492a-ad1e-9a1a5308907e"
+      },
+      "edit::completed::.config/opencode/skills/design-workflow/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/design-workflow/SKILL.md",
+        "first_seen": "2026-03-17T04:15:48.839Z",
+        "last_seen": "2026-03-17T04:17:25.924Z",
+        "occurrences": 2,
+        "latest_event_id": "ep-8c3b1140-4744-4121-b68c-404f0d03091e"
+      },
+      "edit::completed::.config/opencode/skills/dev-build/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-build/SKILL.md",
+        "first_seen": "2026-03-17T04:15:52.776Z",
+        "last_seen": "2026-03-17T04:15:52.776Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-ac155040-d01f-4cd4-b358-e60461db9f65"
+      },
+      "edit::completed::.config/opencode/skills/dev-investigate/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-investigate/SKILL.md",
+        "first_seen": "2026-03-17T04:15:56.097Z",
+        "last_seen": "2026-03-17T04:15:56.097Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-1a031214-5d90-409c-8fe7-8de2032b73e2"
+      },
+      "edit::completed::.config/opencode/skills/dev-plan/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-plan/SKILL.md",
+        "first_seen": "2026-03-17T04:16:00.348Z",
+        "last_seen": "2026-03-17T04:16:00.348Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-43dc062a-ddb8-44a7-9a2b-4bdc06e8b932"
+      },
+      "edit::error::edit": {
+        "tool": "edit",
+        "status": "error",
+        "summary": "edit",
+        "first_seen": "2026-03-17T04:16:07.473Z",
+        "last_seen": "2026-03-17T04:16:07.473Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-604a7e1d-f459-4997-82f3-ee517bbe0e99"
+      },
+      "edit::completed::.config/opencode/skills/dev-test/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-test/SKILL.md",
+        "first_seen": "2026-03-17T04:16:11.059Z",
+        "last_seen": "2026-03-17T04:16:11.059Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-db90ba35-9f9a-4225-a826-a68adfb1096a"
+      },
+      "edit::completed::.config/opencode/skills/dev-validate/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-validate/SKILL.md",
+        "first_seen": "2026-03-17T04:16:14.926Z",
+        "last_seen": "2026-03-17T04:16:14.926Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-68be9a14-1da6-4a36-b4fa-f46d2a482d37"
+      },
+      "edit::completed::.config/opencode/skills/document/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/document/SKILL.md",
+        "first_seen": "2026-03-17T04:16:19.004Z",
+        "last_seen": "2026-03-17T04:16:19.004Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-685c9473-945c-467b-aa04-b10aed5694a6"
+      },
+      "edit::completed::.config/opencode/skills/frontend-design/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/frontend-design/SKILL.md",
+        "first_seen": "2026-03-17T04:16:23.855Z",
+        "last_seen": "2026-03-17T04:16:23.855Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-42f2a62b-d849-4b58-aa64-a659a9ea93c7"
+      },
+      "edit::completed::.config/opencode/skills/google-workspace/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/google-workspace/SKILL.md",
+        "first_seen": "2026-03-17T04:16:28.284Z",
+        "last_seen": "2026-03-17T04:16:28.284Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-8e2e11b3-c4db-4cb8-b06e-7983cf67cd68"
+      },
+      "edit::completed::.config/opencode/skills/mem/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/mem/SKILL.md",
+        "first_seen": "2026-03-17T04:16:32.342Z",
+        "last_seen": "2026-03-17T04:16:32.342Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-7164fb46-12c7-4c57-aeae-f965ae28515b"
+      },
+      "edit::completed::.config/opencode/skills/ralph-loop/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/ralph-loop/SKILL.md",
+        "first_seen": "2026-03-17T04:16:37.745Z",
+        "last_seen": "2026-03-17T04:17:31.466Z",
+        "occurrences": 2,
+        "latest_event_id": "ep-dbc85a2a-541b-45c3-afb6-2023b9288e41"
+      },
+      "edit::completed::.config/opencode/skills/tmux/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/tmux/SKILL.md",
+        "first_seen": "2026-03-17T04:16:42.088Z",
+        "last_seen": "2026-03-17T04:16:42.088Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-c804bb18-e2ec-449c-b274-e856154ebad0"
+      },
+      "edit::completed::.config/opencode/skills/ui-review/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/ui-review/SKILL.md",
+        "first_seen": "2026-03-17T04:16:46.319Z",
+        "last_seen": "2026-03-17T04:16:46.319Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-892470d3-d130-4623-a1de-389d544918d0"
+      },
+      "edit::completed::.config/opencode/skills/worktree/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/worktree/SKILL.md",
+        "first_seen": "2026-03-17T04:16:51.124Z",
+        "last_seen": "2026-03-17T04:16:51.124Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-336b6ec4-7dd0-4c88-8d2b-556afc497221"
+      },
+      "edit::completed::.config/opencode/skills/web-browser/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/web-browser/SKILL.md",
+        "first_seen": "2026-03-17T04:16:56.640Z",
+        "last_seen": "2026-03-17T04:16:56.640Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-e54fe8ce-75c2-4bc3-9210-99c801409294"
+      },
+      "edit::completed::.config/opencode/skills/dev-prd/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/dev-prd/SKILL.md",
+        "first_seen": "2026-03-17T04:17:09.014Z",
+        "last_seen": "2026-03-17T04:17:09.014Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-22c2b3e0-4c52-450d-8ff8-68bc1085bd8a"
+      },
+      "todowrite::completed::6 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "6 todos",
+        "first_seen": "2026-03-17T04:17:15.064Z",
+        "last_seen": "2026-03-17T04:17:15.064Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-746f7ee9-1166-44e0-8492-691a8140cd3f"
+      },
+      "edit::completed::.config/opencode/skills/mermaid/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/mermaid/SKILL.md",
+        "first_seen": "2026-03-17T04:17:33.583Z",
+        "last_seen": "2026-03-17T04:17:33.583Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-e11e15dc-a084-4bb0-995f-40ce535856c5"
+      },
+      "edit::completed::.config/opencode/skills/save/SKILL.md": {
+        "tool": "edit",
+        "status": "completed",
+        "summary": ".config/opencode/skills/save/SKILL.md",
+        "first_seen": "2026-03-17T04:17:39.531Z",
+        "last_seen": "2026-03-17T04:17:39.531Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-9268b84a-d6d2-444b-b006-6206f947cc9f"
+      },
+      "write::completed::.config/opencode/commands/create-skill.md": {
+        "tool": "write",
+        "status": "completed",
+        "summary": ".config/opencode/commands/create-skill.md",
+        "first_seen": "2026-03-17T04:18:06.783Z",
+        "last_seen": "2026-03-17T04:18:06.783Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d9d3dedc-6117-4cb8-93d5-ea2c1ddfd274"
+      },
+      "bash::success::Remove metaprompt-opencode skill directory": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Remove metaprompt-opencode skill directory",
+        "first_seen": "2026-03-17T04:18:10.656Z",
+        "last_seen": "2026-03-17T04:18:10.656Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-b12d575a-3bfd-48a1-895a-df5ca6603f29"
+      },
+      "todowrite::completed::1 todos": {
+        "tool": "todowrite",
+        "status": "completed",
+        "summary": "1 todos",
+        "first_seen": "2026-03-17T04:18:18.546Z",
+        "last_seen": "2026-03-17T04:18:18.546Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-d08df7ef-1223-4097-a707-77d683f2bc88"
+      },
+      "bash::success::Check status and recent commits": {
+        "tool": "bash",
+        "status": "success",
+        "summary": "Check status and recent commits",
+        "first_seen": "2026-03-17T04:18:22.533Z",
+        "last_seen": "2026-03-17T04:18:22.533Z",
+        "occurrences": 1,
+        "latest_event_id": "ep-c015ba3c-7ab4-4133-90fe-a2e7f6498342"
+      }
+    },
+    "auto_pattern_threshold": 2
+  }
+}

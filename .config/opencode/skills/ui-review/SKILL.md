@@ -1,23 +1,9 @@
 ---
 name: ui-review
 description: Review one or more web pages with screenshot-based visual analysis. Use when the user wants UI feedback, responsive layout review, visual QA, screenshot capture, or design critique for localhost pages, app routes, or full URLs.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/ui-review/SKILL.md
-  original_name: ui-review
 ---
 
 # UI Review
-
-Converted from `/Users/james/.pi/agent/skills/ui-review/SKILL.md`. Imported as `ui-review` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when the user wants visual feedback on a page or flow. It is for screenshot-driven review and responsive checks, not deep product implementation. The output should be a saved review artifact plus a concise terminal summary.
 

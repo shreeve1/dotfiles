@@ -1,25 +1,11 @@
 ---
 name: save
 description: Persist important session or project knowledge into local documentation or saved session artifacts. Use when the user asks to remember something for later, preserve conventions, or capture reusable notes in an OpenCode-friendly way.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-save/SKILL.md
-  original_name: pi-save
 ---
 
-# OpenCode Memory — Save to Knowledge Base
+# Save to Knowledge Base
 
-Converted from `/Users/james/.pi/agent/skills/pi-save/SKILL.md`. Imported as `save` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
-
-Use this skill whenever you need to persist information for future sessions. The knowledge base is a local vector store powered by Ollama (`nomic-embed-text`). Content saved here is searchable via `grep`/`read` over local notes in any future session.
+Use this skill whenever you need to persist information for future sessions. Content saved here is written to local files and searchable via `grep`/`read` in any future session.
 
 ---
 

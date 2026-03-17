@@ -1,23 +1,9 @@
 ---
 name: dev-validate
 description: Use when validating an implementation plan against the current codebase before execution, especially to catch infeasible steps, missing prerequisites, breaking changes, database risks, or poor plan-to-repo fit
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-dev-validate/SKILL.md
-  original_name: pi-dev-validate
 ---
 
 # Validate Plan
-
-Converted from `/Users/james/.pi/agent/skills/pi-dev-validate/SKILL.md`. Imported as `dev-validate` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill when validating implementation plans before execution—specifically when the user asks to validate a plan, check a plan for risks, verify a plan is safe to build, or mentions validation of a spec or plan file.
 

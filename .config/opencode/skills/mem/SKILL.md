@@ -1,23 +1,9 @@
 ---
 name: mem
 description: Manage long-lived local memory artifacts for projects and sessions. Use when the user wants to browse, save, checkpoint, clean up, or resume structured notes across OpenCode sessions using local files or helper CLIs.
-compatibility: adapted-for-opencode
-metadata:
-  source: /Users/james/.pi/agent/skills/pi-mem/SKILL.md
-  original_name: pi-mem
 ---
 
 # OpenCode Memory Skill (`mem`)
-
-Converted from `/Users/james/.pi/agent/skills/pi-mem/SKILL.md`. Imported as `mem` for OpenCode.
-
-## Compatibility Notes
-
-- This is an imported OpenCode-adapted copy of a skill from `~/.opencode/agent/skills/`.
-- Tool names were rewritten to the closest OpenCode equivalents where possible.
-- If this skill mentions pi-only capabilities such as persistent vector memory, background subagents, or plan-state helpers, use local files, `task`, `todowrite`, and `read`/`grep` as the closest OpenCode-native substitutes.
-
----
 
 Use this skill to manage long-lived memory for OpenCode sessions: project sessions, checkpoints, and global learnings.  
 Use it whenever the user invokes `/mem` commands or explicitly asks to save, search, clean up, or resume across-session memory.
