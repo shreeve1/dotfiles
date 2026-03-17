@@ -1,317 +1,163 @@
 ---
 name: create-skill
-description: Create new OpenCode skills or convert existing skills into OpenCode format. Use when the user asks to create a skill, improve a skill, convert a skill, or capture a workflow as a reusable SKILL.md file.
+description: Create new OpenCode skills, improve existing skills, or convert Claude Code skills into OpenCode format. Use when the user wants to write a skill from scratch, iterate on an existing skill, run test cases to validate a skill works, optimize a skill's description for better triggering, or convert a .claude/skills or .claude/commands file into OpenCode format.
 ---
 
 # Create Skill
 
-You are a skill architect for OpenCode. Your job is to design, write, and iteratively improve `SKILL.md` files that encode reusable workflows or knowledge domains.
+A skill for creating and iteratively improving OpenCode skills.
 
-A skill is **passive content injected into the model's context on demand**. At startup, OpenCode scans configured skill locations and puts names + descriptions in the system prompt. When a task matches, the agent uses `read` to load the full SKILL.md body. The agent then follows the instructions, using relative paths to reference bundled scripts and assets.
-
-Figure out where the user is in the process and help them progress:
-- Want a new skill from scratch → interview, draft, test, iterate
-- Have an existing workflow to capture → extract from conversation, draft, refine
-- Have a draft to improve → go straight to testing and iteration
-- Just want a quick skill → that's fine too, skip the eval loop
-
----
-
-## OpenCode Skill System Reference
-
-### Skill locations
-
-- **Global** (all sessions): `~/.config/opencode/skills/`
-- **Project** (one project): `.opencode/skills/`
-- Discovery: direct `.md` files in skills root, or recursive `SKILL.md` under subdirectories
-- Skills are discovered by name from configured skill directories
-
-### Skill structure
-
-A skill is a directory with a `SKILL.md` file. Everything else is freeform:
-
-```
-my-skill/
-├── SKILL.md              # Required: frontmatter + instructions
-├── scripts/              # Optional: helper scripts the skill invokes
-│   └── process.sh
-├── references/           # Optional: detailed docs loaded on-demand
-│   └── api-reference.md
-└── assets/               # Optional: templates, files used in output
-    └── template.json
-```
-
-Use relative paths from the skill directory to reference bundled resources:
-```markdown
-See [the reference guide](references/REFERENCE.md) for details.
-Run `./scripts/process.sh <input>` to process.
-```
-
-### Frontmatter
-
-```yaml
----
-name: skill-name          # Required. Lowercase a-z, 0-9, hyphens. Must match parent dir. Max 64 chars.
-description: "..."        # Required. Max 1024 chars. What it does + when to use it.
----
-```
-
-Skills with missing description are **not loaded**. Unknown frontmatter fields are ignored.
-
-### Available tools in every OpenCode session
-
-| Name | Purpose |
-|---|---|
-| `question` | Ask the user a question (type: input/confirm/select/editor) |
-| `bash` | Run shell commands |
-| `read` | Read file contents (text or images) |
-| `apply_patch` | Surgical file edits by replacing exact text |
-| `apply_patch` | Create or overwrite a file |
-| `webfetch` | Fetch a URL and return readable content |
-| `google_search` | Search the web and return results |
-| `grep`/`read` over local notes | Search the persistent knowledge base |
-| `document` or local notes | Save content to the persistent knowledge base |
-| `task` | Spawn subagents (single, parallel, or chain modes) |
-| `task` | Launch a focused sub-agent task |
-| `task` | Launch or resume a focused sub-agent task when supported by workflow |
-| `task` | List all active/finished background subagents |
-| `task` | Manage delegated work as one-shot task executions |
-| `todowrite` | Create or update the session todo list |
-| `todowrite` | Read the current session todo list |
-| `read` | Read plan.md for the current implementation plan |
-| `todowrite` or plan edits | Mark a plan task as completed |
-| `read` plus manual progress parsing | Get current plan progress |
-| `ts_diagnostics` | Get TypeScript diagnostics |
-| `ts_hover` | Get type info at a position |
-| `ts_definition` | Find symbol definition |
-| `ts_references` | Find all references to a symbol |
-
-### Subagent tool
-
-Modes:
-- **single**: `{ "agent": "worker", "task": "..." }`
-- **parallel**: `{ "tasks": [{ "agent": "worker", "task": "..." }, ...] }`
-- **chain**: sequential array where each step can reference `{previous}` output
-
-Agent scope: `"user"` (default, `~/.opencode/agent/agents/`), `"project"` (`.opencode/agents/`), or `"both"`.
-
-### Tool name traps — do NOT use in skills
-
-| Wrong | Correct pi equivalent |
-|---|---|
-| `ask` | `question` |
-| `find` / `grep` | `bash` (with shell `find`/`grep`/`rg`) |
-| `fetch` | `webfetch` |
-| `lsp` / `notebook` / `puppeteer` | Not available — omit |
-| `task` | `task` |
-| `EnterPlanMode` | Not available — omit |
+The core loop is: capture intent → draft the skill → run test cases → evaluate with the user → improve → repeat. Figure out where the user is in this process and jump in from there. If they already have a draft, skip straight to testing. If they just have an idea, start from the beginning. If they just want to vibe without running tests, that's fine too.
 
 ---
 
 ## Phase 1 — Capture Intent
 
-Start by understanding what the user wants. The current conversation might already contain a workflow to capture (e.g., "turn this into a skill"). If so, extract answers from the conversation history first — the tools used, the sequence of steps, corrections made, input/output formats observed.
+Start by understanding what the user wants. The current conversation might already contain a workflow to capture — if so, extract the key steps, tools used, corrections made, and input/output patterns from the history first. Fill gaps with the user before writing anything.
 
 Determine:
-1. **Purpose**: What should this skill enable the model to do?
-2. **Trigger conditions**: When should it activate? What user phrases/contexts?
-3. **Inputs**: What information does the model need?
-4. **Outputs**: What does the skill produce? (files, decisions, reports?)
-5. **Scope**: Global (`~/.opencode/skills/`) or project-level (`.opencode/skills/`)?
 
-If the description is ambiguous, use `question` to resolve before proceeding.
+1. **Purpose** — what should this skill enable the agent to do?
+2. **Trigger conditions** — when should it activate? What user phrases or contexts?
+3. **Output** — what does the skill produce? (files, decisions, reports, actions)
+4. **Scope** — global (`~/.config/opencode/skills/`) or project-level (`.opencode/skills/`)?
+5. **Test cases** — skills with verifiable outputs benefit from test runs; subjective skills often don't need them. Suggest the right default based on skill type.
 
-### Interview and Research
+If this is a **conversion** from Claude Code, locate the source file first:
+- `.claude/skills/<name>/SKILL.md`
+- `.claude/commands/<name>.md`
+- `~/.claude/skills/<name>/SKILL.md`
+- `~/.claude/commands/<name>.md`
 
-Proactively ask about edge cases, input/output formats, example files, success criteria, and dependencies. Don't start writing until you've ironed this out. If web research would help, do it now.
+Read it before proceeding and apply the field mapping in `references/opencode-format.md`.
 
-### Conversion path (when input is an existing file)
-
-If the user provides a file path to an existing skill, read it with `read`, inventory its tools and workflow, triage compatibility against pi's tool table, then convert:
-1. **Keep** `name` and `description` frontmatter
-2. **Drop** unsupported frontmatter fields (`model`, `hooks`, etc.) — pi ignores unknown fields
-3. **Rewrite tool names** using the mapping tables above
-4. **Replace unsupported tools** with a clearly marked note
+Ask probing questions about edge cases, input/output formats, success criteria, and dependencies. Don't write the first draft until the scope is clear enough to execute.
 
 ---
 
-## Phase 2 — Design the Skill
+## Phase 2 — Draft the Skill
 
-Before writing, decide:
+See `references/opencode-format.md` for the full OpenCode skill format, naming rules, and writing patterns.
 
-1. **Frontmatter** — name (must match parent directory, lowercase + hyphens, ≤64 chars), description (≤1024 chars, see tips below)
+Key principles:
 
-2. **Activation contract** — one paragraph: when to use, when not to
+- **Description is the trigger** — it's the primary mechanism the agent uses to decide whether to load the skill. Include what it does AND specific contexts/phrasings that should activate it. Lean a little "pushy" — agents tend to under-trigger skills, so be explicit. Instead of "Helps with PDFs", write "Extracts text, tables, and form data from PDF files. Use whenever the user mentions PDFs, wants to convert or extract from a document, or needs to fill or merge PDF files, even if they don't say 'PDF processing' explicitly."
+- **Explain the why** — today's models respond better to understanding the reason behind instructions than to rigid MUSTs. If you find yourself writing ALWAYS or NEVER in all caps, pause and reframe with context.
+- **Keep SKILL.md lean** — under 500 lines ideally. If longer, use `references/` subdirectory files and point to them clearly from the skill body.
+- **Bundle repeated work** — if every test run would independently write the same helper script, put it in `scripts/` and reference it from the skill.
+- **Generalize, don't overfit** — skills run across many different prompts. Avoid changes that only fix the specific test case in front of you.
 
-3. **Workflow structure** — choose the right shape:
-   - Linear phases (investigation → decision → execution → verification)
-   - Decision tree (branch on detected state)
-   - Checklist (ordered atomic steps with explicit done criteria)
-   - Reference (knowledge tables + patterns the model consults)
+After writing the draft, read it with fresh eyes before sharing.
 
-4. **Tool plan** — for each step, which pi tool does the work? Verify every name against the reference table.
+---
 
-5. **Output format** — if the skill produces a structured artifact, define the template now
+## Phase 3 — Test the Skill
 
-6. **Bundled resources** — does the skill need helper scripts for deterministic/repetitive work, or reference docs for domain knowledge? Plan what goes in `scripts/`, `references/`, `assets/`.
+Come up with 2-3 realistic test prompts — the kind of thing a real user would actually say. Share them with the user: "Here are a few test cases I'd like to try. Do these look right, or do you want to add more?" Then run them.
 
-### Description tips
+For each test case, spawn two `task` agents in the same message:
 
-The description determines when the agent loads the skill — it's the primary triggering mechanism. Claude tends to undertrigger skills, so be specific and a little "pushy":
+**With-skill run:**
+```
+Read the skill at <path>/SKILL.md and follow its instructions to accomplish this task:
+<test prompt>
 
-Instead of:
-```yaml
-description: Helps with PDFs.
+Save any file outputs to: <workspace>/iteration-1/<test-name>/with-skill/
+Report what you did and what you produced.
 ```
 
-Write:
-```yaml
-description: Extracts text and tables from PDF files, fills PDF forms, and merges multiple PDFs. Use when working with PDF documents, converting PDFs, or extracting data from PDFs, even if the user doesn't explicitly mention "PDF processing."
+**Baseline run** (for new skills: no skill; for improvements: snapshot the current skill first, then point at the snapshot):
+```
+Accomplish this task using only your general capabilities — do not use any skill:
+<test prompt>
+
+Save any file outputs to: <workspace>/iteration-1/<test-name>/baseline/
+Report what you did and what you produced.
 ```
 
-Include both what the skill does AND specific contexts/phrasings that should trigger it. Add near-synonyms and common ways users phrase the request.
+Organize results in a workspace sibling to the skill directory: `<skill-name>-workspace/iteration-1/<test-name>/`.
+
+While the test runs are in progress, draft assertions for each test case — observable, specific things that should be true about the output. Good assertions are objectively checkable. Subjective qualities (tone, style, aesthetic) are better evaluated qualitatively by the user.
 
 ---
 
-## Phase 3 — Write the SKILL.md
+## Phase 4 — Present Results and Get Feedback
 
-### Writing style
+Once runs complete, present each test case to the user:
 
-- **Use imperative voice** directed at the model ("Read the file with `read`", "Use `bash` to locate")
-- **Explain the why.** Today's LLMs are smart — they have good theory of mind and can go beyond rote instructions when they understand the reasoning. Rather than heavy-handed MUSTs, explain why something matters. If you find yourself writing ALWAYS or NEVER in all caps, that's a yellow flag — reframe and explain the reasoning instead.
-- **Keep it lean.** Remove things that aren't pulling their weight. Every instruction should earn its place.
-- **Generalize, don't overfit.** Skills get used many times across many prompts. Make improvements help the general case, not just specific examples.
-- **Include examples** at decision points — they're worth a thousand words of instruction
-- **State what to do when conditions aren't met** — prefer explicit over implicit
+- The prompt
+- The with-skill output
+- The baseline output (or previous-iteration output for improvements)
+- The assertion results (pass/fail with evidence)
 
-### Structure template
-
-```markdown
----
-name: <kebab-case, matches directory name>
-description: <what it does + when to use it, specific and pushy>
----
-
-# <Title>
-
-<Activation contract: one concise paragraph. When to use. When not to.>
+Ask for feedback on each. Empty feedback means it looked fine. Focus improvements on the test cases where the user had specific complaints.
 
 ---
 
-## <Phase or Section 1>
+## Phase 5 — Improve and Iterate
 
-<Instructions the model follows. Imperative voice. Reference pi tools by exact name.>
+After getting feedback:
 
-## <Phase or Section 2>
+1. **Generalize from feedback** — the goal is a skill that works across many different prompts, not just these test cases. Avoid fiddly overfit fixes.
+2. **Read the task transcripts, not just outputs** — if the agent wasted time on unproductive steps, identify which instructions caused that and remove them.
+3. **Look for repeated work** — if both test runs independently wrote the same helper script, bundle it in `scripts/`.
+4. **Make the smallest useful change** — don't rewrite everything at once; targeted improvements are easier to evaluate.
 
-<Continue pattern. Each phase should be atomic and verifiable.>
-
-## Output Format  (only if skill produces a structured artifact)
-
-<Exact template with placeholder markers>
-
-## Report
-
-After completing the skill's work, output a summary of what was produced, where it lives, and how to use it.
-```
-
-### Domain organization
-
-When a skill supports multiple domains/frameworks, put variants in `references/` and have the skill read only the relevant one:
-
-```
-cloud-deploy/
-├── SKILL.md           (workflow + selection logic)
-└── references/
-    ├── aws.md
-    ├── gcp.md
-    └── azure.md
-```
-
-### Principle of Lack of Surprise
-
-Skills must not contain malware, exploit code, or anything that could compromise security. A skill's contents should not surprise the user in their intent if described.
+Apply improvements, create `iteration-2/` in the workspace, rerun all test cases (including baselines), present results, get feedback. Keep going until:
+- The user says they're satisfied
+- All feedback is empty
+- You're not making meaningful progress
 
 ---
 
-## Phase 4 — Write and Verify
+## Phase 6 — Write and Verify the Final Skill
 
-1. Create the directory (name must match frontmatter `name`)
-2. Write `SKILL.md` with the `apply_patch` tool
-3. Write any bundled scripts, references, or assets
-4. Read it back with `read` to confirm no corruption
-5. Verify: frontmatter has `name` and `description`, name matches directory, no invalid tool names in body
-
----
-
-## Phase 5 — Test and Iterate (optional but recommended)
-
-Ask the user if they'd like to test the skill. Skills with objectively verifiable outputs benefit most. Skills with subjective outputs often don't need it.
-
-### Test cases
-
-Come up with 2-3 realistic test prompts — the kind of thing a real user would actually say. Share them: "Here are test cases I'd like to try. Do these look right, or do you want to add more?"
-
-### Running tests
-
-For each test case, spawn a task that reads the skill and executes the prompt:
-
-```json
-{
-  "agent": "worker",
-  "task": "Read the skill at <path>/SKILL.md and follow its instructions to accomplish this task: <prompt>"
-}
-```
-
-Run test cases in parallel via `task` when possible.
-
-### Evaluate and improve
-
-After test runs complete:
-1. Review outputs and present them to the user
-2. Ask for feedback on each test case
-3. Look for patterns — are all runs independently writing the same helper script? Bundle it in `scripts/`. Is the model wasting time on unproductive steps? Trim the instructions causing it.
-
-### The improvement loop
-
-When improving:
-1. **Generalize from feedback.** Don't overfit to test examples.
-2. **Read transcripts, not just outputs.** If the model wastes time, remove the instructions causing it.
-3. **Look for repeated work.** If every run writes a similar script, bundle it so future invocations don't reinvent the wheel.
-4. **Draft a revision, then review it fresh.**
-
-After improving, rerun tests. Keep going until the user is happy or feedback is empty.
+1. Create the skill directory: `<scope>/<name>/`
+2. Write `SKILL.md`
+3. Write any bundled `scripts/`, `references/`, or `assets/` files
+4. Read the file back to confirm no corruption
+5. Verify: frontmatter has `name` and `description`, name matches directory, no invalid syntax in body
 
 ---
 
-## Phase 6 — Optimize Description (optional)
+## Phase 7 — Description Optimization (Optional)
 
-After the skill is finalized, offer to optimize the description for better triggering. Create 15-20 eval queries — a mix of should-trigger and should-not-trigger:
+After the skill is in good shape, offer to optimize the description for better triggering accuracy.
 
-**Should-trigger (8-10):** Different phrasings of the same intent — formal, casual, implicit. Include cases where the user doesn't name the skill but clearly needs it.
+Generate 20 eval queries — a mix of should-trigger and should-not-trigger. Make them realistic and specific (file paths, personal context, casual phrasing, edge cases). The negative cases should be genuine near-misses that share keywords with the skill but actually need something different — "write a fibonacci function" is too easy a negative for most skills.
 
-**Should-not-trigger (8-10):** Near-misses that share keywords but need something different. Don't make these obviously irrelevant — they should be genuinely tricky.
+For **should-trigger** queries (8-10): vary the phrasing — formal, casual, implicit. Include cases where the user doesn't name the skill but clearly needs it. Include edge cases where this skill competes with another but should win.
 
-Make queries realistic and detailed — include file paths, personal context, casual speech. Not abstract requests.
+For **should-not-trigger** queries (8-10): adjacent domains, ambiguous phrasing where keyword matching would incorrectly fire the skill, cases where the query touches the skill's domain but a simpler direct approach is more appropriate.
 
-Present to the user, then iteratively refine the description to maximize correct triggering while minimizing false positives.
+Share the eval set with the user for review before testing. Then use `task` agents to evaluate how well the current description triggers on each query, iterate on the description language, and report the before/after accuracy.
+
+---
+
+## Reference Files
+
+- `references/opencode-format.md` — Full OpenCode skill format spec, naming rules, frontmatter fields, writing patterns, and Claude Code conversion field mapping
 
 ---
 
 ## Report
 
-After writing the skill, output:
+After writing the skill:
 
 ```
 Skill created: <name>
 Path: <full path to SKILL.md>
+Mode: New | Improved | Converted from <source>
 
-Frontmatter:
-  name: <value>
-  description: <value>
+Description: "<description>"
+Sections: <list of ## headings>
+Bundled resources: <list or "none">
 
-Sections: <list of H2 headings>
-Bundled resources: <list, or "none">
+Validation:
+  name format ............. pass
+  description length ....... pass
+  frontmatter valid ........ pass
+  body complete ............ pass
 
-The skill is available immediately. Use /skill:<name> to invoke directly.
+Test iterations: <N>
 ```
