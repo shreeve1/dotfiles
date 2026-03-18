@@ -10,6 +10,9 @@ alias ll = eza -l --icons --no-user --group-directories-first --time-style long-
 alias la = eza -la --icons --no-user --group-directories-first --time-style long-iso
 alias cat = bat
 alias bmad-install = npx bmad-method install
+alias op = opencode
+alias opweb = opencode web --hostname 0.0.0.0 --port 4096
+alias y = yazi
 
 alias nu-open = open
 alias open = ^open
