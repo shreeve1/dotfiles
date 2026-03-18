@@ -54,3 +54,6 @@ link_path ".config/opencode/skills" ".config/opencode/skills"
 link_path ".config/opencode/themes" ".config/opencode/themes"
 link_path ".config/opencode/tsconfig.json" ".config/opencode/tsconfig.json"
 link_path ".config/opencode/tui.json" ".config/opencode/tui.json"
+
+link_path ".config/nvim/init.lua" ".config/nvim/init.lua"
+link_path ".config/nvim/lazy-lock.json" ".config/nvim/lazy-lock.json"
