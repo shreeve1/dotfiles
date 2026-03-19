@@ -41,6 +41,14 @@ cmux browser snapshot --interactive --compact
 ```
 Read the accessibility tree to identify selectors for target elements.
 
+**Selector strategy** — in priority order:
+1. `data-testid` attributes: most stable (`[data-testid="submit-btn"]`)
+2. ARIA roles + labels from snapshot: (`role=button[name="Submit"]`)
+3. Placeholder or label text: (`[placeholder="Email"]`)
+4. CSS selectors as last resort: (`#login-form .btn-primary`)
+
+Never guess selectors. Always derive them from `snapshot` or `find` output.
+
 ### Step 3: Interact
 Use the appropriate command for each action:
 ```bash
@@ -59,7 +67,17 @@ cmux browser get text "<selector>"
 cmux browser screenshot --out /tmp/result.png
 ```
 
-### Step 5: Handle Failures
+### Step 5: Persist State (optional)
+For resumable workflows, save session state after key milestones:
+```bash
+cmux browser state save /tmp/session.json
+```
+To resume later:
+```bash
+cmux browser state load /tmp/session.json
+```
+
+### Step 6: Handle Failures
 If a step fails:
 1. `cmux browser screenshot --out /tmp/debug.png` — capture current state
 2. `cmux browser snapshot --interactive --compact` — dump DOM tree
@@ -89,6 +107,43 @@ cmux browser snapshot --interactive --compact
 # ... remaining steps
 ```
 
+## Common Patterns
+
+### Multi-Tab Workflow
+When automation spans multiple tabs (e.g., compare two pages, copy data between apps):
+```bash
+# Open tabs
+cmux browser open "https://source.example.com"
+cmux browser wait --load-state networkidle
+cmux browser tab new "https://dest.example.com"
+cmux browser wait --load-state networkidle
+
+# Work in tab 1 (index 0)
+cmux browser tab switch 0
+cmux browser get text "#data-field"
+
+# Switch to tab 1 and paste
+cmux browser tab switch 1
+cmux browser fill "#input-field" "<extracted value>"
+
+# Clean up
+cmux browser tab close 0
+```
+
+### Frame Navigation (SPAs with iframes)
+Many apps embed content in iframes. You must switch frame context before interacting:
+```bash
+# Enter an iframe
+cmux browser frame "#content-iframe"
+cmux browser snapshot --interactive --compact
+cmux browser click "#button-inside-iframe"
+
+# Return to main document
+cmux browser frame main
+cmux browser click "#button-in-main-page"
+```
+If nested iframes, chain `frame` calls. Always `frame main` before interacting with elements outside the iframe.
+
 ## API Quick Reference
 
 ### Navigation
@@ -101,6 +156,7 @@ cmux browser snapshot --interactive --compact
 | `reload` | Reload current page |
 | `url` | Get current URL |
 | `focus-webview` | Focus the browser webview |
+| `is-webview-focused` | Check if browser webview has focus |
 
 ### Waiting
 ```
@@ -177,7 +233,10 @@ cmux browser cookies set --name <n> --value <v> [--domain <d>]
 cmux browser cookies clear
 cmux browser storage local get "<key>"
 cmux browser storage local set "<key>" "<value>"
+cmux browser storage local clear
 cmux browser storage session get "<key>"
+cmux browser storage session set "<key>" "<value>"
+cmux browser storage session clear
 cmux browser state save <path.json>
 cmux browser state load <path.json>
 ```
@@ -208,8 +267,72 @@ cmux browser errors clear
 ```
 
 ### Surface Targeting
-Use `--surface surface:N` on any command to target a specific browser pane.
+Two syntaxes — flag or positional:
+```
+cmux browser click "#btn" --surface surface:2
+cmux browser click surface:2 "#btn"
+```
 Run `cmux browser identify` to discover surface IDs.
+
+## cmux General API
+
+These terminal-level commands complement browser automation for hybrid workflows.
+
+### Notifications & Status
+```
+cmux notify "<message>"
+cmux set-status "<text>"
+cmux clear-status
+cmux set-progress <0-100>
+cmux clear-progress
+```
+
+### Surfaces & Workspaces
+```
+cmux list-surfaces
+cmux focus-surface <id>
+cmux new-split
+cmux list-workspaces
+cmux current-workspace
+cmux new-workspace
+cmux select-workspace <id>
+cmux close-workspace <id>
+```
+
+### Send Input to Terminal Panes
+```
+cmux send "<text>"
+cmux send-key "<key>"
+cmux send-surface <surface-id> "<text>"
+cmux send-key-surface <surface-id> "<key>"
+```
+
+### Logging
+```
+cmux log "<message>"
+cmux list-log
+cmux clear-log
+```
+
+### Other
+```
+cmux ping
+cmux capabilities
+cmux identify
+cmux sidebar-state
+```
+
+## Environment Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `CMUX_SOCKET_PATH` | Override socket path (default: `/tmp/cmux.sock`) |
+| `CMUX_SOCKET_ENABLE` | Enable/disable socket communication |
+| `CMUX_SOCKET_MODE` | Socket permission mode |
+| `CMUX_WORKSPACE_ID` | Current workspace ID (set automatically in cmux shells) |
+| `CMUX_SURFACE_ID` | Current surface ID (set automatically in cmux shells) |
+
+Use these in scripts to detect if running inside cmux and to target the correct surface without `identify`.
 
 ## Rules
 
