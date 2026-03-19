@@ -1,6 +1,6 @@
 ---
 name: dev-build
-description: Use when executing a multi-step implementation plan with dependencies, parallelizable tasks, and progress tracking across waves of work.
+description: Execute a multi-step implementation plan in dependency-aware waves with parallel subagents and progress tracking. Use after dev-plan produces a plan, when the user says "build this", "execute the plan", "implement this plan", "start building", or when a validated plan is ready for execution.
 ---
 
 # Execute Implementation Plan
@@ -21,14 +21,15 @@ Use this skill when the user wants to carry out a written implementation plan, e
 Work through these steps in order, skipping only those that clearly do not apply:
 
 1. Discover and confirm the plan
-2. Establish the execution workspace
+2. Establish the execution workspace (includes baseline provenance)
 3. Load plan state and task readiness
 4. Build a safe wave schedule
-5. Execute one wave at a time
-6. Evaluate results and mark completed tasks in the plan file
-7. Verify results before claiming success
-8. Decide the next workflow handoff
-9. Report the final build status
+5. Prepare execution context for each task
+6. Execute one wave at a time
+7. Evaluate results and mark completed tasks in the plan file
+8. Verify results before claiming success
+9. Repeat waves until done (loop Phases 4-8)
+10. Decide the next workflow handoff and report
 
 The goal is not maximum parallelism. The goal is safe, dependency-aware progress in an isolated branch when implementation could affect the current checkout, followed by an explicit decision about testing or merge.
 
@@ -73,7 +74,9 @@ Prefer a worktree if:
 
 The `worktree` skill handles directory selection, .gitignore safety, branch conflicts, creation, and bootstrap automatically. It returns the worktree path and branch name.
 
-Capture the resulting path for all subsequent `task` calls that support `cwd`.
+Capture the resulting path and branch name for all subsequent `task` prompts so subagents operate in the isolated checkout.
+
+If the `worktree` skill fails (e.g., branch conflicts, directory issues, or git errors), report the error and ask the user whether to retry, work in-place instead, or stop.
 
 ### Baseline verification
 
@@ -90,7 +93,7 @@ Baseline failure policy:
 
 Report the selected execution path, branch name, and baseline status clearly before moving on.
 
-### Phase 2.5 - Preflight Baseline Provenance (required)
+## Phase 2.5 - Preflight Baseline Provenance (required)
 
 Before executing tasks, verify the selected workspace contains the plan's expected baseline files/tests.
 
@@ -108,35 +111,18 @@ This prevents false baseline failures like "No test files found" caused by workt
 
 ## Phase 3 - Load Plan Progress
 
-Use the plan tools as the source of truth for execution state when available.
+Use `read` on the plan file to load the full plan structure. Parse the markdown to determine:
+- completed tasks (checked `- [x]` items)
+- ready tasks (unchecked `- [ ]` items whose dependencies are complete)
+- blocked tasks (unchecked items with incomplete dependencies)
+- dependency relationships between tasks
+- human-readable task descriptions, implementation notes, and validation commands
 
-1. Call `read` to load the plan structure and dependency graph
-2. Call `read` plus manual progress parsing to determine:
-   - completed tasks
-   - ready tasks
-   - blocked tasks
-   - dependency relationships
-   - current execution batches, if available
+**Important:** The plan file is whatever was discovered in Phase 1 (e.g., `artifacts/plans/migrate-qbittorrent-to-gluetun.md`), NOT a file named `plan.md`. Plan files can have any name in `artifacts/plans/` or `specs/`.
 
-**Important:** The plan file used is whatever was discovered in Phase 1 (e.g., `artifacts/plans/migrate-qbittorrent-to-gluetun.md`), NOT a file named `plan.md`. Plan files can have any name in `artifacts/plans/` or `specs/`.
+Use `todowrite` to mirror the parsed task state into a session todo list for tracking.
 
-If the plan tools fail (e.g., they require a specific file path format that doesn't match your plan, or return an error):
-- Do NOT ask the user to create or sync a `plan.md` file
-- Automatically proceed in **manual mode** using the selected markdown plan
-- In manual mode:
-  - do not use `read`, `read` plus manual progress parsing, or `todowrite` or plan edits
-  - parse task structure and dependencies directly from the plan markdown
-  - maintain task state in `todowrite`
-  - mark checkboxes in the plan markdown only when evidence confirms completion
-  - report clearly that you are operating in manual mode
-
-Use `read` on the plan file to gather:
-- human-readable task descriptions
-- implementation notes
-- validation commands
-- context not exposed by the plan tools
-
-If the plan file and plan tool state materially disagree, stop and report the mismatch before executing.
+If all tasks are already marked complete (`- [x]`) and none are ready or blocked, skip directly to Phase 10 - there is no implementation work to execute.
 
 ---
 
@@ -149,7 +135,7 @@ Create waves from the currently ready tasks, then rebuild the schedule after eac
 Apply these rules in priority order:
 
 1. **Plan dependencies come first**
-   Only schedule tasks that are currently ready according to the plan system (or, in manual mode, tasks whose dependencies have been marked complete in the plan markdown).
+   Only schedule tasks whose dependencies have been marked complete in the plan markdown.
 
 2. **Honor explicit sequencing**
    If the plan marks tasks as sequential, keep them out of parallel execution.
@@ -209,16 +195,38 @@ Use parallel subagents only when the wave contains truly independent tasks. Othe
 
 For independent tasks, use `task` with parallel tasks. **Inline the full task description and relevant context into each task prompt** - do not just tell the task to "read the plan." The orchestrator already has this context; passing it directly saves tokens and prevents subagents from misidentifying their task.
 
-```json
-{
-  "tasks": [
-    {
-      "agent": "worker",
-      "cwd": "<EXECUTION_PATH>",
-      "task": "## Task [N.M]: <task title>\n\n<full task description from plan>\n\n### Context\n<any relevant notes from earlier waves, dependencies, or plan sections>\n\n### Relevant files\n<list files this task will likely touch>\n\n### Instructions\n- Implement only this task\n- Do not work on other tasks or do unrelated cleanup\n- When finished, report using this format:\n\n```\nStatus: complete | partial | blocked\nFiles changed:\n- <path> - <what changed>\n- <path> - <what changed>\nKey decisions:\n- <any non-obvious choice you made>\nBlockers:\n- <anything preventing completion, or \"none\">\n```"
-    }
-  ]
-}
+For each independent task in the wave, make a separate `task` tool call. Launch all calls in the same message for parallel execution:
+
+```
+task(
+  subagent_type: "builder",
+  description: "Implement task N.M - <short title>",
+  prompt: "## Task [N.M]: <task title>
+
+<full task description from plan>
+
+### Context
+<any relevant notes from earlier waves, dependencies, or plan sections>
+
+### Execution workspace
+<EXECUTION_PATH> (branch: <BRANCH_NAME>)
+
+### Relevant files
+<list files this task will likely touch>
+
+### Instructions
+- Implement only this task
+- Do not work on other tasks or do unrelated cleanup
+- When finished, report using this format:
+
+Status: complete | partial | blocked
+Files changed:
+- <path> - <what changed>
+Key decisions:
+- <any non-obvious choice you made>
+Blockers:
+- <anything preventing completion, or 'none'>"
+)
 ```
 
 ### Sequential execution
@@ -228,11 +236,11 @@ If tasks are tightly coupled, overlapping, or too small to benefit from parallel
 ### Subagent prompt rules
 
 Every task prompt must:
-- include the full task description inline (do not rely on the task reading the plan)
+- include the full task description inline (do not rely on the subagent reading the plan)
 - include relevant context from earlier waves or the plan
-- specify the execution path via `cwd` when using a worktree
+- include the execution workspace path and branch name when using a worktree
 - require the structured report format shown above
-- tell the task not to work on other tasks or do opportunistic refactors
+- tell the subagent not to work on other tasks or do opportunistic refactors
 
 ---
 
@@ -256,18 +264,12 @@ Only continue when the wave result is coherent.
 
 **You MUST update the plan file for every completed task before moving on.** This is not optional. Updating session todos is not a substitute for updating the plan file. Both must happen.
 
-**If using plan tools (not in manual mode):**
-- Update progress immediately after confirming each completed task, using `todowrite` and plan-file edits as needed
-- Do not mark guessed or partially completed work
-- After updating progress for all completed tasks, call `read` plus manual progress parsing to discover the next ready batch
+For each confirmed task:
+1. Use `edit` to change `- [ ]` to `- [x]` in the plan markdown file
+2. Update the session `todowrite` list to reflect completion
+3. Do not mark guessed or partially completed work
 
-**If in manual mode:**
-- Use `edit` to change `- [ ]` to `- [x]` in the plan markdown file for each completed task
-- Parse the plan markdown to determine which tasks become ready after dependencies complete
-
-Then update the session `todowrite` list to reflect completed tasks.
-
-Do not mix plan tools and manual mode. Stay consistent with whichever mode was established in Phase 3.
+After marking all completed tasks, re-parse the plan markdown to determine which tasks become ready next.
 
 ---
 
@@ -294,24 +296,11 @@ If the plan does not define validation commands, say so explicitly and provide t
 
 ## Phase 9 - Continue Wave-by-Wave
 
-Repeat:
-1. Check progress (via `read` plus manual progress parsing in plan tool mode, or by parsing the plan markdown in manual mode)
-2. Build the next safe wave from ready tasks (Phase 4)
-3. Prepare task prompts with inlined task content (Phase 5)
-4. Execute the wave (Phase 6)
-5. Evaluate results using the structured task reports (Phase 7)
-6. **Mark progress in the plan file** - call `todowrite` or plan edits for each completed task, or `edit` checkboxes in manual mode. This is required every loop iteration, not just at the end.
-7. Verify as appropriate (Phase 8)
-
-Stop when:
-- all implementation tasks are complete
-- a wave fails
-- the plan state becomes inconsistent
-- the user interrupts or changes direction
+Repeat Phases 4 through 8 until all implementation tasks are complete, or stop early if a wave fails, the plan state becomes inconsistent, or the user interrupts.
 
 ---
 
-## Phase 10 — Decide the Next Workflow Handoff
+## Phase 10 - Decide the Next Workflow Handoff
 
 After implementation tasks are complete and the relevant build-side verification has succeeded, ask the user what they want to do next.
 
@@ -402,8 +391,6 @@ Status: ❌ Not complete
 
 ## Execution Notes
 
-- Prefer the plan tools over manual parsing for dependency state when they work with your plan file
-- If plan tools don't support your plan file format/path, use manual mode seamlessly without asking
 - Prefer safe serialization over risky parallelism
 - Do not run tasks in parallel when they are likely to edit the same files
 - Do not mark progress until results are reviewed

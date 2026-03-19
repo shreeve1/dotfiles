@@ -6,6 +6,8 @@
     "file:///Users/james/.config/opencode/plugins/self-improving-agent",
     "file:///Users/james/.config/opencode/plugins/terminal-bell",
     "@tarquinen/opencode-dcp@latest",
+    "opencode-beads",
+    "@mcmunder/opencode-git-memory",
   ],
   "agent": {
     "build": {

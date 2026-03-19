@@ -3,61 +3,49 @@ description: Load project context for a new session
 subtask: true
 ---
 
-Rapidly load project context at the start of a new session. Do not use this mid-session when context is already loaded.
+Quickly load project context at the start of a new session. Do not use this mid-session when context is already loaded.
 
-## Phase 1 — Explore Codebase
+## Phase 1 — Git Context
 
-Use a task agent to perform a full codebase scan and report:
-- Project overview and purpose
-- Tech stack (languages, frameworks, build tools)
-- Directory structure and key entry points
-- Config directives from CLAUDE.md, AGENTS.md, or .opencode/
-- Documentation status
-- Patterns detected
+Run these commands in parallel:
 
-Run `git ls-files` as backup verification of project files.
+1. `git log --oneline -15` — recent commit history
+2. `git branch -a --sort=-committerdate | head -10` — active branches
+3. `git diff --stat HEAD~5 2>/dev/null` — recent file changes
+4. `git status --short` — uncommitted work
 
-## Phase 2 — Resume Context
+If opencode-git-memory is active, the plugin will have already injected conversation notes from prior sessions. If the agent has `git_notes_read` available, mention it can retrieve full transcripts.
 
-Check if `artifacts/sessions/` exists.
+## Phase 2 — Light Project Scan
 
-If it does:
+Read these files if they exist (skip missing ones, do not search):
+
+1. `AGENTS.md` or `.opencode/AGENTS.md` — project directives
+2. `package.json`, `Cargo.toml`, `go.mod`, or `pyproject.toml` — tech stack and dependencies
+3. Top-level directory listing only (`ls`) — do NOT recurse
+
+Do NOT launch a full codebase scan or task agent. Keep it fast.
+
+## Phase 3 — Resume Prior Work
+
+Check if `artifacts/sessions/` exists. If it does:
+
 1. List `artifacts/sessions/*_todos.md` sorted by modification time (newest first)
-2. Read the most recent `_todos.md` to understand what was worked on last
-3. If no todos files, check for recent `.jsonl` transcripts — note existence but do NOT read them
-
-Include any pending or in-progress tasks from the last session.
-
-## Phase 3 — Scan Available Resources
-
-Discover what's available without loading everything:
-
-1. List contents of `artifacts/docs/`, `artifacts/web-search/`, and `scripts/` if they exist
-2. Read index files only: `artifacts/docs/README.md` and `scripts/README.md`
-3. Read up to 3-4 files with clearly descriptive names (e.g., architecture.md)
-4. List `artifacts/web-search/*.md` filenames — note topics, do NOT read full files
+2. Read only the most recent `_todos.md` for pending/in-progress tasks
+3. Do NOT read transcripts or other session files
 
 ## Report
 
 ```markdown
-## Project Overview
-<name, type, architecture>
+## Recent Activity
+<last 5-10 commits, current branch, uncommitted changes>
 
-## Tech Stack
-<languages, frameworks, build tools>
+## Project
+<name, tech stack from manifest, key directories from ls>
 
-## Key Directories
-<entry points and key directories>
+## Directives
+<key rules from AGENTS.md if present>
 
-## Config Directives
-<key rules from CLAUDE.md, AGENTS.md, .opencode/>
-
-## Session Context
-<prior session status, pending/in-progress tasks>
-
-## Available Resources
-<docs/ and scripts/ overview>
-
-## Cached Research
-<available web-search topics>
+## Pending Work
+<in-progress or pending tasks from last session, or "none">
 ```
