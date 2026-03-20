@@ -1,5 +1,6 @@
 {
   "plugin": [
+    "file:///Users/james/.config/opencode/plugins/anthropic-auth",
     "opencode-antigravity-auth@1.6.0",
     "opencode-openai-codex-auth",
     "@gotgenes/opencode-agent-identity",
@@ -7,7 +8,7 @@
     "file:///Users/james/.config/opencode/plugins/terminal-bell",
     "@tarquinen/opencode-dcp@latest",
     "opencode-beads",
-    "@mcmunder/opencode-git-memory",
+    "@mcmunder/opencode-git-memory"
   ],
   "agent": {
     "build": {
@@ -58,8 +59,8 @@
         }
       }
     },
-    "openrouter": {
-      "name": "Google",
+    "antigravity": {
+      "name": "Google (Antigravity)",
       "models": {
         "gemini-3-pro-high": {
           "name": "Gemini 3 Pro High (Antigravity)",
@@ -69,14 +70,8 @@
             "output": 65535
           },
           "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gemini-3-pro-medium": {
@@ -87,14 +82,8 @@
             "output": 65535
           },
           "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gemini-3-pro-low": {
@@ -105,14 +94,8 @@
             "output": 65535
           },
           "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gemini-3-flash": {
@@ -123,14 +106,8 @@
             "output": 65536
           },
           "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         },
         "gemini-3-flash-lite": {
@@ -141,14 +118,8 @@
             "output": 65536
           },
           "modalities": {
-            "input": [
-              "text",
-              "image",
-              "pdf"
-            ],
-            "output": [
-              "text"
-            ]
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
           }
         }
       }
