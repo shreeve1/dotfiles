@@ -2,6 +2,7 @@
   "name": "opencode-user-plugins",
   "type": "module",
   "dependencies": {
+    "@ex-machina/opencode-anthropic-auth": "latest",
     "@gotgenes/opencode-agent-identity": "^3.0.1",
     "@opencode-ai/plugin": "1.2.27",
     "opencode-kimi-code-auth": "latest",

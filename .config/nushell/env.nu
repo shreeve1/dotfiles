@@ -16,6 +16,8 @@ $env.ANDROID_HOME = ($home | path join "Library" "Android" "sdk")
 $env.JAVA_HOME = "/opt/homebrew/opt/openjdk"
 $env.ENABLE_EXPERIMENTAL_MCP_CLI = "1"
 $env.TMUX_TMPDIR = "/tmp"
+$env.EDITOR = "nvim"
+$env.VISUAL = "nvim"
 
 $env.PATH = (
     $env.PATH

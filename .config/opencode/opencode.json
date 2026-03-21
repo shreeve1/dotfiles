@@ -1,7 +1,7 @@
 {
   "plugin": [
-    "file:///Users/james/.config/opencode/plugins/anthropic-auth",
     "opencode-antigravity-auth@1.6.0",
+    "file:///Users/james/.config/opencode/plugins/anthropic-auth.mjs",
     "opencode-openai-codex-auth",
     "@gotgenes/opencode-agent-identity",
     "file:///Users/james/.config/opencode/plugins/self-improving-agent",
@@ -35,19 +35,7 @@
       "model": "anthropic/claude-sonnet-4-6"
     }
   },
-  "default_agent": "build",
   "provider": {
-    "opencode": {
-      "name": "OpenCode Zen",
-      "models": {
-        "claude-sonnet-4-5": {
-          "name": "Claude Sonnet 4.5 (Zen)"
-        },
-        "claude-haiku-4-5": {
-          "name": "Claude Haiku 4.5 (Zen)"
-        }
-      }
-    },
     "zai-coding-plan": {
       "name": "Z.AI GLM Coding Plan",
       "models": {

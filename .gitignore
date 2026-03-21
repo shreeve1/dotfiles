@@ -1,2 +1,8 @@
 # Machine-local plugin state — not synced across machines
 artifacts/
+
+# Pi agent — secrets, dependencies, and runtime state
+.pi/agent/auth.json
+.pi/agent/node_modules/
+.pi/agent/sessions/
+.pi/agent/*-sessions*.json
