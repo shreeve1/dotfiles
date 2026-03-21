@@ -16,6 +16,32 @@ These rules are ABSOLUTE:
 - NEVER commit `.env` to git
 - ALWAYS verify `.env` is in `.gitignore`
 
+### NEVER Lock Yourself Out of a Remote System
+- NEVER change SSH port/config/auth without confirming an alternate access path exists
+- NEVER disable the network interface or firewall rules for the active session
+- NEVER change the password or disable the account currently in use
+
+## Think Before Acting
+
+- **Read first, edit second.** Read files completely before modifying. Search for related files, imports, and usages before proposing solutions.
+- **Plan before executing.** For non-trivial tasks, state your plan before writing code. Break complex tasks into steps. Check what depends on anything you change.
+- **Confirm before destroying.** Always ask before deleting files, dropping tables, removing deps, force-pushing, or restructuring directories.
+- **Minimal changes.** Make the smallest change that solves the problem. Don't refactor unrelated code or create files speculatively. Match existing code style.
+- **Ask when uncertain.** If requirements are ambiguous or you're unsure about side effects, ask rather than guess. Propose alternatives when trade-offs exist.
+- **Recover intelligently.** If a fix doesn't work after 2 attempts, stop and reassess. If you've gone down the wrong path, say so and undo cleanly.
+- **Verify your work.** Run the relevant build/lint/test command after changes. Re-read modified sections to catch errors before moving on.
+
+## Remote Systems
+
+Remote commands run on LIVE systems. Treat every remote command as production.
+
+- **Verify the host** before acting. If you can't determine dev vs prod, assume prod.
+- **Read before you write.** Check current state with read-only commands first.
+- **Show and explain** commands before executing anything beyond basic reads.
+- **Always confirm** before: service restarts/stops, firewall changes, user/permission changes, disk/storage ops, network config, package install/remove, database DDL/DML, container lifecycle, cron/scheduled task changes.
+- **Use dry-run/what-if flags** when available. Back up configs before modifying.
+- **When things go wrong**, stop and assess before attempting recovery. Share what you see with the user.
+
 ## User Preferences
 
 - Always ask questions if intent is not clear
@@ -84,7 +110,7 @@ These rules are ABSOLUTE:
 
 **Target:** Keep root minimal (~20 items max)
 
-**OK in root:** README.md, CLAUDE.md, package.json, .env.example, main entry files, config files, dotfiles
+**OK in root:** README.md, AGENTS.md, package.json, .env.example, main entry files, config files, dotfiles
 
 **NOT in root:** Scripts, documentation, temporary files, investigation outputs
 

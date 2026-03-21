@@ -45,6 +45,7 @@ link_path() {
 link_path ".config/ghostty/config" ".config/ghostty/config"
 link_path ".config/opencode/.gitignore" ".config/opencode/.gitignore"
 link_path ".config/opencode/agents" ".config/opencode/agents"
+link_path ".config/opencode/artifacts" ".config/opencode/artifacts"
 link_path ".config/opencode/command" ".config/opencode/command"
 link_path ".config/opencode/opencode.json" ".config/opencode/opencode.json"
 link_path ".config/opencode/opencode.opencode" ".config/opencode/opencode.opencode"
