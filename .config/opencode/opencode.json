@@ -33,6 +33,29 @@
     },
     "document-writer": {
       "model": "anthropic/claude-sonnet-4-6"
+    },
+    "quick-review-opus": {
+      "model": "anthropic/claude-opus-4-6"
+    },
+    "quick-review-codex": {
+      "model": "openai/gpt-5.3-codex"
+    },
+    "infra-scout": {
+      "model": "zai-coding-plan/glm-4.7"
+    },
+    "infra-planner": {
+      "model": "anthropic/claude-sonnet-4-6"
+    },
+    "executor-ssh": {
+      "model": "anthropic/claude-sonnet-4-6",
+      "permission": "allow"
+    },
+    "executor-powershell": {
+      "model": "anthropic/claude-sonnet-4-6",
+      "permission": "allow"
+    },
+    "infra-validator": {
+      "model": "anthropic/claude-opus-4-6"
     }
   },
   "provider": {
