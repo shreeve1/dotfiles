@@ -6,3 +6,4 @@ artifacts/
 .pi/agent/node_modules/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
+.worktrees
