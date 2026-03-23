@@ -180,68 +180,6 @@
         }
       }
     },
-    "cliproxy": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "CLIProxyAPI (Local)",
-      "options": {
-        "baseURL": "http://localhost:8317/v1",
-        "apiKey": "{env:CLIPROXY_API_KEY}"
-      },
-      "models": {
-        "claude-opus-4-6": {
-          "name": "Claude Opus 4.6 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        },
-        "claude-sonnet-4-6": {
-          "name": "Claude Sonnet 4.6 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        },
-        "claude-haiku-4-5-20251001": {
-          "name": "Claude Haiku 4.5 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 16000
-          }
-        },
-        "gpt-5.4": {
-          "name": "GPT-5.4 (CLIProxy)",
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        },
-        "gpt-5.3-codex": {
-          "name": "GPT-5.3 Codex (CLIProxy)",
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        },
-        "gpt-5.2": {
-          "name": "GPT-5.2 (CLIProxy)",
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        },
-        "gpt-5.1-codex-max": {
-          "name": "GPT-5.1 Codex Max (CLIProxy)",
-          "limit": {
-            "context": 200000,
-            "output": 32000
-          }
-        }
-      }
-    },
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenRouter",
@@ -275,9 +213,9 @@
         }
       }
     },
-    "cliproxyapi": {
+    "cliproxy": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "CLIProxyAPI",
+      "name": "CLIProxy",
       "options": {
         "baseURL": "http://127.0.0.1:8317/v1",
         "apiKey": "{env:CLIPROXY_API_KEY}"
