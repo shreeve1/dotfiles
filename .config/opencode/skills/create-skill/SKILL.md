@@ -1,13 +1,13 @@
 ---
 name: create-skill
-description: Create new OpenCode skills, improve existing skills, or convert Claude Code skills into OpenCode format. Use when the user wants to write a skill from scratch, iterate on an existing skill, run test cases to validate a skill works, optimize a skill's description for better triggering, or convert a .claude/skills or .claude/commands file into OpenCode format.
+description: Create new OpenCode skills with recipe.yaml contracts, improve existing skills, or convert Claude Code skills into OpenCode format. Use when the user wants to write a skill from scratch, iterate on an existing skill, run test cases to validate a skill works, optimize a skill's description for better triggering, convert a .claude/skills or .claude/commands file, or generate a recipe.yaml for reproducible skill execution.
 ---
 
 # Create Skill
 
-A skill for creating and iteratively improving OpenCode skills.
+A skill for creating and iteratively improving OpenCode skills. Every skill produced includes both a SKILL.md (natural-language instructions) and a recipe.yaml (authoritative execution contract).
 
-The core loop is: capture intent → draft → write to disk → test → evaluate → improve → repeat. Figure out where the user already is and jump in from there. If they have a draft, skip to Phase 3. If they just have an idea, start at Phase 1. If they want to vibe without running tests, do Phases 1–2 then jump to Phase 5.
+The core loop is: capture intent → draft skill → draft recipe → test → evaluate → improve → repeat. Figure out where the user already is and jump in from there. If they have a draft SKILL.md, skip to Phase 2 or 3. If they just have an idea, start at Phase 1. If they want to vibe without running tests, do Phases 1–3 then jump to Phase 7.
 
 ## When NOT to Use
 
@@ -35,7 +35,7 @@ Determine:
 - `~/.claude/skills/<name>/SKILL.md`
 - `~/.claude/commands/<name>.md`
 
-Read it before proceeding and apply the field mapping in `references/opencode-format.md`.
+Read it before proceeding and apply the field mapping in `references/opencode-format.md`. Note that Claude Code skills won't have a recipe.yaml — Phase 3 will generate one from the converted SKILL.md structure, so pay attention to extracting the implicit workflow during conversion.
 
 Ask probing questions about edge cases, input/output formats, success criteria, and dependencies. Don't write the first draft until the scope is clear enough to execute.
 
@@ -61,11 +61,77 @@ After writing the draft, read it with fresh eyes before sharing. Then:
 4. Read the file back to confirm no corruption
 5. Verify: frontmatter has `name` and `description`, name matches directory
 
-**If skipping tests** (subjective skill or user preference): jump to Phase 6 after this step.
+**If skipping tests** (subjective skill or user preference): jump to Phase 7 after Phase 3.
 
 ---
 
-## Phase 3 — Test the Skill
+## Phase 3 — Draft and Write the Recipe
+
+Every skill gets a companion `recipe.yaml` that defines its authoritative execution contract. The recipe pins: workflow steps, required parameters, expected outputs, and validation criteria. SKILL.md provides the natural-language elaboration; the recipe is what makes runs reproducible and comparable.
+
+Read `references/recipe-schema.md` for the full schema specification, field reference, formatting rules, and annotated examples.
+
+### Check for Existing Recipe
+
+Before drafting, check if `recipe.yaml` already exists in the skill directory. If it does:
+- **Updating an existing skill**: Read the existing recipe first. Preserve its structure as a starting point and merge any changes from the updated SKILL.md into it rather than regenerating from scratch.
+- **New skill with a pre-created recipe**: Use `question` to confirm: "A recipe.yaml already exists. Overwrite it, or use it as a starting point?"
+
+If no existing recipe, proceed with extraction or interview below.
+
+### Extracting the Recipe from the Skill
+
+Since you just wrote (or are looking at) the SKILL.md, extract the recipe structure from it:
+
+1. **Title and description**: Derive `title` from the SKILL.md's `# Title` heading and `description` from the frontmatter description (condensed to 1-2 sentences if needed).
+2. **Workflow steps**: Map each Phase heading to a workflow step. Use the phase name as the step name, summarize the description to 1-3 sentences.
+3. **Parameters**: Look at `question` tool usage patterns, Variables sections, and input references in the skill. Each distinct user input becomes a parameter with an inferred type.
+4. **Outputs**: Look at `write` tool usage, file creation patterns, and artifact references. Each distinct output becomes an output entry.
+5. **Validation**: Look at verification sections, acceptance criteria, and `bash` commands used for checking. Each becomes a validation entry.
+6. **Decision points**: Any phase that pauses for user review or approval is a decision point.
+
+If the skill is minimal (fewer than 2 extractable workflow steps or no parameters), note this and use `question` to ask: "This skill appears minimal. Should I generate a minimal recipe with what I found, or would you like to define the recipe interactively?"
+
+### Interactive Interview (Alternative)
+
+If extraction yields too little or the user prefers manual control, conduct a structured interview using `question` for each schema section:
+
+- **Parameters**: For each one, gather: key (kebab-case), type, required flag, default, options (if select), description. Use `question` to ask "Add another parameter?" after each. Zero parameters is valid.
+- **Workflow steps**: For each one, gather: name, description (1-3 sentences), which parameters it consumes, what outputs it produces, whether it's a decision point. Use `question` to ask "Add another step?" after each.
+- **Outputs**: For each one, gather: id (kebab-case), description, type (file/intermediate/artifact), glob pattern (if file), required flag.
+- **Validation**: For each one, gather: name, type (shell/content), command (if shell) or target + contains (if content). Note that validation is recommended but zero checks is acceptable.
+
+### Building the YAML
+
+Assemble `recipe.yaml` following these formatting rules:
+- First line: `# See SKILL.md in this directory for detailed phase instructions`
+- 2-space indentation (never tabs)
+- Double-quote all string values
+- `true`/`false` for booleans
+- Omit optional sections that are empty (don't include `[]`)
+- Keep lines under 120 characters
+- Version is always `"1.0.0"`
+
+### Review and Write
+
+Present the complete drafted recipe as text output (recipes are typically 50-150 lines).
+
+Use `question` with options:
+- "Accept and write to disk"
+- "Modify a specific section"
+- "Regenerate from scratch"
+
+If "Modify a specific section": ask which section (parameters / workflow / outputs / validation / metadata), walk through changes, regenerate, and present again. Loop until accepted.
+
+When accepted:
+1. Use `write` to create `<skill-dir>/recipe.yaml`
+2. Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('<path>'))"`
+3. If validation fails, fix the YAML and retry
+4. Use `read` to confirm the file was written correctly
+
+---
+
+## Phase 4 — Test the Skill
 
 Come up with 2–3 realistic test prompts — the kind of thing a real user would actually say. Share them with the user and confirm before running: "Here are a few test cases I'd like to try. Do these look right, or do you want to adjust?"
 
@@ -136,9 +202,14 @@ Report what you did and what you produced.
 
 While the runs are in progress, finalize the assertions in `evals.json`. Good assertions are objectively checkable against the output files. Subjective qualities are better left to human review.
 
+Since this skill always produces both SKILL.md and recipe.yaml, include recipe-specific assertions in every eval:
+- `recipe.yaml exists in the skill directory`
+- `recipe.yaml is valid YAML`
+- `recipe workflow step count matches SKILL.md phase count`
+
 ---
 
-## Phase 4 — Evaluate and Get Feedback
+## Phase 5 — Evaluate and Get Feedback
 
 Once runs complete, grade each assertion against the outputs (check programmatically where possible — it's faster and reusable). Update `evals.json` with pass/fail results and evidence.
 
@@ -153,7 +224,7 @@ Ask for feedback. Empty feedback means it looked fine. Focus improvements on cas
 
 ---
 
-## Phase 5 — Improve and Iterate
+## Phase 6 — Improve and Iterate
 
 After getting feedback:
 
@@ -161,8 +232,10 @@ After getting feedback:
 2. **Read the transcripts, not just outputs** — check `with-skill/transcript.md` for each run. If the agent spent time on unproductive steps, find which instruction caused it and remove or reframe it.
 3. **Look for repeated work** — if both runs independently wrote the same helper script, bundle it in `scripts/`.
 4. **Make the smallest useful change** — targeted edits are easier to evaluate than rewrites.
+5. **Keep the recipe in sync** — when you change SKILL.md phases, parameters, or outputs, update `recipe.yaml` to match. The recipe is the authoritative contract; it must reflect the actual workflow.
+6. **Re-validate after every recipe edit** — run `python3 -c "import yaml; yaml.safe_load(open('<path>'))"` after touching recipe.yaml. Edits can introduce syntax errors silently.
 
-Apply improvements to the skill on disk. Create `iteration-2/` in the workspace with a fresh `evals.json` (copy forward the prompts and assertions, clear the results). Rerun all test cases including baselines. Present results. Get feedback. Repeat until:
+Apply improvements to both files on disk. Create `iteration-2/` in the workspace with a fresh `evals.json` (copy forward the prompts and assertions, clear the results). Rerun all test cases including baselines. Present results. Get feedback. Repeat until:
 
 - The user says they're satisfied
 - All feedback is empty
@@ -170,18 +243,23 @@ Apply improvements to the skill on disk. Create `iteration-2/` in the workspace 
 
 ---
 
-## Phase 6 — Final Verification
+## Phase 7 — Final Verification
 
-After iteration is complete (or after Phase 2 for skills skipping tests):
+After iteration is complete (or after Phase 3 for skills skipping tests):
 
 1. Read `SKILL.md` back from disk
 2. Run the validation checklist from `references/opencode-format.md`
 3. Confirm any bundled `scripts/` files are executable if they need to be
 4. Confirm `references/` files are referenced from the skill body with clear guidance on when to read them
+5. Read `recipe.yaml` back from disk
+6. Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('<path>'))"`
+7. Verify recipe workflow steps match SKILL.md phases (same count, same names)
+8. Verify recipe parameter keys are all referenced in at least one workflow step's `requires_input`
+9. Verify recipe output ids are all referenced in at least one workflow step's `produces`
 
 ---
 
-## Phase 7 — Description Optimization (Optional)
+## Phase 8 — Description Optimization (Optional)
 
 After the skill is in good shape, offer to optimize the description for better triggering accuracy. This is worth doing when the skill is complex or when its trigger conditions overlap with other skills.
 
@@ -214,6 +292,25 @@ Tally results. For any query that gave the wrong answer, examine the reasoning t
 ## Reference Files
 
 - `references/opencode-format.md` — Full OpenCode skill format spec, loading tiers, naming rules, frontmatter, writing patterns, tool name table, and Claude Code conversion field mapping
+- `references/recipe-schema.md` — Full recipe.yaml schema specification, field-by-field reference, YAML formatting guide, and annotated examples
+
+---
+
+## Guardrails
+
+**Skill guardrails:**
+- Keep SKILL.md under 500 lines; move overflow to `references/`
+- Generalize from feedback — don't overfit to a single test case
+- When updating an existing skill, preserve the directory name and `name` frontmatter exactly
+- Don't silently rewrite unrelated skills or create `-v2` variants
+
+**Recipe guardrails:**
+- Never overwrite an existing recipe.yaml without explicit user confirmation
+- Validate YAML is parseable before declaring recipe success
+- Keep generated recipes under 200 lines; if a recipe exceeds this, suggest simplifying or splitting
+- All parameter keys and output ids in the recipe must be unique
+- Step numbers must be sequential starting at 1
+- The recipe must stay in sync with SKILL.md — if one changes, the other must be updated
 
 ---
 
@@ -235,7 +332,15 @@ Validation:
   description length ....... pass / fail
   frontmatter valid ........ pass / fail
   body complete ............ pass / fail
+  recipe YAML valid ........ pass / fail
+  recipe-skill sync ........ pass / fail
 
 Test iterations: <N | skipped>
 Description optimization: <run | skipped>
+
+Recipe: <path to recipe.yaml>
+  Parameters: <count>
+  Workflow steps: <count>
+  Outputs: <count>
+  Validations: <count>
 ```
