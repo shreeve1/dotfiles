@@ -57,3 +57,9 @@ if (which npm | is-not-empty) {
 # $env.OPENAI_API_KEY = "..."
 # $env.JINA_API_KEY = "..."
 # $env.SERPER_API_KEY = "..."
+
+# Machine-local secrets (gitignored)
+const secrets_path = ("~/.config/nushell/secrets.nu" | path expand)
+if ($secrets_path | path exists) {
+    source ~/.config/nushell/secrets.nu
+}
