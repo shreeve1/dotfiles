@@ -77,3 +77,4 @@ def --wrapped browse-snapshot [...args] {
 # - If those tools ship Nushell completions later, add them via autoload files.
 
 oh-my-posh init nu --config /opt/homebrew/opt/oh-my-posh/themes/kali.omp.json
+source "~/.cargo/env.nu"
