@@ -1,0 +1,135 @@
+# See SKILL.md in this directory for detailed phase instructions
+version: "1.0.0"
+title: "Create OpenCode Skill"
+description: "Create, test, and iteratively improve an OpenCode skill with both SKILL.md and recipe.yaml artifacts."
+
+parameters:
+  - key: "skill-name"
+    type: "string"
+    required: true
+    description: "Kebab-case name for the skill (must match directory name)"
+
+  - key: "skill-purpose"
+    type: "string"
+    required: true
+    description: "What the skill enables the agent to do — used to derive the description"
+
+  - key: "scope"
+    type: "select"
+    required: true
+    options: ["global", "project"]
+    description: "Where to install: global (~/.config/opencode/skills/) or project (.opencode/skills/)"
+
+  - key: "mode"
+    type: "select"
+    required: true
+    options: ["new", "update", "convert"]
+    description: "Whether creating from scratch, updating an existing skill, or converting from Claude Code"
+
+  - key: "testing-approach"
+    type: "select"
+    required: false
+    default: "test-loop"
+    options: ["test-loop", "human-review"]
+    description: "Whether to run automated test comparisons (Phases 4-6) or skip to human review"
+
+  - key: "source-path"
+    type: "file"
+    required: false
+    default: ""
+    description: "Path to existing skill or Claude Code command to update/convert (required for update/convert modes)"
+
+workflow:
+  - step: 1
+    name: "Capture intent"
+    description: "Gather purpose, trigger conditions, output type, scope, and testing approach. If converting, read the source file first."
+    requires_input: ["skill-purpose", "scope", "mode", "source-path"]
+    decision_point: true
+
+  - step: 2
+    name: "Draft and write the skill"
+    description: "Write SKILL.md following opencode-format.md spec. Create directory structure with any bundled scripts, references, or assets."
+    requires_input: ["skill-name", "scope"]
+    produces: ["skill-md"]
+    decision_point: false
+
+  - step: 3
+    name: "Draft and write the recipe"
+    description: "Extract recipe structure from SKILL.md or conduct interactive interview. Write recipe.yaml and validate syntax and schema."
+    produces: ["recipe-yaml"]
+    decision_point: true
+
+  - step: 4
+    name: "Test the skill"
+    description: "Create test workspace with evals.json. Spawn parallel with-skill and baseline agents for each test case."
+    requires_input: ["testing-approach"]
+    produces: ["test-workspace"]
+    decision_point: true
+
+  - step: 5
+    name: "Evaluate and get feedback"
+    description: "Grade assertions against outputs. Present comparison results to user and collect feedback."
+    produces: ["eval-results"]
+    decision_point: true
+
+  - step: 6
+    name: "Improve and iterate"
+    description: "Apply targeted improvements based on feedback. Keep SKILL.md and recipe.yaml in sync. Summarize iteration state for context management. Loop to Phase 4 or advance to Phase 7."
+    produces: ["iteration-summary"]
+    decision_point: true
+
+  - step: 7
+    name: "Final verification"
+    description: "Read both files back from disk. Run full validation checklist: frontmatter, naming, recipe YAML syntax, schema validation, cross-reference sync."
+    decision_point: false
+
+  - step: 8
+    name: "Optimize description"
+    description: "Optional. Generate 20 eval queries (should-trigger and should-not-trigger), test triggering accuracy, and revise description. Report before/after accuracy."
+    decision_point: true
+
+outputs:
+  - id: "skill-md"
+    description: "The SKILL.md file with frontmatter, phases, and references"
+    type: "file"
+    pattern: "*/SKILL.md"
+    required: true
+
+  - id: "recipe-yaml"
+    description: "The recipe.yaml execution contract"
+    type: "file"
+    pattern: "*/recipe.yaml"
+    required: true
+
+  - id: "test-workspace"
+    description: "Test workspace with evals.json and per-test-case directories"
+    type: "artifact"
+    required: false
+
+  - id: "eval-results"
+    description: "Updated evals.json with pass/fail results and evidence"
+    type: "intermediate"
+    required: false
+
+  - id: "iteration-summary"
+    description: "Per-iteration summary written to iteration-N/summary.md"
+    type: "intermediate"
+    required: false
+
+validation:
+  - name: "SKILL.md has required frontmatter"
+    type: "content"
+    target: "skill-md"
+    contains: ["name:", "description:"]
+
+  - name: "Recipe is valid YAML"
+    type: "shell"
+    command: "python3 -c \"import yaml; yaml.safe_load(open('recipe.yaml'))\""
+
+  - name: "Recipe passes schema validation"
+    type: "shell"
+    command: "python3 scripts/parse-recipe.py recipe.yaml --validate"
+
+  - name: "Skill name matches directory"
+    type: "shell"
+    command: "test \"$(grep '^name:' SKILL.md | head -1 | sed 's/name: //')\" = \"$(basename \"$PWD\")\""

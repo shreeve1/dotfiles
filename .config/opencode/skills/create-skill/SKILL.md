@@ -39,6 +39,25 @@ Read it before proceeding and apply the field mapping in `references/opencode-fo
 
 Ask probing questions about edge cases, input/output formats, success criteria, and dependencies. Don't write the first draft until the scope is clear enough to execute.
 
+### Phase 1 Completion
+
+Output the following marker when Phase 1 is complete:
+
+```
+[Phase 1 COMPLETE] Intent captured for: <skill-name>
+  Purpose: <one-line summary>
+  Scope: <global | project>
+  Testing: <test loop | human review only>
+```
+
+**Checkpoint — proceed only if ALL conditions are met:**
+- [ ] Purpose is specific enough to write a description from
+- [ ] At least one trigger condition is identified
+- [ ] Output type is known (files, actions, decisions, etc.)
+- [ ] Scope is decided (global vs project)
+
+If any condition is not met, ask clarifying questions before proceeding.
+
 ---
 
 ## Phase 2 — Draft and Write the Skill
@@ -62,6 +81,26 @@ After writing the draft, read it with fresh eyes before sharing. Then:
 5. Verify: frontmatter has `name` and `description`, name matches directory
 
 **If skipping tests** (subjective skill or user preference): jump to Phase 7 after Phase 3.
+
+### Phase 2 Completion
+
+Output the following marker when Phase 2 is complete:
+
+```
+[Phase 2 COMPLETE] SKILL.md written: <path>
+  Lines: <count>
+  Sections: <list of ## headings>
+  Bundled resources: <list or "none">
+```
+
+**Checkpoint — proceed only if ALL conditions are met:**
+- [ ] SKILL.md exists on disk and reads back without corruption
+- [ ] Frontmatter has `name` and `description` fields
+- [ ] `name` matches directory name
+- [ ] Description is specific enough to trigger correctly
+- [ ] Body is under 500 lines (or overflow moved to `references/`)
+
+If any condition fails, fix it before proceeding to Phase 3.
 
 ---
 
@@ -128,6 +167,34 @@ When accepted:
 2. Validate YAML syntax: `python3 -c "import yaml; yaml.safe_load(open('<path>'))"`
 3. If validation fails, fix the YAML and retry
 4. Use `read` to confirm the file was written correctly
+5. Run the recipe parser for full schema validation:
+   ```bash
+   python3 <skill-dir>/../create-skill/scripts/parse-recipe.py <skill-dir>/recipe.yaml --validate
+   ```
+   If this script is not available at that path, fall back to the YAML-only check above.
+
+### Phase 3 Completion
+
+Output the following marker when Phase 3 is complete:
+
+```
+[Phase 3 COMPLETE] recipe.yaml written: <path>
+  Parameters: <count>
+  Workflow steps: <count>
+  Outputs: <count>
+  Validations: <count>
+  YAML syntax: valid
+  Schema validation: passed | skipped
+```
+
+**Checkpoint — proceed only if ALL conditions are met:**
+- [ ] recipe.yaml exists on disk and reads back without corruption
+- [ ] YAML parses without errors
+- [ ] Workflow step count matches SKILL.md phase count
+- [ ] All parameter keys are referenced in at least one step's `requires_input`
+- [ ] All output ids are referenced in at least one step's `produces`
+
+If any condition fails, fix it before proceeding.
 
 ---
 
@@ -207,6 +274,24 @@ Since this skill always produces both SKILL.md and recipe.yaml, include recipe-s
 - `recipe.yaml is valid YAML`
 - `recipe workflow step count matches SKILL.md phase count`
 
+### Phase 4 Completion
+
+Output the following marker when Phase 4 is complete:
+
+```
+[Phase 4 COMPLETE] Test runs launched: <count>
+  Test cases: <list of test names>
+  Workspace: <path to iteration-N/>
+  Assertions defined: <count>
+```
+
+**Checkpoint — proceed only if ALL conditions are met:**
+- [ ] evals.json written with at least 1 test case
+- [ ] Both with-skill and baseline agents launched for each test case
+- [ ] Assertions include recipe-specific checks
+
+If any condition fails, fix before proceeding to evaluation.
+
 ---
 
 ## Phase 5 — Evaluate and Get Feedback
@@ -221,6 +306,22 @@ Present each test case to the user:
 - Assertion results (pass/fail with one-line evidence each)
 
 Ask for feedback. Empty feedback means it looked fine. Focus improvements on cases where the user had specific complaints.
+
+### Phase 5 Completion
+
+Output the following marker when Phase 5 is complete:
+
+```
+[Phase 5 COMPLETE] Evaluation for iteration <N>
+  Pass rate: <X/Y assertions passed>
+  User feedback: <received | empty (looks good)>
+```
+
+**Checkpoint — proceed only if:**
+- [ ] All test case outputs have been reviewed (programmatic + human)
+- [ ] evals.json updated with pass/fail results
+
+If user feedback is empty and all assertions pass, skip Phase 6 and go to Phase 7.
 
 ---
 
@@ -241,6 +342,30 @@ Apply improvements to both files on disk. Create `iteration-2/` in the workspace
 - All feedback is empty
 - You're not making meaningful progress
 
+### Context Management in the Iterate Loop
+
+The Phase 4-5-6 loop generates substantial output (transcripts, diffs, evaluations) that degrades context quality over time. After each iteration cycle:
+
+1. **Summarize the iteration** before moving to the next — capture: which tests passed/failed, what changes were made, what feedback was given. Discard raw transcripts from context once summarized.
+2. **Use the workspace as external memory** — write findings to `iteration-N/summary.md` so they survive context compression. When starting a new iteration, read the previous summary rather than relying on in-context history.
+3. **Limit active context** — after iteration 2+, only keep the current iteration's details and the cumulative summary in context. Compress earlier iterations aggressively.
+
+### Phase 6 Completion
+
+Output the following marker when Phase 6 is complete:
+
+```
+[Phase 6 COMPLETE] Iteration <N> improvements applied
+  Changes: <brief list of what changed>
+  Files modified: SKILL.md, recipe.yaml, <others>
+  Next: re-testing (Phase 4) | done (Phase 7)
+```
+
+**Checkpoint — proceed only if ALL conditions are met:**
+- [ ] SKILL.md and recipe.yaml are still in sync after edits
+- [ ] YAML still parses without errors
+- [ ] Changes are generalized (not overfitting to one test case)
+
 ---
 
 ## Phase 7 — Final Verification
@@ -256,6 +381,23 @@ After iteration is complete (or after Phase 3 for skills skipping tests):
 7. Verify recipe workflow steps match SKILL.md phases (same count, same names)
 8. Verify recipe parameter keys are all referenced in at least one workflow step's `requires_input`
 9. Verify recipe output ids are all referenced in at least one workflow step's `produces`
+10. If `scripts/parse-recipe.py` is available, run full schema validation:
+    ```bash
+    python3 <skill-dir>/../create-skill/scripts/parse-recipe.py <skill-dir>/recipe.yaml --validate
+    ```
+
+### Phase 7 Completion
+
+Output the following marker when Phase 7 is complete:
+
+```
+[Phase 7 COMPLETE] Final verification passed
+  SKILL.md: <path> (<lines> lines)
+  recipe.yaml: <path> (<lines> lines)
+  All checks: passed
+```
+
+If any check fails, fix it and re-verify before proceeding.
 
 ---
 
@@ -287,12 +429,24 @@ Answer YES or NO, then explain your reasoning in one sentence.
 
 Tally results. For any query that gave the wrong answer, examine the reasoning the agent returned — it will tell you exactly what in the description caused the mismatch. Revise the description to address those cases and rerun only the failing queries to confirm the fix. Report before/after accuracy and show the updated description.
 
+### Phase 8 Completion
+
+Output the following marker when Phase 8 is complete:
+
+```
+[Phase 8 COMPLETE] Description optimization
+  Before accuracy: <X/20>
+  After accuracy: <Y/20>
+  Description updated: yes | no
+```
+
 ---
 
 ## Reference Files
 
 - `references/opencode-format.md` — Full OpenCode skill format spec, loading tiers, naming rules, frontmatter, writing patterns, tool name table, and Claude Code conversion field mapping
 - `references/recipe-schema.md` — Full recipe.yaml schema specification, field-by-field reference, YAML formatting guide, and annotated examples
+- `scripts/parse-recipe.py` — Recipe parser and validator. Run with `--validate` for schema checks, `--json` for structured output, or no flag for a formatted execution plan. Use during Phase 3 (after writing recipe.yaml) and Phase 7 (final verification) for any skill's recipe
 
 ---
 
