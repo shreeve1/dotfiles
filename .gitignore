@@ -14,6 +14,7 @@ artifacts/
 
 # Claude Code — runtime state, dependencies, and machine-local files
 .claude/settings.local.json
+.claude/settings-*.json
 .claude/**/node_modules/
 .claude/**/__pycache__/
 .claude/**/.DS_Store
