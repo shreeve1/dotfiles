@@ -194,6 +194,13 @@ ghostty() {
 
 export NODE_PATH="$(npm root -g):$NODE_PATH"
 
+# Pi Coding Agent aliases
+EXT=~/.pi/agent/extensions
+alias pi-team='pi -e $EXT/agent-team.ts'                                          # agent-team orchestrator (dispatcher mode)
+alias pi-sub='pi -e $EXT/subagent-widget.ts'                                      # /sub <task> spawns background subagents
+alias pi-focus='pi -e $EXT/footer.ts'                                             # minimal footer only
+alias pi-team-focus='pi -e $EXT/agent-team.ts -e $EXT/footer.ts'                  # agent-team + minimal footer
+
 # OpenClaw Completion
 source "/Users/james/.openclaw/completions/openclaw.zsh"
 # Machine-local secrets (not tracked in dotfiles)
