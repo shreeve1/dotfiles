@@ -59,3 +59,14 @@ If root has 25+ items or many loose scripts/docs:
 1. Alert the user
 2. Suggest organizing into appropriate directories
 3. Offer to help reorganize
+
+## gstack
+
+- **Web browsing**: Always use `/browse` from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.
+- **Available skills**:
+  `/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`,
+  `/design-consultation`, `/review`, `/ship`, `/land-and-deploy`, `/canary`,
+  `/benchmark`, `/browse`, `/qa`, `/qa-only`, `/design-review`,
+  `/setup-browser-cookies`, `/setup-deploy`, `/retro`, `/investigate`,
+  `/document-release`, `/codex`, `/cso`, `/autoplan`, `/careful`, `/freeze`,
+  `/guard`, `/unfreeze`, `/gstack-upgrade`
