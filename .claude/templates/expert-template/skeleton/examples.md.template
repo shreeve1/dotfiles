@@ -1,0 +1,37 @@
+# {{EXPERT_DISPLAY}} Examples
+
+Common {{DOMAIN}} tasks and examples.
+
+## Example 1: {{EXAMPLE_1_TITLE}}
+
+### Question
+{{EXAMPLE_1_QUESTION}}
+
+### Answer
+{{EXAMPLE_1_ANSWER}}
+
+### Code
+```{{EXAMPLE_1_LANG}}
+{{EXAMPLE_1_CODE}}
+```
+
+## Example 2: {{EXAMPLE_2_TITLE}}
+
+### Question
+{{EXAMPLE_2_QUESTION}}
+
+### Answer
+{{EXAMPLE_2_ANSWER}}
+
+### Code
+```{{EXAMPLE_2_LANG}}
+{{EXAMPLE_2_CODE}}
+```
+
+## Example 3: {{EXAMPLE_3_TITLE}}
+
+### Question
+{{EXAMPLE_3_QUESTION}}
+
+### Answer
+{{EXAMPLE_3_ANSWER}}

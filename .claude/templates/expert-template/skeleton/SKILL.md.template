@@ -1,0 +1,120 @@
+---
+name: {{EXPERT_NAME}}
+description: This skill should be used when the user asks about "{{DOMAIN}}", mentions {{TRIGGER_1}}, {{TRIGGER_2}}, {{TRIGGER_3}}, or needs help with {{ENTITY_1}}, {{ENTITY_2}}, {{ENTITY_3}}. Provides expert knowledge and systematic analysis for {{DOMAIN}}.
+version: {{VERSION}}
+author: {{AUTHOR}}
+---
+
+# {{EXPERT_DISPLAY}}
+
+{{DESCRIPTION}}
+
+## Quick Start
+
+Ask questions about {{DOMAIN}}:
+
+- "How do I {{OPERATION_1}}?"
+- "Why is my {{ENTITY_1}} not working?"
+- "Explain {{CONCEPT}} in {{DOMAIN}}"
+- "Best practices for {{TASK}}"
+
+## Auto-Invocation Examples
+
+This skill activates when:
+- User asks about {{TRIGGER_1}}
+- User needs help with {{TRIGGER_2}}
+- User is troubleshooting {{TRIGGER_3}}
+- User asks about {{ENTITY_1}} or {{ENTITY_2}}
+
+## Domain Overview
+
+{{DOMAIN}} encompasses...
+
+### Key Concepts
+
+- **{{CONCEPT_1}}**: Description
+- **{{CONCEPT_2}}**: Description
+- **{{CONCEPT_3}}**: Description
+
+### Domain Entities
+
+The following entities are central to {{DOMAIN}}:
+
+| Entity | Description |
+|--------|-------------|
+| {{ENTITY_1}} | {{ENTITY_1_DESC}} |
+| {{ENTITY_2}} | {{ENTITY_2_DESC}} |
+| {{ENTITY_3}} | {{ENTITY_3_DESC}} |
+
+## Common Operations
+
+### {{OPERATION_1}}
+
+To {{OPERATION_1}}...
+
+### {{OPERATION_2}}
+
+To {{OPERATION_2}}...
+
+### {{OPERATION_3}}
+
+To {{OPERATION_3}}...
+
+## Mental Model
+
+This expert maintains a mental model in `expertise/expertise.yaml` containing:
+
+- **Domain knowledge**: Core concepts and terminology
+- **Component understanding**: How {{ENTITY_1}}, {{ENTITY_2}}, etc. work
+- **Learning priorities**: What to investigate when scanning codebases
+- **Sources of truth**: Where to validate information
+
+## Query Workflow
+
+When asked a question:
+
+1. **Load** the mental model from `expertise/expertise.yaml`
+2. **Interpret** the question in domain context
+3. **Validate** assumptions against sources of truth
+4. **Generate** a comprehensive answer
+5. **Flag** areas needing further investigation
+
+For codebase analysis, use the query prompt:
+```bash
+./scripts/run-expert.sh query "your question" --scope /path/to/code
+```
+
+## Self-Improvement Workflow
+
+To learn from a codebase:
+
+```bash
+./scripts/run-expert.sh learn /path/to/code
+```
+
+This will:
+1. Scan the codebase for {{DOMAIN}} patterns
+2. Extract domain-relevant information
+3. Update the mental model
+4. Report findings
+
+## Sources of Truth
+
+Validate information against:
+- {{SOURCE_1_URL}}
+- {{SOURCE_2_URL}}
+- {{SOURCE_3_DESCRIPTION}}
+
+## Safety Considerations
+
+{{SAFETY_PATTERNS}}
+
+## Additional Resources
+
+### Reference Files
+- **`reference.md`** - Detailed {{DOMAIN}} reference
+- **`examples.md`** - Common usage examples
+
+### Scripts
+- **`scripts/expert.py`** - Core expert implementation
+- **`scripts/run-expert.sh`** - CLI wrapper

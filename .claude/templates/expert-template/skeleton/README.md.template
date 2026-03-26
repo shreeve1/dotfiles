@@ -1,0 +1,59 @@
+# {{EXPERT_DISPLAY}}
+
+{{DESCRIPTION}}
+
+## Quick Start
+
+This skill provides expert knowledge of {{DOMAIN}}. Ask questions directly:
+
+- "How do I {{OPERATION_1}}?"
+- "Why is my {{ENTITY_1}} not working?"
+- "What are the best practices for {{TASK}}?"
+
+## Features
+
+- **Domain expertise** - Comprehensive knowledge of {{DOMAIN}}
+- **Query workflow** - Systematic question answering
+- **Self-improvement** - Learn from codebases
+- **Mental model** - Structured knowledge representation
+
+## CLI Tools
+
+### Query
+
+```bash
+./scripts/run-expert.sh query "your question"
+```
+
+### Learn from Codebase
+
+```bash
+./scripts/run-expert.sh learn /path/to/code
+```
+
+### Info
+
+```bash
+./scripts/run-expert.sh info
+```
+
+## Mental Model
+
+The expert maintains a mental model in `expertise/expertise.yaml` containing:
+
+- Domain knowledge and concepts
+- Entity relationships
+- Common operations
+- Learning priorities
+- Sources of truth
+
+## Auto-Invocation
+
+This skill activates when you ask about:
+- {{TRIGGER_1}}
+- {{TRIGGER_2}}
+- {{TRIGGER_3}}
+
+## Version
+
+{{VERSION}} - Created {{DATE}}

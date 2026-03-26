@@ -1,0 +1,34 @@
+[
+  {
+    "session_id": "391f1051-0bbe-4697-a75c-e4d9dea43825",
+    "transcript_path": "/Users/james/.claude/projects/-Users-james/391f1051-0bbe-4697-a75c-e4d9dea43825.jsonl",
+    "cwd": "/Users/james/.claude/hooks",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false
+  },
+  {
+    "session_id": "391f1051-0bbe-4697-a75c-e4d9dea43825",
+    "transcript_path": "/Users/james/.claude/projects/-Users-james/391f1051-0bbe-4697-a75c-e4d9dea43825.jsonl",
+    "cwd": "/Users/james/.claude/hooks",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false
+  },
+  {
+    "session_id": "391f1051-0bbe-4697-a75c-e4d9dea43825",
+    "transcript_path": "/Users/james/.claude/projects/-Users-james/391f1051-0bbe-4697-a75c-e4d9dea43825.jsonl",
+    "cwd": "/Users/james/.claude/hooks",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false
+  },
+  {
+    "session_id": "391f1051-0bbe-4697-a75c-e4d9dea43825",
+    "transcript_path": "/Users/james/.claude/projects/-Users-james/391f1051-0bbe-4697-a75c-e4d9dea43825.jsonl",
+    "cwd": "/Users/james/.claude/hooks",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "Stop",
+    "stop_hook_active": false
+  }
+]

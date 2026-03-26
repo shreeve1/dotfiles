@@ -1,0 +1,197 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Claude Code Settings",
+  "description": "JSON schema for validating Claude Code settings.json with hooks configuration",
+  "type": "object",
+  "properties": {
+    "hooks": {
+      "type": "object",
+      "description": "Hook configurations for Claude Code lifecycle events",
+      "properties": {
+        "Setup": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs once when Claude Code starts for the first time"
+        },
+        "SessionStart": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs at the start of each Claude Code session"
+        },
+        "PrePromptSubmit": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs before each user prompt is submitted"
+        },
+        "PostPromptSubmit": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs after each user prompt is submitted"
+        },
+        "PreToolUse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs before each tool use"
+        },
+        "PostToolUse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs after each tool use"
+        },
+        "PreMessageResponse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs before Claude's response is displayed"
+        },
+        "PostMessageResponse": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs after Claude's response is displayed"
+        },
+        "ErrorHandler": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs when an error occurs"
+        },
+        "SessionEnd": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs when Claude Code session ends"
+        },
+        "Stop": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs when Claude Code is stopped"
+        },
+        "ProjectSwitch": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs when switching between projects"
+        },
+        "ConfigChange": {
+          "$ref": "#/definitions/hookConfig",
+          "description": "Runs when settings.json is modified"
+        }
+      }
+    },
+    "retryConfig": {
+      "type": "object",
+      "description": "Retry configuration for critical hooks",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable retry logic for critical hooks",
+          "default": false
+        },
+        "criticalHooks": {
+          "type": "array",
+          "description": "List of hooks that should use retry logic",
+          "items": {
+            "type": "string",
+            "enum": ["Setup", "SessionStart", "PreToolUse", "PostToolUse", "SessionEnd", "Stop"]
+          },
+          "default": ["Setup", "SessionStart", "PreToolUse"]
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "description": "Maximum number of retry attempts",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "baseDelay": {
+          "type": "number",
+          "description": "Base delay in seconds for exponential backoff",
+          "minimum": 0.1,
+          "maximum": 10.0,
+          "default": 1.0
+        },
+        "maxDelay": {
+          "type": "number",
+          "description": "Maximum delay cap in seconds",
+          "minimum": 1.0,
+          "maximum": 60.0,
+          "default": 10.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "metricsConfig": {
+      "type": "object",
+      "description": "Metrics collection configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable metrics collection for hooks",
+          "default": true
+        },
+        "logPath": {
+          "type": "string",
+          "description": "Path to metrics log file",
+          "default": "~/.claude/logs/hook_metrics.jsonl"
+        },
+        "retentionDays": {
+          "type": "integer",
+          "description": "Number of days to retain metrics",
+          "minimum": 1,
+          "maximum": 365,
+          "default": 30
+        },
+        "collectSystemMetrics": {
+          "type": "boolean",
+          "description": "Collect system-level metrics (CPU, memory)",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "hookConfig": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["python", "bash", "node", "disabled"],
+          "description": "Hook type determines how the hook is executed"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command to execute (must use 'uv run' for Python hooks with absolute paths)",
+          "pattern": "^(uv run |bash |node |disabled).*"
+        },
+        "matcher": {
+          "type": "object",
+          "description": "Optional matcher to filter when hook runs",
+          "properties": {
+            "toolName": {
+              "type": "string",
+              "description": "Match specific tool name"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Regex pattern to match against tool/prompt"
+            }
+          }
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout in seconds (optional)",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables for hook execution",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "disabled"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": ["command"]
+        }
+      },
+      "else": {
+        "required": ["command"]
+      }
+    }
+  }
+}

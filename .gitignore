@@ -11,3 +11,9 @@ artifacts/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
 .worktrees
+
+# Claude Code — runtime state, dependencies, and machine-local files
+.claude/settings.local.json
+.claude/**/node_modules/
+.claude/**/__pycache__/
+.claude/**/.DS_Store

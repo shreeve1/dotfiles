@@ -1,0 +1,180 @@
+---
+name: {{SKILL_NAME}}
+description: {{Clear, concise description of what this skill covers. Use for: X, Y, Z. Activates when...}}
+version: 1.0.0
+category: {{domain-category}}
+tags:
+  - {{tag1}}
+  - {{tag2}}
+  - {{tag3}}
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+  - {{Add specific tools relevant to this domain}}
+related-skills:
+  - {{optional: skill-name-1}}
+  - {{optional: skill-name-2}}
+templates:
+  # Task templates that subagents can use
+  basic_workflow:
+    - Step 1 description
+    - Step 2 description
+    - Step 3 description
+  advanced_workflow:
+    - Setup and validation
+    - Core processing
+    - Verification and cleanup
+---
+
+# {{Tool/API/Concept Name}}
+
+Brief overview (1-2 sentences) of what this covers and why it matters.
+
+## When to Use This Skill
+
+Use this skill when you need to:
+- **Specific use case 1** — Brief explanation
+- **Specific use case 2** — Brief explanation
+- **Specific use case 3** — Brief explanation
+
+**Don't use when:** Alternative approaches that would be better (keeps subagents from over-applying this skill)
+
+## Key Principles
+
+1. **Principle 1** — Why this matters and how it guides decisions
+2. **Principle 2** — Another guiding principle
+3. **Principle 3** — Trade-off or nuanced consideration
+
+## Quick Reference
+
+### Common Commands/Operations
+
+| Task | Command/Pattern |
+|------|-----------------|
+| Task 1 | `command --flag value` |
+| Task 2 | `api.endpoint(params)` |
+| Task 3 | Pattern or code snippet |
+
+### Configuration
+
+```yaml
+# Default configuration
+setting1: value1
+setting2: value2
+```
+
+### Environment Requirements
+
+- **Required:** List prerequisites
+- **Optional:** Nice-to-haves
+- **Versions:** Specific version constraints
+
+## Common Patterns
+
+### Pattern 1: Descriptive Name
+
+```bash
+# Example command or code
+command --example
+```
+
+**When to use:** Context and rationale
+**Key considerations:** Edge cases, gotchas
+
+### Pattern 2: Another Pattern
+
+```bash
+# Example
+```
+
+**When to use:** 
+**Key considerations:**
+
+## Directory Structure
+
+```
+{{domain}}/
+├── config/              # Configuration files
+├── output/              # Generated outputs
+├── temp/                # Temporary files (gitignored)
+└── state/               # State files (gitignored)
+```
+
+## Best Practices
+
+1. **Practice 1** — Why this matters
+2. **Practice 2** — Consequences of not following
+3. **Practice 3** — Performance/security/maintainability implication
+4. **Practice 4** — Team convention or standard
+
+## Task Templates (for Subagents)
+
+Subagents consuming this skill should use these task templates:
+
+### Template: Basic Operation
+
+```yaml
+tasks:
+  - Validate environment
+  - Execute core operation
+  - Verify results
+  - Clean up temporary files
+```
+
+### Template: Complex Workflow
+
+```yaml
+tasks:
+  - Setup phase
+  - Processing phase (parallelizable)
+  - Validation phase
+  - Reporting phase
+```
+
+## Troubleshooting
+
+### Issue: Common Problem 1
+
+**Symptoms:** What you see
+**Cause:** Root explanation
+**Fix:** Step-by-step resolution
+
+### Issue: Common Problem 2
+
+**Symptoms:**
+**Cause:**
+**Fix:**
+
+## Integration with Other Skills
+
+### Works well with:
+- `{{skill-name-1}}` — How they complement each other
+- `{{skill-name-2}}` — Common combined use case
+
+### Alternatives to consider:
+- `{{alternative-skill}}` — When to choose it instead
+
+## Security Considerations
+
+- **Credential handling:** How to manage secrets
+- **Data sensitivity:** What to be careful about
+- **Access control:** Permission requirements
+
+## Resources
+
+- **Official docs:** Link to authoritative source
+- **Cheat sheet:** Quick reference
+- **Examples:** Repository with sample implementations
+
+---
+
+## Skill Metadata (Auto-generated)
+
+<!-- This section is maintained by the framework -->
+- **Created:** {{date}}
+- **Last updated:** {{date}}
+- **Tested with:** Version info
+- **Subagents using this skill:** List maintained by framework

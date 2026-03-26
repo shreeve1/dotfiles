@@ -1,0 +1,7 @@
+"""
+{{EXPERT_DISPLAY}} Scripts Package
+
+This package contains the core implementation for the {{EXPERT_DISPLAY}} skill.
+"""
+
+__version__ = "{{VERSION}}"

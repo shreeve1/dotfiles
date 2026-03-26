@@ -1,0 +1,3 @@
+# Requirements for {{EXPERT_DISPLAY}}
+
+pyyaml>=6.0

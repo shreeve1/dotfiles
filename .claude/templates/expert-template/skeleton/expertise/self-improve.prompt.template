@@ -1,0 +1,130 @@
+# Self-Improvement Workflow Instructions
+
+The {{EXPERT_DISPLAY}} can learn from codebases to improve its domain knowledge.
+
+## When to Run Self-Improvement
+
+Trigger this workflow when:
+- First encountering a new {{DOMAIN}} codebase
+- After significant codebase changes
+- When answering questions reveals knowledge gaps
+- Periodically to stay current with codebase evolution
+
+## Self-Improvement Workflow
+
+### 1. Read Mental Model
+
+Load current knowledge from `expertise/expertise.yaml`.
+
+### 2. Scan Codebase
+
+Search for {{DOMAIN}} patterns:
+
+```bash
+# Find {{ENTITY_1}} definitions
+find . -name "{{FILE_PATTERN_1}}" -o -name "{{FILE_PATTERN_2}}"
+
+# Search for {{PATTERN_1_NAME}} patterns
+grep -r "{{REGEX_PATTERN_1}}" --include="{{FILE_PATTERN_3}}" .
+
+# Find {{OPERATION_1}} usage
+grep -r "{{COMMAND_PATTERN_1}}" .
+```
+
+### 3. Extract Domain Information
+
+Look for:
+- **{{ENTITY_1}} definitions** - How are they structured?
+- **{{ENTITY_2}} configurations** - What patterns exist?
+- **{{OPERATION_1}} implementations** - How are operations performed?
+- **Common patterns** - What conventions are used?
+- **Domain-specific issues** - Any anti-patterns or problems?
+
+### 4. Validate Findings
+
+For each discovery:
+- Is this {{DOMAIN}}-specific or generic?
+- Is this a pattern or a one-off?
+- Does this contradict existing knowledge?
+- Should this be added to the mental model?
+
+### 5. Update Mental Model
+
+Update `expertise/expertise.yaml` with new findings:
+- Add new entities to `entities` section
+- Add new patterns to `learning_priorities.patterns`
+- Document new sources of truth
+- Update version and `last_updated` timestamp
+
+### 6. Output Report
+
+Generate a report including:
+- **Scan summary** - Files scanned, patterns found
+- **New discoveries** - What was learned
+- **Knowledge updates** - What changed in the mental model
+- **Recommendations** - What to investigate next
+
+## Scan Patterns for {{DOMAIN}}
+
+### {{ENTITY_1}} Detection
+
+```python
+# Example: Look for {{ENTITY_1}} signatures
+pattern = r"{{REGEX_PATTERN_1}}"
+files = glob.glob("**/{{FILE_PATTERN_1}}", recursive=True)
+```
+
+### {{ENTITY_2}} Detection
+
+```python
+# Example: Find {{ENTITY_2}} declarations
+pattern = r"{{REGEX_PATTERN_2}}"
+files = glob.glob("**/{{FILE_PATTERN_2}}", recursive=True)
+```
+
+### {{OPERATION_1}} Detection
+
+```python
+# Example: Find {{OPERATION_1}} calls
+pattern = r"{{COMMAND_PATTERN_1}}"
+```
+
+## Validation Steps
+
+Before updating the mental model:
+
+1. **Verify relevance** - Is this truly {{DOMAIN}}-specific?
+2. **Check consistency** - Does this align with existing knowledge?
+3. **Confirm generality** - Is this a pattern or an exception?
+4. **Source validation** - Can this be verified against sources of truth?
+
+## Output Format
+
+```markdown
+# Self-Improvement Report
+
+## Scan Summary
+- Files scanned: N
+- Patterns detected: N
+- New entities discovered: N
+
+## New Discoveries
+### {{ENTITY_1}} Pattern
+- Description: ...
+- Found in: ...
+- Implications: ...
+
+### {{OPERATION_1}} Usage
+- Description: ...
+- Frequency: ...
+- Notes: ...
+
+## Mental Model Updates
+- Added: {{ENTITY_1}} to entities
+- Updated: {{PATTERN_1}} in learning_priorities
+- Version: 1.0.0 → 1.0.1
+
+## Recommendations
+- Investigate {{ENTITY_3}} further
+- Review {{SOURCE_1}} for validation
+```

@@ -1,0 +1,21 @@
+#!/bin/bash
+# {{EXPERT_DISPLAY}} - CLI Wrapper
+#
+# Usage:
+#   ./scripts/run-expert.sh query "your question"
+#   ./scripts/run-expert.sh learn /path/to/code
+#   ./scripts/run-expert.sh info
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EXPERT_SCRIPT="$SCRIPT_DIR/expert.py"
+
+# Check if Python is available
+if ! command -v python3 &> /dev/null; then
+    echo "Error: python3 is required but not found"
+    exit 1
+fi
+
+# Run the expert script
+python3 "$EXPERT_SCRIPT" "$@"

@@ -1,0 +1,19 @@
+{
+  "skill_name": "dev-team",
+  "evals": [
+    {
+      "id": 1,
+      "name": "health-endpoint",
+      "prompt": "Add a /api/health endpoint to the Express server that returns JSON with uptime (in seconds), status ('ok'), and timestamp. The endpoint should be added to server/index.js. Also write a unit test for it in tests/unit/health-endpoint.test.js using vitest.",
+      "expected_output": "A working /api/health endpoint returning { uptime, status, timestamp } with a passing unit test",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "toast-notification",
+      "prompt": "Add a toast notification component to the frontend. Create a showToast(message, type) function in public/app.js where type can be 'success', 'error', or 'info'. Style the toasts in public/style.css to appear in the top-right corner, auto-dismiss after 3 seconds, and have different colors for each type.",
+      "expected_output": "A showToast function in app.js and toast styles in style.css with success/error/info variants",
+      "files": []
+    }
+  ]
+}
