@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Codebase exploration specialist. Maps project structure, traces definitions, finds dependencies. READ-ONLY — never modifies files.
-model: openai-codex/gpt-5.3-codex
+model: google-gemini-cli/gemini-2.5-flash 
 tools: read,bash,grep,find,ls
 ---
 

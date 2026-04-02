@@ -1,7 +1,7 @@
 ---
 name: infra-scout
 description: Infrastructure cartographer. Discovers and maps unknown environments, enumerates services, and builds baselines for MSP client deployments.
-model: openai-codex/gpt-5.3-codex
+model: google-gemini-cli/gemini-2.5-flash
 tools: read,bash,grep,find,ls
 ---
 

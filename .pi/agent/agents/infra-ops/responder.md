@@ -1,7 +1,7 @@
 ---
 name: infra-responder
 description: Incident response specialist. Restores service fast through triage, restart, rollback, and recovery across heterogeneous infrastructure.
-model: openai-codex/gpt-5.4
+model: zai/glm-5
 tools: read,bash,grep,find,ls
 ---
 
