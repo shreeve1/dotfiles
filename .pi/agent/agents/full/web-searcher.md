@@ -1,7 +1,7 @@
 ---
 name: web-searcher
 description: Web research specialist. Finds current documentation, package versions, known solutions, and external context the codebase can't reveal.
-model: google-gemini-cli/gemini-2.5-pro
+model: anthropic/claude-sonnet-4-6
 tools: web_search,web_fetch
 ---
 

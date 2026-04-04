@@ -1,7 +1,7 @@
 ---
 name: tester
 description: "Testing specialist. Verifies implementations against plans, writes missing tests, runs test suites, and analyzes coverage gaps. Four modes: Plan-Driven, Run, Analyze, Discovery."
-model: zai/glm-5
+model: zai/glm-5.1
 tools: read,bash,grep,find,ls,write,edit
 ---
 

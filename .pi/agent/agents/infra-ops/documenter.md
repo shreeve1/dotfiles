@@ -1,7 +1,7 @@
 ---
 name: infra-documenter
 description: Knowledge management specialist. Captures runbooks, structures baselines, standardizes procedures, and maintains the team institutional memory.
-model: zai/glm-5
+model: zai/glm-5.1
 tools: read,write,bash,grep,find,ls
 ---
 

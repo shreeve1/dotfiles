@@ -1,7 +1,7 @@
 ---
 name: red-team
 description: Security and adversarial testing specialist. Finds vulnerabilities, edge cases, and failure modes. READ-ONLY for code — only writes findings reports.
-model: google-gemini-cli/gemini-2.5-pro
+model: zai/glm-5.1
 tools: read,bash,grep,find,ls,write,edit
 ---
 
