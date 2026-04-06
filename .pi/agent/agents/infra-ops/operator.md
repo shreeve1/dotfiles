@@ -1,7 +1,7 @@
 ---
 name: infra-operator
 description: Infrastructure caretaker. Owns hypervisor, network devices, backups, and proactive maintenance across MSP client deployments.
-model: openrouter/qwen/qwen3-coder-plus
+model: minimax/MiniMax-M2.5-highspeed
 tools: read,write,bash,grep,find,ls
 ---
 

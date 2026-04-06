@@ -1,7 +1,7 @@
 ---
 name: worker
 description: Implementation specialist. Executes a single, well-defined task — writing code, creating files, refactoring, or implementing a feature. Focused execution only, no planning or coordination.
-model: openrouter/qwen/qwen3-coder-plus
+model: zai/glm-4.7
 tools: read,bash,grep,find,ls,write,edit
 ---
 

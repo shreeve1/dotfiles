@@ -39,9 +39,9 @@ Infrastructure operations team for MSP small-business deployments. CEO + 6 speci
 |----------|-------|-----------|
 | infra-dispatcher | opus-4-6 | Orchestration and triage reasoning |
 | infra-analyst | opus-4-6 | Root cause analysis complexity |
-| infra-scout | openai-codex/gpt-5.3-codex | Structured discovery tasks |
+| infra-scout | zai/glm-4.7-flash | Structured discovery tasks |
 | infra-responder | openai-codex/gpt-5.4 | Pattern-based incident response |
-| infra-operator | openai-codex/gpt-5.3-codex | Procedural maintenance routines |
+| infra-operator | minimax/MiniMax-M2.5-highspeed | Procedural maintenance routines |
 | infra-hardener | openai-codex/gpt-5.4 | Framework-based security auditing |
 | infra-documenter | openai-codex/gpt-5.3-codex | Structured documentation output |
 

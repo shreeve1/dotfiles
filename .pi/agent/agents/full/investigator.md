@@ -1,7 +1,7 @@
 ---
 name: investigator
 description: Debugging and root cause analysis specialist. Traces symptoms to exact file, line, and reason. Stops at diagnosis — does not implement fixes.
-model: openrouter/qwen/qwen3-coder-plus
+model: minimax/MiniMax-M2.7-highspeed
 tools: read,bash,grep,find,ls
 ---
 

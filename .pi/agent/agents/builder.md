@@ -1,7 +1,7 @@
 ---
 name: builder
 description: Implementation specialist. Executes plans from artifacts/plans/ wave-by-wave with dependency ordering, branch setup, checkbox progress tracking, and baseline/post-build verification. Follows existing codebase patterns exactly.
-model: openrouter/qwen/qwen3-coder-plus
+model: zai/glm-5
 tools: read,write,edit,bash,grep,find,ls
 ---
 

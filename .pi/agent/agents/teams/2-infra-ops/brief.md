@@ -16,10 +16,10 @@ Small-business infrastructure operations — heterogeneous environments (Windows
 4. Template Standardization vs. Environment Specificity
 
 ## Roster
-- **infra-scout** (Scout) — codex-5.3 — Maps unknown environments
+- **infra-scout** (Scout) — glm-4.7-flash — Maps unknown environments
 - **infra-responder** (Responder) — gpt-5.4 — Restores service under pressure
 - **infra-analyst** (Analyst) — opus-4-6 — Traces root cause
-- **infra-operator** (Operator) — codex-5.3 — Preventive infrastructure maintenance
+- **infra-operator** (Operator) — minimax-m2.5-highspeed — Preventive infrastructure maintenance
 - **infra-hardener** (Hardener) — gpt-5.4 — Reduces attack surface
 - **infra-documenter** (Documenter) — codex-5.3 — Captures and structures knowledge
 

@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Codebase exploration specialist. Maps project structure, traces definitions, finds dependencies. READ-ONLY — never modifies files.
-model: openrouter/deepseek/deepseek-v3.2
+model: zai/glm-4.7-flash
 tools: read,bash,grep,find,ls
 ---
 

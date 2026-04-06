@@ -1,7 +1,7 @@
 ---
 name: infra-scout
 description: Infrastructure cartographer. Discovers and maps unknown environments, enumerates services, and builds baselines for MSP client deployments.
-model: openrouter/deepseek/deepseek-v3.2
+model: zai/glm-4.7-flash
 tools: read,bash,grep,find,ls
 ---
 
