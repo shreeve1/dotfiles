@@ -201,7 +201,9 @@ alias pi-sub='pi -e $EXT/subagent-widget.ts'                                    
 alias pi-focus='pi -e $EXT/footer.ts'                                             # minimal footer only
 alias pi-team-focus='pi -e $EXT/agent-team.ts -e $EXT/footer.ts'                  # agent-team + minimal footer
 
-# OpenClaw Completion
-source "/Users/james/.openclaw/completions/openclaw.zsh"
+# Hermes aliases
+alias hh=hermes
+alias hhb='hermes sessions browse'
+
 # Machine-local secrets (not tracked in dotfiles)
 [[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"

@@ -22,7 +22,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Text, type AutocompleteItem, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { spawn } from "child_process";
+import { spawn, type ChildProcess } from "child_process";
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, appendFileSync } from "fs";
 import { join, resolve, basename } from "path";
 import { homedir, tmpdir } from "os";
@@ -52,6 +52,7 @@ interface AgentState {
 	sessionFile: string | null;
 	runCount: number;
 	timer?: ReturnType<typeof setInterval>;
+	proc: ChildProcess | null;
 }
 
 type ViewMode = "cards" | "compact";
@@ -105,6 +106,21 @@ const COMMS_DEBUG = process.env.PI_COMMS_DEBUG === "1";
 
 
 // ─── Team Communication Helpers ──────────────────────────────────────────────
+
+function sanitizeJson(raw: string): string {
+  // Remove raw control characters (0x00-0x1F) that are invalid in JSON strings
+  // Keep already-escaped sequences like \n, \t, etc.
+  return raw.replace(/[\x00-\x1f]/g, (ch) => {
+    switch (ch) {
+      case '\n': return '\\n';
+      case '\r': return '\\r';
+      case '\t': return '\\t';
+      case '\b': return '\\b';
+      case '\f': return '\\f';
+      default: return '';
+    }
+  });
+}
 
 function getCommsDir(cwd: string): string {
   return resolve(cwd, COMMS_DIR_NAME);
@@ -171,7 +187,7 @@ function readSessionNotes(tDir: string, agentName: string, limit: number = 20): 
   try {
     const raw = readFileSync(p, "utf-8");
     const entries = raw.split("\n").filter(l => l.trim()).map(line => {
-      try { return JSON.parse(line) as SessionNote; } catch { return null; }
+      try { return JSON.parse(sanitizeJson(line)) as SessionNote; } catch { return null; }
     }).filter((n): n is SessionNote => n !== null);
     return entries.slice(-limit);
   } catch { return []; }
@@ -226,7 +242,7 @@ function readChannelMessages(cwd: string): ChannelMessage[] {
   try {
     const raw = readFileSync(channelFile, "utf-8");
     return raw.split("\n").filter((line) => line.trim()).map((line) => {
-      try { return JSON.parse(line) as ChannelMessage; } catch { return null; }
+      try { return JSON.parse(sanitizeJson(line)) as ChannelMessage; } catch { return null; }
     }).filter((msg): msg is ChannelMessage => msg !== null);
   } catch { return []; }
 }
@@ -314,7 +330,7 @@ function startRequestWatcher(cwd: string, ctx: any): void {
           const requestFile = join(requestsDir, file);
           try {
             const raw = readFileSync(requestFile, "utf-8");
-            const request: InputRequest = JSON.parse(raw);
+            const request: InputRequest = JSON.parse(sanitizeJson(raw));
             activeRequests.set(requestId, request);
             await handleInputRequest(request, cwd, responsesDir, ctx);
             watcherLog(commsDir, `handled request ${requestId}`);
@@ -416,6 +432,25 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, PI_AGENT_NAME: targetKey, PI_TEAM_COMMS_DIR: commsDir, PI_TEAM_DIR: activeTeamDir, PI_COMMS_DEPTH: "1", PI_ALLOWED_WRITE_PATHS: targetState.def.allowedWritePaths || undefined, PI_TEAM_WRITE_MAP: JSON.stringify(buildTeamWriteMap(agentStates)) },
     });
+
+    // -- 10-minute timeout per input-request agent run --
+    const INPUT_TIMEOUT_MS = 10 * 60 * 1000;
+    let wasInputTimedOut = false;
+    const inputTimeoutId = setTimeout(() => {
+      wasInputTimedOut = true;
+      if (proc && !proc.killed) {
+        console.error(`Agent ${targetKey} (input request) timed out after ${INPUT_TIMEOUT_MS / 1000}s, killing...`);
+        proc.kill("SIGTERM");
+        setTimeout(() => {
+          if (proc && !proc.killed) proc.kill("SIGKILL");
+        }, 5000);
+      }
+    }, INPUT_TIMEOUT_MS);
+
+    // -- Store proc on AgentState for external cleanup --
+    const inputTargetState = agentStates.get(targetKey);
+    if (inputTargetState) inputTargetState.proc = proc;
+
     let output = "";
     let hBuffer = "";
     proc.stdout!.setEncoding("utf-8");
@@ -426,7 +461,7 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
       for (const line of hLines) {
         if (!line.trim()) continue;
         try {
-          const event = JSON.parse(line);
+          const event = JSON.parse(sanitizeJson(line));
           if (event.type === "message_update") {
             const delta = event.assistantMessageEvent;
             if (delta?.type === "text_delta") {
@@ -439,12 +474,18 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
     await new Promise<void>((res) => {
       proc.on("close", (code) => {
         inFlightTargets.delete(targetKey);
+        clearTimeout(inputTimeoutId);
+        const inputClosedState = agentStates.get(targetKey);
+        if (inputClosedState) inputClosedState.proc = null;
         try { unlinkSync(reqPromptFile); } catch {}
-        const failed = code !== 0 || !output.trim();
+        const finalOutput = wasInputTimedOut
+          ? `⏱️ AGENT TIMED OUT after ${Math.round(INPUT_TIMEOUT_MS / 1000)}s. The task was NOT completed. Partial output before kill:\n\n${output}`
+          : output;
+        const failed = code !== 0 || !finalOutput.trim();
         const response: InputResponse = {
           request_id: request.id, timestamp: new Date().toISOString(),
           from_agent: targetKey,
-          content: failed ? `Agent error (exit code ${code ?? "unknown"})` : output,
+          content: failed ? (wasInputTimedOut ? finalOutput : `Agent error (exit code ${code ?? "unknown"})`) : finalOutput,
           status: failed ? "declined" : "answered",
         };
         writeFileSync(join(responsesDir, `${request.id}.json`), JSON.stringify(response, null, 2), "utf-8");
@@ -453,6 +494,9 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
       });
       proc.on("error", () => {
         inFlightTargets.delete(targetKey);
+        clearTimeout(inputTimeoutId);
+        const inputErrorState = agentStates.get(targetKey);
+        if (inputErrorState) inputErrorState.proc = null;
       });
     });
   } catch (err) {
@@ -474,7 +518,7 @@ const PREFS_FILE = join(PREFS_DIR, "agent-team.json");
 function loadPreferences(): TeamPrefs {
 	try {
 		const raw = readFileSync(PREFS_FILE, "utf-8");
-		const data = JSON.parse(raw);
+		const data = JSON.parse(sanitizeJson(raw));
 		const prefs: TeamPrefs = {};
 		if (data.viewMode === "cards" || data.viewMode === "compact") {
 			prefs.viewMode = data.viewMode;
@@ -631,7 +675,7 @@ function scanTeamFolders(searchPaths: string[]): Record<string, TeamMeta> {
 		const teamsDir = join(basePath, "teams");
 		if (!existsSync(teamsDir)) continue;
 
-		let entries: ReturnType<typeof readdirSync> = [];
+		let entries;
 		try {
 			entries = readdirSync(teamsDir, { withFileTypes: true });
 		} catch {
@@ -833,6 +877,34 @@ export default function (pi: ExtensionAPI) {
 			if (!def) continue;
 			const key = def.name.toLowerCase().replace(/\s+/g, "-");
 			const sessionFile = join(sessionDir, `${key}.json`);
+			// Only resume session if file exists AND isn't poisoned with errors
+			let canResume = false;
+			if (existsSync(sessionFile)) {
+				try {
+					const raw = readFileSync(sessionFile, "utf-8");
+					const lines = raw.trim().split("\n").filter(l => l.trim());
+					// Check last few messages for error stopReason
+					let errorStreak = 0;
+					for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
+						try {
+							const entry = JSON.parse(lines[i]);
+							if (entry.type === "message" && entry.message?.role === "assistant" && entry.message?.stopReason === "error") {
+								errorStreak++;
+							} else {
+								break;
+							}
+						} catch { break; }
+					}
+					if (errorStreak >= 3) {
+						console.error(`[agent-team] Deleting poisoned session for ${key} (${errorStreak} consecutive errors)`);
+						try { unlinkSync(sessionFile); } catch {}
+					} else {
+						canResume = true;
+					}
+				} catch {
+					// Can't read/parse — treat as non-resumable
+				}
+			}
 			agentStates.set(key, {
 				def,
 				status: "idle",
@@ -841,8 +913,9 @@ export default function (pi: ExtensionAPI) {
 				elapsed: 0,
 				lastWork: "",
 				contextPct: 0,
-				sessionFile: existsSync(sessionFile) ? sessionFile : null,
+				sessionFile: canResume ? sessionFile : null,
 				runCount: 0,
+				proc: null,
 			});
 		}
 
@@ -1112,6 +1185,7 @@ export default function (pi: ExtensionAPI) {
 		agentName: string,
 		task: string,
 		ctx: any,
+		signal?: AbortSignal,
 	): Promise<{ output: string; exitCode: number; elapsed: number }> {
 		const key = agentName.toLowerCase().replace(/\s+/g, "-");
 		const state = agentStates.get(key);
@@ -1200,6 +1274,7 @@ export default function (pi: ExtensionAPI) {
 
 		const textChunks: string[] = [];
 		let lastAssistantText = "";
+		let lastToolResultText = "";
 
 		return new Promise((resolvePromise) => {
 			const proc = spawn("pi", args, {
@@ -1214,6 +1289,42 @@ export default function (pi: ExtensionAPI) {
 				},
 			});
 
+
+			// -- Abort support: kill child process when signal fires --
+			if (signal) {
+				const killChild = () => {
+					if (proc && !proc.killed) {
+						proc.kill("SIGTERM");
+						setTimeout(() => {
+							if (proc && !proc.killed) proc.kill("SIGKILL");
+						}, 5000);
+					}
+				};
+				if (signal.aborted) {
+					killChild();
+				} else {
+					signal.addEventListener("abort", killChild, { once: true });
+				}
+			}
+
+			// -- 10-minute timeout per agent run --
+			const TIMEOUT_MS = 10 * 60 * 1000;
+			let wasTimedOut = false;
+			const timeoutId = setTimeout(() => {
+				wasTimedOut = true;
+				if (proc && !proc.killed) {
+					console.error(`Agent ${key} timed out after ${TIMEOUT_MS / 1000}s, killing...`);
+					proc.kill("SIGTERM");
+					setTimeout(() => {
+						if (proc && !proc.killed) proc.kill("SIGKILL");
+					}, 5000);
+				}
+			}, TIMEOUT_MS);
+
+			// -- Store proc on AgentState for external cleanup --
+			const agentState = agentStates.get(key);
+			if (agentState) agentState.proc = proc;
+
 			let buffer = "";
 
 			proc.stdout!.setEncoding("utf-8");
@@ -1224,7 +1335,7 @@ export default function (pi: ExtensionAPI) {
 				for (const line of lines) {
 					if (!line.trim()) continue;
 					try {
-						const event = JSON.parse(line);
+						const event = JSON.parse(sanitizeJson(line));
 						if (event.type === "message_update") {
 							const delta = event.assistantMessageEvent;
 							if (delta?.type === "text_delta") {
@@ -1237,6 +1348,17 @@ export default function (pi: ExtensionAPI) {
 						} else if (event.type === "tool_execution_start") {
 							state.toolCount++;
 							updateWidget();
+						} else if (event.type === "tool_execution_end") {
+							// Capture tool result summaries as last-resort output fallback
+							if (event.result?.content) {
+								const toolText = (event.result.content as any[])
+									.filter((c: any) => c.type === "text")
+									.map((c: any) => c.text || "")
+									.join("");
+								if (toolText && toolText.length < 2000) {
+									lastToolResultText = toolText;
+								}
+							}
 						} else if (event.type === "message_end") {
 							const msg = event.message;
 							// Capture assistant text as fallback if text_delta streaming was missed
@@ -1267,7 +1389,9 @@ export default function (pi: ExtensionAPI) {
 								}
 							}
 						}
-					} catch {}
+					} catch (parseErr) {
+						console.error(`[agent-team] JSON parse error in stdout handler:`, (parseErr as Error).message?.slice(0, 200));
+					}
 				}
 			});
 
@@ -1276,9 +1400,12 @@ export default function (pi: ExtensionAPI) {
 
 			proc.on("close", (code) => {
 				try { unlinkSync(promptFile); } catch {}
+				clearTimeout(timeoutId);
+				const closedState = agentStates.get(key);
+				if (closedState) closedState.proc = null;
 				if (buffer.trim()) {
 					try {
-						const event = JSON.parse(buffer);
+						const event = JSON.parse(sanitizeJson(buffer));
 						if (event.type === "message_update") {
 							const delta = event.assistantMessageEvent;
 							if (delta?.type === "text_delta") textChunks.push(delta.delta || "");
@@ -1292,7 +1419,9 @@ export default function (pi: ExtensionAPI) {
 								if (text) lastAssistantText = text;
 							}
 						}
-					} catch {}
+					} catch (closeParseErr) {
+						console.error(`[agent-team] JSON parse error in close handler:`, (closeParseErr as Error).message?.slice(0, 200));
+					}
 				}
 
 				clearInterval(state.timer);
@@ -1304,8 +1433,12 @@ export default function (pi: ExtensionAPI) {
 					state.sessionFile = agentSessionFile;
 				}
 
-				// Fall back to last captured assistant message if streaming produced nothing
-				const full = textChunks.join("") || lastAssistantText;
+				// Fall back to last captured assistant message if streaming produced nothing,
+				// then to last tool result if the agent only did tool work with no text
+				const rawOutput = textChunks.join("") || lastAssistantText || lastToolResultText;
+				const full = wasTimedOut
+					? `⏱️ AGENT TIMED OUT after ${Math.round(TIMEOUT_MS / 1000)}s. The task was NOT completed. Partial output before kill:\n\n${rawOutput}`
+					: rawOutput;
 				state.lastWork = full.split("\n").filter((l: string) => l.trim()).pop() || "";
 				updateWidget();
 
@@ -1323,6 +1456,9 @@ export default function (pi: ExtensionAPI) {
 
 			proc.on("error", (err) => {
 				clearInterval(state.timer);
+				clearTimeout(timeoutId);
+				const errorState = agentStates.get(key);
+				if (errorState) errorState.proc = null;
 				state.status = "error";
 				state.lastWork = `Error: ${err.message}`;
 				updateWidget();
@@ -1346,9 +1482,10 @@ export default function (pi: ExtensionAPI) {
 			task: Type.String({ description: "Task description for the agent to execute" }),
 		}),
 
-		async execute(_toolCallId, params, _signal, onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const { agent, task } = params as { agent: string; task: string };
 
+			let result: { output: string; exitCode: number; elapsed: number } | undefined;
 			try {
 				if (onUpdate) {
 					onUpdate({
@@ -1357,42 +1494,55 @@ export default function (pi: ExtensionAPI) {
 					});
 				}
 
-				const result = await dispatchAgent(agent, task, ctx);
-
-				const truncated = result.output.length > 8000
-					? result.output.slice(0, 8000) + "\n\n... [truncated]"
-					: result.output;
-
-				// Treat exit-0 with empty output as an error — agent ran but produced nothing
-				const status = result.exitCode !== 0
-					? "error"
-					: result.output.trim() === ""
-					? "error"
-					: "done";
-
-				const outputText = result.output.trim() === ""
-					? "(no output returned by agent — the agent exited without producing any text)"
-					: truncated;
-
-				const summary = `[${agent}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
-
-				return {
-					content: [{ type: "text", text: `${summary}\n\n${outputText}` }],
-					details: {
-						agent,
-						task,
-						status,
-						elapsed: result.elapsed,
-						exitCode: result.exitCode,
-						fullOutput: result.output,
-					},
-				};
+				result = await dispatchAgent(agent, task, ctx, signal);
 			} catch (err: any) {
+				// Spawning errors (agent not found, spawn failure, etc.)
 				return {
 					content: [{ type: "text", text: `Error dispatching to ${agent}: ${err?.message || err}` }],
 					details: { agent, task, status: "error", elapsed: 0, exitCode: 1, fullOutput: "" },
 				};
 			}
+
+			const truncated = result.output.length > 8000
+				? result.output.slice(0, 8000) + "\n\n... [truncated]"
+				: result.output;
+
+			// Check for timeout — agent was killed before completing.
+			// Must throw to signal error to Pi core. Returning { isError: true } is a
+			// no-op — Pi ignores isError in return values (see issue #1881).
+			const isTimedOut = result.output && result.output.includes("⏱️ AGENT TIMED OUT");
+
+			if (isTimedOut) {
+				const truncatedTimeout = result.output.length > 3000
+					? result.output.substring(0, 3000) + "\n...[output truncated]"
+					: result.output;
+				const timeoutText = `[${agent}] TIMED OUT after ${Math.round(result.elapsed / 1000)}s. The agent was killed before completing. Consider breaking the task into smaller pieces.\n\n${truncatedTimeout}`;
+				throw new Error(timeoutText);
+			}
+
+			// Treat exit-0 with empty output as done (not error) — the agent may have done
+			// work via tools without emitting text. The dispatcher still gets a helpful message.
+			const status = result.exitCode !== 0
+				? "error"
+				: "done";
+
+			const outputText = result.output.trim() === ""
+				? "(no output returned by agent — the agent exited without producing any text)"
+				: truncated;
+
+			const summary = `[${agent}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
+
+			return {
+				content: [{ type: "text", text: `${summary}\n\n${outputText}` }],
+				details: {
+					agent,
+					task,
+					status,
+					elapsed: result.elapsed,
+					exitCode: result.exitCode,
+					fullOutput: result.output,
+				},
+			};
 		},
 
 		renderCall(args, theme) {
@@ -1746,6 +1896,23 @@ ${agentCatalog}`,
 		}));
 	});
 
-  // Clean up request watcher on process exit
-  process.on("exit", () => { stopRequestWatcher(); });
+
+  // Clean up all running agent processes on session shutdown
+  pi.on("session_shutdown" as any, async () => {
+    for (const [, state] of agentStates) {
+      if (state.proc && !state.proc.killed) {
+        state.proc.kill("SIGTERM");
+      }
+    }
+  });
+
+  // Clean up request watcher and kill all running agent processes on exit
+  process.on("exit", () => {
+    for (const [, state] of agentStates) {
+      if (state.proc && !state.proc.killed) {
+        state.proc.kill("SIGTERM");
+      }
+    }
+    stopRequestWatcher();
+  });
 }

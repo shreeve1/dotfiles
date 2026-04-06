@@ -1,7 +1,7 @@
 ---
 name: worker
 description: Implementation specialist. Executes a single, well-defined task — writing code, creating files, refactoring, or implementing a feature. Focused execution only, no planning or coordination.
-model: openai-codex/gpt-5.3-codex
+model: openrouter/qwen/qwen3-coder-plus
 tools: read,bash,grep,find,ls,write,edit
 ---
 

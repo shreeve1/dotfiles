@@ -1,7 +1,7 @@
 ---
 name: investigator
 description: Debugging and root cause analysis specialist. Use when a symptom is real but the cause is unclear. Traces behaviour through the codebase to identify the exact file, line, and reason for the issue. Stops at diagnosis — does not implement fixes.
-model: openai-codex/gpt-5.3-codex
+model: openrouter/qwen/qwen3-coder-plus
 tools: read,bash,grep,find,ls
 ---
 

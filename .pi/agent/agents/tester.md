@@ -1,7 +1,7 @@
 ---
 name: tester
 description: "Testing specialist. Verifies implementations against plans from artifacts/plans/. Four modes: Plan-Driven (anchored to plan acceptance criteria), Run (execute existing tests), Analyze (coverage and gap inspection), Discovery (detect test setup). Saves test manifest to .pi/test-manifest.json."
-model: zai/glm-5.1
+model: openrouter/qwen/qwen3-coder-plus
 tools: read,bash,grep,find,ls,write,edit
 ---
 
