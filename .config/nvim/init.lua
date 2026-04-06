@@ -36,7 +36,7 @@ vim.o.shiftwidth = 4          -- Indent width
 vim.o.expandtab = true        -- Use spaces not tabs
 
 -- Sync clipboard with OS
-vim.schedule(function() vim.o.clipboard = 'unnamedplus' end)
+vim.o.clipboard = 'unnamedplus'
 
 -- ============================================================================
 -- Keymaps

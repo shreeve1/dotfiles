@@ -518,7 +518,7 @@ const PREFS_FILE = join(PREFS_DIR, "agent-team.json");
 function loadPreferences(): TeamPrefs {
 	try {
 		const raw = readFileSync(PREFS_FILE, "utf-8");
-		const data = JSON.parse(sanitizeJson(raw));
+		const data = JSON.parse(raw);
 		const prefs: TeamPrefs = {};
 		if (data.viewMode === "cards" || data.viewMode === "compact") {
 			prefs.viewMode = data.viewMode;
@@ -528,7 +528,9 @@ function loadPreferences(): TeamPrefs {
 			prefs.gridCols = cols;
 		}
 		return prefs;
-	} catch {}
+	} catch (err) {
+		console.error(`[agent-team] Failed to load preferences: ${err}`);
+	}
 	return {};
 }
 
@@ -544,7 +546,9 @@ function savePreferences(prefs: Partial<TeamPrefs>, deleteKeys?: (keyof TeamPref
 			mkdirSync(PREFS_DIR, { recursive: true });
 		}
 		writeFileSync(PREFS_FILE, JSON.stringify(merged, null, 2) + "\n", "utf-8");
-	} catch {}
+	} catch (err) {
+		console.error(`[agent-team] Failed to save preferences: ${err}`);
+	}
 }
 
 // ── Display Name Helper ──────────────────────────
