@@ -119,7 +119,11 @@ export default function domainLock(pi: any) {
         ? allowedPaths.map(p => path.relative(cwd, p)).join(", ")
         : "(none - read-only agent)";
 
-      const currentAgent = (process.env.PI_AGENT_NAME || process.env.AGENT_NAME || "").toLowerCase();
+      const agentName = process.env.PI_AGENT_NAME || process.env.AGENT_NAME || "";
+      // Normalize instance-aware names (scout#2, scout::pa1b2::1) to base slug for write-map lookup
+      const currentAgent = agentName.includes('#') || agentName.includes('::')
+        ? agentName.split(/[#:]/)[0].toLowerCase()
+        : agentName.toLowerCase();
       const teamWriteMap = getTeamWriteMap();
       const suggested = new Set<string>();
       for (const [prefix, names] of Object.entries(teamWriteMap)) {

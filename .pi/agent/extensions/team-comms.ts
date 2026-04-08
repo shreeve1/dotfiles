@@ -38,6 +38,12 @@ export default function teamComms(pi: any) {
   const commsDir = process.env.PI_TEAM_COMMS_DIR;
   if (!agentName || !commsDir) return;
   const teamDir = process.env.PI_TEAM_DIR || "";
+
+  // Normalize instance-aware agent name to base slug for filesystem operations
+  // e.g., "scout#2" or "scout::pa1b2::1" → "scout"
+  const baseAgentName = agentName.includes('#') || agentName.includes('::')
+    ? agentName.split(/[#:]/)[0]
+    : agentName;
   const channelFile = join(commsDir, "channel.jsonl");
   const requestsDir = join(commsDir, "requests");
   const responsesDir = join(commsDir, "responses");
@@ -86,7 +92,7 @@ export default function teamComms(pi: any) {
     parameters: { type: "object", properties: { agent_name: { type: "string", description: "Agent name to read (defaults to yourself)" } }, required: [] },
     async execute(_toolCallId: string, params: Record<string, unknown>) {
       if (!teamDir) return { content: [{ type: "text" as const, text: "Knowledge layer unavailable — this team has no folder-based configuration." }] };
-      const target = params.agent_name ? String(params.agent_name).toLowerCase().replace(/[^a-z0-9-]/g, "-") : agentName;
+      const target = params.agent_name ? String(params.agent_name).toLowerCase().replace(/[^a-z0-9-]/g, "-") : baseAgentName;
       const expertisePath = join(teamDir, "expertise", `${target}.md`);
       if (!existsSync(expertisePath)) return { content: [{ type: "text" as const, text: `No expertise file found for ${target}.` }] };
       try {
@@ -107,7 +113,7 @@ export default function teamComms(pi: any) {
       if (Buffer.byteLength(content) > 65536) return { content: [{ type: "text" as const, text: "Expertise file too large (max 64KB)." }] };
       const expertiseDir = join(teamDir, "expertise");
       mkdirSync(expertiseDir, { recursive: true });
-      writeFileSync(join(expertiseDir, `${agentName}.md`), content, "utf-8");
+      writeFileSync(join(expertiseDir, `${baseAgentName}.md`), content, "utf-8");
       return { content: [{ type: "text" as const, text: `Expertise updated (${Buffer.byteLength(content)} bytes).` }] };
     },
   });
@@ -122,7 +128,7 @@ export default function teamComms(pi: any) {
       const notesDir = join(teamDir, "session-notes");
       mkdirSync(notesDir, { recursive: true });
       const entry = JSON.stringify({ timestamp: new Date().toISOString(), note }) + "\n";
-      appendFileSync(join(notesDir, `${agentName}.jsonl`), entry, "utf-8");
+      appendFileSync(join(notesDir, `${baseAgentName}.jsonl`), entry, "utf-8");
       return { content: [{ type: "text" as const, text: "Session note recorded." }] };
     },
   });
@@ -163,7 +169,7 @@ export default function teamComms(pi: any) {
 			if (!compact_count || compact_count < 1) return "compact_count must be at least 1.";
 
 			const notesDir = join(teamDir, "session-notes");
-			const notesPath = join(notesDir, `${agentName}.jsonl`);
+			const notesPath = join(notesDir, `${baseAgentName}.jsonl`);
 
 			if (!existsSync(notesPath)) return "No session notes file found.";
 

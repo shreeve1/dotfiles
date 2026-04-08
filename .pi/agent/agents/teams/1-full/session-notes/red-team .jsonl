@@ -1,0 +1,1 @@
+{"timestamp":"2026-04-08T23:07:56.292Z","note":"Parallel dispatch test confirmed domain-lock.ts begins with comments describing path-level write boundaries, env-based allowed paths, and a known limitation that bash can bypass enforcement."}

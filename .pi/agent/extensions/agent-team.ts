@@ -271,6 +271,37 @@ function formatCuratedMessages(messages: ChannelMessage[]): string {
 let agentStates: Map<string, AgentState> = new Map();
 const agentMessageCounts = new Map<string, number>();
 const activeRequests = new Map<string, InputRequest>();
+
+// ── Ephemeral Instance Runtime Map ───────────────────────
+// Separate from agentStates so duplicate parallel instances don't pollute the base roster.
+// Keyed by effectiveRunKey (e.g. "scout::pABC123::1"). Cleaned up by finalizeRun().
+interface ActiveRunEntry {
+	timer?: ReturnType<typeof setInterval>;
+	proc?: ChildProcess;
+}
+const activeRuns = new Map<string, ActiveRunEntry>();
+
+// ── Idempotent Finalizer for Instance Runs ─────────────────
+function finalizeRun(runKey: string, opts?: { timer?: ReturnType<typeof setInterval>; proc?: ChildProcess; clearTimer?: boolean; killProc?: boolean }) {
+	// Clear timer
+	if (opts?.clearTimer && opts.timer) {
+		clearInterval(opts.timer);
+	}
+	// Kill process
+	if (opts?.killProc && opts.proc && !opts.proc.killed) {
+		opts.proc.kill("SIGTERM");
+		setTimeout(() => {
+			if (opts.proc && !opts.proc.killed) opts.proc.kill("SIGKILL");
+		}, 5000);
+	}
+	// Remove ephemeral state entry
+	activeRuns.delete(runKey);
+	// Also remove ephemeral agentStates entry (if it's an instance key)
+	// Base keys (no ::p) stay in agentStates permanently
+	if (runKey.includes("::p")) {
+		agentStates.delete(runKey);
+	}
+}
 const processedRequestIds = new Map<string, number>();
 const inFlightTargets = new Map<string, string>();
 let watcherRunning = false;
@@ -557,6 +588,76 @@ function savePreferences(prefs: Partial<TeamPrefs>, deleteKeys?: (keyof TeamPref
 
 function displayName(name: string): string {
 	return name.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+// ── Parallel Instance Helpers ─────────────────────
+
+interface ParallelInstanceMeta {
+	instanceKey: string;       // runtime state key, e.g. "scout::pCALLID::1"
+	baseKey: string;           // base agent key, e.g. "scout"
+	ordinal: number;           // 1-based position among duplicates
+	sessionSuffix: string;     // for session filename, e.g. "-p9f2a-1"
+	displayName: string;       // human label, e.g. "Scout #1"
+	label: string;             // short label for output headers, e.g. "scout #1"
+	runKey: string;            // effectiveRunKey for activeRuns map
+}
+
+/**
+ * Strip any instance suffix from an agent name to get the base key.
+ * Handles patterns like "scout::pCALLID::1", "scout#2", "scout-inst-xyz-2".
+ */
+function toBaseAgentKey(name: string): string {
+	// Remove ::p...::N suffix (nonce-scoped runtime key)
+	let base = name.replace(/::p[a-f0-9]+::\d+$/, "");
+	// Remove #N suffix (ordinal suffix)
+	base = base.replace(/#\d+$/, "");
+	// Remove -inst-<id>-N suffix
+	base = base.replace(/-inst-[a-f0-9]+-\d+$/, "");
+	// Normalize: lowercase, hyphens, no spaces
+	return base.toLowerCase().replace(/\s+/g, "-");
+}
+
+/**
+ * Parse a display name string back to (baseName, ordinal) if it has an instance suffix.
+ * Returns null for plain base names.
+ */
+function parseInstanceDisplay(display: string): { baseName: string; ordinal: number } | null {
+	const m = display.match(/^(.+?) #(\d+)$/);
+	if (!m) return null;
+	return { baseName: m[1], ordinal: parseInt(m[2], 10) };
+}
+
+/**
+ * Build instance metadata for a parallel duplicate dispatch.
+ * @param baseKey       The normalized base agent key (e.g. "scout")
+ * @param callId        Unique identifier for this dispatch_parallel call
+ * @param ordinal       1-based ordinal among duplicates
+ * @param callShortId   Short (6-char) hex id for session filename readability
+ */
+function makeParallelInstanceMeta(
+	baseKey: string,
+	callId: string,
+	ordinal: number,
+	callShortId: string,
+): ParallelInstanceMeta {
+	const runKey = `${baseKey}::p${callId}::${ordinal}`;
+	return {
+		instanceKey: runKey,
+		baseKey,
+		ordinal,
+		sessionSuffix: `-p${callShortId}-${ordinal}`,
+		displayName: `${displayName(baseKey)} #${ordinal}`,
+		label: `${baseKey} #${ordinal}`,
+		runKey,
+	};
+}
+
+/**
+ * Human-readable display name for an agent that may have an instance label.
+ */
+function instanceDisplayName(baseKey: string, meta?: ParallelInstanceMeta): string {
+	if (meta) return meta.displayName;
+	return displayName(baseKey);
 }
 
 function hasWebTools(tools: string): boolean {
@@ -1190,10 +1291,13 @@ export default function (pi: ExtensionAPI) {
 		task: string,
 		ctx: any,
 		signal?: AbortSignal,
+		instanceMeta?: ParallelInstanceMeta,
 	): Promise<{ output: string; exitCode: number; elapsed: number }> {
-		const key = agentName.toLowerCase().replace(/\s+/g, "-");
-		const state = agentStates.get(key);
-		if (!state) {
+		const rawBaseKey = agentName.toLowerCase().replace(/\s+/g, "-");
+		// Use meta baseKey if available, otherwise fall back to raw key
+		const baseKey = instanceMeta ? instanceMeta.baseKey : rawBaseKey;
+		const baseState = agentStates.get(baseKey);
+		if (!baseState) {
 			return Promise.resolve({
 				output: `Agent "${agentName}" not found. Available: ${Array.from(agentStates.values()).map(s => displayName(s.def.name)).join(", ")}`,
 				exitCode: 1,
@@ -1201,57 +1305,85 @@ export default function (pi: ExtensionAPI) {
 			});
 		}
 
-		if (state.status === "running") {
+		// ── Ephemeral instance state for parallel duplicate runs ─────
+		const effectiveKey = instanceMeta ? instanceMeta.instanceKey : baseKey;
+		if (instanceMeta && !agentStates.has(effectiveKey)) {
+			// Clone base state as a fresh object (not a reference) for this instance
+			agentStates.set(effectiveKey, {
+				...baseState,
+				def: baseState.def,
+				status: "idle",
+				task: "",
+				toolCount: 0,
+				elapsed: 0,
+				lastWork: "",
+				contextPct: 0,
+				sessionFile: null,
+				runCount: 0,
+				proc: null,
+				timer: undefined,
+			});
+		}
+
+		// Running guard uses effective key (base for single, instance for parallel duplicates)
+		const effectiveState = agentStates.get(effectiveKey)!;
+		if (effectiveState.status === "running") {
 			return Promise.resolve({
-				output: `Agent "${displayName(state.def.name)}" is already running. Wait for it to finish.`,
+				output: `Agent "${instanceDisplayName(baseKey, instanceMeta)}" is already running. Wait for it to finish.`,
 				exitCode: 1,
 				elapsed: 0,
 			});
 		}
 
-		state.status = "running";
-		state.task = task;
-		state.toolCount = 0;
-		state.elapsed = 0;
-		state.lastWork = "";
-		state.runCount++;
+		// Register ephemeral activeRun entry before spawning
+		activeRuns.set(effectiveKey, {});
+
+		effectiveState.status = "running";
+		effectiveState.task = task;
+		effectiveState.toolCount = 0;
+		effectiveState.elapsed = 0;
+		effectiveState.lastWork = "";
+		effectiveState.runCount++;
 		updateWidget();
 
 		const startTime = Date.now();
-		clearInterval(state.timer);
-		state.timer = setInterval(() => {
-			state.elapsed = Date.now() - startTime;
+		clearInterval(effectiveState.timer);
+		effectiveState.timer = setInterval(() => {
+			effectiveState.elapsed = Date.now() - startTime;
 			updateWidget();
 		}, 1000);
 
-		const model = state.def.model
+		const model = baseState.def.model
 			|| (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "openrouter/google/gemini-3-flash-preview");
 
 		// Session file for this agent
-		const agentKey = state.def.name.toLowerCase().replace(/\s+/g, "-");
-		const agentSessionFile = join(sessionDir, `${agentKey}.json`);
+		// For parallel duplicate instances: use unique session file; do NOT use -c continuation
+		const agentSessionFile = instanceMeta
+			? join(sessionDir, `${baseKey}${instanceMeta.sessionSuffix}.json`)
+			: join(sessionDir, `${baseKey}.json`);
 
 		// Build args — first run creates session, subsequent runs resume
+		// Use baseKey for file lookups (keeps expertise/session-notes stable for instances)
 		const teamRoster = Array.from(agentStates.values())
 			.map(s => `- ${s.def.name}: ${s.def.description}`)
 			.join("\n");
-		const teamRosterBlock = `## Your Team\nYou are ${state.def.name} on a team with:\n${teamRoster}\n\n## Team Communication\nYou have two tools for team communication:\n- post_to_channel: Share discoveries, decisions, warnings, or disagreements with the team\n- request_input: Ask a specific teammate a question and wait for their response`;
+		const teamRosterBlock = `## Your Team\nYou are ${baseState.def.name} on a team with:\n${teamRoster}\n\n## Team Communication\nYou have two tools for team communication:\n- post_to_channel: Share discoveries, decisions, warnings, or disagreements with the team\n- request_input: Ask a specific teammate a question and wait for their response`;
 		const allMessages = readChannelMessages(ctx.cwd);
-		const curated = curateMessagesForAgent(allMessages, agentKey);
+		const curated = curateMessagesForAgent(allMessages, baseKey);
 		const curatedMessagesBlock = formatCuratedMessages(curated);
 		const contextContent = readContextFile(activeTeamDir);
 		const contextBlock = formatContextBlock(contextContent);
-		const domainKnowledge = readDomainKnowledge(activeTeamDir, agentKey);
+		const domainKnowledge = readDomainKnowledge(activeTeamDir, baseKey);
 		const domainBlock = formatDomainKnowledgeBlock(domainKnowledge);
-		const expertiseContent = readExpertiseFile(activeTeamDir, agentKey);
+		const expertiseContent = readExpertiseFile(activeTeamDir, baseKey);
 		const expertiseBlock = formatExpertiseBlock(expertiseContent);
 		const agentSkills = readAgentSkills(activeTeamDir);
 		const agentSkillsBlock = formatAgentSkillsBlock(agentSkills);
-		const sessionNotes = readSessionNotes(activeTeamDir, agentKey);
+		const sessionNotes = readSessionNotes(activeTeamDir, baseKey);
 		const sessionNotesBlock = formatSessionNotesBlock(sessionNotes);
 
-		const combinedPrompt = `${contextBlock}${teamRosterBlock}${curatedMessagesBlock}${domainBlock}${expertiseBlock}${agentSkillsBlock}\n\n${state.def.systemPrompt}${sessionNotesBlock}`;
-		const promptFile = join(tmpdir(), `pi-team-comms-prompt-${agentKey}-${randomUUID()}.txt`);
+		const combinedPrompt = `${contextBlock}${teamRosterBlock}${curatedMessagesBlock}${domainBlock}${expertiseBlock}${agentSkillsBlock}\n\n${baseState.def.systemPrompt}${sessionNotesBlock}`;
+		const promptFile = join(tmpdir(), `pi-team-comms-prompt-${baseKey}-${randomUUID()}.txt`);
 		writeFileSync(promptFile, combinedPrompt, "utf-8");
 
 		const args = [
@@ -1260,18 +1392,18 @@ export default function (pi: ExtensionAPI) {
 			"--no-extensions",
 			"-e", resolve(homedir(), ".pi/agent/extensions/team-comms.ts"),
 			"-e", resolve(homedir(), ".pi/agent/extensions/domain-lock.ts"),
-			...(hasWebTools(state.def.tools)
+			...(hasWebTools(baseState.def.tools)
 				? ["-e", resolve(homedir(), ".pi/agent/extensions/web-fetch/index.ts")]
 				: []),
 			"--model", model,
-			"--tools", state.def.tools,
+			"--tools", baseState.def.tools,
 			"--thinking", "off",
 			"--append-system-prompt", promptFile,
 			"--session", agentSessionFile,
 		];
 
-		// Continue existing session if we have one
-		if (state.sessionFile) {
+		// Continue existing session if we have one (base dispatches only; never -c for instance runs)
+		if (!instanceMeta && baseState.sessionFile) {
 			args.push("-c");
 		}
 
@@ -1286,10 +1418,11 @@ export default function (pi: ExtensionAPI) {
 				stdio: ["ignore", "pipe", "pipe"],
 				env: {
 					...process.env,
-					PI_AGENT_NAME: agentKey,
+					// Instance-aware identity for comms observability; base slug for file I/O
+					PI_AGENT_NAME: instanceMeta ? instanceMeta.label : baseKey,
 					PI_TEAM_COMMS_DIR: resolve(ctx.cwd, COMMS_DIR_NAME),
 					PI_TEAM_DIR: activeTeamDir,
-					PI_ALLOWED_WRITE_PATHS: state.def.allowedWritePaths || undefined,
+					PI_ALLOWED_WRITE_PATHS: baseState.def.allowedWritePaths || undefined,
 					PI_TEAM_WRITE_MAP: JSON.stringify(buildTeamWriteMap(agentStates)),
 				},
 			});
@@ -1313,7 +1446,6 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// -- 10-minute timeout per agent run --
-			// Hard timeout remains the primary fallback; stall timeout is a secondary safeguard.
 			const TIMEOUT_MS = 10 * 60 * 1000;
 			let wasTimedOut = false;
 			let wasStalled = false;
@@ -1327,7 +1459,7 @@ export default function (pi: ExtensionAPI) {
 			const timeoutId = setTimeout(() => {
 				wasTimedOut = true;
 				if (proc && !proc.killed) {
-					console.error(`Agent ${key} timed out after ${TIMEOUT_MS / 1000}s, killing...`);
+					console.error(`Agent ${effectiveKey} timed out after ${TIMEOUT_MS / 1000}s, killing...`);
 					proc.kill("SIGTERM");
 					setTimeout(() => {
 						if (proc && !proc.killed) proc.kill("SIGKILL");
@@ -1335,9 +1467,8 @@ export default function (pi: ExtensionAPI) {
 				}
 			}, TIMEOUT_MS);
 
-			// -- Store proc on AgentState for external cleanup --
-			const agentState = agentStates.get(key);
-			if (agentState) agentState.proc = proc;
+			// -- Store proc on effective state for external cleanup --
+			effectiveState.proc = proc;
 
 			let buffer = "";
 
@@ -1364,11 +1495,11 @@ export default function (pi: ExtensionAPI) {
 									}
 								}
 								const last = full.split("\n").filter((l: string) => l.trim()).pop() || "";
-								state.lastWork = last;
+								effectiveState.lastWork = last;
 								updateWidget();
 							}
 						} else if (event.type === "tool_execution_start") {
-							state.toolCount++;
+							effectiveState.toolCount++;
 							if (STALL_TIMEOUT_MS > 0) {
 								lastToolActivityAt = Date.now();
 							}
@@ -1389,7 +1520,6 @@ export default function (pi: ExtensionAPI) {
 							}
 						} else if (event.type === "message_end") {
 							const msg = event.message;
-							// Capture assistant text as fallback if text_delta streaming was missed
 							if (msg?.role === "assistant") {
 								const text = (msg.content || [])
 									.filter((c: any) => c.type === "text")
@@ -1398,21 +1528,20 @@ export default function (pi: ExtensionAPI) {
 								if (text) lastAssistantText = text;
 							}
 							if (msg?.usage && contextWindow > 0) {
-								state.contextPct = ((msg.usage.input || 0) / contextWindow) * 100;
+								effectiveState.contextPct = ((msg.usage.input || 0) / contextWindow) * 100;
 								updateWidget();
 							}
 						} else if (event.type === "agent_end") {
 							const msgs = event.messages || [];
 							const last = [...msgs].reverse().find((m: any) => m.role === "assistant");
 							if (last) {
-								// Capture assistant text as fallback
 								const text = (last.content || [])
 									.filter((c: any) => c.type === "text")
 									.map((c: any) => c.text || "")
 									.join("");
 								if (text) lastAssistantText = text;
 								if (last?.usage && contextWindow > 0) {
-									state.contextPct = ((last.usage.input || 0) / contextWindow) * 100;
+									effectiveState.contextPct = ((last.usage.input || 0) / contextWindow) * 100;
 									updateWidget();
 								}
 							}
@@ -1423,12 +1552,10 @@ export default function (pi: ExtensionAPI) {
 				}
 			});
 
-			
 			proc.stderr!.on("data", (data) => { appendFileSync("/tmp/pi-agent-stderr.log", "[" + new Date().toISOString() + "] " + data); });
 
-			clearInterval(state.timer);
-			state.timer = setInterval(() => {
-				state.elapsed = Date.now() - startTime;
+			effectiveState.timer = setInterval(() => {
+				effectiveState.elapsed = Date.now() - startTime;
 				if (!wasTimedOut && !wasStalled && STALL_TIMEOUT_MS > 0 && !killAttempted) {
 					const now = Date.now();
 					const sinceProgress = now - lastProgressAt;
@@ -1436,12 +1563,12 @@ export default function (pi: ExtensionAPI) {
 					const outputDelta = latestTextLength - lastProgressTextLength;
 					if (sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
 						stallDetectionCount++;
-						appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] [agent-team] stall-check agent=${key} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
+						appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] [agent-team] stall-check agent=${effectiveKey} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
 						if (stallDetectionCount >= 2) {
 							wasStalled = true;
 							killAttempted = true;
 							stallReason = `[agent-team] Agent killed: stalled (no meaningful output for ${Math.round(STALL_TIMEOUT_MS / 1000)}s)`;
-							appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] ${stallReason}; toolCalls=${state.toolCount}\n`, "utf-8");
+							appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] ${stallReason}; toolCalls=${effectiveState.toolCount}\n`, "utf-8");
 							if (proc && !proc.killed) {
 								proc.kill("SIGTERM");
 								setTimeout(() => {
@@ -1457,10 +1584,17 @@ export default function (pi: ExtensionAPI) {
 			}, 1000);
 
 			proc.on("close", (code) => {
+				// ── Idempotent cleanup for ephemeral instance runs ──
+				finalizeRun(effectiveKey, {
+					timer: effectiveState.timer,
+					proc,
+					clearTimer: true,
+					killProc: false,
+				});
+
 				try { unlinkSync(promptFile); } catch {}
 				clearTimeout(timeoutId);
-				const closedState = agentStates.get(key);
-				if (closedState) closedState.proc = null;
+				effectiveState.proc = null;
 				if (buffer.trim()) {
 					try {
 						const event = JSON.parse(sanitizeJson(buffer));
@@ -1482,19 +1616,18 @@ export default function (pi: ExtensionAPI) {
 					}
 				}
 
-				clearInterval(state.timer);
-				state.elapsed = Date.now() - startTime;
+				effectiveState.elapsed = Date.now() - startTime;
 				if (wasStalled) {
-					state.status = "error";
+					effectiveState.status = "error";
 				} else if (wasTimedOut) {
-					state.status = "error";
+					effectiveState.status = "error";
 				} else {
-					state.status = code === 0 ? "done" : "error";
+					effectiveState.status = code === 0 ? "done" : "error";
 				}
 
-				// Mark session file as available for resume
-				if (code === 0) {
-					state.sessionFile = agentSessionFile;
+				// Mark session file as available for resume (base dispatches only)
+				if (code === 0 && !instanceMeta) {
+					effectiveState.sessionFile = agentSessionFile;
 				}
 
 				// Fall back to last captured assistant message if streaming produced nothing,
@@ -1503,14 +1636,14 @@ export default function (pi: ExtensionAPI) {
 				const full = wasTimedOut
 					? `⏱️ AGENT TIMED OUT after ${Math.round(TIMEOUT_MS / 1000)}s. The task was NOT completed. Partial output before kill:\n\n${rawOutput}`
 					: wasStalled
-						? `${stallReason} (performed ${state.toolCount} tool calls). Partial output before kill:\n\n${rawOutput}`
+						? `${stallReason} (performed ${effectiveState.toolCount} tool calls). Partial output before kill:\n\n${rawOutput}`
 						: rawOutput;
-				state.lastWork = full.split("\n").filter((l: string) => l.trim()).pop() || "";
+				effectiveState.lastWork = full.split("\n").filter((l: string) => l.trim()).pop() || "";
 				updateWidget();
 
 				ctx.ui.notify(
-					`${displayName(state.def.name)} ${state.status} in ${Math.round(state.elapsed / 1000)}s`,
-					state.status === "done" ? "success" : "error"
+					`${instanceDisplayName(baseKey, instanceMeta)} ${effectiveState.status} in ${Math.round(effectiveState.elapsed / 1000)}s`,
+					effectiveState.status === "done" ? "success" : "error"
 				);
 
 				// Auto-post dispatch result to team channel for other agents' awareness
@@ -1525,8 +1658,8 @@ export default function (pi: ExtensionAPI) {
 						id: randomUUID(),
 						timestamp: new Date().toISOString(),
 						from_agent: "dispatcher",
-						message_type: state.status === "done" ? "decision" : "warning",
-						content: `Dispatched ${displayName(state.def.name)}: ${task.length > 100 ? task.slice(0, 100) + "..." : task}\nResult: ${autoPreview}`,
+						message_type: effectiveState.status === "done" ? "decision" : "warning",
+						content: `Dispatched ${instanceDisplayName(baseKey, instanceMeta)}: ${task.length > 100 ? task.slice(0, 100) + "..." : task}\nResult: ${autoPreview}`,
 						priority: "normal",
 					};
 					appendFileSync(autoChannelFile, JSON.stringify(autoMsg) + "\n", "utf-8");
@@ -1535,17 +1668,22 @@ export default function (pi: ExtensionAPI) {
 				resolvePromise({
 					output: full,
 					exitCode: code ?? 1,
-					elapsed: state.elapsed,
+					elapsed: effectiveState.elapsed,
 				});
 			});
 
 			proc.on("error", (err) => {
-				clearInterval(state.timer);
+				// ── Idempotent cleanup for spawn errors ──
+				finalizeRun(effectiveKey, {
+					timer: effectiveState.timer,
+					proc,
+					clearTimer: true,
+					killProc: false,
+				});
 				clearTimeout(timeoutId);
-				const errorState = agentStates.get(key);
-				if (errorState) errorState.proc = null;
-				state.status = "error";
-				state.lastWork = `Error: ${err.message}`;
+				effectiveState.proc = null;
+				effectiveState.status = "error";
+				effectiveState.lastWork = `Error: ${err.message}`;
 				updateWidget();
 				resolvePromise({
 					output: `Error spawning agent: ${err.message}`,
@@ -1700,32 +1838,34 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			// Reject duplicate agents — each agent can only run once concurrently
-			const agentNames = dispatches.map(d => d.agent.toLowerCase().replace(/\s+/g, "-"));
-			const seen = new Set<string>();
-			const duplicates: string[] = [];
-			for (const name of agentNames) {
-				if (seen.has(name)) {
-					if (!duplicates.includes(name)) duplicates.push(name);
-				}
-				seen.add(name);
-			}
-			if (duplicates.length > 0) {
-				return {
-					content: [{ type: "text", text: `Cannot dispatch the same agent multiple times in parallel. Duplicated: ${duplicates.join(", ")}. Use sequential dispatch_agent calls instead, or dispatch different agents.` }],
-					details: { status: "error" },
-				};
-			}
+			// ── Instance metadata planning ─────────────────────────────
+			// Count occurrences per base agent; assign instance metadata for duplicates.
+			const callId = _toolCallId || randomUUID();
+			const callShortId = callId.replace(/-/g, "").slice(0, 6);
+			const baseNames = dispatches.map(d => d.agent.toLowerCase().replace(/\s+/g, "-"));
+			const counts = new Map<string, number>();
+			for (const n of baseNames) counts.set(n, (counts.get(n) || 0) + 1);
 
+			// Build instance metadata per dispatch index
+			const instanceMetas: (ParallelInstanceMeta | undefined)[] = dispatches.map((_, idx) => {
+				const base = baseNames[idx];
+				if (!counts.has(base) || counts.get(base)! <= 1) return undefined;
+				// Count how many of this base name appear BEFORE idx (1-based ordinal)
+				const ordinal = baseNames.slice(0, idx + 1).filter(n => n === base).length;
+				return makeParallelInstanceMeta(base, callId, ordinal, callShortId);
+			});
+
+			// Single dispatch fast path
 			if (dispatches.length === 1) {
-				// Single dispatch — just run it directly
 				const d = dispatches[0];
-				const result = await dispatchAgent(d.agent, d.task, ctx, signal);
+				const meta = instanceMetas[0];
+				const result = await dispatchAgent(d.agent, d.task, ctx, signal, meta);
 				const truncated = result.output.length > 16000
 					? result.output.slice(0, 16000) + "\n\n... [truncated]"
 					: result.output;
+				const label = meta ? instanceDisplayName(baseNames[0], meta) : d.agent;
 				return {
-					content: [{ type: "text", text: `[${d.agent}] ${result.exitCode === 0 ? "done" : "error"} in ${Math.round(result.elapsed / 1000)}s\n\n${truncated}` }],
+					content: [{ type: "text", text: `[${label}] ${result.exitCode === 0 ? "done" : "error"} in ${Math.round(result.elapsed / 1000)}s\n\n${truncated}` }],
 					details: { dispatches: [{ agent: d.agent, status: result.exitCode === 0 ? "done" : "error", elapsed: result.elapsed }] },
 				};
 			}
@@ -1737,16 +1877,16 @@ export default function (pi: ExtensionAPI) {
 				});
 			}
 
-			// Run all dispatches concurrently
-			const promises = dispatches.map(d =>
-				dispatchAgent(d.agent, d.task, ctx, signal)
-					.then(result => ({ agent: d.agent, task: d.task, result }))
-					.catch(err => ({ agent: d.agent, task: d.task, result: { output: `Error: ${err?.message || err}`, exitCode: 1, elapsed: 0 } }))
+			// Run all dispatches concurrently, passing instance metadata for duplicates
+			const promises = dispatches.map((d, idx) =>
+				dispatchAgent(d.agent, d.task, ctx, signal, instanceMetas[idx])
+					.then(result => ({ agent: d.agent, baseName: baseNames[idx], task: d.task, result, meta: instanceMetas[idx] }))
+					.catch(err => ({ agent: d.agent, baseName: baseNames[idx], task: d.task, result: { output: `Error: ${err?.message || err}`, exitCode: 1, elapsed: 0 }, meta: instanceMetas[idx] }))
 			);
 
 			const results = await Promise.all(promises);
 
-			// Compose results
+			// Compose results — use instance labels for duplicates
 			const parts: string[] = [];
 			const details: any[] = [];
 			for (const r of results) {
@@ -1758,7 +1898,8 @@ export default function (pi: ExtensionAPI) {
 				const outputText = r.result.output.trim() === ""
 					? `(no output — exited with code ${r.result.exitCode} after ${elapsed}s. Possible context exhaustion or model error.)`
 					: truncated;
-				parts.push(`### [${r.agent}] ${status} in ${elapsed}s\n\n${outputText}`);
+				const label = r.meta ? instanceDisplayName(r.baseName, r.meta) : r.agent;
+				parts.push(`### [${label}] ${status} in ${elapsed}s\n\n${outputText}`);
 				details.push({ agent: r.agent, task: r.task, status, elapsed: r.result.elapsed, exitCode: r.result.exitCode });
 			}
 

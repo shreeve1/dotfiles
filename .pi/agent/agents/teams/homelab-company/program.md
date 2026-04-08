@@ -16,7 +16,9 @@ company_id: 4068464a-69cf-4078-89a2-8ebaa8a9e217
 
 The HomeLab company is a real, running Paperclip instance managing a homelab with 12 AI agents organized in an org chart. Patrol runs 11 routines on cron schedules, creating findings that flow through specialist agents (SecOps, NetOps, StorageOps, MediaOps, DockerOps) and executors (BuildOps, PatchOps). OpsLead manages day-to-day triage and delegation. CEO handles strategic decisions and escalations. Observer produces daily digests.
 
-**The core problem:** Real issues are being detected, but agents engage in excessive back-and-forth instead of driving issues through the investigate → plan → approve → execute pipeline. Findings bounce between agents, recommendations evaporate as comments, approval gates deadlock, and security/vulnerability findings lack depth and priority.
+**Original core problem (solved):** Approval gates deadlocked because investigating agents didn't create formal Paperclip approvals. This was addressed by experiments 1-5 and the original 11 benchmarks all score 5.00.
+
+**Current core problems (active):** (1) Patrol creates 31+ duplicate issues for the same persistent finding, burning SecOps cycles. (2) Agents re-investigate recurring failures from scratch instead of referencing prior fixes (HOM-479 vs HOM-307). (3) Agents check out issues then go idle for hours with zero progress (NetOps on HOM-370, HOM-283). (4) Cross-issue dependencies are invisible — blockers sit unassigned while time-critical blocked issues wait (HOM-370 blocking HOM-283 for 38h). (5) Board approval latency (4.5h+) has no re-escalation mechanism. (6) 66% patrol coalesce rate means monitoring has blind spots.
 
 ## Edit Surface
 
@@ -68,31 +70,37 @@ Full base path for real files: `/Users/james/.paperclip/instances/default/compan
 
 ## Known Baseline Deficiencies
 
-These are capabilities that NO agent currently has. The improvement loop should prioritize ADDING these to the appropriate agents' instructions. These are not bugs in the benchmarks — they represent the real gaps causing the dysfunction.
+Capabilities that are missing or incomplete. The improvement loop should address OPEN items.
 
-### 1. No agent can update issue priority
-None of the 12 agents have the API call for updating an issue's priority field (`PATCH /api/companies/{companyId}/issues/{issueId}` with `{ "priority": "high" }`). This means agents cannot escalate priority when they discover a situation is worse than initially reported. **Add this to: Patrol, SecOps, StorageOps, NetOps, OpsLead, MediaOps.**
+### [PARTIALLY ADDRESSED] 1. Priority update API
+StorageOps has the `PATCH /api/.../issues/{id}` priority update (added experiment 20260407-120917). **Still missing from: Patrol, SecOps, NetOps, MediaOps, DockerOps.** Benchmarks 12 and 19 now test priority reassessment.
 
-### 2. Most agents lack Telegram notification capability
-Only OpsLead and SecOps have the Telegram script (`/Users/james/1-testytech/homelab/scripts/send-telegram.sh`). Other agents that discover critical situations (StorageOps finding a degraded pool, NetOps finding a security issue) cannot alert the board. **Add this to: StorageOps, NetOps, Patrol (for critical/urgent findings).**
+### [PARTIALLY ADDRESSED] 2. Telegram notification capability
+OpsLead, SecOps, StorageOps, Observer, CEO, BuildOps, PatchOps have Telegram. **Still missing from: Patrol, NetOps, MediaOps, DockerOps.** These agents cannot alert the board when they discover critical findings during investigation.
 
-### 3. OpsLead cannot create approvals
-OpsLead can READ pending approvals (`GET /api/.../approvals?status=pending`) but has no instruction for CREATING them (`POST /api/.../approvals`). This means OpsLead can't unblock the pipeline by creating approvals for changes it reviews and deems low-risk. **Add approval creation to OpsLead's instructions.**
+### [ADDRESSED] 3. OpsLead approval creation
+OpsLead now has `POST /api/.../approvals` (added experiment 20260407-130430).
 
-### 4. Patrol routing may already be correct
-Patrol's instructions DO include correct routing rules (Security→SecOps, Infrastructure→OpsLead, etc.). The HOM-131 mis-routing to BuildOps may have been a downstream OpsLead delegation issue rather than a Patrol routing issue. The improvement loop should investigate whether the gap is in Patrol's finding creation or OpsLead's subsequent delegation.
+### [CONFIRMED] 4. Patrol routing is correct
+Patrol's routing rules are correct. The HOM-131 mis-routing was a downstream OpsLead delegation issue (confirmed by Completed Axis 2).
 
-### 5. No agent distinguishes autonomous vs. approval-required actions precisely
-MediaOps has vague guidance ("low risk" / "hand off everything else") but no concrete decision rules for what it can do autonomously (restart, cache clear) vs. what requires approval (device permissions, memory limits, config file changes). Other specialist agents have similar ambiguity. **Add specific decision-rule checklists to: MediaOps, DockerOps, and any agent with an autonomous action boundary.**
+### [PARTIALLY ADDRESSED] 5. Autonomy boundary precision
+MediaOps has explicit autonomous/approval checklists (experiment 20260407-163811). **DockerOps, StorageOps, NetOps** still lack concrete decision-rule checklists distinguishing autonomous actions from approval-required ones.
 
-### 6. No agent has root cause analysis procedures for cascading failures
-When a service fails due to a chain reaction (e.g., hardware encoder permission denied → software transcoding fallback → OOM kill), agents have no guidance on tracing from surface symptom to root cause. They may fix the symptom (restart) without identifying what needs to change (device permissions + memory limit). **Add cascading-failure investigation guidance to: MediaOps, SecOps, StorageOps.**
+### [PARTIALLY ADDRESSED] 6. Cascading failure investigation
+MediaOps has cascading-failure tracing (experiment 20260407-163811). **SecOps, StorageOps** still lack guidance on tracing from surface symptoms to root causes in chain-reaction failures.
 
-### 7. DockerOps has no update risk grouping or CVSS-based priority
-DockerOps scans for image updates and creates approvals, but treats all updates identically. It has no logic for: separating breaking changes (which need human review), grouping security patches by CVSS severity, or excluding high-risk updates from automated batches. **Add risk-tier grouping, breaking-change exclusion, and CVSS→priority mapping to DockerOps.**
+### [ADDRESSED] 7. DockerOps risk grouping
+DockerOps now groups by risk tier (Breaking/Security/Minor) with CVSS→priority mapping (experiment 20260407-163500).
 
-### 8. Observer lacks pattern recognition and anomaly prioritization
-Observer has anomaly detection triggers but no instruction on: (a) connecting related anomalies into systemic patterns (e.g., PatchOps errors + stale approval = pipeline stall), (b) prioritizing anomalies by severity (P0 critical infrastructure → P3 capacity), (c) detecting agent extended silence (0 runs over multiple cycles), (d) flagging approval queue age as a pipeline health indicator. **Add systemic pattern recognition, severity-based prioritization, and expanded anomaly triggers to Observer.**
+### [ADDRESSED] 8. Observer pattern recognition
+Observer now detects systemic patterns, ranks anomalies P0-P3, and flags approval queue age (experiment 20260407-164102).
+
+### [OPEN] 9. Most agents lack `para-memory-files` for institutional learning
+CEO, Patrol, StorageOps, DockerOps, Observer, BuildOps, PatchOps use `para-memory-files`. **SecOps, NetOps, MediaOps, OpsLead do not.** Without memory, these agents cannot recognize recurring failures (Axis 12), track investigation history, or build institutional knowledge across runs. This directly impacts benchmarks 13 (recurring issue recognition) and 20 (StorageOps prior history).
+
+### [OPEN] 10. Patrol has no duplicate-finding detection
+Patrol creates a new issue every cycle for persistent conditions without checking for existing open issues. This generated 31 duplicate Wazuh wrk-disconnected issues in production. Benchmark 12 tests this directly. **Add duplicate search before issue creation to Patrol.**
 
 ## Completed Axes
 
@@ -137,9 +145,9 @@ Axes 11-17 are NEW, derived from live system analysis on 2026-04-08.
 
 **When an issue is reassigned between agents, the receiving agent should be able to understand the full context from the issue description and comments without re-investigating.** Currently, handoff comments are sometimes vague or missing key information.
 
-**What to improve:** Agent instructions should include a "handoff checklist" — when reassigning an issue, include: what was tried, what was found, what specifically needs to happen next, and what approval/access is needed.
+**What to improve:** Agent instructions should include a "handoff checklist" — when reassigning an issue, include: what was tried, what was found, what specifically needs to happen next, and what approval/access is needed. When work must be split across multiple executors, each approval must be self-contained.
 
-**Evidence:** HOM-283 bounced between 7 agents over 50+ hours. Each handoff lost context, requiring re-investigation.
+**Evidence:** HOM-283 bounced between 7 agents over 50+ hours. Each handoff lost context, requiring re-investigation. HOM-360 required both PatchOps and BuildOps but the split was unclear. Benchmarks `secops-mixed-handoff` and `storageops-pool-recurrence` test this.
 
 ### 11. Patrol Duplicate Finding Prevention
 
@@ -155,7 +163,7 @@ Axes 11-17 are NEW, derived from live system analysis on 2026-04-08.
 
 **What to improve:** Investigating agents (DockerOps, NetOps, StorageOps, MediaOps, SecOps) should check their `para-memory-files` for prior incidents with matching symptoms. If a match is found, the agent should reference the prior fix, skip redundant investigation, and create an approval immediately with the prior incident as precedent.
 
-**Evidence:** HOM-479 vs HOM-307 — identical root cause (PIA Montreal unreachable), identical fix (change SERVER_REGIONS), but HOM-479 took 3+ hours and required OpsLead intervention. Benchmark `recurring-issue-recognition` tests this. *(Also requires agents that don't use para-memory-files to adopt it — see Known Baseline Deficiency #2 gap for NetOps, MediaOps.)*
+**Evidence:** HOM-479 vs HOM-307 — identical root cause (PIA Montreal unreachable), identical fix (change SERVER_REGIONS), but HOM-479 took 3+ hours and required OpsLead intervention. Benchmarks `recurring-issue-recognition` and `storageops-pool-recurrence` test this. *(Also requires agents that don't use para-memory-files to adopt it — see Known Baseline Deficiency #9.)*
 
 ### 13. Idle-After-Checkout Detection
 

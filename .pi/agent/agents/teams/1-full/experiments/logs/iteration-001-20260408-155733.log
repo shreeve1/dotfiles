@@ -1,0 +1,18 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-155837 — keep — 4.92 → 5.00 — "Add plan-input failure recovery to tester.md (vague validation commands) and reviewer.md (missing plan file) — explicit fallback guidance for malformed or absent plan inputs"
+```
+
+### Summary
+
+**What happened:**
+- Scored 9 new benchmarks (21–29) that hadn't been evaluated before. Two benchmarks scored below 5.00:
+  - **24-tester-unparseable-validation: 3.45** — Tester had no guidance when plan validation commands are vague/non-executable
+  - **23-reviewer-missing-context: 3.90** — Reviewer had no guidance when referenced plan file doesn't exist
+
+**What changed:**
+- **tester.md** — Added 4-step fallback in Phase P2 for vague validation commands: flag as plan quality issue, discover test infrastructure, construct targeted commands, note substitutions. Updated report format to require per-criterion Verified/Partial/Unverified mapping.
+- **reviewer.md** — Added 6-step adaptive review guidance in Code Review Mode Phase 2 for when the plan file is missing: state absence, explain limitations, infer scope, identify issues, recommend retroactive planning, verdict with caveats.
+
+**Result:** Aggregate improved from 4.92 → 5.00 (perfect across all 35 benchmarks). Both changes address real failure modes that occur in practice (axis 7: agent-specific failure recovery patterns).

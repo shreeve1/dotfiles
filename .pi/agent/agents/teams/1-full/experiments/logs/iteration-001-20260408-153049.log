@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-153220 — keep — 5.00 → 5.00 — "Simplify context.md Adaptive Failure Recovery by removing the numbered 4-step pivot sequence and compressing Efficiency Discipline from 3 bullets to 1 sentence (53→43 lines)"
+```
+
+**Summary:** One experiment cycle completed. The change compresses `context.md` from 53 to 43 lines (19% reduction) by:
+1. Removing the numbered 4-step pivot sequence from Adaptive Failure Recovery — the behavioral signals (recognize 3-failure loops, pivot fundamentally, prefer source code) are preserved in the surrounding prose and pivot examples
+2. Collapsing 3 Efficiency Discipline bullets into 1 sentence — all three keywords preserved (structured summaries, scope discipline, context window awareness)
+
+All 26 benchmarks remain at 5.00. The harness is simpler with no information loss. Kept.

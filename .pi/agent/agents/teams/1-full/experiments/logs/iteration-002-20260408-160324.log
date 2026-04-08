@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-160429 — keep — 5.00 → 5.00 — "Simplify builder.md by merging Success and Partial/Failed report templates into one conditional template (209→181 lines, 13% reduction)"
+```
+
+**Summary:** Merged the two separate builder report templates (Success + Partial/Failed) into a single conditional template. The change reduced builder.md from 209 to 181 lines (13% reduction) with no behavioral regression — all 35 benchmarks remain at 5.00. Kept under the simplicity criterion: aggregate unchanged and the harness is simpler.

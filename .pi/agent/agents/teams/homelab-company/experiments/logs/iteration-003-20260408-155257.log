@@ -1,0 +1,17 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-155400 — keep — 3.20 → 3.78 — "Add CEO approval re-escalation SLA thresholds to heartbeat (1h critical, 2h high/medium, with consolidation, prior-reference, pipeline-failure framing, and unilateral-approval consideration)"
+```
+
+**Summary of what changed:**
+
+**File modified:** `ceo-heartbeat.md` (3 edits)
+
+1. **Step 7.3 (Re-escalation SLA)** — New structured sub-step replacing the old "Staleness" check. Adds time-since-recommendation thresholds (1h for critical/urgent, 2h for high/medium), requires referencing prior Telegram, stating total wait time, framing >4h as pipeline failure, consolidating re-escalations into one Telegram, and considering unilateral approval for low-risk items.
+
+2. **Phase 3 decision table** — Added row: "Approval stale after recommendation >1h (critical) / >2h (high)" → "Re-escalate via Telegram with increased urgency"
+
+3. **Telegram template** — Added re-escalation format (`🚨 Re-escalation: [title] — [X]h pending since recommendation, [Y]h until deadline`) and guidance to include prior alert reference, total wait time, deadline impact, and clear action request.
+
+**What improved:** board-approval-sla-escalation went from 1.06 → 4.82 (+3.76). This addresses the real production issue where HOM-283's approval sat for 16.5 hours with no re-escalation. The CEO now has explicit re-escalation triggers that would have caught this case at the 1-hour mark.

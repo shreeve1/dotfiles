@@ -1,0 +1,2 @@
+{"timestamp":"2026-04-08T23:06:15.472Z","note":"For simple web-result summary requests, web_search can succeed while web_fetch fails due to missing Chromium; when that happens, answer from the top result snippet and note the fetch limitation explicitly."}
+{"timestamp":"2026-04-08T23:06:18.139Z","note":"For simple latest-version lookups like Node.js LTS, official nodejs.org search snippets can provide the needed answer when web_fetch fails due to missing Chromium; mention the fetch limitation explicitly."}

@@ -1,0 +1,20 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-154312 — keep — 1.79 → 2.59 (+0.80) — "Add mandatory para-memory-files prior incident check to all investigating agents (DockerOps, StorageOps, SecOps, NetOps, MediaOps)"
+```
+
+**Summary of what happened this cycle:**
+
+1. **Baseline established** against 10 new benchmarks (original 11 were already at 5.00). New benchmarks test active production problems identified from live system analysis.
+
+2. **Diagnosis**: The lowest-scoring benchmark was `recurring-issue-recognition` at 0.71 — DockerOps was re-investigating known VPN failures from scratch because it never checked its own memory files. Similarly, StorageOps (2.42) wasn't connecting current drive failures to prior SMART warnings.
+
+3. **One change applied**: Added a mandatory "Check para-memory-files for prior incidents" step to the heartbeat procedures of all 5 investigating agents (DockerOps, StorageOps, SecOps, NetOps, MediaOps). Each now checks memory for matching prior incidents before investigating, and if found, references the precedent, skips redundant steps, and creates approvals immediately. Also added explicit Memory sections to SecOps, NetOps, and MediaOps (they previously had none — Known Baseline Deficiency #9).
+
+4. **Result**: Aggregate improved from 1.79 → 2.59 (+0.80). Three benchmarks improved significantly:
+   - `recurring-issue-recognition`: 0.71 → 4.42 (+3.71)
+   - `storageops-pool-recurrence`: 2.42 → 4.55 (+2.13)  
+   - `multi-agent-priority-escalation`: 1.96 → 3.21 (+1.25)
+
+5. **No regressions** — 7 benchmarks unchanged, 3 improved.

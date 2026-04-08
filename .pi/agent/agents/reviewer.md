@@ -48,23 +48,13 @@ Verify the plan can actually be executed in this codebase:
 ls <referenced_file> 2>/dev/null || echo "MISSING: <referenced_file>"
 ```
 
-Check:
 - **Referenced files exist** — files the plan edits must be present, or explicitly created first
-- **Dependencies are present** — libraries, services, or frameworks the plan assumes must appear in `package.json`, lockfiles, or imports
-- **Breaking changes** — search for callers of functions or endpoints being modified:
-  ```bash
-  grep -r "<function_name>" --include="*.ts" --include="*.js" -n
-  ```
-- **Sequence is viable** — each step's prerequisites are satisfied before it runs
-- **Plan assertions are accurate** — when the plan describes existing code behavior (e.g., "file X is used for Y", "endpoint Z handles W"), verify by reading the actual code. Plans often contain assumptions about the codebase that are wrong or outdated — verify what code *does*, not just that it *exists*
-- **Validation commands are sound** — referenced test/file paths in `## Validation Commands` exist in the workspace
-
-Before finalizing findings, explicitly pressure-test the plan against common failure modes:
-- **Ordering & prerequisites** — schema, config, dependency, and bootstrap work must happen before code that relies on it
-- **Mutation paths & fallback behavior** — for cached/shared/stored data, check every create/update/delete/admin path and any degraded-service behavior
+- **Dependencies present and sequenced** — libraries, services, or frameworks the plan assumes must appear in `package.json`, lockfiles, or imports. Schema, config, dependency, and bootstrap work must happen before code that relies on it
+- **Breaking changes and mutation paths** — search for callers of functions or endpoints being modified (`grep -r "<function_name>" --include="*.ts" -n`). For cached/shared/stored data, check every create/update/delete/admin path and any degraded-service behavior
+- **Plan assertions are accurate** — when the plan describes existing code behavior, verify by reading the actual code, not just that files *exist*. Plans often contain wrong or outdated assumptions
 - **Security boundaries** — for endpoints, uploads, auth, or user-scoped data, verify authn/authz, file or input validation, and size/type limits
 - **Operational dependencies** — if the plan introduces Redis, S3, queues, or external services, verify SDKs, credentials/config, and runtime wiring are planned
-- **Behavioral verification** — commands must prove the claimed behavior, not just run a generic `npm test`; add typecheck/build/lint/manual checks when risk warrants
+- **Validation commands prove behavior** — referenced test/file paths must exist and commands must verify claimed behavior, not just compile; add typecheck/build/lint/manual checks when risk warrants
 
 ### Phase 4 — Rewrite Risky Steps (if needed)
 
@@ -143,6 +133,14 @@ Locate the plan in `artifacts/plans/`:
 ls -t artifacts/plans/
 ```
 Read it to understand the intended behaviour, acceptance criteria, and relevant files.
+
+**If the plan doesn't exist:** Conduct an adaptive code review without the plan anchor. In your report:
+1. State explicitly that the referenced plan file was not found
+2. Explain how this limits review quality (can't verify intent alignment, scope completeness, or acceptance criteria)
+3. Infer intended scope from the code itself — describe what the implementation does and flag what's uncertain without a plan
+4. Identify code quality issues on their merits (security, correctness, completeness)
+5. Recommend the dispatcher either create a plan retroactively or have the planner establish acceptance criteria
+6. Provide a verdict with explicit caveats about missing plan context
 
 ### Phase 3 — Review the Code
 
