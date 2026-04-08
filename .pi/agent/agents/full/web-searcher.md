@@ -1,7 +1,7 @@
 ---
 name: web-searcher
 description: Web research specialist. Finds current documentation, package versions, known solutions, and external context the codebase can't reveal.
-model: anthropic/claude-sonnet-4-6
+model: model: openai-codex/gpt-5.4
 tools: web_search,web_fetch
 ---
 

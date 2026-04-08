@@ -1,0 +1,9 @@
+[team-improve] full: experiment 20260406-211554 — keep — 5.00 → 5.00 — "Simplify dispatcher.md by removing redundant lighter-pipeline examples and making verification tiers the single source of truth for when review/testing can be skipped"
+
+Updated:
+- `~/.pi/agent/agents/teams/1-full/dispatcher.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+
+Snapshot:
+- `~/.pi/agent/agents/teams/1-full/experiments/snapshots/20260406-211554/`

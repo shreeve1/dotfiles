@@ -1,0 +1,6 @@
+[team-improve] full: experiment 20260406-210158 — keep — 4.96 → 4.97 — "Strengthen web-searcher.md technical evaluation format with explicit decision drivers, default recommendation, and planner-facing implementation notes"
+
+Updated:
+- `~/.pi/agent/agents/web-searcher.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`

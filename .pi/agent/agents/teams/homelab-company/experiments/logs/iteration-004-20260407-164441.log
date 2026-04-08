@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-164559 — keep — 4.98 → 5.00 — "Restructure DockerOps approval payload from flat single-object to structured per-image updates array with tier, priority, CVE, per-image commands, and per-image rollback entries"
+```
+
+**Summary of this cycle:**
+
+- **Diagnosed:** The only sub-5.00 benchmark was `dockerops-scan-and-handoff` at 4.82, caused by a flat approval payload template that couldn't convey per-image risk tiers, CVE references, and individual rollback procedures.
+- **Changed:** Replaced DockerOps's single-object approval payload with a structured `updates[]` array where each image gets its own tier, priority, CVE, commands, and rollback entry. Added `host`, `pre_check`, and `post_check` fields.
+- **Result:** dockerops-scan-and-handoff improved from 4.82 → 5.00. All 11 benchmarks now at 5.00. **Aggregate: 5.00 (perfect score).**
+- **Kept:** Aggregate improved, no regression.

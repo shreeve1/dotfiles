@@ -1,0 +1,17 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-135601 — keep — 4.96 → 4.96 — "Simplify SecOps duplicate same-run handoff and safety guidance"
+
+Changed:
+- `/Users/james/.pi/agent/agents/teams/homelab-company/agents/secops.md`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Notes:
+- SecOps prompt reduced `1565 → 1532` words.
+- Kept because benchmark score was unchanged and the instructions are simpler.
+- Honest re-benchmark surfaced an existing gap: `opslead-triage-stuck-issue = 4.65` due to missing explicit priority-order handling across problem types. This predates the SecOps edit.

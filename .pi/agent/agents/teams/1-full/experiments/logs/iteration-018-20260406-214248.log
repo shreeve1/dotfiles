@@ -1,0 +1,9 @@
+[team-improve] full: experiment 20260406-214519 — keep — 5.00 → 5.00 — "Simplify knowledge/shared.md by removing brittle repo-specific conventions and replacing them with verify-the-repo guidance"
+
+Updated:
+- `~/.pi/agent/agents/teams/1-full/knowledge/shared.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`
+
+Snapshot:
+- `~/.pi/agent/agents/teams/1-full/experiments/snapshots/20260406-214519/`

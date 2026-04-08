@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-194919 — keep — 5.00 → 5.00 — "Standardize approval-linkage warning to concise form across SecOps/NetOps/StorageOps/DockerOps (matching MediaOps). Saved 88 words."
+```
+
+**Summary:**
+- **One experiment cycle completed** for team `homelab-company`
+- **Change:** Standardized the "CRITICAL — link the approval to the issue" warning in 4 agents (SecOps, NetOps, StorageOps, DockerOps) to match the concise form already used by MediaOps
+- **Result:** KEEP — aggregate 5.00 unchanged, no individual regression, 88 words removed (-2.0% across affected agents)
+- **Snapshots:** Before-change snapshot at `experiments/snapshots/20260407-194919/`
+- **Results logged** to `experiments/results.tsv` and `experiments/latest.md`

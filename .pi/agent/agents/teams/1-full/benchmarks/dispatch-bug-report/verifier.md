@@ -1,10 +1,10 @@
 # Verifier: Dispatch Bug Report
 
 ## Target Agent
-dispatcher.md (from teams/1-full/)
+dispatcher.md (from ~/.pi/agent/agents/teams/1-full/)
 
 ## Context Files
-context.md (from teams/1-full/)
+- ~/.pi/agent/agents/teams/1-full/context.md
 
 ## Scoring Rubric
 

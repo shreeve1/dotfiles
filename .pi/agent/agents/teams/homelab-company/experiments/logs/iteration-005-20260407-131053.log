@@ -1,0 +1,23 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-131238 — keep — 5.00 → 5.00 — "Simplify OpsLead and CEO approval/stuck-work guidance into ordered decision trees without changing benchmarked behavior"
+
+Updated:
+- `~/.pi/agent/agents/teams/homelab-company/agents/opslead.md`
+- `~/.pi/agent/agents/teams/homelab-company/agents/ceo-agents.md`
+- `~/.pi/agent/agents/teams/homelab-company/agents/ceo-heartbeat.md`
+
+Logged:
+- `~/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Snapshot:
+- `~/.pi/agent/agents/teams/homelab-company/experiments/snapshots/20260407-131238/`
+
+Summary:
+- Simplified the manager-layer approval flow into clearer ordered decision trees.
+- Compared changed benchmarks against the pre-change snapshot with the same scoring pass.
+- Kept the change because scores held at `5.00` and the instructions are simpler.

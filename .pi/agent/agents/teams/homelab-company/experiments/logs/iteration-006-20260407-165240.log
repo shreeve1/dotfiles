@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-165425 — keep — 5.00 → 5.00 — "Simplify OpsLead Telegram section by consolidating standalone trigger/format subsections into one paragraph; -46 words (-2.5%)"
+```
+
+**Summary:**
+- **Experiment:** Simplified OpsLead's standalone Telegram Notifications section by merging the `send-when`, `do-not-send-when`, and `format` subsections into one concise paragraph with the script template preserved
+- **Rationale:** All 5 Telegram trigger conditions were already stated inline in Phase 2 actions, making the standalone section redundant
+- **Result:** Kept — aggregate unchanged at 5.00, no benchmark regressed, prompt reduced from 1834→1788 words (-2.5%)
+- **Current word counts:** Patrol 2115, OpsLead 1788, SecOps 1532, NetOps 1031, StorageOps 1022, Observer 994, DockerOps 934

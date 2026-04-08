@@ -1,0 +1,21 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+Done.
+
+- Team: `homelab-company`
+- Experiment: `20260407-141358`
+- Changed: `/Users/james/.pi/agent/agents/teams/homelab-company/agents/patrol.md`
+- Logged: `experiments/results.tsv`, `experiments/latest.md`
+- Snapshot: `experiments/snapshots/20260407-141358/`
+
+Result:
+- Simplified Patrol by centralizing runbook routing metadata and shortening Uptime Kuma dispatch scaffolding
+- Prompt reduced `2175 → 2067` words
+- Benchmarks stayed perfect: `5.00 → 5.00`
+- Kept the change
+
+[team-improve] homelab-company: experiment 20260407-141358 — keep — 5.00 → 5.00 — "Simplify Patrol by centralizing runbook routing metadata and compressing Uptime Kuma dispatch scaffolding; preserved behavior while reducing prompt size 2175→2067 words."

@@ -1,0 +1,16 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] full: experiment 20260407-105548 — keep — 5.00 → 5.00 — "Simplify knowledge/shared.md into a shorter repo-truth note while preserving local-pattern guidance and team-layout orientation"
+
+Changed:
+- `agent/agents/teams/1-full/knowledge/shared.md`
+- `agent/agents/teams/1-full/experiments/results.tsv`
+- `agent/agents/teams/1-full/experiments/latest.md`
+
+Snapshot:
+- `agent/agents/teams/1-full/experiments/snapshots/20260407-105548/`
+
+Notes:
+- I followed the `team-improve` cycle for one experiment.
+- I chose `knowledge/shared.md` because it is team-local, in the edit surface, and not loaded by benchmark verifiers.
+- Re-benchmark result stayed at `5.00`, so the change was kept under the “unchanged score + simpler harness” rule.

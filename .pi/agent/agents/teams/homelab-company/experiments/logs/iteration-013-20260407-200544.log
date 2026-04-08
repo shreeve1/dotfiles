@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-030701 — keep — 5.00 → 5.00 — "Compress Observer and StorageOps Telegram templates from TMPFILE/heredoc/rm to one-liner + field list, matching SecOps/OpsLead. Total -54 words."
+```
+
+**Summary:** Standardized Telegram invocation pattern across all 4 Telegram-capable agents (Observer, StorageOps, SecOps, OpsLead). The verbose TMPFILE/heredoc/rm boilerplate in Observer and StorageOps was replaced with the concise one-liner + field list already used by SecOps and OpsLead. All 11 benchmarks remain at 5.00. Observer reduced 994→966 words, StorageOps reduced 974→948 words (-54 total).

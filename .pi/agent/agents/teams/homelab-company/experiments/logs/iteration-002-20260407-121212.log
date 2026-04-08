@@ -1,0 +1,21 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-121601 — keep — 3.59 → 4.18 — "Add NetOps follow-through workflow: break multi-recommendation investigations into linked follow-up issues, distinguish low-risk vs approval-required network changes, and close the parent only after linking child issues"
+
+Updated:
+- `~/.pi/agent/agents/teams/homelab-company/agents/netops.md`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Key result:
+- `investigation-follow-through`: `0.25 → 5.00`
+- aggregate: `3.59 → 4.18`
+
+Snapshot:
+- `~/.pi/agent/agents/teams/homelab-company/experiments/snapshots/20260407-121601/`

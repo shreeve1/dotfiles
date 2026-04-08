@@ -1,0 +1,28 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+Done.
+
+[team-improve] homelab-company: experiment 20260407-120917 — keep — 3.04 → 3.59 — "Add StorageOps severity-escalation workflow: priority updates, critical Telegram alerts, mitigation-first approvals, and follow-up issue creation"
+
+Files updated:
+- `/Users/james/.pi/agent/agents/teams/homelab-company/agents/storageops.md`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Also created:
+- baseline snapshot under `.../experiments/snapshots/baseline/`
+- rollback snapshot under `.../experiments/snapshots/20260407-120917/`
+
+Kept the change because:
+- aggregate improved: `3.04 -> 3.59`
+- no benchmark regressed
+- biggest lift was `escalation-on-severity: 0.60 -> 5.00`
+
+Most likely next target:
+- `investigation-follow-through` via NetOps follow-up issue creation.

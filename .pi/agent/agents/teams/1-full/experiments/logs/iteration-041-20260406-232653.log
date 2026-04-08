@@ -1,0 +1,9 @@
+[team-improve] full: experiment 20260406-232941 — keep — 5.00 → 5.00 — "Simplify brief.md by collapsing the team description into a two-sentence routing brief that preserves when to use the full team vs specialized teams"
+
+Updated:
+- `/Users/james/.pi/agent/agents/teams/full/brief.md`
+- `/Users/james/.pi/agent/agents/teams/full/experiments/latest.md`
+- `/Users/james/.pi/agent/agents/teams/full/experiments/results.tsv`
+
+Snapshot:
+- `/Users/james/.pi/agent/agents/teams/full/experiments/snapshots/20260406-232941`

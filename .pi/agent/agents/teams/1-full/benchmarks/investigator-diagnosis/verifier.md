@@ -1,10 +1,10 @@
 # Verifier: Investigator Diagnosis
 
 ## Target Agent
-investigator.md (from agents/full/)
+investigator.md (from ~/.pi/agent/agents/)
 
 ## Context Files
-context.md (from teams/1-full/)
+- ~/.pi/agent/agents/teams/1-full/context.md
 
 ## Scoring Rubric
 

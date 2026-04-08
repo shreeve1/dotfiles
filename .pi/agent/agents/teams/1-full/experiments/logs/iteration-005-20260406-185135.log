@@ -1,0 +1,21 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260407-190004 — keep — 4.49 → 4.55 — "Enhance web-searcher.md report format with adaptive structure (Technical Evaluations template with comparison table, recommendation, dedicated security section)"
+```
+
+---
+
+**Summary of this cycle:**
+
+| | |
+|---|---|
+| **Team** | full |
+| **Experiment** | `20260407-190004` |
+| **Status** | ✅ **keep** |
+| **Change** | Enhanced `web-searcher.md` report format — replaced single template with adaptive Quick Lookups / Technical Evaluations / General Research formats. Technical Evaluations adds comparison table, explicit recommendation, and dedicated security considerations section. |
+| **Score** | 4.49 → **4.55** (+0.05 aggregate) |
+| **Key impact** | 09-web-searcher-best-practices: 3.80 → **4.70** (+0.90) |
+| **Regressions** | None |
+| **Files modified** | `~/.pi/agent/agents/web-searcher.md` (1 file, +22 lines net) |
+| **Next priority** | Planner research awareness step (05: 3.89) |

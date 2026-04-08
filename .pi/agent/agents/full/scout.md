@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Codebase exploration specialist. Maps project structure, traces definitions, finds dependencies. READ-ONLY — never modifies files.
-model: zai/glm-4.7-flash
+model: minimax/MiniMax-M2.5-highspeed
 tools: read,bash,grep,find,ls
 ---
 

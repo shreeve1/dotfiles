@@ -1,0 +1,7 @@
+---
+
+```
+[team-improve] homelab-company: experiment 20260407-190043 — keep — 5.00 → 5.00 — "Compress Patrol Media runbook blockquote notes into section headers and Infrastructure Check 3 prose into inline format. Prompt reduced 1963→1908 words (-55, -2.8%)."
+```
+
+**Summary:** One experiment cycle completed. The change compresses explanatory blockquote notes in Patrol's Media runbook (qBittorrent Docker topology, Jellyseerr pct-exec access note) into compact section headers, and compresses Infrastructure Check 3's prose host list into a one-liner. Score remains 5.00/5.00 across all 11 benchmarks — the information is identical, just more compact. This is the 30th+ consecutive keep at perfect score, and Patrol is down from its starting 2175 words to 1908 words through incremental simplification.

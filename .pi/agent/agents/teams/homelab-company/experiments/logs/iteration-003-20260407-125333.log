@@ -1,0 +1,19 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-125526 — keep — 4.18 → 4.82 — "Refactor SecOps into an integrated investigation-to-handoff workflow: per-CVE exploitability assessment, same-run priority escalation + approval creation, correct executor selection, and human-blocker/deadline handoffs"
+
+Updated:
+- `~/.pi/agent/agents/teams/homelab-company/agents/secops.md`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Snapshot:
+- `~/.pi/agent/agents/teams/homelab-company/experiments/snapshots/20260407-125526/`
+
+Key gains:
+- `executor-handoff-quality`: `2.80 → 5.00`
+- `security-finding-depth`: `2.10 → 5.00`
+
+No regressions.

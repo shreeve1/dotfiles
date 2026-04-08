@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-195829 — keep — 5.00 → 5.00 — "Compress OpsLead Telegram template from TMPFILE/heredoc/rm pattern to one-liner + field list matching SecOps pattern"
+```
+
+**Summary of this cycle:**
+- **Target:** OpsLead Telegram template (verbose TMPFILE/heredoc/rm boilerplate)
+- **Change:** Replaced with one-liner script invocation + field list, matching the SecOps pattern standardized in experiment 20260407-194012
+- **Result:** KEPT — prompt reduced 1,318 → 1,293 words (-25, -1.9%), all benchmarks remain at 5.00
+- **Next opportunities:** Observer and StorageOps still have the old TMPFILE/heredoc/rm Telegram pattern and could receive the same compression

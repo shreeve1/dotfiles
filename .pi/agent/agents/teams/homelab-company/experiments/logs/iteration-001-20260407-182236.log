@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-182646 — keep — 5.00 → 5.00 — "Simplify Patrol heartbeat: endpoint references, fold Duplicate Prevention into Rules, merge steps 7-9. 2115→2087 words (-1.3%)."
+```
+
+**Summary:** One experiment cycle complete. Patrol was the largest agent at 2115 words and the only one still using inline curl blocks in its heartbeat. Consolidated duplicate prevention guidance from 3 locations to 2, aligned heartbeat formatting with the rest of the team, and merged 3 trivial exit steps into 1. All 11 benchmarks remain at 5.00. Change kept.

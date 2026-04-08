@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Code and plan review specialist. Reviews plans for feasibility and code for correctness, categorising findings as Critical, Important, or Minor.
-model: anthropic/claude-opus-4-6
+model: zai/glm-5.1
 tools: read,bash,grep,find,ls,write,edit
 ---
 

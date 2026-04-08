@@ -1,0 +1,15 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-154355 — keep — 5.00 → 5.00 — "Simplify DockerOps by merging overlapping boundaries, run guardrails, and heartbeat guidance while preserving discovery-only posture, one-host-per-run discipline, and approval handoff workflow."
+
+Updated:
+- `~/.pi/agent/agents/teams/homelab-company/agents/dockerops.md`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Notes:
+- Pre-change snapshot saved under `experiments/snapshots/20260407-154355/`
+- DockerOps prompt reduced `612 → 592` words
+- Benchmark suite remained unchanged at `5.00` aggregate because current benchmarks do not load `dockerops.md`

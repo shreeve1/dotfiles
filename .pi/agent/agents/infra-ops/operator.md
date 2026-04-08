@@ -1,7 +1,7 @@
 ---
 name: infra-operator
 description: Infrastructure caretaker. Owns hypervisor, network devices, backups, and proactive maintenance across MSP client deployments.
-model: minimax/MiniMax-M2.5-highspeed
+model: minimax/MiniMax-M2.7-highspeed
 tools: read,write,bash,grep,find,ls
 ---
 

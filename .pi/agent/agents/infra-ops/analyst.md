@@ -1,7 +1,7 @@
 ---
 name: infra-analyst
 description: Root cause analysis specialist. Traces incidents to their underlying cause through log analysis, dependency mapping, and configuration drift detection.
-model: anthropic/claude-opus-4-6
+model: zai/glm-5.1
 tools: read,bash,grep,find,ls
 ---
 

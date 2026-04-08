@@ -1,0 +1,25 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-134500 — keep — 5.00 → 5.00 — "Consolidate StorageOps Planning/Escalation/Telegram into ordered decision tree"
+
+Done.
+
+- Snapshot: `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/snapshots/20260407-134500`
+- Changed: `/Users/james/.pi/agent/agents/teams/homelab-company/agents/storageops.md`
+- Logs updated:
+  - `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+  - `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Result:
+- Aggregate stayed `5.00`
+- All 8 benchmarks stayed at `5.00`
+- Kept because the prompt got simpler: `1179 → 1039` words (`-140`, ~12%)
+
+What changed:
+- Merged redundant StorageOps planning/escalation/Telegram guidance into one ordered decision tree
+- Preserved all benchmark-critical behaviors:
+  - priority escalation
+  - immediate Telegram on critical storage risk
+  - immediate mitigations
+  - follow-up issue creation
+  - linked approval creation
+  - reassign to BuildOps + set `blocked`

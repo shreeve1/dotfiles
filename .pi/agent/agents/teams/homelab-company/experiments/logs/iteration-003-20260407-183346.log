@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-183613 — keep — 5.00 → 5.00 — "Centralize 6 runbook Project/Goal/Assign-to headers into a single Runbook Routing table. Prompt reduced 2087→2072 words (-15, -0.7%)."
+```
+
+**Summary:** One experiment cycle completed. The change extracts the 6 runbook routing metadata lines (Project UUID, Goal UUID, Assign-to agent) from inline positions in each runbook section into a single centralized **Runbook Routing** table. This is an architectural improvement — one place to maintain routing instead of six — with modest word savings. All 11 benchmarks remain at 5.00 with no regressions.

@@ -1,0 +1,21 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-191853 — keep — 4.64 → 4.66 — "Add security implications checkpoint to planner.md Phase 4 — explicit auth/authorization/input-validation/exposure assessment for new endpoints, connections, and surfaces (including non-HTTP channels)"
+```
+
+---
+
+### Summary
+
+**Experiment:** `20260406-191853`
+**Change:** Added one security-awareness bullet to planner.md Phase 4 (Design the Solution) — prompts explicit assessment of authentication requirements (including non-HTTP channels like WebSockets, gRPC), authorization boundaries, input validation, and data exposure risks.
+
+**Result:** **KEEP** — aggregate 4.64 → 4.66 (+0.02)
+- **plan-new-feature:** 4.29 → 4.62 (+0.33) — the planner now explicitly designs WebSocket handshake auth and per-user authorization instead of vaguely referencing "auth middleware"
+- All other benchmarks unchanged, zero regressions
+
+**Top next targets:**
+1. Dispatcher pre-planning research triggers (dispatch-feature-request: 4.33)
+2. Red-team structured vulnerability checklist (11-red-team-security-review: 4.44)
+3. Reviewer common failure patterns (07-reviewer-thoroughness: 4.50)

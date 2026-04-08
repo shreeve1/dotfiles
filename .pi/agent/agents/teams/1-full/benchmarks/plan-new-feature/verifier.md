@@ -1,10 +1,10 @@
 # Verifier: Plan New Feature
 
 ## Target Agent
-planner.md (from agents/full/)
+planner.md (from ~/.pi/agent/agents/)
 
 ## Context Files
-context.md (from teams/1-full/)
+- ~/.pi/agent/agents/teams/1-full/context.md
 
 ## Scoring Rubric
 

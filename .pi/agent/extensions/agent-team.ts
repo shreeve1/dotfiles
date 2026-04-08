@@ -1451,6 +1451,25 @@ export default function (pi: ExtensionAPI) {
 					state.status === "done" ? "success" : "error"
 				);
 
+				// Auto-post dispatch result to team channel for other agents' awareness
+				try {
+					const autoCommsDir = resolve(ctx.cwd, COMMS_DIR_NAME);
+					ensureCommsDirs(autoCommsDir);
+					const autoChannelFile = join(autoCommsDir, COMMS_CHANNEL_FILE);
+					const autoPreview = full.trim().length > 200
+						? full.trim().slice(0, 200) + "..."
+						: full.trim() || "(no output)";
+					const autoMsg: ChannelMessage = {
+						id: randomUUID(),
+						timestamp: new Date().toISOString(),
+						from_agent: "dispatcher",
+						message_type: state.status === "done" ? "decision" : "warning",
+						content: `Dispatched ${displayName(state.def.name)}: ${task.length > 100 ? task.slice(0, 100) + "..." : task}\nResult: ${autoPreview}`,
+						priority: "normal",
+					};
+					appendFileSync(autoChannelFile, JSON.stringify(autoMsg) + "\n", "utf-8");
+				} catch {}
+
 				resolvePromise({
 					output: full,
 					exitCode: code ?? 1,
@@ -1507,8 +1526,8 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			const truncated = result.output.length > 8000
-				? result.output.slice(0, 8000) + "\n\n... [truncated]"
+			const truncated = result.output.length > 16000
+				? result.output.slice(0, 16000) + "\n\n... [truncated]"
 				: result.output;
 
 			// Check for timeout — agent was killed before completing.
@@ -1517,8 +1536,8 @@ export default function (pi: ExtensionAPI) {
 			const isTimedOut = result.output && result.output.includes("⏱️ AGENT TIMED OUT");
 
 			if (isTimedOut) {
-				const truncatedTimeout = result.output.length > 3000
-					? result.output.substring(0, 3000) + "\n...[output truncated]"
+				const truncatedTimeout = result.output.length > 8000
+					? result.output.substring(0, 8000) + "\n...[output truncated]"
 					: result.output;
 				const timeoutText = `[${agent}] TIMED OUT after ${Math.round(result.elapsed / 1000)}s. The agent was killed before completing. Consider breaking the task into smaller pieces.\n\n${truncatedTimeout}`;
 				throw new Error(timeoutText);
@@ -1531,7 +1550,7 @@ export default function (pi: ExtensionAPI) {
 				: "done";
 
 			const outputText = result.output.trim() === ""
-				? "(no output returned by agent — the agent exited without producing any text)"
+				? `(no output returned by agent — exited with code ${result.exitCode} after ${Math.round(result.elapsed / 1000)}s. Possible causes: context window exhaustion, model error, or task too broad. Try a more focused task.)`
 				: truncated;
 
 			const summary = `[${agent}] ${status} in ${Math.round(result.elapsed / 1000)}s`;
@@ -1589,6 +1608,144 @@ export default function (pi: ExtensionAPI) {
 					? details.fullOutput.slice(0, 4000) + "\n... [truncated]"
 					: details.fullOutput;
 				return new Text(header + "\n" + theme.fg("muted", output), 0, 0);
+			}
+
+			return new Text(header, 0, 0);
+		},
+	});
+
+	pi.registerTool({
+		name: "dispatch_parallel",
+		label: "Dispatch Parallel",
+		description: "Dispatch tasks to multiple agents in parallel. All agents run concurrently and results are collected when all complete. Use for independent tasks like parallel context gathering.",
+		parameters: Type.Object({
+			dispatches: Type.Array(
+				Type.Object({
+					agent: Type.String({ description: "Agent name (case-insensitive)" }),
+					task: Type.String({ description: "Task description for the agent" }),
+				}),
+				{ description: "List of agent/task pairs to run in parallel" },
+			),
+		}),
+
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
+			const { dispatches } = params as { dispatches: { agent: string; task: string }[] };
+
+			if (!dispatches || dispatches.length === 0) {
+				return {
+					content: [{ type: "text", text: "No dispatches provided." }],
+					details: { status: "error" },
+				};
+			}
+
+			// Reject duplicate agents — each agent can only run once concurrently
+			const agentNames = dispatches.map(d => d.agent.toLowerCase().replace(/\s+/g, "-"));
+			const seen = new Set<string>();
+			const duplicates: string[] = [];
+			for (const name of agentNames) {
+				if (seen.has(name)) {
+					if (!duplicates.includes(name)) duplicates.push(name);
+				}
+				seen.add(name);
+			}
+			if (duplicates.length > 0) {
+				return {
+					content: [{ type: "text", text: `Cannot dispatch the same agent multiple times in parallel. Duplicated: ${duplicates.join(", ")}. Use sequential dispatch_agent calls instead, or dispatch different agents.` }],
+					details: { status: "error" },
+				};
+			}
+
+			if (dispatches.length === 1) {
+				// Single dispatch — just run it directly
+				const d = dispatches[0];
+				const result = await dispatchAgent(d.agent, d.task, ctx, signal);
+				const truncated = result.output.length > 16000
+					? result.output.slice(0, 16000) + "\n\n... [truncated]"
+					: result.output;
+				return {
+					content: [{ type: "text", text: `[${d.agent}] ${result.exitCode === 0 ? "done" : "error"} in ${Math.round(result.elapsed / 1000)}s\n\n${truncated}` }],
+					details: { dispatches: [{ agent: d.agent, status: result.exitCode === 0 ? "done" : "error", elapsed: result.elapsed }] },
+				};
+			}
+
+			if (onUpdate) {
+				onUpdate({
+					content: [{ type: "text", text: `Dispatching ${dispatches.length} agents in parallel: ${dispatches.map(d => d.agent).join(", ")}...` }],
+					details: { status: "dispatching", agents: dispatches.map(d => d.agent) },
+				});
+			}
+
+			// Run all dispatches concurrently
+			const promises = dispatches.map(d =>
+				dispatchAgent(d.agent, d.task, ctx, signal)
+					.then(result => ({ agent: d.agent, task: d.task, result }))
+					.catch(err => ({ agent: d.agent, task: d.task, result: { output: `Error: ${err?.message || err}`, exitCode: 1, elapsed: 0 } }))
+			);
+
+			const results = await Promise.all(promises);
+
+			// Compose results
+			const parts: string[] = [];
+			const details: any[] = [];
+			for (const r of results) {
+				const status = r.result.exitCode === 0 ? "done" : "error";
+				const elapsed = Math.round(r.result.elapsed / 1000);
+				const truncated = r.result.output.length > 12000
+					? r.result.output.slice(0, 12000) + "\n... [truncated]"
+					: r.result.output;
+				const outputText = r.result.output.trim() === ""
+					? `(no output — exited with code ${r.result.exitCode} after ${elapsed}s. Possible context exhaustion or model error.)`
+					: truncated;
+				parts.push(`### [${r.agent}] ${status} in ${elapsed}s\n\n${outputText}`);
+				details.push({ agent: r.agent, task: r.task, status, elapsed: r.result.elapsed, exitCode: r.result.exitCode });
+			}
+
+			return {
+				content: [{ type: "text", text: parts.join("\n\n---\n\n") }],
+				details: { dispatches: details },
+			};
+		},
+
+		renderCall(args, theme) {
+			const dispatches = (args as any).dispatches || [];
+			const agents = dispatches.map((d: any) => d.agent || "?").join(", ");
+			return new Text(
+				theme.fg("toolTitle", theme.bold("dispatch_parallel ")) +
+				theme.fg("accent", `${dispatches.length} agents: ${agents}`),
+				0, 0,
+			);
+		},
+
+		renderResult(result, options, theme) {
+			const details = result.details as any;
+			if (!details?.dispatches) {
+				const text = result.content[0];
+				return new Text(text?.type === "text" ? text.text : "", 0, 0);
+			}
+
+			if (options.isPartial) {
+				const agents = details.agents || details.dispatches?.map((d: any) => d.agent) || [];
+				return new Text(
+					theme.fg("accent", `● parallel`) +
+					theme.fg("dim", ` ${agents.join(", ")} working...`),
+					0, 0,
+				);
+			}
+
+			const lines = details.dispatches.map((d: any) => {
+				const icon = d.status === "done" ? "✓" : "✗";
+				const color = d.status === "done" ? "success" : "error";
+				const elapsed = typeof d.elapsed === "number" ? Math.round(d.elapsed / 1000) : 0;
+				return theme.fg(color, `${icon} ${d.agent}`) + theme.fg("dim", ` ${elapsed}s`);
+			});
+
+			const header = lines.join("  ");
+
+			if (options.expanded) {
+				const text = result.content[0];
+				const body = text?.type === "text" ? text.text : "";
+				const truncBody = body.length > 6000 ? body.slice(0, 6000) + "\n... [truncated]" : body;
+				return new Text(header + "\n" + theme.fg("muted", truncBody), 0, 0);
 			}
 
 			return new Text(header, 0, 0);
@@ -1749,6 +1906,28 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
+	pi.registerCommand("agents-reset", {
+		description: "Reset agent sessions — wipe conversation history for all agents on the active team",
+		handler: async (_args, ctx) => {
+			const sessDir = join(ctx.cwd, ".pi", "agent-sessions");
+			if (!existsSync(sessDir)) {
+				ctx.ui.notify("No agent sessions to reset", "info");
+				return;
+			}
+			let wiped = 0;
+			for (const f of readdirSync(sessDir)) {
+				if (f.endsWith(".json")) {
+					try { unlinkSync(join(sessDir, f)); wiped++; } catch {}
+				}
+			}
+			// Reset session file references in agent states
+			for (const [, state] of agentStates) {
+				state.sessionFile = null;
+			}
+			ctx.ui.notify(`Reset ${wiped} agent session(s). Agents will start fresh on next dispatch.`, "info");
+		},
+	});
+
 	// ── System Prompt Override ───────────────────
 
 	pi.on("before_agent_start", async (_event, _ctx) => {
@@ -1795,6 +1974,7 @@ You can ONLY dispatch to agents listed below. Do not attempt to dispatch to agen
 - ALWAYS use dispatch_agent to get work done
 - You can chain agents: use scout to explore, then builder to implement
 - You can dispatch the same agent multiple times with different tasks
+- Use dispatch_parallel for independent tasks (e.g., scout + web-searcher gathering context simultaneously)
 - Keep tasks focused — one clear objective per dispatch
 ${briefSection}${guideSection}
 ## Agents
@@ -1814,9 +1994,9 @@ ${agentCatalog}`,
 		widgetCtx = _ctx;
 		contextWindow = _ctx.model?.contextWindow || 0;
 
-		// Wipe old agent session files so subagents start fresh
+		// Only wipe agent sessions if explicitly requested via env or /agents-reset command
 		const sessDir = join(_ctx.cwd, ".pi", "agent-sessions");
-		if (existsSync(sessDir)) {
+		if (process.env.PI_WIPE_SESSIONS === "1" && existsSync(sessDir)) {
 			for (const f of readdirSync(sessDir)) {
 				if (f.endsWith(".json")) {
 					try { unlinkSync(join(sessDir, f)); } catch {}
@@ -1857,7 +2037,7 @@ ${agentCatalog}`,
 		startRequestWatcher(_ctx.cwd, _ctx);
 
 		// Lock down to dispatcher-only (tool already registered at top level)
-		pi.setActiveTools(["dispatch_agent", "track_goal"]);
+		pi.setActiveTools(["dispatch_agent", "dispatch_parallel", "track_goal"]);
 
 		_ctx.ui.setStatus("agent-team", `Team: ${activeTeamName} (${agentStates.size})`);
 		const members = Array.from(agentStates.values()).map(s => displayName(s.def.name)).join(", ");
@@ -1873,7 +2053,8 @@ ${agentCatalog}`,
 			`/agents-team          Select a team\n` +
 			`/agents-list          List active agents and status\n` +
 			`/agents-grid <1-6|auto> Set grid column count\n` +
-			`/agents-view <mode>   Switch view: compact|cards|toggle`,
+			`/agents-view <mode>   Switch view: compact|cards|toggle\n` +
+			`/agents-reset         Wipe agent sessions (fresh start)`,
 			"info",
 		);
 		updateWidget();

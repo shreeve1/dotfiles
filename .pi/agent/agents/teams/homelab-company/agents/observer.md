@@ -1,0 +1,1 @@
+/Users/james/.paperclip/instances/default/companies/4068464a-69cf-4078-89a2-8ebaa8a9e217/agents/1bb2554c-9ec3-4360-9413-41bf6043587f/instructions/AGENTS.md

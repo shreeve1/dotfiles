@@ -1,7 +1,7 @@
 ---
 name: infra-scout
 description: Infrastructure cartographer. Discovers and maps unknown environments, enumerates services, and builds baselines for MSP client deployments.
-model: zai/glm-4.7-flash
+model: minimax/MiniMax-M2.5-highspeed
 tools: read,bash,grep,find,ls
 ---
 

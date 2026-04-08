@@ -1,0 +1,6 @@
+[team-improve] full: experiment 20260406-234334 — keep — 5.00 → 5.00 — "Simplify agent-skills/mental-model.md by tightening the defaults wording while preserving note capture, expertise escalation, and compaction behavior"
+
+Updated:
+- `~/.pi/agent/agents/teams/1-full/agent-skills/mental-model.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`

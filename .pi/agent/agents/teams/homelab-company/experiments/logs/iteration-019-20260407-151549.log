@@ -1,0 +1,14 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-151826 — keep — 5.00 → 5.00 — "Simplify CEO operating philosophy in ceo-soul.md into concise posture/decision-frame/voice guidance while preserving approval, escalation, and communication expectations"
+
+Changed:
+- `/Users/james/.pi/agent/agents/teams/homelab-company/agents/ceo-soul.md`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `/Users/james/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Notes:
+- Snapshot created at `experiments/snapshots/20260407-151826/`
+- `ceo-soul.md` reduced from ~295 → ~195 words
+- Honest re-benchmark stayed perfect across all 8 benchmarks, so the simplification was kept

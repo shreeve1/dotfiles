@@ -1,0 +1,24 @@
+---
+
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-184233 — keep — 4.28 → 4.42 — "Add Adaptive Failure Recovery section to context.md — explicit pivot triggers after 3 consecutive same-category failures, source code as universal fallback"
+```
+
+### Summary
+
+| | |
+|---|---|
+| **Team** | full |
+| **Experiment** | `20260406-184233` |
+| **Status** | ✅ **KEEP** |
+| **Score** | 4.28 → **4.42** (+0.14 aggregate) |
+| **Key lift** | `04-investigator-pivot`: 2.35 → **4.80** (+2.45) |
+| **Regressions** | None |
+| **Change** | Added "Adaptive Failure Recovery" section to `context.md` |
+| **Axis addressed** | #2 — Adaptive Failure Recovery |
+
+**What changed:** Added ~18 lines to `context.md` with explicit guidance for recognizing failure loops (3 consecutive same-category failures → name the pattern), pivoting to fundamentally different approaches (not variations), a 4-step recovery sequence, and source code as the universal fallback.
+
+**Remaining weak spots:** `03-verification-skipping` (3.80), `09-web-searcher-best-practices` (3.80), `05-planner-web-research` (3.89). Next cycle should target **Axis #1 (Verification Coverage)** via dispatcher.md.

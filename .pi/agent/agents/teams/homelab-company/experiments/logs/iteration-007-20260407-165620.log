@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-165756 — keep — 5.00 → 5.00 — "Simplify SecOps Safety section by removing redundant execution prohibition (already stated in Your One Rule and Core Principles) and generalize Wazuh API example endpoint. Prompt reduced 1532→1513 words (-19, -1.2%)."
+```
+
+**Summary:** One experiment cycle completed. The change consolidated redundant safety guidance in SecOps — the "never execute patches/config changes" prohibition was stated three times (Your One Rule, Core Principles, Safety section). Removed the Safety section duplicate since the earlier sections already enforce the constraint. Also generalized the Wazuh API example endpoint. All 11 benchmarks remain at 5.00. Next targets: OpsLead (1788 words), CEO heartbeat (899 words), or Patrol (2115 words).

@@ -1,0 +1,14 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] homelab-company: experiment 20260407-152227 — keep — 5.00 → 5.00 — "Simplify ceo-tools into a compact quick-reference while preserving paperclip, Telegram, memory, and local-reference guidance."
+
+Updated:
+- `~/.pi/agent/agents/teams/homelab-company/agents/ceo-tools.md`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/homelab-company/experiments/latest.md`
+
+Notes:
+- Snapshot created at `experiments/snapshots/20260407-152227/`
+- Honest re-benchmark stayed perfect across all 8 benchmarks
+- Change kept because score was unchanged and the support prompt got simpler (`321 → 274` words)

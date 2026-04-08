@@ -1,0 +1,21 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+**Phase 8 — Exit:**
+
+```
+[team-improve] homelab-company: experiment 20260407-191949 — keep — 5.00 → 5.00 — "Remove OpsLead standalone Execution Model section — routing info already in Phase 3. Prompt reduced 1417→1318 words (-7.0%)."
+```
+
+## Summary
+
+One experiment cycle completed for team **homelab-company**:
+
+| Item | Value |
+|------|-------|
+| **Experiment** | `20260407-191928` |
+| **Change** | Removed OpsLead's standalone "Execution Model" section (~99 words) |
+| **Rationale** | The section restated PatchOps/BuildOps routing, analyst-only model, and approval workflow — all already present in Phase 1 decision tree and Phase 3 routing rules |
+| **Result** | **KEEP** — 5.00 → 5.00 (no regression, harness simpler) |
+| **Impact** | -99 words (-7.0%) on OpsLead, no behavioral change |
+| **Aggregate** | All 11 benchmarks remain at 5.00 |
+
+The team has been at perfect 5.00 across all benchmarks for 30+ consecutive experiments. This cycle continued the simplification trend — removing redundant prose while preserving all operational guidance.

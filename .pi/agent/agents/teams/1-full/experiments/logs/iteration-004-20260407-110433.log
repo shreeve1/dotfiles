@@ -1,0 +1,15 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] full: experiment 20260407-110806 — keep — 5.00 → 5.00 — "Simplify expertise/*.md by folding Role sections into opening paragraphs and removing redundant Role headings"
+
+Updated:
+- `agent/agents/teams/full/expertise/{scout,planner,builder,reviewer,tester,investigator,web-searcher,documenter,red-team}.md`
+- `agent/agents/teams/full/experiments/results.tsv`
+- `agent/agents/teams/full/experiments/latest.md`
+
+Notes:
+- Snapshot created at `agent/agents/teams/full/experiments/snapshots/20260407-110806/`
+- Current benchmark suite remains saturated at `5.00`
+- Scores stayed unchanged because current verifiers do not load `expertise/*.md`; keep decision is based on unchanged score + simpler harness

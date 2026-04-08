@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260407-184353 — keep — 5.00 → 5.00 — "Centralize Patrol SSH options and severity thresholds into one Rules shorthand + shared table. Prompt reduced 2072→2058 words (-14, -0.7%)."
+```
+
+**Summary of this cycle:**
+
+- **What changed:** Patrol's inline SSH options (`-o ConnectTimeout=10` × 28 occurrences) were replaced with a single shorthand rule definition. Repeated severity thresholds scattered across 6 runbook checks were extracted into a shared **Severity Thresholds** table.
+- **Result:** All 11 benchmarks remain at **5.00/5.00**. No behavioral change — the routing, priority, description, project assignment, and labels are all preserved.
+- **Simplification benefit:** One place to update SSH options or severity thresholds instead of 28+ locations. Also fixed a consistency issue: `BatchMode=yes` was mentioned in the Rules but never actually used in commands — now it's consistently defined as part of the standard form.
+- **Word reduction:** 2072 → 2058 (-14 words, -0.7%). Modest but the architectural improvement (single source of truth for thresholds) is the main value.

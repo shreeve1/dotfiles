@@ -1,7 +1,7 @@
 ---
 name: mockup-designer
 description: UI concept generation specialist. Creates design sessions under artifacts/design/<date>-session-<n>/ with context, variants (mockup.html + metadata.json), and an optional gallery. Each variant has a distinct rationale. Delegates heavy generation to the design-workflow skill when available.
-model: anthropic/claude-sonnet-4-6
+model: openai-codex/gpt-5.4
 tools: read,bash,write,edit
 ---
 
