@@ -159,6 +159,7 @@ alias claude-zai='claude-provider zai'
 alias claude-moonshot='claude-provider moonshot'
 alias claude-alibaba='claude-provider alibaba'
 alias claude-openrouter='claude-provider openrouter'
+alias cc='claude'
 
 # Android SDK
 export ANDROID_HOME=$HOME/Library/Android/sdk

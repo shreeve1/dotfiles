@@ -6,6 +6,13 @@ the agent definitions, dispatch protocols, shared context, and expertise so the
 team handles software engineering tasks more effectively — producing higher
 quality output with less human intervention.
 
+## Platform Config
+
+platform: pi
+runner: pi -p
+apply_method: file-edit
+agent_dir: ~/.pi/agent/agents/
+
 ## Directive
 
 The Full Team is a general-purpose software engineering pipeline with nine
@@ -55,6 +62,9 @@ These are the files you may modify. Everything else is off-limits.
 ### Expertise Files
 - `~/.pi/agent/agents/teams/1-full/expertise/*.md` — Per-agent persistent expertise
 
+### Session Notes
+- `~/.pi/agent/agents/teams/1-full/session-notes/` — Per-agent session notes (accumulated learnings)
+
 ### Learning Configuration
 - `~/.pi/agent/agents/teams/1-full/agent-skills/mental-model.md` — Session note capture instructions
 
@@ -88,6 +98,8 @@ variations. Add "pivot triggers" to agent definitions — explicit thresholds
 (e.g., 3 consecutive failures of the same approach) that instruct the agent to
 stop, reassess, and try a fundamentally different strategy. This should be in
 individual agent instructions, not just dispatcher-level retry logic.
+*(See also axis 7 for agent-specific failure scenarios — this axis covers the
+general pivot mechanism; axis 7 covers the per-agent failure catalogs.)*
 
 ### 3. Web-Searcher Integration into Standard Workflows
 The web-searcher is currently positioned as an on-demand tool dispatched only when
@@ -131,6 +143,8 @@ content. Target files: context.md for shared compression principles, expertise/*
 for agent-specific context budget guidance.
 
 ### 7. Agent-Specific Failure Recovery Patterns
+*(Complements axis 2: axis 2 defines the general pivot mechanism; this axis
+defines per-agent failure catalogs with concrete expected behaviors.)*
 Agents handle the happy path well but lack guidance for their most common failure
 scenarios. The builder proceeds past failing baselines without escalating. The
 reviewer falls back to surface-level review when it can't find the referenced
