@@ -103,6 +103,8 @@ const COMMS_RESPONSES_DIR = "responses";
 const REQUEST_WATCHER_INTERVAL_MS = 500;
 const REQUEST_TIMEOUT_MS = 120_000;
 const COMMS_DEBUG = process.env.PI_COMMS_DEBUG === "1";
+const STALL_TIMEOUT_MS = 60_000; // Set to 0 to disable stall watchdog
+const STALL_MIN_OUTPUT_DELTA = 10; // Minimum new assistant chars to count as progress
 
 
 // ─── Team Communication Helpers ──────────────────────────────────────────────
@@ -737,7 +739,6 @@ function parseAgentFile(filePath: string): AgentDef | null {
 function scanAgentDirs(cwd: string): AgentDef[] {
 	const dirs = [
 		join(cwd, "agents"),
-		join(cwd, ".claude", "agents"),
 		join(cwd, ".pi", "agents"),
 		join(homedir(), ".pi", "agent", "agents"),  // global Pi agent dir
 	];
@@ -827,7 +828,6 @@ export default function (pi: ExtensionAPI) {
 		const folderSearchPaths = [
 			join(cwd, "agents"),
 			join(cwd, "agent", "agents"),
-			join(cwd, ".claude", "agents"),
 			join(cwd, ".pi", "agents"),
 			join(homedir(), ".pi", "agent", "agents"),
 		];
@@ -1312,8 +1312,17 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			// -- 10-minute timeout per agent run --
+			// Hard timeout remains the primary fallback; stall timeout is a secondary safeguard.
 			const TIMEOUT_MS = 10 * 60 * 1000;
 			let wasTimedOut = false;
+			let wasStalled = false;
+			let stallReason = "";
+			let stallDetectionCount = 0;
+			let killAttempted = false;
+			let lastProgressAt = Date.now();
+			let lastProgressTextLength = 0;
+			let latestTextLength = 0;
+			let lastToolActivityAt = 0;
 			const timeoutId = setTimeout(() => {
 				wasTimedOut = true;
 				if (proc && !proc.killed) {
@@ -1345,14 +1354,28 @@ export default function (pi: ExtensionAPI) {
 							if (delta?.type === "text_delta") {
 								textChunks.push(delta.delta || "");
 								const full = textChunks.join("");
+								if (STALL_TIMEOUT_MS > 0) {
+									latestTextLength = full.trim().length;
+									if (latestTextLength - lastProgressTextLength >= STALL_MIN_OUTPUT_DELTA) {
+										lastProgressTextLength = latestTextLength;
+										lastProgressAt = Date.now();
+										stallDetectionCount = 0;
+									}
+								}
 								const last = full.split("\n").filter((l: string) => l.trim()).pop() || "";
 								state.lastWork = last;
 								updateWidget();
 							}
 						} else if (event.type === "tool_execution_start") {
 							state.toolCount++;
+							if (STALL_TIMEOUT_MS > 0) {
+								lastToolActivityAt = Date.now();
+							}
 							updateWidget();
 						} else if (event.type === "tool_execution_end") {
+							if (STALL_TIMEOUT_MS > 0) {
+								lastToolActivityAt = Date.now();
+							}
 							// Capture tool result summaries as last-resort output fallback
 							if (event.result?.content) {
 								const toolText = (event.result.content as any[])
@@ -1399,8 +1422,37 @@ export default function (pi: ExtensionAPI) {
 				}
 			});
 
-			proc.stderr!.setEncoding("utf-8");
-			proc.stderr!.on("data", () => {});
+			
+			proc.stderr!.on("data", (data) => { appendFileSync("/tmp/pi-agent-stderr.log", "[" + new Date().toISOString() + "] " + data); });
+
+			state.timer = setInterval(() => {
+				state.elapsed = Date.now() - startTime;
+				if (!wasTimedOut && !wasStalled && STALL_TIMEOUT_MS > 0 && !killAttempted) {
+					const now = Date.now();
+					const sinceProgress = now - lastProgressAt;
+					const sinceToolActivity = now - lastToolActivityAt;
+					const outputDelta = latestTextLength - lastProgressTextLength;
+					if (sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
+						stallDetectionCount++;
+						appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] [agent-team] stall-check agent=${key} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
+						if (stallDetectionCount >= 2) {
+							wasStalled = true;
+							killAttempted = true;
+							stallReason = `[agent-team] Agent killed: stalled (no meaningful output for ${Math.round(STALL_TIMEOUT_MS / 1000)}s)`;
+							appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] ${stallReason}; toolCalls=${state.toolCount}\n`, "utf-8");
+							if (proc && !proc.killed) {
+								proc.kill("SIGTERM");
+								setTimeout(() => {
+									if (proc && !proc.killed) proc.kill("SIGKILL");
+								}, 5000);
+							}
+						}
+					} else if (outputDelta >= STALL_MIN_OUTPUT_DELTA) {
+						stallDetectionCount = 0;
+					}
+				}
+				updateWidget();
+			}, 1000);
 
 			proc.on("close", (code) => {
 				try { unlinkSync(promptFile); } catch {}
@@ -1430,7 +1482,13 @@ export default function (pi: ExtensionAPI) {
 
 				clearInterval(state.timer);
 				state.elapsed = Date.now() - startTime;
-				state.status = code === 0 ? "done" : "error";
+				if (wasStalled) {
+					state.status = "error";
+				} else if (wasTimedOut) {
+					state.status = "error";
+				} else {
+					state.status = code === 0 ? "done" : "error";
+				}
 
 				// Mark session file as available for resume
 				if (code === 0) {
@@ -1442,7 +1500,9 @@ export default function (pi: ExtensionAPI) {
 				const rawOutput = textChunks.join("") || lastAssistantText || lastToolResultText;
 				const full = wasTimedOut
 					? `⏱️ AGENT TIMED OUT after ${Math.round(TIMEOUT_MS / 1000)}s. The task was NOT completed. Partial output before kill:\n\n${rawOutput}`
-					: rawOutput;
+					: wasStalled
+						? `${stallReason} (performed ${state.toolCount} tool calls). Partial output before kill:\n\n${rawOutput}`
+						: rawOutput;
 				state.lastWork = full.split("\n").filter((l: string) => l.trim()).pop() || "";
 				updateWidget();
 
