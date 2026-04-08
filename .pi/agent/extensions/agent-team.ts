@@ -291,7 +291,7 @@ function finalizeRun(runKey: string, opts?: { timer?: ReturnType<typeof setInter
 	if (opts?.killProc && opts.proc && !opts.proc.killed) {
 		opts.proc.kill("SIGTERM");
 		setTimeout(() => {
-			if (opts.proc && !opts.proc.killed) opts.proc.kill("SIGKILL");
+			if (opts.proc && !opts.proc.killed) opts.proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
 		}, 5000);
 	}
 	// Remove ephemeral state entry
@@ -461,7 +461,7 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
     ];
     if (existsSync(agentSessionFile)) args.push("-c");
     args.push(formattedTask);
-    const proc = spawn("pi", args, {
+    const proc = spawn(process.platform === "win32" ? "pi.exe" : "pi", args, {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, PI_AGENT_NAME: targetKey, PI_TEAM_COMMS_DIR: commsDir, PI_TEAM_DIR: activeTeamDir, PI_COMMS_DEPTH: "1", PI_ALLOWED_WRITE_PATHS: targetState.def.allowedWritePaths || undefined, PI_TEAM_WRITE_MAP: JSON.stringify(buildTeamWriteMap(agentStates)) },
     });
@@ -475,7 +475,7 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
         console.error(`Agent ${targetKey} (input request) timed out after ${INPUT_TIMEOUT_MS / 1000}s, killing...`);
         proc.kill("SIGTERM");
         setTimeout(() => {
-          if (proc && !proc.killed) proc.kill("SIGKILL");
+          if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
         }, 5000);
       }
     }, INPUT_TIMEOUT_MS);
@@ -1414,7 +1414,7 @@ export default function (pi: ExtensionAPI) {
 		let lastToolResultText = "";
 
 		return new Promise((resolvePromise) => {
-			const proc = spawn("pi", args, {
+			const proc = spawn(process.platform === "win32" ? "pi.exe" : "pi", args, {
 				stdio: ["ignore", "pipe", "pipe"],
 				env: {
 					...process.env,
@@ -1434,7 +1434,7 @@ export default function (pi: ExtensionAPI) {
 					if (proc && !proc.killed) {
 						proc.kill("SIGTERM");
 						setTimeout(() => {
-							if (proc && !proc.killed) proc.kill("SIGKILL");
+							if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
 						}, 5000);
 					}
 				};
@@ -1462,7 +1462,7 @@ export default function (pi: ExtensionAPI) {
 					console.error(`Agent ${effectiveKey} timed out after ${TIMEOUT_MS / 1000}s, killing...`);
 					proc.kill("SIGTERM");
 					setTimeout(() => {
-						if (proc && !proc.killed) proc.kill("SIGKILL");
+						if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
 					}, 5000);
 				}
 			}, TIMEOUT_MS);
@@ -1552,7 +1552,7 @@ export default function (pi: ExtensionAPI) {
 				}
 			});
 
-			proc.stderr!.on("data", (data) => { appendFileSync("/tmp/pi-agent-stderr.log", "[" + new Date().toISOString() + "] " + data); });
+			proc.stderr!.on("data", (data) => { appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), "[" + new Date().toISOString() + "] " + data); });
 
 			effectiveState.timer = setInterval(() => {
 				effectiveState.elapsed = Date.now() - startTime;
@@ -1563,16 +1563,16 @@ export default function (pi: ExtensionAPI) {
 					const outputDelta = latestTextLength - lastProgressTextLength;
 					if (sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
 						stallDetectionCount++;
-						appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] [agent-team] stall-check agent=${effectiveKey} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
+						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] stall-check agent=${effectiveKey} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
 						if (stallDetectionCount >= 2) {
 							wasStalled = true;
 							killAttempted = true;
 							stallReason = `[agent-team] Agent killed: stalled (no meaningful output for ${Math.round(STALL_TIMEOUT_MS / 1000)}s)`;
-							appendFileSync("/tmp/pi-agent-stderr.log", `[${new Date().toISOString()}] ${stallReason}; toolCalls=${effectiveState.toolCount}\n`, "utf-8");
+							appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] ${stallReason}; toolCalls=${effectiveState.toolCount}\n`, "utf-8");
 							if (proc && !proc.killed) {
 								proc.kill("SIGTERM");
 								setTimeout(() => {
-									if (proc && !proc.killed) proc.kill("SIGKILL");
+									if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
 								}, 5000);
 							}
 						}

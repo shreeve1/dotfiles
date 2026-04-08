@@ -1,25 +1,8 @@
-# Experiment: 20260408-160915
+# Experiment: 20260408-161928
 
 **Status:** keep
-**Change:** Add aggregate coalesce rate monitoring degradation detection to Observer. Observer now calculates the total coalesce rate across all routines from run data. When >50%, it flags as P1 "monitoring degraded" with specific worst routines named, diagnoses root cause (Patrol run duration exceeds schedule interval), and recommends one of: increase interval, reduce runbook scope, or investigate slow runs. Also added: zero-output agent flagging (agents with 0 resolved + assigned issues in 24h), approval-stall-to-blocked-issues pattern connection, and monitoring degradation as a named systemic pattern. Observer 966→1345 words (+379, +39.2%). observer-coalesce-detection: 2.70→5.00 (+2.30).
-**Score:** 4.35 → 4.58 (delta: +0.23)
-
-## Benchmark Scores
-
-| Benchmark | Score | Key Issues |
-|-----------|-------|------------|
-| patrol-duplicate-detection | 5.00 | Unchanged (Patrol) |
-| investigation-wrong-diagnosis | 4.73 | Unchanged (NetOps) |
-| board-approval-sla-escalation | 4.82 | Unchanged (CEO) |
-| secops-mixed-handoff | 4.42 | Unchanged (SecOps) |
-| opslead-idle-agent-detection | 4.60 | Unchanged (OpsLead) |
-| cross-issue-dependency | 5.00 | Unchanged (OpsLead) |
-| recurring-issue-recognition | 4.42 | Unchanged (multi-agent) |
-| storageops-pool-recurrence | 4.55 | Unchanged (StorageOps) |
-| multi-agent-priority-escalation | 3.21 | Unchanged (DockerOps) |
-| observer-coalesce-detection | 5.00 | Now detects aggregate coalesce rate, diagnoses root cause, recommends actions |
-
-**Aggregate: 4.58**
+**Change:** Add ZFS pool degradation depth requirements to StorageOps: redundancy tolerance explanation (raidz topology + failure tolerance), check remaining drives SMART, reference prior memory for faulted drive, specify replacement drive specs in approval, post-replacement verification plan, and save findings to memory. StorageOps 987→1226 words (+239, +24.2%).
+**Score:** 4.75 → 4.90 (delta: +0.15)
 
 ## Per-Benchmark Comparison
 | Benchmark | Before | After | Delta |
@@ -30,23 +13,33 @@
 | secops-mixed-handoff | 4.42 | 4.42 | +0.00 |
 | opslead-idle-agent-detection | 4.60 | 4.60 | +0.00 |
 | cross-issue-dependency | 5.00 | 5.00 | +0.00 |
-| recurring-issue-recognition | 4.42 | 4.42 | +0.00 |
-| storageops-pool-recurrence | 4.55 | 4.55 | +0.00 |
-| multi-agent-priority-escalation | 3.21 | 3.21 | +0.00 |
-| observer-coalesce-detection | 2.70 | 5.00 | +2.30 |
+| recurring-issue-recognition | 5.00 | 5.00 | +0.00 |
+| storageops-pool-recurrence | 4.55 | 5.00 | +0.45 |
+| multi-agent-priority-escalation | 4.42 | 4.42 | +0.00 |
+| observer-coalesce-detection | 5.00 | 5.00 | +0.00 |
+
+**Aggregate: 4.90**
 
 ## Analysis
-Observer previously had per-routine "silent execution" detection (all last 5 runs coalesced) but no aggregate coalesce rate analysis. In production, 66% of all patrol runs were coalesced — meaning the system had significant monitoring blind spots — but no single routine had 5/5 coalesced runs, so the existing detection never triggered. The new capability calculates the aggregate rate from routine data and triggers at >50%, catching the systemic problem that per-routine checks missed.
+StorageOps previously lacked structured guidance for pool degradation investigations. When a drive faulted, the agent had escalation and approval workflows but no depth requirements specific to ZFS topology. The new "ZFS Pool Degradation — Depth Requirements" section adds 5 mandatory investigation steps:
 
-The root cause diagnosis (run duration exceeds interval) and three-part remediation recommendation (increase interval / reduce scope / investigate slow runs) gives the CEO actionable options instead of just flagging a number.
+1. **Redundancy tolerance explanation** — Forces the agent to state the raidz level and remaining failure tolerance. Previously, StorageOps might just say "pool degraded" without quantifying the risk window (e.g., "zero redundancy margin until replaced"). This is critical context for the board and for priority assessment.
 
-Three secondary improvements bundled: (1) zero-output agent detection (NetOps/PatchOps with 0 resolved + assigned issues) catches the idle-after-checkout pattern at the reporting layer, (2) approval-stall-to-blocked-issues pattern connection makes the digest's systemic patterns section more useful, (3) monitoring degradation added as a named systemic pattern alongside existing patterns.
+2. **Check remaining drives SMART** — When one drive fails, the others in the same vdev are often the same age/batch. Checking them catches pre-failure conditions before a second drive dies and causes data loss. This was a missing anti-pattern in the verifier.
 
-The +379 word cost is significant — this is the biggest single increase since the initial capability additions. Future simplification passes can compress the monitoring degradation instruction block.
+3. **Reference prior memory for faulted drive** — Connects SMART history to current failure (e.g., "sdc had 2 reallocated sectors in March, predicted failure now materializing"). This transforms a generic "drive failed" into a pattern-recognized event.
+
+4. **Specify replacement drive specs** — The approval must include model, capacity, interface, and serial. Without this, BuildOps can't procure or select the right replacement.
+
+5. **Post-replacement verification plan** — Resilver monitoring, full scrub, and SMART check. Prevents "drive replaced, done" without verifying data integrity.
+
+Also added Escalation step 6 (save findings to memory) and expanded Telegram field guidance to include redundancy tolerance and risk window.
+
+The storageops-pool-recurrence score improved from 4.55 to 5.00, going from the weakest benchmark to a perfect score. The +239 word cost is moderate — the depth requirements are structured and actionable rather than verbose.
 
 ## Next Improvement Ideas
-1. **DockerOps priority reassessment (multi-agent-priority-escalation at 3.21)** — now the lowest score. DockerOps lacks priority reassessment when investigation reveals higher severity, and lacks kill-switch risk differentiation (availability vs security). Add a priority reassessment step to the Container Health Issues procedure and a kill-switch risk assessment checklist.
+1. **SecOps risk-per-executor assessment (secops-mixed-handoff at 4.42)** — SecOps already has split-approval capability but may lack explicit risk differentiation between PatchOps (openssh lockout risk) and BuildOps (database migration risk). A per-executor risk assessment requirement would lift this score.
 
-2. **SecOps/StorageOps/NetOps/MediaOps priority reassessment** — recurring-issue-recognition (4.42) and secops-mixed-handoff (4.42) could benefit from more consistent priority reassessment across investigating agents.
+2. **DockerOps/multi-agent-priority-escalation (4.42)** — DockerOps now has priority reassessment but the recurrence pattern check (criterion 5) still scores ~3 when no prior memory exists. Could add "note for recurrence tracking" language.
 
-3. **Observer simplification pass** — the new monitoring degradation block (+379 words) can likely be compressed in a future simplification experiment without losing the capability.
+3. **StorageOps simplification pass** — The new +239 words could be compressed in a future simplification pass once behavior is validated in production.

@@ -145,10 +145,9 @@ Read it to understand the intended behaviour, acceptance criteria, and relevant 
 ### Phase 3 — Review the Code
 
 1. **Read changed files in full context** — not just diff hunks
-2. **Check alignment** — was everything in the plan implemented? Is there scope creep?
+2. **Plan alignment and acceptance criteria** — was everything in the plan implemented? Is there scope creep? Are all acceptance criteria satisfied?
 3. **Code quality** — error handling, type safety, DRY, edge cases (null, empty, concurrent), no secrets in code
 4. **Tests** — does each change have tests? Do tests verify behaviour not implementation?
-5. **Acceptance criteria** — are the plan's acceptance criteria satisfied?
 
 ### Phase 4 — Report
 
@@ -182,8 +181,7 @@ Files reviewed: <count>
 
 ## Constraints
 
-- Never modify source code files — only update plan files in `artifacts/plans/`
+- Only modify plan files in `artifacts/plans/`, and only when issues warrant rewrites — never modify source code
 - Never reset completed task checkboxes (`- [x]`)
-- Only modify the plan file if issues warrant rewrites — not for minor suggestions
 - Every finding must include what is wrong, why it matters, and how to fix it
 - Acknowledge specific strengths — not just issues

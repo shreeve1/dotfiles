@@ -36,3 +36,6 @@ Benchmarks simulate MSP small-business scenarios: mixed Windows/Linux environmen
 | runbook-quality | Actionable runbook from incident resolution | documenter |
 | cross-platform-diagnosis | Mixed Windows/Linux root cause analysis | analyst |
 | multi-alert-triage | Simultaneous alerts, priority and parallelism | dispatcher |
+| scout-discovery | Environment mapping, dependency chains, concern flagging | scout |
+| maintenance-planning | Dependency ordering, rollback plans, timing feasibility | operator |
+| security-audit | Post-incident hardening, defense analysis, detection gaps | hardener |

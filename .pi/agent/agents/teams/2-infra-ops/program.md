@@ -42,6 +42,8 @@ Optimize for: correct incident triage, complete baseline documentation, effectiv
 - `benchmarks/` (benchmark tasks)
 - `experiments/` (logs and snapshots)
 - `team.yaml` (agent roster)
+- `brief.md` (team overview)
+- `session-notes/` (runtime session data)
 - `~/.pi/agent/AGENTS.md` (global safety rules)
 - Any other team's files
 

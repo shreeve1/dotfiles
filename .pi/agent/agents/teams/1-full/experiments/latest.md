@@ -1,7 +1,49 @@
-# Experiment: 20260408-160844
+# Benchmark Scores — 2026-04-08T16:20:00Z
+
+| Benchmark | Score | Key Issues |
+|-----------|-------|------------|
+| 01-dispatch-routing-basic | 5.00 | None |
+| 02-dispatch-routing-ambiguous | 5.00 | None |
+| 03-verification-skipping | 5.00 | None |
+| 04-investigator-pivot | 5.00 | None |
+| 05-planner-web-research | 5.00 | None |
+| 06-builder-handoff-quality | 5.00 | None |
+| 07-reviewer-thoroughness | 5.00 | None |
+| 08-scout-exploration | 5.00 | None |
+| 09-web-searcher-best-practices | 5.00 | None |
+| 10-tester-plan-verification | 5.00 | None |
+| 11-red-team-security-review | 5.00 | None |
+| 12-parallel-dispatch-routing | 5.00 | None |
+| 13-session-note-capture | 5.00 | None |
+| 14-session-context-awareness | 5.00 | None |
+| 15-dispatcher-minimal-pipeline | 5.00 | None |
+| 16-scout-focused-exploration | 5.00 | None |
+| 17-planner-lean-plan | 5.00 | None |
+| 18-builder-minimal-output | 5.00 | None |
+| 19-investigator-efficient-diagnosis | 5.00 | None |
+| 20-reviewer-proportionate-review | 5.00 | None |
+| 21-context-compression-awareness | 5.00 | None |
+| 22-builder-failing-baseline | 5.00 | None |
+| 23-reviewer-missing-context | 5.00 | None |
+| 24-tester-unparseable-validation | 5.00 | None |
+| 25-documenter-navigation-hub | 5.00 | None |
+| 26-research-gating | 5.00 | None |
+| 27-cross-agent-handoff-chain | 5.00 | None |
+| 28-builder-scope-discipline | 5.00 | None |
+| 29-parallel-dispatch-complex | 5.00 | None |
+| dispatch-bug-report | 5.00 | None |
+| dispatch-feature-request | 5.00 | None |
+| dispatch-quick-question | 5.00 | None |
+| investigator-diagnosis | 5.00 | None |
+| plan-new-feature | 5.00 | None |
+| review-flawed-plan | 5.00 | None |
+
+**Aggregate: 5.00**
+
+# Experiment: 20260408-161744
 
 **Status:** keep
-**Change:** Simplify tester.md by collapsing Run Mode R1+R2 into single phase and Discovery Mode D1+D2 into single phase (220→214 lines, 3% reduction)
+**Change:** Simplify reviewer.md Code Review Phase 3 by merging overlapping "Check alignment" and "Acceptance criteria" items into a single "Plan alignment and acceptance criteria" item, and consolidate Constraints section by merging redundant "never modify source code" and "only modify plans when warranted" rules (189→187 lines, 1% reduction)
 **Score:** 5.00 → 5.00 (delta: 0.00)
 
 ## Per-Benchmark Comparison
@@ -44,13 +86,16 @@
 | review-flawed-plan | 5.00 | 5.00 | 0.00 |
 
 ## Analysis
-Collapsed Run Mode's Phase R1 (Find Test Command) and Phase R2 (Run Tests) into a single Phase R1 (Find and Run Tests) — these were trivially sequential steps that didn't warrant separate phase headings. Similarly collapsed Discovery Mode's Phase D1 (Detect Setup) and Phase D2 (Save Manifest) into a single Phase D1 (Detect Setup and Save Manifest). Both changes reduce phase heading count without removing any behavioral content or guidance.
+Two changes to reviewer.md, both removing redundancy without losing information:
 
-No benchmarks regressed because both tester benchmarks (10-tester-plan-verification, 24-tester-unparseable-validation) test Plan-Driven Mode, which was not modified. The change passes the overfitting test: merging trivially sequential phases into single phases is a worthwhile structural improvement regardless of specific benchmarks.
+1. **Code Review Phase 3 (items 2+5 merged):** "Check alignment" asked "was everything in the plan implemented?" and "Acceptance criteria" asked "are the plan's acceptance criteria satisfied?" — these are the same question at different granularities. Merged into "Plan alignment and acceptance criteria — was everything in the plan implemented? Is there scope creep? Are all acceptance criteria satisfied?" which preserves all three sub-questions in one item. No information loss.
+
+2. **Constraints section (items 1+3 merged):** "Never modify source code files — only update plan files" and "Only modify the plan file if issues warrant rewrites" are complementary rules about the same topic (what the reviewer can modify). Merged into "Only modify plan files in `artifacts/plans/`, and only when issues warrant rewrites — never modify source code" which preserves all three constraints (target scope, conditional trigger, exclusion) in one sentence.
+
+No benchmarks regressed because both changes preserve the full semantic content of the original instructions. The three reviewer-targeted benchmarks (07, 20, 23) all test the same effective behavior.
 
 ## Next Improvement Ideas
-Remaining simplification opportunities:
-- **reviewer.md (199 lines):** Plan Review Phase 3 and Code Review Phase 3 have overlapping feasibility/quality checks — could extract shared verification logic
-- **tester.md (214 lines):** Analyze Mode A1 landscape inspection and Discovery Mode D1 setup detection use similar discovery commands — could cross-reference
-- **dispatcher.md (202 lines):** Look for redundant routing guidance that's already covered by the Verification Decision Framework or Ambiguous Request Routing
-- **planner.md (216 lines):** Phase 6 conditional sections list may be compressible — several conditional sections are rarely used together
+Remaining simplification opportunities in reviewer.md:
+- **Phase 4 Rewrite Risky Steps:** The markdown template for rewrites is verbose; the checkpoint line could be made implicit since the reviewer naturally describes verification
+- **Phase 5 Save and Report:** The report template's "Feasibility" subsection mirrors the Phase 3 checklist findings — could be collapsed into "Feasibility: <summary of Phase 3 verification results>"
+- **Cross-file redundancy:** The `agents/dispatcher.md` and `teams/1-full/dispatcher.md` both have "Clarify Before Dispatching" sections with overlapping guidance. Since the team-level dispatcher is the authoritative one, the agent-level version could be simplified to a pointer
