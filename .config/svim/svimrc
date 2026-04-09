@@ -1,0 +1,11 @@
+noremap Y y$
+noremap H ^
+noremap L $
+noremap j gj
+noremap k gk
+nmap U <C-r>
+nmap <C-d> <C-d>zz
+nmap <C-u> <C-u>zz
+nmap n nzzzv
+nmap N Nzzzv
+imap jk <Esc>

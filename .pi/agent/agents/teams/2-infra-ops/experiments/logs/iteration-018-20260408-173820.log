@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-174134 — keep — 4.93 → 4.95 — "Added Per-Item Verification Templates to operator.md Step 7 — replaced generic post-check bullets with specific verification command templates per maintenance type and mandatory 3-part post-check structure"
+```
+
+**Summary:**
+- **Improved** maintenance-planning from 4.82 → 5.00 (ceiling) by adding specific per-item verification templates to the operator
+- **Aggregate** moved from 4.93 → 4.95
+- **8 of 11 benchmarks** now at ceiling (5.00)
+- **Remaining non-ceiling:** scout-discovery (4.82), incident-triage-p1 (4.84), runbook-quality (4.86), multi-alert-triage (4.89)
+- **Recommended next target:** scout-discovery (4.82) — add cross-host analysis step to detect duplicate tooling and systemic patterns across hosts

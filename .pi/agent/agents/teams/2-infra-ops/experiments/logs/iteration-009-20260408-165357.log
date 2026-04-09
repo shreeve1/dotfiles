@@ -1,0 +1,13 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-165505 — keep — 4.67 → 4.71 (+0.04) — "Added Decision Branch Framework to documenter.md — four systematic divergence types for runbook decision points"
+```
+
+**Summary:**
+- **One experiment completed** — added a Decision Branch Framework to the documenter's Runbook Writing Rules
+- **Target benchmark:** runbook-quality improved from **4.00 → 4.41** (+0.41)
+- **Aggregate:** improved from **4.67 → 4.71** (+0.04)
+- **No regressions** — only runbook-quality changed, all others unchanged
+- **Decision: KEPT** — improvement is broadly applicable (not overfitted to the cert scenario)
+- The framework teaches four divergence types: alternative root causes, step-level failures, environment variations, and state divergence — giving the documenter a systematic checklist instead of relying on intuition

@@ -1,0 +1,21 @@
+Everything looks correct. Let me exit cleanly.
+
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-165011 — keep — 4.72 → 4.76 — "Added Post-Incident Detection Review and Defense Credit Protocol to hardener.md"
+```
+
+### Summary
+
+**What changed:** Added two sections to `hardener.md` and updated the hardener expertise file:
+
+1. **Post-Incident Detection Review** — A 5-step framework for analyzing detection timelines after security incidents: map kill chain timestamps, quantify the detection gap, analyze what triggered detection vs. what should have triggered earlier, identify missed detection opportunities, and recommend specific alert/rule improvements.
+
+2. **Defense Credit Protocol** — Explicit guidance to acknowledge and credit defenses that worked before making hardening recommendations. Requires naming each control, stating what it prevented, and explaining why it mattered in the kill chain.
+
+**Results:** Security-audit improved from **4.36 → 4.82** (+0.46). Aggregate improved from **4.72 → 4.76** (+0.04). No regressions. Decision: **KEEP**.
+
+**Progress over all experiments:** Baseline 3.90 → Current 4.76 (+0.86 total improvement across 8 experiments).
+
+**Remaining lowest scores for next cycle:** runbook-quality (4.00), baseline-documentation (4.40), incident-triage-p1 (4.55).

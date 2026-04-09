@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-175857 — keep — 4.97 → 4.99 — "Added Minimum Branch Coverage rule to documenter.md"
+```
+
+**Summary:**
+- **Change:** Added 3 lines to documenter.md's Runbook Writing Rule #3, requiring at least one alternative-cause branch per diagnostic step and one step-level failure branch per remediation step
+- **Result:** runbook-quality improved from 4.86 → **5.00**, aggregate from 4.97 → **4.99**
+- **10 out of 11 benchmarks now at ceiling (5.00)**
+- **Convergence reached** — the protocol says to stop here. The only remaining gap (incident-triage-p1 at 4.84) is marginal and further changes risk bloat.

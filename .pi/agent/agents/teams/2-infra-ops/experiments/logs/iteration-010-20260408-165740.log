@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-170040 — keep — 4.71 → 4.76 — "Enhanced documenter baseline template with structured concerns table, expanded sections, and normal state baseline"
+```
+
+**Summary:**
+- **What changed:** Enhanced the documenter's baseline template — added structured sections for Network, Storage, Users/Security, and Backup; added a Flagged Concerns table with severity/category/action/priority columns; added a Normal State Baseline section defining expected patterns
+- **Result:** baseline-documentation jumped from **4.40 → 5.00** (+0.60, hit ceiling)
+- **Aggregate:** **4.71 → 4.76** (+0.05)
+- **No regressions** on any other benchmark
+- This matches the previous best aggregate (4.76 from experiment 20260408-165011)

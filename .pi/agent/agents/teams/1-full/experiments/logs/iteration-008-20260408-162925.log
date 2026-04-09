@@ -1,0 +1,12 @@
+**Phase 8 — Exit:**
+
+```
+[team-improve] full: experiment 20260408-163139 — keep — 5.00 → 5.00 — "Simplify dispatcher.md by removing the redundant Other Cases Where a Pipeline Isn't Needed section (195→188 lines, 3.6% reduction)"
+```
+
+**Summary of this cycle:**
+
+- **Target:** Removed the 7-line "Other Cases Where a Pipeline Isn't Needed" section from dispatcher.md
+- **Rationale:** Its two bullets (web research dispatch, single focused task dispatch) were redundant with more specific guidance elsewhere — Pre-planning research + Direct Exploration Requests for web-searcher, and Bias Toward Action + VDF Trivial tier for single-agent dispatch
+- **Result:** All 29 benchmarks remain at 5.00. Kept under simplicity criterion (same score, fewer lines, no lost coverage)
+- **Dispatcher.md:** 195 → 188 lines (3.6% reduction)

@@ -1,0 +1,16 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-172350 — keep — 5.00 → 5.00 — "Merge Patrol Security Check 5 (suspicious DNS TLDs) and Check 7 (DNS exfiltration) into single SSH call. Patrol 2232→2177 words (-55, -2.5%)."
+```
+
+**Summary:**
+
+| Metric | Value |
+|--------|-------|
+| Experiment | 20260408-172350 |
+| Decision | **keep** (simplification) |
+| Score | 5.00 → 5.00 (unchanged) |
+| Change | Merged Patrol Security Check 5 (suspicious DNS TLDs) + Check 7 (DNS exfiltration) into one "DNS Threat Detection" check using `tee` to fork a single SSH stream |
+| Word delta | Patrol: 2232 → 2177 (-55 words, -2.5%) |
+| Rationale | Both checks SSH to same host with same initial grep pattern. One call instead of two is simpler and faster without losing any detection capability |

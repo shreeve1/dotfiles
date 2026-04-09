@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-173021 — keep — 4.89 → 4.92 — "Integrated Automation Failure Dual-Problem Triage into P3/P4 Preventive Task Dispatch framework"
+```
+
+**Summary:**
+- **Change:** Merged the standalone Automation Failure Principle into the P3/P4 Preventive Task Dispatch framework in `dispatcher.md`, making dual-problem triage (fix symptom + investigate failed automation) a structural requirement of every P3/P4 dispatch
+- **Result:** `incident-triage-p3` improved from 4.73 → 5.00 (ceiling), aggregate from 4.89 → 4.92
+- **No regressions:** All other benchmarks unchanged
+- **5 of 11 benchmarks now at ceiling** (5.00): tension-resolution, remediation-safety, cross-platform-diagnosis, baseline-documentation, incident-triage-p3
+- **Remaining lowest benchmarks** (all 4.82): maintenance-planning, scout-discovery, security-audit

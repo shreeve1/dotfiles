@@ -1,45 +1,44 @@
-# Experiment: 20260408-161928
+# Benchmark Scores — 2026-04-09T18:00:00Z
+
+| Benchmark | Score | Key Issues |
+|-----------|-------|------------|
+| patrol-duplicate-detection | 5.00 | No issues |
+| investigation-wrong-diagnosis | 5.00 | No issues |
+| board-approval-sla-escalation | 5.00 | No issues |
+| secops-mixed-handoff | 5.00 | No issues |
+| opslead-idle-agent-detection | 5.00 | No issues |
+| cross-issue-dependency | 5.00 | No issues |
+| recurring-issue-recognition | 5.00 | No issues |
+| storageops-pool-recurrence | 5.00 | No issues |
+| multi-agent-priority-escalation | 5.00 | No issues |
+| observer-coalesce-detection | 5.00 | No issues |
+
+**Aggregate: 5.00**
+
+# Experiment: 20260408-174853
 
 **Status:** keep
-**Change:** Add ZFS pool degradation depth requirements to StorageOps: redundancy tolerance explanation (raidz topology + failure tolerance), check remaining drives SMART, reference prior memory for faulted drive, specify replacement drive specs in approval, post-replacement verification plan, and save findings to memory. StorageOps 987→1226 words (+239, +24.2%).
-**Score:** 4.75 → 4.90 (delta: +0.15)
+**Change:** Extract shared post-approval handoff steps from DockerOps Planning Handoff and Container Health Issues into single "Post-Approval Handoff (shared)" section. Both sections now reference the shared steps instead of duplicating the 4-step comment/reassign/blocked/exit procedure. DockerOps 1339→1323 words (-16, -1.2%).
+**Score:** 5.00 → 5.00 (delta: +0.00)
 
 ## Per-Benchmark Comparison
 | Benchmark | Before | After | Delta |
 |-----------|--------|-------|-------|
 | patrol-duplicate-detection | 5.00 | 5.00 | +0.00 |
-| investigation-wrong-diagnosis | 4.73 | 4.73 | +0.00 |
-| board-approval-sla-escalation | 4.82 | 4.82 | +0.00 |
-| secops-mixed-handoff | 4.42 | 4.42 | +0.00 |
-| opslead-idle-agent-detection | 4.60 | 4.60 | +0.00 |
+| investigation-wrong-diagnosis | 5.00 | 5.00 | +0.00 |
+| board-approval-sla-escalation | 5.00 | 5.00 | +0.00 |
+| secops-mixed-handoff | 5.00 | 5.00 | +0.00 |
+| opslead-idle-agent-detection | 5.00 | 5.00 | +0.00 |
 | cross-issue-dependency | 5.00 | 5.00 | +0.00 |
 | recurring-issue-recognition | 5.00 | 5.00 | +0.00 |
-| storageops-pool-recurrence | 4.55 | 5.00 | +0.45 |
-| multi-agent-priority-escalation | 4.42 | 4.42 | +0.00 |
+| storageops-pool-recurrence | 5.00 | 5.00 | +0.00 |
+| multi-agent-priority-escalation | 5.00 | 5.00 | +0.00 |
 | observer-coalesce-detection | 5.00 | 5.00 | +0.00 |
 
-**Aggregate: 4.90**
-
 ## Analysis
-StorageOps previously lacked structured guidance for pool degradation investigations. When a drive faulted, the agent had escalation and approval workflows but no depth requirements specific to ZFS topology. The new "ZFS Pool Degradation — Depth Requirements" section adds 5 mandatory investigation steps:
-
-1. **Redundancy tolerance explanation** — Forces the agent to state the raidz level and remaining failure tolerance. Previously, StorageOps might just say "pool degraded" without quantifying the risk window (e.g., "zero redundancy margin until replaced"). This is critical context for the board and for priority assessment.
-
-2. **Check remaining drives SMART** — When one drive fails, the others in the same vdev are often the same age/batch. Checking them catches pre-failure conditions before a second drive dies and causes data loss. This was a missing anti-pattern in the verifier.
-
-3. **Reference prior memory for faulted drive** — Connects SMART history to current failure (e.g., "sdc had 2 reallocated sectors in March, predicted failure now materializing"). This transforms a generic "drive failed" into a pattern-recognized event.
-
-4. **Specify replacement drive specs** — The approval must include model, capacity, interface, and serial. Without this, BuildOps can't procure or select the right replacement.
-
-5. **Post-replacement verification plan** — Resilver monitoring, full scrub, and SMART check. Prevents "drive replaced, done" without verifying data integrity.
-
-Also added Escalation step 6 (save findings to memory) and expanded Telegram field guidance to include redundancy tolerance and risk window.
-
-The storageops-pool-recurrence score improved from 4.55 to 5.00, going from the weakest benchmark to a perfect score. The +239 word cost is moderate — the depth requirements are structured and actionable rather than verbose.
+Simplification-only change. The Planning Handoff section and Container Health Issues section both had identical 4-step post-approval procedures (comment → reassign to BuildOps → blocked → exit). Extracted into a single "Post-Approval Handoff (shared)" section referenced by both. No behavioral change — same steps in the same order. Both DockerOps-targeted benchmarks (recurring-issue-recognition, multi-agent-priority-escalation) still score 5.00 because all behavioral content is preserved.
 
 ## Next Improvement Ideas
-1. **SecOps risk-per-executor assessment (secops-mixed-handoff at 4.42)** — SecOps already has split-approval capability but may lack explicit risk differentiation between PatchOps (openssh lockout risk) and BuildOps (database migration risk). A per-executor risk assessment requirement would lift this score.
-
-2. **DockerOps/multi-agent-priority-escalation (4.42)** — DockerOps now has priority reassessment but the recurrence pattern check (criterion 5) still scores ~3 when no prior memory exists. Could add "note for recurrence tracking" language.
-
-3. **StorageOps simplification pass** — The new +239 words could be compressed in a future simplification pass once behavior is validated in production.
+1. **Patrol Infrastructure Check 3** — `ssh root@<host>` with prose host listing could be converted to explicit for-loop over known host IPs, consistent with Check 2 pattern.
+2. **OpsLead Phase 1a** — runtime-state curl template could reference the Shared API patterns table (already exists in Phase 2) for consistency.
+3. **Patrol Docker Runbook** — Check 1 "For each host that runs Docker (discover first)" could list known Docker host IPs explicitly, reducing discovery ambiguity.

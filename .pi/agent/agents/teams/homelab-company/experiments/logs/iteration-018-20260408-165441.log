@@ -1,0 +1,14 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-165547 — keep — 5.00 → 5.00 — "Compress Patrol Uptime Kuma Alert Runbook: replace 12-line JSON webhook payload example with one-line field reference, merge 6 procedural steps into 4. Patrol 2300→2243 words (-57, -2.5%)."
+```
+
+**Summary of the cycle:**
+
+- **Phase 1:** Identified team, read program.md, found all 10 benchmarks at 5.00 aggregate
+- **Phase 2:** Baseline exists, last 5 entries all at 5.00 — focused on simplification
+- **Phase 3:** Diagnosed — Patrol Uptime Kuma Alert Runbook had a verbose 12-line JSON payload example and 6 procedural steps where 4 suffice
+- **Phase 5:** Applied change — replaced JSON example with inline field reference, merged 6 steps → 4. No benchmarks test this runbook.
+- **Phase 6:** Kept — aggregate unchanged (5.00), instructions simpler (-57 words, -2.5%), no regressions
+- **Phase 7:** Logged to results.tsv and latest.md with next improvement ideas

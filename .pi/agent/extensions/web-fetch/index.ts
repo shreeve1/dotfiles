@@ -13,6 +13,33 @@ import { extractContent, extractContentAsMarkdown } from "./extract.js";
 const SERPER_API_KEY = process.env.SERPER_API_KEY ?? "";
 const HAS_SERPER = SERPER_API_KEY.length > 0;
 
+// --- Types ---
+type OutputFormat = "markdown" | "text" | "raw";
+
+interface WebFetchDetails {
+  url: string;
+  statusCode?: number;
+  contentType?: string;
+  truncated?: boolean;
+  format: OutputFormat;
+  title?: string;
+  fetchedVia?: "puppeteer" | "http";
+}
+
+// --- Schemas ---
+const WebFetchParams = Type.Object({
+  url: Type.String({ description: "The URL to fetch" }),
+  format: Type.Optional(
+    Type.Union(
+      [Type.Literal("markdown"), Type.Literal("text"), Type.Literal("raw")],
+      { description: "Output format: markdown (default, preserves structure), text (plain), or raw (no processing)" },
+    ),
+  ),
+  timeout: Type.Optional(
+    Type.Number({ description: "Request timeout in seconds (default: 30)" }),
+  ),
+});
+
 // --- Truncation helper ---
 function applyTruncation(text: string): { output: string; truncated: boolean } {
   const truncation = truncateHead(text, {
@@ -28,29 +55,110 @@ function applyTruncation(text: string): { output: string; truncated: boolean } {
   return { output, truncated: truncation.truncated };
 }
 
-// --- Schemas ---
-type OutputFormat = "markdown" | "text" | "raw";
+// --- Shared HTML/text extraction (used by both Puppeteer and HTTP paths) ---
+function extractPageText(
+  html: string,
+  ct: string,
+  format: OutputFormat,
+  url: string,
+  details: WebFetchDetails,
+): string {
+  if (format === "raw") {
+    return html;
+  }
+  if (ct.includes("application/json")) {
+    // Only reached from Puppeteer path; HTTP path handles JSON inline in fetchViaHttp
+    return html;
+  }
+  if (format === "markdown") {
+    const extracted = extractContentAsMarkdown(html, url);
+    if (extracted) {
+      details.title = extracted.title;
+      return extracted.title
+        ? `# ${extracted.title}\n\n${extracted.content}`
+        : extracted.content;
+    }
+    return html;
+  }
+  // format === "text"
+  const extracted = extractContent(html, url);
+  if (extracted) {
+    details.title = extracted.title;
+    return extracted.title
+      ? `${extracted.title}\n\n${extracted.content}`
+      : extracted.content;
+  }
+  return html;
+}
 
-const WebFetchParams = Type.Object({
-  url: Type.String({ description: "The URL to fetch" }),
-  format: Type.Optional(
-    Type.Union(
-      [Type.Literal("markdown"), Type.Literal("text"), Type.Literal("raw")],
-      { description: "Output format: markdown (default, preserves structure), text (plain), or raw (no processing)" },
-    ),
-  ),
-  timeout: Type.Optional(
-    Type.Number({ description: "Request timeout in seconds (default: 30)" }),
-  ),
-});
+// --- HTTP fallback (used when Puppeteer/Chromium is unavailable) ---
+async function fetchViaHttp(
+  url: string,
+  format: OutputFormat,
+  timeoutSec: number,
+  details: WebFetchDetails,
+) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(timeoutSec * 1000),
+  });
 
-interface WebFetchDetails {
-  url: string;
-  statusCode?: number;
-  contentType?: string;
-  truncated?: boolean;
-  format: OutputFormat;
-  title?: string;
+  details.statusCode = response.status;
+  details.contentType = response.headers.get("content-type") ?? undefined;
+  details.fetchedVia = "http";
+
+  if (!response.ok) {
+    return {
+      content: [{ type: "text", text: `Error: HTTP ${response.status} for ${url}` }],
+      details,
+      isError: true,
+    };
+  }
+
+  const ct = details.contentType ?? "";
+  const bodyText = await response.text();
+  let text: string;
+
+  if (format === "raw") {
+    text = bodyText;
+  } else if (ct.includes("application/json")) {
+    try {
+      text = JSON.stringify(JSON.parse(bodyText), null, 2);
+    } catch {
+      text = bodyText;
+    }
+  } else {
+    // HTML or plain text
+    if (format === "markdown") {
+      const extracted = extractContentAsMarkdown(bodyText, url);
+      if (extracted) {
+        details.title = extracted.title;
+        text = extracted.title
+          ? `# ${extracted.title}\n\n${extracted.content}`
+          : extracted.content;
+      } else {
+        text = bodyText;
+      }
+    } else {
+      // format === "text"
+      const extracted = extractContent(bodyText, url);
+      if (extracted) {
+        details.title = extracted.title;
+        text = extracted.title
+          ? `${extracted.title}\n\n${extracted.content}`
+          : extracted.content;
+      } else {
+        text = bodyText;
+      }
+    }
+  }
+
+  const { output, truncated } = applyTruncation(text);
+  details.truncated = truncated;
+
+  return {
+    content: [{ type: "text", text: output }],
+    details,
+  };
 }
 
 export default function (pi: ExtensionAPI) {
@@ -63,7 +171,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "web_fetch",
     label: "Web Fetch",
-    description: `Fetch a URL and return its content. Uses a headless browser for JS-rendered pages. HTML pages are converted to markdown (default) or plain text via Mozilla Readability; JSON is pretty-printed. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} (whichever is hit first). Use for reading documentation, web pages, and API endpoints.`,
+    description: `Fetch a URL and return its content. Uses a headless browser (Puppeteer) for JS-rendered pages with HTTP fallback for static content. HTML pages are converted to markdown (default) or plain text via Mozilla Readability; JSON is pretty-printed. Output is truncated to ${DEFAULT_MAX_LINES} lines or ${formatSize(DEFAULT_MAX_BYTES)} (whichever is hit first). Use for reading documentation, web pages, and API endpoints.`,
     parameters: WebFetchParams,
 
     async execute(_toolCallId, params) {
@@ -115,48 +223,10 @@ export default function (pi: ExtensionAPI) {
           // Get page content
           const html = await page.content();
           const ct = details.contentType ?? "";
-
-          let text: string;
-
-          if (format === "raw") {
-            text = html;
-          } else if (ct.includes("application/json")) {
-            // JSON — get body text and pretty-print
-            const bodyText = await page.evaluate(() => document.body?.innerText ?? "");
-            try {
-              text = JSON.stringify(JSON.parse(bodyText), null, 2);
-            } catch {
-              text = bodyText;
-            }
-          } else {
-            // HTML — extract with Readability
-            if (format === "markdown") {
-              const extracted = extractContentAsMarkdown(html, url);
-              if (extracted) {
-                details.title = extracted.title;
-                text = extracted.title
-                  ? `# ${extracted.title}\n\n${extracted.content}`
-                  : extracted.content;
-              } else {
-                // Readability couldn't parse — fall back to page text
-                text = await page.evaluate(() => document.body?.innerText ?? "");
-              }
-            } else {
-              // format === "text"
-              const extracted = extractContent(html, url);
-              if (extracted) {
-                details.title = extracted.title;
-                text = extracted.title
-                  ? `${extracted.title}\n\n${extracted.content}`
-                  : extracted.content;
-              } else {
-                text = await page.evaluate(() => document.body?.innerText ?? "");
-              }
-            }
-          }
-
+          const text = extractPageText(html, ct, format, url, details);
           const { output, truncated } = applyTruncation(text);
           details.truncated = truncated;
+          details.fetchedVia = "puppeteer";
 
           return {
             content: [{ type: "text", text: output }],
@@ -165,8 +235,25 @@ export default function (pi: ExtensionAPI) {
         } finally {
           await page.close();
         }
-      } catch (err: any) {
-        if (err.name === "TimeoutError") {
+      } catch (puppeteerErr: any) {
+        // Check if Puppeteer/Chromium is unavailable
+        const msg = puppeteerErr?.message?.toLowerCase() ?? "";
+        const isBrowserUnavailable =
+          msg.includes("enoent") ||
+          msg.includes("no such file") ||
+          msg.includes("failed to launch") ||
+          msg.includes("could not find") ||
+          msg.includes("not installed") ||
+          msg.includes("not downloaded") ||
+          msg.includes("chromium revision") ||
+          msg.includes("browser was not found");
+
+        if (isBrowserUnavailable) {
+          console.warn("[web-fetch] Puppeteer unavailable, using HTTP fallback");
+          return fetchViaHttp(url, format, timeoutSec, details);
+        }
+
+        if (puppeteerErr.name === "TimeoutError") {
           return {
             content: [{ type: "text", text: `Request timed out after ${timeoutSec}s for ${url}` }],
             details,
@@ -175,7 +262,7 @@ export default function (pi: ExtensionAPI) {
         }
 
         return {
-          content: [{ type: "text", text: `Fetch error: ${err.message}` }],
+          content: [{ type: "text", text: `Fetch error: ${puppeteerErr.message}` }],
           details,
           isError: true,
         };

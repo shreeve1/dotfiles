@@ -105,6 +105,7 @@ const REQUEST_TIMEOUT_MS = 120_000;
 const COMMS_DEBUG = process.env.PI_COMMS_DEBUG === "1";
 const STALL_TIMEOUT_MS = 60_000; // Set to 0 to disable stall watchdog
 const STALL_MIN_OUTPUT_DELTA = 10; // Minimum new assistant chars to count as progress
+const MAX_TOOL_CALLS = 40; // Max tool calls before kill (0 = disabled)
 
 
 // ─── Team Communication Helpers ──────────────────────────────────────────────
@@ -1556,12 +1557,26 @@ export default function (pi: ExtensionAPI) {
 
 			effectiveState.timer = setInterval(() => {
 				effectiveState.elapsed = Date.now() - startTime;
-				if (!wasTimedOut && !wasStalled && STALL_TIMEOUT_MS > 0 && !killAttempted) {
+				if (!wasTimedOut && !wasStalled && !killAttempted) {
 					const now = Date.now();
 					const sinceProgress = now - lastProgressAt;
 					const sinceToolActivity = now - lastToolActivityAt;
 					const outputDelta = latestTextLength - lastProgressTextLength;
-					if (sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
+
+					// ── Max tool calls guard ──
+					if (MAX_TOOL_CALLS > 0 && effectiveState.toolCount >= MAX_TOOL_CALLS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
+						wasStalled = true;
+						killAttempted = true;
+						stallReason = `[agent-team] Agent killed: max tool calls exceeded (${effectiveState.toolCount}/${MAX_TOOL_CALLS}); toolCalls=${effectiveState.toolCount}`;
+						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] max-tool-calls agent=${effectiveKey} toolCalls=${effectiveState.toolCount} max=${MAX_TOOL_CALLS}\n`, "utf-8");
+						console.error(`Agent ${effectiveKey} killed: max tool calls exceeded (${effectiveState.toolCount}/${MAX_TOOL_CALLS})`);
+						if (proc && !proc.killed) {
+							proc.kill("SIGTERM");
+							setTimeout(() => {
+								if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
+							}, 5000);
+						}
+					} else if (STALL_TIMEOUT_MS > 0 && sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
 						stallDetectionCount++;
 						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] stall-check agent=${effectiveKey} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
 						if (stallDetectionCount >= 2) {

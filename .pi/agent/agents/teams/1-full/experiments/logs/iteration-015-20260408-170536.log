@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-170633 — keep — 4.91 → 4.93 (+0.02) — "Add Defense Inventory phase to red-team.md — catalog existing mitigations before vulnerability checking to eliminate false positives on mitigated risks"
+```
+
+**Summary:**
+
+- **What changed:** Added Phase 1.5 "Inventory Existing Defenses" to `red-team.md` — a 7-line step between attack surface identification and vulnerability hunting that forces the agent to catalog what's already protected before reporting findings. Also tightened Phase 4 severity calibration with explicit anti-pattern guidance against inflating mitigated risks.
+- **Result:** Benchmark 37 (red-team-false-positive-resistance) improved from **4.00 → 5.00** (+1.00). Aggregate improved from 4.91 → 4.93. Zero regressions.
+- **Remaining low benchmarks:** 31-builder-plan-codebase-conflict (4.30), 33-reviewer-subtle-logic-bug (4.30), 30-planner-catches-scout-error (4.60).

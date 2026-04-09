@@ -1,0 +1,10 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-172727 — keep — 5.00 → 5.00 — "Compress StorageOps ZFS Pool Degradation and Escalation sections from verbose numbered lists to concise tables. -122 words (-10.0%)."
+```
+
+**Summary:**
+- **Change:** Converted StorageOps' ZFS Pool Degradation requirements (5 items) and Escalation Decision Tree (6 items) from verbose numbered paragraphs to concise tables with consolidated API templates
+- **Result:** 5.00 → 5.00 (no regression, -122 words / -10.0% simpler)
+- **Decision:** Kept — same behavior, clearer structure, significant word reduction

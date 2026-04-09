@@ -1,0 +1,22 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-164544 — keep — 4.59 → 4.72 (+0.13) — "Added Concern Severity Framework to scout.md with Critical/High/Medium/Low severity table, Security vs Operational concern split, and classification rules"
+```
+
+**Summary of this cycle:**
+
+| Metric | Value |
+|--------|-------|
+| Experiment | 20260408-164544 |
+| Change | Added Concern Severity Framework to `scout.md` |
+| Aggregate | 4.59 → **4.72** (+0.13) |
+| Key impact | scout-discovery: 4.25 → **4.67** (+0.42) |
+| Decision | **Keep** — aggregate improved, no regression >1.0 |
+
+The change added a structured severity classification framework (Critical/High/Medium/Low) with definitions, split concerns into Security vs Operational buckets in the output template, and added classification rules for patch currency flagging and dependency blast radius. This is the 7th consecutive keep — the team harness has improved from baseline 3.90 to 4.72 over 7 experiments.
+
+**Top 3 next improvement targets:**
+1. **runbook-quality (4.00)** — documenter decision branch guidance
+2. **security-audit (4.36)** — hardener detection gap analysis procedure
+3. **incident-triage-p1 (4.55)** — business impact language in dispatch tasks

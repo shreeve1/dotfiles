@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-171831 — keep — 5.00 → 5.00 — "Compress OpsLead Phase 2 Unstick from 8 verbose subsections into Shared API patterns table + 8-row decision table. -212 words (-7.7%)."
+```
+
+**Summary:** One experiment cycle completed. Compressed the OpsLead Phase 2 "Unstick" section from 8 verbose prose subsections (each repeating API call syntax, comment guidance, and Telegram notification specs) into:
+- A **Shared API patterns** reference table (5 patterns: reset agent, release issue, reset session, escalate priority, cancel issue)
+- An **8-row Unstick decision table** mapping each problem type → corrective action → Telegram prefix
+
+All 8 problem types preserved with identical behavior. OpsLead reduced from 2749 → 2537 words (-212, -7.7%). All 10 benchmarks remain at 5.00. Change kept as simplification.

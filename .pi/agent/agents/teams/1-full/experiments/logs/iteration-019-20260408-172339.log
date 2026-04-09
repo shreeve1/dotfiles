@@ -1,0 +1,14 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-172515 — keep — 4.95 → 4.97 — "Add Phase 3c (Verify Upstream Claims) to planner.md and strengthen Phase 4 tradeoff analysis"
+```
+
+**Summary of the cycle:**
+
+| Phase | What happened |
+|-------|--------------|
+| **Diagnose** | Identified two planner benchmarks at 4.60 (30: catches-scout-error, 34: competing-approaches) sharing the same root cause — planner treats upstream claims as reliable and picks one approach without structured comparison |
+| **Improve** | Added Phase 3c (Verify Upstream Claims) to planner.md between codebase exploration and solution design, requiring spot-checks of sweeping negative claims. Strengthened Phase 4's multi-approach guidance from "choose one and briefly justify" to a 4-step structured tradeoff analysis |
+| **Score** | 4.95 → 4.97 (benchmarks 30 and 34 each improved +0.40 to 5.00, no regressions) |
+| **Verdict** | **Keep** — aggregate improved, no individual benchmark regressed >1.0 |

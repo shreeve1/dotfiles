@@ -1,0 +1,10 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-163610 — keep — 5.00 → 5.00 — "Simplify context.md by folding Efficiency Discipline section into Pipeline Reality paragraph (43→40 lines, 7% reduction)"
+```
+
+**Summary of this cycle:**
+- **Change:** Folded the standalone "Efficiency Discipline" section in `context.md` into the "Pipeline Reality" paragraph as a single sentence. Key guidance preserved ("structured summaries over raw dumps", "scope limited to the question asked"); dropped redundant illustrations ("3 facts when 3 facts are needed") and implied statements ("your output consumes context window").
+- **Result:** All 29 benchmarks remain at 5.00. Kept as a net simplification — one fewer section heading, shorter always-loaded context file.
+- **Note:** The team has been at a perfect 5.00 ceiling for ~50+ experiments. All recent changes are simplification passes that preserve behavior while reducing context load. Benchmarks 30-39 exist as empty directories (no instruction.md/verifier.md) and were not evaluated. To break out of the ceiling, new adversarial benchmarks (30-39) would need to be authored with tougher rubrics targeting the improvement axes in program.md.

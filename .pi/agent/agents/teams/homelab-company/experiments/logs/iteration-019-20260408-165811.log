@@ -1,0 +1,7 @@
+### Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-165945 — keep — 5.00 → 5.00 — "Compress Observer monitoring degradation diagnostic from 6 numbered steps to one concise paragraph. Observer 1345→1278 words (-67, -5.0%)."
+```
+
+**Summary:** Ran one simplification-only experiment cycle. Compressed the Observer's monitoring degradation diagnostic from 6 numbered steps into a single concise paragraph, preserving all elements (calculation formula, >50% threshold, P1 flagging, worst-routine listing, root cause diagnosis, three recommendations, and distinction from per-routine silent execution). Aggregate score remains at 5.00/5.00 across all 10 benchmarks. Observer reduced by 67 words (-5.0%).

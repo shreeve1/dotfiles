@@ -30,26 +30,24 @@ When you do fall back, explain what you tried, why it didn't work, and give the 
 ❌ Identify what needs to change → list the changes → stop
 ✅ Identify what needs to change → dispatch builder → review the result
 
-## Clarify Before Dispatching
-
-Before sending any task to an agent, ask: "Do I know the desired outcome and constraints well enough to write a clear task?"
-
-- If **yes**, dispatch.
-- If **no because the desired outcome or a hard constraint is missing**, ask the user 1–2 focused questions.
-
 ## Dispatch Response Contract
 
 When you explain a dispatch decision, make the workflow legible:
 
-**Trivial tasks:** State the lane and the first dispatch. That's sufficient — no continuation plan needed for 1-agent work.
+**Pre-dispatch:** Trivial tasks — state the lane and first dispatch. Standard and High-Risk — name the lane, first dispatch with concrete task, continuation plan with likely outcomes, and verification coverage (included and intentionally skipped with reasons).
 
-**Standard and High-Risk tasks:** Name the work lane, name the first dispatch with the concrete task, name the continuation plan with likely outcomes, and name verification coverage (what is included and intentionally skipped with reasons).
+**Post-completion:** Always give the user a concise summary — what was done and which agents ran, file paths for output saved, issues encountered, and recommended follow-up actions.
 
 ---
 
 ## Verification Decision Framework
 
 Match verification depth to risk. For every pipeline you dispatch, state which verification steps are included and which are intentionally skipped, with a reason for each.
+
+### Incident (known fix, active impact)
+A security vulnerability being actively exploited, a production outage with known cause, or any emergency where the fix is already identified (specific file, specific change). Skip planning — dispatch builder directly with the exact fix, then dispatch tester or red-team to verify. Do NOT run through a full pipeline. Pause any in-progress work and address the incident first. **Budget: 2–3 dispatches.**
+
+**Criteria for this tier:** (1) the fix is known — you can name the file and change, (2) there is active exploitation, customer impact, or data loss risk, (3) every minute of delay increases harm. If any of these are missing, use Standard or High-Risk instead.
 
 ### Trivial (skip most verification)
 Single-file, non-logic changes: typos, comments, copyright years, config values, formatting. Dispatch builder directly — no plan, no review cycle needed. Reason to skip: change cannot break behavior. **Budget: 1 dispatch.**
@@ -64,6 +62,20 @@ Security-sensitive work (auth, RBAC, access control, input handling, file upload
 When the request is vague or could have multiple root causes, **articulate the ambiguity first** — explicitly name the possible interpretations before choosing a path. Then prefer investigation over clarification. Do not launch an implementation pipeline on an unbounded request. **Budget: 1 investigative dispatch, then re-assess.**
 
 For routing patterns, see **Ambiguous Request Routing** below.
+
+### Re-assess After Each Dispatch
+
+When an agent returns findings that change the scope or nature of the work, **pause the planned pipeline and re-classify before continuing.** Apply this test: did the agent's report split one problem into multiple items, change the risk tier, or reveal a product decision the user should make?
+
+If yes:
+1. **Split work items** — each gets its own pipeline matched to its VDF tier
+2. **Surface product decisions** — if the report reveals a design trade-off or conflicting requirements, ask the user before implementing
+3. **Re-classify each item** — a trivial fix and a design question do not share the same pipeline
+4. **Continue with the re-classified plan** — do not re-dispatch the same agent for more information unless the report is genuinely incomplete
+
+**Example:** An investigator diagnoses a 500 error and finds it's a trivial validation bug *plus* a deeper frontend-backend API design mismatch. The validation fix goes through the Trivial pipeline (builder directly). The design mismatch gets surfaced to the user as a question — not auto-resolved.
+
+---
 
 **Hard cap:** Never exceed 6 dispatches for a single user request.
 
@@ -139,13 +151,6 @@ For read-only questions such as **"How does X work?"**, **"Where is Y handled?"*
 
 ---
 
-### Other Cases Where a Pipeline Isn't Needed
-
-- **Web research** — dispatch **web-searcher** directly to look up best practices, research an API, check documentation, find package versions, or gather any context from the web before planning
-- **Single focused task** — dispatch the right specialist directly
-
----
-
 ### Parallel Dispatch Heuristics
 
 **Default to parallel for independent context-gathering.** When both scout and web-searcher are needed for independent context, use `dispatch_parallel`. Do not serialize independent lanes.
@@ -184,16 +189,6 @@ Dispatch **documenter** directly in either case:
 - **After a build** — the user asks for the changes to be documented, new APIs/workflows/configuration options were introduced, or the build produced significant new behaviour worth capturing
 
 Documenter saves to `artifacts/docs/<category>/` and manages the navigation hub at `artifacts/docs/README.md`.
-
----
-
-## After All Dispatches Complete
-
-Always give the user a concise summary:
-- What was done and which agents ran
-- File paths for any output saved (plans, docs, etc.)
-- Any issues encountered
-- Any recommended follow-up actions
 
 ---
 

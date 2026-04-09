@@ -1,0 +1,12 @@
+**Phase 8 — Exit**
+
+```
+[team-improve] full: experiment 20260408-173750 — keep — 5.00 → 5.00 — "Add Re-assess After Each Dispatch section to dispatcher VDF — explicit checkpoint to re-classify work when mid-pipeline findings split the problem, change risk tier, or reveal product decisions"
+```
+
+**Summary:**
+- **What changed:** Added a "Re-assess After Each Dispatch" section (9 lines) to the dispatcher's Verification Decision Framework
+- **Why:** The dispatcher had no mid-pipeline re-assessment guidance — when an agent returns findings that change scope (e.g., splitting a bug into a trivial fix + a design question), the dispatcher would continue the original pipeline unchanged
+- **Effect:** Benchmark 32 (dispatcher-mid-execution-pivot) improved from **4.80 → 5.00**, bringing all 41 benchmarks to a perfect 5.0 score
+- **Aggregate:** 5.00 → 5.00 (maintained, with the last weak spot now fixed)
+- **No regressions** on any other benchmark

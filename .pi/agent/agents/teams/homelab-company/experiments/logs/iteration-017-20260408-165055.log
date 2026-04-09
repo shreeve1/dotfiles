@@ -1,0 +1,20 @@
+**Phase 8 — Exit:**
+
+```
+[team-improve] homelab-company: experiment 20260408-165304 — keep — 5.00 → 5.00 — "Merge OpsLead Phase 1g two separate curl commands into a for loop"
+```
+
+## Summary
+
+One experiment cycle completed:
+
+- **Experiment:** `20260408-165304`
+- **Change:** Merged OpsLead Phase 1g's two duplicate curl commands (BuildOps + PatchOps blocked issue checks) into a single `for` loop with inline agent IDs
+- **Result:** **KEEP** — all 10 benchmarks remain at 5.00, simplification achieved (DRY pattern, matches Phase 1f loop style)
+- **Word count:** 2751 → 2749 (-2, -0.1%)
+
+The team has been at a perfect 5.00 aggregate for many experiments now. The remaining opportunities are incremental simplifications:
+1. **Patrol Uptime Kuma webhook** — condense the JSON payload example and deduplicate the routing table
+2. **Patrol Security Check 3** — still uses Python despite a prior experiment claiming jq replacement
+3. **SecOps risk assessment** — compact table format for per-executor hazards
+4. **Observer coalesce section** — potential compression

@@ -199,7 +199,7 @@ rm -f "$PROMPT_FILE" "$RAW_FILE"
 
 Where:
 - `{AGENT_KEY}` = agent name normalized: `name.lower().replace(/[^a-z0-9-]/g, "-")`
-- `{AGENT_MODEL}` = the `model` field from the agent's .md frontmatter. If missing, fall back to `anthropic/claude-sonnet-4-20250514`
+- `{AGENT_MODEL}` = the `model` field from the agent's .md frontmatter. If missing, fall back to `zai/glm-5.1`
 - `{AGENT_TOOLS}` = the `tools` field from the agent's .md frontmatter
 - `{RESUME_FLAG}` = `-c` if RESUME is true AND the session file exists AND is not poisoned, otherwise omit
 - `{TEAM_DIR_ABSOLUTE}` = absolute path to the team folder

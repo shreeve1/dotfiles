@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-174057 — keep — 5.00 → 5.00 — "Remove redundant 5-step delegation procedure from Delegation Routing, fold executor routing into rules. OpsLead -96 words (-3.8%)."
+```
+
+**Summary:** One simplification cycle completed. Removed the redundant 5-step delegation procedure from OpsLead's Delegation Routing section (it duplicated Phase 3's Triage & Delegate workflow). Folded executor routing into the routing rules as a single bullet. Reduced OpsLead from 2537 → 2441 words (-3.8%). All 10 benchmarks remain at 5.00. Kept.

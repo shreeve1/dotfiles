@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] 2-infra-ops: experiment 20260408-171625 — keep — 4.84 → 4.85 — "Added Partial Impact Investigation Framework to analyst.md"
+```
+
+**Summary:**
+- **Change:** Added a 5-step Partial Impact Investigation Framework to `analyst.md` — a structured diagnostic approach for incidents where some users/systems are affected but others aren't. Covers time-boundary analysis, state cache hypothesis enumeration (Kerberos, DNS, ARP, TLS, connection pools), escalation prediction, partition testing, and cross-platform impact statements.
+- **Result:** cross-platform-diagnosis improved from 4.64 → 4.73 (+0.09). Aggregate: 4.84 → 4.85 (+0.01).
+- **Kept:** Aggregate improved, no benchmark regressed.
+- **Next target:** scout-discovery (4.67) is now the lowest score — dependency chain mapping guidance for the scout would be the highest-value next improvement.

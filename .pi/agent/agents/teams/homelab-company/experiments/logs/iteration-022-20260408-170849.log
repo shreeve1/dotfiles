@@ -1,0 +1,13 @@
+## Phase 8 — Exit
+
+```
+[team-improve] homelab-company: experiment 20260408-170938 — keep — 5.00 → 5.00 — "Compress SecOps per-executor risk assessment from verbose prose to concise hazard→mitigation bullets. 1692→1659 words (-33, -1.95%)."
+```
+
+**Summary:**
+- **Target:** SecOps' per-executor risk assessment in Planning/Handoff step 2
+- **Change:** Replaced two verbose prose paragraphs with compact 2-line hazard→mitigation bullet format per executor
+- **Word savings:** 1692 → 1659 words (-33, -1.95%)
+- **All 4 hazards preserved:** SSH lockout, service disruption, data loss, container downtime with same mitigations
+- **Benchmark impact:** None — aggregate stays at 5.00
+- **Verdict:** Kept (simplification with identical information density)

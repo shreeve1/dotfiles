@@ -69,10 +69,17 @@ The team handles Windows + Linux + Docker + network devices. Ensure agent instru
 
 ## Keep / Discard Rules
 
-- If benchmark aggregate improved → keep
-- If aggregate unchanged and harness is simpler → keep
-- If any benchmark regressed by >1.0 point → discard
+- If benchmark aggregate improved by ≥ 0.05 → keep
+- If benchmark aggregate improved by < 0.05 AND harness is simpler → keep
+- If any benchmark regressed by > 1.0 point → discard (even if aggregate improved)
 - Otherwise → discard
+
+## Convergence Protocol
+
+When aggregate score exceeds 4.90 or 8+ benchmarks are at ceiling (5.00), the loop has converged. At this point:
+- Stop making changes. Diminishing returns produce bloat that hurts agent performance.
+- Review all agent files for instruction bloat. If any file has grown more than 2x from baseline, audit for material that should be condensed or moved to expertise files.
+- Run an overfitting audit on every change made after aggregate exceeded 4.50. Apply the test: "If this exact benchmark disappeared, would this still be a worthwhile improvement?" Revert or condense anything that fails.
 
 ## Simplicity Criterion
 
