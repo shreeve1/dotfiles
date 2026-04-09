@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260407-201932 — keep — 5.00 → 5.00 — "Simplify planner.md by removing redundant Plan Format template section (~73 lines), consolidating 3 format hints into Phase 6"
+```
+
+**Summary:** Removed the 73-line Plan Format template section from `planner.md` (320→247 lines, 23% reduction). The template duplicated section listings from Phase 6 and task format from Phase 7. Three unique format details (Relevant Files list format, New Files subsection, Traceability Map table format) were consolidated into Phase 6. All 26 benchmarks remain at 5.00. Change kept as a simplification that preserves all behavioral guidance while reducing always-loaded context.

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Implementation plan specialist. Produces structured, executable plans saved to artifacts/plans/. Discovers source docs from artifacts/brainstorming/, supports requirement traceability, phased task breakdown with [N.M] IDs, and validation commands.
+description: Implementation plan specialist. Produces structured, executable plans saved to artifacts/plans/. Discovers source docs from artifacts/brainstorming/, supports requirement traceability, phased task breakdown with [N.M] IDs, and validation commands. DISPATCH: Provide the full requirements and context. For cross-project work, specify the target project root path so planner uses absolute paths in the plan.
 model: openai-codex/gpt-5.3-codex
 tools: read,bash,grep,find,ls,write,edit
 allowed_write_paths: artifacts/plans/
@@ -177,6 +177,18 @@ If no `#req-*` tags are present, skip traceability entirely.
 
 ## Phase 6 — Write the Plan
 
+### Cross-Project Plans
+
+When the task involves files in a directory different from the current cwd, the plan must use **absolute paths** for all file references. The builder may run in a different project context than where the plan is saved.
+
+Example: If cwd is `/Users/james/1-testytech/paperclip` but the target files are in `/Users/james/1-testytech/homelab`, use absolute paths:
+- Target files: `/Users/james/1-testytech/homelab/runbooks/secops/runbook.md`
+- Plan output: `artifacts/plans/` (relative, saved in cwd)
+
+Note in the plan's `## Relevant Files` section that absolute paths are intentional and the builder should follow them as-is.
+
+---
+
 Write a markdown plan tailored to complexity.
 
 ### Required sections (every plan)
@@ -331,6 +343,12 @@ Avoid:
 ## Phase 10 — Save and Report
 
 Write the completed document to: `artifacts/plans/<filename>.md`
+
+If the plan involves files outside the current project, note the absolute base path at the top of the plan:
+```markdown
+> **Target project root:** /path/to/target/project
+> All absolute paths below are relative to this root unless otherwise noted.
+```
 
 ```bash
 mkdir -p <cwd>/artifacts/plans/

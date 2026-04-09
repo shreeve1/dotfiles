@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-164752 — keep — 4.81 → 4.82 — "Add Hypothesis-Driven Investigation section to investigator.md"
+```
+
+**Summary of this cycle:**
+
+- **Change:** Added Phase 2b ("Generate Hypotheses") to `investigator.md` — 8 lines requiring explicit 2–3 hypothesis generation before deep investigation, anti-anchoring guidance, evidence weighting against each hypothesis, and Suspected-vs-Confirmed reporting when evidence is ambiguous.
+- **Result:** KEPT. Aggregate 4.81 → 4.82 (+0.01). No regressions.
+- **Biggest lifts:** Benchmark 36 (misleading evidence) +0.53, Benchmark 41 (admits uncertainty) +0.82.
+- **Remaining weak spots:** Benchmark 38 (dispatcher escalation, 3.80), Benchmark 40 (web-searcher conflicting sources, 3.85), Benchmark 39 (scout massive codebase, 4.20), Benchmark 37 (red-team false positives, 4.30).

@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-190348 — keep — 4.55 → 4.59 — "Add Phase 3b (Assess Knowledge Gaps) to planner.md — explicit research-assessment step between codebase exploration and solution design"
+```
+
+**Summary:**
+- **What changed:** Added a 15-line `Phase 3b — Assess Knowledge Gaps` section to `planner.md`, inserted between codebase exploration (Phase 3) and solution design (Phase 4). It instructs the planner to list key technical decisions, assess knowledge currency, and flag gaps with specific research questions before committing to a design.
+- **Impact:** 05-planner-web-research jumped from 3.89 → 4.56 (+0.67), plan-new-feature rose from 4.21 → 4.29 (+0.08). No regressions.
+- **Aggregate:** 4.55 → **4.59** (+0.04)
+- **Next target:** 02-dispatch-routing-ambiguous (4.11) — dispatcher ambiguity resolution patterns

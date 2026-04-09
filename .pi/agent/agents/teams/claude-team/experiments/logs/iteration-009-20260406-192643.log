@@ -1,0 +1,25 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-192901 — keep — 4.66 → 4.69 — "Add pre-planning research triggers to dispatcher.md Implementation Pipeline — explicit criteria for when to dispatch web-searcher before planner (unfamiliar tech, evolving best practices, new third-party integrations)"
+```
+
+---
+
+### Summary
+
+| | |
+|---|---|
+| **Team** | full |
+| **Experiment** | `20260406-192901` |
+| **Status** | ✅ KEEP |
+| **Score** | 4.66 → **4.69** (+0.03) |
+| **File changed** | `dispatcher.md` (team-specific, no cross-team impact) |
+| **Benchmark lifted** | `dispatch-feature-request`: 4.33 → **4.89** (+0.56) |
+| **Regressions** | None |
+| **Improvement Axis** | #3 — Web-Searcher Integration into Standard Workflows |
+| **Lines added** | +9 net lines (within 20-line simplicity limit) |
+
+**What changed:** Added a "Pre-planning research" decision block to the Implementation Pipeline section in `dispatcher.md`. The dispatcher now assesses whether the team has current knowledge for the task before dispatching planner, with explicit triggers (unfamiliar tech, evolving practices, new integrations) and skip criteria (known tech, established codebase patterns). Also added `web-searcher → planner → builder` as a named lighter pipeline variant.
+
+**Next highest-value targets:** `11-red-team-security-review` (4.44) and `07-reviewer-thoroughness` (4.50).

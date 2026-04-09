@@ -1,0 +1,7 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-190944 — keep — 4.59 → 4.64 — "Add Ambiguous Request Routing patterns to dispatcher.md — explicit performance/vague-symptom/feature routing with investigate-before-clarifying and adaptive branching"
+```
+
+**Summary:** Added a new "Ambiguous Request Routing" section to `dispatcher.md` with pattern-based routing for common ambiguous request types (performance complaints, vague symptoms, clear features) plus mandatory adaptive branching guidance. Strengthened the "Ambiguous Scope" tier from "clarify first" to "investigate before clarifying." The change lifted the lowest-scoring benchmark (`02-dispatch-routing-ambiguous`) from 4.11 → 4.89 (+0.78) with no regressions, improving the aggregate from 4.59 → 4.64. Targets Improvement Axis #5 (Dispatcher Routing Precision). Team-specific change only — no shared agent files modified.

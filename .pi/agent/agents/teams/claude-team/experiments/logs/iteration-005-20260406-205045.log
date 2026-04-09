@@ -1,0 +1,6 @@
+[team-improve] full: experiment 20260406-205335 — keep — 4.91 → 4.94 — "Add reviewer plan failure-mode checklist — ordering/prerequisites, mutation paths, security boundaries, operational dependencies, and behavioral verification"
+
+Updated:
+- `~/.pi/agent/agents/reviewer.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`

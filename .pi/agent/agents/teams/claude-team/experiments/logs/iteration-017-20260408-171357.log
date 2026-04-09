@@ -1,0 +1,11 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-171459 — keep — 4.92 → 4.93 — "Enhance reviewer.md Code Review Phase 3 with semantic comparison, test-quality-over-existence, and resource lifecycle analysis"
+```
+
+**Summary:**
+- **Changed:** `reviewer.md` Code Review Phase 3 — added 3 targeted probes: (1) "Compare semantics, not keywords" for plan-vs-implementation alignment, (2) "Test quality over test existence" structured checks, (3) "Resource lifecycle analysis" for growing collections
+- **Result:** Benchmark 33 (reviewer-subtle-logic-bug) improved from **4.30 → 5.00** (+0.70). No regressions. Aggregate improved 4.92 → 4.93.
+- **Remaining weak spots** (all at 4.60): planner-catches-scout-error, planner-competing-approaches, tester-false-confidence, scout-massive-codebase, investigator-admits-uncertainty
+- **Recommended next:** Fix tester-false-confidence (4.60) — same "test quality vs existence" pattern as this fix

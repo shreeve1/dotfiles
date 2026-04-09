@@ -1,0 +1,18 @@
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[claude-agent-bridge] Dropping unknown tool "MultiEdit" from agent "meta-agent"
+[team-improve] full: experiment 20260407-113207 — keep — 5.00 → 5.00 — "Simplify knowledge/shared.md by merging repo-truth and local-pattern guidance into one concise directive while preserving team-layout orientation"
+
+Changed:
+- `/Users/james/.pi/agent/agents/teams/1-full/knowledge/shared.md`
+
+Logged:
+- `/Users/james/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+- `/Users/james/.pi/agent/agents/teams/1-full/experiments/latest.md`
+
+Note:
+- I followed a score-neutral simplification path because the suite is already saturated at 5.00.
+- This change was kept because the harness is simpler and benchmark-visible inputs remained unchanged.

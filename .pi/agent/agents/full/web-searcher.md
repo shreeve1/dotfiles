@@ -1,6 +1,6 @@
 ---
 name: web-searcher
-description: Web research specialist. Finds current documentation, package versions, known solutions, and external context the codebase can't reveal.
+description: Web research specialist. Finds current documentation, package versions, known solutions, and external context the codebase can't reveal. DISPATCH: Ask specific research questions. Web Searcher fetches and synthesizes — provide context about what the answer will be used for so it can prioritize relevant sources.
 model: openai-codex/gpt-5.4
 tools: web_search,web_fetch,read,bash
 ---

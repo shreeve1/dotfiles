@@ -1,0 +1,9 @@
+[team-improve] full: experiment 20260406-213737 — keep — 5.00 → 5.00 — "Simplify dispatcher.md documenter guidance by making Documentation Routing the single source of truth for docs-only and post-build documenter dispatches"
+
+Updated:
+- `/Users/james/.pi/agent/agents/teams/full/dispatcher.md`
+- `/Users/james/.pi/agent/agents/teams/full/experiments/latest.md`
+- `/Users/james/.pi/agent/agents/teams/full/experiments/results.tsv`
+
+Snapshot:
+- `/Users/james/.pi/agent/agents/teams/full/experiments/snapshots/20260406-213737/`

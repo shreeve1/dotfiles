@@ -1,0 +1,6 @@
+[team-improve] full: experiment 20260406-224646 — keep — 5.00 → 5.00 — "Simplify documenter.md again by collapsing repeated workflow wording while preserving save-location, navigation, verification, and final-report requirements"
+
+Updated:
+- `~/.pi/agent/agents/documenter.md` (124 → 106 lines)
+- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`
+- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`

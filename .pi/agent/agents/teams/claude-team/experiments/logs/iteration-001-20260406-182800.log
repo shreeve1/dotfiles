@@ -1,0 +1,24 @@
+Everything is clean. Let me output the final status line:
+
+---
+
+```
+[team-improve] full: experiment 20260407-000001 — keep — 3.87 → 4.18 — "Add Downstream Expectations section to context.md — tells each agent what downstream agents check"
+```
+
+## Summary
+
+**What happened:**
+
+1. **Baseline established** across 17 benchmarks → aggregate **3.87/5.0**
+2. **Diagnosis** identified 3 weakest areas: investigator pivot triggers (2.20), planner web-research awareness (2.28), builder handoff quality (2.75)
+3. **Change applied:** Added a "Downstream Expectations" section + "Self-Assessment Before Handoff" to `context.md` — a team-specific file that tells each agent what the next agent in the pipeline will verify
+4. **Result: KEEP** — aggregate improved from **3.87 → 4.18** (+0.31), no regressions
+
+**Biggest lifts:**
+- Builder handoff quality: **2.75 → 4.60** (+1.85) — builder now documents assumptions and lists all files with specifics
+- Tester plan verification: **3.08 → 4.56** (+1.48) — tester now maps criteria individually and proposes specific test cases
+
+**Still weak (next cycle targets):**
+- Investigator pivot triggers: 2.35 (needs agent-level change)
+- Planner web-research: 2.28 (needs agent or dispatcher change)

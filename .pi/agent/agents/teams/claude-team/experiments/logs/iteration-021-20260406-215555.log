@@ -1,0 +1,8 @@
+[team-improve] full: experiment 20260406-215814 — keep — 5.00 → 5.00 — "Simplify expertise/red-team.md by replacing the longer methodology narrative with a shorter exploitability-first security playbook"
+
+Updated:
+- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/expertise/red-team.md`
+- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/experiments/latest.md`
+- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/experiments/results.tsv`
+
+Note: benchmarks stayed at 5.00 because this cycle simplified a team expertise file, which the current benchmark suite does not score directly.

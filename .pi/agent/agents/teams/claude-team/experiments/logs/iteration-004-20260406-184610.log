@@ -1,0 +1,22 @@
+---
+
+### Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260406-184813 — keep — 4.42 → 4.49 — "Add Verification Decision Framework to dispatcher.md — explicit risk tiers with mandatory red-team for security work and skip justification requirements"
+```
+
+**Summary of this cycle:**
+
+| | |
+|---|---|
+| **Team** | full |
+| **Experiment** | `20260406-184813` |
+| **Change** | Added `## Verification Decision Framework` to `dispatcher.md` — four risk tiers (Trivial/Standard/High-Risk/Ambiguous Scope) with explicit verification requirements, mandatory red-team for security-sensitive work, skip justification requirement |
+| **Files modified** | `~/.pi/agent/agents/teams/1-full/dispatcher.md` (2 edits, ~18 lines added) |
+| **Score** | 4.42 → **4.49** (+0.07) |
+| **Key lift** | `03-verification-skipping`: 3.80 → **5.00** (+1.20) |
+| **Regressions** | None |
+| **Decision** | **KEEP** ✅ |
+| **Axis addressed** | #1 — Verification Coverage in Dispatch Pipelines |
+| **Next target** | `09-web-searcher-best-practices` (3.80) — Axis #4 output quality |

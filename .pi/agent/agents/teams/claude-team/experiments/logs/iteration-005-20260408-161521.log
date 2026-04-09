@@ -1,0 +1,13 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-161744 — keep — 5.00 → 5.00 — "Simplify reviewer.md Code Review Phase 3 by merging overlapping alignment/acceptance-criteria items, and consolidate Constraints section (189→187 lines)"
+```
+
+**Summary of what happened:**
+
+1. **Diagnosed:** The reviewer.md had two overlapping items in Code Review Phase 3 ("Check alignment" and "Acceptance criteria" — both asking whether the plan was fully implemented) and two overlapping constraints ("Never modify source code" and "Only modify plans when warranted" — both about what files the reviewer can touch).
+
+2. **Changed:** Merged the two overlapping Code Review Phase 3 items into one "Plan alignment and acceptance criteria" item that preserves all three sub-questions (implementation completeness, scope creep, acceptance criteria). Consolidated the two overlapping constraints into one sentence preserving all three rules.
+
+3. **Result:** 189→187 lines (1% reduction), 5.00→5.00 aggregate. Kept because the harness is simpler with no behavioral change.

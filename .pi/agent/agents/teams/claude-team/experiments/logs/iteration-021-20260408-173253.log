@@ -1,0 +1,12 @@
+## Phase 8 — Exit
+
+```
+[team-improve] full: experiment 20260408-173504 — keep — 4.99 → 5.00 — "Add concrete large-codebase triage algorithm to scout.md Context Budget Awareness — 3-tier ranking (Core/Scaffolding/Excluded) with explicit default-exclude categories"
+```
+
+**Summary of this cycle:**
+
+- **Diagnosed:** Benchmark 39 (scout-massive-codebase) at 4.60 was the lowest score. Root cause: scout's compression guidance was aspirational ("aim for ≤80 lines") but lacked a concrete triage algorithm for deciding which files to cut in large codebases.
+- **Changed:** Added a 3-tier file ranking system to `scout.md` — Core (~8 files with detail), Scaffolding (one line each), Excluded (name the category and why) — plus explicit default-exclude categories (tests, admin routes, unrelated validators).
+- **Result:** Benchmark 39 improved 4.60 → 5.00 (+0.40). Aggregate 4.99 → **5.00**. No regressions.
+- **Remaining weak spot:** Benchmark 32 (dispatcher-mid-execution-pivot) at 4.80 — the only benchmark below 5.0.
