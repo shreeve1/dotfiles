@@ -60,6 +60,33 @@ If root has 25+ items or many loose scripts/docs:
 2. Suggest organizing into appropriate directories
 3. Offer to help reorganize
 
+## Pi Agents
+
+Pi (`/opt/homebrew/bin/pi`) provides specialist coding agents from different AI models. Use them as independent second opinions and for parallel work.
+
+**Dispatch pattern:**
+```bash
+timeout 180 pi -p \
+  --no-extensions --no-skills --no-prompt-templates \
+  --skill ~/.pi/agent/agents/<agent>.md \
+  --thinking off \
+  "<task>" 2>&1
+```
+
+The `--no-extensions --no-skills --no-prompt-templates` flags are **required** — without them Pi auto-loads ~50 extensions/skills that bloat context and cause silent hangs.
+
+**Available agents:** `reviewer`, `scout`, `builder`, `worker`, `planner`, `tester`, `investigator`, `red-team`, `documenter`, `web-searcher`
+
+**Use proactively:**
+- After implementing a feature → dispatch `reviewer` for a second opinion
+- Before committing security-sensitive changes → dispatch `red-team`
+- When stuck debugging → dispatch `investigator` in parallel
+- For research → dispatch `web-searcher` instead of guessing
+
+**Parallel dispatch:** Make multiple Bash tool calls in one message to run agents concurrently. Use `run_in_background: true` for fire-and-forget reviews.
+
+**Retry:** If empty output or timeout (exit 124), retry once. Don't retry more than once.
+
 ## gstack
 
 - **Web browsing**: Always use `/browse` from gstack for all web browsing. Never use `mcp__claude-in-chrome__*` tools.

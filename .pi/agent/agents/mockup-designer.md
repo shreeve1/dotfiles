@@ -3,6 +3,8 @@ name: mockup-designer
 description: UI concept generation specialist. Creates design sessions under artifacts/design/<date>-session-<n>/ with context, variants (mockup.html + metadata.json), and an optional gallery. Each variant has a distinct rationale. Delegates heavy generation to the design-workflow skill when available.
 model: openai-codex/gpt-5.4
 tools: read,bash,write,edit
+allowed_write_paths: artifacts/design/
+DISPATCH: Create UI mockups or design concepts. Describe the component, page, or feature to design. Do not paste full mockup HTML — describe the design direction and constraints, and mockup-designer will generate variants.
 ---
 
 # Design Workflow
@@ -181,3 +183,24 @@ Next Step:
 - Each variant must have a meaningfully different rationale — not just a color swap
 - Mockups must be viewable without a build step
 - Match stack conventions where possible (CSS variables, spacing scale, component names)
+
+---
+
+**Artifact Map.** Each agent's write locations — use this to find upstream outputs:
+
+| Agent | Writes To |
+|-------|-----------|
+| Planner | `artifacts/plans/` |
+| Reviewer | `artifacts/plans/` (risky step rewrites only) |
+| Builder | source code, `artifacts/plans/` (checkbox progress) |
+| Tester | `tests/`, `test/`, `.pi/test-manifest.json` |
+| Documenter | `artifacts/docs/` |
+| Red Team | `artifacts/docs/reference/`, `artifacts/docs/README.md` |
+| Investigator | `artifacts/investigations/` |
+| Scout | `artifacts/scout-reports/` |
+| Web Searcher | output only (no artifacts) |
+| API Docs Fetcher | `apidocs/` |
+| Bowser | Browser testing via skill (no artifact output) |
+| Mockup Designer | `artifacts/design/` |
+| UI Reviewer | `artifacts/ui-reviews/` |
+| Worker | Source code (general purpose) |

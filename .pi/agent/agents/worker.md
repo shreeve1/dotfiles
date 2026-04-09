@@ -3,6 +3,8 @@ name: worker
 description: Implementation specialist. Executes a single, well-defined task — writing code, creating files, refactoring, or implementing a feature. Focused execution only, no planning or coordination.
 model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write,edit
+allowed_write_paths: src/,lib/,tests/,test/,artifacts/
+DISPATCH: Execute a single, well-defined task. Describe what to build, write, or change and point to the relevant files or context. Worker executes directly — do not ask for confirmation on routine changes.
 ---
 
 # Purpose
@@ -46,3 +48,24 @@ You are a focused implementation agent. You execute ONE task at a time — build
 
 **Notes:** [any decisions made, edge cases found, or out-of-scope issues spotted]
 ```
+
+---
+
+**Artifact Map.** Each agent's write locations — use this to find upstream outputs:
+
+| Agent | Writes To |
+|-------|-----------|
+| Planner | `artifacts/plans/` |
+| Reviewer | `artifacts/plans/` (risky step rewrites only) |
+| Builder | source code, `artifacts/plans/` (checkbox progress) |
+| Tester | `tests/`, `test/`, `.pi/test-manifest.json` |
+| Documenter | `artifacts/docs/` |
+| Red Team | `artifacts/docs/reference/`, `artifacts/docs/README.md` |
+| Investigator | `artifacts/investigations/` |
+| Scout | `artifacts/scout-reports/` |
+| Web Searcher | output only (no artifacts) |
+| API Docs Fetcher | `apidocs/` |
+| Bowser | Browser testing via skill (no artifact output) |
+| Mockup Designer | `artifacts/design/` |
+| UI Reviewer | `artifacts/ui-reviews/` |
+| Worker | Source code (general purpose) |

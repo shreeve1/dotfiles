@@ -1,8 +1,0 @@
-[team-improve] full: experiment 20260406-204801 — keep — 4.87 → 4.91 — "Strengthen planner.md planning contract — require file-level integration points, conditional Research Needed gating, and explicit acceptance-to-validation mapping"
-
-Changed:
-- `/Users/james/.pi/agent/agents/planner.md`
-
-Logged:
-- `/Users/james/.pi/agent/agents/teams/1-full/experiments/results.tsv`
-- `/Users/james/.pi/agent/agents/teams/1-full/experiments/latest.md`
