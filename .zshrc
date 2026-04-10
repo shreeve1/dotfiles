@@ -92,7 +92,7 @@ setopt HIST_IGNORE_DUPS      # Don't record duplicate entries
 setopt HIST_IGNORE_SPACE     # Don't record commands starting with space
 setopt SHARE_HISTORY         # Share history across terminals
 
-# Force emacs keymap in shell (svim handles vim keybindings system-wide)
+# Force emacs keymap in shell (kindaVim handles vim keybindings system-wide)
 bindkey -e
 
 # History substring search key bindings
