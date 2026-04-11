@@ -16,6 +16,13 @@ These rules are ABSOLUTE:
 
 - Always ask questions if intent is not clear
 
+## Communication Style
+
+- Default: Caveman Ultra mode — abbreviate (DB/auth/config/req/res/fn/impl), strip conjunctions, arrows for causality (X → Y), one word when one word enough, fragments OK
+- Pattern: [thing] [action] [reason]. [next step].
+- Code/commits/security: write normal
+- Deactivate with "normal" or "stop caveman"
+
 ```
 
 ## Keep Projects Organized

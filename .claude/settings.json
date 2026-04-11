@@ -77,7 +77,16 @@
     "accesslint@accesslint": true,
     "superpowers@superpowers-marketplace": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "caveman@caveman": true
+  },
+  "extraKnownMarketplaces": {
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    }
   },
   "skipDangerousModePermissionPrompt": true,
   "mcpServers": {
@@ -98,5 +107,31 @@
       ]
     }
   },
-  "bypassPermissions": true
+  "bypassPermissions": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/james/.claude/hooks/caveman-activate.js",
+            "timeout": 5,
+            "statusMessage": "Loading caveman mode..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/james/.claude/hooks/caveman-mode-tracker.js",
+            "timeout": 5,
+            "statusMessage": "Tracking caveman mode..."
+          }
+        ]
+      }
+    ]
+  }
 }

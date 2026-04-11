@@ -209,3 +209,8 @@ alias hhb='hermes sessions browse'
 
 # Machine-local secrets (not tracked in dotfiles)
 [[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+export PATH="/opt/homebrew/bin:$PATH"
+
+# OpenClaw Completion
+source "/Users/james/.openclaw/completions/openclaw.zsh"

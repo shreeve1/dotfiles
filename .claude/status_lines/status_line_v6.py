@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import json, sys
+import json, sys, os
 
 def get_color_code(p):
     return "32" if p < 50 else "33" if p < 80 else "31"
@@ -45,5 +45,18 @@ max_ctx = c.get('context_window_size', 200000)
 line1_parts.append(f"\033[90m(max:{fmt(max_ctx)})\033[0m")
 
 line1 = " ".join(line1_parts)
+
+# Caveman mode badge
+try:
+    with open(os.path.expanduser('~/.claude/.caveman-active'), 'r') as f:
+        mode = f.read().strip() or 'full'
+    if mode == 'full':
+        caveman_text = "\033[38;5;172m[CAVEMAN]\033[0m"
+    else:
+        caveman_suffix = mode.upper()
+        caveman_text = f"\033[38;5;172m[CAVEMAN:{caveman_suffix}]\033[0m"
+    line1 += " " + caveman_text
+except:
+    pass
 
 print(line1)

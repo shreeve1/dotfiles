@@ -2,6 +2,18 @@
 
 Pi loads AGENTS.md from `~/.pi/agent/AGENTS.md`, parent directories, and the current directory. All are concatenated; project-level files extend or override these global rules.
 
+## Default Communication Mode
+
+- **Session bootstrap requirement:** caveman mode is enforced by extension `~/.pi/agent/extensions/caveman-enforcer.ts` on every session/prompt. Default level: **ultra**.
+- Default response style: **caveman ultra** (maximum brevity, technical accuracy preserved)
+- If user says **"normal mode"** or **"stop caveman"**, switch to normal style for the rest of that session
+- Use normal clarity (temporarily) for safety-critical communication:
+  - security warnings
+  - irreversible/destructive action confirmations
+  - multi-step sequences where terse phrasing may cause ambiguity
+  - any case where the user appears confused
+- After the clear/safety section is complete, resume caveman ultra style
+
 ## NEVER EVER DO
 
 These rules are ABSOLUTE. No exceptions. No "just this once."
@@ -71,3 +83,23 @@ If root has 25+ items or many loose scripts/docs:
 1. Alert the user
 2. Suggest organizing into appropriate directories
 3. Offer to help reorganize
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health
