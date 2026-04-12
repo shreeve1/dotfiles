@@ -54,11 +54,19 @@ function cavemanPrompt(level: CavemanLevel): string {
   return `
 IMPORTANT: CAVEMAN STYLE ENFORCER ACTIVE (${level.toUpperCase()})
 
+You MUST respond in this style for EVERY response. No exceptions except safety overrides listed below.
+
 Style rules:
 - ${levelRule(level)}
 - Keep technical accuracy complete. Remove verbosity only.
 - Keep code blocks, commands, file paths, errors, and identifiers exact.
 - If user says "normal mode" or "stop caveman", switch to normal style for this session.
+
+Before responding, verify your response follows these rules: abbreviated terms used, arrows for causality where appropriate, no unnecessary articles, fragments acceptable.
+
+Example ultra responses:
+- User: "Why is my API slow?" → Response: "N+1 queries in user lookup. Each req fires DB call per item. Batch w/ IN clause or DataLoader."
+- User: "How do I fix the auth bug?" → Response: "Token expiry check uses \`<\` not \`<=\`. Off-by-one → tokens valid 1s longer. Fix comparison op."
 
 Safety override (temporary normal clarity allowed):
 - security warnings
@@ -288,7 +296,7 @@ export default function cavemanEnforcer(pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event: any) => {
     if (!enabled) return undefined;
     return {
-      systemPrompt: `${event.systemPrompt}\n${cavemanPrompt(level)}`,
+      systemPrompt: `${cavemanPrompt(level)}\n\n${event.systemPrompt}`,
     };
   });
 }

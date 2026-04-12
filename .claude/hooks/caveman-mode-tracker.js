@@ -48,6 +48,24 @@ process.stdin.on('end', () => {
     if (/\b(stop caveman|normal mode)\b/i.test(prompt)) {
       try { fs.unlinkSync(flagPath); } catch (e) {}
     }
+
+    // Reinforce caveman mode on every message if flag file exists
+    try {
+      const currentMode = fs.readFileSync(flagPath, 'utf8').trim();
+      if (currentMode === 'ultra') {
+        process.stdout.write(
+          "CAVEMAN ULTRA MODE ON. Drop articles/filler/pleasantries. " +
+          "Abbreviate (DB/auth/config/req/res/fn/impl). Arrows for causality. " +
+          "Fragments OK. One word when one word enough. " +
+          "WRONG: 'Sure! I'd be happy to help you with that.' " +
+          "RIGHT: 'Bug in auth middleware. Fix:'"
+        );
+      } else if (currentMode) {
+        process.stdout.write("CAVEMAN " + currentMode.toUpperCase() + " MODE ON.");
+      }
+    } catch (e) {
+      // No flag file = caveman not active, no output
+    }
   } catch (e) {
     // Silent fail
   }

@@ -205,7 +205,7 @@ function formatDomainKnowledgeBlock(dk: string): string {
 
 interface SessionNote { timestamp: string; note: string; summary?: boolean; compacted_count?: number; from?: string; to?: string; }
 
-function readSessionNotes(tDir: string, agentName: string, limit: number = 20): SessionNote[] {
+function readSessionNotes(tDir: string, agentName: string, limit: number = 8): SessionNote[] {
   if (!tDir) return [];
   const slug = agentName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
   const p = join(tDir, "session-notes", `${slug}.jsonl`);
@@ -1097,13 +1097,8 @@ export default function (pi: ExtensionAPI) {
 		if (activeTeamDir) {
 			const slug = state.def.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
 			if (existsSync(join(activeTeamDir, "expertise", `${slug}.md`))) commsParts.push("📚");
-			const notesPath = join(activeTeamDir, "session-notes", `${slug}.jsonl`);
-			if (existsSync(notesPath)) {
-				try {
-					const noteCount = readFileSync(notesPath, "utf-8").split("\n").filter(l => l.trim()).length;
-					if (noteCount > 0) commsParts.push(`📝${noteCount}`);
-				} catch {}
-			}
+			const notes = readSessionNotes(activeTeamDir, slug);
+			if (notes.length > 0) commsParts.push(`📝${notes.length}`);
 		}
 		const commsStr = commsParts.length > 0 ? `  ${commsParts.join(" ")}` : "";
 		const statusLine = theme.fg(statusColor, statusStr + timeStr + commsStr);
@@ -1168,13 +1163,8 @@ export default function (pi: ExtensionAPI) {
 		if (activeTeamDir) {
 			const slug = state.def.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
 			if (existsSync(join(activeTeamDir, "expertise", `${slug}.md`))) parts.push("📚");
-			const notesPath = join(activeTeamDir, "session-notes", `${slug}.jsonl`);
-			if (existsSync(notesPath)) {
-				try {
-					const noteCount = readFileSync(notesPath, "utf-8").split("\n").filter(l => l.trim()).length;
-					if (noteCount > 0) parts.push(`📝${noteCount}`);
-				} catch {}
-			}
+			const notes = readSessionNotes(activeTeamDir, slug);
+			if (notes.length > 0) parts.push(`📝${notes.length}`);
 		}
 
 		// Runs (only if agent has been dispatched)
