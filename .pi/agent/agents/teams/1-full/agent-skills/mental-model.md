@@ -7,7 +7,7 @@ Keep only future-useful signal in persistent learning tools:
 
 ## When to Record Session Notes
 
-**Always** call `add_session_note()` before finishing any substantive task. Make this a mandatory habit, not optional.
+**MANDATORY:** Call `add_session_note()` before finishing ANY substantive task. This is not optional — treat it like a required final step. If you completed work without recording a note, your task is not done.
 
 A "substantive task" is anything where you:
 - Investigate a bug or unexpected behavior

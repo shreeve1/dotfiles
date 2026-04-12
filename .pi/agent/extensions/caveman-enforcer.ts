@@ -1,4 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 
 type CavemanLevel = "lite" | "full" | "ultra" | "wenyan-lite" | "wenyan-full" | "wenyan-ultra";
 
@@ -11,6 +14,7 @@ interface CavemanStateEntry {
 
 const STATE_CUSTOM_TYPE = "caveman-config";
 const DEFAULT_LEVEL: CavemanLevel = "ultra";
+const STATE_FILE = path.join(os.homedir(), ".pi", "agent", "state", "caveman-state.json");
 
 const VALID_LEVELS: CavemanLevel[] = [
   "lite",
@@ -74,7 +78,42 @@ function safeNotify(ctx: any, message: string, level: "info" | "error" = "info")
   }
 }
 
+function readStateFile(): { enabled: boolean; level: CavemanLevel } | null {
+  try {
+    const raw = fs.readFileSync(STATE_FILE, "utf-8");
+    const data = JSON.parse(raw);
+    if (typeof data?.enabled !== "boolean") return null;
+    const level = normalizeLevel(typeof data.level === "string" ? data.level : undefined);
+    if (!level) return null;
+    return { enabled: data.enabled, level };
+  } catch {
+    return null;
+  }
+}
+
+function writeStateFile(stateEnabled: boolean, stateLevel: CavemanLevel): void {
+  try {
+    const dir = path.dirname(STATE_FILE);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ enabled: stateEnabled, level: stateLevel, updatedAt: Date.now() }, null, 2));
+  } catch {
+    // Silently fail — session-scoped persistence still works.
+  }
+}
+
 function restoreStateFromBranch(ctx: ExtensionContext): CavemanStateEntry | null {
+  // Priority 1: state file (cross-session)
+  const fileState = readStateFile();
+  if (fileState) {
+    return {
+      enabled: fileState.enabled,
+      level: fileState.level,
+      updatedAt: new Date().toISOString(),
+      source: "state-file",
+    };
+  }
+
+  // Priority 2: branch entries (session-scoped)
   const branchEntries = ctx.sessionManager.getBranch();
   let latest: CavemanStateEntry | null = null;
 
@@ -105,6 +144,7 @@ export default function cavemanEnforcer(pi: ExtensionAPI) {
       updatedAt: new Date().toISOString(),
       source,
     });
+    writeStateFile(enabled, level);
   }
 
   function setMode(next: { enabled?: boolean; level?: CavemanLevel }, source: string): boolean {

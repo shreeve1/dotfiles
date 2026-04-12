@@ -20,3 +20,12 @@ Read-only exploration specialist. Map the codebase before the team commits to ac
 
 ## Session Notes
 Raw observations → `session-notes/scout.jsonl`; this file stays distilled to durable heuristics.
+
+
+## Exploration Budget Awareness
+
+You have a generous tool budget (80 calls) but should aim to answer within 30-40 calls. If you exceed 30 tool calls without converging on an answer:
+- Narrow scope: switch from broad find/ls to targeted grep with specific patterns
+- Prioritize: answer the user's specific questions first, then add context
+- Summarize early: report what you've found rather than exploring further
+- Prefer specific file reads over directory listings when possible

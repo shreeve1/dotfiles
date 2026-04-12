@@ -37,6 +37,8 @@ interface AgentDef {
 	model?: string;
 	tools: string;
 	allowedWritePaths?: string;
+	maxToolCalls?: number;
+	toolBudget?: number;
 	systemPrompt: string;
 	file: string;
 }
@@ -101,11 +103,32 @@ const COMMS_CHANNEL_FILE = "channel.jsonl";
 const COMMS_REQUESTS_DIR = "requests";
 const COMMS_RESPONSES_DIR = "responses";
 const REQUEST_WATCHER_INTERVAL_MS = 500;
-const REQUEST_TIMEOUT_MS = 120_000;
 const COMMS_DEBUG = process.env.PI_COMMS_DEBUG === "1";
 const STALL_TIMEOUT_MS = 60_000; // Set to 0 to disable stall watchdog
 const STALL_MIN_OUTPUT_DELTA = 10; // Minimum new assistant chars to count as progress
 const MAX_TOOL_CALLS = 40; // Max tool calls before kill (0 = disabled)
+
+// Model context window estimates (tokens) for per-agent contextPct calculation
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+	"default": 200_000,
+	"anthropic/claude-sonnet": 200_000,
+	"anthropic/claude-haiku": 200_000,
+	"zai/glm-5.1": 128_000,
+	"zai/glm-4.7": 128_000,
+	"minimax/minimax-m2.5-highspeed": 128_000,
+	"minimax/minimax-m2.7": 128_000,
+	"openrouter/google/gemini-3-flash-preview": 1_000_000,
+};
+
+function getModelContextWindow(model: string): number {
+	const key = model.toLowerCase();
+	if (MODEL_CONTEXT_WINDOWS[key]) return MODEL_CONTEXT_WINDOWS[key];
+	// Prefix match (e.g. "anthropic/claude-sonnet-4-20250514" → "anthropic/claude-sonnet")
+	for (const [prefix, size] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
+		if (prefix !== "default" && key.startsWith(prefix)) return size;
+	}
+	return MODEL_CONTEXT_WINDOWS["default"];
+}
 
 
 // ─── Team Communication Helpers ──────────────────────────────────────────────
@@ -239,6 +262,8 @@ function formatAgentSkillsBlock(skillsText: string): string {
   return `\n\n## Agent Skills\n\n${skillsText}`;
 }
 
+const CHANNEL_MAX_MESSAGES = 200;
+
 function readChannelMessages(cwd: string): ChannelMessage[] {
   const channelFile = join(getCommsDir(cwd), COMMS_CHANNEL_FILE);
   if (!existsSync(channelFile)) return [];
@@ -248,6 +273,18 @@ function readChannelMessages(cwd: string): ChannelMessage[] {
       try { return JSON.parse(sanitizeJson(line)) as ChannelMessage; } catch { return null; }
     }).filter((msg): msg is ChannelMessage => msg !== null);
   } catch { return []; }
+}
+
+function rotateChannelIfNeeded(cwd: string): void {
+  const channelFile = join(getCommsDir(cwd), COMMS_CHANNEL_FILE);
+  if (!existsSync(channelFile)) return;
+  try {
+    const raw = readFileSync(channelFile, "utf-8");
+    const lines = raw.split("\n").filter((l) => l.trim());
+    if (lines.length <= CHANNEL_MAX_MESSAGES) return;
+    const kept = lines.slice(-CHANNEL_MAX_MESSAGES);
+    writeFileSync(channelFile, kept.join("\n") + "\n", "utf-8");
+  } catch {}
 }
 
 function curateMessagesForAgent(messages: ChannelMessage[], agentName: string): ChannelMessage[] {
@@ -343,6 +380,7 @@ function startRequestWatcher(cwd: string, ctx: any): void {
       if (now - ts > 5 * 60 * 1000) processedRequestIds.delete(id);
     }
 
+    rotateChannelIfNeeded(cwd);
     const messages = readChannelMessages(cwd);
     agentMessageCounts.clear();
     for (const msg of messages) {
@@ -387,12 +425,27 @@ function startRequestWatcher(cwd: string, ctx: any): void {
   setTimeout(tick, REQUEST_WATCHER_INTERVAL_MS);
 }
 
-function stopRequestWatcher(): void {
+function stopRequestWatcher(cwd?: string): void {
   watcherRunning = false;
   processedRequestIds.clear();
   activeRequests.clear();
   agentMessageCounts.clear();
   inFlightTargets.clear();
+  // Clean up stale request/response files
+  if (cwd) {
+    const commsDir = getCommsDir(cwd);
+    for (const subdir of [COMMS_REQUESTS_DIR, COMMS_RESPONSES_DIR]) {
+      const dir = join(commsDir, subdir);
+      if (!existsSync(dir)) continue;
+      try {
+        for (const f of readdirSync(dir)) {
+          if (f.endsWith(".json")) {
+            try { unlinkSync(join(dir, f)); } catch {}
+          }
+        }
+      } catch {}
+    }
+  }
 }
 async function handleInputRequest(request: InputRequest, cwd: string, responsesDir: string, ctx: any): Promise<void> {
   const commsDir = getCommsDir(cwd);
@@ -442,7 +495,11 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
     const hSessionNotes = readSessionNotes(activeTeamDir, targetKey);
     const hSessionNotesBlock = formatSessionNotesBlock(hSessionNotes);
 
-    const hCombinedPrompt = `${hContextBlock}${hTeamRosterBlock}${hCuratedMessagesBlock}${hDomainBlock}${hExpertiseBlock}${hAgentSkillsBlock}\n\n${targetState.def.systemPrompt}${hSessionNotesBlock}`;
+    const hToolBudget = targetState.def.toolBudget ?? targetState.def.maxToolCalls ?? MAX_TOOL_CALLS;
+    const hToolBudgetBlock = hToolBudget > 0
+      ? `\n\n## Tool Call Budget\n\nYou have a maximum of ${hToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${hToolBudget}.\n\n**Before finishing:** Call \`add_session_note()\` with what you learned. This is mandatory.\n`
+      : "";
+    const hCombinedPrompt = `${hContextBlock}${hTeamRosterBlock}${hCuratedMessagesBlock}${hDomainBlock}${hExpertiseBlock}${hAgentSkillsBlock}\n\n${targetState.def.systemPrompt}${hSessionNotesBlock}${hToolBudgetBlock}`;
     const reqPromptFile = join(tmpdir(), `pi-team-req-prompt-${targetKey}-${randomUUID()}.txt`);
     writeFileSync(reqPromptFile, hCombinedPrompt, "utf-8");
 
@@ -451,6 +508,7 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
       "--no-extensions",
       "-e", resolve(homedir(), ".pi/agent/extensions/team-comms.ts"),
       "-e", resolve(homedir(), ".pi/agent/extensions/domain-lock.ts"),
+      "-e", resolve(homedir(), ".pi/agent/extensions/auto-compact.ts"),
       ...(hasWebTools(targetState.def.tools)
         ? ["-e", resolve(homedir(), ".pi/agent/extensions/web-fetch/index.ts")]
         : []),
@@ -460,7 +518,6 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
       "--append-system-prompt", reqPromptFile,
       "--session", agentSessionFile,
     ];
-    if (existsSync(agentSessionFile)) args.push("-c");
     args.push(formattedTask);
     const proc = spawn(process.platform === "win32" ? "pi.exe" : "pi", args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -824,12 +881,15 @@ function parseAgentFile(filePath: string): AgentDef | null {
 
 		if (!frontmatter.name) return null;
 
+		const maxToolCalls = (frontmatter.max_tool_calls || frontmatter.tool_budget) ? parseInt(frontmatter.max_tool_calls || frontmatter.tool_budget, 10) : undefined;
 		return {
 			name: frontmatter.name,
 			description: frontmatter.description || "",
 			model: frontmatter.model || undefined,
 			tools: frontmatter.tools || "read,grep,find,ls",
 			allowedWritePaths: frontmatter.allowed_write_paths || undefined,
+			toolBudget: frontmatter.tool_budget ? parseInt(frontmatter.tool_budget, 10) || undefined : undefined,
+			maxToolCalls: maxToolCalls && Number.isFinite(maxToolCalls) && maxToolCalls > 0 ? maxToolCalls : undefined,
 			systemPrompt: match[2].trim(),
 			file: filePath,
 		};
@@ -982,35 +1042,6 @@ export default function (pi: ExtensionAPI) {
 			const def = defsByName.get(member.toLowerCase());
 			if (!def) continue;
 			const key = def.name.toLowerCase().replace(/\s+/g, "-");
-			const sessionFile = join(sessionDir, `${key}.json`);
-			// Only resume session if file exists AND isn't poisoned with errors
-			let canResume = false;
-			if (existsSync(sessionFile)) {
-				try {
-					const raw = readFileSync(sessionFile, "utf-8");
-					const lines = raw.trim().split("\n").filter(l => l.trim());
-					// Check last few messages for error stopReason
-					let errorStreak = 0;
-					for (let i = lines.length - 1; i >= Math.max(0, lines.length - 6); i--) {
-						try {
-							const entry = JSON.parse(lines[i]);
-							if (entry.type === "message" && entry.message?.role === "assistant" && entry.message?.stopReason === "error") {
-								errorStreak++;
-							} else {
-								break;
-							}
-						} catch { break; }
-					}
-					if (errorStreak >= 3) {
-						console.error(`[agent-team] Deleting poisoned session for ${key} (${errorStreak} consecutive errors)`);
-						try { unlinkSync(sessionFile); } catch {}
-					} else {
-						canResume = true;
-					}
-				} catch {
-					// Can't read/parse — treat as non-resumable
-				}
-			}
 			agentStates.set(key, {
 				def,
 				status: "idle",
@@ -1019,7 +1050,7 @@ export default function (pi: ExtensionAPI) {
 				elapsed: 0,
 				lastWork: "",
 				contextPct: 0,
-				sessionFile: canResume ? sessionFile : null,
+				sessionFile: null,
 				runCount: 0,
 				proc: null,
 			});
@@ -1164,8 +1195,10 @@ export default function (pi: ExtensionAPI) {
 
 		// Context usage (non-idle or if context is populated)
 		if (state.contextPct > 0) {
-			if (contextWindow > 0) {
-				const tokensK = Math.round(state.contextPct / 100 * contextWindow / 1000);
+			const agentModel = state.def.model || "";
+			const agentCtxW = agentModel ? getModelContextWindow(agentModel) : contextWindow;
+			if (agentCtxW > 0) {
+				const tokensK = Math.round(state.contextPct / 100 * agentCtxW / 1000);
 				parts.push(`${tokensK}k`);
 			} else {
 				parts.push(`${Math.ceil(state.contextPct)}%`);
@@ -1356,6 +1389,7 @@ export default function (pi: ExtensionAPI) {
 
 		const model = baseState.def.model
 			|| (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "openrouter/google/gemini-3-flash-preview");
+		const agentContextWindow = getModelContextWindow(model);
 
 		// Session file for this agent
 		// For parallel duplicate instances: use unique session file; do NOT use -c continuation
@@ -1383,7 +1417,11 @@ export default function (pi: ExtensionAPI) {
 		const sessionNotes = readSessionNotes(activeTeamDir, baseKey);
 		const sessionNotesBlock = formatSessionNotesBlock(sessionNotes);
 
-		const combinedPrompt = `${contextBlock}${teamRosterBlock}${curatedMessagesBlock}${domainBlock}${expertiseBlock}${agentSkillsBlock}\n\n${baseState.def.systemPrompt}${sessionNotesBlock}`;
+		const agentToolBudget = baseState.def.toolBudget ?? baseState.def.maxToolCalls ?? MAX_TOOL_CALLS;
+		const toolBudgetBlock = agentToolBudget > 0
+			? `\n\n## Tool Call Budget\n\nYou have a maximum of ${agentToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${agentToolBudget}.\n\n**Before finishing:** Call \`add_session_note()\` with what you learned. This is mandatory.\n`
+			: "";
+		const combinedPrompt = `${contextBlock}${teamRosterBlock}${curatedMessagesBlock}${domainBlock}${expertiseBlock}${agentSkillsBlock}\n\n${baseState.def.systemPrompt}${sessionNotesBlock}${toolBudgetBlock}`;
 		const promptFile = join(tmpdir(), `pi-team-comms-prompt-${baseKey}-${randomUUID()}.txt`);
 		writeFileSync(promptFile, combinedPrompt, "utf-8");
 
@@ -1393,6 +1431,7 @@ export default function (pi: ExtensionAPI) {
 			"--no-extensions",
 			"-e", resolve(homedir(), ".pi/agent/extensions/team-comms.ts"),
 			"-e", resolve(homedir(), ".pi/agent/extensions/domain-lock.ts"),
+			"-e", resolve(homedir(), ".pi/agent/extensions/auto-compact.ts"),
 			...(hasWebTools(baseState.def.tools)
 				? ["-e", resolve(homedir(), ".pi/agent/extensions/web-fetch/index.ts")]
 				: []),
@@ -1403,11 +1442,8 @@ export default function (pi: ExtensionAPI) {
 			"--session", agentSessionFile,
 		];
 
-		// Continue existing session if we have one (base dispatches only; never -c for instance runs)
-		if (!instanceMeta && baseState.sessionFile) {
-			args.push("-c");
-		}
-
+		// No session continuation — each dispatch starts fresh.
+		// Cross-session memory handled by session-notes + expertise files (smaller, curated).
 		args.push(task);
 
 		const textChunks: string[] = [];
@@ -1528,8 +1564,8 @@ export default function (pi: ExtensionAPI) {
 									.join("");
 								if (text) lastAssistantText = text;
 							}
-							if (msg?.usage && contextWindow > 0) {
-								effectiveState.contextPct = ((msg.usage.input || 0) / contextWindow) * 100;
+							if (msg?.usage && agentContextWindow > 0) {
+								effectiveState.contextPct = ((msg.usage.input || 0) / agentContextWindow) * 100;
 								updateWidget();
 							}
 						} else if (event.type === "agent_end") {
@@ -1541,8 +1577,8 @@ export default function (pi: ExtensionAPI) {
 									.map((c: any) => c.text || "")
 									.join("");
 								if (text) lastAssistantText = text;
-								if (last?.usage && contextWindow > 0) {
-									effectiveState.contextPct = ((last.usage.input || 0) / contextWindow) * 100;
+								if (last?.usage && agentContextWindow > 0) {
+									effectiveState.contextPct = ((last.usage.input || 0) / agentContextWindow) * 100;
 									updateWidget();
 								}
 							}
@@ -1564,19 +1600,20 @@ export default function (pi: ExtensionAPI) {
 					const outputDelta = latestTextLength - lastProgressTextLength;
 
 					// ── Max tool calls guard ──
-					if (MAX_TOOL_CALLS > 0 && effectiveState.toolCount >= MAX_TOOL_CALLS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
+					const effectiveBudget = effectiveState.def.toolBudget ?? baseState.def.maxToolCalls ?? MAX_TOOL_CALLS;
+					if (effectiveBudget > 0 && effectiveState.toolCount >= effectiveBudget && outputDelta < STALL_MIN_OUTPUT_DELTA) {
 						wasStalled = true;
 						killAttempted = true;
-						stallReason = `[agent-team] Agent killed: max tool calls exceeded (${effectiveState.toolCount}/${MAX_TOOL_CALLS}); toolCalls=${effectiveState.toolCount}`;
-						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] max-tool-calls agent=${effectiveKey} toolCalls=${effectiveState.toolCount} max=${MAX_TOOL_CALLS}\n`, "utf-8");
-						console.error(`Agent ${effectiveKey} killed: max tool calls exceeded (${effectiveState.toolCount}/${MAX_TOOL_CALLS})`);
+						stallReason = `[agent-team] Agent killed: max tool calls exceeded (${effectiveState.toolCount}/${effectiveBudget}); toolCalls=${effectiveState.toolCount}`;
+						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] max-tool-calls agent=${effectiveKey} toolCalls=${effectiveState.toolCount} max=${effectiveBudget}\n`, "utf-8");
+						console.error(`Agent ${effectiveKey} killed: max tool calls exceeded (${effectiveState.toolCount}/${effectiveBudget})`);
 						if (proc && !proc.killed) {
 							proc.kill("SIGTERM");
 							setTimeout(() => {
 								if (proc && !proc.killed) proc.kill(process.platform === "win32" ? "SIGTERM" : "SIGKILL");
 							}, 5000);
 						}
-					} else if (STALL_TIMEOUT_MS > 0 && sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity <= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
+					} else if (STALL_TIMEOUT_MS > 0 && sinceProgress >= STALL_TIMEOUT_MS && sinceToolActivity >= STALL_TIMEOUT_MS && outputDelta < STALL_MIN_OUTPUT_DELTA) {
 						stallDetectionCount++;
 						appendFileSync(join(tmpdir(), "pi-agent-stderr.log"), `[${new Date().toISOString()}] [agent-team] stall-check agent=${effectiveKey} count=${stallDetectionCount} sinceProgressMs=${sinceProgress} sinceToolActivityMs=${sinceToolActivity} outputDelta=${outputDelta}\n`, "utf-8");
 						if (stallDetectionCount >= 2) {
@@ -1638,11 +1675,6 @@ export default function (pi: ExtensionAPI) {
 					effectiveState.status = "error";
 				} else {
 					effectiveState.status = code === 0 ? "done" : "error";
-				}
-
-				// Mark session file as available for resume (base dispatches only)
-				if (code === 0 && !instanceMeta) {
-					effectiveState.sessionFile = agentSessionFile;
 				}
 
 				// Fall back to last captured assistant message if streaming produced nothing,
@@ -2004,10 +2036,7 @@ export default function (pi: ExtensionAPI) {
 		handler: async (_args, _ctx) => {
 			widgetCtx = _ctx;
 			const names = Array.from(agentStates.values())
-				.map(s => {
-					const session = s.sessionFile ? "resumed" : "new";
-					return `${displayName(s.def.name)} (${s.status}, ${session}, runs: ${s.runCount}): ${s.def.description}`;
-				})
+				.map(s => `${displayName(s.def.name)} (${s.status}, runs: ${s.runCount}): ${s.def.description}`)
 				.join("\n");
 			_ctx.ui.notify(names || "No agents loaded", "info");
 		},
@@ -2222,7 +2251,7 @@ ${agentCatalog}`,
 			}
 		}
 
-		stopRequestWatcher();
+		stopRequestWatcher(_ctx.cwd);
 
 		const commsDir = resolve(_ctx.cwd, COMMS_DIR_NAME);
 		const requestsDir = join(commsDir, COMMS_REQUESTS_DIR);

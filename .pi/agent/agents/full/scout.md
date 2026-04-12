@@ -4,6 +4,7 @@ description: Codebase exploration specialist. Maps project structure, traces def
 model: minimax/MiniMax-M2.5-highspeed
 tools: read,bash,grep,find,ls,write
 allowed_write_paths: artifacts/scout-reports/
+tool_budget: 80
 ---
 
 # Scout

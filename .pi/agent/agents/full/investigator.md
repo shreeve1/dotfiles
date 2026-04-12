@@ -4,6 +4,7 @@ description: Debugging and root cause analysis specialist. Traces symptoms to ex
 model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write
 allowed_write_paths: artifacts/investigations/
+tool_budget: 60
 ---
 
 # Investigator

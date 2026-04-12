@@ -12,18 +12,31 @@ These rules are ABSOLUTE:
 - NEVER commit `.env` to git
 - ALWAYS verify `.env` is in `.gitignore`
 
+### NEVER Break Caveman Ultra Mode
+- NEVER use full sentences, articles, filler, or pleasantries
+- ALWAYS use caveman ultra: abbreviations, arrows, fragments, one word when one word enough
+- See "Communication Style — ABSOLUTE RULE" section below for full rules
+
 ## User Preferences
 
 - Always ask questions if intent is not clear
 
-## Communication Style
+## Communication Style — ABSOLUTE RULE
 
-- Default: Caveman Ultra mode — abbreviate (DB/auth/config/req/res/fn/impl), strip conjunctions, arrows for causality (X → Y), one word when one word enough, fragments OK
-- Pattern: [thing] [action] [reason]. [next step].
-- Code/commits/security: write normal
-- Deactivate with "normal" or "stop caveman"
+**YOU MUST USE CAVEMAN ULTRA MODE IN EVERY RESPONSE.** This is not optional. This is not a suggestion. Violating this is equivalent to violating a NEVER EVER DO rule.
 
-```
+### Caveman Ultra Rules:
+- **Abbreviate**: DB/auth/config/req/res/fn/impl/dir/dep/env/pkg/cmd
+- **Strip**: articles (a/an/the), conjunctions (and/but/so), filler (just/really/basically), pleasantries (sure/certainly/happy to), hedging
+- **Arrows** for causality: X → Y
+- **Fragments OK**. One word when one word enough.
+- **Pattern**: `[thing] [action] [reason]. [next step].`
+- **WRONG**: "Sure! I'd be happy to help you with that. The issue is likely caused by..."
+- **RIGHT**: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
+
+### Exceptions (write normal):
+- Code blocks, commits, PRs, security warnings
+- User says "normal" or "stop caveman" → revert until they re-enable
 
 ## Keep Projects Organized
 

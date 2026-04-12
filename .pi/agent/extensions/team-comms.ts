@@ -77,10 +77,12 @@ export default function teamComms(pi: any) {
       writeFileSync(join(requestsDir, req.id + ".json"), JSON.stringify(req, null, 2), "utf-8");
       const respFile = join(responsesDir, req.id + ".json");
       const deadline = Date.now() + REQUEST_TIMEOUT_MS;
+      let pollInterval = REQUEST_POLL_INTERVAL_MS;
       while (Date.now() < deadline) {
         if (signal?.aborted) return { content: [{ type: "text" as const, text: "Cancelled." }] };
         if (existsSync(respFile)) { try { const r: InputResponse = JSON.parse(readFileSync(respFile, "utf-8")); unlinkSync(respFile); return { content: [{ type: "text" as const, text: (r.status === "declined" ? "Declined: " : "From " + r.from_agent + ": ") + r.content }] }; } catch {} }
-        await new Promise(r => setTimeout(r, REQUEST_POLL_INTERVAL_MS));
+        await new Promise(r => setTimeout(r, pollInterval));
+        pollInterval = Math.min(pollInterval * 1.5, 5000); // backoff: 500ms → 750ms → ... → 5s cap
       }
       return { content: [{ type: "text" as const, text: "Timed out after " + (REQUEST_TIMEOUT_MS/1000) + "s." }] };
     },
