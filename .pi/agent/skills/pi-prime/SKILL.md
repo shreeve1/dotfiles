@@ -11,16 +11,18 @@ Use this skill at the start of a new session to rapidly load project context. It
 
 ## Phase 1 — Delegate Exploration
 
-Use `subagent` in single mode to spawn a subagent for a full codebase scan. Instruct it to report back with:
+Dispatch scout with a **focused, bounded task**. Do NOT ask for "full codebase scan" — scouts spiral on large repos. Instead, give scout exactly these steps:
 
-- `project_overview`
-- `tech_stack`
-- `structure`
-- Key config file directives (e.g. `CLAUDE.md`, `pi.md`, `.pi/`)
-- `documentation_status`
-- `patterns_detected`
+1. Read `package.json` (or `go.mod`, `Cargo.toml`, `pyproject.toml`) at project root
+2. Run `ls` on project root (top-level only)
+3. Read `README.md` if it exists
+4. Read `CLAUDE.md` or `pi.md` if they exist
+5. Run `find . -maxdepth 2 -type f -name '*.md' | head -20` for doc awareness
+6. Report: project name, type, tech stack, key dirs, config directives
 
-Then run `git ls-files` with `Bash` as backup/verification of project files.
+**Critical:** Tell scout to work from the **current working directory** (the project the user opened), NOT from `~/.pi` or any skill directory. The cwd is the project root.
+
+Then run `git ls-files | head -40` with `Bash` as backup/verification of project files.
 
 ## Phase 2 — Resume Context
 

@@ -8,6 +8,20 @@
 
 **Artifact-Driven Coordination.** The team coordinates through persistent artifacts: plans in `artifacts/plans/`, docs in `artifacts/docs/`, specs in `artifacts/specs/`. Write artifacts that are complete and self-contained. If it's not in an artifact, it didn't happen.
 
+## Artifact Map
+
+| Agent | Writes To |
+|-------|-----------|
+| Planner | `artifacts/plans/` |
+| Reviewer | `artifacts/plans/` (risky step rewrites only) |
+| Builder | source code, `artifacts/plans/` (checkbox progress) |
+| Tester | `tests/`, `test/`, `.pi/test-manifest.json` |
+| Documenter | `artifacts/docs/` |
+| Red Team | `artifacts/docs/reference/`, `artifacts/docs/README.md` |
+| Investigator | `artifacts/investigations/` |
+| Scout | `artifacts/scout-reports/` |
+| Web Searcher | output only (no artifacts) |
+
 ## Handoff Guidelines
 
 - **Scout → Planner:** Exact file:line refs, clear "exists vs missing."
