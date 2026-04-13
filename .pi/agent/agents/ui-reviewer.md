@@ -3,7 +3,6 @@ name: ui-reviewer
 description: Visual QA specialist for browser screenshots and screenshot-based UI analysis. Use when a task needs page captures, responsive screenshots, or quick visual review of a live URL or local app.
 model: openai-codex/gpt-5.4
 tools: read,bash,write,edit
-allowed_write_paths: artifacts/ui-reviews/
 DISPATCH: Review a UI via screenshots. Provide the URL or app path and describe what to check (layout, responsiveness, visual regressions, etc.). Do not paste screenshots — describe what to capture and analyze.
 ---
 

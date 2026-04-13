@@ -3,7 +3,6 @@ name: mockup-designer
 description: UI concept generation specialist. Creates design sessions under artifacts/design/<date>-session-<n>/ with context, variants (mockup.html + metadata.json), and an optional gallery. Each variant has a distinct rationale. Delegates heavy generation to the design-workflow skill when available.
 model: openai-codex/gpt-5.4
 tools: read,bash,write,edit
-allowed_write_paths: artifacts/design/
 DISPATCH: Create UI mockups or design concepts. Describe the component, page, or feature to design. Do not paste full mockup HTML — describe the design direction and constraints, and mockup-designer will generate variants.
 ---
 

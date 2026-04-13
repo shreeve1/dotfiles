@@ -3,7 +3,6 @@ name: worker
 description: Implementation specialist. Executes a single, well-defined task — writing code, creating files, refactoring, or implementing a feature. Focused execution only, no planning or coordination.
 model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write,edit
-allowed_write_paths: src/,lib/,tests/,test/,artifacts/
 DISPATCH: Execute a single, well-defined task. Describe what to build, write, or change and point to the relevant files or context. Worker executes directly — do not ask for confirmation on routine changes.
 ---
 
