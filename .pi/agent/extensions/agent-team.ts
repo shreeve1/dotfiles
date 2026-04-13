@@ -497,17 +497,15 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
 
     const hToolBudget = targetState.def.toolBudget ?? targetState.def.maxToolCalls ?? MAX_TOOL_CALLS;
     const hToolBudgetBlock = hToolBudget > 0
-      ? `\n\n## Tool Call Budget\n\nYou have a maximum of ${hToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${hToolBudget}.\n\n**Before finishing:** Call \`add_session_note()\` with what you learned. This is mandatory.\n`
+      ? `\n\n## Tool Call Budget\n\nYou have a maximum of ${hToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${hToolBudget}.\n`
       : "";
-    const hCombinedPrompt = `${hContextBlock}${hTeamRosterBlock}${hCuratedMessagesBlock}${hDomainBlock}${hExpertiseBlock}${hAgentSkillsBlock}\n\n${targetState.def.systemPrompt}${hSessionNotesBlock}${hToolBudgetBlock}`;
+    const hCombinedPrompt = `${targetState.def.systemPrompt}${hToolBudgetBlock}`;
     const reqPromptFile = join(tmpdir(), `pi-team-req-prompt-${targetKey}-${randomUUID()}.txt`);
     writeFileSync(reqPromptFile, hCombinedPrompt, "utf-8");
 
     const args = [
       "--mode", "json", "-p",
       "--no-extensions",
-      "-e", resolve(homedir(), ".pi/agent/extensions/team-comms.ts"),
-      "-e", resolve(homedir(), ".pi/agent/extensions/domain-lock.ts"),
       "-e", resolve(homedir(), ".pi/agent/extensions/auto-compact.ts"),
       ...(hasWebTools(targetState.def.tools)
         ? ["-e", resolve(homedir(), ".pi/agent/extensions/web-fetch/index.ts")]
@@ -521,7 +519,7 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
     args.push(formattedTask);
     const proc = spawn(process.platform === "win32" ? "pi.exe" : "pi", args, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, PI_AGENT_NAME: targetKey, PI_TEAM_COMMS_DIR: commsDir, PI_TEAM_DIR: activeTeamDir, PI_COMMS_DEPTH: "1", PI_ALLOWED_WRITE_PATHS: targetState.def.allowedWritePaths || undefined, PI_TEAM_WRITE_MAP: JSON.stringify(buildTeamWriteMap(agentStates)) },
+      env: { ...process.env, PI_AGENT_NAME: targetKey, PI_ALLOWED_WRITE_PATHS: targetState.def.allowedWritePaths || undefined },
     });
 
     // -- 10-minute timeout per input-request agent run --
@@ -1409,9 +1407,9 @@ export default function (pi: ExtensionAPI) {
 
 		const agentToolBudget = baseState.def.toolBudget ?? baseState.def.maxToolCalls ?? MAX_TOOL_CALLS;
 		const toolBudgetBlock = agentToolBudget > 0
-			? `\n\n## Tool Call Budget\n\nYou have a maximum of ${agentToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${agentToolBudget}.\n\n**Before finishing:** Call \`add_session_note()\` with what you learned. This is mandatory.\n`
+			? `\n\n## Tool Call Budget\n\nYou have a maximum of ${agentToolBudget} tool calls for this task. Plan your work accordingly — prioritize the most important actions first. You will be killed if you exceed this limit. Currently at 0/${agentToolBudget}.\n`
 			: "";
-		const combinedPrompt = `${contextBlock}${teamRosterBlock}${curatedMessagesBlock}${domainBlock}${expertiseBlock}${agentSkillsBlock}\n\n${baseState.def.systemPrompt}${sessionNotesBlock}${toolBudgetBlock}`;
+		const combinedPrompt = `${baseState.def.systemPrompt}${toolBudgetBlock}`;
 		const promptFile = join(tmpdir(), `pi-team-comms-prompt-${baseKey}-${randomUUID()}.txt`);
 		writeFileSync(promptFile, combinedPrompt, "utf-8");
 
@@ -1419,8 +1417,6 @@ export default function (pi: ExtensionAPI) {
 			"--mode", "json",
 			"-p",
 			"--no-extensions",
-			"-e", resolve(homedir(), ".pi/agent/extensions/team-comms.ts"),
-			"-e", resolve(homedir(), ".pi/agent/extensions/domain-lock.ts"),
 			"-e", resolve(homedir(), ".pi/agent/extensions/auto-compact.ts"),
 			...(hasWebTools(baseState.def.tools)
 				? ["-e", resolve(homedir(), ".pi/agent/extensions/web-fetch/index.ts")]
@@ -1445,12 +1441,8 @@ export default function (pi: ExtensionAPI) {
 				stdio: ["ignore", "pipe", "pipe"],
 				env: {
 					...process.env,
-					// Instance-aware identity for comms observability; base slug for file I/O
 					PI_AGENT_NAME: instanceMeta ? instanceMeta.label : baseKey,
-					PI_TEAM_COMMS_DIR: resolve(ctx.cwd, COMMS_DIR_NAME),
-					PI_TEAM_DIR: activeTeamDir,
 					PI_ALLOWED_WRITE_PATHS: baseState.def.allowedWritePaths || undefined,
-					PI_TEAM_WRITE_MAP: JSON.stringify(buildTeamWriteMap(agentStates)),
 				},
 			});
 
@@ -2269,9 +2261,6 @@ ${agentCatalog}`,
 		if (teamNames.length > 0) {
 			activateTeam(teamNames[0]);
 		}
-
-		// Start request watcher for team communication
-		startRequestWatcher(_ctx.cwd, _ctx);
 
 		// Lock down to dispatcher-only (tool already registered at top level)
 		pi.setActiveTools(["dispatch_agent", "dispatch_parallel", "track_goal"]);
