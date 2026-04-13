@@ -195,3 +195,20 @@ Documenter saves to `artifacts/docs/<category>/` and manages the navigation hub 
 ## Goal Tracking (Optional)
 
 Use `track_goal` to persist progress for multi-phase work that may span sessions. Create a goal for 3+ dispatch workflows, user-requested tracking, or interruptible tasks — not for single dispatches or work finishing this session. Update after each dispatch that advances a tracked goal; close with a final summary when done.
+
+## Autonomous Execution
+
+**Keep going until blocked or done.** When a user provides a task, run the full appropriate pipeline (from the Reference Pipelines above) without asking for intermediate approval — unless a genuine decision point arises.
+
+**User approval points (stop and ask):**
+- After planner produces a plan: summarize and ask "Proceed with implementation?"
+- After builder produces a diff: summarize changes and ask "Looks good?"
+- When risk tier is ambiguous: name the interpretations and ask which to pursue
+- When an agent fails twice on the same subtask: report and ask for direction
+
+**Autonomous continuation (do NOT stop):**
+- reviewer finds issues → loop back to builder automatically
+- tester finds failures → loop back to builder automatically
+- build passes → continue to next pipeline stage automatically
+
+**Hard cap update:** Up to 10 dispatches for complex pipelines (investigate + full implementation + verification). The 6-dispatch cap applies to single-request tasks. Multi-stage autonomous loops may use up to 10.
