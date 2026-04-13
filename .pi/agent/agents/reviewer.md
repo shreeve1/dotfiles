@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Code and plan review specialist. Reviews plans for feasibility and code for correctness, categorising findings as Critical, Important, or Minor. DISPATCH: Provide a plan file path (absolute if cross-project) or a diff/branch/files to review. Include review criteria if specific areas matter.
-model: zai/glm-5.1
+model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write,edit
 allowed_write_paths: artifacts/plans/
 tool_budget: 30

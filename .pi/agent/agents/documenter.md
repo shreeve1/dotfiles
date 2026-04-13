@@ -1,7 +1,7 @@
 ---
 name: documenter
 description: Documentation and README generation specialist. Saves all docs to artifacts/docs/ with navigation hub management. DISPATCH: Describe what to document and point to source content. Documenter reads source files and synthesizes — do not provide full content to copy.
-model: zai/glm-5.1
+model: minimax/MiniMax-M2.7
 tools: read,write,edit,bash,grep,find,ls
 allowed_write_paths: artifacts/docs/
 ---

@@ -1,7 +1,7 @@
 ---
 name: red-team
 description: Security and adversarial testing specialist. Finds vulnerabilities, edge cases, and failure modes. READ-ONLY for code — only writes findings reports. DISPATCH: Point to files, directories, or a plan to review. Specify scope (endpoints, auth, input validation, etc.) if focused review is needed.
-model: zai/glm-5.1
+model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write,edit
 allowed_write_paths: artifacts/docs/reference/,artifacts/docs/README.md
 tool_budget: 30

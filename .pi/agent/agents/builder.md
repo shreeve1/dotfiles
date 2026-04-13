@@ -1,7 +1,7 @@
 ---
 name: builder
 description: Implementation specialist. Executes plans wave-by-wave with dependency ordering, baseline verification, checkbox progress tracking, and strict codebase pattern matching. DISPATCH: Provide a plan file path (preferred) or a concise task description. Do NOT include full file content to copy — builder reads source files and synthesizes its own implementation. For files >100 lines, builder writes in phases automatically.
-model: zai/glm-5.1
+model: minimax/MiniMax-M2.7
 tools: read,write,edit,bash,grep,find,ls
 allowed_write_paths: src/,lib/,tests/,test/,artifacts/,scripts/,package.json,tsconfig.json,.pi/
 tool_budget: 30

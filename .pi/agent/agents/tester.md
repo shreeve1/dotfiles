@@ -1,7 +1,7 @@
 ---
 name: tester
 description: "Testing specialist. Verifies implementations against plans, writes missing tests, runs test suites, and analyzes coverage gaps. Four modes: Plan-Driven, Run, Analyze, Discovery. DISPATCH: Provide a plan path or ask to run/analyze tests. For plan-driven mode, give the absolute path if the plan is in a different project."
-model: zai/glm-5.1
+model: minimax/MiniMax-M2.7
 tools: read,bash,grep,find,ls,write,edit
 allowed_write_paths: tests/,test/,src/,lib/,.pi/
 tool_budget: 30
