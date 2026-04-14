@@ -158,51 +158,6 @@ function ensureCommsDirs(commsDir: string): void {
   mkdirSync(join(commsDir, COMMS_RESPONSES_DIR), { recursive: true });
 }
 
-function readContextFile(tDir: string): string {
-  if (!tDir) return "";
-  const p = join(tDir, "context.md");
-  if (!existsSync(p)) return "";
-  try { return readFileSync(p, "utf-8").trim(); } catch { return ""; }
-}
-
-function readExpertiseFile(tDir: string, agentName: string): string {
-  if (!tDir) return "";
-  const slug = agentName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  const p = join(tDir, "expertise", `${slug}.md`);
-  if (!existsSync(p)) return "";
-  try {
-    const content = readFileSync(p, "utf-8").trim();
-    if (Buffer.byteLength(content) > 65536) {
-      return Buffer.from(content).subarray(0, 65536).toString("utf-8") + "\n\n[expertise truncated]";
-    }
-    return content;
-  } catch { return ""; }
-}
-
-function readDomainKnowledge(teamDir: string, agentSlug: string): string {
-  if (!teamDir) return "";
-  const knowledgeDir = join(teamDir, "knowledge");
-  const parts: string[] = [];
-  try {
-    const shared = readFileSync(join(knowledgeDir, "shared.md"), "utf-8").trim();
-    if (shared) parts.push(shared);
-  } catch {}
-  try {
-    const agentKnowledge = readFileSync(join(knowledgeDir, `${agentSlug}.md`), "utf-8").trim();
-    if (agentKnowledge) parts.push(agentKnowledge);
-  } catch {}
-  const combined = parts.join("\n\n---\n\n");
-  if (Buffer.byteLength(combined) > 65536) {
-    return Buffer.from(combined).subarray(0, 65536).toString("utf-8") + "\n\n[domain knowledge truncated]";
-  }
-  return combined;
-}
-
-function formatDomainKnowledgeBlock(dk: string): string {
-  if (!dk) return "";
-  return "\n## Domain Knowledge\n\n" + dk + "\n";
-}
-
 interface SessionNote { timestamp: string; note: string; summary?: boolean; compacted_count?: number; from?: string; to?: string; }
 
 function readSessionNotes(tDir: string, agentName: string, limit: number = 8): SessionNote[] {
@@ -217,49 +172,6 @@ function readSessionNotes(tDir: string, agentName: string, limit: number = 8): S
     }).filter((n): n is SessionNote => n !== null);
     return entries.slice(-limit);
   } catch { return []; }
-}
-
-function formatSessionNotesBlock(notes: SessionNote[]): string {
-  if (notes.length === 0) return "";
-  const lines = notes.map(n => {
-    if (n.summary) {
-      return `- **[SUMMARY of ${n.compacted_count || "?"} notes, ${n.from || "?"} to ${n.to || "?"}]**: ${n.note}`;
-    }
-    return `- **${n.timestamp}**: ${n.note}`;
-  });
-  return "\n## Recent Session Notes\n\n" + lines.join("\n") + "\n";
-}
-
-function formatExpertiseBlock(content: string): string {
-  if (!content) return "";
-  return "\n## Your Expertise\n\n" + content + "\n";
-}
-
-function formatContextBlock(content: string): string {
-  if (!content) return "";
-  return "\n## Shared Domain Context\n\n" + content + "\n";
-}
-
-function readAgentSkills(teamDir: string): string {
-  try {
-    const skillsDir = resolve(teamDir, "agent-skills");
-    if (!existsSync(skillsDir)) return "";
-    const files = readdirSync(skillsDir).filter(f => f.endsWith(".md")).sort();
-    let combined = "";
-    for (const file of files) {
-      const content = readFileSync(resolve(skillsDir, file), "utf-8").trim();
-      if (combined.length + content.length > 4000) break; // Guardrail: max 4000 chars total
-      combined += (combined ? "\n\n" : "") + content;
-    }
-    return combined;
-  } catch {
-    return "";
-  }
-}
-
-function formatAgentSkillsBlock(skillsText: string): string {
-  if (!skillsText) return "";
-  return `\n\n## Agent Skills\n\n${skillsText}`;
 }
 
 const CHANNEL_MAX_MESSAGES = 200;
@@ -287,23 +199,6 @@ function rotateChannelIfNeeded(cwd: string): void {
   } catch {}
 }
 
-function curateMessagesForAgent(messages: ChannelMessage[], agentName: string): ChannelMessage[] {
-  const MAX_CURATED = 20;
-  const mentionsAgent = messages.filter((m) => m.from_agent !== agentName && m.content.toLowerCase().includes(agentName.toLowerCase()));
-  const highPriority = messages.filter((m) => m.from_agent !== agentName && m.priority === "high" && !mentionsAgent.includes(m));
-  const rest = messages.filter((m) => m.from_agent !== agentName && !mentionsAgent.includes(m) && !highPriority.includes(m));
-  return [...mentionsAgent, ...highPriority, ...rest.slice(-MAX_CURATED)].slice(-MAX_CURATED);
-}
-
-function formatCuratedMessages(messages: ChannelMessage[]): string {
-  if (messages.length === 0) return "";
-  const lines = messages.map((m) => {
-    const icon: Record<string, string> = { discovery: "🔍", decision: "✅", warning: "⚠️", question: "❓", disagreement: "🔴" };
-    const refs = m.references?.length ? " [refs: " + m.references.join(", ") + "]" : "";
-    return (icon[m.message_type] || "💬") + " **" + m.from_agent + "** (" + m.message_type + "): " + m.content + refs;
-  });
-  return "\n## Team Channel (Recent Messages)\n\n" + lines.join("\n\n") + "\n";
-}
 // ─── Request Routing State ───────────────────────────────────────────────────
 
 let agentStates: Map<string, AgentState> = new Map();
@@ -474,26 +369,6 @@ async function handleInputRequest(request: InputRequest, cwd: string, responsesD
   const formattedTask = `A teammate (${request.from_agent}) is asking for your input:\n\n**Question:** ${request.question}${request.context ? `\n\n**Context:** ${request.context}` : ""}\n\nPlease provide a helpful, focused response.`;
   try {
     const agentSessionFile = join(cwd, ".pi", "agent-sessions", `${targetKey}.json`);
-    const commsDir = getCommsDir(cwd);
-
-    // Build full context prompt (same as dispatchAgent)
-    const teamRoster = Array.from(agentStates.values())
-      .map(s => `- ${s.def.name}: ${s.def.description}`)
-      .join("\n");
-    const hTeamRosterBlock = `## Your Team\nYou are ${targetState.def.name} on a team with:\n${teamRoster}\n\n## Team Communication\nYou have two tools for team communication:\n- post_to_channel: Share discoveries, decisions, warnings, or disagreements with the team\n- request_input: Ask a specific teammate a question and wait for their response`;
-    const hAllMessages = readChannelMessages(cwd);
-    const hCurated = curateMessagesForAgent(hAllMessages, targetKey);
-    const hCuratedMessagesBlock = formatCuratedMessages(hCurated);
-    const hContextContent = readContextFile(activeTeamDir);
-    const hContextBlock = formatContextBlock(hContextContent);
-    const hDomainKnowledge = readDomainKnowledge(activeTeamDir, targetKey);
-    const hDomainBlock = formatDomainKnowledgeBlock(hDomainKnowledge);
-    const hExpertiseContent = readExpertiseFile(activeTeamDir, targetKey);
-    const hExpertiseBlock = formatExpertiseBlock(hExpertiseContent);
-    const hAgentSkills = readAgentSkills(activeTeamDir);
-    const hAgentSkillsBlock = formatAgentSkillsBlock(hAgentSkills);
-    const hSessionNotes = readSessionNotes(activeTeamDir, targetKey);
-    const hSessionNotesBlock = formatSessionNotesBlock(hSessionNotes);
 
     const hToolBudget = targetState.def.toolBudget ?? targetState.def.maxToolCalls ?? MAX_TOOL_CALLS;
     const hToolBudgetBlock = hToolBudget > 0
@@ -1384,26 +1259,6 @@ export default function (pi: ExtensionAPI) {
 		const agentSessionFile = instanceMeta
 			? join(sessionDir, `${baseKey}${instanceMeta.sessionSuffix}.json`)
 			: join(sessionDir, `${baseKey}.json`);
-
-		// Build args — first run creates session, subsequent runs resume
-		// Use baseKey for file lookups (keeps expertise/session-notes stable for instances)
-		const teamRoster = Array.from(agentStates.values())
-			.map(s => `- ${s.def.name}: ${s.def.description}`)
-			.join("\n");
-		const teamRosterBlock = `## Your Team\nYou are ${baseState.def.name} on a team with:\n${teamRoster}\n\n## Team Communication\nYou have two tools for team communication:\n- post_to_channel: Share discoveries, decisions, warnings, or disagreements with the team\n- request_input: Ask a specific teammate a question and wait for their response`;
-		const allMessages = readChannelMessages(ctx.cwd);
-		const curated = curateMessagesForAgent(allMessages, baseKey);
-		const curatedMessagesBlock = formatCuratedMessages(curated);
-		const contextContent = readContextFile(activeTeamDir);
-		const contextBlock = formatContextBlock(contextContent);
-		const domainKnowledge = readDomainKnowledge(activeTeamDir, baseKey);
-		const domainBlock = formatDomainKnowledgeBlock(domainKnowledge);
-		const expertiseContent = readExpertiseFile(activeTeamDir, baseKey);
-		const expertiseBlock = formatExpertiseBlock(expertiseContent);
-		const agentSkills = readAgentSkills(activeTeamDir);
-		const agentSkillsBlock = formatAgentSkillsBlock(agentSkills);
-		const sessionNotes = readSessionNotes(activeTeamDir, baseKey);
-		const sessionNotesBlock = formatSessionNotesBlock(sessionNotes);
 
 		const agentToolBudget = baseState.def.toolBudget ?? baseState.def.maxToolCalls ?? MAX_TOOL_CALLS;
 		const toolBudgetBlock = agentToolBudget > 0

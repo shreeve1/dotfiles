@@ -1,7 +1,7 @@
 # Verifier: Scout Discovery
 
 ## Target Agent
-scout.md (from agents/infra-ops/)
+investigator.md (from agents/infra-ops/)
 
 ## Context Files
 context.md (from teams/2-infra-ops/)

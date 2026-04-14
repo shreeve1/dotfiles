@@ -1,7 +1,7 @@
 # Verifier: Runbook Quality
 
 ## Target Agent
-documenter.md (from agents/infra-ops/)
+dispatcher.md (from agents/teams/2-infra-ops/)
 
 ## Context Files
 context.md (from teams/2-infra-ops/)

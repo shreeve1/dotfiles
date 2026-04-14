@@ -1,8 +1,7 @@
 name: infra-ops
 agents:
-  - infra-scout
+  - infra-investigator
+  - infra-searcher
   - infra-responder
-  - infra-analyst
   - infra-operator
   - infra-hardener
-  - infra-documenter

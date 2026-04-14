@@ -30,12 +30,12 @@ Benchmarks simulate MSP small-business scenarios: mixed Windows/Linux environmen
 |-----------|-------|--------------|
 | incident-triage-p1 | P1 severity assessment, Speed-first routing | dispatcher |
 | incident-triage-p3 | P3 severity assessment, proportionate response | dispatcher |
-| baseline-documentation | Completeness, structure, actionable concerns | documenter |
+| baseline-documentation | Completeness, structure, actionable concerns | investigator |
 | tension-resolution | Speed vs Depth mediation, evidence-based decisions | dispatcher |
 | remediation-safety | Authorization gates, business-hours awareness | responder |
-| runbook-quality | Actionable runbook from incident resolution | documenter |
-| cross-platform-diagnosis | Mixed Windows/Linux root cause analysis | analyst |
+| runbook-quality | Actionable runbook from incident resolution | dispatcher |
+| cross-platform-diagnosis | Mixed Windows/Linux root cause analysis | investigator |
 | multi-alert-triage | Simultaneous alerts, priority and parallelism | dispatcher |
-| scout-discovery | Environment mapping, dependency chains, concern flagging | scout |
+| scout-discovery | Environment mapping, dependency chains, concern flagging | investigator |
 | maintenance-planning | Dependency ordering, rollback plans, timing feasibility | operator |
 | security-audit | Post-incident hardening, defense analysis, detection gaps | hardener |
