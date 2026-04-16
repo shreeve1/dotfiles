@@ -1,7 +1,7 @@
 ---
 name: infra-searcher
 description: Research specialist. Searches vendor documentation, CVE databases, and known-issue trackers to back investigation findings with citations.
-model: openai-codex/gpt-5.4
+model: openai-codex/gpt-5.3-codex
 tools: read,bash,grep,find,ls,web_fetch
 toolBudget: 20
 ---

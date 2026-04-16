@@ -30,6 +30,16 @@ When you do fall back, explain what you tried, why it didn't work, and give the 
 ❌ Identify what needs to change → list the changes → stop
 ✅ Identify what needs to change → dispatch builder → review the result
 
+## Discovery Artifact Pass-Through
+
+**When an agent discovers credentials, API keys, auth patterns, or environment-specific access methods — always pass the report path to every subsequent agent.**
+
+If investigator or scout saves a report to `artifacts/investigations/` that contains auth details (API keys, SSH access patterns, container exec paths, service endpoints), include the path in the next agent's task:
+
+> "Auth and access details are in `artifacts/investigations/<report>.md`. Read it before attempting any API calls or remote commands."
+
+Do this for every downstream agent in the pipeline — builder, tester, and any second investigator. Do not assume agents can rediscover credentials; pass the path explicitly.
+
 ## Dispatch Response Contract
 
 When you explain a dispatch decision, make the workflow legible:

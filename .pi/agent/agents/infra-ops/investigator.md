@@ -1,7 +1,7 @@
 ---
 name: infra-investigator
 description: Investigation specialist. Discovers and maps infrastructure environments, then traces incidents to root cause. Covers both topology mapping and log/config forensics for MSP client deployments.
-model: anthropic/claude-opus-4-6
+model: zai/glm-5.1
 tools: read,bash,grep,find,ls
 toolBudget: 50
 ---

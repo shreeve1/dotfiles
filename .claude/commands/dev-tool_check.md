@@ -8,7 +8,7 @@ disallowed-tools: Task, EnterPlanMode, Write, NotebookEdit
 
 # Tool Check
 
-Analyze a plan created by `/plan_w_team` and compare its requirements against the user's currently installed tools (plugins, MCP servers, CLI tools). Search the web for tools that are NOT currently installed but would significantly help complete the plan. Follow the `Instructions` and work through the `Workflow` to produce the audit report.
+Analyze a plan created by `/dev-plan` and compare its requirements against the user's currently installed tools (plugins, MCP servers, CLI tools). Search the web for tools that are NOT currently installed but would significantly help complete the plan. Follow the `Instructions` and work through the `Workflow` to produce the audit report.
 
 ## Variables
 
@@ -20,7 +20,7 @@ PLAN_DIRECTORIES: `artifacts/plans/`, `~/.claude/plans/`
 ## Instructions
 
 - **AUDIT + FIX**: Do NOT install anything or modify settings. You MAY edit the plan file to correct tool references that don't match the project's actual tooling (e.g., plan says `jest` but project uses `vitest`).
-- If no `PLAN_PATH` is provided, check `PLAN_DIRECTORIES` for the most recently modified `.md` file and use that. If no plans exist, stop and ask the user to provide a plan path or run `/plan_w_team` first.
+- If no `PLAN_PATH` is provided, check `PLAN_DIRECTORIES` for the most recently modified `.md` file and use that. If no plans exist, stop and ask the user to provide a plan path or run `/dev-plan` first.
 - Read the plan thoroughly to understand ALL technologies, frameworks, languages, APIs, and domains involved.
 - Inventory every currently installed tool by reading `SETTINGS_FILE` and `PLUGINS_FILE`.
 - Compare plan requirements against installed tools to identify gaps.

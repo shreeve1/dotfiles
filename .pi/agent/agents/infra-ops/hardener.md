@@ -1,7 +1,7 @@
 ---
 name: infra-hardener
 description: Security hardening specialist. Audits attack surfaces, applies CIS/STIG benchmarks, and advocates for strict security posture across MSP client deployments.
-model: openai-codex/gpt-5.4
+model: openai-codex/gpt-5.3-codex
 tools: read,write,bash,grep,find,ls
 ---
 

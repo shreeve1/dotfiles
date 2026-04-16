@@ -1,53 +1,131 @@
 ---
 name: dev-plan
-description: Use when planning any feature, fix, refactor, or enhancement. Triggers on 'plan this', 'how should I', 'design approach', 'implementation strategy', 'create a spec', or any request for architecture before coding. Creates traceable plans that /dev-build can execute.
+description: Use when the user wants a structured implementation plan, technical approach, phased roadmap, or task breakdown for a feature, fix, refactor, or enhancement before writing code.
 argument-hint: [user prompt]
-model: sonnet
 ---
 
-# Quick Plan
+# Create Implementation Plan
 
-Create a detailed implementation plan based on the user's requirements provided through the `USER_PROMPT` variable. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `PLAN_OUTPUT_DIRECTORY/<name-of-plan>.md` that can be used as a blueprint for actual development work. Follow the `Instructions` and work through the `Workflow` to create the plan.
+Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
 
 ## Variables
 
-USER_PROMPT: $1
-PLAN_OUTPUT_DIRECTORY: `artifacts/plans/`
-TEST_DIR: `tests/`
+- `USER_PROMPT` — user's planning request
+- `PLAN_OUTPUT_DIRECTORY` — `plans/`
+- `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
+- `TEST_DIR` — `tests/`
 
 ## Pre-flight
 
-Ensure `PLAN_OUTPUT_DIRECTORY` exists. If not, create it:
+Ensure `plans/` directory exists. If not, create it:
 ```bash
-mkdir -p artifacts/plans/
+mkdir -p plans/
 ```
 
-## Workflow
+## Workflow Overview
 
-Work through these steps in order:
-1. **Parse requirements** — analyze USER_PROMPT to understand core problem and desired outcome
-2. **Discover source document** — run Source Document Discovery if USER_PROMPT is free text
-3. **Understand codebase** — directly explore existing patterns, architecture, and relevant files without subagents
-4. **Design solution** — develop technical approach with architecture decisions and implementation strategy
-5. **Document plan** — structure comprehensive markdown document following Plan Format
-6. **Generate filename** — create descriptive kebab-case filename based on plan's main topic
-7. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
-8. **Report** — present the completed plan summary and remind user to run `/dev-build` when ready
+Work through these 10 phases in order:
+
+1. **Parse Requirements** — analyze USER_PROMPT to understand core problem and desired outcome
+2. **Discover Source Document** — run Source Document Discovery if USER_PROMPT is free text
+3. **Understand Codebase** — explore existing patterns, architecture, and relevant files directly
+4. **Design Solution** — develop technical approach with architecture decisions and implementation strategy
+5. **Plan phases** — structure the implementation into logical phases
+6. **Document Plan** — write comprehensive markdown document following Plan Format
+7. **Generate filename** — create descriptive kebab-case filename
+8. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
+9. **Validate** — verify plan completeness and coherence
+10. **Report** — present completed plan summary
+
+## Phase Details
+
+### Phase 1: Parse Requirements
+
+Analyze the USER_PROMPT to understand:
+- What is the core problem or desired outcome?
+- What type of task is this (feature|fix|refactor|enhancement|chore)?
+- What is the complexity level (simple|medium|complex)?
+- What constraints or requirements exist?
+
+Ask clarifying questions if intent is not clear.
+
+### Phase 2: Source Document Discovery
+
+If USER_PROMPT is a file path, read that file directly as the source document.
+If USER_PROMPT is free text (not a path), check for a source document:
+1. List all `.md` files in both `artifacts/specs/` and `artifacts/brainstorming/` sorted by modification date (most recent first)
+2. If source documents exist, use `AskUserQuestion`: "Found source document: <filename>. Use this as the source for planning and traceability?"
+   - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
+3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
+
+### Phase 3: Understand Codebase
+
+Explore the codebase directly to understand:
+- Existing patterns and architecture
+- Relevant files for the task
+- Dependencies and integrations
+- Test structure and patterns
+
+Use `Read` and `Grep` tools to gather context. Do not use subagents for this phase.
+
+### Phase 4: Design Solution
+
+Think deeply (ultrathink) about the best approach:
+- Architecture decisions
+- Implementation strategy
+- Edge cases and error handling
+- Scalability concerns
+- Trade-offs and alternatives considered
+
+Document the reasoning behind key decisions.
+
+### Phase 5: Plan Phases
+
+Structure the implementation into logical phases:
+- **Phase 1: Foundation** — any foundational work needed
+- **Phase 2: Core Implementation** — the main implementation work
+- **Phase 3: Integration & Polish** — integration, testing, and final touches
+
+For simple tasks, phases may be combined. For complex tasks, add more phases as needed.
+
+### Phase 6: Document Plan
+
+Follow the Plan Format below to create a comprehensive implementation plan with all required sections.
+
+### Phase 7: Generate Filename
+
+Create a descriptive kebab-case filename based on the plan's main topic, e.g.:
+- `feature-auth-jwt.md`
+- `fix-session-timeout.md`
+- `refactor-api-client.md`
+
+### Phase 8: Save Plan File
+
+Write the complete plan to `plans/<filename>.md`. Ensure:
+- Plan is detailed enough that another developer could follow it
+- Code examples or pseudo-code included where appropriate
+- All edge cases and error handling addressed
+
+### Phase 9: Validate
+
+Verify the plan:
+- All required sections present
+- Tasks are actionable and have stable [N.M] ID prefixes
+- Traceability map correctly links #req-* tags to task IDs
+- No missing dependencies between tasks
+- Testing strategy is clear and complete
+
+### Phase 10: Report
+
+Present the completed plan summary and remind user to run `/dev-build` when ready.
 
 ## Instructions
 
-- IMPORTANT: If no `USER_PROMPT` is provided, stop and ask the user to provide it.
-- Carefully analyze the user's requirements provided in the USER_PROMPT variable
-- Determine the task type (chore|feature|refactor|fix|enhancement) and complexity (simple|medium|complex)
-- Think deeply (ultrathink) about the best approach to implement the requested functionality or solve the problem
-- Understand the codebase directly without subagents to understand existing patterns and architecture
-- Follow the Plan Format below to create a comprehensive implementation plan
-- Include all required sections and conditional sections based on task type and complexity
-- Generate a descriptive, kebab-case filename based on the main topic of the plan
-- Save the complete implementation plan to `PLAN_OUTPUT_DIRECTORY/<descriptive-name>.md`
-- Ensure the plan is detailed enough that another developer could follow it to implement the solution
-- Include code examples or pseudo-code where appropriate to clarify complex concepts
-- Consider edge cases, error handling, and scalability concerns
+- **IMPORTANT**: If no USER_PROMPT is provided, stop and ask the user to provide it.
+- Determine task type (chore|feature|refactor|fix|enhancement) and complexity (simple|medium|complex)
+- Think deeply (ultrathink) about the best approach
+- Follow the Plan Format below exactly
+- Generate descriptive, kebab-case filename
 
 ### Tag Propagation
 
@@ -55,25 +133,14 @@ If a source document (PRD, brainstorming output) is found via Source Document Di
 1. Scan it for `#req-[id]` patterns (e.g., `#req-user-login`, `#req-data-export`)
 2. When generating the `## Step by Step Tasks` section, give each task item a **stable inline ID prefix** `[N.M]` and append the relevant `#req-[id]` tag
 3. Format: `- [ ] [1.1] Implement login form #req-user-login`
-4. The `[N.M]` prefix serves as a stable anchor for `/dev-test` to match against when flipping checkboxes. This is critical because task descriptions may be reformatted by `/dev-validate` rewrites, but the ID prefix will survive.
-5. Add a `## Traceability Map` section at the end of the plan showing `#req-[id]` -> Task IDs
+4. The `[N.M]` prefix serves as a stable anchor for `/dev-test` to match against when flipping checkboxes
+5. Add a `## Traceability Map` section at the end showing `#req-[id]` -> Task IDs
 
-If no `#req-[id]` tags exist in the source document, skip tag propagation and generate tasks without tags or traceability map (graceful degradation).
-
-## Source Document Discovery
-
-If `USER_PROMPT` is a file path, read that file directly as the source document.
-If `USER_PROMPT` is free text (not a path), also check for a source document:
-1. List all `.md` files in both `artifacts/specs/` and `artifacts/brainstorming/` sorted by modification date (most recent first)
-2. If source documents exist, use `AskUserQuestion`: "Found source document: <filename>. Use this as the source for planning and traceability?"
-   - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
-3. If user confirms, read the source file and use it alongside `USER_PROMPT` for requirement tag scanning (see Tag Propagation below)
-
-This allows `/dev-plan` to scan PRDs or brainstorming output for `#req-[id]` tags even when the user provides a free-text prompt. Without this, the traceability chain breaks at the source-to-plan handoff.
+If no `#req-[id]` tags exist, skip tag propagation (graceful degradation).
 
 ## Plan Format
 
-Follow this format when creating implementation plans:
+Follow this format exactly:
 
 ```md
 # Plan: <task name>
@@ -128,8 +195,7 @@ Each task item uses a stable inline ID prefix `[N.M]` where N is the step number
 
 Note: If no #req-[id] tags exist in the source, omit the tag suffix but still use the [N.M] ID prefix and checkbox format.
 
-**Optional parallelism annotations** (append to any `### N.` header when `/dev-build`'s
-heuristics would be wrong):
+**Optional parallelism annotations** (append to any `### N.` header when `/dev-build`'s heuristics would be wrong):
 - `[parallel-safe]` — explicitly safe to run concurrently with other groups in the same phase, even if files overlap
 - `[sequential]` — must run alone in its own wave regardless of other signals
 
@@ -200,12 +266,12 @@ Execute these commands to validate the task is complete:
 
 ## Report
 
-After creating and saving the implementation plan, provide a concise report with the following format:
+After creating and saving the implementation plan, provide a concise report:
 
 ```
 ✅ Implementation Plan Created
 
-File: PLAN_OUTPUT_DIRECTORY/<filename>.md
+File: plans/<filename>.md
 Topic: <brief description of what the plan covers>
 Key Components:
 - <main component 1>
@@ -213,5 +279,5 @@ Key Components:
 - <main component 3>
 
 Next Steps:
-Run `/dev-build PLAN_OUTPUT_DIRECTORY/<filename>.md` when ready to implement.
+Run `/dev-build plans/<filename>.md` when ready to implement.
 ```

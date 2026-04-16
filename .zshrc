@@ -160,6 +160,7 @@ alias claude-zai='claude-provider zai'
 alias claude-moonshot='claude-provider moonshot'
 alias claude-alibaba='claude-provider alibaba'
 alias claude-openrouter='claude-provider openrouter'
+alias claude-minimax='claude-provider minimax'
 alias cc='claude'
 
 # Android SDK
@@ -214,3 +215,6 @@ export PATH="/opt/homebrew/bin:$PATH"
 
 # OpenClaw Completion
 source "/Users/james/.openclaw/completions/openclaw.zsh"
+
+# PAI alias
+alias pai='bun /Users/james/.claude/PAI/Tools/pai.ts'

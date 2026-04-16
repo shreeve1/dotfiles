@@ -60,3 +60,36 @@ link_path ".pi/agent" ".pi/agent"
 
 link_path ".config/nvim/init.lua" ".config/nvim/init.lua"
 link_path ".config/nvim/lazy-lock.json" ".config/nvim/lazy-lock.json"
+
+# ─── PAI / Claude Code ───────────────────────────────────
+# Core files
+link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
+link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
+link_path ".claude/install.sh" ".claude/install.sh"
+link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
+link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
+
+# PAI engine
+link_path ".claude/PAI" ".claude/PAI"
+
+# Skills, hooks, commands, agents, lib
+link_path ".claude/skills" ".claude/skills"
+link_path ".claude/hooks" ".claude/hooks"
+link_path ".claude/commands" ".claude/commands"
+link_path ".claude/agents" ".claude/agents"
+link_path ".claude/lib" ".claude/lib"
+
+# Syncable memory (learning + relationship cross devices)
+link_path ".claude/MEMORY/README.md" ".claude/MEMORY/README.md"
+link_path ".claude/MEMORY/LEARNING" ".claude/MEMORY/LEARNING"
+link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
+
+# Note: settings.json is NOT symlinked — it contains secrets.
+# Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
+# Then fill in your API keys and machine-specific values.
+#
+# On a fresh machine, the full setup sequence is:
+#   1. git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh
+#   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
+#   3. Edit settings.json with your API keys and machine-specific values
+#   4. bun ~/.claude/install.sh   # runs the PAI installer

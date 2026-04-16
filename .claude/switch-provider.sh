@@ -23,8 +23,12 @@ case "$1" in
     cp "$CLAUDE_DIR/settings-openrouter.json" "$SETTINGS_FILE"
     echo "Switched to OpenRouter provider"
     ;;
+  minimax)
+    cp "$CLAUDE_DIR/settings-minimax.json" "$SETTINGS_FILE"
+    echo "Switched to MiniMax provider"
+    ;;
   *)
-    echo "Usage: switch-provider.sh [anthropic|zai|moonshot|alibaba|openrouter]"
+    echo "Usage: switch-provider.sh [anthropic|zai|moonshot|alibaba|openrouter|minimax]"
     current_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "unknown"' "$SETTINGS_FILE" 2>/dev/null)
     if [[ "$current_url" == *"anthropic.com" ]]; then
       echo "Current provider: Anthropic"
@@ -36,6 +40,8 @@ case "$1" in
       echo "Current provider: Alibaba"
     elif [[ "$current_url" == *"openrouter" ]]; then
       echo "Current provider: OpenRouter"
+    elif [[ "$current_url" == *"minimax" ]]; then
+      echo "Current provider: MiniMax"
     else
       echo "Current provider: Unknown ($current_url)"
     fi

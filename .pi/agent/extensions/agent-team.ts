@@ -848,6 +848,8 @@ export default function (pi: ExtensionAPI) {
 	let sessionDir = "";
 	let contextWindow = 0;
 	let dispatcherGuide = "";
+	let _widgetUpdatePending = false;
+	let _sharedDisplayTimer: ReturnType<typeof setInterval> | null = null;
 
 	function loadAgents(cwd: string) {
 		// Create session storage dir
@@ -1128,8 +1130,18 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// ── Widget Update (dispatches to view mode) ──
+	// Throttled to 50ms to batch rapid text-delta and multi-agent timer events.
 
 	function updateWidget() {
+		if (_widgetUpdatePending) return;
+		_widgetUpdatePending = true;
+		setTimeout(() => {
+			_widgetUpdatePending = false;
+			_renderWidget();
+		}, 50);
+	}
+
+	function _renderWidget() {
 		if (!widgetCtx) return;
 
 		widgetCtx.ui.setWidget("agent-team", (_tui: any, theme: any) => {
@@ -1247,7 +1259,7 @@ export default function (pi: ExtensionAPI) {
 		clearInterval(effectiveState.timer);
 		effectiveState.timer = setInterval(() => {
 			effectiveState.elapsed = Date.now() - startTime;
-			updateWidget();
+			// Display refresh handled by shared timer; no updateWidget() here.
 		}, 1000);
 
 		const model = baseState.def.model
@@ -1469,7 +1481,7 @@ export default function (pi: ExtensionAPI) {
 						stallDetectionCount = 0;
 					}
 				}
-				updateWidget();
+				// Display refresh handled by shared timer; no updateWidget() here.
 			}, 1000);
 
 			proc.on("close", (code) => {
@@ -2140,6 +2152,11 @@ ${agentCatalog}`,
 		);
 		updateWidget();
 
+		// Shared 1-second display timer: updates elapsed for all agents simultaneously.
+		// Per-agent timers handle stall detection only; display refresh centralised here.
+		if (_sharedDisplayTimer) clearInterval(_sharedDisplayTimer);
+		_sharedDisplayTimer = setInterval(() => { updateWidget(); }, 1000);
+
 		// Footer: model | team | context bar
 		_ctx.ui.setFooter((_tui, theme, _footerData) => ({
 			dispose: () => {},
@@ -2165,6 +2182,7 @@ ${agentCatalog}`,
 
   // Clean up all running agent processes on session shutdown
   pi.on("session_shutdown" as any, async () => {
+    if (_sharedDisplayTimer) { clearInterval(_sharedDisplayTimer); _sharedDisplayTimer = null; }
     for (const [, state] of agentStates) {
       if (state.proc && !state.proc.killed) {
         state.proc.kill("SIGTERM");

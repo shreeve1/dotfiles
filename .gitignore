@@ -12,42 +12,42 @@ artifacts/
 .pi/agent/*-sessions*.json
 .worktrees
 
-# Claude Code — runtime state, dependencies, and machine-local files
+# Claude Code — secrets and machine-local files
+.claude/settings.json
 .claude/settings.local.json
 .claude/settings-*.json
+
+# Machine-local runtime state (not synced)
+.claude/sessions/
+.claude/session-env/
+.claude/cache/
+.claude/projects/
+.claude/tasks/
+.claude/Plans/
+.claude/shell-snapshots/
+.claude/file-history/
+.claude/history.jsonl
+.claude/backups/
+.claude/plugins/
+.claude/mcp-needs-auth-cache.json
+.claude/policy-limits.json
+
+# Machine-local MEMORY (session/work/state are per-machine)
+.claude/MEMORY/STATE/
+.claude/MEMORY/VOICE/
+.claude/MEMORY/WORK/
+
+# PAI-Install (re-run installer on each device)
+.claude/PAI-Install/
+
+# VoiceServer (machine-local)
+.claude/VoiceServer/
+
+# General
 .claude/**/node_modules/
 .claude/**/__pycache__/
 .claude/**/.DS_Store
-.claude/mcp-servers/
-.claude/skills/gstack/
-# gstack symlinks (installed by gstack, not user config)
-.claude/skills/autoplan
-.claude/skills/benchmark
-.claude/skills/browse
-.claude/skills/canary
-.claude/skills/careful
-.claude/skills/codex
-.claude/skills/cso
-.claude/skills/design-consultation
-.claude/skills/design-review
-.claude/skills/document-release
-.claude/skills/freeze
-.claude/skills/gstack-upgrade
-.claude/skills/guard
-.claude/skills/investigate
-.claude/skills/land-and-deploy
-.claude/skills/office-hours
-.claude/skills/plan-ceo-review
-.claude/skills/plan-design-review
-.claude/skills/plan-eng-review
-.claude/skills/qa
-.claude/skills/qa-only
-.claude/skills/retro
-.claude/skills/review
-.claude/skills/setup-browser-cookies
-.claude/skills/setup-deploy
-.claude/skills/ship
-.claude/skills/unfreeze
+.claude/.claude/
 
 # Backup / temp files
 *.bak
@@ -56,3 +56,4 @@ artifacts/
 *.swo
 *~
 .DS_Store
+.claude.bak/

@@ -1,0 +1,105 @@
+[
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "Claude Code plugin marketplace install plugins 2026"
+    },
+    "timestamp": "2026-04-16T15:01:31.756Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "Claude Code \"claude-plugins-official\" github plugin install"
+    },
+    "timestamp": "2026-04-16T15:01:48.527Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "Anthropic Claude Code extensions plugins MCP servers how to install 2025 2026"
+    },
+    "timestamp": "2026-04-16T15:01:48.527Z"
+  },
+  {
+    "name": "AskUserQuestion",
+    "input": {
+      "questions": [
+        {
+          "question": "What were you trying to accomplish with the plugin install? That'll help me point you to the right solution.",
+          "header": "Goal",
+          "options": [
+            {
+              "label": "GitHub integration",
+              "description": "Want to interact with GitHub repos, PRs, issues from Claude Code"
+            },
+            {
+              "label": "Browse all extensions",
+              "description": "Want to see what integrations are available for Claude Code"
+            },
+            {
+              "label": "Something specific",
+              "description": "You had a particular plugin or capability in mind"
+            }
+          ],
+          "multiSelect": false
+        }
+      ]
+    },
+    "timestamp": "2026-04-16T15:03:11.186Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "modelcontextprotocol servers github registry list MCP servers 2025"
+    },
+    "timestamp": "2026-04-16T15:06:22.047Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "Claude Code MCP server directory awesome list available integrations"
+    },
+    "timestamp": "2026-04-16T15:06:22.048Z"
+  },
+  {
+    "name": "AskUserQuestion",
+    "input": {
+      "questions": [
+        {
+          "header": "Next step",
+          "multiSelect": false,
+          "options": [
+            {
+              "description": "Open the official MCP servers repo in your browser to browse what's available",
+              "label": "Browse official servers"
+            },
+            {
+              "description": "Open the community awesome list for a wider selection",
+              "label": "Browse awesome list"
+            },
+            {
+              "description": "You know what you want, let's install it",
+              "label": "Install a specific one"
+            }
+          ],
+          "question": "Want me to open one of these directories so you can browse, or do you want to install something specific?"
+        }
+      ]
+    },
+    "timestamp": "2026-04-16T15:07:40.792Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "\"Claude Code Marketplace\" plugin install 2026"
+    },
+    "timestamp": "2026-04-16T15:09:28.088Z"
+  },
+  {
+    "name": "WebSearch",
+    "input": {
+      "query": "claude code marketplace plugin github extension store"
+    },
+    "timestamp": "2026-04-16T15:09:28.088Z"
+  }
+]

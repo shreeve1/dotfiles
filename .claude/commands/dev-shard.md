@@ -24,7 +24,7 @@ SHARD_OVERHEAD: `20000`
 - Use the token estimation heuristic defined below to produce a best-effort estimate.
 - The estimate does not need to be exact — err on the side of overestimating (it is better to shard unnecessarily than to hit context limits mid-build).
 - When sharding, never split a task from its unresolved dependencies.
-- Each shard must be a complete, standalone plan that `/dev-build` or `/build_w_team` can execute without any external context beyond the shard file itself.
+- Each shard must be a complete, standalone plan that `/dev-build` or `/dev-build` can execute without any external context beyond the shard file itself.
 
 ## Token Estimation Heuristic
 
@@ -108,7 +108,7 @@ When `total_estimated_tokens > TOKEN_BUDGET`, split the plan into shards:
 
 ## Shard Format
 
-Each shard follows the same structure as `/plan_w_team` output with these additions:
+Each shard follows the same structure as `/dev-plan` output with these additions:
 
 ### Shard 1 (and all shards)
 ```md
@@ -360,7 +360,7 @@ Run shards sequentially. Each must complete before the next.
 
 ## Error Handling
 
-- If no plans exist in `PLAN_DIRECTORY`: inform user and suggest running `/plan_w_team` first
+- If no plans exist in `PLAN_DIRECTORY`: inform user and suggest running `/dev-plan` first
 - If plan file doesn't exist: report error and re-prompt for selection
 - If plan has no `## Step by Step Tasks` section: warn that estimation will be rough (skip task classification, use plan-size-only estimate)
 - If plan has no `## Relevant Files` section: skip file size measurement, note in report

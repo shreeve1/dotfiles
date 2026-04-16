@@ -1,182 +1,264 @@
 ---
 name: dev-review
-description: Deep review of any code, config, or artifact - surfaces risks, best practice violations, and actionable recommendations through interactive analysis
-argument-hint: [file, directory, or topic]
+description: Independent code review using Codex CLI — Claude gathers context, Codex reviews, results discussed interactively before applying changes
+argument-hint: [file, directory, plan, or omit to review what's in context]
 model: opus
 ---
 
-# Review
+# Review (Codex-Powered)
 
-Perform a deep, critical review of whatever the user references — code files, configurations, directories, documentation, or the current session context. Analyze for best practice adherence, technical risks, and improvement opportunities. Adapt your analysis dimensions to what's actually being reviewed. Engage in interactive discussion about findings before optionally applying changes.
+Independent review using Codex CLI as the reviewer. Claude extracts the review target from conversation context, gathers surrounding codebase context, and sends a structured brief to Codex. Codex provides a fresh perspective — different model, different blind spots. Results are discussed interactively before any changes are applied.
 
 ## Variables
 
-TARGET: $1 — (Optional) Path to a file, directory, or topic to review. If omitted, review the current session context (what's been discussed, decided, and implemented so far).
+TARGET: $1 — (Optional) Explicit path or `plan` / `build`. If omitted, extract the review target from conversation context.
 
 ## Checklist
 
 You MUST create a task for each of these items and complete them in order:
-1. **Identify review target** — resolve the input to concrete files or session context
-2. **Deep read and comprehension** — thoroughly read the target AND surrounding codebase context
-3. **Detect stack and context** — identify languages, frameworks, patterns, and conventions in use
-4. **Select analysis dimensions** — choose relevant review dimensions based on what's being reviewed
-5. **Run multi-dimensional analysis** — analyze each selected dimension with specific, grounded findings
-6. **Present findings interactively** — share analysis per dimension and discuss with the user
-7. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
+
+1. **Extract review target** — identify what to review from conversation context or argument
+2. **Verify target with user** — confirm scope before sending to Codex
+3. **Gather surrounding context** — read related files, conventions, plans
+4. **Build review brief** — assemble structured context document
+5. **Run Codex review** — execute codex with read-only sandbox
+6. **Present and discuss findings** — parse Codex output, discuss interactively
+7. **Apply agreed changes** — implement only what the user agrees on
 
 ## Instructions
 
-- **REVIEW ONLY until invited to edit**: Your goal is to analyze and discuss, not execute or rewrite. Only modify files after interactive discussion and user agreement.
-- **Be balanced**: Acknowledge strengths while calling out concerns. Constructive but honest. Don't sugarcoat real issues, but don't manufacture problems either.
-- **Ground in the codebase**: Don't review in isolation. Cross-reference every claim against actual code — do referenced files exist? Are patterns consistent with the rest of the project? Are assumptions valid?
-- **Think deeply**: Use extended thinking for each analysis dimension. This is not a surface-level scan — reason carefully about second-order effects, implicit assumptions, and non-obvious failure modes.
-- **Be specific**: Reference exact files, line numbers, and code patterns. "This might have issues" is useless. "The `UserService` at `src/services/user.ts:47` uses synchronous DB calls which will block under concurrent load" is useful.
-- **Stack-aware best practices**: Detect the language, framework, and ecosystem. Apply best practices specific to that stack (e.g., React component patterns, Go error handling idioms, Python packaging conventions) in addition to universal principles.
+- **Context assembly is the critical step.** The value of this skill is in what context Codex receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
+- **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let Codex form independent opinions.
+- **Read-only Codex.** Plan and file reviews use `-s read-only` sandbox. Build reviews use `codex exec review` which manages its own sandbox — Codex reviews; Claude applies changes later with user approval.
+- **Present Codex findings faithfully.** Don't soften or reinterpret. Show what Codex actually said, then add your own assessment separately.
+- **Flag disagreements.** Where Claude and Codex disagree — that's where the interesting discussion lives.
 
 ## Workflow
 
-### Phase 1: Locate and Understand
+### Phase 1: Extract and Verify
 
-1. **Resolve Review Target**
-   - If `TARGET` is a file path: verify it exists and read it
-   - If `TARGET` is a directory: scan its structure, then intelligently select key files to review (entry points, exports, configs, core logic modules). Skip generated files, lock files, and boilerplate. Present your selection to the user with `AskUserQuestion` for confirmation.
-   - If `TARGET` is a topic or concept: gather relevant files from the conversation context and codebase
-   - If no `TARGET` provided: review the current session context — what's been discussed, decided, and implemented so far
-   - If `TARGET` doesn't resolve to anything: ask the user to clarify
+1. **Extract Review Target**
 
-2. **Deep Comprehension Pass**
-   - Read all target files thoroughly
-   - Identify related files that provide context (imports, shared utilities, tests, configs)
-   - Read enough surrounding code to understand patterns, conventions, and architecture
-   - Build a mental model of how the reviewed code fits into the broader system
+   Scan the conversation context for:
+   - File paths that were discussed, modified, or created
+   - Plan content (from `/dev-plan` or plan files)
+   - Build output or git diffs
+   - Any explicit TARGET argument
 
-3. **Detect Stack and Context**
-   - Identify languages, frameworks, and libraries in use
-   - Note project conventions (naming, file structure, patterns)
-   - Check for linting configs, formatting rules, or style guides that indicate project standards
-   - This detection informs which best practices to apply in Phase 2
+   If TARGET argument is provided:
+   - `plan` — find the most recent plan file (search `plans/`, `specs/`, then `artifacts/plans/` — matching dev-plan, dev-build, dev-test conventions; ask if ambiguous)
+   - `build` — use uncommitted git changes
+   - File path — read that file
+   - Directory — scan and select key files
 
-### Phase 2: Multi-Dimensional Analysis
+   If no TARGET and nothing clear in context: ask the user what to review.
 
-**Select dimensions dynamically** based on what's being reviewed. Not all dimensions apply to everything — pick the ones that are relevant.
+2. **Verify Scope with User**
 
-Available dimensions (select 3-5 most relevant):
+   Before sending to Codex, present what you'll review using `AskUserQuestion`:
 
-4. **Best Practices & Patterns**
-   Apply when: reviewing code or configuration files
+   ```
+   I'll send the following to Codex for review:
 
-   - **Language idioms**: Is the code idiomatic for its language? (e.g., Pythonic patterns, Go conventions, Rust ownership patterns)
-   - **Framework patterns**: Does it follow framework best practices? (e.g., React hooks rules, Express middleware patterns, Django conventions)
-   - **Design principles**: SOLID, DRY, separation of concerns — but only flag real violations, not theoretical ones
-   - **Code clarity**: Naming, structure, readability. Could someone new to the codebase understand this?
-   - **Project consistency**: Does this match the conventions used elsewhere in the codebase?
+   Target: [description of what's being reviewed]
+   Context files: [list of related files you'll include]
+   Review focus: [plan compliance / correctness / completeness / all of the above]
 
-5. **Technical Risk Analysis**
-   Apply when: reviewing code, architecture, or infrastructure
+   Does this look right? Should I add or remove anything?
+   ```
 
-   - **Failure modes**: What happens when things go wrong? Are error paths handled?
-   - **Edge cases**: What inputs, states, or conditions aren't accounted for?
-   - **Performance concerns**: N+1 queries, unbounded loops, memory leaks, blocking operations?
-   - **Security implications**: New attack surfaces? Input validation gaps? Auth issues?
-   - **Concurrency issues**: Race conditions, deadlocks, data corruption?
-   - **Data integrity**: Can this lose, corrupt, or incorrectly transform data?
+   Wait for user confirmation. Adjust scope based on feedback.
 
-   Classify each risk:
-   - **Critical**: Will definitely cause problems in production
-   - **Warning**: May cause issues under certain conditions
-   - **Note**: Worth considering but not blocking
+### Phase 2: Gather and Build Brief
 
-6. **Completeness & Gaps**
-   Apply when: reviewing features, implementations, or configurations
+3. **Gather Surrounding Context**
 
-   - **Missing error handling**: Happy path only?
-   - **Missing validations**: Input, schema, boundary checks?
-   - **Missing tests**: Are tests proportional to change risk?
-   - **Missing documentation**: API changes without docs? Config without examples?
-   - **Cross-cutting concerns**: Logging, monitoring, accessibility, backwards compatibility?
+   Based on the review target, read:
 
-7. **Structure & Organization**
-   Apply when: reviewing directories, multi-file changes, or architecture
+   **Always:**
+   - Project conventions (CLAUDE.md, linting configs, tsconfig, etc.)
+   - Stack detection — languages, frameworks, key dependencies
 
-   - **File organization**: Are things where you'd expect to find them?
-   - **Module boundaries**: Are responsibilities clearly separated?
-   - **Dependency direction**: Do dependencies flow in a sensible direction?
-   - **Cohesion**: Do related things live together? Are unrelated things separated?
+   **For plan reviews:**
+   - All files referenced in the plan
+   - PRD or requirements documents if available
+   - Existing code that the plan will modify or interact with
 
-8. **Alternative Approaches**
-   Apply when: the current approach has significant issues or there's a clearly better way
+   **For build reviews:**
+   - Run `git status` to capture all changes (tracked + untracked), then `git diff` and `git diff --staged` for details
+   - **Preflight check:** if working tree is clean, report "nothing to review" and stop. If there are changes unrelated to the plan, warn the user before proceeding.
+   - The plan the build was based on (if available)
+   - Test files for modified code
+   - Files that import or depend on changed files
 
-   - **Simpler approach**: Can this be done with less complexity?
-   - **Existing solutions**: Does the codebase or ecosystem already solve this?
-   - **Better-suited patterns**: Would a different pattern work better here?
+   **For file/directory reviews:**
+   - Imports and dependencies of the target files
+   - Test files for the target
+   - Files that import the target
 
-   For each alternative: what it is, why it might be better, what it would cost to switch.
+   **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. Codex can read additional files on disk with `-C` pointing to the project root.
 
-### Phase 3: Interactive Discussion
+4. **Build Review Brief**
 
-9. **Present Findings**
+   Assemble a structured brief. This is what Codex receives.
 
-   Present your analysis organized by the dimensions you selected. For each finding:
-   - State the finding clearly with file:line references where applicable
-   - Explain the reasoning — why is this a concern or improvement opportunity?
-   - Suggest a concrete resolution
+   Structure:
 
-   Use `AskUserQuestion` after presenting each major dimension to check:
-   - Does the user agree with the assessment?
-   - Are there constraints or context you're not aware of?
-   - Which findings does the user want to act on?
+   ```markdown
+   # Review Brief
 
-10. **Discuss and Refine**
+   ## Review Type
+   [Plan Review | Build Review | Code Review]
 
-    Based on user feedback:
-    - Drop findings the user has good reasons to dismiss
-    - Deepen analysis on areas the user wants to explore further
-    - Refine recommendations based on constraints the user reveals
-    - Converge on a set of agreed-upon changes
+   ## Project Context
+   - Stack: [languages, frameworks, key deps]
+   - Conventions: [naming patterns, project rules, CLAUDE.md highlights]
+   - Working directory: [project root path]
 
-### Phase 4: Apply Changes
+   ## What's Being Reviewed
 
-11. **Offer to Apply Changes**
+   [The actual content — plan document, git diff, or file contents]
 
-    After discussion, ask the user:
-    - "Would you like me to apply the agreed recommendations to the reviewed files?"
-    - Options: "Yes, apply changes" | "No, the discussion was sufficient" | "Save recommendations as a review document"
+   ## Related Code
 
-12. **Apply Updates** (if requested)
+   [For each related file: path, role, key excerpts]
 
-    If applying changes:
-    - Make the agreed modifications directly to the reviewed files
-    - Show a summary of what was changed
+   ## Review Instructions
 
-    If saving as review document:
-    - Write to a sensible location relative to the reviewed files
-    - Include all findings, discussion outcomes, and recommendations
+   Analyze for:
+   - Gaps and missing considerations
+   - Technical risks (failure modes, edge cases, performance, security)
+   - Completeness (error handling, test coverage, documentation)
+   - Best practices for the detected stack
+   - Architectural concerns or pattern violations
+   - Assumptions that may not hold
+
+   Format your response as a structured list. For each finding, use this exact format:
+   - **[Critical|Warning|Note]:** <one-line summary> — <file:line reference if applicable>. <explanation and suggested resolution>
+
+   This format is required for automated parsing. Do not use freeform paragraphs for findings.
+   ```
+
+### Phase 3: Run Codex
+
+5. **Execute Codex Review**
+
+   **Determine project root:**
+   ```bash
+   git rev-parse --show-toplevel 2>/dev/null
+   ```
+   - If the target IS inside a git repo: use the repo root as project directory.
+   - If the target is NOT inside a git repo: use its parent directory. Only `plan` and `file` reviews work outside repos — **reject `build` reviews for non-git targets** and fall back to file review instead. Add `--skip-git-repo-check` to `codex exec` commands when running outside a git repo.
+   - The project root should be derived from the review target's location, not `pwd`.
+
+   **Write the review brief to a temp file** (avoids shell escaping and ARG_MAX issues):
+   ```bash
+   REVIEW_FILE=$(mktemp /tmp/codex-review-XXXXXX.md)
+   OUTPUT_FILE=$(mktemp /tmp/codex-review-output-XXXXXX.txt)
+   # Write the brief content to $REVIEW_FILE using the Write tool
+   ```
+
+   **For build reviews with uncommitted changes** (must be inside a git repo):
+   ```bash
+   cd <project_dir> && codex exec review --uncommitted --json -o "$OUTPUT_FILE" - < "$REVIEW_FILE"
+   ```
+   Note: `codex exec review` does NOT support `-C`. Set the working directory via `cd` before running. It DOES support `--json`, `-o`, and `-`. The brief is piped via stdin to avoid ARG_MAX limits.
+
+   **For plan reviews and file reviews:**
+   ```bash
+   codex exec -s read-only -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
+   ```
+
+   **Capture output reliably:**
+   - Use `--json` to get structured JSONL event stream
+   - Use `-o "$OUTPUT_FILE"` (unique temp file) to write the final review message — avoids stale results from prior runs
+   - Set a **120-second timeout** on the Bash tool call to avoid hanging on complex reviews
+   - After execution, read the output file: `cat "$OUTPUT_FILE"`
+   - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings
+
+   **Clean up both temp files after parsing:** `rm -f "$REVIEW_FILE" "$OUTPUT_FILE"`
+
+   **Error handling:**
+   - If codex is not installed: suggest `npm install -g @openai/codex`
+   - If codex errors: show the error, offer retry or Claude-only fallback
+   - If codex output is empty: note the issue, offer Claude-only fallback
+
+### Phase 4: Present and Discuss
+
+6. **Present Findings**
+
+   Parse Codex output and present organized by severity:
+
+   **Critical findings** (will cause problems):
+   - Quote Codex's finding
+   - Your assessment: agree / disagree / nuance
+   - Suggested resolution
+
+   **Warnings** (may cause issues):
+   - Same format
+
+   **Notes** (worth considering):
+   - Same format
+
+   **Claude-Codex Disagreements:**
+   - Where you disagree with Codex, flag it explicitly
+   - Explain your reasoning
+   - Let the user decide
+
+   Use `AskUserQuestion` to discuss:
+   - "Which findings do you want to address?"
+   - "Any findings you disagree with or want to explore further?"
+
+7. **Interactive Discussion**
+
+   Based on user feedback:
+   - Drop findings the user dismisses (with reason)
+   - Deep-dive on areas the user wants to explore
+   - Refine recommendations based on constraints revealed
+   - Converge on agreed changes
+
+### Phase 5: Apply Changes
+
+8. **Apply Agreed Changes**
+
+   After discussion, Claude applies the changes the user agreed to:
+   - Make precise, surgical modifications
+   - Show a summary diff of what changed
+   - Do NOT apply anything the user didn't explicitly agree to
+
+   If the user prefers no changes: close the review as discussion-only.
 
 ## Report
 
 After the review is complete, provide:
 
 ```
-Review Complete
+Review Complete (Codex-Powered)
 
 Target: <what was reviewed>
+Type: <Plan | Build | File>
 Stack: <detected languages/frameworks>
+Context files: <N files gathered>
 
-Dimensions Analyzed:
-- <dimension 1>: <N findings>
-- <dimension 2>: <N findings>
-- ...
+Codex Findings:
+- Critical: <N>
+- Warning: <N>
+- Note: <N>
 
 Key Findings:
 - <most important finding 1>
 - <most important finding 2>
 - <most important finding 3>
 
-Outcome: <"Changes applied" | "Recommendations discussed" | "Review document saved to <path>">
+Claude-Codex Disagreements: <N>
+
+Outcome: <"Changes applied" | "Recommendations discussed" | "No issues found">
 ```
 
 ## Error Handling
 
-- If target doesn't exist: report error and ask user to clarify
-- If target is empty or trivial: note that there isn't enough substance to review meaningfully
-- If no issues found: report clean review — acknowledge the code is solid and ready as-is
+- **Codex not installed:** Report error, suggest `npm install -g @openai/codex`
+- **Target not found:** Ask user to clarify what to review
+- **Codex returns error:** Show error, offer retry or Claude-only fallback
+- **Codex output empty/trivial:** Note issue, offer Claude-only fallback
+- **No issues found:** Clean review — acknowledge the code is solid as-is

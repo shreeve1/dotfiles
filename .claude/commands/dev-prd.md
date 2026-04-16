@@ -270,7 +270,7 @@ The PRD must be lean and actionable — optimized for AI coding agents (Claude C
    - question: "PRD is ready. How would you like to proceed?"
      options: ["Save as-is", "I want to revise a section", "Run /dev-plan to create implementation plan", "Run /dev-build to start building"]
    - question: "Solo or team workflow?"
-     options: ["Solo (/dev-plan + /dev-build)", "Team (/dev-plan_w_team + /build_w_team)"]
+     options: ["Solo (/dev-plan + /dev-build)", "Team (/dev-plan + /dev-build with teams)"]
    ```
 
 4. **Save the PRD** to `OUTPUT_DIR/prd-<kebab-case-name>-CURRENT_DATE.md`
