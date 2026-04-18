@@ -188,6 +188,7 @@ The backgrounded `&` and redirected output (`> /dev/null 2>&1`) ensure the curl 
 |---------|---------|---------|---------------|
 | **ntfy** | ntfy.sh | Mobile push notifications | `settings.json → notifications.ntfy` |
 | **Discord** | Webhook | Team/server notifications | `settings.json → notifications.discord` |
+| **Telegram** | Bot API | Automation alerts (cron, webhook, PAI routing) | `~/.claude/secrets/telegram-env.sh` |
 | **Desktop** | macOS native | Local desktop alerts | Always available |
 
 ### Smart Routing
@@ -197,10 +198,10 @@ Notifications are automatically routed based on event type:
 | Event | Default Channels | Trigger |
 |-------|------------------|---------|
 | `taskComplete` | Voice only | Normal task completion |
-| `longTask` | Voice + ntfy | Task duration > 5 minutes |
-| `backgroundAgent` | ntfy | Background agent completes |
-| `error` | Voice + ntfy | Error in response |
-| `security` | Voice + ntfy + Discord | Security alert |
+| `longTask` | Voice + ntfy + Telegram | Task duration > 5 minutes |
+| `backgroundAgent` | ntfy + Telegram | Background agent completes |
+| `error` | Voice + ntfy + Telegram | Error in response |
+| `security` | Voice + ntfy + Discord + Telegram | Security alert |
 
 ### Configuration
 
@@ -218,15 +219,19 @@ Located in `~/.claude/settings.json`:
       "enabled": false,
       "webhook": "https://discord.com/api/webhooks/..."
     },
+    "telegram": {
+      "enabled": true,
+      "credentialsPath": "~/.claude/secrets/telegram-env.sh"
+    },
     "thresholds": {
       "longTaskMinutes": 5
     },
     "routing": {
       "taskComplete": [],
-      "longTask": ["ntfy"],
-      "backgroundAgent": ["ntfy"],
-      "error": ["ntfy"],
-      "security": ["ntfy", "discord"]
+      "longTask": ["ntfy", "telegram"],
+      "backgroundAgent": ["ntfy", "telegram"],
+      "error": ["ntfy", "discord", "telegram"],
+      "security": ["ntfy", "discord", "telegram"]
     }
   }
 }
@@ -240,6 +245,13 @@ Located in `~/.claude/settings.json`:
 4. **Test**: `curl -d "Test" ntfy.sh/your-topic`
 
 Topic name acts as password - use random string for security.
+
+### Telegram Setup
+
+1. Bot token and chat ID stored in `~/.claude/secrets/telegram-env.sh` (canonical source)
+2. `telegram-send.sh` reads from this file for outbound delivery (cron alerts, webhook alerts)
+3. `notifications.ts` reads from this file for PAI event routing
+4. All three paths read the same canonical source — no credential drift
 
 ### Discord Setup
 
@@ -271,7 +283,7 @@ Topic name acts as password - use random string for security.
 The notification service is in `~/.claude/hooks/lib/notifications.ts`:
 
 ```typescript
-import { notify, notifyTaskComplete, notifyBackgroundAgent, notifyError } from './lib/notifications';
+import { notify, notifyTaskComplete, notifyBackgroundAgent, notifyError, sendTelegram } from './lib/notifications';
 
 // Smart routing based on task duration
 await notifyTaskComplete("Task completed successfully");
@@ -285,6 +297,7 @@ await notifyError("Database connection failed");
 // Direct channel access
 await sendPush("Message", { title: "Title", priority: "high" });
 await sendDiscord("Message", { title: "Title", color: 0x00ff00 });
+await sendTelegram("Message");  // reads from ~/.claude/secrets/telegram-env.sh
 ```
 
 ---

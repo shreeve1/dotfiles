@@ -44,6 +44,7 @@ Running the **WorkflowName** workflow in the **Telos** skill to ACTION...
 | **InterviewExtraction** | "extract content", "extract interviews", "analyze interviews" | `Workflows/InterviewExtraction.md` |
 | **CreateNarrativePoints** | "create narrative", "narrative points", "TELOS report", "n=24" | `Workflows/CreateNarrativePoints.md` |
 | **WriteReport** | "write report", "McKinsey report", "create TELOS report", "professional report" | `Workflows/WriteReport.md` |
+| **JobSearch** | "analyze job posting", "ATS check", "tailor resume", "match score", "interview prep", "STAR stories", "career translation", "should I apply", "update resume" | `Workflows/JobSearch.md` |
 
 **Note:** For general project analysis, dashboards, dependency mapping, and executive summaries, the skill handles these directly without a separate workflow file.
 
