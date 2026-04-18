@@ -1,0 +1,4 @@
+{
+  "hosts": ["pve1", "pve2", "pve3", "pve4", "truenas", "pbs", "vault", "avault"],
+  "connectionErrors": ["EHOSTUNREACH", "ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET", "Host is down"]
+}

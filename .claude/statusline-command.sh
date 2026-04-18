@@ -51,6 +51,19 @@ COUNTS_CACHE="$PAI_DIR/MEMORY/STATE/counts-cache.sh"
 # Source .env for API keys
 [ -f "${PAI_CONFIG_DIR:-$HOME/.config/PAI}/.env" ] && source "${PAI_CONFIG_DIR:-$HOME/.config/PAI}/.env"
 
+# Section visibility toggles (all default to true; set false in settings.json to hide)
+# NOTE: jq's // operator treats false as falsy, so we use explicit null checks
+eval "$(jq -r '.statusLine.sections // {} |
+  def bval: if . == false then "false" else "true" end;
+  "SECTION_BRANDING=" + (.branding | bval) +
+  "\nSECTION_CONTEXT=" + (.context | bval) +
+  "\nSECTION_USAGE=" + (.usage | bval) +
+  "\nSECTION_GIT=" + (.git | bval) +
+  "\nSECTION_MEMORY=" + (.memory | bval) +
+  "\nSECTION_LEARNING=" + (.learning | bval) +
+  "\nSECTION_QUOTE=" + (.quote | bval)
+' "$SETTINGS_FILE" 2>/dev/null)"
+
 # Cross-platform file mtime (seconds since epoch)
 # macOS uses stat -f %m, Linux uses stat -c %Y
 get_mtime() {
@@ -331,6 +344,7 @@ COUNTSEOF
     fi
 } &
 
+if [ "$SECTION_USAGE" != "false" ]; then
 {
     # 5. Usage data — refresh from Anthropic API if cache is stale
     cache_age=999999
@@ -383,6 +397,7 @@ COUNTSEOF
         echo -e "usage_5h=0\nusage_7d=0\nusage_extra_enabled=false\nusage_ws_cost_cents=0" > "$_parallel_tmp/usage.sh"
     fi
 } &
+fi  # SECTION_USAGE prefetch
 
 {
     # 6. Quote prefetch (was serial at the end — now parallel)
@@ -771,6 +786,7 @@ calc_bar_width() {
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTE: location_city, location_state, weather_str are populated by PARALLEL PREFETCH
 
+if [ "$SECTION_BRANDING" != "false" ]; then
 current_time=$(date +"%H:%M")
 
 # Session label: uppercase 2-word label
@@ -836,11 +852,13 @@ case "$MODE" in
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
+fi  # SECTION_BRANDING
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 1: CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if [ "$SECTION_CONTEXT" != "false" ]; then
 # Format duration
 duration_sec=$((duration_ms / 1000))
 if   [ "$duration_sec" -ge 3600 ]; then time_display="$((duration_sec / 3600))h$((duration_sec % 3600 / 60))m"
@@ -903,12 +921,14 @@ case "$MODE" in
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
+fi  # SECTION_CONTEXT
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE: ACCOUNT USAGE (Claude API limits)
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTE: usage_5h, usage_7d, usage_5h_reset, usage_7d_reset populated by PARALLEL PREFETCH
 
+if [ "$SECTION_USAGE" != "false" ]; then
 usage_5h_int=${usage_5h%%.*}
 usage_7d_int=${usage_7d%%.*}
 [ -z "$usage_5h_int" ] && usage_5h_int=0
@@ -1020,11 +1040,13 @@ print(f\"clock_7d='{clock_time(r7d, 'weekly')}'\")
     esac
     printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
 fi
+fi  # SECTION_USAGE
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 4: PWD & GIT (index-only: branch, age, stash, sync — no file status)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if [ "$SECTION_GIT" != "false" ]; then
 # Calculate age display from prefetched last_commit_epoch
 if [ "$is_git_repo" = "true" ] && [ -n "$last_commit_epoch" ]; then
     now_epoch=$(date +%s)
@@ -1079,11 +1101,13 @@ case "$MODE" in
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
+fi  # SECTION_GIT
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 5: MEMORY
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if [ "$SECTION_MEMORY" != "false" ]; then
 case "$MODE" in
     nano)
         printf "${LEARN_PRIMARY}◎${RESET} ${LEARN_WORK}📁${RESET}${SLATE_300}${work_count}${RESET} ${LEARN_SIGNALS}✦${RESET}${SLATE_300}${ratings_count}${RESET} ${LEARN_SESSIONS}⊕${RESET}${SLATE_300}${sessions_count}${RESET} ${LEARN_RESEARCH}◇${RESET}${SLATE_300}${research_count}${RESET}\n"
@@ -1107,11 +1131,13 @@ case "$MODE" in
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
+fi  # SECTION_MEMORY
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 6: LEARNING (with sparklines in normal mode)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+if [ "$SECTION_LEARNING" != "false" ]; then
 LEARNING_CACHE="$PAI_DIR/MEMORY/STATE/learning-cache.sh"
 LEARNING_CACHE_TTL=30  # seconds
 
@@ -1322,12 +1348,13 @@ else
     printf "${LEARN_LABEL}✿${RESET} ${LEARN_LABEL}LEARNING:${RESET}\n"
     printf "  ${SLATE_500}No ratings yet${RESET}\n"
 fi
+fi  # SECTION_LEARNING
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 7: QUOTE (normal mode only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if [ "$MODE" = "normal" ]; then
+if [ "$SECTION_QUOTE" != "false" ] && [ "$MODE" = "normal" ]; then
     printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
 
     # Quote was prefetched in parallel block — just read the cache

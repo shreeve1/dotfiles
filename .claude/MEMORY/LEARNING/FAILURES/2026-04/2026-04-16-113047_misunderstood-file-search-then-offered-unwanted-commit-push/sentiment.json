@@ -1,0 +1,8 @@
+{
+  "rating": 3,
+  "summary": "Correction — assistant misunderstood destination",
+  "detailed_context": "James Schriever asked to copy settings-anthropic.json. The assistant incorrectly assumed James wanted it copied into the repo and asked 'Where should I copy it to in this repo?' James corrected this by clarifying he wanted it copied to 'my other machine in the ~/.claude folder like the other setting files' — not the repo at all. The assistant failed to understand the context that James has multiple machines and syncs settings between them. The use of 'just' suggests narrowing scope. James is redirecting the assistant away from the wrong approach. This is a mild frustration (3) because James had to clarify a misunderstanding that should have been obvious from context. The assistant should have recognized that settings files in ~/.claude are typically synced across machines, not added to repos. The assistant made an incorrect assumption about the destination.",
+  "session_id": "5aa2def5-939c-45c9-865b-f1a61ecaf969",
+  "captured_at": "2026-04-16T18:30:47.352Z",
+  "transcript_source": "5aa2def5-939c-45c9-865b-f1a61ecaf969.jsonl"
+}

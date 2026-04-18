@@ -1,8 +1,10 @@
 /**
- * notifications.ts — Session timing + ntfy push notifications
+ * notifications.ts — Session timing + ntfy push + Telegram notifications
  *
  * Session timing is used by LoadContext.hook.ts to record session start.
  * ntfy push is available for hooks that need mobile/desktop notifications.
+ * Telegram send is available for webhook-driven alerts.
+ * notify() routes messages to one or more channels.
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
@@ -88,5 +90,70 @@ export async function sendPush(
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+// ============================================================================
+// Telegram (fire-and-forget)
+// ============================================================================
+
+function loadTelegramConfig(): { botToken: string; chatId: string } {
+  try {
+    const secretPath = join(homedir(), '.claude', 'secrets', 'telegram-env.sh');
+    if (!existsSync(secretPath)) return { botToken: '', chatId: '' };
+    const raw = readFileSync(secretPath, 'utf-8');
+    let botToken = '';
+    let chatId = '';
+    for (const line of raw.split('\n')) {
+      const tokenMatch = line.match(/^export\s+TELEGRAM_BOT_TOKEN="([^"]+)"/);
+      if (tokenMatch) botToken = tokenMatch[1];
+      const chatMatch = line.match(/^export\s+TELEGRAM_CHAT_ID="([^"]+)"/);
+      if (chatMatch) chatId = chatMatch[1];
+    }
+    return { botToken, chatId };
+  } catch {
+    return { botToken: '', chatId: '' };
+  }
+}
+
+export async function sendTelegram(
+  message: string,
+  chatIdOverride?: string
+): Promise<boolean> {
+  const { botToken, chatId } = loadTelegramConfig();
+  const targetChat = chatIdOverride || chatId;
+  if (!botToken || !targetChat) return false;
+
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: targetChat,
+        text: message,
+        parse_mode: 'HTML',
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================================================
+// Unified Notification Routing (fire-and-forget)
+// ============================================================================
+
+export function notify(channel: string, message: string): void {
+  const channels = channel.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+  for (const ch of channels) {
+    // Fire-and-forget: we intentionally do not await
+    if (ch === 'ntfy') {
+      sendPush(message).catch(() => {});
+    } else if (ch === 'telegram') {
+      sendTelegram(message).catch(() => {});
+    }
   }
 }

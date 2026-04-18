@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Read",
+    "input": {
+      "file_path": "/Users/james/.claude/PAI/CONTEXT_ROUTING.md"
+    },
+    "timestamp": "2026-04-17T01:33:45.495Z"
+  },
+  {
+    "name": "Read",
+    "input": {
+      "file_path": "/Users/james/.claude/PAI/USER/TELOS/README.md"
+    },
+    "timestamp": "2026-04-17T01:33:51.330Z"
+  },
+  {
+    "name": "Glob",
+    "input": {
+      "pattern": "PAI/USER/TELOS/*.md",
+      "path": "/Users/james/.claude"
+    },
+    "timestamp": "2026-04-17T01:33:56.840Z"
+  },
+  {
+    "name": "Glob",
+    "input": {
+      "path": "/Users/james/.claude",
+      "pattern": "PAI/USER/TELOS/**/*"
+    },
+    "timestamp": "2026-04-17T01:34:00.981Z"
+  }
+]
