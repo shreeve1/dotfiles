@@ -40,6 +40,9 @@ artifacts/
 # PAI-Install (re-run installer on each device)
 .claude/PAI-Install/
 
+# gstack (third-party skill — install separately on each device)
+.claude/skills/gstack/
+
 # VoiceServer (machine-local)
 .claude/VoiceServer/
 
