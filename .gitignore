@@ -1,6 +1,9 @@
 # Machine-local plugin state — not synced across machines
 artifacts/
 
+# Machine-local session work logs (per-machine)
+MEMORY/
+
 # Machine-local secrets (not synced)
 .config/nushell/secrets.nu
 .zshrc.secrets
