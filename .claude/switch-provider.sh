@@ -27,8 +27,12 @@ case "$1" in
     cp "$CLAUDE_DIR/settings-minimax.json" "$SETTINGS_FILE"
     echo "Switched to MiniMax provider"
     ;;
+  openai)
+    cp "$CLAUDE_DIR/settings-openai.json" "$SETTINGS_FILE"
+    echo "Switched to OpenAI provider (LiteLLM → CLIProxyAPI → Codex subscription)"
+    ;;
   *)
-    echo "Usage: switch-provider.sh [anthropic|zai|moonshot|alibaba|openrouter|minimax]"
+    echo "Usage: switch-provider.sh [anthropic|zai|moonshot|alibaba|openrouter|minimax|openai]"
     current_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "unknown"' "$SETTINGS_FILE" 2>/dev/null)
     if [[ "$current_url" == *"anthropic.com" ]]; then
       echo "Current provider: Anthropic"
@@ -42,6 +46,8 @@ case "$1" in
       echo "Current provider: OpenRouter"
     elif [[ "$current_url" == *"minimax" ]]; then
       echo "Current provider: MiniMax"
+    elif [[ "$current_url" == *"localhost:4000"* ]]; then
+      echo "Current provider: OpenAI (LiteLLM → CLIProxyAPI)"
     else
       echo "Current provider: Unknown ($current_url)"
     fi
