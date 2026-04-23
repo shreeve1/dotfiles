@@ -1,6 +1,17 @@
+# Platform detection
+case "$(uname -s)" in
+  Darwin) IS_MACOS=1; IS_LINUX=0 ;;
+  Linux)  IS_MACOS=0; IS_LINUX=1 ;;
+  *)      IS_MACOS=0; IS_LINUX=0 ;;
+esac
+
 # OPENSPEC:START
 # OpenSpec shell completions configuration
-fpath=("/Users/james/.oh-my-zsh/custom/completions" $fpath)
+if [[ $IS_MACOS -eq 1 ]]; then
+  fpath=("/Users/james/.oh-my-zsh/custom/completions" $fpath)
+else
+  fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
+fi
 autoload -Uz compinit
 compinit
 # OPENSPEC:END
@@ -15,7 +26,7 @@ export ZSH="$HOME/.oh-my-zsh"
 # load a random theme each time Oh My Zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-ZSH_THEME="robbyrussell"
+ZSH_THEME=""
 
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
@@ -77,7 +88,11 @@ ZSH_THEME="robbyrussell"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git z brew macos vscode docker npm node python pip brew zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search)
+if [[ $IS_MACOS -eq 1 ]]; then
+  plugins=(git z brew macos vscode docker npm node python pip brew zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search)
+else
+  plugins=(git z docker npm node python pip zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search)
+fi
 
 source $ZSH/oh-my-zsh.sh
 
@@ -91,9 +106,6 @@ SAVEHIST=10000
 setopt HIST_IGNORE_DUPS      # Don't record duplicate entries
 setopt HIST_IGNORE_SPACE     # Don't record commands starting with space
 setopt SHARE_HISTORY         # Share history across terminals
-
-# Force emacs keymap in shell (kindaVim handles vim keybindings system-wide)
-bindkey -e
 
 # History substring search key bindings
 bindkey '^[[A' history-substring-search-up
@@ -127,10 +139,14 @@ export VISUAL='nvim'
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Oh My Posh configuration
+# Starship prompt
+eval "$(starship init zsh)"
 
-# Oh My Posh configuration
-eval "$(oh-my-posh init zsh --config $(brew --prefix oh-my-posh)/themes/kali.omp.json)"
+# Atuin shell history
+eval "$(atuin init zsh --disable-up-arrow)"
+
+# LS_COLORS via vivid (Catppuccin Mocha)
+export LS_COLORS="$(vivid generate catppuccin-mocha)"
 
 # eza aliases for better ls command
 alias ls='eza --icons --group-directories-first'
@@ -139,7 +155,7 @@ alias la='eza -la --icons --no-user --group-directories-first --time-style long-
 alias cat='bat'
 
 # bun completions
-[ -s "/Users/james/.bun/_bun" ] && source "/Users/james/.bun/_bun"
+[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 
 # bun
 export BUN_INSTALL="$HOME/.bun"
@@ -161,15 +177,25 @@ alias claude-moonshot='claude-provider moonshot'
 alias claude-alibaba='claude-provider alibaba'
 alias claude-openrouter='claude-provider openrouter'
 alias claude-minimax='claude-provider minimax'
+alias claude-openai='claude-provider openai'
 alias cc='claude'
 
 # Android SDK
-export ANDROID_HOME=$HOME/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools
+if [[ $IS_MACOS -eq 1 ]]; then
+  export ANDROID_HOME=$HOME/Library/Android/sdk
+else
+  export ANDROID_HOME=$HOME/Android/Sdk
+fi
+[[ -d "$ANDROID_HOME" ]] && export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools
 
 # Java (OpenJDK)
-export JAVA_HOME=/opt/homebrew/opt/openjdk
-export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+if [[ $IS_MACOS -eq 1 ]]; then
+  export JAVA_HOME=/opt/homebrew/opt/openjdk
+  export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
+elif [[ -d /usr/lib/jvm/java-*/ ]]; then
+  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java) 2>/dev/null) 2>/dev/null) 2>/dev/null)
+  [[ -n "$JAVA_HOME" ]] && export PATH="$JAVA_HOME/bin:$PATH"
+fi
 export ENABLE_EXPERIMENTAL_MCP_CLI=1
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/bin:$PATH"
@@ -191,9 +217,11 @@ alias opweb='opencode web --hostname 0.0.0.0 --port 4096'
 alias y='yazi'
 
 # Ghostty CLI wrapper
-ghostty() {
-    /Applications/Ghostty.app/Contents/MacOS/ghostty "$@"
-}
+if [[ $IS_MACOS -eq 1 ]]; then
+  ghostty() {
+      /Applications/Ghostty.app/Contents/MacOS/ghostty "$@"
+  }
+fi
 
 export NODE_PATH="$(npm root -g):$NODE_PATH"
 
@@ -204,17 +232,24 @@ alias pi-sub='pi -e $EXT/subagent-widget.ts'                                    
 alias pi-focus='pi -e $EXT/footer.ts'                                             # minimal footer only
 alias pi-team-focus='pi -e $EXT/agent-team.ts -e $EXT/footer.ts'                  # agent-team + minimal footer
 
-# Hermes aliases
-alias hh=hermes
-alias hhb='hermes sessions browse'
+alias tm='tmux'
+alias tma='tmux attach -t'
+alias tml='tmux ls'
+alias tms='tmux new -s'
+
+alias pl='pai -l'
 
 # Machine-local secrets (not tracked in dotfiles)
 [[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
-export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-export PATH="/opt/homebrew/bin:$PATH"
-
-# OpenClaw Completion
-source "/Users/james/.openclaw/completions/openclaw.zsh"
+if [[ $IS_MACOS -eq 1 ]]; then
+  export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+  export PATH="/opt/homebrew/bin:$PATH"
+fi
 
 # PAI alias
-alias pai='bun /Users/james/.claude/PAI/Tools/pai.ts'
+alias pai='bun $HOME/dotfiles/.claude/PAI/Tools/pai.ts'
+
+# Vi mode - must be last so starship/atuin don't overwrite bindings
+bindkey -v
+export KEYTIMEOUT=20
+bindkey -M viins 'jk' vi-cmd-mode

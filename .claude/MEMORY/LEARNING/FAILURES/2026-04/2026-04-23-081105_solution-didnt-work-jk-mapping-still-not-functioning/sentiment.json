@@ -1,0 +1,8 @@
+{
+  "rating": 3,
+  "summary": "Solution didn't work — jk mapping still not functioning",
+  "detailed_context": "User was trying to map the jk key combination to Escape in their zsh terminal to improve workflow efficiency. PAI provided configuration guidance, which User attempted to implement by sourcing their .zshrc file. However, after applying the suggested fix, the jk mapping still doesn't work — User must still press Escape to enter command mode. This indicates PAI's solution was incomplete or incorrect. The mild frustration stems from the failed attempt after following instructions. PAI should have either provided tested, working configuration code; included verification steps to confirm the binding was active; troubleshot why the binding wasn't registering; or asked clarifying questions about User's existing zsh setup that might conflict with the mapping. User expects practical, tested solutions that actually solve the problem, not theoretical advice that requires additional debugging.",
+  "session_id": "b4380299-877d-4639-a782-69ac66ebec40",
+  "captured_at": "2026-04-23T15:11:05.779Z",
+  "transcript_source": "b4380299-877d-4639-a782-69ac66ebec40.jsonl"
+}
