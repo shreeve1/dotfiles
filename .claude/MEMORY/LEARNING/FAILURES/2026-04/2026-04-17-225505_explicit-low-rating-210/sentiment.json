@@ -1,0 +1,8 @@
+{
+  "rating": 2,
+  "summary": "Explicit low rating: 2/10",
+  "detailed_context": "════ PAI | NATIVE MODE ═══════════════════════\n🗒️ TASK: Change APPROVED_DIRECTORY to home directory\n\nBefore I make that change — the plan explicitly called this out as a **Do NOT**:\n\n> \"Do NOT set to `~/1-testytech` or `~/` — this would expose secrets in `~/.claude/secrets/` and webhook auth tokens. The bot's `Write`/`Bash` tools can operate on anything within APPROVED_DIRECTORY.\"\n\nYour home directory contains `~/.claude/secrets/telegram-env.sh` (bot token), `~/.claude/secrets/` (any other secrets), and all PAI config. With `APPROVED_DIRECTORY=/Users/james`, the bot's Bash and Write tools could read or modify those files during a conversation.\n\nThe risk is low since only your Telegram account is on the allowlist, but it's a real attack surface if your account is ever compromised or if Claude makes a mistake.\n\n**A safer middle ground**: set it to `/Users/james/1-testytech` — gives you access to all your projects (homelab, claude-code-telegram, etc.) without exposing `~/.claude/`.\n\nWant to:\n1. Set to `/Users/james/1-testytech` (safer — covers all your projects)\n2. Set to `/Users/james` (full home, your call — you're aware of the tradeoff)\n3. Keep homelab only but add project switching via Project Threads",
+  "session_id": "4a674425-918f-4395-a9ca-64929740596d",
+  "captured_at": "2026-04-18T05:55:05.648Z",
+  "transcript_source": "4a674425-918f-4395-a9ca-64929740596d.jsonl"
+}

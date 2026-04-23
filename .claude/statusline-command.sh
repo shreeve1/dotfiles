@@ -455,7 +455,9 @@ detect_terminal_width() {
     fi
 
     # Tier 4: Read cached width from previous successful detection
-    if [ -f "$_width_cache" ]; then
+    # Only use cache when we have a valid KITTY_WINDOW_ID — the cache is per-pane
+    # and is not transferable across different terminal contexts (e.g., SSH vs desktop)
+    if [ -z "$KITTY_WINDOW_ID" ] && [ -f "$_width_cache" ]; then
         local cached
         cached=$(cat "$_width_cache" 2>/dev/null)
         if [ "$cached" -gt 0 ] 2>/dev/null; then
