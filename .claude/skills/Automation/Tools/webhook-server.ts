@@ -161,7 +161,7 @@ function buildPrompt(classification: TransformResult, rawPayload: unknown): stri
 // --- Execute claude -p ---
 function runClaude(prompt: string): Promise<string> {
   return new Promise((resolve) => {
-    const claudeBin = "/Users/james/.local/bin/claude";
+    const claudeBin = process.env.CLAUDE_BIN || "claude";
     execFile(
       claudeBin,
       ["-p", prompt, "--model", "claude-sonnet-4-6", "--output-format", "text"],
