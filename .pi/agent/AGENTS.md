@@ -16,6 +16,13 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
+**30-second premortem before starting non-trivial work:**
+- What is the riskiest assumption in this approach?
+- What is the most likely way this could fail or need a rewrite?
+- Is there a simpler approach that sidesteps the risk entirely?
+
+If a risk surfaces, name it to the user before proceeding.
+
 ### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
@@ -62,6 +69,10 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria enable independent looping. Weak criteria ("make it work") require constant clarification.
+
+**Atomic criteria rule:** Each verify check must be one independently testable thing. If a criterion contains "and" or can fail in two independent ways, split it. "Tests pass and UI renders" = two criteria.
+
+**Verification gate:** Do not report the task complete until you have actually checked each criterion. Claiming done without verifying is a failure — even if the code looks right.
 
 ---
 
