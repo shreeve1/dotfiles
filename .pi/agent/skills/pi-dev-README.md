@@ -27,6 +27,9 @@ pi-dev-build    plan → wave-based parallel execution
 pi-dev-test     plan → run validation commands, verify acceptance criteria
       │
       ▼
+pi-dev-review   (optional) Codex-powered second-opinion review
+      │
+      ▼
 (user-driven git commit — no dedicated skill)
 ```
 
@@ -35,18 +38,18 @@ pi-dev-test     plan → run validation commands, verify acceptance criteria
 | Step | Trigger |
 |------|---------|
 | `pi-dev-epic` | `Scope:` is `Multi-week` or `Ongoing` OR feature count > 8 OR `--force` |
+| `pi-dev-review` | User wants a Codex second-opinion on a plan, a build diff, or a file/dir |
 
 ### Notable differences from Claude `/dev-*`
 
 | Claude has | PI has | Why |
 |------------|--------|-----|
 | `/dev-shard` | — | No automated token-budget sharding on PI; decompose manually if a plan is too large |
-| `/dev-review` | — | No Codex second-opinion skill on PI |
 | `/dev-stories` | — | No Playwright UI-story generator on PI |
 | `/dev-team` | — | No Teams automation on PI |
 | `/commit` | — | User commits via normal git workflow |
 
-These gaps mean the PI pipeline stops after `pi-dev-test`; merge/commit is a manual follow-up.
+These gaps mean the PI pipeline stops after `pi-dev-review` (optional); merge/commit is a manual follow-up.
 
 ---
 
@@ -116,6 +119,7 @@ Never rename or drop a `#req-[id]` once it is created. It is the only stable lin
 | `dev-prd` | `artifacts/specs/<name>.md` |
 | `pi-dev-epic` | `artifacts/specs/<parent>/epic-N-<slug>.md` + `README.md` + `original-prd.md` |
 | `pi-dev-plan` | `artifacts/plans/<name>.md` |
+| `pi-dev-review` | Findings to stdout; interactive discussion, then user-approved edits |
 | `pi-dev-validate` | Mutates plan in place (adds `## Risk Analysis`) |
 | `pi-dev-build` | Mutates plan in place (flips `[ ]` → `[x]`); modifies source code |
 | `pi-dev-test` | Test results to stdout; flips `[T.N.M]` checkboxes in the plan's `## Tests` section |
