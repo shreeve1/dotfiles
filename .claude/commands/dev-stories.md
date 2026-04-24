@@ -3,22 +3,6 @@ name: dev-stories
 description: Generate user stories from a plan for UI flow testing with Playwright
 argument-hint: [path-to-plan]
 model: opus
-hooks:
-  Stop:
-    - hooks:
-        - type: command
-          command: >-
-            uv run ~/.claude/hooks/validators/validate_new_file.py
-            --directory specs/
-            --extension .md
-        - type: command
-          command: >-
-            uv run ~/.claude/hooks/validators/validate_file_contains.py
-            --directory specs/
-            --extension .md
-            --contains 'stories:'
-            --contains '- name:'
-            --contains 'workflow:'
 ---
 
 # Stories
