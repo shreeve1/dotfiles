@@ -42,8 +42,11 @@ link_path() {
   printf 'linked: %s -> %s\n' "$target" "$source"
 }
 
+link_path "bin/osc52" ".local/bin/osc52"
+
 link_path ".config/tmux" ".config/tmux"
 link_path ".config/ghostty/config" ".config/ghostty/config"
+link_path ".config/yazi" ".config/yazi"
 link_path ".config/opencode/.gitignore" ".config/opencode/.gitignore"
 link_path ".config/opencode/agents" ".config/opencode/agents"
 link_path ".config/opencode/artifacts" ".config/opencode/artifacts"
