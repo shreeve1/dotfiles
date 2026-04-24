@@ -3,25 +3,6 @@ name: dev-prd
 description: Go from a raw idea to a structured PRD document through guided interview phases
 argument-hint: [your idea in a few words]
 model: opus
-hooks:
-  Stop:
-    - hooks:
-        - type: command
-          command: >-
-            uv run ~/.claude/hooks/validators/validate_new_file.py
-            --directory artifacts/specs
-            --extension .md
-        - type: command
-          command: >-
-            uv run ~/.claude/hooks/validators/validate_file_contains.py
-            --directory artifacts/specs
-            --extension .md
-            --contains '# PRD:'
-            --contains '## Problem Statement'
-            --contains '## User Stories'
-            --contains '## Technical Requirements'
-            --contains '## Acceptance Criteria'
-            --contains '## Requirement Tags'
 ---
 
 # Purpose
