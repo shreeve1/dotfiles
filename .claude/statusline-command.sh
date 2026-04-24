@@ -53,7 +53,9 @@ COUNTS_CACHE="$PAI_DIR/MEMORY/STATE/counts-cache.sh"
 
 # Section visibility toggles (all default to true; set false in settings.json to hide)
 # NOTE: jq's // operator treats false as falsy, so we use explicit null checks
-eval "$(jq -r '.statusLine.sections // {} |
+# Preferred path: .pai.statusLine.sections (Claude Code preserves unknown top-level keys).
+# Fallback: .statusLine.sections (CC's native normalizer strips unknown sub-keys here).
+eval "$(jq -r '(.pai.statusLine.sections // .statusLine.sections // {}) |
   def bval: if . == false then "false" else "true" end;
   "SECTION_BRANDING=" + (.branding | bval) +
   "\nSECTION_CONTEXT=" + (.context | bval) +

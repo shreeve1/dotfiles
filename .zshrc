@@ -139,6 +139,9 @@ export VISUAL='nvim'
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
+# Ensure local bins are on PATH before starship/atuin/vivid init
+export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
+
 # Starship prompt
 eval "$(starship init zsh)"
 
@@ -253,3 +256,5 @@ alias pai='bun $HOME/dotfiles/.claude/PAI/Tools/pai.ts'
 bindkey -v
 export KEYTIMEOUT=20
 bindkey -M viins 'jk' vi-cmd-mode
+
+. "$HOME/.atuin/bin/env"
