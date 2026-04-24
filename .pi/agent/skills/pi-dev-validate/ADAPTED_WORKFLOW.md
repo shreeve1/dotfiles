@@ -23,7 +23,7 @@ This document adapts the dev-validate.md workflow structure for pi, replacing Cl
 1. **Locate Plan**
    - If `PLAN_FILE` provided: verify it exists using `read`
    - If not provided, use Plan Discovery Protocol:
-     1. Use `find` to list all `.md` files in `PLAN_DIRECTORIES` (`specs/` and `artifacts/plans/`)
+     1. Use `find` to list all `.md` files in `PLAN_DIRECTORIES` (`artifacts/plans/` and `artifacts/specs/`, recursively)
      2. Take the most recent file (sort by modification date)
      3. Use `ask_user` to confirm: "Found plan: <filename>. Is this the correct plan?"
         - Type: `select`
@@ -346,8 +346,8 @@ Validation Checkpoints Added: <N>
 
 The plan has been updated in place. Original risky steps preserved as strikethrough.
 
-Ready to build? Run:
-/dev-build <path to plan>
+Ready to build? Hand off to:
+pi-dev-build <path to plan>
 ```
 
 ### Report Format B: No Issues Found
@@ -367,15 +367,15 @@ All checks passed:
 
 The plan is ready to build as-is. No modifications were made.
 
-Ready to build? Run:
-/dev-build <path to plan>
+Ready to build? Hand off to:
+pi-dev-build <path to plan>
 ```
 
 ---
 
 ## Error Handling
 
-- If no plans exist in either of the `PLAN_DIRECTORIES`: inform user and suggest running `/dev-plan` first
+- If no plans exist in either of the `PLAN_DIRECTORIES`: inform user and suggest running `pi-dev-plan` first
 - If selected plan file doesn't exist: report error and re-prompt for selection using `ask_user`
 - If agent analysis fails: report which analysis failed and continue with available results
 - If plan has no risky steps: report clean validation with no changes needed
