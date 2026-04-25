@@ -2,6 +2,8 @@
 artifacts/
 
 # Machine-local secrets (not synced)
+.env
+.env.*
 .config/nushell/secrets.nu
 .zshrc.secrets
 
