@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Build"
+  short_description: "Execute written implementation plans"
+  default_prompt: "Use $dev-build to execute this implementation plan."

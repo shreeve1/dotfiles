@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Investigate"
+  short_description: "Diagnose root causes of bugs"
+  default_prompt: "Use $dev-investigate to diagnose this bug."

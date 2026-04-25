@@ -88,6 +88,24 @@ link_path ".claude/MEMORY/README.md" ".claude/MEMORY/README.md"
 link_path ".claude/MEMORY/LEARNING" ".claude/MEMORY/LEARNING"
 link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
 
+# ─── Codex ─────────────────────────────────────────────────
+link_path ".codex/config.toml" ".codex/config.toml"
+link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
+link_path ".codex/hooks.json" ".codex/hooks.json"
+link_path ".codex/rules" ".codex/rules"
+link_path ".codex/skills/dev-build" ".codex/skills/dev-build"
+link_path ".codex/skills/dev-development" ".codex/skills/dev-development"
+link_path ".codex/skills/dev-epic" ".codex/skills/dev-epic"
+link_path ".codex/skills/dev-investigate" ".codex/skills/dev-investigate"
+link_path ".codex/skills/dev-plan" ".codex/skills/dev-plan"
+link_path ".codex/skills/dev-prd" ".codex/skills/dev-prd"
+link_path ".codex/skills/dev-review" ".codex/skills/dev-review"
+link_path ".codex/skills/dev-shard" ".codex/skills/dev-shard"
+link_path ".codex/skills/dev-stories" ".codex/skills/dev-stories"
+link_path ".codex/skills/dev-team" ".codex/skills/dev-team"
+link_path ".codex/skills/dev-test" ".codex/skills/dev-test"
+link_path ".codex/skills/dev-validate" ".codex/skills/dev-validate"
+
 # Note: settings.json is NOT symlinked — it contains secrets.
 # Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
 # Then fill in your API keys and machine-specific values.

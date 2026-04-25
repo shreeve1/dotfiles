@@ -37,9 +37,9 @@ The 7-phase execution engine: Observe, Think, Plan, Build, Execute, Verify, Lear
 Persistent storage across sessions:
 - **WORK/** — Session artifacts, PRDs, transcripts
 - **LEARNING/** — Failure patterns, algorithm reflections, signals
-- **RELATIONSHIP/** — Daily interaction patterns, preferences
 - **STATE/** — Session names, algorithm state, caches
-- **WISDOM/** — Domain knowledge frames that compound over time
+- **STATE/** — Session names, algorithm state, caches
+- **WORK/** — Session artifacts, PRDs, transcripts
 
 ### Tools (`Tools/`)
 TypeScript utilities in `PAI/Tools/`: `BuildCLAUDE.ts` (generate CLAUDE.md from template), `Inference.ts` (AI calls), `GenerateSkillIndex.ts`, `SessionProgress.ts`, `Banner.ts`, and more.
@@ -70,8 +70,8 @@ Personal data directory. See `USER/README.md` for full index:
 
 At session start, three things happen:
 1. **CLAUDE.md** loads natively (identity, algorithm, routing table)
-2. **`loadAtStartup` files** from `settings.json` are force-loaded by `LoadContext.hook.ts`
-3. **Dynamic context** injected by `LoadContext.hook.ts`: relationship context, learning readback, active work summary (each toggleable in `settings.json → dynamicContext`)
+2. **Configured startup files** from `settings.json` are force-loaded by `LoadContext.hook.ts`
+3. **Dynamic context** injected by `LoadContext.hook.ts`: learning readback and active work summary (toggleable via settings)
 
 All other documentation loads on-demand based on the routing table in CLAUDE.md.
 
@@ -85,5 +85,5 @@ All other documentation loads on-demand based on the routing table in CLAUDE.md.
 
 - **Add a skill:** Use the CreateSkill skill under Utilities
 - **Add a hook:** Create handler in `~/.claude/hooks/handlers/`, register in `settings.json`
-- **Add startup files:** Append to `settings.json → loadAtStartup.files`
+- **Add startup files:** Append to the startup file list in `settings.json`
 - **Add user context:** Create files in `PAI/USER/`

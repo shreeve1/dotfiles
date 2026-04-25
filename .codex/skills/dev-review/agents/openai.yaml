@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Review"
+  short_description: "Review code, plans, and cross-model risks"
+  default_prompt: "Use $dev-review to review this code or plan for bugs, risks, and optional Claude second opinion."
