@@ -6,36 +6,37 @@ argument-hint: [user prompt]
 
 # Create Implementation Plan
 
-Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
+Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `artifacts/plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
 
 ## Variables
 
 - `USER_PROMPT` — user's planning request
-- `PLAN_OUTPUT_DIRECTORY` — `plans/`
+- `PLAN_OUTPUT_DIRECTORY` — `artifacts/plans/`
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
 
 ## Pre-flight
 
-Ensure `plans/` directory exists. If not, create it:
+Ensure `artifacts/plans/` directory exists. If not, create it:
 ```bash
-mkdir -p plans/
+mkdir -p artifacts/plans/
 ```
 
 ## Workflow Overview
 
-Work through these 10 phases in order:
+Work through these 11 phases in order:
 
 1. **Parse Requirements** — analyze USER_PROMPT to understand core problem and desired outcome
 2. **Discover Source Document** — run Source Document Discovery if USER_PROMPT is free text
 3. **Understand Codebase** — explore existing patterns, architecture, and relevant files directly
-4. **Design Solution** — develop technical approach with architecture decisions and implementation strategy
-5. **Plan phases** — structure the implementation into logical phases
-6. **Document Plan** — write comprehensive markdown document following Plan Format
-7. **Generate filename** — create descriptive kebab-case filename
-8. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
-9. **Validate** — verify plan completeness and coherence
-10. **Report** — present completed plan summary
+4. **Feasibility Preflight** — verify the plan is implementable in this repo before detailed design
+5. **Design Solution** — develop technical approach with architecture decisions and implementation strategy
+6. **Plan phases** — structure the implementation into logical phases
+7. **Document Plan** — write comprehensive markdown document following Plan Format
+8. **Generate filename** — create descriptive kebab-case filename
+9. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
+10. **Validate** — verify plan completeness and coherence
+11. **Report** — present completed plan summary
 
 ## Phase Details
 
@@ -53,10 +54,11 @@ Ask clarifying questions if intent is not clear.
 
 If USER_PROMPT is a file path, read that file directly as the source document.
 If USER_PROMPT is free text (not a path), check for a source document:
-1. List all `.md` files in both `artifacts/specs/` and `artifacts/brainstorming/` sorted by modification date (most recent first)
+1. List all `.md` files **recursively** in `artifacts/specs/` (including subdirectories like `artifacts/specs/<parent-prd>/epic-*.md` produced by `/dev-epic`) and `artifacts/brainstorming/`, sorted by modification date (most recent first)
 2. If source documents exist, use `AskUserQuestion`: "Found source document: <filename>. Use this as the source for planning and traceability?"
    - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
 3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
+4. If the source is a mini-PRD produced by `/dev-epic`, treat it exactly like any other PRD — each mini-PRD is self-contained
 
 ### Phase 3: Understand Codebase
 
@@ -67,6 +69,26 @@ Explore the codebase directly to understand:
 - Test structure and patterns
 
 Use `Read` and `Grep` tools to gather context. Do not use subagents for this phase.
+
+### Phase 3.5: Feasibility Preflight
+
+Before investing in detailed design, verify the plan is implementable in this repo as written. This is a lightweight feasibility pass — `/dev-validate` handles the deeper risk analysis later.
+
+Answer: `Can this plan realistically be executed in this repository as written, without hidden prerequisite work?`
+
+Check at minimum:
+1. **Referenced files exist or are clearly intended as new files** — if you plan to edit/refactor/migrate a file that does not exist, explicitly mark it as new in `## Relevant Files`.
+2. **Dependencies and platforms exist or will be added explicitly** — if the plan assumes a library/service/framework (Clerk, Stripe, Prisma, Docker, Terraform, etc.) verify evidence in the repo (`package.json`, lockfiles, config, imports, env examples, infrastructure files). If absent, the plan must include adding and integrating that prerequisite as an early task.
+3. **Architecture assumptions are grounded** — if you reference systems that do not appear to exist yet (billing portal, role system, background jobs, design system, API layer), call out the mismatch and include prerequisite tasks.
+4. **Scope is execution-sized** — if the work bundles multiple major initiatives, recommend running `/dev-epic` on the source PRD first to decompose.
+5. **Sequence is viable** — tasks should not depend on unfinished prerequisite work; tests should not validate features before the supporting implementation exists.
+
+Record findings and fold them into the plan:
+- Missing prerequisites → add as early tasks in `## Step by Step Tasks`
+- Architecture gaps → document in `## Solution Approach` with explicit prerequisite steps
+- Scope too broad → stop and recommend `/dev-epic` before continuing
+
+If the plan is fundamentally not feasible (relies on missing foundations, nonexistent edit targets, impossible sequencing): stop here, summarize blockers to the user, and recommend `/brainstorm` for re-planning. Do not produce a plan document.
 
 ### Phase 4: Design Solution
 
@@ -101,7 +123,7 @@ Create a descriptive kebab-case filename based on the plan's main topic, e.g.:
 
 ### Phase 8: Save Plan File
 
-Write the complete plan to `plans/<filename>.md`. Ensure:
+Write the complete plan to `artifacts/plans/<filename>.md`. Ensure:
 - Plan is detailed enough that another developer could follow it
 - Code examples or pseudo-code included where appropriate
 - All edge cases and error handling addressed
@@ -271,7 +293,7 @@ After creating and saving the implementation plan, provide a concise report:
 ```
 ✅ Implementation Plan Created
 
-File: plans/<filename>.md
+File: artifacts/plans/<filename>.md
 Topic: <brief description of what the plan covers>
 Key Components:
 - <main component 1>
@@ -279,5 +301,8 @@ Key Components:
 - <main component 3>
 
 Next Steps:
-Run `/dev-build plans/<filename>.md` when ready to implement.
+1. Run `/dev-shard artifacts/plans/<filename>.md` if the plan is large — it will analyze token budget and split if needed.
+2. Run `/dev-validate artifacts/plans/<filename>.md` to catch feasibility issues before building.
+3. Run `/dev-build artifacts/plans/<filename>.md` when ready to implement.
+4. After build: `/dev-test` then `/dev-review` for independent Codex review.
 ```

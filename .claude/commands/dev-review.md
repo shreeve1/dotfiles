@@ -46,7 +46,7 @@ You MUST create a task for each of these items and complete them in order:
    - Any explicit TARGET argument
 
    If TARGET argument is provided:
-   - `plan` — find the most recent plan file (search `plans/`, `specs/`, then `artifacts/plans/` — matching dev-plan, dev-build, dev-test conventions; ask if ambiguous)
+   - `plan` — find the most recent plan file (search `artifacts/plans/` and `artifacts/specs/` recursively to include shards like `artifacts/plans/<plan>/shard-*.md` and epic mini-PRDs like `artifacts/specs/<parent>/epic-*.md`; ask if ambiguous)
    - `build` — use uncommitted git changes
    - File path — read that file
    - Directory — scan and select key files
