@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Team"
+  short_description: "Run delegated development pipeline"
+  default_prompt: "Use $dev-team to run an end-to-end development pipeline."
