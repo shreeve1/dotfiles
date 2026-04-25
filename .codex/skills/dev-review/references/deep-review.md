@@ -151,7 +151,7 @@ Available dimensions (select 3-5 most relevant):
 
 ## Phase 4: Optional Claude Second Opinion
 
-Skip this phase unless the user explicitly asks for a Claude second opinion, cross-model review, external review, or plan/context handoff to Claude. A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass.
+Skip this phase unless the user explicitly asks for a Claude second opinion, cross-model review, external Claude review, or plan/context handoff to Claude. A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass. Only run `codex review` from inside Codex when the user explicitly names a Codex CLI review.
 
 11. **Check Claude availability**
 
@@ -190,7 +190,7 @@ Do not include secrets, credentials, unrelated private conversation, or unrelate
 
 14. **Run Claude review**
 
-Prefer non-interactive print mode and allow only read-oriented tools. Add the repository root or target directory so Claude can inspect referenced files.
+Prefer non-interactive print mode and allow only read-oriented tools. Set `REVIEW_ROOT` to the repository root from `git rev-parse --show-toplevel`; if there is no repository, use the reviewed file's parent directory or the reviewed directory itself. Build `CLAUDE_REVIEW_PROMPT` from the prompt template below. If the prompt is long, pass it via stdin or a temporary prompt file instead of forcing it into one shell argument.
 
 ```bash
 claude -p \
@@ -223,6 +223,9 @@ Repository state:
 
 Artifacts to inspect:
 <paths and why they matter>
+
+Scope restrictions:
+<allowed paths and explicit directories Claude must not read or execute>
 
 Codex findings so far:
 <findings, or "none yet">
@@ -298,7 +301,7 @@ Key Findings:
 - <most important finding 2>
 - <most important finding 3>
 
-Claude Gate: <PASS | FAIL (N critical) | SKIPPED (not requested) | SKIPPED (not installed) | SKIPPED (not ready)>
+Claude Gate: <COMPLETED | FAIL (N critical/blocking findings) | SKIPPED (not requested) | SKIPPED (not installed) | SKIPPED (not ready)>
 Cross-model agreement: <X% — N/M findings overlap> (omit if Claude skipped)
 
 Outcome: <"Changes applied" | "Recommendations discussed" | "Review document saved to <path>">
