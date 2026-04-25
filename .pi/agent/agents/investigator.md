@@ -1,6 +1,7 @@
 ---
 name: investigator
-description: Debugging and root cause analysis specialist. Traces symptoms to exact file, line, and reason. Stops at diagnosis — does not implement fixes. Saves investigation reports to artifacts/investigations/. DISPATCH: Describe the symptom (error, unexpected behavior, log output) with any relevant context. Do not ask investigator to fix — only diagnose.
+description: "Debugging and root cause analysis specialist. Traces symptoms to exact file, line, and reason. Stops at diagnosis — does not implement fixes. Saves investigation reports to artifacts/investigations/."
+DISPATCH: "Describe the symptom (error, unexpected behavior, log output) with any relevant context. Do not ask investigator to fix — only diagnose."
 model: zai/glm-5.1
 tools: read,bash,grep,find,ls,write
 tool_budget: 60

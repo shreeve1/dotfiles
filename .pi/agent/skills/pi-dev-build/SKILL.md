@@ -250,6 +250,20 @@ If any task failed or produced conflicting work:
 
 Only continue when the wave result is coherent.
 
+### Per-task verification gate (REQUIRED, runs BEFORE marking progress)
+
+Before flipping any `- [ ]` to `- [x]`, run the relevant validation evidence for the completed task(s):
+
+1. From the plan's `## Validation Commands` section, run every command whose intent maps to the just-completed task(s). If a command targets multiple tasks, run it once per wave.
+2. Capture exit code AND stderr for each command.
+3. **A task may only be marked `[x]` if its validation command(s) exit 0.** If any required command is missing, fails, or hangs:
+   - leave the checkbox `[ ]`
+   - append a one-line annotation under the task: `> validation failed: <command> (exit <N>): <first 120 chars of stderr>`
+   - report the failure in the wave summary
+4. If a validation command in the plan is itself broken (e.g. wrong flag, nonexistent path), do NOT silently skip it. Flag it as `> plan defect: <command> — <why it cannot succeed as written>` and leave the task `[ ]` until the plan is corrected or the user explicitly waives the check.
+
+This gate runs once per wave, immediately after subagent results come back and before any checkbox edits. Phase 8 still runs as the full-plan verification at the end.
+
 ### Mark progress in the plan file (REQUIRED)
 
 **You MUST update the plan file for every completed task before moving on.** This is not optional. Updating session todos is not a substitute for updating the plan file. Both must happen.
@@ -405,5 +419,6 @@ Status: ❌ Not complete
 - Do not run tasks in parallel when they are likely to edit the same files
 - Do not mark progress until results are reviewed
 - Do not claim success without verification evidence
+- A checkbox flip is a verification claim, not an artifact-existence claim. Producing the file is necessary but not sufficient — the plan's own validation command for that task must exit 0 first.
 - Plan files can have any name in `artifacts/plans/` or `artifacts/specs/` - there is no requirement for a file named `plan.md`
 - The Phase 1.5 Approval Gate is mandatory in interactive use; only skip it when an upstream automated pipeline has pre-approved the plan

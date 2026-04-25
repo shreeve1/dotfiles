@@ -1,6 +1,7 @@
 ---
 name: planner
-description: Implementation plan specialist. Produces structured, executable plans saved to artifacts/plans/. Discovers source docs from artifacts/brainstorming/, supports requirement traceability, phased task breakdown with [N.M] IDs, and validation commands. DISPATCH: Provide the full requirements and context. For cross-project work, specify the target project root path so planner uses absolute paths in the plan.
+description: "Implementation plan specialist. Produces structured, executable plans saved to artifacts/plans/. Discovers source docs from artifacts/brainstorming/, supports requirement traceability, phased task breakdown with [N.M] IDs, and validation commands."
+DISPATCH: "Provide the full requirements and context. For cross-project work, specify the target project root path so planner uses absolute paths in the plan."
 model: zai/glm-5.1
 tools: read,bash,grep,find,ls,write,edit
 tool_budget: 30

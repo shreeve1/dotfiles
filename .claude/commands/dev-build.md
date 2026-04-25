@@ -13,7 +13,7 @@ Use this skill when the user wants to carry out a written implementation plan, e
 ## Variables
 
 - `PATH_TO_PLAN` - path to a specific plan file, if provided
-- `PLAN_DIRECTORIES` - `plans/`, `specs/`
+- `PLAN_DIRECTORIES` - `artifacts/plans/`, `artifacts/specs/`
 
 ---
 
@@ -22,14 +22,15 @@ Use this skill when the user wants to carry out a written implementation plan, e
 Work through these steps in order:
 
 1. Discover and confirm the plan
-2. Establish the execution workspace (skip branch creation — CC does not create feature branches)
-3. Load plan state and task readiness
-4. Build a safe wave schedule
-5. Execute one wave at a time
-6. Evaluate results and mark completed tasks in the plan file
-7. Verify results before claiming success
-8. Decide the next workflow handoff
-9. Report the final build status
+2. Request explicit approval to build this plan
+3. Establish the execution workspace (skip branch creation — CC does not create feature branches)
+4. Load plan state and task readiness
+5. Build a safe wave schedule
+6. Execute one wave at a time
+7. Evaluate results and mark completed tasks in the plan file
+8. Verify results before claiming success
+9. Decide the next workflow handoff
+10. Report the final build status
 
 The goal is not maximum parallelism. The goal is safe, dependency-aware progress followed by an explicit decision about testing or merge.
 
@@ -41,12 +42,37 @@ If the user provided a specific plan path, use it as `PATH_TO_PLAN`.
 
 If no plan path was provided:
 
-1. Use `Bash` to find recent markdown files in `plans/` and `specs/`
+1. Use `Bash` to find recent markdown files recursively in `artifacts/plans/` and `artifacts/specs/` (includes shards like `artifacts/plans/<plan>/shard-*.md` and epic mini-PRDs like `artifacts/specs/<parent>/epic-*.md`)
 2. If one clear candidate exists, confirm it with `AskUserQuestion`
 3. If several likely candidates exist, present the most relevant 1-3 options with `AskUserQuestion`
 4. If no plan is found, ask the user to provide a path
 
 Once confirmed, use `Read` to inspect the selected plan for context.
+
+---
+
+## Phase 1.5 — Approval Gate (REQUIRED)
+
+Before touching any code, require explicit approval from the user to build this plan. This is the last checkpoint between planning and execution — the user gets to read the plan one more time and decide whether it's ready.
+
+Present a concise summary to the user:
+- Plan name and path
+- Scope: total tasks, total waves (estimated), files that will be created or modified (from `## Relevant Files`)
+- Whether `/dev-validate` has been run (check for `## Risk Analysis` section in the plan)
+- Whether `/dev-shard` is recommended (flag if the plan has no shard siblings and appears large)
+
+Then use `AskUserQuestion` with type: select:
+
+**Question**: "Approve this plan to build? This will start executing tasks and modifying code."
+
+Options:
+- `Approve and build` — proceed to Phase 2
+- `Run /dev-validate first` — stop and recommend the user run `/dev-validate <plan-path>` before building
+- `Run /dev-shard first` — stop and recommend the user run `/dev-shard <plan-path>` if the plan is large
+- `Let me edit the plan first` — stop and return control; no execution
+- `Cancel build` — stop and exit
+
+Only proceed to Phase 2 if the user selects `Approve and build`. If the plan has no `## Risk Analysis` section, soft-recommend `/dev-validate` but do not block — let the user choose.
 
 ---
 
@@ -249,11 +275,13 @@ After implementation tasks are complete and the relevant build-side verification
 
 Use `AskUserQuestion` with a focused `select` prompt. The default options should be:
 - `Run tests with /dev-test` (recommended when tests haven't been run)
+- `Run independent code review with /dev-review` (recommended after tests pass, for Codex second-opinion)
 - `Merge and clean up`
 - `Keep working on this branch`
 
 Decision rules:
 - if testing has not yet been run at the level implied by the plan, recommend `Run tests with /dev-test`
+- if tests have passed but no review has happened, recommend `Run independent code review with /dev-review`
 - if the user explicitly asked for build-only work and verification is already sufficient, offer merge more neutrally
 - if validation or verification failed, do not offer merge as the recommended path
 
@@ -335,4 +363,4 @@ Status: Not complete
 - Do not run tasks in parallel when they are likely to edit the same files
 - Do not mark progress until results are reviewed
 - Do not claim success without verification evidence
-- Plan files can have any name in `plans/` or `specs/` — there is no requirement for a file named `plan.md`
+- Plan files can have any name in `artifacts/plans/` or `artifacts/specs/` — there is no requirement for a file named `plan.md`

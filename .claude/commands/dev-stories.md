@@ -1,23 +1,42 @@
 ---
 name: dev-stories
-description: Generate user stories from a plan for UI flow testing with Playwright
+description: OPTIONAL UI side-branch. Generate user stories from a plan for UI flow testing with Playwright. Run AFTER /dev-build for UI-facing work only; skip for backend-only plans.
 argument-hint: [path-to-plan]
 model: opus
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: >-
+            uv run ~/.claude/hooks/validators/validate_new_file.py
+            --directory artifacts/stories/
+            --extension .md
+        - type: command
+          command: >-
+            uv run ~/.claude/hooks/validators/validate_file_contains.py
+            --directory artifacts/stories/
+            --extension .md
+            --contains 'stories:'
+            --contains '- name:'
+            --contains 'workflow:'
 ---
 
 # Stories
 
 Read an implementation plan and generate user stories that describe UI flows for testing with Playwright browser automation. The stories follow a YAML-based format that maps directly to testable browser interactions.
 
+**OPTIONAL side-branch.** This command is not part of the core `/dev-prd → /dev-epic → /dev-plan → /dev-shard → /dev-validate → /dev-build → /dev-test → /dev-review` pipeline. Run it only for UI-facing work where you want Playwright coverage, typically after `/dev-build` completes.
+
 ## Variables
 
 PATH_TO_PLAN: $ARGUMENTS
-PLAN_OUTPUT_DIRECTORY: `specs/`
+PLAN_INPUT_DIRECTORY: `artifacts/plans/`
+STORIES_OUTPUT_DIRECTORY: `artifacts/stories/`
 STORY_EXAMPLE: `~/.claude/skills/playwright-browser/user_stories_example.md`
 
 ## Instructions
 
-- If no `PATH_TO_PLAN` is provided, STOP immediately and ask the user to provide it (AskUserQuestion). Suggest any `.md` files found in `specs/` as options.
+- If no `PATH_TO_PLAN` is provided, STOP immediately and ask the user to provide it (AskUserQuestion). Suggest any `.md` files found in `artifacts/plans/` (recursively, to include shards) as options.
 - Read and deeply understand the plan at `PATH_TO_PLAN`.
 - Read the example story format at `STORY_EXAMPLE` to understand the expected output structure.
 - Analyze the plan for all user-facing UI flows, interactions, and features.
@@ -30,7 +49,7 @@ STORY_EXAMPLE: `~/.claude/skills/playwright-browser/user_stories_example.md`
 
 ## Workflow
 
-1. **Validate input** — Confirm `PATH_TO_PLAN` exists. If missing, list specs from `PLAN_OUTPUT_DIRECTORY` and ask the user to pick one.
+1. **Validate input** — Confirm `PATH_TO_PLAN` exists. If missing, list plans recursively from `PLAN_INPUT_DIRECTORY` (including shards) and ask the user to pick one.
 2. **Read the plan** — Parse the plan document thoroughly. Identify all UI-facing features, pages, components, and user interactions described.
 3. **Read the example** — Load `STORY_EXAMPLE` to understand the exact YAML structure expected.
 4. **Identify flows** — Extract every distinct user flow from the plan. Consider:
@@ -48,7 +67,7 @@ STORY_EXAMPLE: `~/.claude/skills/playwright-browser/user_stories_example.md`
    - A `workflow` with step-by-step instructions using action verbs: Navigate, Click, Verify, Fill, Select, Wait, Scroll, Hover
 6. **Prioritize coverage** — Order stories from most critical (core functionality, happy paths) to least critical (edge cases, polish).
 7. **Generate filename** — Derive from the plan filename: if the plan is `my-feature.md`, the stories file is `my-feature-stories.md`.
-8. **Save stories** — Write to `PLAN_OUTPUT_DIRECTORY/<plan-name>-stories.md`.
+8. **Save stories** — Ensure `STORIES_OUTPUT_DIRECTORY` exists (`mkdir -p artifacts/stories/`), then write to `STORIES_OUTPUT_DIRECTORY/<plan-name>-stories.md`.
 
 ## Story Format
 
@@ -137,7 +156,7 @@ stories:
 ## Validation
 
 After saving, verify:
-- File exists at the expected path in `PLAN_OUTPUT_DIRECTORY`
+- File exists at the expected path in `STORIES_OUTPUT_DIRECTORY`
 - File contains valid YAML structure with `stories:` root key
 - Every story has `name`, `url`, and `workflow` fields
 - Every workflow starts with a `Navigate` step
@@ -151,7 +170,7 @@ After creating the stories file:
 ```
 ✅ User Stories Generated
 
-File: PLAN_OUTPUT_DIRECTORY/<filename>-stories.md
+File: artifacts/stories/<filename>-stories.md
 Source Plan: PATH_TO_PLAN
 Stories: <count> user stories covering <count> UI flows
 

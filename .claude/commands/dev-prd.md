@@ -3,6 +3,25 @@ name: dev-prd
 description: Go from a raw idea to a structured PRD document through guided interview phases
 argument-hint: [your idea in a few words]
 model: opus
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: >-
+            uv run ~/.claude/hooks/validators/validate_new_file.py
+            --directory artifacts/specs
+            --extension .md
+        - type: command
+          command: >-
+            uv run ~/.claude/hooks/validators/validate_file_contains.py
+            --directory artifacts/specs
+            --extension .md
+            --contains '# PRD:'
+            --contains '## Problem Statement'
+            --contains '## User Stories'
+            --contains '## Technical Requirements'
+            --contains '## Acceptance Criteria'
+            --contains '## Requirement Tags'
 ---
 
 # Purpose
@@ -249,10 +268,12 @@ The PRD must be lean and actionable — optimized for AI coding agents (Claude C
    ```
    AskUserQuestion:
    - question: "PRD is ready. How would you like to proceed?"
-     options: ["Save as-is", "I want to revise a section", "Run /dev-plan to create implementation plan", "Run /dev-build to start building"]
+     options: ["Save as-is", "I want to revise a section", "Run /dev-epic to decompose into mini-PRDs (recommended if Scope is Multi-week/Ongoing or feature count > 8)", "Run /dev-plan to create implementation plan", "Run /dev-build to start building"]
    - question: "Solo or team workflow?"
      options: ["Solo (/dev-plan + /dev-build)", "Team (/dev-plan + /dev-build with teams)"]
    ```
+
+   **Routing rule:** if the PRD's `Scope:` is `Multi-week` or `Ongoing`, OR the combined Must-Have + Should-Have feature count exceeds 8, recommend `/dev-epic` as the top option. Otherwise recommend `/dev-plan` directly.
 
 4. **Save the PRD** to `OUTPUT_DIR/prd-<kebab-case-name>-CURRENT_DATE.md`
 
@@ -367,8 +388,10 @@ Tag each major requirement with a unique `#req-[kebab-case-id]` anchor (e.g., `#
 
 ## Next Step
 
-Run `/dev-plan` to create an implementation plan from this PRD.
-The plan will automatically pick up `#req-[id]` tags from this document for traceability.
+- If `Scope:` is `Multi-week`/`Ongoing` OR feature count > 8: run `/dev-epic <this PRD>` first to decompose into per-epic mini-PRDs, then `/dev-plan` per mini-PRD.
+- Otherwise: run `/dev-plan <this PRD>` directly to create an implementation plan.
+
+The plan (or each mini-PRD's plan) will automatically pick up `#req-[id]` tags from this document for traceability.
 ```
 
 ## Interaction Guidelines
@@ -425,6 +448,6 @@ PRD Complete
 
   Requirement Tags: <count> #req-[id] tags
 
-  Next Step: /dev-plan to create implementation plan
-  Full Pipeline: /dev-prd > /dev-plan > /dev-review > /dev-validate > /dev-build > /dev-test
+  Next Step: /dev-epic (if multi-epic) OR /dev-plan (if single-epic) to create implementation plan
+  Full Pipeline: /dev-prd > [/dev-epic] > /dev-plan > [/dev-shard] > /dev-validate > /dev-build > /dev-test > /dev-review
 ```

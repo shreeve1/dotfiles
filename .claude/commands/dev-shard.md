@@ -12,7 +12,8 @@ Analyze an implementation plan to estimate whether it can be executed within a s
 ## Variables
 
 PLAN_FILE: $1 — (Optional) Path to the plan file. If omitted, shows interactive list of recent plans.
-PLAN_DIRECTORY: `specs/`
+PLAN_DIRECTORY: `artifacts/plans/`
+SHARD_OUTPUT_DIRECTORY: `artifacts/plans/<plan-name>/`
 TOKEN_BUDGET: `150000`
 SHARD_OVERHEAD: `20000`
 
@@ -118,13 +119,13 @@ Each shard follows the same structure as `/dev-plan` output with these additions
 - **Shard**: <N> of <Total>
 - **Estimated Tokens**: <estimated tokens for this shard>
 - **Tasks in This Shard**: <task IDs>
-- **Run Command**: `/dev-build specs/<plan-name>/shard-<N>.md`
+- **Run Command**: `/dev-build artifacts/plans/<plan-name>/shard-<N>.md`
 <if N > 1:>
-- **Previous Shard**: `specs/<plan-name>/shard-<N-1>.md`
+- **Previous Shard**: `artifacts/plans/<plan-name>/shard-<N-1>.md`
 - **Prerequisite**: Shard <N-1> must be completed first
 </if>
 <if N < Total:>
-- **Next Shard**: `specs/<plan-name>/shard-<N+1>.md`
+- **Next Shard**: `artifacts/plans/<plan-name>/shard-<N+1>.md`
 </if>
 
 <if N > 1:>
@@ -175,7 +176,7 @@ The following must be true before starting this shard:
 When sharding, create:
 
 ```
-specs/<plan-name>/
+artifacts/plans/<plan-name>/
   README.md          — Index with shard overview, order, and sequential run instructions
   shard-1.md         — First shard plan
   shard-2.md         — Second shard plan (includes Shard Context)
@@ -206,9 +207,9 @@ Run each shard sequentially. Each shard must complete before the next one starts
 
 Execute shards in order:
 \`\`\`
-/dev-build specs/<plan-name>/shard-1.md
+/dev-build artifacts/plans/<plan-name>/shard-1.md
 # Wait for completion, then:
-/dev-build specs/<plan-name>/shard-2.md
+/dev-build artifacts/plans/<plan-name>/shard-2.md
 # Continue until all shards complete
 \`\`\`
 
@@ -286,7 +287,7 @@ See [original-plan.md](original-plan.md) for the full unsharded plan.
 
 12. **Create Output Directory**
     - Extract plan name from the original filename (strip `.md`)
-    - Create `specs/<plan-name>/` directory
+    - Create `artifacts/plans/<plan-name>/` directory
     - Write `README.md` index
     - Write each `shard-N.md` file
     - Copy original plan as `original-plan.md`
@@ -342,7 +343,7 @@ Breakdown:
   Total:               <tokens> tokens
 
 Shards Created:
-  specs/<plan-name>/
+  artifacts/plans/<plan-name>/
   ├── README.md            (index)
   ├── shard-1.md           ~<tokens> tokens — <task summary>
   ├── shard-2.md           ~<tokens> tokens — <task summary>
@@ -350,10 +351,10 @@ Shards Created:
   └── original-plan.md     (reference)
 
 Execution Order:
-  1. /dev-build specs/<plan-name>/shard-1.md
-  2. /dev-build specs/<plan-name>/shard-2.md
+  1. /dev-build artifacts/plans/<plan-name>/shard-1.md
+  2. /dev-build artifacts/plans/<plan-name>/shard-2.md
   ...
-  N. /dev-build specs/<plan-name>/shard-N.md
+  N. /dev-build artifacts/plans/<plan-name>/shard-N.md
 
 Run shards sequentially. Each must complete before the next.
 ```

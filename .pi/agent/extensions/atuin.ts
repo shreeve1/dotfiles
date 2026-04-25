@@ -9,8 +9,7 @@
  * Then restart pi or run /reload.
  */
 
-import type { BashOperations, ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createBashTool, createLocalBashOperations } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const ATUIN_AUTHOR = "pi";
 const ATUIN_TIMEOUT_MS = 10_000;
@@ -53,35 +52,53 @@ async function endHistory(
 	}
 }
 
-export default function atuinPiExtension(pi: ExtensionAPI) {
-	const cwd = process.cwd();
-	const local = createLocalBashOperations();
-
-	const trackedOperations: BashOperations = {
-		async exec(command, commandCwd, options) {
-			const historyId = await startHistory(pi, commandCwd, command);
-			let exitCode: number | null = null;
-
-			try {
-				const result = await local.exec(command, commandCwd, options);
-				exitCode = result.exitCode;
-				return result;
-			} finally {
-				if (historyId) {
-					await endHistory(
-						pi,
-						commandCwd,
-						historyId,
-						exitCode ?? (options.signal?.aborted ? 130 : 1),
-					);
-				}
+function textFromResult(result: unknown): string {
+	if (!result || typeof result !== "object") return "";
+	const content = (result as { content?: unknown }).content;
+	if (!Array.isArray(content)) return "";
+	return content
+		.map((part) => {
+			if (part && typeof part === "object" && (part as { type?: unknown }).type === "text") {
+				return String((part as { text?: unknown }).text ?? "");
 			}
-		},
-	};
+			return "";
+		})
+		.join("\n");
+}
 
-	pi.registerTool(
-		createBashTool(cwd, {
-			operations: trackedOperations,
-		}),
-	);
+function exitCodeFromResult(result: unknown, isError: boolean): number {
+	const text = textFromResult(result);
+	const match = text.match(/Command exited with code (\d+)/);
+	if (match) return Number(match[1]);
+	if (text.includes("Command aborted")) return 130;
+	return isError ? 1 : 0;
+}
+
+export default function atuinPiExtension(pi: ExtensionAPI) {
+	const activeHistory = new Map<string, { cwd: string; historyId: string }>();
+
+	pi.on("tool_execution_start", async (event, ctx) => {
+		if (event.toolName !== "bash") return;
+		const command = (event.args as { command?: unknown })?.command;
+		if (typeof command !== "string") return;
+
+		const historyId = await startHistory(pi, ctx.cwd, command);
+		if (historyId) activeHistory.set(event.toolCallId, { cwd: ctx.cwd, historyId });
+	});
+
+	pi.on("tool_execution_end", async (event) => {
+		if (event.toolName !== "bash") return;
+		const active = activeHistory.get(event.toolCallId);
+		if (!active) return;
+
+		activeHistory.delete(event.toolCallId);
+		await endHistory(pi, active.cwd, active.historyId, exitCodeFromResult(event.result, event.isError));
+	});
+
+	pi.on("session_shutdown", async () => {
+		for (const active of activeHistory.values()) {
+			await endHistory(pi, active.cwd, active.historyId, 130);
+		}
+		activeHistory.clear();
+	});
 }

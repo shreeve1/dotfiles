@@ -19,29 +19,28 @@ Intelligently analyze an implementation plan in two passes: first determine whet
 ## Variables
 
 PLAN_FILE: $1 — (Optional) Path to specific plan file. If omitted, auto-discovers the most recent plan.
-PLAN_DIRECTORIES: `specs/`, `plans/`
+PLAN_DIRECTORIES: `artifacts/plans/`, `artifacts/specs/`
 
 ## Checklist
 You MUST create a task for each of these items and complete them in order:
 1. **Select and parse plan** — locate plan file, parse structure, extract files to modify and code changes
 2. **Verify understanding** — use `AskUserQuestion` to confirm plan intent with 2-3 focused questions about goals, constraints, and expected outcome
-3. **Feasibility preflight** — verify the plan is implementable in this repo before spawning validation workers
-4. **Baseline provenance preflight** — validate `Validation Commands` file references exist in the current workspace
-5. **Smart analysis** — spawn analysis subagent to analyze plan and determine required validations
-6. **Targeted validation** — spawn only relevant validation subagents in parallel based on analysis
-7. **Synthesize and rewrite** — collect subagent results, assess risks, rewrite risky steps with safer alternatives
-8. **Update plan if issues found** — add validation section and save updated plan ONLY if issues detected; otherwise report clean validation without modifying plan
+3. **Baseline provenance preflight** — validate `Validation Commands` file references exist in the current workspace
+4. **Smart analysis** — spawn analysis subagent to analyze plan and determine required validations
+5. **Targeted validation** — spawn only relevant validation subagents in parallel based on analysis
+6. **Synthesize and rewrite** — collect subagent results, assess risks, rewrite risky steps with safer alternatives
+7. **Update plan if issues found** — add validation section and save updated plan ONLY if issues detected; otherwise report clean validation without modifying plan
 
 ## Instructions
 
 - **VALIDATION ONLY**: Your goal is to analyze and improve an existing plan, not execute it.
 - If `PLAN_FILE` is provided, validate that specific plan.
 - If `PLAN_FILE` is omitted, use Plan Discovery Protocol to auto-discover the most recent plan from `PLAN_DIRECTORIES`.
-- **Feasibility First**: Before launching any validation workers, explicitly check whether the plan can realistically be implemented in this repo as written.
-- **Smart Validation**: Only after feasibility passes or returns `feasible-with-risks` should this skill analyze which validations are needed and run relevant checks.
+- **Feasibility is already covered**: `/dev-plan` performs a feasibility preflight before producing the plan. This skill assumes plans reaching it are feasible and focuses on risk analysis and rewriting.
+- **Smart Validation**: Analyze which validations are needed and run only relevant checks.
 - **Token Efficiency**: Skip validations that don't apply (e.g., don't check database safety for UI-only changes).
-- Always run a Feasibility Preflight before worker fan-out. After that, run Breaking Changes Analysis (baseline safety) and conditionally run 0-6 additional targeted validations.
-- Treat missing prerequisites, nonexistent referenced files, unsupported architectural assumptions, or multi-epic scope crammed into one plan as first-class validation issues even if no specific validator would otherwise catch them.
+- Always run Breaking Changes Analysis (baseline safety) and conditionally run 0-6 additional targeted validations.
+- Treat missing prerequisites, nonexistent referenced files, unsupported architectural assumptions, or multi-epic scope crammed into one plan as first-class validation issues even if no specific validator would otherwise catch them. If these show up, it means `/dev-plan`'s feasibility preflight missed something — surface it as a critical finding.
 - Use parallel subagents for the selected validations to maximize speed.
 - When rewriting risky steps, preserve the original step as a strikethrough comment for context.
 - Only modify the plan file if issues are found; otherwise report clean validation without changes.
@@ -55,7 +54,7 @@ You MUST create a task for each of these items and complete them in order:
 1. **Locate Plan**
    - If `PLAN_FILE` provided: verify it exists and read it with `Read`
    - If not provided, use the Plan Discovery Protocol:
-     1. Use `Bash` to list all `.md` files in both `PLAN_DIRECTORIES` (`specs/` and `plans/`), sorted by modification date (most recent first)
+     1. Use `Bash` to list all `.md` files recursively in both `PLAN_DIRECTORIES` (`artifacts/plans/` and `artifacts/specs/`, including subdirectories like `artifacts/plans/<plan>/shard-*.md` from `/dev-shard` and `artifacts/specs/<parent>/epic-*.md` from `/dev-epic`), sorted by modification date (most recent first)
      2. Take the most recent file
      3. Use `AskUserQuestion` with type: select to confirm: "Found plan: <filename>. Is this the correct plan?"
         - Options: "Yes, use this plan" / "No, let me specify"
@@ -90,38 +89,7 @@ You MUST create a task for each of these items and complete them in order:
    - If user selects clarifying options, incorporate their feedback into your understanding
    - Only proceed to risk analysis after confirmation
 
-### Phase 1.6: Feasibility Preflight
-
-3.25 **Check Whether the Plan Is Implementable Here**
-- Before spawning any validation worker, perform a direct feasibility pass against the current codebase.
-- Goal: answer `Can this plan realistically be executed in this repository as written, by this user, without hidden prerequisite work?`
-- Check at minimum:
-  1. **Referenced files exist or are clearly intended as new files** — if the plan says to edit/refactor/migrate a file that does not exist and the plan does not explicitly say it will be created, flag it.
-  2. **Dependencies and platforms exist or are added explicitly** — if the plan assumes a library/service/framework (for example Clerk, Stripe, Prisma, Docker, Terraform) verify evidence in the repo (`package.json`, lockfiles, config, imports, env examples, infrastructure files). If absent, the plan must explicitly include adding and integrating that prerequisite.
-  3. **Architecture assumptions are grounded** — if the plan refers to systems that do not appear to exist yet (billing portal, role system, background jobs, design system, API layer), flag the mismatch.
-  4. **Scope is execution-sized** — detect plans that bundle multiple major initiatives into one implementation pass. Mark these as feasibility warnings or critical issues when the plan is too broad to validate/build safely as one unit.
-  5. **Sequence is viable** — detect steps that depend on unfinished prerequisite work, or that validate/test features before the supporting implementation exists.
-- Output a structured feasibility result with this handoff shape:
-  - `status`: `feasible` | `feasible-with-risks` | `not-feasible`
-  - `critical_blockers`: list
-  - `missing_prerequisites`: list
-  - `scope_concerns`: list
-  - `repo_fit_summary`: short plain-English summary
-  - `recommended_action`: `continue` | `replan-with-brainstorm`
-- Deterministic severity guidance:
-  - **not-feasible / critical**: the plan relies on missing foundations, nonexistent edit targets, impossible sequencing, or major unsupported assumptions
-  - **feasible-with-risks / warning**: the plan is directionally possible but too broad, underspecified, or missing explicit prerequisite tasks
-  - **feasible / info**: prerequisites and sequence appear sound
-- If status is `not-feasible`, do NOT fan out validation workers and do NOT continue trying to rewrite or salvage the plan inside this skill. Stop validation, summarize the blockers, and hand off to brainstorming/re-planning.
-- **REQUIRED HANDOFF:** For `not-feasible` plans, invoke `/brainstorm` for re-planning.
-- Pass the structured feasibility result into `/brainstorm` as the handoff context. At minimum include: `status`, `critical_blockers`, `missing_prerequisites`, `scope_concerns`, `repo_fit_summary`, and the original failed plan goal.
-- If status is `feasible-with-risks`, continue to worker selection but carry the feasibility findings into Risk Analysis and plan rewriting.
-- For `not-feasible` results, explicitly transition out of this skill by telling the user the plan needs re-planning and invoking the brainstorming workflow before any new implementation plan is produced.
-- Plain-English handoff prompt for vibe-coder users: `This plan doesn't fit the current repo as written. I'm stopping validation here. Next we should brainstorm a better-fit approach, then create a new plan from that. Do you want to start that now?`
-
-Add findings to Risk Analysis under `Critical Issues`, `Warnings`, or a new `Feasibility Findings` subsection.
-
-### Phase 1.75: Baseline Provenance Preflight
+### Phase 1.6: Baseline Provenance Preflight
 
 3.5 **Validate Validation Commands Against Workspace**
 - Parse `## Validation Commands` and extract referenced file paths (for example `tests/...`, `src/...`, scripts).
@@ -151,14 +119,11 @@ Add findings to Risk Analysis under either `Critical Issues` or `Warnings` as ap
 
 4. **Determine Required Validations**
 
-   Only do this after the Feasibility Preflight when the result is `feasible` or `feasible-with-risks`. If the result is `not-feasible`, exit this skill and invoke brainstorming/re-planning instead of running analysis workers.
-
    Spawn a single analysis Task to analyze the plan and determine which validations are needed:
 
    Analyze this implementation plan to determine required validations.
 
    Plan: [plan content]
-   Feasibility Findings: [structured feasibility result]
 
    Instructions:
    1. Analyze the "Relevant Files" section for file patterns
@@ -176,7 +141,6 @@ Add findings to Risk Analysis under either `Critical Issues` or `Warnings` as ap
 
    Return structured output:
    {
-     "feasibility_status": "feasible-with-risks",
      "detected_changes": ["API", "Database"],
      "required_validations": [
        {"type": "breaking_changes", "reason": "...", "priority": "always"},
@@ -185,17 +149,14 @@ Add findings to Risk Analysis under either `Critical Issues` or `Warnings` as ap
      "skipped_validations": [
        {"type": "component_impact", "reason": "No UI changes detected"}
      ],
-     "do_not_run_yet": ["infrastructure_safety"],
      "estimated_agents": 2
    }
 
    After analysis completes, report to user:
    Validation Analysis
-   Feasibility: [status]
    Detected: [change types]
    Running: [N] validations: [list]
    Skipping: [N] irrelevant checks
-   Deferred due to feasibility blockers: [list or none]
 
 ### Phase 3: Targeted Parallel Validation
 
@@ -287,7 +248,7 @@ Use `Task` with parallel execution to launch only the required validation subage
 
 13. **Risk Assessment**
     - Categorize each finding by severity: `critical` | `warning` | `info`
-    - Critical: Will definitely break existing functionality, or the plan is not realistically implementable as written
+    - Critical: Will definitely break existing functionality, or reveals a feasibility issue `/dev-plan` missed
     - Warning: May cause issues, needs attention, or should be split/resequenced before build
     - Info: Suggestion for improvement
 
@@ -313,11 +274,7 @@ Use `Task` with parallel execution to launch only the required validation subage
     ```md
     ## Risk Analysis
 
-    Feasibility Status: [feasible | feasible-with-risks | not-feasible]
     Validations Run: [list of validation types executed]
-
-    ### Feasibility Findings
-    <missing prerequisites, architecture mismatches, scope concerns, or sequencing blockers>
 
     ### Critical Issues
     <list critical issues that were addressed>
@@ -374,7 +331,6 @@ After validation, provide one of two report formats:
 File: <path to updated plan>
 
 📊 Validation Summary:
-Feasibility: <feasible | feasible-with-risks | not-feasible>
 Validations Run: <N> (<list types>)
 Validations Skipped: <N> (<list types>)
 Baseline Provenance: <✓ clean | ⚠ mismatch | ? unknown>
@@ -401,7 +357,6 @@ The plan has been updated in place. Original risky steps preserved as strikethro
 File: <path to plan>
 
 📊 Validation Summary:
-Feasibility: <feasible | feasible-with-risks>
 Validations Run: <N> (<list types>)
 Validations Skipped: <N> (<list types>)
 Baseline Provenance: <✓ clean | ? unknown>
@@ -417,7 +372,7 @@ The plan is ready to build as-is. No modifications were made.
 
 - If no plans exist in either of the `PLAN_DIRECTORIES`: inform user and suggest creating a plan first
 - If selected plan file doesn't exist: report error and re-prompt for selection
-- If feasibility preflight finds the plan is not implementable as written: stop worker fan-out, summarize the blockers in the structured feasibility result, and hand off to `/brainstorm` for re-planning
+- If validation surfaces critical feasibility issues `/dev-plan` missed (nonexistent edit targets, missing foundations, impossible sequencing): report them as critical findings and recommend the user return to `/dev-plan` or `/brainstorm` rather than proceeding to build
 - If subagent analysis fails: report which analysis failed and continue with available results
 - If validation command path extraction is ambiguous or partially fails: report which commands could not be parsed, mark provenance status as `unknown`, and continue with conservative warnings
 - If provenance comparison cannot run (not a git repo or insufficient context): mark provenance as `unknown` and require explicit user confirmation before recommending build execution
