@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Stories"
+  short_description: "Generate UI testing stories"
+  default_prompt: "Use $dev-stories to generate Playwright-ready UI stories from this plan."
