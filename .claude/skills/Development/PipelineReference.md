@@ -3,16 +3,17 @@
 ## Pipeline Stages
 
 ```
-┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│  /dev-prd │───▶│ /dev-plan │───▶│/dev-validate│──▶│/dev-shard │───▶│/dev-build │───▶│ /dev-test │
-│  Idea→PRD │    │ PRD→Plan  │    │ Plan check │   │ Split if  │    │ Execute   │    │  Verify   │
-└──────────┘    └──────────┘    └───────────┘    │ too large │    └──────────┘    └──────────┘
-                                                   └──────────┘
+┌──────────┐    ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│  /dev-prd │───▶│ /dev-epic │───▶│ /dev-plan │───▶│/dev-validate│──▶│/dev-shard │───▶│/dev-build │───▶│ /dev-test │
+│  Idea→PRD │    │(optional) │    │ PRD→Plan  │    │ Plan check │   │ Split if  │    │ Execute   │    │  Verify   │
+└──────────┘    │Split PRD  │    └──────────┘    └───────────┘    │ too large │    └──────────┘    └──────────┘
+                │into epics │                                       └──────────┘
+                └──────────┘
 Auxiliary (available at any stage):
-┌──────────────┐  ┌────────────────┐  ┌─────────────┐  ┌──────────┐  ┌──────────────┐  ┌─────────────────────┐
-│ /dev-review  │  │ /dev-investigate│  │ /dev-stories │  │ /dev-team│  │ /dev-tool_check│  │/dev-create-special-agent│
-│  Code review │  │  Bug diagnosis │  │  UI stories  │  │ Auto pipe│  │  Tool audit   │  │   Domain experts      │
-└──────────────┘  └────────────────┘  └─────────────┘  └──────────┘  └──────────────┘  └─────────────────────┘
+┌──────────────┐  ┌────────────────┐  ┌─────────────┐  ┌──────────┐
+│ /dev-review  │  │ /dev-investigate│  │ /dev-stories │  │ /dev-team│
+│  Code review │  │  Bug diagnosis │  │  UI stories  │  │ Auto pipe│
+└──────────────┘  └────────────────┘  └─────────────┘  └──────────┘
 ```
 
 ## When to Use Each Stage
@@ -20,7 +21,8 @@ Auxiliary (available at any stage):
 | Stage | When | Input | Output |
 |-------|------|-------|--------|
 | **Prd** | Starting from a raw idea | Free text or brainstorming notes | `artifacts/specs/prd-<name>-<date>.md` |
-| **Plan** | After PRD, before building | PRD or requirements description | `plans/<feature>.md` |
+| **Epic** | After PRD, when PRD is multi-week or 8+ features | PRD file | `artifacts/specs/<parent>/epic-*.md` set |
+| **Plan** | After PRD (or after Epic), before building | PRD or epic mini-PRD | `plans/<feature>.md` |
 | **Validate** | After plan, before building | Plan file | Updated plan with risk analysis |
 | **Shard** | Plan too large for one session | Plan file | `specs/<plan-name>/shard-*.md` |
 | **Build** | Ready to write code | Plan file | Implemented code + verification |
@@ -29,13 +31,16 @@ Auxiliary (available at any stage):
 | **Investigate** | Bug or unexpected behavior | Problem description | Root cause diagnosis + fix tests |
 | **Stories** | UI features need browser testing | Plan file | `specs/<plan>-stories.md` |
 | **Team** | Want walk-away automation | Request description | Full pipeline auto-execution |
-| **ToolCheck** | Before building, check readiness | Plan file | Tool gap analysis + recommendations |
-| **CreateSpecialAgent** | Plan needs domain experts | Plan file | Specialized agent definitions |
 
 ## Stage Handoffs
 
-### Prd → Plan
-- PRD saved to `artifacts/specs/`
+### Prd → Epic (conditional)
+- Only when PRD is multi-week scope or has 8+ features
+- Epic reads PRD, proposes groupings, writes per-epic mini-PRDs to `artifacts/specs/<parent>/`
+- Each mini-PRD is self-contained — Plan reads the mini-PRD, not the parent
+
+### Prd → Plan (or Epic → Plan)
+- PRD (or epic mini-PRD) saved to `artifacts/specs/`
 - Plan reads PRD via Source Document Discovery
 - `#req-[id]` tags propagate from PRD → plan tasks
 
@@ -72,7 +77,7 @@ For most tasks, you don't need the full pipeline:
 ## Full Pipeline (Complex Features)
 
 ```
-/dev-prd "my app idea" → /dev-plan → /dev-validate → /dev-shard (if needed) → /dev-build → /dev-test
+/dev-prd "my app idea" → /dev-epic (if multi-week) → /dev-plan → /dev-validate → /dev-shard (if needed) → /dev-build → /dev-test
 ```
 
 ## Automated Pipeline

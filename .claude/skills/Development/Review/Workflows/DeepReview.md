@@ -15,7 +15,8 @@ You MUST create a task for each of these items and complete them in order:
 4. **Select analysis dimensions** — choose relevant review dimensions based on what's being reviewed
 5. **Run multi-dimensional analysis** — analyze each selected dimension with specific, grounded findings
 6. **Present findings interactively** — share analysis per dimension and discuss with the user
-7. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
+7. **Codex second opinion** — check binary + auth, run `codex review`, present output verbatim, cross-model comparison
+8. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
 
 ## Instructions
 
@@ -133,15 +134,90 @@ Available dimensions (select 3-5 most relevant):
 
 ---
 
-## Phase 4: Apply Changes
+## Phase 4: Codex Second Opinion
 
-11. **Offer to Apply Changes**
+After presenting Claude's findings and before offering to apply changes, run an independent Codex review for a second opinion from a different AI system.
+
+11. **Check Codex availability**
+
+```bash
+CODEX_BIN=$(which codex 2>/dev/null || echo "")
+[ -z "$CODEX_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CODEX_BIN"
+```
+
+If `NOT_FOUND`: skip this phase entirely and proceed to Phase 4. Do not fail the review — note inline:
+> "Codex CLI not found — skipping second opinion. Install with: `npm install -g @openai/codex`"
+
+If `FOUND`: continue.
+
+12. **Auth probe**
+
+```bash
+_AUTH_OK="yes"
+if ! ([ -n "$CODEX_API_KEY" ] || [ -n "$OPENAI_API_KEY" ] || [ -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]); then
+  _AUTH_OK="no"
+fi
+echo "CODEX_AUTH: $_AUTH_OK"
+```
+
+If `CODEX_AUTH: no`: skip this phase and note inline:
+> "Codex auth not found — skipping second opinion. Run `codex login` or set `$OPENAI_API_KEY`."
+
+13. **Run Codex review**
+
+Run against the current working tree diff. If no git diff exists (standalone file review), run Codex on the specific target file instead.
+
+```bash
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$_REPO_ROOT" ]; then
+  cd "$_REPO_ROOT"
+  _DIFF_STAT=$(git diff HEAD --stat 2>/dev/null | tail -1)
+  _BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo "main")
+fi
+```
+
+If a diff exists, run review mode (5-minute timeout):
+
+```bash
+codex review "IMPORTANT: Do NOT read or execute any files under ~/.claude/, .claude/skills/, or agents/. Stay focused on repository code only." --base "$_BASE" -c 'model_reasoning_effort="high"' < /dev/null
+```
+
+If no diff (standalone file review), run consult mode with the target file content embedded.
+
+14. **Present Codex output verbatim**
+
+```
+CODEX SAYS (independent second opinion):
+════════════════════════════════════════════════════════════
+<full codex output — do not truncate or summarize>
+════════════════════════════════════════════════════════════
+```
+
+15. **Cross-model comparison**
+
+After presenting Codex output, synthesize what both found:
+
+```
+CROSS-MODEL ANALYSIS:
+  Both found:        [findings that overlap between Claude and Codex]
+  Only Codex found:  [findings unique to Codex — highest signal, different perspective caught these]
+  Only Claude found: [findings unique to Claude's analysis]
+  Agreement rate:    X% (N/M total unique findings overlap)
+```
+
+"Only Codex found" items are highest priority — a second independent system flagging something Claude missed is a strong signal.
+
+---
+
+## Phase 5: Apply Changes
+
+16. **Offer to Apply Changes**
 
     After discussion, ask the user:
     - "Would you like me to apply the agreed recommendations to the reviewed files?"
     - Options: "Yes, apply changes" | "No, the discussion was sufficient" | "Save recommendations as a review document"
 
-12. **Apply Updates** (if requested)
+17. **Apply Updates** (if requested)
 
     If applying changes:
     - Make the agreed modifications directly to the reviewed files
@@ -172,6 +248,9 @@ Key Findings:
 - <most important finding 1>
 - <most important finding 2>
 - <most important finding 3>
+
+Codex Gate: <PASS | FAIL (N critical) | SKIPPED (not installed) | SKIPPED (no auth)>
+Cross-model agreement: <X% — N/M findings overlap> (omit if Codex skipped)
 
 Outcome: <"Changes applied" | "Recommendations discussed" | "Review document saved to <path>">
 ```

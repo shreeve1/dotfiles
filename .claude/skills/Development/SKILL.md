@@ -1,6 +1,6 @@
 ---
 name: Development
-description: Software development pipeline — PRD creation, implementation planning, pre-flight validation, token-aware sharding, wave-based parallel building, multi-mode testing, deep code review, systematic bug investigation, Playwright user stories, automated team pipeline, tool auditing, and specialized agent creation. USE WHEN create PRD, implementation plan, validate plan, shard plan, build, execute plan, run tests, code review, investigate bug, user stories, Playwright, dev team, tool audit, create agents, development pipeline, write code, software project.
+description: Software development pipeline — PRD creation, epic decomposition, implementation planning, pre-flight validation, token-aware sharding, wave-based parallel building, multi-mode testing, deep code review, systematic bug investigation, Playwright user stories, and automated team pipeline. USE WHEN create PRD, epic, decompose PRD, implementation plan, validate plan, shard plan, build, execute plan, run tests, code review, investigate bug, user stories, Playwright, dev team, development pipeline, write code, software project.
 ---
 
 # Development
@@ -38,6 +38,7 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 | Request Pattern | Route To |
 |---|---|
 | PRD, product requirements, idea to spec, create PRD | `Prd/SKILL.md` |
+| Epic, decompose PRD, multi-epic, split PRD, PRD too large, epic decomposition | `Epic/SKILL.md` |
 | Implementation plan, tech approach, task breakdown, phased roadmap | `Plan/SKILL.md` |
 | Validate plan, pre-flight check, feasibility, breaking changes, risk analysis | `Validate/SKILL.md` |
 | Shard, token budget, split plan, context window, plan too large | `Shard/SKILL.md` |
@@ -47,17 +48,15 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 | Investigate, bug, root cause, debug, diagnose, where is the bug | `Investigate/SKILL.md` |
 | User stories, Playwright stories, UI flows, browser stories | `Stories/SKILL.md` |
 | Dev team, automated pipeline, full team build, hands-off build | `Team/SKILL.md` |
-| Tool check, audit tools, missing tools, MCP audit, plan prerequisites | `ToolCheck/SKILL.md` |
-| Special agent, create agent, specialized agents, domain expert | `CreateSpecialAgent/SKILL.md` |
 
 ## Pipeline Flow
 
-**Full pipeline:** `/dev-prd` → `/dev-plan` → `/dev-validate` → `/dev-shard` → `/dev-build` → `/dev-test`
+**Full pipeline:** `/dev-prd` → `/dev-epic` (optional) → `/dev-plan` → `/dev-validate` → `/dev-shard` → `/dev-build` → `/dev-test`
 
 **Minimum viable flow:** `/dev-plan` → `/dev-build` → `/dev-test`
 
 **Auxiliary commands** (available at any stage):
-`/dev-review` · `/dev-investigate` · `/dev-stories` · `/dev-team` · `/dev-tool_check` · `/dev-create-special-agent`
+`/dev-review` · `/dev-investigate` · `/dev-stories` · `/dev-team`
 
 **Full pipeline documentation:** `PipelineReference.md`
 
