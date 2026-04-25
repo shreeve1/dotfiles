@@ -1,7 +1,7 @@
 ---
 name: dev-test
-description: Use when the user wants to run tests, generate or expand test coverage, analyze failing tests, or verify implementation against acceptance criteria. Four modes: Plan-Driven, Run, Analyze, Discovery. Integrates with /test-Playwright and /test-CDT for browser testing.
-argument-hint: "[path-to-plan] [--browser=none|playwright|cdt|both] [--coverage] [--analyze-failures] [--analyze] [--generate-missing]"
+description: Use after /dev-build to run tests and verify implementation against the plan's acceptance criteria. Plan-driven only — anchors every test run to a written plan.
+argument-hint: "[path-to-plan] [--browser=none|playwright|cdt|both] [--coverage] [--analyze-failures]"
 ---
 
 # Test
@@ -14,58 +14,53 @@ You ground your tests in the plan's acceptance criteria. Every test traces back 
 
 A passing test suite is not success. A passing test suite that covers the right things is success. Coverage without relevance is false confidence.
 
-## Mode Detection
-
-1. If a plan path is provided or referenced → **Plan-Driven Mode**
-2. If asked to just run tests → **Run Mode**
-3. If asked about coverage or gaps → **Analyze Mode**
-4. Otherwise → **Discovery Mode**
-
 ## Variables
 
-- `PLAN_DIRECTORIES` — `plans/`, `specs/`, `artifacts/plans/`
-- `MANIFEST_PATH` — `.pi/test-manifest.json`
+- `PLAN_DIRECTORIES` — `artifacts/plans/`, `artifacts/specs/` (searched recursively to include shards and epic mini-PRDs)
 - `TEST_DIR` — `tests/`
 
-## Mode 1 — Plan-Driven Mode
+## Workflow
 
-Use when verification should be anchored to a written plan.
+Testing is anchored to a written plan. If the user has not run `/dev-plan` and `/dev-build`, stop and ask them to start there. Ad-hoc test runs belong in the standard Bash tool.
 
-### Phase P1 — Find the Plan
+### Phase 1 — Find the Plan
 
 If a path is provided, use it. Otherwise:
 ```bash
-ls -t plans/ specs/ artifacts/plans/ 2>/dev/null
+find artifacts/plans/ artifacts/specs/ -name '*.md' -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -10
 ```
-Read the most recent plan and extract:
+Use `AskUserQuestion` to confirm the most recent candidate if more than one is plausible. Read the confirmed plan and extract:
 - acceptance criteria
 - validation commands
 - testing strategy
 - task IDs (`[N.M]`) and `#req-*` tags if present
 
-### Phase P2 — Run Validation Commands
+### Phase 2 — Run Validation Commands
 
-Run the plan's `## Validation Commands` first:
+Run the plan's `## Validation Commands` first, exactly as written:
 ```bash
 <command from plan>
 ```
 
-Then run the project test suite targeting changed files.
+Then run the project test suite targeting changed files. If no validation commands are defined, run the strongest relevant test suite (unit + integration) available in the repo.
 
-### Phase P3 — Write Missing Tests
+### Phase 3 — Write Missing Tests
 
 If acceptance criteria are not covered by existing tests, write targeted tests:
 - Match existing test file locations, naming, and assertion style
 - Cover happy path, edge cases, and error cases
-- Link test names or comments to plan task IDs where useful
+- Link test names or comments to plan task IDs (`[N.M]`) where useful
 - Do NOT weaken assertions or skip tests to force a pass
 
-### Phase P4 — Report
+### Phase 4 — Update Plan Progress
+
+For each acceptance criterion verified by a passing test, flip the corresponding `[T.N.M]` checkbox in the plan's `## Tests` section from `- [ ]` to `- [x]` using `Edit`. Update the `## Progress` block's Test Status and counts.
+
+### Phase 5 — Report
 
 ```
 ✅ Testing Complete
 
-Mode: Plan-Driven
 Plan: <path>
 Branch: <branch>
 
@@ -84,121 +79,13 @@ Tests Added:
 - <file> — <what it covers>
 
 Recommended Next Steps:
-1. <next step>
+1. If tests PASSED: run `/dev-review <plan-path>` for an independent Codex second-opinion review before merging.
+2. If tests FAILED: address failures and re-run `/dev-test`. Consider `/dev-investigate` for root-cause analysis on persistent failures.
 ```
 
-## Mode 2 — Run Mode
+## Failure Analysis
 
-Use for fast execution of existing tests.
-
-### Phase R1 — Find Test Command
-
-If `MANIFEST_PATH` exists, read it for the preferred run command. Otherwise infer from project structure:
-```bash
-cat package.json 2>/dev/null | grep -A5 '"scripts"'
-find . -name "pytest.ini" -o -name "jest.config*" -o -name "vitest.config*" 2>/dev/null | head -5
-```
-
-### Phase R2 — Run Tests
-
-```bash
-<test command>
-```
-
-### Phase R3 — Report
-
-```
-✅ Testing Complete
-
-Mode: Run
-Command: <command>
-Tests: <passed>/<total> passed
-Status: PASSED | FAILED
-
-Failures:
-- <summary or "none">
-```
-
-## Mode 3 — Analyze Mode
-
-Use when the goal is coverage insight rather than execution.
-
-### Phase A1 — Inspect Test Landscape
-
-Map:
-- source directories and key modules
-- test directories and naming patterns
-- files with no corresponding tests
-- test runner and config
-
-### Phase A2 — Report Gaps
-
-```
-✅ Analysis Complete
-
-Mode: Analyze
-
-Missing Tests (highest priority first):
-- <module> — <why it matters>
-
-Partial Coverage:
-- <module> — <what's missing>
-
-Stale Tests (may not match recent changes):
-- <file>
-
-Recommendations:
-1. <highest value test to add>
-2. <next>
-```
-
-## Mode 4 — Discovery Mode
-
-Use when the project's test setup is unclear.
-
-### Phase D1 — Detect Setup
-
-```bash
-find . -name "jest.config*" -o -name "vitest.config*" -o -name "pytest.ini" -o -name "*.test.*" 2>/dev/null | head -20
-```
-
-Identify: language, framework, test runner, directory structure.
-
-### Phase D2 — Save Manifest
-
-Create or update `.pi/test-manifest.json`:
-```json
-{
-  "framework": "<jest | vitest | pytest | ...>",
-  "runCommand": "<exact test command>",
-  "testDirs": ["tests/", "src/"],
-  "lastRun": "<iso timestamp>",
-  "gaps": ["<module with no tests>"]
-}
-```
-
-### Phase D3 — Report
-
-```
-✅ Discovery Complete
-
-Mode: Discovery
-Framework: <framework>
-Run Command: <command>
-Manifest: .pi/test-manifest.json <created | updated>
-
-Gaps Found:
-- <module>
-
-Next Steps:
-1. <recommended action>
-```
-
-## Failure Analysis (Phase F)
-
-When tests fail, categorize the failure type:
-
-### Failure Categories
+When tests fail, categorize the failure type to guide the fix:
 
 | Category | Description | Action |
 |----------|-------------|--------|
@@ -209,17 +96,17 @@ When tests fail, categorize the failure type:
 | **Timeout** | Test exceeded time limit | Optimize slow code or increase timeout |
 | **Isolation** | Test polluted by another test | Fix test order or isolation issues |
 
-### Phase F1 — Capture Failure Output
+### F1 — Capture Failure Output
 
 ```bash
 <test command> 2>&1 | tail -50
 ```
 
-### Phase F2 — Categorize
+### F2 — Categorize
 
 Analyze the failure output to determine category.
 
-### Phase F3 — Suggest Fix
+### F3 — Suggest Fix
 
 ```
 ❌ Test Failure Detected
@@ -254,8 +141,6 @@ Skill("test-CDT", args="<plan-path>")
 |------|-------------|
 | `--coverage` | Generate coverage report alongside test run |
 | `--analyze-failures` | Run failure analysis on any failing tests |
-| `--analyze` | Run in Analyze Mode to inspect coverage gaps |
-| `--generate-missing` | Automatically write tests for missing coverage |
 
 ## Constraints
 
@@ -263,3 +148,4 @@ Skill("test-CDT", args="<plan-path>")
 - Do NOT weaken assertions or mark tests skipped to force a pass
 - Do NOT claim success without actual command output
 - Always read existing test patterns before writing new ones — match naming, style, and structure
+- If no plan is found, stop and ask the user to run `/dev-plan` first — this command is plan-driven only

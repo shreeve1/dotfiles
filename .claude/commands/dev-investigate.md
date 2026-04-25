@@ -25,7 +25,7 @@ Use when:
 
 ## Key Principle
 
-**Stop at Diagnosis** — This skill diagnoses only. No code edits unless user explicitly asks for a fix. Findings are saved to `investigations/` for handoff to a fix agent.
+**Stop at Diagnosis** — This skill diagnoses only. No code edits unless user explicitly asks for a fix. Findings are saved to `artifacts/investigations/` for handoff to a fix agent.
 
 ## Variables
 
@@ -211,12 +211,12 @@ Explorer agent calls: <N>
 
 ## Save Investigation File
 
-After diagnosis is confirmed, save findings to `investigations/` for handoff.
+After diagnosis is confirmed, save findings to `artifacts/investigations/` for handoff.
 
 ### Create the directory
 
 ```bash
-mkdir -p investigations
+mkdir -p artifacts/investigations
 ```
 
 ### Generate timestamp
@@ -225,7 +225,9 @@ mkdir -p investigations
 TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
 ```
 
-### Write `investigations/investigation-$TIMESTAMP.md`
+### Write the investigation file
+
+Path: `artifacts/investigations/investigation-$TIMESTAMP.md`
 
 ```yaml
 ---
@@ -376,7 +378,7 @@ Key Evidence:
 - <file:line> — <finding>
 - <file:line> — <finding>
 
-Investigation saved: investigations/investigation-<TIMESTAMP>.md
+Investigation saved: artifacts/investigations/investigation-<TIMESTAMP>.md
 Fix tests written: tests/regression/fix-<TIMESTAMP>.<ext>
   - Reproduction test: FAILING
   - Regression tests: PASSING (<N>)

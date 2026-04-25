@@ -1,6 +1,7 @@
 ---
 name: scout
-description: Codebase exploration specialist. Maps project structure, traces definitions, finds dependencies. Saves exploration reports to artifacts/scout-reports/ — never modifies source files. DISPATCH: Ask specific questions (where is X defined, how does Y connect to Z, map the structure of...). Give file paths or directories to explore.
+description: "Codebase exploration specialist. Maps project structure, traces definitions, finds dependencies. Saves exploration reports to artifacts/scout-reports/ — never modifies source files."
+DISPATCH: "Ask specific questions (where is X defined, how does Y connect to Z, map the structure of...). Give file paths or directories to explore."
 model: openai-codex/gpt-5.3-codex
 tools: read,bash,grep,find,ls,write
 tool_budget: 25

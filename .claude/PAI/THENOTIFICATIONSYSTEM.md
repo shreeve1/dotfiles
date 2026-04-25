@@ -85,15 +85,15 @@ curl -s -X POST http://localhost:8888/notify \
 
 ## Effort Level in Voice Notifications
 
-**Voice phase announcements are inline curls in the Algorithm template** (defined in CLAUDE.md), not hooks. Each Algorithm phase has a `curl -s -X POST http://localhost:8888/notify` call that gets spoken. The effort level determines which curls fire:
+**Voice phase announcements are disabled in the Algorithm** (`v3.7.0.md`), and hooks should not call `localhost:8888/notify` during Algorithm entry or phase transitions.
 
 | Effort | Budget | Voice Curls |
 |--------|--------|-------------|
-| Standard | <2min | OBSERVE + VERIFY curls only |
-| Extended | <8min | All phase curls |
-| Advanced | <16min | All phase curls |
-| Deep | <32min | All phase curls |
-| Comprehensive | <120min | All phase curls |
+| Standard | <2min | None during Algorithm entry/phase transitions |
+| Extended | <8min | None during Algorithm entry/phase transitions |
+| Advanced | <16min | None during Algorithm entry/phase transitions |
+| Deep | <32min | None during Algorithm entry/phase transitions |
+| Comprehensive | <120min | None during Algorithm entry/phase transitions |
 
 **Task completion voice** is handled by `StopOrchestrator.hook.ts` → `handlers/VoiceNotification.ts`, which extracts the `🗣️` line from the response and POSTs to the voice server.
 
