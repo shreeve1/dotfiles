@@ -23,6 +23,17 @@ Break the plan into **tracer bullet** issues. Each issue is a thin vertical slic
 
 Slices may be 'HITL' or 'AFK'. HITL slices require human interaction, such as an architectural decision or a design review. AFK slices can be implemented and merged without human interaction. Prefer AFK over HITL where possible.
 
+<HITL-safety-policy>
+These task types are ALWAYS HITL, never AFK:
+- Authentication or authorization changes
+- Billing or payment logic
+- Database migrations (destructive)
+- File deletions
+- Security-sensitive code (keys, tokens, secrets)
+- Dependency version upgrades (major/minor)
+- Production configuration changes
+</HITL-safety-policy>
+
 <vertical-slice-rules>
 - Each slice delivers a narrow but COMPLETE path through every layer (schema, API, UI, tests)
 - A completed slice is demoable or verifiable on its own
@@ -47,11 +58,45 @@ Ask the user:
 
 Iterate until the user approves the breakdown.
 
-### 5. Create the GitHub issues
+### 5. Create the issues
 
-For each approved slice, create a GitHub issue using `gh issue create`. Use the issue body template below.
+**Output target — check in this order:**
+1. If `.kanban/` exists in the project root → write issues as local kanban files (see below)
+2. If `gh` is available and the project has a GitHub remote → create GitHub issues with `gh issue create`
+3. Otherwise → ask the user which format they prefer
 
 Create issues in dependency order (blockers first) so you can reference real issue numbers in the "Blocked by" field.
+
+#### Local kanban output
+
+When writing to `.kanban/`, create files at `.kanban/issues/{NNN}-{slug}.md`:
+
+```markdown
+---
+id: {NNN}
+title: {title}
+status: pending
+type: {HITL|AFK}
+blocked_by: [{ids}]
+parent: {parent issue number or null}
+created: {YYYY-MM-DD}
+---
+
+## What to build
+
+{description}
+
+## Acceptance criteria
+
+- [ ] {criterion 1}
+- [ ] {criterion 2}
+
+## Blocked by
+
+{#issue-number or "None — can start immediately"}
+```
+
+Auto-assign IDs sequentially (scan existing files for highest ID, start from +1).
 
 <issue-template>
 ## Parent
