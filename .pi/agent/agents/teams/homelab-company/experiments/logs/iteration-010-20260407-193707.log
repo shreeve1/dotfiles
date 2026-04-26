@@ -1,9 +1,0 @@
-## Phase 8: Exit
-
-```
-[team-improve] homelab-company: experiment 20260407-194012 — keep — 5.00 → 5.00 — "Compress SecOps Telegram template from full TMPFILE/heredoc HTML form to one-liner script invocation with field list. -34 words (-2.3%)."
-```
-
-**Summary:** The homelab-company team is at a perfect 5.00/5.00 aggregate across all 11 benchmarks. This cycle compressed the SecOps Telegram template by removing bash boilerplate (TMPFILE, heredoc, cleanup) while preserving all behavioral content (4 send triggers, HTML format, 8 message fields). Saved 34 words (-2.3%).
-
-**Best next target:** Standardize the "CRITICAL — Link the approval to the issue" warning across SecOps, NetOps, StorageOps, and DockerOps to use MediaOps' concise 1-line form. This would save ~136 words across 4 agents with no behavioral change.

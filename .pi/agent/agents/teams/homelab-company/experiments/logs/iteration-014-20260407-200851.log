@@ -1,7 +1,0 @@
-## Phase 8 — Exit
-
-```
-[team-improve] homelab-company: experiment 20260407-201115 — keep — 5.00 → 5.00 — "Remove redundant API Rules sections from SecOps/NetOps/StorageOps/DockerOps (-84 words)"
-```
-
-**Summary:** Removed the standalone `## API Rules` sections from 4 specialist agents where the content (include `X-Paperclip-Run-Id` and `Authorization: Bearer` headers) was already demonstrated in every curl example. All 11 benchmarks remain at 5.00. Combined savings: -84 words across 4 files. The change makes each agent's instruction file more concise without losing any behavioral signal.

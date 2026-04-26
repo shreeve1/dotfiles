@@ -1,7 +1,0 @@
-## Phase 8 — Exit
-
-```
-[team-improve] homelab-company: experiment 20260407-185615 — keep — 5.00 → 5.00 — "Compress Uptime Kuma Alert Runbook: remove webhook JSON example, deduplicate routing table, collapse procedural steps. Patrol 2058→1963 words (-4.6%)"
-```
-
-**Summary:** One cycle completed. Compressed the Uptime Kuma Alert Runbook in Patrol by removing the redundant JSON payload example (14 lines), deduplicating the agent routing table to reference the main Runbook Routing table, and collapsing 6 procedural steps into one line. Saved 95 words (-4.6%) on Patrol's prompt with no behavioral change. All 11 benchmarks remain at 5.00.

@@ -14,8 +14,21 @@ MEMORY/
 .pi/agent/auth.json
 .pi/agent/bin/
 .pi/agent/node_modules/
+.pi/agent/**/node_modules/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
+
+# Pi agent — machine-local generated external links
+.pi/agent/agents/teams/homelab-company/experiments/
+.pi/agent/agents/teams/homelab-company/agents/*.md
+.pi/agent/agents/teams/homelab-company/experiments/snapshots/20260407-133417/agents/*.md
+.pi/agent/skills/dedup-before-issue--5890807545
+.pi/agent/skills/handle-approval-follow-up
+.pi/agent/skills/paperclip
+.pi/agent/skills/paperclip-create-agent
+.pi/agent/skills/paperclip-create-plugin
+.pi/agent/skills/para-memory-files
+.pi/agent/skills/request-remediation-approval
 .worktrees
 
 # Claude Code — secrets and machine-local files
@@ -39,10 +52,7 @@ MEMORY/
 .claude/policy-limits.json
 
 # Machine-local MEMORY (session/work/state/learnings are per-machine)
-.claude/MEMORY/STATE/
-.claude/MEMORY/VOICE/
-.claude/MEMORY/WORK/
-.claude/MEMORY/LEARNING/
+.claude/MEMORY/
 
 # PAI-Install (re-run installer on each device)
 .claude/PAI-Install/
