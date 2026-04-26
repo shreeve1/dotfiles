@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Shard"
+  short_description: "Split oversized plans into shards"
+  default_prompt: "Use $dev-shard to estimate and shard this implementation plan."

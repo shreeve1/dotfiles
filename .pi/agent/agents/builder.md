@@ -1,6 +1,7 @@
 ---
 name: builder
-description: Implementation specialist. Executes plans wave-by-wave with dependency ordering, baseline verification, checkbox progress tracking, and strict codebase pattern matching. DISPATCH: Provide a plan file path (preferred) or a concise task description. Do NOT include full file content to copy — builder reads source files and synthesizes its own implementation. For files >100 lines, builder writes in phases automatically.
+description: "Implementation specialist. Executes plans wave-by-wave with dependency ordering, baseline verification, checkbox progress tracking, and strict codebase pattern matching."
+DISPATCH: "Provide a plan file path (preferred) or a concise task description. Do NOT include full file content to copy — builder reads source files and synthesizes its own implementation. For files >100 lines, builder writes in phases automatically."
 model: zai/glm-5.1
 tools: read,write,edit,bash,grep,find,ls
 tool_budget: 30

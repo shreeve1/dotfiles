@@ -12,7 +12,7 @@ Use this skill when the user wants to carry out a written implementation plan, e
 ## Variables
 
 - `PATH_TO_PLAN` - path to a specific plan file, if provided
-- `PLAN_DIRECTORIES` - `artifacts/plans/`, `specs/`
+- `PLAN_DIRECTORIES` - `artifacts/plans/`, `artifacts/specs/`
 
 ---
 
@@ -21,14 +21,15 @@ Use this skill when the user wants to carry out a written implementation plan, e
 Work through these steps in order, skipping only those that clearly do not apply:
 
 1. Discover and confirm the plan
-2. Establish the execution workspace
-3. Load plan state and task readiness
-4. Build a safe wave schedule
-5. Execute one wave at a time
-6. Evaluate results and mark completed tasks in the plan file
-7. Verify results before claiming success
-8. Decide the next workflow handoff
-9. Report the final build status
+2. **Approval gate** — confirm the user wants to build this plan before touching code
+3. Establish the execution workspace
+4. Load plan state and task readiness
+5. Build a safe wave schedule
+6. Execute one wave at a time
+7. Evaluate results and mark completed tasks in the plan file
+8. Verify results before claiming success
+9. Decide the next workflow handoff
+10. Report the final build status
 
 The goal is not maximum parallelism. The goal is safe, dependency-aware progress followed by an explicit decision about testing or merge.
 
@@ -40,12 +41,40 @@ If the user provided a specific plan path, use it as `PATH_TO_PLAN`.
 
 If no plan path was provided:
 
-1. Use `bash` to find recent markdown files in `artifacts/plans/` and `specs/`
+1. Use `bash` to find recent markdown files in `artifacts/plans/` and `artifacts/specs/` (search recursively so sharded plans and epic mini-PRDs are discovered)
 2. If one clear candidate exists, confirm it with `ask_user`
 3. If several likely candidates exist, present the most relevant 1-3 options with `ask_user`
 4. If no plan is found, ask the user to provide a path
 
 Once confirmed, use `read` to inspect the selected plan for context.
+
+---
+
+## Phase 1.5 - Approval Gate
+
+Before any workspace or code changes, present the plan summary and require explicit user approval to proceed.
+
+Extract from the plan:
+- title and objective
+- total task count (and phase count, if the plan uses phases)
+- list of files to be modified or created (from `## Relevant Files`)
+- whether `## Risk Analysis` is present (indicates `pi-dev-validate` has run)
+- headline from `## Acceptance Criteria`
+
+Present a concise summary, then use `ask_user` with a `select` prompt offering:
+- `Proceed with build` (begin implementation)
+- `Revise the plan` (stop and hand off to `pi-dev-plan`)
+- `Run validation first` (stop and hand off to `pi-dev-validate`)
+- `Cancel`
+
+Decision rules:
+- if no `## Risk Analysis` section exists, gently suggest running `pi-dev-validate` first but do not force it
+- if the plan is large (many tasks, multiple phases, or wide file scope), flag it and suggest the user consider decomposing it into smaller plans before proceeding (PI has no automated sharding skill)
+- do not proceed without an explicit `Proceed with build` selection
+
+If the user cancels or chooses a handoff, stop and report the chosen next step. Do not create a branch, run baseline checks, or modify files.
+
+In fully-automated pipelines (e.g., when invoked from an automation wrapper that has already approved the plan upstream), skip this gate only if the caller explicitly signals pre-approval.
 
 ---
 
@@ -93,7 +122,7 @@ Use the plan tools as the source of truth for execution state when available.
    - dependency relationships
    - current execution batches, if available
 
-**Important:** The plan file used is whatever was discovered in Phase 1 (e.g., `artifacts/plans/migrate-qbittorrent-to-gluetun.md`), NOT a file named `plan.md`. Plan files can have any name in `artifacts/plans/` or `specs/`.
+**Important:** The plan file used is whatever was discovered in Phase 1 (e.g., `artifacts/plans/migrate-qbittorrent-to-gluetun.md`), NOT a file named `plan.md`. Plan files can have any name in `artifacts/plans/` or `artifacts/specs/`.
 
 If the plan tools fail (e.g., they require a specific file path format that doesn't match your plan, or return an error):
 - Do NOT ask the user to create or sync a `plan.md` file
@@ -220,6 +249,20 @@ If any task failed or produced conflicting work:
 - explain whether the issue is a code failure, merge/conflict problem, missing dependency, or unclear plan step
 
 Only continue when the wave result is coherent.
+
+### Per-task verification gate (REQUIRED, runs BEFORE marking progress)
+
+Before flipping any `- [ ]` to `- [x]`, run the relevant validation evidence for the completed task(s):
+
+1. From the plan's `## Validation Commands` section, run every command whose intent maps to the just-completed task(s). If a command targets multiple tasks, run it once per wave.
+2. Capture exit code AND stderr for each command.
+3. **A task may only be marked `[x]` if its validation command(s) exit 0.** If any required command is missing, fails, or hangs:
+   - leave the checkbox `[ ]`
+   - append a one-line annotation under the task: `> validation failed: <command> (exit <N>): <first 120 chars of stderr>`
+   - report the failure in the wave summary
+4. If a validation command in the plan is itself broken (e.g. wrong flag, nonexistent path), do NOT silently skip it. Flag it as `> plan defect: <command> — <why it cannot succeed as written>` and leave the task `[ ]` until the plan is corrected or the user explicitly waives the check.
+
+This gate runs once per wave, immediately after subagent results come back and before any checkbox edits. Phase 8 still runs as the full-plan verification at the end.
 
 ### Mark progress in the plan file (REQUIRED)
 
@@ -376,4 +419,6 @@ Status: ❌ Not complete
 - Do not run tasks in parallel when they are likely to edit the same files
 - Do not mark progress until results are reviewed
 - Do not claim success without verification evidence
-- Plan files can have any name in `artifacts/plans/` or `specs/` - there is no requirement for a file named `plan.md`
+- A checkbox flip is a verification claim, not an artifact-existence claim. Producing the file is necessary but not sufficient — the plan's own validation command for that task must exit 0 first.
+- Plan files can have any name in `artifacts/plans/` or `artifacts/specs/` - there is no requirement for a file named `plan.md`
+- The Phase 1.5 Approval Gate is mandatory in interactive use; only skip it when an upstream automated pipeline has pre-approved the plan

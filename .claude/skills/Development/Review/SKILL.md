@@ -1,6 +1,6 @@
 ---
 name: Review
-description: Deep code review — multi-dimensional analysis of code, config, or artifacts with interactive findings discussion and optional change application. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture.
+description: Two-pass code review — Claude deep analysis followed by automatic Codex CLI second opinion, cross-model comparison, interactive findings discussion, and optional change application. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review.
 ---
 
 ## Customization
@@ -59,7 +59,7 @@ This sub-skill has a single comprehensive workflow. All review requests route to
 
 | File | Purpose |
 |------|---------|
-| `Workflows/DeepReview.md` | Full 4-phase review workflow |
+| `Workflows/DeepReview.md` | Full 5-phase review workflow |
 
 ## Examples
 
@@ -70,7 +70,8 @@ User: "Review src/services/user.ts"
 -> Phase 1: Locate and understand the file + surrounding context
 -> Phase 2: Multi-dimensional analysis (selects 3-5 relevant dimensions)
 -> Phase 3: Interactive discussion of findings
--> Phase 4: Optional change application
+-> Phase 4: Codex CLI second opinion + cross-model comparison
+-> Phase 5: Optional change application
 ```
 
 **Example 2: Review a directory**
@@ -79,7 +80,8 @@ User: "Review the auth module in src/auth/"
 -> Routes to DeepReview workflow
 -> Scans directory, selects key files for review
 -> Confirms selection with user before deep analysis
--> Presents findings per dimension with AskUserQuestion
+-> Presents findings per dimension, then runs Codex for second opinion
+-> Cross-model comparison highlights what each engine caught independently
 ```
 
 **Example 3: Review session context**
@@ -87,5 +89,6 @@ User: "Review the auth module in src/auth/"
 User: "Review what we've done so far"
 -> Routes to DeepReview workflow
 -> Reviews current session context — decisions, implementations, discussions
--> Provides retrospective quality assessment
+-> Runs Codex review against current git diff if one exists
+-> Provides retrospective quality assessment with cross-model analysis
 ```

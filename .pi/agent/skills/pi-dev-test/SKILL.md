@@ -1,43 +1,32 @@
 ---
 name: pi-dev-test
-description: Use when the user wants to run tests, generate or expand test coverage, analyze failing tests, or verify an implementation against a plan, acceptance criteria, or validation commands.
+description: Use when the user wants to verify an implementation against a plan — run its validation commands, confirm acceptance criteria, and add missing tests when the plan calls for them.
 ---
 
 # Dev Test
 
-Use this skill to orchestrate testing work: run existing tests, inspect coverage and test gaps, generate or expand tests when appropriate, and verify implementations against plans or acceptance criteria. Choose the lightest mode that fits the request. Do not use this skill for manual exploratory QA or root-cause debugging of a specific failing test when the primary need is diagnosis rather than test orchestration.
+Use this skill to verify an implementation against a written plan. Read the plan, run its validation commands, confirm acceptance criteria, and add only the tests the plan requires. Do not use this skill for exploratory QA, ad-hoc test runs without a plan, or root-cause debugging — hand those off to `dev-investigate` or direct user discussion.
 
 ---
 
 ## Variables
 
-- `PATH_TO_PLAN` - optional path to a plan file
+- `PATH_TO_PLAN` - path to a plan file (required; if absent, discover one)
 - `BROWSER_MODE` - from `--browser=none|headless|headed`, default `none`
-- `RUN_ONLY` - from `--run`
-- `COVERAGE` - from `--coverage`
-- `ANALYZE_FAILURES` - from `--analyze-failures`
-- `ANALYZE` - from `--analyze`
-- `GENERATE_MISSING` - from `--generate-missing`
-- `MANIFEST_PATH` - `.pi/test-manifest.json`
 - `TEST_DIR` - `tests/`
-- `PLAN_DIRECTORIES` - `artifacts/plans/`, `specs/`
+- `PLAN_DIRECTORIES` - `artifacts/plans/`, `artifacts/specs/`
 
 ---
 
 ## Workflow Overview
 
-Choose the lightest mode that satisfies the request:
+Plan-Driven verification only. Run phases in sequence:
 
-1. **Plan-Driven Mode** - verify work against a plan, acceptance criteria, or validation commands
-2. **Run Mode** - run existing tests quickly
-3. **Analyze Mode** - inspect gaps, stale tests, and low coverage without focusing on execution first
-4. **Discovery Mode** - inspect project test setup, identify frameworks, and optionally generate missing tests
-
-Rules:
-- Prefer **Run Mode** when the user just wants tests executed
-- Prefer **Analyze Mode** when the user wants coverage or gap insight
-- Prefer **Plan-Driven Mode** when a plan file or acceptance criteria drive verification
-- Use **Discovery Mode** when test structure is unclear or the project lacks an established test workflow
+1. Discover and read the plan
+2. Decide what must be verified
+3. Write or expand tests only where the plan requires it
+4. Run verification
+5. Report plan verification
 
 Workspace policy:
 - Tests always run in the current working directory and current checkout
@@ -47,34 +36,17 @@ Do not make implementation changes by default. If tests expose product bugs, rep
 
 ---
 
-## Mode Detection
-
-Determine mode in this order:
-
-1. If a valid plan path is provided, use **Plan-Driven Mode**
-2. Else if `--run` is present, use **Run Mode**
-3. Else if `--analyze` is present, use **Analyze Mode**
-4. Else use **Discovery Mode**
-
-If the request is ambiguous, use `ask_user` to confirm the intended mode before proceeding.
-
----
-
-# MODE 1: Plan-Driven Mode
-
-Use this mode when testing should be anchored to a written plan or explicit acceptance criteria.
-
-## Phase P1 - Discover and Read the Plan
+## Phase 1 - Discover and Read the Plan
 
 Before selecting commands, use `bash` to determine the execution workspace: current branch and git top-level path.
 
 If `PATH_TO_PLAN` is provided, use it.
 
 If not:
-1. Use `bash` to find recent markdown files in `artifacts/plans/` and `specs/`
+1. Use `bash` to find recent markdown files in `artifacts/plans/` and `artifacts/specs/` (search recursively so sharded plans and epic mini-PRDs are discovered)
 2. If one clear candidate exists, confirm it with `ask_user`
 3. If multiple likely candidates exist, present the most relevant options with `ask_user`
-4. If no plan can be found, ask the user for a path or switch to a non-plan mode
+4. If no plan can be found, ask the user for a path; do not continue without one
 
 Use `read` to inspect the selected plan.
 
@@ -85,23 +57,33 @@ Extract:
 - validation commands
 - relevant files
 - implementation tasks and any `[N.M]` task IDs
+- `[T.N.M]` test task IDs from any `## Tests` section
 - `#req-*` tags if present
 - traceability information if present
 
-## Phase P2 - Decide What Must Be Verified
+---
 
-Identify what kinds of tests are appropriate:
+## Phase 2 - Decide What Must Be Verified
+
+Identify what kinds of tests are appropriate for this plan:
 - **Unit tests** for functions, utilities, transformations, isolated modules
 - **Integration tests** for component interaction, endpoints, services, persistence, and workflows across boundaries
 - **E2E or browser tests** for user-facing flows, pages, or interactive browser behavior
 
 If browser testing is likely relevant and `BROWSER_MODE` is `none`, ask the user whether browser verification should be included.
 
-## Phase P3 - Write or Expand Tests
+Decide verification coverage by mapping each acceptance criterion to:
+- an existing test, or
+- a plan validation command, or
+- a test task in `## Tests` that still needs to be written
+
+---
+
+## Phase 3 - Write or Expand Tests
 
 Prefer existing test coverage and validation commands before adding new tests.
 
-Write or expand tests only as needed to verify the plan.
+Write or expand tests only when the plan explicitly calls for them (`## Tests` section or testing strategy) or when an acceptance criterion has no existing coverage.
 
 Use `subagent` with `worker` when helpful for focused test-writing work. A typical prompt should instruct the subagent to:
 - read the plan
@@ -110,16 +92,18 @@ Use `subagent` with `worker` when helpful for focused test-writing work. A typic
 - report files created or modified
 - report blockers clearly
 
-If using task traceability, include comments or naming conventions that link tests to plan task IDs or requirement tags.
+If the plan uses traceability, include comments or naming conventions that link tests to plan task IDs (`[N.M]`) or requirement tags (`#req-*`).
 
 Do not weaken assertions or mark tests skipped just to force a passing result.
 
 Do not modify implementation unless the user explicitly asked for a fix-oriented loop.
 
-## Phase P4 - Run Verification
+---
+
+## Phase 4 - Run Verification
 
 Use `bash` to run:
-- plan validation commands where available
+- plan validation commands from `## Validation Commands`
 - test commands appropriate to the project
 - browser/E2E tests if included
 
@@ -131,9 +115,13 @@ Capture:
 - pass/fail counts
 - failing files or suites
 - command outputs
-- whether the plan's acceptance criteria are satisfied, partially satisfied, or not yet satisfied
+- whether each acceptance criterion is satisfied, partially satisfied, or not yet satisfied
 
-## Phase P5 - Report Plan Verification
+As tests for `[T.N.M]` task IDs pass, flip the corresponding checkbox in the plan's `## Tests` section using `edit`.
+
+---
+
+## Phase 5 - Report Plan Verification
 
 Summarize:
 - which criteria were verified by passing tests
@@ -141,151 +129,9 @@ Summarize:
 - what test files were added or updated
 - whether validation commands passed
 - whether browser verification was included
+- which `[T.N.M]` test checkboxes were flipped in the plan
 
 Only mark plan completion or test completion when supported by actual results.
-
----
-
-# MODE 2: Run Mode
-
-Use this mode for fast execution of existing tests.
-
-## Phase R1 - Load Existing Test Context
-
-If `MANIFEST_PATH` exists, use `read` to inspect it for:
-- preferred run commands
-- coverage commands
-- known test directories
-- prior results
-
-Use the manifest as a convenience for known commands and prior results, but prefer the current repository state if they disagree.
-
-If no manifest exists, infer the test command from the project structure using `bash`.
-
-## Phase R2 - Run Tests
-
-Use `bash` to run the most appropriate existing test command.
-
-Examples may include:
-- project package scripts
-- direct test runner commands
-- scoped commands for relevant test directories
-
-If `COVERAGE` is enabled, run the appropriate coverage command instead of or in addition to the base command.
-
-## Phase R3 - Report Results
-
-Report:
-- command(s) run
-- pass/fail status
-- test file and test count summary where available
-- failing files or suites
-- coverage summary if collected
-
-If `ANALYZE_FAILURES` is enabled and tests failed, continue into failure analysis.
-
----
-
-# MODE 3: Analyze Mode
-
-Use this mode when the user wants insight into test quality, gaps, and priorities rather than a simple run.
-
-## Phase A1 - Inspect the Test Landscape
-
-Use `bash` and `read` to inspect:
-- source directories
-- test directories
-- existing test files
-- test config
-- manifest data if present
-
-Look for:
-- missing tests for important modules
-- stale tests relative to changed source files
-- low coverage areas if coverage data exists
-- critical paths without meaningful verification
-
-## Phase A2 - Analyze Gaps and Priorities
-
-Categorize findings such as:
-- **Missing tests** - source files with no meaningful test coverage
-- **Partial coverage** - low-coverage or shallowly tested modules
-- **Stale tests** - tests that may no longer match recent source changes
-- **Weak assertions** - tests that exist but do not strongly verify behavior
-- **Failure hotspots** - repeatedly failing areas from prior runs or manifest history
-
-If useful, use `subagent` with `worker` to analyze uncovered files and suggest high-value tests.
-
-## Phase A3 - Report Analysis
-
-Report:
-- highest-priority missing tests
-- partial or weak coverage areas
-- stale test risks
-- recommended next tests to add
-- whether generating missing tests would be a good next step
-
-Do not generate tests in Analyze Mode unless the user asked for it.
-
----
-
-# MODE 4: Discovery Mode
-
-Use this mode when the project's testing setup is unclear, incomplete, or not yet standardized.
-
-## Phase D1 - Detect Project Test Setup
-
-Use `bash` to inspect:
-- package or build manifests
-- test frameworks and config files
-- source directories
-- existing test directories and naming patterns
-
-Use `read` on relevant config files to understand how tests are expected to run.
-
-Identify:
-- language and framework
-- test runner
-- current test directory structure
-- whether the repo already has a stable testing pattern
-- whether browser testing is likely relevant
-
-## Phase D2 - Decide What Is Missing
-
-Determine whether the project needs:
-- only a test run
-- missing configuration
-- missing test directories
-- missing tests for uncovered modules
-- manifest creation for future runs
-
-Prefer using the project's existing conventions over introducing new ones.
-
-## Phase D3 - Generate Missing Tests Only If Requested
-
-If `GENERATE_MISSING` is enabled or the user explicitly asked for test generation:
-- use `subagent` with `worker` to generate tests for the highest-value uncovered modules first
-- prefer unit and integration coverage before broad E2E expansion
-- keep generated tests aligned with existing framework and naming conventions
-
-If generation is not requested, stop at reporting what is missing.
-
-## Phase D4 - Save or Update Manifest
-
-When useful, create or update `.pi/test-manifest.json` with concise structured information such as:
-- project type and framework
-- test runner and commands
-- known test directories
-- tracked test files
-- high-level coverage summary
-- missing/partial/stale test gaps
-- last run results
-
-Keep the manifest practical and easy to refresh. Do not let schema complexity dominate the workflow.
-
-## Phase D5 - Run Tests If Appropriate
-
-If the user wants execution after discovery, run the most appropriate test command and report results.
 
 ---
 
@@ -326,6 +172,8 @@ Provide:
 
 Do not silently repair implementation unless the user requested that explicitly.
 
+If failures point to a persistent root-cause bug rather than a simple test fix, recommend handing off to `dev-investigate`.
+
 ---
 
 # Browser Testing
@@ -346,31 +194,14 @@ If browser setup is heavy or project-specific, keep the test scope narrow and fo
 
 ---
 
-# Post-Test Decision
-
-After testing succeeds for a branch-based workflow, ask the user what they want to do next.
-
-Use `ask_user` with a focused `select` prompt. The default options should be:
-- `Merge and clean up` (recommended when all tests pass)
-- `Keep working on this branch`
-- `Stop here without merging yet`
-
-Decision rules:
-- if tests or validation commands failed, do not offer merge as the recommended path
-- if tests passed on a feature branch, recommend `Merge and clean up`
-- if the user wants more changes, keep the branch visible in the final report
-
-If the user selects merge, report the branch name and remind the user to merge via their normal git workflow (e.g., `git merge`, pull request).
-
 # Unified Report
 
 After testing work completes, output a concise unified report:
 
 ```text
-✅ Testing Complete
+✅ Plan Verification Complete
 
-Mode: <Plan-Driven | Run | Analyze | Discovery>
-Plan: <path or "none">
+Plan: <path>
 Branch: <branch or "none">
 Browser Mode: <none | headless | headed>
 
@@ -380,27 +211,20 @@ Results:
 - Tests: <passed>/<total> passed
 - Status: <PASSED | PARTIAL | FAILED>
 
+Acceptance Criteria:
+- Satisfied: <list or count>
+- Partial: <list or count>
+- Not yet satisfied: <list or count>
+
 Failures:
 - <summary or "none">
 
-Coverage:
-- <summary or "not collected">
+Tests added/updated:
+- <file>
+- <file>
 
-Gaps:
-- <summary or "none">
-
-Artifacts:
-- Manifest: .pi/test-manifest.json <if created or updated>
-- Tests added/updated: <omit if none>
-  - <file>
-  - <file>
-
-Plan Verification:
-- <summary or "not plan-driven">
-
-Post-Test Decision:
-- Selected: <merge into main | keep working | stop here>
-- Recommendation: <brief reason>
+Plan Checkboxes Flipped:
+- [T.N.M] <short description>
 
 Recommended Next Steps:
 1. <highest priority next step>
@@ -411,9 +235,10 @@ Recommended Next Steps:
 
 # Execution Notes
 
-- Prefer the lightest mode that fits the request
+- Plan-driven verification only; no ad-hoc test runs without a plan
 - Prefer existing project conventions over introducing new test structure
 - Prefer reporting over automatic implementation repair
 - Do not weaken assertions to force passing tests
 - Do not claim success without actual command output or verification evidence
 - Use `worker` for delegated test-writing or analysis tasks
+- Hand persistent root-cause failures off to `dev-investigate`

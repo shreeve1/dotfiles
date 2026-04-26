@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Validate"
+  short_description: "Preflight implementation plans"
+  default_prompt: "Use $dev-validate to check whether this plan is safe to build."
