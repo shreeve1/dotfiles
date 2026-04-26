@@ -4,8 +4,17 @@ This repo stores the config files and folders you want to keep synced across mac
 
 ## Managed Config
 
+- `~/.zshrc`
+- `~/.local/bin/osc52`
+- `~/.config/starship.toml`
+- `~/.config/tmux`
 - `~/.config/ghostty/config`
+- `~/.config/yazi`
+- selected reusable Neovim config under `~/.config/nvim`
 - selected reusable OpenCode config under `~/.config/opencode`
+- selected Claude/PAI config under `~/.claude`
+- selected Codex config under `~/.codex`
+- `~/.pi/agent`
 
 ## Layout
 

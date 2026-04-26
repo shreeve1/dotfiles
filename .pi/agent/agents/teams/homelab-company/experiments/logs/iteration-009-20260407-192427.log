@@ -1,7 +1,0 @@
-## Phase 8 — Exit
-
-```
-[team-improve] homelab-company: experiment 20260407-192856 — keep — 5.00 → 5.00 — "Standardize Run Guardrails across SecOps/NetOps/StorageOps/DockerOps/MediaOps into consistent concise form. -107 words (-0.9%)."
-```
-
-**Summary:** One experiment cycle completed. Standardized the Run Budget Guardrails section across all 5 specialist agents (SecOps, NetOps, StorageOps, DockerOps, MediaOps) from verbose per-agent elaborations to a consistent 4-5 line concise form. All 11 benchmarks remain at 5.00/5.00. Saved 107 words total across the agent harness. The change is a keep — no behavioral content was added or removed, only redundant elaboration text was compressed.
