@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev PRD"
+  short_description: "Create buildable product requirements"
+  default_prompt: "Use $dev-prd to turn this idea into a buildable PRD."

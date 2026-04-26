@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Test"
+  short_description: "Run and analyze project tests"
+  default_prompt: "Use $dev-test to verify this implementation."

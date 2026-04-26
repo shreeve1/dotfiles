@@ -3,7 +3,7 @@ name: document
 description: Extract documentation from a session or user input and save to artifacts/docs/ where /cc-prime discovers it
 argument-hint: [topic or description of what to document]
 allowed-tools: Bash(mkdir:*), Bash(ls:*), Bash(wc:*), Bash(cat:*), Read, Write, Edit, Glob, Grep
-model: haiku
+model: sonnet
 ---
 
 # Document
@@ -50,7 +50,8 @@ Determine which `artifacts/docs/` subdirectory the content belongs in based on C
 | Tutorial | `artifacts/docs/getting-started/` | First-time setup, onboarding, walkthroughs |
 | How-to | `artifacts/docs/guides/` | Task-oriented instructions, recipes |
 | Reference | `artifacts/docs/reference/` | API docs, specs, configuration options |
-| Development | `artifacts/docs/development/` | Contributing guidelines, architecture, internal docs |
+| Architecture | `artifacts/docs/architecture/` | System design, data flow, component relationships |
+| Development | `artifacts/docs/development/` | Contributing guidelines, internal tooling, ADRs |
 
 If the content doesn't fit cleanly, ask the user which category to use.
 
@@ -71,6 +72,7 @@ Before writing, understand what already exists:
 Create the documentation file with this structure:
 
 ```markdown
+<!-- Created: YYYY-MM-DD -->
 # <Title>
 
 <Brief description of what this document covers and who it's for>
@@ -92,6 +94,7 @@ Create the documentation file with this structure:
 - Use relative links to reference other project files (e.g., `../../src/auth.ts`)
 - Don't over-document — capture what's useful, skip what's obvious from code
 - Match the tone and depth of existing docs in the project if any exist
+- Set `Created` date to today's date in YYYY-MM-DD format
 
 **Filename:** Use kebab-case, descriptive names (e.g., `authentication-flow.md`, `api-endpoints.md`, `local-setup.md`)
 

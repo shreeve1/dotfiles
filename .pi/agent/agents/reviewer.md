@@ -1,6 +1,7 @@
 ---
 name: reviewer
-description: Code and plan review specialist. Reviews plans for feasibility and code for correctness, categorising findings as Critical, Important, or Minor. DISPATCH: Provide a plan file path (absolute if cross-project) or a diff/branch/files to review. Include review criteria if specific areas matter.
+description: "Code and plan review specialist. Reviews plans for feasibility and code for correctness, categorising findings as Critical, Important, or Minor."
+DISPATCH: "Provide a plan file path (absolute if cross-project) or a diff/branch/files to review. Include review criteria if specific areas matter."
 model: openai-codex/gpt-5.3-codex
 tools: read,bash,grep,find,ls,write,edit
 tool_budget: 30

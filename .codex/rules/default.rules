@@ -1,0 +1,8 @@
+prefix_rule(pattern=["npm", "bin", "-g"], decision="allow")
+prefix_rule(pattern=["npm", "list", "-g"], decision="allow")
+prefix_rule(pattern=["npm", "prefix", "-g"], decision="allow")
+prefix_rule(pattern=["zsh", "-lic"], decision="allow")
+prefix_rule(pattern=["npm", "view", "@openai/codex", "version"], decision="allow")
+prefix_rule(pattern=[".venv/bin/python", "-c", "import sys; print(sys.executable); import psycopg, pytest, pydantic; print('deps ok')"], decision="allow")
+prefix_rule(pattern=[".venv/bin/pytest", "--version"], decision="allow")
+prefix_rule(pattern=["claude", "--help"], decision="allow")

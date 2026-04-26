@@ -16,6 +16,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { Message } from "@mariozechner/pi-ai";
 import { StringEnum } from "@mariozechner/pi-ai";
@@ -215,6 +216,35 @@ function writePromptToTempFile(agentName: string, prompt: string): { dir: string
 	return { dir: tmpDir, filePath };
 }
 
+function findBundledPiCli(): string | undefined {
+	let dir = path.dirname(fileURLToPath(import.meta.url));
+	while (true) {
+		const candidate = path.join(
+			dir,
+			"node_modules",
+			"@mariozechner",
+			"pi-coding-agent",
+			"dist",
+			"cli.js",
+		);
+		if (fs.existsSync(candidate)) return candidate;
+
+		const parent = path.dirname(dir);
+		if (parent === dir) return undefined;
+		dir = parent;
+	}
+}
+
+function getPiInvocation(): { command: string; prefixArgs: string[] } {
+	const bundledCli = findBundledPiCli();
+	if (bundledCli) return { command: process.execPath, prefixArgs: [bundledCli] };
+
+	const cliPath = process.argv[1];
+	if (cliPath && fs.existsSync(cliPath)) return { command: process.execPath, prefixArgs: [cliPath] };
+
+	return { command: "pi", prefixArgs: [] };
+}
+
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
 async function runSingleAgent(
@@ -284,7 +314,12 @@ async function runSingleAgent(
 		let wasAborted = false;
 
 		const exitCode = await new Promise<number>((resolve) => {
-			const proc = spawn("pi", args, { cwd: cwd ?? defaultCwd, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+			const piInvocation = getPiInvocation();
+			const proc = spawn(piInvocation.command, [...piInvocation.prefixArgs, ...args], {
+				cwd: cwd ?? defaultCwd,
+				shell: false,
+				stdio: ["ignore", "pipe", "pipe"],
+			});
 			let buffer = "";
 
 			const processLine = (line: string) => {

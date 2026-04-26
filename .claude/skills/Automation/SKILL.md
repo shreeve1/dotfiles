@@ -27,9 +27,12 @@ All cron jobs are defined in `References/cron-jobs.json`. Each job entry:
   "staggerSeconds": 300,
   "lockName": "unique-lock-name",
   "logFile": "name.log",
+  "timeoutSecs": 300,
   "timezone": "America/Los_Angeles"
 }
 ```
+
+`timeoutSecs` is optional. If omitted, `cron-wrapper.sh` uses its built-in default (300s). Set this when a job legitimately needs longer (e.g. a multi-minute Halo sync) or shorter (e.g. a tight 5-min cadence job that should fail fast).
 
 ### Adding a Cron Job
 
@@ -51,20 +54,63 @@ The crontab is managed via a sentinel block pattern:
 # <<< PAI AUTOMATION END <<<
 ```
 
+**Use the deterministic generator — never author crontab lines from prose.** Crontab line generation is delegated to `Tools/install-cron.ts` so output is byte-for-byte reproducible across runs. Past Claude sessions that authored lines from natural-language templates produced silently-broken entries (positional jobIds the wrapper rejects) — the script removes that failure mode.
+
 To install/update cron entries:
 
-1. Read `References/cron-jobs.json` to get all enabled jobs
-2. Resolve the `claude` binary path via `which claude` (use absolute path in commands)
-3. Generate crontab entries for each job:
-   - **Shell jobs**: `~/.claude/skills/Automation/Tools/cron-wrapper.sh --stagger N --lock NAME --log ~/.claude/logs/NAME.log -- ~/.claude/scripts/SCRIPT.sh`
-   - **LLM/Skill jobs**: Create a runner script at `~/.claude/scripts/run-JOBNAME.sh` that handles `cd`, env vars, and `exec claude -p "..."`. Then: `~/.claude/skills/Automation/Tools/cron-wrapper.sh --stagger N --lock NAME --log ~/.claude/logs/NAME.log -- ~/.claude/scripts/run-JOBNAME.sh`
-   
-   **Why runner scripts?** Inline `cd /dir && claude -p "..."` breaks in crontab because `&&` is interpreted by cron's shell, not the wrapper. Runner scripts encapsulate working directory, environment, and claude invocation in one file.
-4. Extract any existing PAI sentinel block from `crontab -l`
-5. Replace the block (or append if none exists) with the new entries
-6. Install the updated crontab
+1. Edit `References/cron-jobs.json` (add/remove/modify the job entry).
+2. **For LLM/Skill jobs only**: Create a runner script at `~/.claude/scripts/run-JOBNAME.sh` that handles `cd`, env vars, and `exec claude -p "..."`. Set the entry's `command` to that runner script's path. (Inline `cd /dir && claude -p "..."` does NOT work in crontab — `&&` is interpreted by cron's shell, not the wrapper.)
+3. Preview the change:
+   ```
+   ~/.claude/skills/Automation/Tools/install-cron.ts diff
+   ```
+4. Apply (backs up the current crontab to `~/.claude/data/crontab-backup-<ts>.txt` first):
+   ```
+   ~/.claude/skills/Automation/Tools/install-cron.ts apply
+   ```
 
-This is **idempotent** — re-running never duplicates entries.
+The generator is **idempotent** — re-running with no registry changes is a no-op (`No changes — crontab already matches registry.`).
+
+**Flag emission rules** (enforced by the generator — listed here for reference, not for hand-authoring):
+- `--stagger N` — emitted only when `staggerSeconds > 0` (the wrapper skips zero-second sleeps).
+- `--lock NAME` — always emitted from `lockName`.
+- `--log <path>` — always emitted; absolute path or `~/.claude/logs/<logFile>`.
+- `--timeout N` — emitted only when `timeoutSecs` is set. Omitted → wrapper default (300s).
+- `--` separates wrapper flags from the job command.
+
+#### Worked Example
+
+Registry entry:
+
+```json
+{
+  "id": "itastack-stale-ticket-check",
+  "name": "ITAStack Stale Ticket Check",
+  "schedule": "*/5 * * * *",
+  "type": "shell",
+  "command": "/home/james/itastack/scripts/oversight/run-stale-ticket-check.sh",
+  "enabled": true,
+  "staggerSeconds": 0,
+  "lockName": "itastack-stale-ticket",
+  "logFile": "itastack-stale-ticket.log",
+  "timeoutSecs": 240,
+  "timezone": "America/Los_Angeles"
+}
+```
+
+Generates this crontab line (note: no `--stagger` flag because `staggerSeconds` is 0):
+
+```
+*/5 * * * * /home/james/.claude/skills/Automation/Tools/cron-wrapper.sh --lock itastack-stale-ticket --log /home/james/.claude/logs/itastack-stale-ticket.log --timeout 240 -- /home/james/itastack/scripts/oversight/run-stale-ticket-check.sh
+```
+
+Counter-example — what NOT to write:
+
+```
+# WRONG — wrapper exits 1 with "Unknown wrapper option" because the jobId is
+# a positional argument, not a flag. Past Claude sessions produced this form.
+0 * * * * /home/james/.claude/skills/Automation/Tools/cron-wrapper.sh zeroday-supply-chain-monitor
+```
 
 ### Listing Jobs
 
@@ -152,6 +198,7 @@ Incoming webhook alerts trigger `claude -p` for investigation, then send finding
 | Tool | Purpose |
 |------|---------|
 | `Tools/cron-wrapper.sh` | Shared cron execution wrapper (PATH, stagger, lockfiles, logging, alerting) |
+| `Tools/install-cron.ts` | Deterministic crontab generator — `show` / `diff` / `apply` modes |
 | `Tools/telegram-send.sh` | Telegram Bot API helper for sending notifications |
 | `Tools/webhook-server.ts` | Bun HTTP server for webhook ingestion |
 | `Tools/transforms/` | Named transform modules for payload classification |
