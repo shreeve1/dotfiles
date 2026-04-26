@@ -1,7 +1,0 @@
-**Phase 8 — Exit**
-
-```
-[team-improve] homelab-company: experiment 20260408-170702 — keep — 5.00 → 5.00 — "Merge Observer Patrol routine ID table into inline for-loop with comments. Observer 1278→1250 words (-2.2%)."
-```
-
-**Summary:** One experiment cycle completed. The change merged Observer's separate Patrol routine ID lookup table into the for-loop with inline comments (matching OpsLead's existing pattern). This eliminated a placeholder + table indirection pattern, making the code block directly usable. All 10 benchmarks remain at 5.00. The harness is at ceiling — remaining improvements are all simplification-only word count reductions.

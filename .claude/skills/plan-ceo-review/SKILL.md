@@ -1,1 +1,0 @@
-/Users/james/dotfiles/.claude/skills/gstack/plan-ceo-review/SKILL.md
