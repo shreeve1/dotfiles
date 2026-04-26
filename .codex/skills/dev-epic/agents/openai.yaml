@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Epic"
+  short_description: "Split large PRDs into epics"
+  default_prompt: "Use $dev-epic to decompose this PRD into self-contained epics."

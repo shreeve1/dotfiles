@@ -6,7 +6,7 @@
 
 **Location:** `~/.claude/hooks/`
 **Configuration:** `~/.claude/settings.json`
-**Status:** Active - 20 hooks running in production
+**Status:** Active
 
 ---
 
@@ -357,8 +357,15 @@ Hooks have access to all environment variables from `~/.claude/settings.json` `"
 ```json
 {
   "env": {
-    "PAI_DIR": "$HOME/.claude",
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS": "1",
+    "PAI_DIR": "/home/james/.claude",
+    "PROJECTS_DIR": "${HOME}/Projects",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "80000",
+    "BASH_DEFAULT_TIMEOUT_MS": "600000",
+    "PAI_CONFIG_DIR": "/home/james/.config/PAI",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   }
 }
 ```
@@ -472,11 +479,8 @@ const payload = {
   voice_id: identity.voiceId  // From settings.json
 };
 
-await fetch('http://localhost:8888/notify', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload)
-});
+// Voice phase announcements are disabled in Algorithm v3.7.0.
+// Do not call localhost:8888/notify during Algorithm entry or phase transitions.
 ```
 
 **Agent-Specific Voices:**

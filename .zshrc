@@ -145,7 +145,7 @@ export VISUAL='nvim'
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
 # Ensure user-local binaries are on PATH before initializing tools below
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
 
 # Fall back to a known TERM when the server lacks the client's terminfo entry.
 # Prevents character-echo glitches on SSH from Ghostty to hosts without xterm-ghostty.
@@ -267,3 +267,5 @@ alias pai='bun $HOME/dotfiles/.claude/PAI/Tools/pai.ts'
 bindkey -v
 export KEYTIMEOUT=20
 bindkey -M viins 'jk' vi-cmd-mode
+
+. "$HOME/.atuin/bin/env"

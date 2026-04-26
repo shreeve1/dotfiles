@@ -25,10 +25,11 @@ Work through these steps in sequence, skipping only those that clearly do not ap
 1. Parse the request
 2. Discover relevant source documents
 3. Understand the codebase directly
-4. Design the technical approach
-5. Write the plan
-6. Generate a descriptive filename
-7. Save the plan and report the result
+4. Feasibility preflight — verify the plan is implementable here before designing in detail
+5. Design the technical approach
+6. Write the plan
+7. Generate a descriptive filename
+8. Save the plan and report the result
 
 Adjust depth to fit complexity:
 - **Simple** tasks should produce lean plans (core sections and a concise actionable task list)
@@ -57,7 +58,7 @@ If `USER_PROMPT` is a file path, read that file directly with `read` and treat i
 
 If `USER_PROMPT` is free text, look for likely source documents:
 
-1. Use `bash` to list markdown files in `artifacts/specs/` and `artifacts/brainstorming/`, sorted by modification time
+1. Use `bash` to list markdown files recursively in `artifacts/specs/` and `artifacts/brainstorming/`, sorted by modification time (recursion is required so mini-PRDs produced by `pi-dev-epic` at `artifacts/specs/<parent>/epic-N-<slug>.md` are discoverable)
 2. If one or more likely source documents exist, present the most relevant 1-3 options with `ask_user`
 3. Let the user choose:
    - use one document
@@ -92,6 +93,29 @@ Look for:
 - likely integration points, dependencies, and risks
 
 Capture enough context to make the plan specific. Do not over-research simple tasks.
+
+---
+
+## Phase 3.5 — Feasibility Preflight
+
+Before investing in detailed design, verify the plan is implementable in this repo as written. This is a lightweight feasibility pass — `pi-dev-validate` handles the deeper risk analysis later.
+
+Answer: `Can this plan realistically be executed in this repository as written, without hidden prerequisite work?`
+
+Check at minimum:
+
+1. **Referenced files exist or are clearly intended as new files** — if you plan to edit/refactor/migrate a file that does not exist, explicitly mark it as new in `## Relevant Files`.
+2. **Dependencies and platforms exist or will be added explicitly** — if the plan assumes a library/service/framework (Clerk, Stripe, Prisma, Docker, Terraform, etc.), verify evidence in the repo (`package.json`, lockfiles, config, imports, env examples, infrastructure files). If absent, the plan must include adding and integrating that prerequisite as an early task.
+3. **Architecture assumptions are grounded** — if you reference systems that do not appear to exist yet (billing portal, role system, background jobs, design system, API layer), call out the mismatch and include prerequisite tasks.
+4. **Scope is execution-sized** — if the work bundles multiple major initiatives into one pass, flag it as too broad. If the source is a PRD, recommend `pi-dev-epic` to decompose it into per-epic mini-PRDs. If the source is a raw idea or loose brief, recommend `pi-brainstorm` to shape it first.
+5. **Sequence is viable** — tasks should not depend on unfinished prerequisite work; tests should not validate features before the supporting implementation exists.
+
+Fold findings into the plan:
+- Missing prerequisites → add as early tasks in `## Step by Step Tasks`
+- Architecture gaps → document in `## Solution Approach` with explicit prerequisite steps
+- Scope too broad → stop and recommend breaking the work down before continuing
+
+If the plan is fundamentally not feasible (relies on missing foundations, nonexistent edit targets, impossible sequencing): stop here, summarize blockers to the user, and hand off to `pi-brainstorm` for re-planning. If the sole blocker is excessive scope on a PRD source, hand off to `pi-dev-epic` instead. Do not produce a plan document.
 
 ---
 

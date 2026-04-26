@@ -5,11 +5,14 @@ artifacts/
 MEMORY/
 
 # Machine-local secrets (not synced)
+.env
+.env.*
 .config/nushell/secrets.nu
 .zshrc.secrets
 
 # Pi agent — secrets, dependencies, and runtime state
 .pi/agent/auth.json
+.pi/agent/bin/
 .pi/agent/node_modules/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
@@ -35,10 +38,11 @@ MEMORY/
 .claude/mcp-needs-auth-cache.json
 .claude/policy-limits.json
 
-# Machine-local MEMORY (session/work/state are per-machine)
+# Machine-local MEMORY (session/work/state/learnings are per-machine)
 .claude/MEMORY/STATE/
 .claude/MEMORY/VOICE/
 .claude/MEMORY/WORK/
+.claude/MEMORY/LEARNING/
 
 # PAI-Install (re-run installer on each device)
 .claude/PAI-Install/
@@ -54,6 +58,24 @@ MEMORY/
 .claude/**/__pycache__/
 .claude/**/.DS_Store
 .claude/.claude/
+
+# Codex — secrets and runtime state
+.codex/auth.json
+.codex/history.jsonl
+.codex/logs_2.sqlite*
+.codex/state_5.sqlite*
+.codex/models_cache.json
+.codex/version.json
+.codex/installation_id
+.codex/.personality_migration
+.codex/cache/
+.codex/log/
+.codex/sessions/
+.codex/shell_snapshots/
+.codex/tmp/
+.codex/.tmp/
+.codex/memories/
+.codex/skills/.system/
 
 # Backup / temp files
 *.bak

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dev Development"
+  short_description: "Route software development workflow skills"
+  default_prompt: "Use $dev-development to choose the right development workflow for this request."
