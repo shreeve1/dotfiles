@@ -1,9 +1,0 @@
-## Phase 8 — Exit
-
-```
-[team-improve] homelab-company: experiment 20260407-191028 — keep — 5.00 → 5.00 — "Fold Network runbook inline Note caveats into check headers (Check 6: transient Database busy, Check 8: known inadyn errors). Patrol reduced 1908→1890 words (-0.9%)."
-```
-
-**Summary:** One experiment cycle completed. Folded two inline "Note:" caveats from Patrol's Network runbook (Checks 6 and 8) into the check headers as parenthetical qualifiers, matching the compression pattern from the previous Media runbook experiment. The information is preserved — just more scannable and 18 words shorter. Aggregate score unchanged at 5.00/5.00. Kept.
-
-The team remains at perfect score across all 11 benchmarks with 40 consecutive kept experiments.

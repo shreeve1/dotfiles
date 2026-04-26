@@ -96,8 +96,13 @@ fi
 
 source $ZSH/oh-my-zsh.sh
 
-# fzf configuration
-source <(fzf --zsh)
+# fzf configuration (support old fzf without --zsh)
+if fzf --zsh >/dev/null 2>&1; then
+  source <(fzf --zsh)
+else
+  [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]] && source /usr/share/doc/fzf/examples/key-bindings.zsh
+  [[ -f /usr/share/doc/fzf/examples/completion.zsh ]] && source /usr/share/doc/fzf/examples/completion.zsh
+fi
 
 # History configuration
 HISTFILE=~/.zsh_history
@@ -139,8 +144,14 @@ export VISUAL='nvim'
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Ensure local bins are on PATH before starship/atuin/vivid init
+# Ensure user-local binaries are on PATH before initializing tools below
 export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
+
+# Fall back to a known TERM when the server lacks the client's terminfo entry.
+# Prevents character-echo glitches on SSH from Ghostty to hosts without xterm-ghostty.
+if ! infocmp "$TERM" >/dev/null 2>&1; then
+  export TERM=xterm-256color
+fi
 
 # Starship prompt
 eval "$(starship init zsh)"
@@ -257,5 +268,6 @@ bindkey -v
 export KEYTIMEOUT=20
 bindkey -M viins 'jk' vi-cmd-mode
 
-. "$HOME/.atuin/bin/env"
+[[ -f "$HOME/.atuin/bin/env" ]] && source "$HOME/.atuin/bin/env"
+[[ -f "$HOME/.local/bin/env" ]] && source "$HOME/.local/bin/env"
 export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslmode=disable'
