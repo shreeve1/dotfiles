@@ -1,11 +1,13 @@
 ---
 name: pi-dev-epic
-description: Decompose a multi-epic PRD into per-epic mini-PRDs that can feed pi-dev-plan independently. Use AFTER dev-prd when a PRD is too large or covers too many features for a single plan-and-build pass. Runs BEFORE pi-dev-plan, not after.
+description: Decompose a multi-epic PRD into per-epic mini-PRDs that can feed pi-dev-plan independently. Use AFTER pi-dev-prd when a PRD is too large or covers too many features for a single plan-and-build pass. Runs BEFORE pi-dev-plan, not after.
 ---
 
 # Dev Epic
 
-Decompose a large, multi-feature PRD into a set of self-contained per-epic mini-PRDs. Each mini-PRD is a complete, stand-alone PRD that `pi-dev-plan` can consume without reading the parent. This is the PRD-layer counterpart to plan-layer sharding (which PI does not currently automate — manual decomposition applies there too).
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
+Decompose a large, multi-feature PRD into a set of self-contained per-epic mini-PRDs. Each mini-PRD is a complete, stand-alone PRD that `pi-dev-plan` can consume without reading the parent. This is the PRD-layer counterpart to plan-layer sharding handled by `pi-dev-shard`.
 
 **When to use:** the PRD covers multiple epics, its `Scope:` is `Multi-week` or `Ongoing`, or it has more than ~8 distinct features. If the PRD is small and single-epic, this skill is a no-op and will tell you so.
 
@@ -57,7 +59,7 @@ Before proposing any decomposition, check whether this PRD actually needs it.
 
 1. **Locate PRD**
    - If `PRD_FILE` is a path: verify it exists using `read`
-   - If not provided: use `bash` to list `.md` files in `PRD_DIRECTORY` sorted by modification time (newest first), then present via `ask_user` (type: select)
+   - If not provided: use `bash` with `find artifacts/specs -maxdepth 2 -name 'PRD.md'` (recursive) sorted by modification time (newest first), then present via `ask_user` (type: select)
    - Wait for user selection before proceeding
 
 2. **Parse PRD Structure**
@@ -157,21 +159,25 @@ Key rules:
 
 ### Phase 6: Write Output Files
 
-Use `bash` to create the directory: `artifacts/specs/<parent-prd-basename>/` (strip `.md`, use kebab-case).
+Use `bash` to create the directory: `artifacts/specs/<parent-slug>/` (the parent PRD's slug, from its frontmatter).
 
 Use `write` to create:
 
 ```
-artifacts/specs/<parent-prd-basename>/
-├── README.md              ← index, sequencing, coverage map
-├── epic-1-<slug>.md       ← first mini-PRD
-├── epic-2-<slug>.md
+artifacts/specs/<parent-slug>/
+├── README.md                    ← index, sequencing, coverage map
+├── epic-1-<epic-slug>.md        ← first mini-PRD
+├── epic-2-<epic-slug>.md
 ├── ...
-├── epic-N-<slug>.md
-└── original-prd.md        ← unchanged copy of parent
+├── epic-N-<epic-slug>.md
+└── original-prd.md              ← unchanged copy of parent
 ```
 
-Epic file-name slugs should be short kebab-case derived from the epic name (e.g., `epic-1-schema-memory.md`).
+**Placeholder vocabulary:**
+- `<parent-slug>` = the parent PRD's slug (the directory name, also matches `slug:` in parent's frontmatter)
+- `<epic-slug>` = each epic's own short kebab-case slug (only the part after `epic-N-`)
+
+Epic file-name slugs should be short kebab-case derived from the epic name (e.g., `epic-1-schema-memory.md` → epic-slug is `schema-memory`).
 
 ### Phase 7: Report
 
@@ -279,8 +285,8 @@ Run these epics in sequence. Each must complete (plan + build + test) before the
 
 | Order | Epic | Depends On | Features | Next Step |
 |-------|------|-----------|----------|-----------|
-| 1 | [Epic 1: <name>](epic-1-<slug>.md) | None | <count> (<comma list of #req-ids>) | `pi-dev-plan artifacts/specs/<parent>/epic-1-<slug>.md` |
-| 2 | [Epic 2: <name>](epic-2-<slug>.md) | Epic 1 | <count> | `pi-dev-plan artifacts/specs/<parent>/epic-2-<slug>.md` |
+| 1 | [Epic 1: <name>](epic-1-<epic-slug>.md) | None | <count> (<comma list of #req-ids>) | `pi-dev-plan artifacts/specs/<parent-slug>/epic-1-<epic-slug>.md` |
+| 2 | [Epic 2: <name>](epic-2-<epic-slug>.md) | Epic 1 | <count> | `pi-dev-plan artifacts/specs/<parent-slug>/epic-2-<epic-slug>.md` |
 | ... | ... | ... | ... | ... |
 
 ## Requirement Coverage Map
@@ -331,17 +337,17 @@ Features: <N> (exceeded threshold, decomposition warranted)
 
 Decomposed into <N> epics:
 
-  artifacts/specs/<parent>/
+  artifacts/specs/<parent-slug>/
   ├── README.md              (index + coverage map)
-  ├── epic-1-<slug>.md       <feature count> features — <summary>
-  ├── epic-2-<slug>.md       <feature count> features — <summary>
+  ├── epic-1-<epic-slug>.md       <feature count> features — <summary>
+  ├── epic-2-<epic-slug>.md       <feature count> features — <summary>
   ├── ...
   └── original-prd.md        (reference)
 
 Execution Order (with dependencies):
-  1. pi-dev-plan artifacts/specs/<parent>/epic-1-<slug>.md
-  2. pi-dev-plan artifacts/specs/<parent>/epic-2-<slug>.md   (depends on Epic 1)
-  3. pi-dev-plan artifacts/specs/<parent>/epic-3-<slug>.md   (depends on Epic 1)
+  1. pi-dev-plan artifacts/specs/<parent-slug>/epic-1-<epic-slug>.md
+  2. pi-dev-plan artifacts/specs/<parent-slug>/epic-2-<epic-slug>.md   (depends on Epic 1)
+  3. pi-dev-plan artifacts/specs/<parent-slug>/epic-3-<epic-slug>.md   (depends on Epic 1)
   ...
 
 Requirement coverage: <N>/<N> parent #req tags assigned (100%).
@@ -353,7 +359,7 @@ Run each pi-dev-plan in sequence as written, or parallelize where Depends On all
 
 ## Error Handling
 
-- **No PRDs in `PRD_DIRECTORY`:** report and suggest running `dev-prd` first
+- **No PRDs in `PRD_DIRECTORY`:** report and suggest running `pi-dev-prd` first
 - **PRD file doesn't exist:** report error, re-prompt using `ask_user`
 - **No `## Requirement Tags` section in PRD:** warn that traceability will be weak; proceed using feature headers as identifiers but skip the coverage-map table
 - **No `#req-[id]` tags anywhere:** scope gate still fires on feature count or Scope line; mini-PRDs reference features by header name instead of tag
@@ -365,20 +371,20 @@ Run each pi-dev-plan in sequence as written, or parallelize where Depends On all
 ## Integration with the Pipeline
 
 ```
-dev-prd           → artifacts/specs/prd-<name>-<date>.md
+pi-dev-prd        → artifacts/specs/<slug>/PRD.md
                          │
                          ▼
 pi-dev-epic  ◄── this skill
                          │
                          ▼
-artifacts/specs/prd-<name>-<date>/
+artifacts/specs/<slug>/
   ├── README.md
-  ├── epic-1-<slug>.md ─────► pi-dev-plan ─► pi-dev-validate ─► pi-dev-build ─► pi-dev-test
-  ├── epic-2-<slug>.md ─────► (same sequence, depends on Epic 1)
+  ├── epic-1-<epic-slug>.md ─────► pi-dev-plan ─► pi-dev-validate ─► pi-dev-build ─► pi-dev-test
+  ├── epic-2-<epic-slug>.md ─────► (same sequence, depends on Epic 1)
   └── ...
 ```
 
-`pi-dev-epic` sits cleanly between `dev-prd` and `pi-dev-plan`. Every other skill's contract is unchanged.
+`pi-dev-epic` sits cleanly between `pi-dev-prd` and `pi-dev-plan`. Every other skill's contract is unchanged.
 
 ---
 
@@ -387,4 +393,4 @@ artifacts/specs/prd-<name>-<date>/
 - **Do not auto-run `pi-dev-plan` per epic.** The user should run each explicitly so they can review the generated plan between epics and adjust scope if needed.
 - **Mini-PRDs are self-contained intentionally.** `pi-dev-plan` is allowed to ignore the parent PRD entirely — this prevents context bloat and keeps each plan generation under budget.
 - **The parent PRD remains the source of truth** for the vision and overall roadmap. If the vision changes, regenerate mini-PRDs.
-- **If a mini-PRD is itself too large** (unlikely but possible for a very complex epic), decompose the generated plan manually at the plan layer — PI has no automated plan sharding skill.
+- **If a mini-PRD is itself too large** (unlikely but possible for a very complex epic), the generated plan can be split with `pi-dev-shard` after `pi-dev-plan` produces it.

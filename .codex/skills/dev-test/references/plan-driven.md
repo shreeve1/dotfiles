@@ -19,7 +19,7 @@
 Use when verification should be anchored to a written plan.
 ## Variables
 
-- `PLAN_DIRECTORIES` — `plans/`, `specs/`, `artifacts/plans/`
+- `PLAN_DIRECTORIES` — `artifacts/plans/`
 - `MANIFEST_PATH` — `.pi/test-manifest.json`
 - `TEST_DIR` — `tests/`
 
@@ -30,7 +30,7 @@ Use when verification should be anchored to a written plan.
 If a path is provided, use it. Otherwise:
 
 ```bash
-ls -t plans/ specs/ artifacts/plans/ 2>/dev/null
+find artifacts/plans -name 'plan.md' -o -name 'shard-*.md' | xargs ls -t 2>/dev/null
 ```
 
 read the most recent plan and extract:

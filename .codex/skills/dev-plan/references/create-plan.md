@@ -21,20 +21,20 @@
 - [Plan Format](#plan-format)
 - [Report](#report)
 
-Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
+Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `artifacts/plans/<name-of-plan>/plan.md` that can be used as a blueprint for actual development work.
 
 ## Variables
 
 - `USER_PROMPT` — user's planning request
-- `PLAN_OUTPUT_DIRECTORY` — `plans/`
-- `SOURCE_DIRECTORIES` — search in priority order: `plans/` > `specs/` > `artifacts/plans/` > `artifacts/specs/`
+- `PLAN_OUTPUT_DIRECTORY` — `artifacts/plans/{slug}/`
+- `SOURCE_DIRECTORIES` — `artifacts/specs/` (PRDs) and `artifacts/plans/` (existing plans), recursive
 - `TEST_DIR` — `tests/`
 
 ## Pre-flight
 
-Ensure `plans/` directory exists. If not, create it:
+Ensure the canonical plan directory exists. Derive `SLUG` first (kebab-case feature name from the request or source PRD frontmatter), then:
 ```bash
-mkdir -p plans/
+mkdir -p "artifacts/plans/${SLUG}"
 ```
 
 ## Workflow Overview
@@ -70,7 +70,7 @@ If USER_PROMPT is a file path, read that file directly as the source document.
 
 If USER_PROMPT is free text (not a path), check for a source document using the standardized directory search order:
 
-1. List all `.md` files in `plans/`, `specs/`, `artifacts/plans/`, and `artifacts/specs/` sorted by modification date (most recent first)
+1. List plan and PRD files under `artifacts/plans/` and `artifacts/specs/` (recursive) sorted by modification date (most recent first)
 2. If source documents exist, use `ask the user`: "Found source document: <filename>. Use this as the source for planning and traceability?"
    - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
 3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
@@ -118,7 +118,7 @@ Create a descriptive kebab-case filename based on the plan's main topic, e.g.:
 
 ## Phase 8: Save Plan File
 
-Write the complete plan to `plans/<filename>.md`. Ensure:
+Write the complete plan to `artifacts/plans/<filename>/plan.md`. Ensure:
 - Plan is detailed enough that another developer could follow it
 - Code examples or pseudo-code included where appropriate
 - All edge cases and error handling addressed
@@ -294,7 +294,7 @@ After creating and saving the implementation plan, provide a concise report:
 ```
 Implementation Plan Created
 
-  File: plans/<filename>.md
+  File: artifacts/plans/<slug>/plan.md
   Topic: <brief description of what the plan covers>
   Key Components:
   - <main component 1>
@@ -302,5 +302,5 @@ Implementation Plan Created
   - <main component 3>
 
   Next Steps:
-  Run Build on plans/<filename>.md when ready to implement.
+  Run Build on artifacts/plans/<slug>/plan.md when ready to implement.
 ```

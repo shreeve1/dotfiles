@@ -14,7 +14,7 @@ Find the root cause. Do not fix code unless the user explicitly changes the task
 3. Locate likely code paths with targeted search.
 4. Verify the suspected location explains the symptom.
 5. Confirm root cause only when `WHERE`, `WHAT`, and `WHY` are all answered.
-6. Save findings under `investigations/` and write targeted regression tests when feasible.
+6. Save findings under `artifacts/investigations/{slug}/` and write targeted regression tests when feasible.
 
 Read `references/investigate.md` for the full six-phase investigation loop, investigation file format, and fix-test guidance.
 
@@ -25,6 +25,10 @@ Read `references/investigate.md` for the full six-phase investigation loop, inve
 - Do not claim root cause from correlation alone.
 - Cite file and line evidence.
 - If multiple plausible causes remain, keep investigating or state the uncertainty.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
 
 ## Output
 

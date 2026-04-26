@@ -15,11 +15,11 @@ read an implementation plan and generate user stories that describe UI flows for
 ## Variables
 
 PATH_TO_PLAN: $ARGUMENTS — Path to the implementation plan to generate stories from.
-PLAN_OUTPUT_DIRECTORY: `specs/`
+PLAN_OUTPUT_DIRECTORY: `artifacts/plans/{slug}/`
 
 ## Instructions
 
-- If no `PATH_TO_PLAN` is provided, STOP immediately and ask the user to provide it (ask the user). Suggest any `.md` files found in `plans/`, `specs/` as options.
+- If no `PATH_TO_PLAN` is provided, STOP immediately and ask the user to provide it (ask the user). Suggest any `.md` files found under `artifacts/plans/` and `artifacts/specs/` as options.
 - read and deeply understand the plan at `PATH_TO_PLAN`.
 - read the story format specification at `StoryFormat.md` (in the Stories skill root) to understand the expected output structure.
 - Analyze the plan for all user-facing UI flows, interactions, and features.
@@ -32,7 +32,7 @@ PLAN_OUTPUT_DIRECTORY: `specs/`
 
 ## Workflow
 
-1. **Validate input** — Confirm `PATH_TO_PLAN` exists. Search `plans/`, `specs/` for the plan. If missing, list available `.md` files from those directories and ask the user to pick one.
+1. **Validate input** — Confirm `PATH_TO_PLAN` exists. Search `artifacts/plans/` for the plan. If missing, list available `.md` files from those directories and ask the user to pick one.
 
 2. **read the plan** — Parse the plan document thoroughly. Identify all UI-facing features, pages, components, and user interactions described.
 

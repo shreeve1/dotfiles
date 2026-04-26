@@ -15,7 +15,7 @@
 - [Save Investigation File](#save-investigation-file)
   - [Create the directory](#create-the-directory)
   - [Generate timestamp](#generate-timestamp)
-  - [Write `investigations/investigation-$TIMESTAMP.md`](#write-investigationsinvestigation-timestampmd)
+  - [Write `artifacts/investigations/${SLUG}/investigation.md`](#write-investigationsinvestigation-timestampmd)
 - [Write Fix Tests](#write-fix-tests)
   - [Detect test framework](#detect-test-framework)
   - [Create the directory](#create-the-directory)
@@ -29,7 +29,7 @@ Systematic 6-phase investigation loop: understand -> resolve ambiguity -> locate
 
 ## Key Principle
 
-**Stop at Diagnosis** — This skill diagnoses only. No code edits unless user explicitly asks for a fix. Findings are saved to `investigations/` for handoff to a fix agent.
+**Stop at Diagnosis** — This skill diagnoses only. No code edits unless user explicitly asks for a fix. Findings are saved to `artifacts/investigations/{slug}/` for handoff to a fix agent.
 
 ## Variables
 
@@ -213,12 +213,20 @@ Explorer agent calls: <N>
 
 ## Save Investigation File
 
-After diagnosis is confirmed, save findings to `investigations/` for handoff.
+After diagnosis is confirmed, save findings to `artifacts/investigations/${SLUG}/` for handoff.
+
+### Derive slug
+
+```bash
+TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
+SLUG=$TIMESTAMP   # default: timestamp slug if no human-readable issue name available
+# If a short kebab-case issue name is available (e.g. "login-500-odd-hours"), prefer that.
+```
 
 ### Create the directory
 
 ```bash
-mkdir -p investigations
+mkdir -p "artifacts/investigations/${SLUG}"
 ```
 
 ### Generate timestamp
@@ -227,7 +235,7 @@ mkdir -p investigations
 TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
 ```
 
-### Write `investigations/investigation-$TIMESTAMP.md`
+### Write `artifacts/investigations/${SLUG}/investigation.md`
 
 ```yaml
 ---
@@ -378,7 +386,7 @@ Key Evidence:
 - <file:line> — <finding>
 - <file:line> — <finding>
 
-Investigation saved: investigations/investigation-<TIMESTAMP>.md
+Investigation saved: artifacts/investigations/<slug>/investigation.md
 Fix tests written: tests/regression/fix-<TIMESTAMP>.<ext>
   - Reproduction test: FAILING
   - Regression tests: PASSING (<N>)

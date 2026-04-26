@@ -5,6 +5,8 @@ description: Independent code review using Codex CLI — PI gathers context, Cod
 
 # Dev Review (Codex-Powered)
 
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
 Independent review using Codex CLI as the reviewer. PI extracts the review target from conversation context, gathers surrounding codebase context, and sends a structured brief to Codex. Codex provides a fresh perspective — different model, different blind spots. Results are discussed interactively before any changes are applied.
 
 ---
@@ -54,7 +56,7 @@ Use `todo_write` to create a task for each of these items and complete them in o
    - Any explicit `TARGET` argument
 
    If `TARGET` is provided:
-   - `plan` — find the most recent plan file. Use `bash` to list markdown files recursively in `artifacts/plans/` and `artifacts/specs/` so shards and epic mini-PRDs (e.g., `artifacts/specs/<parent>/epic-*.md`) are included. Ask via `ask_user` if ambiguous.
+   - `plan` — find the most recent plan file with `find artifacts/plans -name 'plan.md' -o -name 'shard-*.md' | xargs ls -t` (recursive). For PRD or epic mini-PRD review, search `artifacts/specs/` instead — those are reviewed as PRDs, not as plans. Ask via `ask_user` if ambiguous.
    - `build` — use uncommitted git changes
    - File path — use `read` on that file
    - Directory — use `find` to scan and select key files
@@ -267,7 +269,7 @@ Use `todo_write` to create a task for each of these items and complete them in o
 
    If the user prefers no changes: close the review as discussion-only.
 
-   **Handoff:** If Codex surfaces a root-cause bug that is unrelated to the plan/diff being reviewed (e.g., a pre-existing defect, flaky behavior, or symptom needing deeper diagnosis), recommend `dev-investigate` rather than trying to fix it inside this review. Keep `pi-dev-review` focused on the review target.
+   **Handoff:** If Codex surfaces a root-cause bug that is unrelated to the plan/diff being reviewed (e.g., a pre-existing defect, flaky behavior, or symptom needing deeper diagnosis), recommend `pi-dev-investigate` rather than trying to fix it inside this review. Keep `pi-dev-review` focused on the review target.
 
 ---
 
@@ -335,7 +337,7 @@ pi-dev-build ─► pi-dev-test ─► pi-dev-review  ◄── this skill
 Standalone placement — review any plan, file, or directory at any time:
 
 ```
-          ┌─► plan       (artifacts/plans/ or artifacts/specs/<parent>/epic-*.md)
+          ┌─► plan       (artifacts/plans/{slug}/plan.md or shard-N.md)
 user ─────┼─► file       (any path)            ─► pi-dev-review
           └─► directory  (scan + select files)
 ```
