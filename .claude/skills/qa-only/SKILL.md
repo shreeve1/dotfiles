@@ -1,1 +1,0 @@
-/Users/james/dotfiles/.claude/skills/gstack/qa-only/SKILL.md
