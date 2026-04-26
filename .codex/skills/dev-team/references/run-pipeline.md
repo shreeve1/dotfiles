@@ -49,7 +49,7 @@ You are the coordinator for the dev-agent pipeline using delegated workers when 
    - Related code that will be affected
 3. **Locate or create a plan.**
    - If `PLAN_PATH` is provided, read and use that plan directly
-   - If not, check `plans/`, `specs/`, and `artifacts/plans/` for a relevant plan
+   - If not, check `artifacts/plans/` for a relevant plan
    - If no plan exists, create one inline during the build phase
 
 ### Phase 2: Create the Team Plan

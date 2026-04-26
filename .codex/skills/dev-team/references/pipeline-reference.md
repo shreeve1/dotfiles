@@ -39,16 +39,16 @@ Auxiliary (available at any stage):
 
 | Stage | When | Input | Output |
 |-------|------|-------|--------|
-| **Prd** | Starting from a raw idea | Free text or brainstorming notes | `artifacts/specs/prd-<name>-<date>.md` |
+| **Prd** | Starting from a raw idea | Free text or brainstorming notes | `artifacts/specs/{slug}/PRD.md` |
 | **Epic** | After PRD, when PRD is multi-week or 8+ features | PRD file | `artifacts/specs/<parent>/epic-*.md` set |
-| **Plan** | After PRD (or after Epic), before building | PRD or epic mini-PRD | `plans/<feature>.md` |
+| **Plan** | After PRD (or after Epic), before building | PRD or epic mini-PRD | `artifacts/plans/<feature>/plan.md` |
 | **Validate** | After plan, before building | Plan file | Updated plan with risk analysis |
-| **Shard** | Plan too large for one session | Plan file | `specs/<plan-name>/shard-*.md` |
+| **Shard** | Plan too large for one session | Plan file | `artifacts/plans/<plan-name>/shard-*.md` |
 | **Build** | Ready to write code | Plan file | Implemented code + verification |
 | **Test** | After building, before merge | Plan file or test path | Test results + coverage |
 | **Review** | Any time you want a critical review | File, directory, or topic | Findings + recommendations |
 | **Investigate** | Bug or unexpected behavior | Problem description | Root cause diagnosis + fix tests |
-| **Stories** | UI features need browser testing | Plan file | `specs/<plan>-stories.md` |
+| **Stories** | UI features need browser testing | Plan file | `artifacts/plans/<plan>/stories.md` |
 | **Team** | Want walk-away automation | Request description | Full pipeline auto-execution |
 
 ## Stage Handoffs
@@ -64,7 +64,7 @@ Auxiliary (available at any stage):
 - `#req-[id]` tags propagate from PRD → plan tasks
 
 ### Plan → Validate
-- Plan saved to `plans/`
+- Plan saved to `artifacts/plans/{slug}/plan.md`
 - Validate reads plan, runs feasibility + risk analysis
 - Updates plan in-place if issues found
 
@@ -120,12 +120,15 @@ This ensures nothing gets lost between idea and implementation.
 
 ## Directory Conventions
 
-| Purpose | Primary | Fallbacks |
-|---------|---------|-----------|
-| Implementation plans | `plans/` | `specs/`, `artifacts/plans/` |
-| PRDs | `artifacts/specs/` | — |
-| Brainstorming | `artifacts/brainstorming/` | — |
-| Investigations | `investigations/` | — |
-| Fix tests | `tests/regression/` | — |
-| User stories | `specs/` | — |
-| Sharded plans | `specs/<plan-name>/` | — |
+**Single source of truth: `~/.codex/skills/dev-development/references/Paths.md`** — every artifact lives at `artifacts/{kind}/{slug}/`. There is exactly one canonical location per artifact type. Top-level `plans/`, `specs/`, `investigations/` are deprecated.
+
+| Purpose | Canonical Path |
+|---------|----------------|
+| PRDs | `artifacts/specs/{slug}/PRD.md` |
+| Implementation plans | `artifacts/plans/{slug}/plan.md` |
+| Sharded plans | `artifacts/plans/{slug}/shard-N.md` |
+| User stories | `artifacts/plans/{slug}/stories.md` |
+| Investigations | `artifacts/investigations/{slug}/investigation.md` |
+| Brainstorming | `artifacts/brainstorming/{slug}/` |
+| Notes | `artifacts/notes/{slug}/` |
+| Fix tests | `tests/regression/` |

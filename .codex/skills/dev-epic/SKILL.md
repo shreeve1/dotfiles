@@ -22,3 +22,7 @@ Read `references/decompose-epics.md` for the full decomposition workflow and out
 - Do not split a tightly coupled feature across epics.
 - Do not auto-run `$dev-plan`; report the generated mini-PRD paths for the user or next workflow.
 - If decomposition is unnecessary, report the no-op clearly and recommend `$dev-plan <prd-path>`.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.

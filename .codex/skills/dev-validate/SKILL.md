@@ -26,6 +26,10 @@ Read `references/validate-plan.md` for the full workflow. Read `references/valid
 - Preserve existing checkbox state when rewriting risky plan steps.
 - Use subagents only when the user explicitly asks for delegated or parallel validation and the session permits it.
 
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
+
 ## Output
 
 Report feasibility, validations run and skipped, baseline provenance, critical issues, warnings, and whether the plan was modified.

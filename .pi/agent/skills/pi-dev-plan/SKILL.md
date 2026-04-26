@@ -5,6 +5,8 @@ description: Use when the user wants a structured implementation plan, technical
 
 # Create Implementation Plan
 
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
 Use this skill when the user needs a concrete engineering plan before implementation: a roadmap, phased task list, technical design, or execution spec for a feature, fix, refactor, or enhancement. Ground the plan in the actual codebase and any available source documents so the result is specific, traceable, and ready to execute. Do not use it when the user wants immediate coding, a quick answer, or debugging rather than planning.
 
 ---
@@ -12,7 +14,8 @@ Use this skill when the user needs a concrete engineering plan before implementa
 ## Variables
 
 - `USER_PROMPT` — the user’s planning request or requirements
-- `PLAN_OUTPUT_DIRECTORY` — `artifacts/plans/`
+- `SLUG` — kebab-case feature name. Sources, in priority order: (1) frontmatter `slug:` of the discovered source PRD/epic mini-PRD, (2) explicit user argument, (3) kebab-case derivation from the feature name in `USER_PROMPT`. No date suffix. See `~/.pi/agent/skills/PATHS.md` for slug rules.
+- `PLAN_OUTPUT_DIRECTORY` — `artifacts/plans/${SLUG}/`
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
 
@@ -359,7 +362,7 @@ Avoid vague names like:
 
 Write the completed document to:
 
-`artifacts/plans/<filename>.md`
+`artifacts/plans/<slug>/plan.md`
 
 When the plan is meant for implementation, assume execution should usually happen on a feature branch rather than directly on `main`/`master`.
 
@@ -379,7 +382,7 @@ After creating and saving the implementation plan, output:
 ```text
 ✅ Implementation Plan Created
 
-File: artifacts/plans/<filename>.md
+File: artifacts/plans/<slug>/plan.md
 Topic: <brief description of what the plan covers>
 Source Documents:
 - <path or "none">

@@ -28,7 +28,7 @@ Full 10-phase workflow for wave-based parallel plan execution.
 ## Variables
 
 - `PATH_TO_PLAN` — Path to a specific plan file, if provided
-- `PLAN_DIRECTORIES` — `plans/`, `specs/`
+- `PLAN_DIRECTORIES` — `artifacts/plans/`
 
 ---
 
@@ -38,7 +38,7 @@ If the user provided a specific plan path, use it as `PATH_TO_PLAN`.
 
 If no plan path was provided:
 
-1. Use `shell` to find recent markdown files in `plans/` and `specs/`
+1. Use `shell` to find recent plan files under `artifacts/plans/`
 2. If one clear candidate exists, confirm it with `ask the user`
 3. If several likely candidates exist, present the most relevant 1-3 options with `ask the user`
 4. If no plan is found, ask the user to provide a path
@@ -334,4 +334,4 @@ Status: Not complete
 - Do not run tasks in parallel when they are likely to edit the same files
 - Do not mark progress until results are reviewed
 - Do not claim success without verification evidence
-- Plan files can have any name in `plans/` or `specs/` — there is no requirement for a file named `plan.md`
+- Plan files live at `artifacts/plans/{slug}/plan.md` — there is no requirement for a file named `plan.md`

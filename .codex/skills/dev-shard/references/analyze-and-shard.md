@@ -34,7 +34,7 @@ Full 5-phase workflow for token estimation and plan sharding.
 ## Variables
 
 - `PLAN_FILE` — (Optional) Path to the plan file. If omitted, shows interactive list of recent plans.
-- `PLAN_DIRECTORIES` — `plans/`, `specs/`
+- `PLAN_DIRECTORIES` — `artifacts/plans/`
 - `TOKEN_BUDGET` — `150000`
 - `SHARD_OVERHEAD` — `20000`
 
@@ -55,7 +55,7 @@ Full 5-phase workflow for token estimation and plan sharding.
 ### Step 1 — Locate Plan
 
 1. If `PLAN_FILE` is provided: verify it exists, read it
-2. If not provided: list all `.md` files in `plans/` and `specs/` sorted by modification time (newest first)
+2. If not provided: list plan files under `artifacts/plans/` (recursive) sorted by modification time (newest first)
 3. Present list to user with `ask the user` showing filename and first line (title)
 4. Wait for selection before proceeding
 
@@ -142,7 +142,7 @@ For each shard, construct a complete plan document following the Shard Format (s
 ### Step 11 — Create Output Directory
 
 1. Extract plan name from the original filename (strip `.md`)
-2. Create `specs/<plan-name>/` directory
+2. Create `artifacts/plans/<plan-name>/` directory
 3. Write `README.md` index
 4. Write each `shard-N.md` file
 5. Copy original plan as `original-plan.md`
@@ -198,7 +198,7 @@ Breakdown:
   Total:               <tokens> tokens
 
 Shards Created:
-  specs/<plan-name>/
+  artifacts/plans/<plan-name>/
   ├── README.md            (index)
   ├── shard-1.md           ~<tokens> tokens — <task summary>
   ├── shard-2.md           ~<tokens> tokens — <task summary>
@@ -206,10 +206,10 @@ Shards Created:
   └── original-plan.md     (reference)
 
 Execution Order:
-  1. $dev-build specs/<plan-name>/shard-1.md
-  2. $dev-build specs/<plan-name>/shard-2.md
+  1. $dev-build artifacts/plans/<plan-name>/shard-1.md
+  2. $dev-build artifacts/plans/<plan-name>/shard-2.md
   ...
-  N. $dev-build specs/<plan-name>/shard-N.md
+  N. $dev-build artifacts/plans/<plan-name>/shard-N.md
 
 Run shards sequentially. Each must complete before the next.
 ```
@@ -229,13 +229,13 @@ Each shard follows the standard plan structure with these additions:
 - **Shard**: <N> of <Total>
 - **Estimated Tokens**: <estimated tokens for this shard>
 - **Tasks in This Shard**: <task IDs>
-- **Run Command**: `$dev-build specs/<plan-name>/shard-<N>.md`
+- **Run Command**: `$dev-build artifacts/plans/<plan-name>/shard-<N>.md`
 <if N > 1:>
-- **Previous Shard**: `specs/<plan-name>/shard-<N-1>.md`
+- **Previous Shard**: `artifacts/plans/<plan-name>/shard-<N-1>.md`
 - **Prerequisite**: Shard <N-1> must be completed first
 </if>
 <if N < Total:>
-- **Next Shard**: `specs/<plan-name>/shard-<N+1>.md`
+- **Next Shard**: `artifacts/plans/<plan-name>/shard-<N+1>.md`
 </if>
 ```
 
@@ -296,7 +296,7 @@ The following must be true before starting this shard:
 When sharding, create:
 
 ```
-specs/<plan-name>/
+artifacts/plans/<plan-name>/
   README.md          — Index with shard overview, order, and sequential run instructions
   shard-1.md         — First shard plan
   shard-2.md         — Second shard plan (includes Shard Context)
@@ -327,9 +327,9 @@ Run each shard sequentially. Each shard must complete before the next one starts
 
 Execute shards in order:
 \`\`\`
-$dev-build specs/<plan-name>/shard-1.md
+$dev-build artifacts/plans/<plan-name>/shard-1.md
 # Wait for completion, then:
-$dev-build specs/<plan-name>/shard-2.md
+$dev-build artifacts/plans/<plan-name>/shard-2.md
 # Continue until all shards complete
 \`\`\`
 
