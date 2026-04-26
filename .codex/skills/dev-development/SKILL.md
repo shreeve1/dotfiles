@@ -40,3 +40,7 @@ Review, investigation, stories, and team pipeline work are auxiliary and can be 
 ## References
 
 Read `references/pipeline-reference.md` when the user asks about the overall pipeline, directory conventions, or how the stages fit together.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.

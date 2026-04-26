@@ -5,7 +5,9 @@ description: Use when the user wants to verify an implementation against a plan 
 
 # Dev Test
 
-Use this skill to verify an implementation against a written plan. Read the plan, run its validation commands, confirm acceptance criteria, and add only the tests the plan requires. Do not use this skill for exploratory QA, ad-hoc test runs without a plan, or root-cause debugging — hand those off to `dev-investigate` or direct user discussion.
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
+Use this skill to verify an implementation against a written plan. Read the plan, run its validation commands, confirm acceptance criteria, and add only the tests the plan requires. Do not use this skill for exploratory QA, ad-hoc test runs without a plan, or root-cause debugging — hand those off to `pi-dev-investigate` or direct user discussion.
 
 ---
 
@@ -14,7 +16,7 @@ Use this skill to verify an implementation against a written plan. Read the plan
 - `PATH_TO_PLAN` - path to a plan file (required; if absent, discover one)
 - `BROWSER_MODE` - from `--browser=none|headless|headed`, default `none`
 - `TEST_DIR` - `tests/`
-- `PLAN_DIRECTORIES` - `artifacts/plans/`, `artifacts/specs/`
+- `PLAN_DIRECTORIES` - `artifacts/plans/` (canonical; recursive — see PATHS.md)
 
 ---
 
@@ -43,7 +45,7 @@ Before selecting commands, use `bash` to determine the execution workspace: curr
 If `PATH_TO_PLAN` is provided, use it.
 
 If not:
-1. Use `bash` to find recent markdown files in `artifacts/plans/` and `artifacts/specs/` (search recursively so sharded plans and epic mini-PRDs are discovered)
+1. Use `bash` with `find artifacts/plans -name 'plan.md' -o -name 'shard-*.md' | xargs ls -t` to find recent plans and shards (recursive). Plans live ONLY at `artifacts/plans/{slug}/plan.md` or `artifacts/plans/{slug}/shard-N.md` — `artifacts/specs/` holds PRDs/epic mini-PRDs which are inputs to `pi-dev-plan`, not executable plans
 2. If one clear candidate exists, confirm it with `ask_user`
 3. If multiple likely candidates exist, present the most relevant options with `ask_user`
 4. If no plan can be found, ask the user for a path; do not continue without one
@@ -172,7 +174,7 @@ Provide:
 
 Do not silently repair implementation unless the user requested that explicitly.
 
-If failures point to a persistent root-cause bug rather than a simple test fix, recommend handing off to `dev-investigate`.
+If failures point to a persistent root-cause bug rather than a simple test fix, recommend handing off to `pi-dev-investigate`.
 
 ---
 
@@ -241,4 +243,4 @@ Recommended Next Steps:
 - Do not weaken assertions to force passing tests
 - Do not claim success without actual command output or verification evidence
 - Use `worker` for delegated test-writing or analysis tasks
-- Hand persistent root-cause failures off to `dev-investigate`
+- Hand persistent root-cause failures off to `pi-dev-investigate`

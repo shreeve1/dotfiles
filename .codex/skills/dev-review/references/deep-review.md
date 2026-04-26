@@ -9,7 +9,7 @@
 - [Phase 1: Locate and Understand](#phase-1-locate-and-understand)
 - [Phase 2: Multi-Dimensional Analysis](#phase-2-multi-dimensional-analysis)
 - [Phase 3: Interactive Discussion](#phase-3-interactive-discussion)
-- [Phase 4: Optional Claude Second Opinion](#phase-4-optional-claude-second-opinion)
+- [Phase 4: Claude Cross-Model Review (default)](#phase-4-claude-cross-model-review-default)
 - [Phase 5: Apply Changes](#phase-5-apply-changes)
 - [Report](#report)
 - [Error Handling](#error-handling)
@@ -29,7 +29,7 @@ You MUST create a task for each of these items and complete them in order:
 4. **Select analysis dimensions** — choose relevant review dimensions based on what's being reviewed
 5. **Run multi-dimensional analysis** — analyze each selected dimension with specific, grounded findings
 6. **Present findings interactively** — share analysis per dimension and discuss with the user
-7. **Optional Claude second opinion** — when requested, check binary/auth, pass Claude the target/context packet, present output, cross-model comparison
+7. **Claude cross-model review (default)** — check `claude` binary + auth, pass Claude the target/context packet, present output, cross-model comparison. Skip only if not installed, auth fails, or user opts out.
 8. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
 
 ## Instructions
@@ -149,9 +149,16 @@ Available dimensions (select 3-5 most relevant):
 
 ---
 
-## Phase 4: Optional Claude Second Opinion
+## Phase 4: Claude Cross-Model Review (default)
 
-Skip this phase unless the user explicitly asks for a Claude second opinion, cross-model review, external Claude review, or plan/context handoff to Claude. A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass. Only run `codex review` from inside Codex when the user explicitly names a Codex CLI review.
+**Run this phase by default** as part of every Codex review. After Codex's own analysis pass, hand the same target + context to the `claude` CLI for an independent review, then present findings side-by-side.
+
+Skip this phase only when:
+- `claude` CLI not installed (Step 11 returns NOT_FOUND).
+- Claude auth probe fails (Step 12 fails).
+- The user explicitly says "codex-only review" / "skip claude" / "no second opinion" / "skip Phase 4".
+
+A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass. Only run `codex review` from inside Codex when the user explicitly names a Codex CLI review.
 
 11. **Check Claude availability**
 
@@ -301,7 +308,7 @@ Key Findings:
 - <most important finding 2>
 - <most important finding 3>
 
-Claude Gate: <COMPLETED | FAIL (N critical/blocking findings) | SKIPPED (not requested) | SKIPPED (not installed) | SKIPPED (not ready)>
+Claude Cross-Model Review: <COMPLETED | FAIL (N critical/blocking findings) | SKIPPED (not installed) | SKIPPED (not ready) | SKIPPED (user opted out)>
 Cross-model agreement: <X% — N/M findings overlap> (omit if Claude skipped)
 
 Outcome: <"Changes applied" | "Recommendations discussed" | "Review document saved to <path>">

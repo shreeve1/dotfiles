@@ -258,3 +258,4 @@ export KEYTIMEOUT=20
 bindkey -M viins 'jk' vi-cmd-mode
 
 . "$HOME/.atuin/bin/env"
+export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslmode=disable'

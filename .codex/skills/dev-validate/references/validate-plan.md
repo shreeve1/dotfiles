@@ -34,7 +34,7 @@ Intelligently analyze an implementation plan in two passes: first determine whet
 ## Variables
 
 - `PLAN_FILE` — Path to specific plan file (optional). If omitted, auto-discovers the most recent plan.
-- `PLAN_DIRECTORIES` — search in priority order: `plans/`, `specs/`
+- `PLAN_DIRECTORIES` — `artifacts/plans/` (canonical; see Paths.md)
 
 ## Checklist
 
@@ -72,7 +72,7 @@ You MUST create a task for each of these items and complete them in order:
 1. **Locate Plan**
    - If `PLAN_FILE` provided: verify it exists and read it with `read`
    - If not provided, use the Plan Discovery Protocol:
-     1. Use `shell` to list all `.md` files in `PLAN_DIRECTORIES` (`plans/` and `specs/`), sorted by modification date (most recent first)
+     1. Use `shell` to list plan files under `PLAN_DIRECTORIES` (recursive: `find artifacts/plans -name 'plan.md' -o -name 'shard-*.md'`), sorted by modification date (most recent first)
      2. Take the most recent file
      3. Use `ask the user` with type: select to confirm: "Found plan: <filename>. Is this the correct plan?"
         - Options: "Yes, use this plan" / "No, let me specify"

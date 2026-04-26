@@ -12,7 +12,7 @@ Analyze plan size and split only when needed. This skill does not build or edit 
 1. Locate and read the plan.
 2. Use `references/token-heuristic.md` to estimate plan, referenced file, task, validation, and orchestration cost.
 3. If the estimate fits the budget, report that no sharding is needed.
-4. If the estimate exceeds the budget, split the plan into ordered shard files under `specs/<plan-name>/`.
+4. If the estimate exceeds the budget, split the plan into ordered shard files under `artifacts/plans/<plan-name>/`.
 5. Make every shard standalone enough for `$dev-build`.
 
 Read `references/analyze-and-shard.md` for the full estimation and shard output formats.
@@ -23,6 +23,10 @@ Read `references/analyze-and-shard.md` for the full estimation and shard output 
 - Never split a task from unresolved dependencies.
 - Err on overestimating.
 - Run generated shards sequentially.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
 
 ## Output
 

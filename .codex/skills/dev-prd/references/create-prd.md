@@ -24,8 +24,8 @@ Transform a raw idea into a structured, AI-agent-actionable Product Requirements
 ## Variables
 
 - `IDEA` — The raw idea or concept to develop into a PRD (from user arguments)
-- `OUTPUT_DIR` — `artifacts/specs/`
-- `DRAFT_FILE` — `artifacts/specs/.prd-draft.json`
+- `OUTPUT_DIR` — `artifacts/specs/{slug}/`
+- `DRAFT_FILE` — `artifacts/specs/{slug}/.prd-draft.json`
 - `CURRENT_DATE` — Run `date +%Y-%m-%d` to get today's date
 
 ## Setup
@@ -34,7 +34,7 @@ Before starting Phase 1:
 
 1. **Ensure output directory exists:**
    ```bash
-   mkdir -p artifacts/specs
+   mkdir -p "artifacts/specs/${SLUG}"
    ```
 
 2. **Check for resume-able session:**
@@ -269,7 +269,7 @@ The PRD must be lean and actionable — optimized for AI coding agents (Codex, C
      options: ["Solo (Plan + Build)", "Team (Team workflow)"]
    ```
 
-5. **Save the PRD** to `OUTPUT_DIR/prd-<kebab-case-name>-CURRENT_DATE.md`
+5. **Save the PRD** to `OUTPUT_DIR/PRD.md` (where `OUTPUT_DIR = artifacts/specs/${SLUG}/`)
 
 6. **Clean up draft file** — Delete `DRAFT_FILE` after successful save
 
@@ -278,7 +278,7 @@ The PRD must be lean and actionable — optimized for AI coding agents (Codex, C
 ## Validation
 
 The PRD is complete when:
-1. The file exists at `OUTPUT_DIR/prd-<name>-<date>.md`
+1. The file exists at `artifacts/specs/${SLUG}/PRD.md`
 2. All required sections are present and filled in (not placeholder text)
 3. Each must-have feature has at least one user story with acceptance criteria
 4. The problem statement is specific enough to be falsifiable
@@ -301,7 +301,7 @@ After saving the PRD:
 ```
 PRD Complete
 
-  File:       artifacts/specs/prd-<name>-<date>.md
+  File:       artifacts/specs/{slug}/PRD.md
   Product:    <product name>
   Scope:      <scope level>
 

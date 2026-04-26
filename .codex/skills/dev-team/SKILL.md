@@ -28,6 +28,10 @@ This skill implies delegated or multi-agent work only when the user's request ex
 - Do not create commits for ordinary coding requests unless requested.
 - Keep phase reports concise and evidence-based.
 
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
+
 ## Output
 
 Report request, phases completed, status, files changed, tests run, failures if any, and commit hash/message if one was created.

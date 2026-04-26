@@ -9,7 +9,7 @@ Execute a plan as the source of truth. Prefer safe serialization over risky para
 
 ## Workflow
 
-1. Locate the plan from the provided path or recent files in `plans/` and `specs/`.
+1. Locate the plan from the provided path or recent plan files under `artifacts/plans/`.
 2. Run baseline verification from the plan when available.
 3. Parse tasks, dependencies, sequencing notes, and validation commands.
 4. Build dependency-aware waves from ready tasks.
@@ -28,6 +28,10 @@ Use subagents for wave execution only when the user explicitly asks for delegate
 - Do not mark tasks complete until the result is reviewed.
 - Do not claim success without verification evidence.
 - Do not parallelize tasks likely to touch the same files or coupled code paths.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
 
 ## Output
 

@@ -5,6 +5,8 @@ description: Use when executing a multi-step implementation plan with dependenci
 
 # Execute Implementation Plan
 
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
 Use this skill when the user wants to carry out a written implementation plan, especially when the work includes dependencies, multiple task groups, or opportunities for safe parallel execution. Treat the plan system as the source of truth for task readiness and progress, and only parallelize work that is genuinely independent. Do not use this skill for quick one-off edits, simple fixes, or work that does not have a written plan.
 
 ---
@@ -12,7 +14,7 @@ Use this skill when the user wants to carry out a written implementation plan, e
 ## Variables
 
 - `PATH_TO_PLAN` - path to a specific plan file, if provided
-- `PLAN_DIRECTORIES` - `artifacts/plans/`, `artifacts/specs/`
+- `PLAN_DIRECTORIES` - `artifacts/plans/` (canonical; recursive — see PATHS.md)
 
 ---
 
@@ -41,7 +43,7 @@ If the user provided a specific plan path, use it as `PATH_TO_PLAN`.
 
 If no plan path was provided:
 
-1. Use `bash` to find recent markdown files in `artifacts/plans/` and `artifacts/specs/` (search recursively so sharded plans and epic mini-PRDs are discovered)
+1. Use `bash` with `find artifacts/plans -name 'plan.md' -o -name 'shard-*.md' | xargs ls -t` to find recent plans and shards (recursive). Plans live ONLY at `artifacts/plans/{slug}/plan.md` or `artifacts/plans/{slug}/shard-N.md` — `artifacts/specs/` holds PRDs/epic mini-PRDs which are inputs to `pi-dev-plan`, not executable plans
 2. If one clear candidate exists, confirm it with `ask_user`
 3. If several likely candidates exist, present the most relevant 1-3 options with `ask_user`
 4. If no plan is found, ask the user to provide a path
@@ -69,7 +71,7 @@ Present a concise summary, then use `ask_user` with a `select` prompt offering:
 
 Decision rules:
 - if no `## Risk Analysis` section exists, gently suggest running `pi-dev-validate` first but do not force it
-- if the plan is large (many tasks, multiple phases, or wide file scope), flag it and suggest the user consider decomposing it into smaller plans before proceeding (PI has no automated sharding skill)
+- if the plan is large (many tasks, multiple phases, or wide file scope), flag it and suggest running `pi-dev-shard` first to split it into session-sized chunks
 - do not proceed without an explicit `Proceed with build` selection
 
 If the user cancels or chooses a handoff, stop and report the chosen next step. Do not create a branch, run baseline checks, or modify files.
@@ -122,7 +124,7 @@ Use the plan tools as the source of truth for execution state when available.
    - dependency relationships
    - current execution batches, if available
 
-**Important:** The plan file used is whatever was discovered in Phase 1 (e.g., `artifacts/plans/migrate-qbittorrent-to-gluetun.md`), NOT a file named `plan.md`. Plan files can have any name in `artifacts/plans/` or `artifacts/specs/`.
+**Important:** The plan file used is whatever was discovered in Phase 1 — typically `artifacts/plans/{slug}/plan.md` or `artifacts/plans/{slug}/shard-N.md`. Plan files have canonical filenames (`plan.md`, `shard-N.md`) inside their slug directory; see `~/.pi/agent/skills/PATHS.md`.
 
 If the plan tools fail (e.g., they require a specific file path format that doesn't match your plan, or return an error):
 - Do NOT ask the user to create or sync a `plan.md` file
@@ -420,5 +422,5 @@ Status: ❌ Not complete
 - Do not mark progress until results are reviewed
 - Do not claim success without verification evidence
 - A checkbox flip is a verification claim, not an artifact-existence claim. Producing the file is necessary but not sufficient — the plan's own validation command for that task must exit 0 first.
-- Plan files can have any name in `artifacts/plans/` or `artifacts/specs/` - there is no requirement for a file named `plan.md`
+- Plan files use canonical filenames at `artifacts/plans/{slug}/plan.md` or `artifacts/plans/{slug}/shard-N.md` — see `~/.pi/agent/skills/PATHS.md`
 - The Phase 1.5 Approval Gate is mandatory in interactive use; only skip it when an upstream automated pipeline has pre-approved the plan

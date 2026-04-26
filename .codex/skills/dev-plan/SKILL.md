@@ -10,10 +10,10 @@ Create an implementation plan that can be executed by `$dev-build` and verified 
 ## Workflow
 
 1. Parse the user request or source document.
-2. Discover relevant source documents in `plans/`, `specs/`, `artifacts/plans/`, and `artifacts/specs/`.
+2. Discover relevant source documents under `artifacts/plans/` and `artifacts/specs/`.
 3. Inspect the codebase directly for existing patterns, architecture, affected files, and tests.
 4. Design the simplest viable implementation approach.
-5. Write a plan to `plans/<kebab-case-topic>.md`.
+5. Write a plan to `artifacts/plans/<kebab-case-topic>/plan.md`.
 
 Read `references/create-plan.md` for the required plan format, task ID rules, traceability mapping, validation command guidance, and report format.
 
@@ -24,6 +24,10 @@ Read `references/create-plan.md` for the required plan format, task ID rules, tr
 - Include concrete validation commands that are likely to work in the current repo.
 - Include testing strategy proportional to risk.
 - Avoid speculative architecture or extra features not requested.
+
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
 
 ## Output
 

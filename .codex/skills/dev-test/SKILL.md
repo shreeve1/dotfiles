@@ -22,6 +22,10 @@ Validate through actual execution when possible. Do not weaken assertions, skip 
 - Report exact commands and summarized results.
 - Do not modify implementation code unless the user explicitly asks.
 
+## Paths
+
+All artifacts use the canonical layout at `artifacts/{kind}/{slug}/`. See `~/.codex/skills/dev-development/references/Paths.md` for slug rules and the full directory map.
+
 ## Output
 
 Report mode, commands run, pass/fail status, failures, tests added, acceptance criteria verification, and recommended next steps.

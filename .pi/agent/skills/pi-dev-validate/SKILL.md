@@ -5,6 +5,8 @@ description: Use when validating an implementation plan against the current code
 
 # Validate Plan
 
+> **Canonical paths (MANDATORY):** Read `~/.pi/agent/skills/PATHS.md` before any file output. All artifact paths in this skill resolve through that reference. Deviation is a bug — surface it instead of working around it.
+
 Use this skill when validating implementation plans before execution—specifically when the user asks to validate a plan, check a plan for risks, verify a plan is safe to build, or mentions validation of a spec or plan file.
 
 Do NOT use this skill for: creating plans from scratch, executing/implementing plans, general coding tasks, or when no plan file exists.
@@ -18,7 +20,7 @@ Intelligently analyze an implementation plan by running only the validations tha
 ## Variables
 
 PLAN_FILE: $1 — (Optional) Path to specific plan file. If omitted, auto-discovers the most recent plan.
-PLAN_DIRECTORIES: `artifacts/plans/`, `artifacts/specs/`
+PLAN_DIRECTORIES: `artifacts/plans/` (canonical; recursive — see PATHS.md)
 
 ## Checklist
 You MUST create a task for each of these items and complete them in order:
@@ -53,7 +55,7 @@ You MUST create a task for each of these items and complete them in order:
 1. **Locate Plan**
    - If `PLAN_FILE` provided: verify it exists and read it with `read`
    - If not provided, use the Plan Discovery Protocol:
-     1. Use `bash` to list all `.md` files recursively in both `PLAN_DIRECTORIES` (`artifacts/plans/` and `artifacts/specs/`, including subdirectories for shards and epic mini-PRDs), sorted by modification date (most recent first)
+     1. Use `bash` with `find artifacts/plans -name 'plan.md' -o -name 'shard-*.md' | xargs ls -t` to find recent plans (recursive). Plans live ONLY at `artifacts/plans/{slug}/plan.md` or `artifacts/plans/{slug}/shard-N.md` — `artifacts/specs/` holds PRDs which validate via `pi-dev-epic` not this skill
      2. Take the most recent file
      3. Use `ask_user` with type: select to confirm: "Found plan: <filename>. Is this the correct plan?"
         - Options: "Yes, use this plan" / "No, let me specify"
