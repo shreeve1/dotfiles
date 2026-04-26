@@ -1,1 +1,0 @@
-/Users/james/dotfiles/.claude/skills/gstack/design-consultation/SKILL.md
