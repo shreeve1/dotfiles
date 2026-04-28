@@ -62,3 +62,14 @@ export function sessionContext(event: "SessionStart" | "UserPromptSubmit" | "Pos
     },
   });
 }
+
+export function stopBlock(reason: string): void {
+  writeJson({
+    decision: "block",
+    reason,
+    hookSpecificOutput: {
+      hookEventName: "Stop",
+      additionalContext: reason,
+    },
+  });
+}
