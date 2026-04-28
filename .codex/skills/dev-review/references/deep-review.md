@@ -155,7 +155,8 @@ Available dimensions (select 3-5 most relevant):
 
 Skip this phase only when:
 - `claude` CLI not installed (Step 11 returns NOT_FOUND).
-- Claude auth probe fails (Step 12 fails).
+- Both bounded Claude auth probes fail or time out (Step 12).
+- The bounded Claude review command fails or times out in the selected mode (Step 14).
 - The user explicitly says "codex-only review" / "skip claude" / "no second opinion" / "skip Phase 4".
 
 A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass. Only run `codex review` from inside Codex when the user explicitly names a Codex CLI review.
@@ -170,44 +171,83 @@ CLAUDE_BIN=$(which claude 2>/dev/null || echo "")
 If `NOT_FOUND`: skip this phase and note inline:
 > "Claude CLI not found — skipping second opinion."
 
-12. **Run a lightweight auth probe**
+12. **Run a lightweight bounded auth probe**
 
-Use a short non-interactive command before sending code or plan context:
+Use a short non-interactive command before sending code or plan context. Prefer `--bare` because it avoids hooks, plugin sync, auto-memory, CLAUDE.md discovery, background prefetches, and other interactive environment behavior. If the bare probe fails, retry once without `--bare` before declaring Claude unavailable; Claude Code bare mode does not read OAuth/keychain login state and may only work with `ANTHROPIC_API_KEY` or an explicit `apiKeyHelper` in `--settings`.
 
 ```bash
-claude -p --permission-mode dontAsk "Reply with CLAUDE_AUTH_OK only." < /dev/null
+CLAUDE_AUTH_PROBE="Reply with CLAUDE_AUTH_OK only."
+CLAUDE_MODE_ARGS="--bare"
+
+if timeout 45s claude --bare -p \
+  --no-session-persistence \
+  --output-format text \
+  --tools "" \
+  --permission-mode dontAsk \
+  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  CLAUDE_MODE_ARGS="--bare"
+elif timeout 90s claude -p \
+  --no-session-persistence \
+  --output-format text \
+  --tools "" \
+  --permission-mode dontAsk \
+  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  CLAUDE_MODE_ARGS=""
+else
+  echo "CLAUDE_NOT_READY"
+fi
 ```
 
-If the command fails, skip this phase and note inline:
+If both probes fail, skip this phase and note inline:
 > "Claude CLI is installed but not ready for non-interactive review — skipping second opinion."
 
-13. **Build the Claude context packet**
+If either command times out, kill the spawned process if needed before retrying or skipping. Do not leave a hanging `claude` session running in the background. Include the probe stderr in the skip note when it is safe to show; `Not logged in · Please run /login` after a bare probe usually means the user is authenticated through OAuth/keychain and the non-bare fallback should be attempted.
 
-Pass Claude enough context to review independently without forcing it to rediscover the entire conversation. Keep it compact and explicit:
+13. **Build a self-contained Claude context packet**
+
+Pass Claude enough context to review independently without forcing it to rediscover the entire conversation or invoke repository tools. Keep it compact and explicit:
 
 - Review target: path, directory, diff, plan, topic, or session scope.
 - User request and review intent.
 - Detected stack/framework/test setup.
 - Relevant plan or session summary, including decisions, assumptions, and open risks.
-- Git status and diff summary. Include full diff when reviewing changes; include selected file contents when reviewing standalone files or plans.
+- Git status and diff summary.
+- Full diff for tracked changes, plus explicit contents for untracked files because `git diff` will not include them.
+- Selected surrounding file contents needed to understand downstream behavior.
 - Codex findings so far, clearly labeled as prior findings Claude may challenge.
 - Constraints: review only unless asked to edit; focus on bugs, regressions, security, data integrity, performance, and missing tests.
 
-Do not include secrets, credentials, unrelated private conversation, or unrelated files. If the explicit target is inside `~/.codex`, allow Claude to read only the target paths and directly related files; otherwise tell Claude not to read or execute files under `~/.codex/`, `.codex/skills/`, `~/.claude/`, or `.claude/skills/`.
+Do not include secrets, credentials, unrelated private conversation, or unrelated files. Redact tokens, DSNs, API keys, cookies, and private personal data before constructing the packet. If the packet is too large, summarize low-risk boilerplate and include the exact functions, config blocks, diffs, and tests relevant to possible findings.
 
 14. **Run Claude review**
 
-Prefer non-interactive print mode and allow only read-oriented tools. Set `REVIEW_ROOT` to the repository root from `git rev-parse --show-toplevel`; if there is no repository, use the reviewed file's parent directory or the reviewed directory itself. Build `CLAUDE_REVIEW_PROMPT` from the prompt template below. If the prompt is long, pass it via stdin or a temporary prompt file instead of forcing it into one shell argument.
+Use non-interactive print mode, disable tools by default, and pass the self-contained context packet on stdin. Reuse the `CLAUDE_MODE_ARGS` value selected by the successful auth probe so OAuth/keychain users are reviewed through standard `claude -p`, while API-key or apiKeyHelper users can keep the safer bare path. Always wrap the command in `timeout`; if it times out, kill the spawned process if needed and report the Claude pass as skipped/not ready.
 
 ```bash
-claude -p \
+timeout 180s claude $CLAUDE_MODE_ARGS -p \
   --model opus \
   --effort high \
+  --no-session-persistence \
+  --output-format text \
+  --permission-mode dontAsk \
+  --tools "" < "$CLAUDE_REVIEW_PROMPT_FILE"
+```
+
+Only enable Claude tools for a second attempt when the self-contained packet is insufficient and the user explicitly wants the extra latency/risk. If tools are enabled, reuse `CLAUDE_MODE_ARGS`, keep `timeout`, use only read-oriented tools, and deny edits:
+
+```bash
+timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --model opus \
+  --effort high \
+  --no-session-persistence \
+  --output-format text \
   --permission-mode dontAsk \
   --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *),Bash(git rev-parse *)" \
-  --add-dir "$REVIEW_ROOT" \
-  "$CLAUDE_REVIEW_PROMPT"
+  --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,Bash(git reset *),Bash(git checkout *),Bash(rm *)" \
+  --add-dir "$REVIEW_ROOT" < "$CLAUDE_REVIEW_PROMPT_FILE"
 ```
+
+If the shell does not support process files conveniently, a heredoc is acceptable. Do not pass a long prompt as a shell argument.
 
 Prompt template:
 

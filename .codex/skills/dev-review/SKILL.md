@@ -23,8 +23,8 @@ Read `references/deep-review.md` for the expanded review workflow and the exact 
 
 ## Codex Adaptation
 
-- **Claude Code is the default cross-check channel.** After Codex's own analysis, this workflow shells out to the `claude` CLI for an independent review pass. Findings from both models are surfaced side-by-side so the user sees overlap, unique findings per model, and disagreements. See `references/deep-review.md` Phase 4 for the exact prompt contract and tool whitelist.
-- **Skip the Claude pass only when:** (a) `claude` CLI not installed, (b) auth probe fails, or (c) the user explicitly says "codex-only review" / "skip claude" / "no second opinion".
+- **Claude Code is the default cross-check channel.** After Codex's own analysis, this workflow shells out to the `claude` CLI for an independent review pass. Findings from both models are surfaced side-by-side so the user sees overlap, unique findings per model, and disagreements. See `references/deep-review.md` Phase 4 for the exact bounded Claude CLI contract, including the bare-mode probe and OAuth/keychain fallback.
+- **Skip the Claude pass only when:** (a) `claude` CLI not installed, (b) both bounded auth probes fail or time out, (c) the bounded review command fails or times out in the selected mode, or (d) the user explicitly says "codex-only review" / "skip claude" / "no second opinion".
 - Do not run `codex review` from inside Codex unless the user explicitly names a Codex CLI review.
 - Follow Codex review style: findings first, bugs and regressions over broad commentary, concise summary last.
 - If no issues are found, say so clearly and mention remaining test gaps or residual risk.
