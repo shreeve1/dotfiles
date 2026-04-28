@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { dotfilesPath } from "../lib/paths";
+import { classifyPrompt } from "../lib/algorithm-state";
 
 async function runHook(path: string, payload: unknown) {
   const proc = Bun.spawn(["bun", path], {
@@ -65,6 +66,22 @@ describe("PAI Codex hooks", () => {
     expect(parsed.hookSpecificOutput.additionalContext).toContain("artifacts/specs/<slug>/PRD.md");
   });
 
+  test("prompt classifier covers substantive, artifact, and trivial edges", () => {
+    for (const prompt of ["status", "help", "what directory should i try this in?"]) {
+      const classification = classifyPrompt(prompt);
+      expect(classification.classification).toBe("trivial");
+      expect(classification.requiresPrd).toBe(false);
+    }
+
+    const fix = classifyPrompt("fix the PAI Algorithm enforcement gap");
+    expect(fix.classification).toBe("substantive");
+    expect(fix.requiresPrd).toBe(true);
+
+    const artifact = classifyPrompt("continue from artifacts/specs/pai-algorithm-enforcement/PRD.md");
+    expect(artifact.classification).toBe("substantive");
+    expect(artifact.suppliedArtifact).toBe("artifacts/specs/pai-algorithm-enforcement/PRD.md");
+  });
+
   test("stop hook emits valid JSON", async () => {
     const result = await runHook(".codex/pai/hooks/session-capture.ts", {
       hook_event_name: "Stop",
@@ -72,6 +89,80 @@ describe("PAI Codex hooks", () => {
     });
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout).continue).toBe(true);
+  });
+
+  test("stop hook blocks active substantive sessions missing finalization signals", async () => {
+    const sessionId = "test-algorithm-stop-missing";
+    await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "UserPromptSubmit",
+      session_id: sessionId,
+      turn_id: "turn-prompt",
+      prompt: "fix the PAI Algorithm finalization enforcement gap",
+    });
+
+    const result = await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "Stop",
+      session_id: sessionId,
+      turn_id: "turn-stop",
+      last_assistant_message: "Implemented the change.",
+    });
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.decision).toBe("block");
+    expect(parsed.reason).toContain("PAI Algorithm finalization required");
+    expect(parsed.reason).toContain("verification");
+    expect(parsed.reason).toContain("review");
+    expect(parsed.reason).toContain("learning");
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("Stop");
+  });
+
+  test("stop hook allows active substantive sessions with all finalization signals", async () => {
+    const sessionId = "test-algorithm-stop-complete";
+    await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "UserPromptSubmit",
+      session_id: sessionId,
+      turn_id: "turn-prompt",
+      prompt: "implement a PAI Algorithm finalization check",
+    });
+
+    const result = await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "Stop",
+      session_id: sessionId,
+      turn_id: "turn-stop",
+      last_assistant_message:
+        "Verified tests passed. Review against acceptance criteria found no gaps. Learn: no durable memory note was warranted.",
+    });
+    expect(result.exitCode).toBe(0);
+    const parsed = JSON.parse(result.stdout);
+    expect(parsed.continue).toBe(true);
+    expect(parsed.decision).toBeUndefined();
+    expect(parsed.hookSpecificOutput).toBeUndefined();
+  });
+
+  test("stop hook stays quiet for unrelated or re-entrant sessions", async () => {
+    await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "test-algorithm-stop-owner",
+      turn_id: "turn-prompt",
+      prompt: "implement a PAI Algorithm finalization check",
+    });
+
+    const unrelated = await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "Stop",
+      session_id: "test-algorithm-stop-other",
+      turn_id: "turn-stop",
+      last_assistant_message: "Implemented the change.",
+    });
+    expect(JSON.parse(unrelated.stdout).continue).toBe(true);
+
+    const reentrant = await runHook(".codex/pai/hooks/session-capture.ts", {
+      hook_event_name: "Stop",
+      session_id: "test-algorithm-stop-owner",
+      turn_id: "turn-stop",
+      stop_hook_active: true,
+      last_assistant_message: "Implemented the change.",
+    });
+    expect(JSON.parse(reentrant.stdout).continue).toBe(true);
   });
 
   test("substantive prompts inject PAI Algorithm enforcement context", async () => {
@@ -88,6 +179,7 @@ describe("PAI Codex hooks", () => {
     expect(parsed.hookSpecificOutput.additionalContext).toContain("Before Build/Execute");
     expect(parsed.hookSpecificOutput.additionalContext).toContain("artifacts/specs/");
     expect(parsed.hookSpecificOutput.additionalContext).toContain("Before the final response");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("During Learn");
   });
 
   test("trivial prompts do not inject enforcement context", async () => {

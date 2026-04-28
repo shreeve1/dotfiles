@@ -28,6 +28,12 @@ export interface AlgorithmState {
   updatedAt: string;
 }
 
+export interface FinalizationSignals {
+  verification: boolean;
+  review: boolean;
+  learning: boolean;
+}
+
 const SUBSTANTIVE_PATTERNS = [
   /\b(add|build|create|implement|fix|repair|debug|diagnose|investigate|review|plan|design|port|migrate|refactor|test|validate|deploy|harden|enforce|proceed)\b/i,
   /\b(issue|bug|regression|failure|failing|broken|crash|error|risk|gap|workflow|system|algorithm|prd)\b/i,
@@ -119,6 +125,18 @@ export function stateAppliesToInput(state: AlgorithmState | null, sessionId: unk
   return state.session_id === sessionId;
 }
 
+export function finalizationSignals(message: string): FinalizationSignals {
+  return {
+    verification: /\b(test|tests|verified|verification|passed|failed|checked)\b/i.test(message),
+    review: /\b(review|criteria|acceptance|risk|gap|constraint)\b/i.test(message),
+    learning: /\b(learn|learning|memory|durable note)\b/i.test(message),
+  };
+}
+
+export function missingFinalizationSignals(signals: FinalizationSignals): Array<keyof FinalizationSignals> {
+  return (["verification", "review", "learning"] as const).filter((signal) => !signals[signal]);
+}
+
 export function enforcementContext(classification: PromptClassification): string {
   const artifact = classification.suppliedArtifact ?? classification.suggestedArtifact;
   return [
@@ -139,5 +157,21 @@ export function postEditReminder(state: AlgorithmState): string {
     "- This session is marked as substantive, but the last edit did not touch a PRD or plan artifact.",
     `- Create or update \`${artifact}\` before continuing implementation unless the user explicitly supplied a different artifact or the task has become trivial.`,
     "- Keep verification, review, and learning notes current before finalizing.",
+  ].join("\n");
+}
+
+export function stopFinalizationReminder(
+  state: AlgorithmState,
+  missingSignals: Array<keyof FinalizationSignals>,
+): string {
+  const artifact = state.suppliedArtifact ?? state.suggestedArtifact;
+  const missing = missingSignals.join(", ");
+  return [
+    "PAI Algorithm finalization required:",
+    `- This substantive session is missing finalization signal(s): ${missing}.`,
+    `- Review the work against \`${artifact}\` or the supplied plan, including acceptance criteria, constraints, risks, and unresolved gaps.`,
+    "- Include verification evidence: tests/checks run and pass/fail status, or explain why verification was not run.",
+    "- Include Learn: write a durable note only if reusable, otherwise state that no durable learning was warranted.",
+    "- Then provide the final response.",
   ].join("\n");
 }

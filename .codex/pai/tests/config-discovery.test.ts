@@ -61,6 +61,7 @@ describe("PAI config and discovery", () => {
     expect(content).toContain("Observe -> Think -> Plan -> Build -> Execute -> Verify -> Review -> Learn");
     expect(content).toContain("artifacts/specs/<slug>/PRD.md");
     expect(content).toContain(".codex/pai/MEMORY/learning/");
+    expect(content).toContain("During Learn");
   });
 
   test("generated pai-core skill preserves planning, review, and learning guidance", () => {
@@ -68,6 +69,7 @@ describe("PAI config and discovery", () => {
     expect(generated).toContain("PAI Algorithm Loop");
     expect(generated).toContain("repo-local PRD");
     expect(generated).toContain("Review");
+    expect(generated).toContain("During Learn");
 
     const installedPath = join(userSkillRoot(), "pai-core", "SKILL.md");
     if (!existsSync(installedPath)) return;
@@ -75,5 +77,6 @@ describe("PAI config and discovery", () => {
     expect(installed).toContain("PAI Algorithm Loop");
     expect(installed).toContain("repo-local PRD");
     expect(installed).toContain("Review");
+    expect(installed).toContain("During Learn");
   });
 });

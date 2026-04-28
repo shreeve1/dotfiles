@@ -6,7 +6,7 @@ phase: complete
 progress: 8/8
 mode: interactive
 started: 2026-04-28T20:10:17Z
-updated: 2026-04-28T20:18:00Z
+updated: 2026-04-28T21:13:00Z
 ---
 
 ## Requested Outcome
@@ -44,6 +44,9 @@ the instruction on its own.
   voice/notification exclusions remain intact.
 - [x] ISC-8: Documentation records that enforcement is a context-injection and
   state-tracking layer, not a separate autonomous agent.
+- [x] ISC-9: Stop hooks block finalization for active substantive sessions when
+  verification, review, or learning signals are missing, while allowing
+  unrelated and re-entrant Stop events.
 
 ## Scope
 
@@ -108,6 +111,9 @@ Out of scope:
 - Updated `.codex/pai/hooks/session-capture.ts` so substantive
   `UserPromptSubmit` events inject PAI Algorithm enforcement context and record
   active algorithm state.
+- Extended `session-capture.ts` so `Stop` events for active substantive
+  sessions block finalization with model-visible guidance when verification,
+  review, or learning signals are missing.
 - Updated `.codex/pai/hooks/work-sync.ts` so substantive post-edit events
   remind Codex to create/update a PRD or plan when implementation begins first.
 - Updated `.codex/pai/docs/PORTING.md` and `.codex/pai/scripts/port-pai.ts`
@@ -117,8 +123,8 @@ Out of scope:
 
 ## Verification Results
 
-- `bun test ./.codex/pai/tests/hooks.test.ts`: 12 passed.
-- `bun test ./.codex/pai/tests`: 29 passed.
+- `bun test ./.codex/pai/tests/hooks.test.ts`: 16 passed.
+- `bun test ./.codex/pai/tests`: 33 passed.
 - `bun run .codex/pai/scripts/validate-pai-port.ts`: passed.
 - `node -e 'JSON.parse(require("fs").readFileSync(".codex/hooks.json","utf8")); console.log("hooks.json ok")'`: passed.
 - `python3 -c 'import tomllib, pathlib; tomllib.load(open(".codex/config.toml","rb")); [tomllib.load(open(p,"rb")) for p in pathlib.Path(".codex/agents").glob("pai-*.toml")]; print("toml ok")'`: passed.
@@ -128,10 +134,11 @@ Out of scope:
 ## Review
 
 The fix directly addresses the observed failure: the Algorithm is now surfaced
-at task time for substantive prompts and again after implementation edits if no
-planning artifact has been touched. The hook layer still does not hard-block
-edits, by design; this avoids disrupting trivial work while making PRD/review/
-learning omissions visible to the model during the same session.
+at task time for substantive prompts, after implementation edits if no planning
+artifact has been touched, and at Stop time if verification/review/learning
+signals are missing. The hook layer still does not block ordinary edits, by
+design; it only blocks finalization for the active substantive session, and it
+allows unrelated or re-entrant Stop events to avoid hook loops.
 
 Remaining gap: runtime enforcement depends on Codex hook execution. If hooks are
 disabled or unsupported in a session, `.codex/AGENTS.md` and `$pai-core` still

@@ -1,6 +1,15 @@
 #!/usr/bin/env bun
-import { classifyPrompt, enforcementContext, readActiveState, writeActiveState } from "../lib/algorithm-state";
-import { appendJsonLine, readJsonStdin, sessionContext, writeJson } from "../lib/hook-io";
+import {
+  classifyPrompt,
+  enforcementContext,
+  finalizationSignals,
+  missingFinalizationSignals,
+  readActiveState,
+  stateAppliesToInput,
+  stopFinalizationReminder,
+  writeActiveState,
+} from "../lib/algorithm-state";
+import { appendJsonLine, readJsonStdin, sessionContext, stopBlock, writeJson } from "../lib/hook-io";
 import { paiMemoryPath } from "../lib/paths";
 
 function explicitRating(prompt: string): { rating: number; comment?: string } | null {
@@ -70,18 +79,26 @@ if (event === "Stop") {
   const active = readActiveState();
   const lastAssistantMessage =
     typeof input.last_assistant_message === "string" ? input.last_assistant_message : "";
-  if (active?.active) {
+  if (stateAppliesToInput(active, input.session_id)) {
+    const signals = finalizationSignals(lastAssistantMessage);
     appendJsonLine(paiMemoryPath("state", "algorithm-stop-review.jsonl"), {
       timestamp,
       session_id: input.session_id ?? null,
       turn_id: input.turn_id ?? null,
       activeSession: active.session_id ?? null,
       artifactTouched: active.artifactTouched,
-      hasVerificationSignal: /\b(test|tests|verified|verification|passed|failed|checked)\b/i.test(lastAssistantMessage),
-      hasReviewSignal: /\b(review|criteria|acceptance|risk|gap|constraint)\b/i.test(lastAssistantMessage),
-      hasLearningSignal: /\b(learn|learning|memory|durable note)\b/i.test(lastAssistantMessage),
+      hasVerificationSignal: signals.verification,
+      hasReviewSignal: signals.review,
+      hasLearningSignal: signals.learning,
       messagePreview: lastAssistantMessage.slice(0, 500),
     });
+    const missingSignals = missingFinalizationSignals(signals);
+    if (missingSignals.length > 0 && !input.stop_hook_active) {
+      stopBlock(stopFinalizationReminder(active, missingSignals));
+    } else {
+      writeJson({ continue: true });
+    }
+  } else {
+    writeJson({ continue: true });
   }
-  writeJson({ continue: true });
 }
