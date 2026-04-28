@@ -108,12 +108,14 @@ describe("PAI Codex hooks", () => {
     });
     expect(result.exitCode).toBe(0);
     const parsed = JSON.parse(result.stdout);
-    expect(parsed.decision).toBe("block");
-    expect(parsed.reason).toContain("PAI Algorithm finalization required");
-    expect(parsed.reason).toContain("verification");
-    expect(parsed.reason).toContain("review");
-    expect(parsed.reason).toContain("learning");
-    expect(parsed.hookSpecificOutput.hookEventName).toBe("Stop");
+    expect(parsed.continue).toBe(false);
+    expect(parsed.stopReason).toContain("PAI Algorithm finalization required");
+    expect(parsed.stopReason).toContain("verification");
+    expect(parsed.stopReason).toContain("review");
+    expect(parsed.stopReason).toContain("learning");
+    expect(parsed.decision).toBeUndefined();
+    expect(parsed.reason).toBeUndefined();
+    expect(parsed.hookSpecificOutput).toBeUndefined();
   });
 
   test("stop hook allows active substantive sessions with all finalization signals", async () => {
