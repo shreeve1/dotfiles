@@ -1,0 +1,195 @@
+# CreateSkill Workflow
+
+Create a new skill following the canonical structure with proper TitleCase naming.
+
+## Step 1: Read the Authoritative Sources
+
+**REQUIRED FIRST:**
+
+1. Read the skill system documentation: `.codex/pai/PAI/SkillSystem.md`
+2. Read the canonical example: `.codex/pai/skills/Research/SKILL.md`
+
+## Step 2: Understand the Request
+
+Ask the user:
+1. What does this skill do?
+2. What should trigger it?
+3. What workflows does it need?
+
+## Step 3: Determine TitleCase Names
+
+**All names must use TitleCase (PascalCase).**
+
+| Component | Format | Example |
+|-----------|--------|---------|
+| Skill directory | TitleCase | `Blogging`, `Daemon`, `CreateSkill` |
+| Workflow files | TitleCase.md | `Create.md`, `UpdateDaemonInfo.md` |
+| Reference docs | TitleCase.md | `ProsodyGuide.md`, `ApiReference.md` |
+| Tool files | TitleCase.ts | `ManageServer.ts` |
+| Help files | TitleCase.help.md | `ManageServer.help.md` |
+
+**Wrong naming (avoid use):**
+- `create-skill`, `create_skill`, `CREATESKILL` -> Use `CreateSkill`
+- `create.md`, `CREATE.md`, `create-info.md` -> Use `Create.md`, `CreateInfo.md`
+
+## Step 4: Create the Skill Directory
+
+```bash
+mkdir -p .codex/pai/skills/[SkillName]/Workflows
+mkdir -p .codex/pai/skills/[SkillName]/Tools
+```
+
+**Example:**
+```bash
+mkdir -p .codex/pai/skills/YourSkill/Workflows
+mkdir -p .codex/pai/skills/YourSkill/Tools
+```
+
+## Step 5: Create SKILL.md
+
+Follow this exact structure:
+
+```yaml
+---
+name: SkillName
+description: [What it does]. USE WHEN [intent triggers using OR]. [Additional capabilities].
+---
+
+# SkillName
+
+[Brief description]
+
+## Workflow Routing
+
+| Workflow | Trigger | File |
+|----------|---------|------|
+| **WorkflowOne** | "trigger phrase" | `Workflows/WorkflowOne.md` |
+| **WorkflowTwo** | "another trigger" | `Workflows/WorkflowTwo.md` |
+
+## Examples
+
+**Example 1: [Common use case]**
+```
+User: "[Typical user request]"
+-> Invokes WorkflowOne workflow
+-> [What skill does]
+-> [What user gets back]
+```
+
+**Example 2: [Another use case]**
+```
+User: "[Different request]"
+-> [Process]
+-> [Output]
+```
+
+## [Additional Documentation]
+
+[Any other relevant info]
+```
+
+## Step 6: Create Workflow Files
+
+For each workflow in the routing section:
+
+```bash
+touch .codex/pai/skills/[SkillName]/Workflows/[WorkflowName].md
+```
+
+### Workflow-to-Tool Integration (REQUIRED for workflows with CLI tools)
+
+**If a workflow calls a CLI tool, it should include intent-to-flag mapping tables.**
+
+This pattern translates natural language user requests into appropriate CLI flags:
+
+```markdown
+## Intent-to-Flag Mapping
+
+### Model/Mode Selection
+
+| User Says | Flag | When to Use |
+|-----------|------|-------------|
+| "fast", "quick", "draft" | `--model haiku` | Speed priority |
+| (default), "best", "high quality" | `--model opus` | Quality priority |
+
+### Output Options
+
+| User Says | Flag | Effect |
+|-----------|------|--------|
+| "JSON output" | `--format json` | Machine-readable |
+| "detailed" | `--verbose` | Extra information |
+
+## Execute Tool
+
+Based on user request, construct the CLI command:
+
+\`\`\`bash
+bun ToolName.ts \
+  [FLAGS_FROM_INTENT_MAPPING] \
+  --required-param "value"
+\`\`\`
+```
+
+**Why this matters:**
+- Tools have rich configuration via flags
+- Workflows should expose this flexibility, not hardcode single patterns
+- Users speak naturally; workflows translate to precise CLI
+
+**Reference:** `.codex/pai/PAI/CliFirstArchitecture.md` (Workflow-to-Tool Integration section)
+
+**Examples (TitleCase):**
+```bash
+touch .codex/pai/skills/YourSkill/Workflows/UpdateDaemonInfo.md
+touch .codex/pai/skills/YourSkill/Workflows/UpdatePublicRepo.md
+touch .codex/pai/skills/YourSkill/Workflows/Create.md
+touch .codex/pai/skills/YourSkill/Workflows/Publish.md
+```
+
+## Step 7: Verify TitleCase
+
+Run this check:
+```bash
+ls .codex/pai/skills/[SkillName]/
+ls .codex/pai/skills/[SkillName]/Workflows/
+ls .codex/pai/skills/[SkillName]/Tools/
+```
+
+Verify ALL files use TitleCase:
+- `SKILL.md`  (exception - always uppercase)
+- `WorkflowName.md`
+- `ToolName.ts`
+- `ToolName.help.md`
+
+## Step 8: Final Checklist
+
+### Naming (TitleCase)
+- [ ] Skill directory uses TitleCase (e.g., `Blogging`, `Daemon`)
+- [ ] All workflow files use TitleCase (e.g., `Create.md`, `UpdateInfo.md`)
+- [ ] All reference docs use TitleCase (e.g., `ProsodyGuide.md`)
+- [ ] All tool files use TitleCase (e.g., `ManageServer.ts`)
+- [ ] Routing table workflow names match file names exactly
+
+### YAML Frontmatter
+- [ ] `name:` uses TitleCase
+- [ ] `description:` is single-line with embedded `USE WHEN` clause
+- [ ] No separate `triggers:` or `workflows:` arrays
+- [ ] Description uses intent-based language
+- [ ] Description is under 1024 characters
+
+### Markdown Body
+- [ ] `## Workflow Routing` section with table format
+- [ ] All workflow files have routing entries
+- [ ] `## Examples` section with 2-3 concrete usage patterns
+
+### Structure
+- [ ] `tools/` directory exists (even if empty)
+- [ ] No `backups/` directory inside skill
+
+### CLI-First Integration (for skills with CLI tools)
+- [ ] CLI tools expose configuration via flags (see CliFirstArchitecture.md)
+- [ ] Workflows that call CLI tools have intent-to-flag mapping tables
+- [ ] Flag mappings cover: mode selection, output options, post-processing (where applicable)
+
+## Done
+
+Skill created following canonical structure with proper TitleCase naming throughout.

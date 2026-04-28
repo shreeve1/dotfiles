@@ -87,6 +87,16 @@ MEMORY/
 .codex/memories/
 .codex/skills/.system/
 
+# Codex PAI port - user-owned state, local logs, secrets, and backups
+.codex/pai/USER/
+.codex/pai/MEMORY/
+.codex/pai/config/local*.json
+.codex/pai/**/*.log
+.codex/pai/**/*.jsonl
+.codex/pai/**/secrets.*
+.codex/pai/.backups/
+.codex/pai-backups/
+
 # Backup / temp files
 *.bak
 *.tmp
