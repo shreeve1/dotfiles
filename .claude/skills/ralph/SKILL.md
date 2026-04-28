@@ -85,19 +85,31 @@ Blocked by: #1 (done)
 For the selected issue:
 
 1. **Read** the full issue file — understand the vertical slice
-2. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
-3. **Explore** the relevant code — understand current state
-4. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc)
-5. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
-6. **Verify** — run tests, lint, typecheck, or manual checks as appropriate
-7. **Commit** — if the project uses git, commit with message: `feat(#ID): brief description`
+2. **Set `status: in_progress`** — update the issue file immediately before starting work. This makes stale lock recovery work if the session crashes mid-implementation.
+3. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
+4. **Explore** the relevant code — understand current state
+5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc)
+6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
+7. **Verify** — run tests, lint, typecheck, or manual checks as appropriate
+8. **Commit** — if the project uses git, commit with message: `feat(#ID): brief description`
 
-### 4. Review (implement-then-review pattern)
+### 4. Review (implement-then-review pattern — MANDATORY, NO EXCEPTIONS)
 
-After implementation, move the issue to `status: review` and run a review:
+**This step is not optional.** You MUST complete the review before proceeding to step 5 or moving to the next issue. Skipping this step is the single most common failure mode — it means acceptance criteria go unchecked, scope creep goes undetected, and bugs ship without a second look.
+
+After implementation, set the issue to `status: review` and run a review. **Do NOT set `status: done` until the review passes.** The issue status sequence is: `pending` → `in_progress` → `review` → `done`. You may never skip `review`.
+
+**Review procedure:**
+
+1. **Set status to review** — update the issue file to `status: review`.
+2. **Commit that status change** — `git add .kanban/ && git commit -m "review(#ID): brief description"`
+3. **Re-read the issue's acceptance criteria** — every single checkbox.
+4. **Re-read every changed file** — open each file touched by the implementation and read it fresh, checking against the criteria.
+5. **Run the full check suite** — tests, lint, typecheck. Record the output.
+6. **Check `git diff HEAD~1`** — verify no unrelated changes leaked in and no scope creep occurred.
 
 **What the review checks (completion gate):**
-1. All acceptance criteria checkboxes are checked
+1. All acceptance criteria checkboxes are checked — each one is verified, not assumed
 2. Tests pass (exit code 0)
 3. Lint passes
 4. Typecheck passes (if typed language)
@@ -112,6 +124,8 @@ After implementation, move the issue to `status: review` and run a review:
 - PASS → `status: done`, check all boxes, write progress
 - PASS WITH NOTES → `status: done`, but log notes for future reference
 - FAIL → `status: blocked`, add Blocker section explaining what failed
+
+**Self-check before proceeding:** After completing the review, explicitly confirm to yourself: "I re-read every changed file and verified each acceptance criterion." If you cannot honestly say this, you have not completed the review.
 
 ### 5. Mark done + write progress
 
