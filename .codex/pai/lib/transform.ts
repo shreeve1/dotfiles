@@ -346,6 +346,7 @@ export function assertNoProhibitedTerms(paths: string[]): string[] {
     if (!existsSync(path)) continue;
     const files = statSync(path).isDirectory() ? walkFiles(path, isTextFile) : [path];
     for (const file of files) {
+      if (isPaiRuntimeDataPath(file)) continue;
       const content = readFileSync(file, "utf8");
       for (const term of prohibitedRuntimeTerms) {
         if (content.includes(term)) findings.push(`${file}: ${term}`);
@@ -353,4 +354,15 @@ export function assertNoProhibitedTerms(paths: string[]): string[] {
     }
   }
   return findings;
+}
+
+function isPaiRuntimeDataPath(path: string): boolean {
+  const normalized = path.split(sep).join("/");
+  return [".codex/pai/MEMORY", ".codex/pai/USER"].some(
+    (runtimeRoot) =>
+      normalized === runtimeRoot ||
+      normalized.startsWith(`${runtimeRoot}/`) ||
+      normalized.endsWith(`/${runtimeRoot}`) ||
+      normalized.includes(`/${runtimeRoot}/`),
+  );
 }
