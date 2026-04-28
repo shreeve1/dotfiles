@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import { join } from "path";
 import {
   assertNoProhibitedTerms,
@@ -71,6 +72,26 @@ describe("PAI transform helpers", () => {
     const findings = assertNoProhibitedTerms([paiPath(), dotfilesPath(".codex", "agents")]);
     expect(findings).toEqual([]);
     expect(prohibitedRuntimeTerms.length).toBeGreaterThan(0);
+  });
+
+  test("cleanliness checks ignore PAI runtime data", () => {
+    const root = mkdtempSync(join(tmpdir(), "pai-cleanliness-"));
+    const blockedName = ["Voice", "Completion"].join("");
+    const blocked = prohibitedRuntimeTerms.find((term) => term === blockedName) ?? prohibitedRuntimeTerms[0];
+    try {
+      const memoryDir = join(root, ".codex", "pai", "MEMORY", "security");
+      mkdirSync(memoryDir, { recursive: true });
+      writeFileSync(join(memoryDir, "events.jsonl"), blocked);
+
+      const generatedDir = join(root, ".codex", "pai", "skills", "sample");
+      mkdirSync(generatedDir, { recursive: true });
+      writeFileSync(join(generatedDir, "SKILL.md"), blocked);
+
+      expect(assertNoProhibitedTerms([join(root, ".codex", "pai", "MEMORY")])).toEqual([]);
+      expect(assertNoProhibitedTerms([join(root, ".codex", "pai", "skills")])).toHaveLength(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test("manifest records every upstream skill once", () => {
