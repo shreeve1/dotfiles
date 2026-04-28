@@ -1051,6 +1051,7 @@ fi  # SECTION_USAGE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if [ "$SECTION_GIT" != "false" ]; then
+host_short=$(hostname -s 2>/dev/null)
 # Calculate age display from prefetched last_commit_epoch
 if [ "$is_git_repo" = "true" ] && [ -n "$last_commit_epoch" ]; then
     now_epoch=$(date +%s)
@@ -1070,11 +1071,13 @@ fi
 case "$MODE" in
     nano)
         printf "${GIT_PRIMARY}◈${RESET} ${GIT_DIR}${dir_name}${RESET}"
+        [ -n "$host_short" ] && printf " ${SLATE_600}@${host_short}${RESET}"
         [ "$is_git_repo" = true ] && printf " ${GIT_VALUE}${branch}${RESET}"
         printf "\n"
         ;;
     micro)
         printf "${GIT_PRIMARY}◈${RESET} ${GIT_DIR}${dir_name}${RESET}"
+        [ -n "$host_short" ] && printf " ${SLATE_600}@${host_short}${RESET}"
         if [ "$is_git_repo" = true ]; then
             printf " ${GIT_VALUE}${branch}${RESET}"
             [ -n "$age_display" ] && printf " ${age_color}${age_display}${RESET}"
@@ -1083,6 +1086,7 @@ case "$MODE" in
         ;;
     mini)
         printf "${GIT_PRIMARY}◈${RESET} ${GIT_DIR}${dir_name}${RESET}"
+        [ -n "$host_short" ] && printf " ${SLATE_600}@${host_short}${RESET}"
         if [ "$is_git_repo" = true ]; then
             printf " ${SLATE_600}│${RESET} ${GIT_VALUE}${branch}${RESET}"
             [ -n "$age_display" ] && printf " ${SLATE_600}│${RESET} ${age_color}${age_display}${RESET}"
@@ -1091,6 +1095,7 @@ case "$MODE" in
         ;;
     normal)
         printf "${GIT_PRIMARY}◈${RESET} ${GIT_PRIMARY}PWD:${RESET} ${GIT_DIR}${dir_name}${RESET}"
+        [ -n "$host_short" ] && printf " ${SLATE_600}│${RESET} ${GIT_PRIMARY}Host:${RESET} ${GIT_VALUE}${host_short}${RESET}"
         if [ "$is_git_repo" = true ]; then
             printf " ${SLATE_600}│${RESET} ${GIT_PRIMARY}Branch:${RESET} ${GIT_VALUE}${branch}${RESET}"
             [ -n "$age_display" ] && printf " ${SLATE_600}│${RESET} ${GIT_PRIMARY}Age:${RESET} ${age_color}${age_display}${RESET}"
