@@ -53,9 +53,9 @@
       "timezone": "America/Los_Angeles"
     },
     {
-      "id": "itastack-stale-ticket-check",
-      "name": "ITAStack Stale Ticket Check",
-      "schedule": "*/5 * * * *",
+      "id": "itastack-stale-ticket-check-am",
+      "name": "ITAStack Stale Ticket Check (7am-4pm PT)",
+      "schedule": "0 14-23 * * 1-5",
       "type": "shell",
       "command": "/home/james/itastack/scripts/oversight/run-stale-ticket-check.sh",
       "enabled": true,
@@ -63,12 +63,25 @@
       "lockName": "itastack-stale-ticket",
       "logFile": "itastack-stale-ticket.log",
       "timeoutSecs": 240,
-      "timezone": "America/Los_Angeles"
+      "timezone": "UTC"
     },
     {
-      "id": "itastack-note-quality-check",
-      "name": "ITAStack Note Quality Check",
-      "schedule": "0 9-17 * * 1-5",
+      "id": "itastack-stale-ticket-check-pm",
+      "name": "ITAStack Stale Ticket Check (5pm-6pm PT)",
+      "schedule": "0 0-1 * * 2-6",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-stale-ticket-check.sh",
+      "enabled": true,
+      "staggerSeconds": 0,
+      "lockName": "itastack-stale-ticket",
+      "logFile": "itastack-stale-ticket.log",
+      "timeoutSecs": 240,
+      "timezone": "UTC"
+    },
+    {
+      "id": "itastack-note-quality-check-am",
+      "name": "ITAStack Note Quality Check (7am-4pm PT)",
+      "schedule": "0 14-23 * * 1-5",
       "type": "shell",
       "command": "/home/james/itastack/scripts/oversight/run-note-quality-check.sh",
       "enabled": true,
@@ -76,7 +89,20 @@
       "lockName": "itastack-note-quality",
       "logFile": "itastack-note-quality.log",
       "timeoutSecs": 600,
-      "timezone": "America/Los_Angeles"
+      "timezone": "UTC"
+    },
+    {
+      "id": "itastack-note-quality-check-pm",
+      "name": "ITAStack Note Quality Check (5pm-6pm PT)",
+      "schedule": "0 0-1 * * 2-6",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-note-quality-check.sh",
+      "enabled": true,
+      "staggerSeconds": 15,
+      "lockName": "itastack-note-quality",
+      "logFile": "itastack-note-quality.log",
+      "timeoutSecs": 600,
+      "timezone": "UTC"
     }
   ]
 }
