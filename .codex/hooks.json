@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/work-sync.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/work-sync.ts\"",
             "timeout": 10,
             "statusMessage": "Syncing PAI work state"
           }
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/security-validator.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/security-validator.ts\"",
             "timeout": 10,
             "statusMessage": "Checking PAI security rules"
           }
@@ -61,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/load-context.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/load-context.ts\"",
             "timeout": 10,
             "statusMessage": "Loading PAI context"
           }
@@ -74,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/security-validator.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/security-validator.ts\"",
             "timeout": 10,
             "statusMessage": "Checking PAI approval rules"
           }
@@ -86,7 +86,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/session-capture.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/session-capture.ts\"",
             "timeout": 10,
             "statusMessage": "Capturing PAI prompt signal"
           }
@@ -98,7 +98,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"/home/james/dotfiles/.codex/pai/hooks/session-capture.ts\"",
+            "command": "bun \"$HOME/dotfiles/.codex/pai/hooks/session-capture.ts\"",
             "timeout": 10,
             "statusMessage": "Capturing PAI session stop"
           }

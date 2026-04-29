@@ -3,6 +3,21 @@ approval_policy = "never"
 sandbox_mode = "danger-full-access"
 model = "gpt-5.5"
 model_reasoning_effort = "xhigh"
+[projects."/Users/james"]
+trust_level = "trusted"
+
+[projects."/Users/james/.codex"]
+trust_level = "trusted"
+
+[projects."/Users/james/dotfiles"]
+trust_level = "trusted"
+
+[projects."/Users/james/windmill"]
+trust_level = "trusted"
+
+[projects."/Users/james/1-testytech/homelab"]
+trust_level = "trusted"
+
 [projects."/home/james"]
 trust_level = "trusted"
 
