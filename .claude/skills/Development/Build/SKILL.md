@@ -1,11 +1,21 @@
 ---
 name: Build
-description: Execute an implementation plan with parallel wave-based execution. USE WHEN build, execute plan, implement, start coding, wave execution, run the plan, build this, implement the plan, carry out plan, code the plan.
+description: Execute an implementation plan with parallel wave-based execution and an automatic Codex audit at each wave boundary (auto-fix-and-retry on Critical findings, default ON). USE WHEN build, execute plan, implement, start coding, wave execution, run the plan, build this, implement the plan, carry out plan, code the plan.
 ---
 
 # Build
 
 Execute an implementation plan using dependency-aware wave-based parallel execution. Treat the plan as the source of truth for task readiness and progress. Only parallelize work that is genuinely independent. The goal is not maximum parallelism — it is safe, dependency-aware progress followed by an explicit decision about testing or merge.
+
+After each wave's tasks complete, a quick Codex audit reviews the wave's diff for bugs, missed edge cases, and pattern violations. Critical findings trigger one auto-fix-and-retry attempt before escalating to the user; Warning/Note findings are logged. Default ON; opt out with `--no-audit` for trivial work or when Codex isn't available.
+
+## Invocation
+
+| Form | Behavior |
+|------|----------|
+| `/dev-build <plan>` | Default — wave-end Codex audit on, critical-only auto-fix-and-retry |
+| `/dev-build <plan> --audit-mode=all` | Surface Warnings inline in build output (still auto-fix only on Critical) |
+| `/dev-build <plan> --no-audit` | Skip wave-end audits entirely; build runs as before |
 
 ## Customization
 

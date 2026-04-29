@@ -8,6 +8,18 @@ Full 10-phase workflow for wave-based parallel plan execution.
 
 - `PATH_TO_PLAN` — Path to a specific plan file, if provided
 - `PLAN_DIRECTORIES` — `plans/`, `specs/`
+- `AUDIT_MODE` — `critical-only` (default) | `all` | `off`. Override with `--audit-mode=<value>`. Shorthand: `--no-audit` is equivalent to `--audit-mode=off`.
+
+## Flag Parsing
+
+Parse flags from the invocation before Phase 1:
+
+| Flag | Effect |
+|------|--------|
+| `--no-audit` | Disable the wave-end Codex audit entirely (sets `AUDIT_MODE=off`) |
+| `--audit-mode=critical-only` | Default. Audit fires after every code-changing wave; only Critical findings trigger auto-fix-and-retry, Warning/Note are logged silently |
+| `--audit-mode=all` | Audit fires; Warnings also surface in build output (Critical still triggers auto-fix-and-retry) |
+| `--audit-mode=off` | Skip audit entirely |
 
 ---
 
@@ -179,6 +191,130 @@ Only continue when the wave result is coherent.
 
 ---
 
+## Phase 7.5 — Codex Wave-End Audit (default ON)
+
+After a wave's tasks are marked complete and BEFORE moving to the next wave, run a focused Codex audit on the diff this wave produced. The audit catches bugs, missed edge cases, and pattern violations introduced by the wave's work — at the natural boundary where issues are still cheap to fix.
+
+**Skip this phase entirely when:**
+- `AUDIT_MODE=off` (user passed `--no-audit`).
+- The completed wave contains zero code-changing tasks (only doc/config edits with no executable surface). Determine this by inspecting `git diff` for the wave's file scope: if all changed files match `*.md|*.txt|*.rst` or are pure additions to ignored paths, skip.
+- Codex is unavailable per the same detection logic used in Plan's Phase 7.2 (CLI missing, unauthed, or sandbox unrecoverable). Log `audit_skipped: codex_unavailable` to the wave's audit entry and continue.
+
+### 7.5.1 — Capture the wave's diff
+
+Compute the diff for files this wave touched. The simplest reliable method:
+
+```bash
+git diff <wave_start_ref>..HEAD -- <files_touched_by_wave>
+```
+
+If the build is on a fresh branch with `<wave_start_ref>` recorded at Phase 5, use that. Otherwise compare against the previous wave's HEAD. Save the diff to `/tmp/build_wave_<N>_diff.patch` for Codex to read.
+
+### 7.5.2 — Invoke Codex (quick check, fresh session per wave)
+
+Each wave's audit is independent — no session continuity needed across waves. Use `codex exec` (not `resume`):
+
+```bash
+cd <repo_root>
+timeout 300 codex exec \
+  --sandbox danger-full-access \
+  -c model_reasoning_effort='"high"' \
+  "$(cat /tmp/build_wave_<N>_audit_prompt.txt)" \
+  > /tmp/build_wave_<N>_audit_out.txt 2>&1
+```
+
+If Codex round 1 hits the bwrap loopback failure, apply the same recovery as Plan's Phase 7.2 (retry with `--sandbox danger-full-access`, log `recovery` field in audit entry).
+
+### 7.5.3 — Codex prompt template (quick check)
+
+This prompt is intentionally narrow — diff-only review, no codebase-wide tangents:
+
+```
+Review the diff at /tmp/build_wave_<N>_diff.patch as a quick sanity check.
+The diff implements these plan tasks:
+  <list of [N.M] task IDs from the wave with their one-line task description>
+
+Look ONLY at this diff for: real bugs, missed edge cases that the plan called
+out, broken patterns vs the rest of the file, obvious test gaps for the
+changed code paths. Do NOT make codebase-wide architectural recommendations.
+Do NOT suggest improvements that aren't bugs. Be terse.
+
+Output every finding with a severity tag in this exact format:
+
+[CRITICAL] <one-line summary>
+  Detail: <evidence — cite file:line>
+  Suggested fix: <concrete recommendation>
+
+[WARNING] <one-line summary>
+  Detail: ...
+  Suggested fix: ...
+
+[NOTE] <one-line summary>
+  Detail: ...
+
+Severity definitions:
+  CRITICAL = bug that will produce wrong behavior or crash
+  WARNING  = significant gap or pattern violation, should fix soon
+  NOTE     = minor concern, optional
+
+If the diff is clean, output exactly: "[NOTE] No findings — diff looks correct."
+After all findings, on a final line, print exactly: "END_OF_FINDINGS"
+```
+
+### 7.5.4 — Parse findings and append to state
+
+Extract findings from the output. Append to `plans/.<feature>.state.yml` under a new `build_audits:` section keyed by wave number:
+
+```yaml
+build_audits:
+  - wave: 1
+    started: "2026-04-29T16:00:00Z"
+    files_audited: ["src/foo.py", "tests/test_foo.py"]
+    findings:
+      critical: ["[CRITICAL] <verbatim>"]
+      warning: ["[WARNING] <verbatim>"]
+      note: ["[NOTE] <verbatim>"]
+    counts: { critical: 0, warning: 1, note: 0 }
+    outcome: passed | auto_fixed | escalated_to_user | audit_skipped
+    recovery: null     # populated if 7.5.2 sandbox-recovery fired
+    retry_attempts: 0  # incremented by 7.5.5 auto-fix path
+```
+
+### 7.5.5 — Handle findings (auto-fix-and-retry)
+
+Per audit-mode:
+
+| Severity | `critical-only` (default) | `all` | `off` |
+|----------|--------------------------|-------|-------|
+| Critical | Auto-fix-and-retry | Auto-fix-and-retry | n/a — phase skipped |
+| Warning  | Logged silently | Surfaced in build output, build continues | n/a |
+| Note     | Logged silently | Logged silently | n/a |
+
+**Auto-fix-and-retry contract for Critical findings:**
+
+1. **Read** each Critical finding's Detail and Suggested fix.
+2. **Patch** the affected files via `Edit`. Constrain edits to ONLY files cited in the finding's `Detail` line — no opportunistic refactors.
+3. **Re-run the wave's relevant validation:** the test commands or validation commands that cover the changed code. Use the plan's `## Validation Commands` filtered to this wave's scope, or the affected `tests/` files via pytest selection.
+4. **If validation passes:** mark the audit entry's `outcome: auto_fixed`, increment `retry_attempts`, append a `fix_summary` field describing what changed, and proceed to Phase 8.
+5. **If validation fails OR if `retry_attempts >= 1` already (one retry max):** escalate. Mark `outcome: escalated_to_user`. Halt the build. Present findings + attempted fixes via `AskUserQuestion` with options:
+   - "I'll fix it manually — pause build" (build halts, user resolves, user re-invokes `/dev-build` to resume from this wave)
+   - "Override and continue" (mark `outcome: overridden`, proceed to Phase 8)
+   - "Abort build" (mark plan as failed, exit)
+
+**Hard limit: one auto-fix attempt per wave.** No infinite loops. Second Critical → user always.
+
+### 7.5.6 — Surface findings to build output
+
+Independent of severity handling, emit a one-line summary to the build's progress output so the user sees audit activity:
+
+```
+Wave <N> audit: 0 critical / 1 warning / 0 note (outcome: passed)
+```
+
+For `--audit-mode=all`, expand Warnings into a brief per-finding line under that summary.
+
+---
+
 ## Phase 8 — Verify Before Claiming Success
 
 Do not report success based only on task execution. Verify the work.
@@ -209,7 +345,8 @@ Repeat:
 4. Execute the wave (Phase 6)
 5. Evaluate results using the structured builder reports (Phase 7)
 6. **Mark progress in the plan file** — use `Edit` to update checkboxes. This is required every loop iteration, not just at the end.
-7. Verify as appropriate (Phase 8)
+7. **Run wave-end Codex audit** (Phase 7.5) — auto-fix-and-retry on Critical, log otherwise. Skip if `--no-audit` or zero code-changing tasks in the wave.
+8. Verify as appropriate (Phase 8)
 
 Stop when:
 - All implementation tasks are complete

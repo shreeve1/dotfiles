@@ -582,6 +582,20 @@ rounds:
 cleanup:                 # populated by Phase 7.9 after loop exits
   removed_paths: []      # artifacts/specs/<slug> dirs deleted as Codex side-effects
   skipped_paths: []      # candidates that didn't pass verification — left in place
+
+build_audits:            # populated by /dev-build's Phase 7.5 wave-end audits (one entry per audited wave)
+  - wave: 1
+    started: "2026-04-29T16:00:00Z"
+    files_audited: ["src/foo.py", "tests/test_foo.py"]
+    findings:
+      critical: ["[CRITICAL] <verbatim>"]
+      warning: ["[WARNING] <verbatim>"]
+      note: ["[NOTE] <verbatim>"]
+    counts: { critical: 0, warning: 1, note: 0 }
+    outcome: passed      # passed | auto_fixed | escalated_to_user | overridden | audit_skipped
+    recovery: null       # set if Phase 7.5.2 sandbox-recovery fired
+    retry_attempts: 0    # 0 or 1 (hard limit per wave)
+    fix_summary: null    # populated when outcome=auto_fixed; describes what Claude patched
 ```
 
 The findings sections must hold **verbatim Codex output text** so that an AI reviewing this state YAML later can fully reconstruct the audit trail without needing a separate audit markdown.
