@@ -60,8 +60,8 @@ mkdir -p "artifacts/plans/${SLUG}"
 Work through these 9 phases in order:
 
 1. **Parse Requirements** — analyze USER_PROMPT and flags
-2. **Vague Prompt Check** — if prompt is thin, ask clarifying questions
-3. **Discover Source Document** — Source Document Discovery if USER_PROMPT is free text
+2. **Discover Source Document** — Source Document Discovery if USER_PROMPT is free text
+3. **Vague Prompt Check** — if prompt is thin AND no source was found in step 2, ask clarifying questions
 4. **Resume Detection** — check for existing state YAML
 5. **Understand Codebase** — explore existing patterns
 6. **Draft Initial Plan (Round 0)** — Codex writes first plan to disk
@@ -81,16 +81,7 @@ Analyze USER_PROMPT to understand:
 - Complexity (simple|medium|complex)
 - Constraints or requirements
 
-## Phase 2: Vague Prompt Check
-
-If USER_PROMPT is thin (under ~20 words AND no source document was provided), ask the user 2-3 clarifying questions before drafting. Topics to probe:
-- Scope boundaries (what's in / out)
-- Constraints (existing systems to integrate with, technologies to use/avoid)
-- Success criteria (what does "done" look like)
-
-If USER_PROMPT is substantive (>20 words OR an attached file/source), skip this phase.
-
-## Phase 3: Source Document Discovery
+## Phase 2: Source Document Discovery
 
 If USER_PROMPT is a file path, read that file directly as the source document.
 
@@ -101,17 +92,39 @@ If USER_PROMPT is free text (not a path), check for a source document using the 
    - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
 3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
 
+## Phase 3: Vague Prompt Check
+
+Only fires if Phase 2 did NOT find/accept a source document. A short prompt that points at an existing PRD (e.g. "plan the latest PRD") is fine on its own — Phase 2 has already loaded the rich context.
+
+If USER_PROMPT is thin (under ~20 words AND Phase 2 produced no source document), ask the user 2-3 clarifying questions before drafting. Topics to probe:
+- Scope boundaries (what's in / out)
+- Constraints (existing systems to integrate with, technologies to use/avoid)
+- Success criteria (what does "done" look like)
+
+If USER_PROMPT is substantive (>20 words) OR Phase 2 attached a source document, skip this phase.
+
 ## Phase 4: Resume Detection
 
 After deriving SLUG, check whether `artifacts/plans/<slug>/state.yml` already exists.
 
-If state YAML exists:
-- Read it and check `status` field
+If state YAML exists, validate it before trusting it:
+
+1. **Parse YAML.** If parsing fails, treat as malformed (see fallback below).
+2. **Check required fields.** `plan_file`, `prompt`, `max_rounds`, `current_round`, `status`, `rounds` (list, may be empty). If any required field is missing or wrong type, treat as malformed.
+3. **Cross-check `current_round` vs `rounds[]`.** `current_round` must equal `max(rounds[].round)` when `rounds` is non-empty (or 0 when empty). If they disagree, treat as inconsistent.
+
+If validation passes:
 - If `status: running` and `--resume` flag was passed: resume from `current_round + 1`
 - If state exists but `--resume` flag was NOT passed: ask the user:
   - "Existing loop state found for this feature (round N/M, status: <status>). Resume or restart?"
   - Options: "Resume from round N+1" / "Restart from scratch (overwrites state)" / "Cancel"
 - Act on user choice
+
+If validation FAILS (malformed YAML, missing fields, inconsistent counters) — likely caused by an interrupted mid-write or hand-edit — ask the user:
+- "State YAML at `artifacts/plans/<slug>/state.yml` is unreadable or inconsistent (reason: <one-line>). What now?"
+- Options: "Restart from scratch (overwrites state)" / "Cancel and let me inspect the file" / "Show me the file then ask again"
+
+Never silently proceed on bad state.
 
 If no state exists, proceed normally (round 0 = initial draft).
 
@@ -326,7 +339,10 @@ Extract findings from Claude output by severity tag. Capture verbatim text. Comp
 
 ### 7.7: Append round to state
 
+Set `current_round: <N>` at the top of this step (where `<N>` is the round number that just ran, starting from 1). Then append the round entry:
+
 ```yaml
+current_round: <N>          # bumped at the start of this step, before append
 rounds:
   - round: <N>
     started: "<ISO timestamp>"
@@ -341,6 +357,8 @@ rounds:
     plan_diff_pct: <will be filled after revision>
     revision_summary: <will be filled after revision>
 ```
+
+By the time we reach 7.8 / 7.10 / 7.11, `current_round` always reflects the round whose findings were just parsed. This eliminates the off-by-one risk in the hard-stop check.
 
 ### 7.8: Check exit criteria
 
@@ -365,30 +383,52 @@ Compute `plan_diff_pct` (lines changed / total lines × 100) between pre-revisio
 
 ### 7.10: Diff-convergence safety exit
 
-If `round > 1` AND `plan_diff_pct < 5`:
+Diff convergence is a **safety net**, not a clean pass. It only fires when the audit is also clean:
+
+- `round > 1` AND
+- `plan_diff_pct < 5` AND
+- `critical_count == 0` AND
+- every Warning from prior rounds is resolved or explicitly dismissed (same condition as 7.8)
+
+If all four hold:
 - Set `status: converged`
-- Set `exit_reason: "Plan converged — diff <5% between rounds"`
+- Set `exit_reason: "Plan converged — diff <5% between rounds, no critical findings"`
 - Exit loop, proceed to Phase 8
+
+If `plan_diff_pct < 5` BUT `critical_count > 0` (Codex couldn't make Claude's revisions actually move the plan): this is a **stuck loop**, not convergence.
+- Set `status: failed_stuck`
+- Set `exit_reason: "Plan stuck — diff <5% but <N> critical findings remain unaddressed across rounds"`
+- Exit loop, proceed to Phase 8 with the plan flagged for human review
 
 ### 7.11: Hard stop
 
-If `current_round == MAX_ROUNDS`:
+`current_round` carries the round number that just ran (set in 7.7 when the round entry is appended). After 7.10 has been evaluated, check:
+
+If `current_round >= MAX_ROUNDS`:
 - Set `status: hard_stopped`
 - Set `exit_reason: "Reached MAX_ROUNDS=<N> hard cap"`
 - Exit loop, proceed to Phase 8
 
-Otherwise increment `current_round` and loop to 7.4.
+Otherwise loop back to 7.4 to start round `current_round + 1`. (No separate increment step — `current_round` is set at the top of each round in 7.7.)
 
 ## Phase 8: Validate
 
-Verify the plan:
+**Structural validation** (cheap, mechanical):
 - All required Plan Format sections present
 - Tasks have stable `[N.M]` ID prefixes
 - Tests have stable `[T.N.M]` ID prefixes
 - Traceability map correctly links `#req-*` tags to task IDs (if PRD source had tags)
 - No missing dependencies between tasks
 
-If validation fails, log the issue in state YAML and report to the user.
+**Local feasibility preflights** (deterministic, do not rely on the audit loop alone):
+- **Validation Commands:** for each command in the `## Validation Commands` section, parse out file paths and tool names. Verify referenced files exist on disk. Verify tools are present (`which <tool>`). Anything missing → flag at Critical.
+- **Edit-target existence:** for each path the plan claims to modify (under `## Relevant Files` and inline in tasks), verify the file exists OR is explicitly listed under `### New Files`. A claimed-to-modify file that doesn't exist and isn't a new file → Critical.
+- **Test paths:** if the plan references `tests/unit/`, `tests/integration/`, or `tests/e2e/`, verify those directories exist or are listed as new. Missing test infrastructure → Warning.
+- **Prerequisite tools:** if the plan adds dependencies via `uv add`, `pnpm add`, etc., verify the package manager is installed. Missing → Critical.
+
+These checks are deterministic and run independently of the audit loop — they catch concrete file/tool reality even when Claude's review missed them. If the loop ran with `claude_unavailable` status, these preflights are the primary safety net.
+
+If any check fails, log the failures in the state YAML's `phase_8_findings` block and surface them in the Phase 9 report. Critical-level preflight failures should be flagged for human review in the same way as `failed_stuck` from the loop.
 
 ## Phase 9: Report
 
