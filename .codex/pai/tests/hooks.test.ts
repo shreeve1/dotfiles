@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { dotfilesPath } from "../lib/paths";
+import { dotfilesPath, paiMemoryPath } from "../lib/paths";
 import { classifyPrompt } from "../lib/algorithm-state";
 
 async function runHook(path: string, payload: unknown) {
@@ -64,6 +64,39 @@ describe("PAI Codex hooks", () => {
     expect(parsed.hookSpecificOutput.hookEventName).toBe("SessionStart");
     expect(parsed.hookSpecificOutput.additionalContext).toContain("PAI operating loop");
     expect(parsed.hookSpecificOutput.additionalContext).toContain("artifacts/specs/<slug>/PRD.md");
+  });
+
+  test("context hook emits bounded recent learning memory", async () => {
+    const learningDir = paiMemoryPath("learning");
+    const files = [
+      ["zzzz-pai-startup-test-1.md", "startup-test-oldest-should-not-load"],
+      ["zzzz-pai-startup-test-2.md", "startup-test-recent-two"],
+      ["zzzz-pai-startup-test-3.md", "startup-test-recent-three"],
+      ["zzzz-pai-startup-test-4.md", "startup-test-recent-four"],
+    ] as const;
+    mkdirSync(learningDir, { recursive: true });
+    try {
+      for (const [name, content] of files) {
+        writeFileSync(join(learningDir, name), `# ${name}\n\n${content}\n`);
+      }
+
+      const result = await runHook(".codex/pai/hooks/load-context.ts", {
+        hook_event_name: "SessionStart",
+        source: "startup",
+      });
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      const context = parsed.hookSpecificOutput.additionalContext;
+      expect(context).toContain("PAI recent learning memory");
+      expect(context).toContain("startup-test-recent-two");
+      expect(context).toContain("startup-test-recent-three");
+      expect(context).toContain("startup-test-recent-four");
+      expect(context).not.toContain("startup-test-oldest-should-not-load");
+    } finally {
+      for (const [name] of files) {
+        rmSync(join(learningDir, name), { force: true });
+      }
+    }
   });
 
   test("prompt classifier covers substantive, artifact, and trivial edges", () => {
