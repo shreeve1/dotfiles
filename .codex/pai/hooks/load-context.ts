@@ -5,17 +5,25 @@ import { sessionContext } from "../lib/hook-io";
 import { paiMemoryPath, paiUserPath } from "../lib/paths";
 import { PAI_SESSION_CONTEXT } from "../lib/runtime-guidance";
 
-function readIfPresent(path: string): string | null {
+const RECENT_LEARNING_LIMIT = 3;
+const MEMORY_NOTE_CHAR_LIMIT = 2000;
+
+function readIfPresent(path: string, maxChars?: number): string | null {
   if (!existsSync(path)) return null;
-  const text = readFileSync(path, "utf8").trim();
+  let text = readFileSync(path, "utf8").trim();
+  if (maxChars && text.length > maxChars) {
+    text = `${text.slice(0, maxChars).trimEnd()}\n[truncated]`;
+  }
   return text.length > 0 ? text : null;
 }
 
-function listMarkdown(dir: string, limit: number): string[] {
+function listMarkdown(dir: string, limit: number, newestFirst = false): string[] {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  const names = readdirSync(dir)
     .filter((name) => name.endsWith(".md"))
-    .sort()
+    .sort();
+  if (newestFirst) names.reverse();
+  return names
     .slice(0, limit)
     .map((name) => join(dir, name));
 }
@@ -32,5 +40,11 @@ for (const file of preferenceFiles) {
 
 const workLog = readIfPresent(paiMemoryPath("work", "active.md"));
 if (workLog) sections.push(`PAI active work:\n${workLog}`);
+
+const learningFiles = listMarkdown(paiMemoryPath("learning"), RECENT_LEARNING_LIMIT, true);
+for (const file of learningFiles) {
+  const text = readIfPresent(file, MEMORY_NOTE_CHAR_LIMIT);
+  if (text) sections.push(`PAI recent learning memory ${file}:\n${text}`);
+}
 
 sessionContext("SessionStart", sections.join("\n\n---\n\n"));
