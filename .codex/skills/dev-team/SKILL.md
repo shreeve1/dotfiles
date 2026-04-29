@@ -1,6 +1,6 @@
 ---
 name: dev-team
-description: Coordinate an end-to-end automated development pipeline for planning, validation, implementation, testing, and commit creation. Use only when the user explicitly asks for a dev team, automated pipeline, hands-off build, full team build, run pipeline end-to-end, agent team, or delegated multi-agent development workflow.
+description: Coordinate an end-to-end automated development pipeline for planning (with claude -p audit loop), implementation, testing, and commit creation. Use only when the user explicitly asks for a dev team, automated pipeline, hands-off build, full team build, run pipeline end-to-end, agent team, or delegated multi-agent development workflow.
 ---
 
 # Dev Team
@@ -11,7 +11,7 @@ Use this skill only for explicit automated pipeline requests. For normal coding 
 
 1. Parse the request and determine whether an existing plan path was provided.
 2. Explore the codebase enough to understand stack, patterns, and affected files.
-3. Coordinate phases: plan, validate, build, test, and commit.
+3. Coordinate phases: plan (with audit loop), build, test, and commit.
 4. Stop on critical failures and report the exact current state.
 5. Create a commit only if the user asked for a commit or the automated pipeline request clearly includes commit creation.
 

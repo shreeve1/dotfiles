@@ -17,7 +17,7 @@
   - [Agent Stalls](#agent-stalls)
 - [Example Output](#example-output)
 
-Fully automated development pipeline: **plan -> validate -> build -> test -> commit**.
+Fully automated development pipeline: **plan (with claude -p audit loop) -> build -> test -> commit**.
 
 Each phase may run in its own isolated context when the current Codex session supports delegated agents and the user explicitly requested a team or automated agent pipeline. Otherwise, coordinate the same phases locally.
 
@@ -78,17 +78,13 @@ Send the request to the coordinator if delegation is available
 
 The coordinator handles all phases. Provide detailed guidance:
 
-**Plan Phase:**
+**Plan Phase (with claude -p audit loop):**
 - Analyze the request against the codebase
 - Break work into atomic, ordered tasks
 - Identify dependencies between tasks
 - Create validation criteria for each task
-
-**Validate Phase:**
-- Review the plan for feasibility
-- Check for breaking changes or conflicts
-- Verify all assumptions against the actual codebase
-- Flag any risks or unknowns
+- Run the claude -p audit loop for up to 3 rounds: feasibility, breaking changes, assumption verification, and risk flagging happen inside the loop's severity-tagged findings
+- Exit the loop when no critical findings remain and prior warnings are addressed
 
 **Build Phase:**
 - Execute tasks in dependency order

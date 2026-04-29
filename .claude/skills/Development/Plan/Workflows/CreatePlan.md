@@ -36,8 +36,8 @@ mkdir -p plans/
 ## Workflow Overview
 
 1. **Parse Requirements** — analyze USER_PROMPT and flags
-2. **Vague Prompt Check** — if prompt is thin, ask clarifying questions
-3. **Discover Source Document** — Source Document Discovery if USER_PROMPT is free text
+2. **Discover Source Document** — Source Document Discovery if USER_PROMPT is free text
+3. **Vague Prompt Check** — if prompt is thin AND no source was found in step 2, ask clarifying questions
 4. **Resume Detection** — check for existing state YAML
 5. **Understand Codebase** — explore existing patterns
 6. **Draft Initial Plan (Round 0)** — Claude writes first plan to disk
@@ -57,16 +57,7 @@ Analyze USER_PROMPT to understand:
 - Complexity (simple|medium|complex)
 - Constraints or requirements
 
-## Phase 2: Vague Prompt Check
-
-If USER_PROMPT is thin (under ~20 words AND no source document was provided), invoke `AskUserQuestion` with 2-3 clarifying questions before drafting. Topics to probe:
-- Scope boundaries (what's in / out)
-- Constraints (existing systems to integrate with, technologies to use/avoid)
-- Success criteria (what does "done" look like)
-
-If USER_PROMPT is substantive (>20 words OR an attached file/source), skip this phase.
-
-## Phase 3: Source Document Discovery
+## Phase 2: Source Document Discovery
 
 If USER_PROMPT is a file path, read that file directly as the source document.
 
@@ -77,17 +68,39 @@ If USER_PROMPT is free text (not a path), check for a source document using the 
    - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
 3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
 
+## Phase 3: Vague Prompt Check
+
+Only fires if Phase 2 did NOT find/accept a source document. A short prompt that points at an existing PRD (e.g. "plan the latest PRD") is fine on its own — Phase 2 has already loaded the rich context.
+
+If USER_PROMPT is thin (under ~20 words AND Phase 2 produced no source document), invoke `AskUserQuestion` with 2-3 clarifying questions before drafting. Topics to probe:
+- Scope boundaries (what's in / out)
+- Constraints (existing systems to integrate with, technologies to use/avoid)
+- Success criteria (what does "done" look like)
+
+If USER_PROMPT is substantive (>20 words) OR Phase 2 attached a source document, skip this phase.
+
 ## Phase 4: Resume Detection
 
 Generate the kebab-case feature name from USER_PROMPT (used for plan filename later). Check whether `plans/.<feature>.state.yml` already exists.
 
-If state YAML exists:
-- Read it and check `status` field
+If state YAML exists, validate it before trusting it:
+
+1. **Parse YAML.** If parsing fails, treat as malformed (see fallback below).
+2. **Check required fields.** `plan_file`, `prompt`, `max_rounds`, `current_round`, `status`, `rounds` (list, may be empty). If any required field is missing or wrong type, treat as malformed.
+3. **Cross-check `current_round` vs `rounds[]`.** `current_round` must equal `max(rounds[].round)` when `rounds` is non-empty (or 0 when empty). If they disagree, treat as inconsistent.
+
+If validation passes:
 - If `status: running` and `--resume` flag was passed: resume from `current_round + 1`
 - If state exists but `--resume` flag was NOT passed: invoke `AskUserQuestion`:
   - "Existing loop state found for this feature (round N/M, status: <status>). Resume or restart?"
   - Options: "Resume from round N+1" / "Restart from scratch (overwrites state)" / "Cancel"
 - Act on user choice
+
+If validation FAILS (malformed YAML, missing fields, inconsistent counters) — likely caused by an interrupted mid-write or hand-edit — invoke `AskUserQuestion`:
+- "State YAML at `plans/.<feature>.state.yml` is unreadable or inconsistent (reason: <one-line>). What now?"
+- Options: "Restart from scratch (overwrites state)" / "Cancel and let me inspect the file" / "Show me the file then ask again"
+
+Never silently proceed on bad state.
 
 If no state exists, proceed normally (round 0 = initial draft).
 
@@ -132,20 +145,50 @@ Run rounds 1 through MAX_ROUNDS. Each round:
 
 ### 7.1: Invoke Codex
 
-For **round 1**, invoke the `/codex` skill in **Challenge mode** — adversarial critique of the plan.
+Codex is invoked via the **`codex` CLI directly** (not the `/codex` skill wrapper, which is interactive and routes its own decisions). The CLI gives the loop deterministic prompts and clean session-id capture.
 
-For **rounds 2+**, invoke the `/codex` skill in **Consult mode** with session continuity — Codex remembers the previous round's findings and can check whether Claude actually addressed them.
+**Round 1 — Challenge mode (fresh session):**
+
+Write the round 1 prompt to a temp file, then run from the repo root:
+
+```bash
+cd <repo_root>
+timeout 480 codex exec \
+  --sandbox danger-full-access \
+  -c model_reasoning_effort='"high"' \
+  "$(cat /tmp/codex_round1_prompt.txt)" \
+  > /tmp/codex_round1_out.txt 2>&1
+```
+
+After completion, extract the session id from the output (line matching `session id: <uuid>`) and store it in the state YAML's `codex_session_id` field. This protects against `--last` ambiguity if multiple Codex sessions interleave.
+
+**Rounds 2+ — Consult mode with session continuity:**
+
+`codex exec resume` does NOT accept the `--sandbox` flag directly. Use the `-c` config override form:
+
+```bash
+cd <repo_root>
+timeout 480 codex exec resume <codex_session_id> \
+  -c sandbox_mode='"danger-full-access"' \
+  -c model_reasoning_effort='"high"' \
+  "$(cat /tmp/codex_roundN_prompt.txt)" \
+  > /tmp/codex_roundN_out.txt 2>&1
+```
+
+If the stored session id is unavailable, fall back to `codex exec resume --last`. With `--last`, the same `-c sandbox_mode` override applies — `--sandbox` as a flag is rejected.
 
 **Codex prompt template (round 1, Challenge):**
 
 ```
 Adversarially review this implementation plan for execution risk. Read the plan
 file at plans/<feature>.md. You have full read access to the codebase — verify
-file paths, patterns, dependencies, and feasibility against actual code.
+file paths, patterns, dependencies, and feasibility against actual code in this
+repository.
 
 Look for: missing edge cases, infeasible approaches, second/third-order
 consequences, conflicts with existing patterns, missing dependencies, hidden
-assumptions, misunderstood requirements, gaps in test strategy.
+assumptions, misunderstood requirements, gaps in test strategy. Be especially
+critical of duplication or redundancy with existing files.
 
 Output every finding with a severity tag in this exact format:
 
@@ -166,33 +209,54 @@ Severity definitions:
   NOTE     = minor concern, worth considering, not blocking
 
 If the plan is genuinely solid, return findings only at NOTE level or below.
-Do not invent problems. Do not be sycophantic. Be precise.
+Do not invent problems. Do not be sycophantic. Be precise. After all findings,
+on a final line, print exactly: "END_OF_FINDINGS"
 ```
+
+The trailing `END_OF_FINDINGS` sentinel makes parsing robust against truncated output.
 
 **Codex prompt template (round 2+, Consult):**
 
+The resumed session already has prior context, so do NOT re-paste round-(N-1) findings — that wastes tokens and risks Codex confusing the new prompt with old data.
+
 ```
-You previously reviewed this plan in round <N-1> and identified these
-findings:
+The plan at plans/<feature>.md has been revised in response to your round
+<N-1> findings. Re-read the file end-to-end. For EACH finding you raised in
+round <N-1>, evaluate whether the revision genuinely addresses it or merely
+rewords it. Be especially skeptical of "addressed by removal" claims — verify
+the removal is consistent across the whole plan.
 
-<verbatim findings from previous round>
+Then identify any NEW issues introduced by the revision itself.
 
-The plan has been revised. Re-read plans/<feature>.md and:
+Use the same severity format ([CRITICAL]/[WARNING]/[NOTE]) and include a
+Status line for each prior finding:
+  Status: ADDRESSED | NOT_ADDRESSED | PARTIALLY_ADDRESSED — <reason>
 
-1. For each previous CRITICAL/WARNING: did Claude actually address it, or
-   just reword? If addressed, say so. If not, re-flag at original severity.
-2. Identify any NEW issues introduced by the revision.
-
-Use the same [CRITICAL]/[WARNING]/[NOTE] severity format. Be especially
-skeptical of findings that look "addressed" but actually aren't.
+After all findings, on a final line, print exactly: "END_OF_FINDINGS"
 ```
 
 ### 7.2: Handle Codex Unavailable
 
-If Codex CLI is not installed or not authenticated, the `/codex` skill will report so. In that case:
-- Set `status: codex_unavailable` in state YAML
-- Set `exit_reason: "Codex CLI missing or unauthenticated — plan delivered without audit loop"`
-- Skip remaining rounds, proceed to Phase 8
+Three distinct failure modes to detect, in order:
+
+1. **Codex CLI missing** — `which codex` returns nothing. State: `codex_unavailable`. Exit reason: `"Codex CLI missing — install with: npm install -g @openai/codex"`.
+2. **Codex unauthenticated** — neither `$CODEX_API_KEY`, `$OPENAI_API_KEY`, nor `~/.codex/auth.json` is present. State: `codex_unavailable`. Exit reason: `"Codex unauthenticated — run codex login"`.
+3. **Sandbox transport failure** — Codex itself returns a `[CRITICAL]` finding with text matching `bwrap.*loopback|RTM_NEWADDR|sandbox` AND no other findings, indicating its bundled bubblewrap can't set up sandboxing. The first round's output is the canary. **Recovery path:** retry the same round with `--sandbox danger-full-access` (round 1) or `-c sandbox_mode='"danger-full-access"'` (rounds 2+). Both bypass bwrap. If recovery succeeds, continue the loop normally and add a one-line note in the round entry: `recovery: "bypassed bwrap via danger-full-access sandbox mode"`. If recovery still fails, set `status: codex_sandbox_failed`, exit_reason includes the bwrap error text, and proceed to Phase 8.
+
+In all three terminal cases (CLI missing, unauthed, sandbox unrecoverable), skip remaining rounds and proceed to Phase 8 with the plan as-is. Do NOT fail the whole workflow — the plan is still useful, just unaudited.
+
+**Detection sketch (run before round 1):**
+
+```bash
+CODEX_BIN=$(which codex 2>/dev/null || echo "")
+if [ -z "$CODEX_BIN" ]; then
+  echo "STATUS=codex_unavailable REASON=missing"
+elif ! ([ -n "$CODEX_API_KEY" ] || [ -n "$OPENAI_API_KEY" ] || [ -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]); then
+  echo "STATUS=codex_unavailable REASON=unauthed"
+else
+  echo "STATUS=codex_ready"
+fi
+```
 
 ### 7.3: Parse Findings
 
@@ -200,7 +264,10 @@ Extract findings from Codex output by severity tag. Capture verbatim text. Compu
 
 ### 7.4: Append Round to State
 
+Set `current_round: <N>` at the top of this step (where `<N>` is the round number that just ran, starting from 1). Then append the round entry:
+
 ```yaml
+current_round: <N>          # bumped at the start of this step, before append
 rounds:
   - round: <N>
     codex_mode: challenge | consult
@@ -211,6 +278,8 @@ rounds:
     counts: { critical: N, warning: N, note: N }
     plan_diff_pct: <will be filled after revision>
 ```
+
+By the time we reach 7.5 / 7.7 / 7.8, `current_round` always reflects the round whose findings were just parsed. This eliminates the off-by-one risk in the hard-stop check.
 
 ### 7.5: Check Exit Criteria
 
@@ -235,30 +304,64 @@ Compute `plan_diff_pct` (lines changed / total lines × 100) between pre-revisio
 
 ### 7.7: Diff-Convergence Safety Exit
 
-If `round > 1` AND `plan_diff_pct < 5`:
+Diff convergence is a **safety net**, not a clean pass. It only fires when the audit is also clean:
+
+- `round > 1` AND
+- `plan_diff_pct < 5` AND
+- `critical_count == 0` AND
+- every Warning from prior rounds is resolved or explicitly dismissed by Claude (same condition as 7.5)
+
+If all four hold:
 - Set `status: converged`
-- Set `exit_reason: "Plan converged — diff <5% between rounds"`
+- Set `exit_reason: "Plan converged — diff <5% between rounds, no critical findings"`
 - Exit loop, proceed to Phase 8
+
+If `plan_diff_pct < 5` BUT `critical_count > 0` (Claude couldn't make Codex's revisions actually move the plan): this is a **stuck loop**, not convergence.
+- Set `status: failed_stuck`
+- Set `exit_reason: "Plan stuck — diff <5% but <N> critical findings remain unaddressed across rounds"`
+- Exit loop, proceed to Phase 8 with the plan flagged for human review
 
 ### 7.8: Hard Stop
 
-If `current_round == MAX_ROUNDS`:
+`current_round` carries the round number that just ran (set in 7.4 when the round entry is appended). After 7.7 has been evaluated, check:
+
+If `current_round >= MAX_ROUNDS`:
 - Set `status: hard_stopped`
 - Set `exit_reason: "Reached MAX_ROUNDS=<N> hard cap"`
-- Exit loop, proceed to Phase 8
+- Exit loop, proceed to Phase 7.9.
 
-Otherwise increment `current_round` and loop to 7.1.
+Otherwise loop back to 7.1 to start round `current_round + 1`. (No separate increment step — `current_round` is set at the top of each round in 7.4.)
+
+### 7.9: Cleanup Codex Side-Effects
+
+Codex sessions invoked from a repo with PAI-style hooks (`SessionStart`, `UserPromptSubmit`, etc.) create stub PRD files under `artifacts/specs/<derived-from-prompt>/PRD.md` on every round. These are unrelated to the Plan workflow's outputs and accumulate noise.
+
+After exiting the loop (whether via convergence, hard-stop, or codex_unavailable):
+
+1. List `artifacts/specs/` for directories created within the loop's time window whose names match a slug derived from the round prompt (e.g. `adversarially-review-this-implementation-plan-fo`, `the-plan-at-plans-feature-*-md-ha`).
+2. For each candidate, verify it contains only a single `PRD.md` whose body references the loop's plan filename — this prevents accidental deletion of legitimate PRD work.
+3. Remove the verified candidates. Record the removed paths in the state YAML under `cleanup.removed_paths` for traceability.
+
+If no candidates match, skip silently. If candidates match but verification fails (PRD references something else), leave them in place and log under `cleanup.skipped_paths`.
 
 ## Phase 8: Validate
 
-Verify the plan:
+**Structural validation** (cheap, mechanical):
 - All required Plan Format sections present
 - Tasks have stable `[N.M]` ID prefixes
 - Tests have stable `[T.N.M]` ID prefixes
 - Traceability map correctly links `#req-*` tags to task IDs (if PRD source had tags)
 - No missing dependencies between tasks
 
-If validation fails, log the issue in state YAML and report to the user.
+**Local feasibility preflights** (deterministic, do not rely on the audit loop alone):
+- **Validation Commands:** for each command in the `## Validation Commands` section, parse out file paths and tool names. Verify referenced files exist on disk. Verify tools are present (`which <tool>`). Anything missing → flag at Critical.
+- **Edit-target existence:** for each path the plan claims to modify (under `## Relevant Files` and inline in tasks), verify the file exists OR is explicitly listed under `### New Files`. A claimed-to-modify file that doesn't exist and isn't a new file → Critical.
+- **Test paths:** if the plan references `tests/unit/`, `tests/integration/`, or `tests/e2e/`, verify those directories exist or are listed as new. Missing test infrastructure → Warning.
+- **Prerequisite tools:** if the plan adds dependencies via `uv add`, `pnpm add`, etc., verify the package manager is installed. Missing → Critical.
+
+These checks are deterministic and run independently of the audit loop — they catch concrete file/tool reality even when Codex's review missed them. If the loop ran with `claude_unavailable` status, these preflights are the primary safety net.
+
+If any check fails, log the failures in the state YAML's `phase_8_findings` block and surface them in the Phase 9 report. Critical-level preflight failures should be flagged for human review in the same way as `failed_stuck` from the loop.
 
 ## Phase 9: Report
 
@@ -444,11 +547,12 @@ plan_file: plans/<feature>.md
 prompt: "<original USER_PROMPT>"
 max_rounds: 3
 current_round: 2
-status: running          # running | converged | hard_stopped | cancelled | codex_unavailable | failed
+status: running          # running | converged | hard_stopped | cancelled | codex_unavailable | codex_sandbox_failed | failed
 exit_reason: null        # filled when status != running
-codex_session_id: "<id from /codex skill for continuity across rounds>"
+codex_session_id: "<uuid captured from round 1 'session id:' line>"
 started: "2026-04-29T15:00:00Z"
 updated: "2026-04-29T15:12:00Z"
+notes: []                # free-form pre-loop disambiguation context (e.g. "Phase 2 vague-prompt clarification chose option X")
 
 rounds:
   - round: 1
@@ -464,6 +568,7 @@ rounds:
     counts: { critical: 2, warning: 5, note: 3 }
     plan_diff_pct: 47.0
     revision_summary: "<one-paragraph description of changes Claude made>"
+    recovery: null       # set to a short string when 7.2 sandbox-recovery fired (e.g. "bypassed bwrap via danger-full-access")
 
   - round: 2
     codex_mode: consult
@@ -472,6 +577,11 @@ rounds:
     counts: { critical: 0, warning: 2, note: 4 }
     plan_diff_pct: 12.3
     revision_summary: "..."
+    recovery: null
+
+cleanup:                 # populated by Phase 7.9 after loop exits
+  removed_paths: []      # artifacts/specs/<slug> dirs deleted as Codex side-effects
+  skipped_paths: []      # candidates that didn't pass verification — left in place
 ```
 
 The findings sections must hold **verbatim Codex output text** so that an AI reviewing this state YAML later can fully reconstruct the audit trail without needing a separate audit markdown.
