@@ -1,6 +1,8 @@
 # CreatePlan Workflow
 
-Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
+Create a detailed implementation plan via an iterative Claude-plan ↔ Codex-audit loop. Claude drafts, Codex critiques against the codebase with severity-tagged findings, Claude revises. Loop runs up to 3 rounds, exiting earlier when no critical findings remain or the plan converges.
+
+The canonical output is `plans/<feature>.md` — same format as before so downstream `/dev-shard`, `/dev-build`, `/dev-test` work unchanged. A sibling `plans/.<feature>.state.yml` carries verbatim Codex findings, severity tallies, and exit reason for later AI review.
 
 ## Variables
 
@@ -8,6 +10,21 @@ Create a detailed implementation plan based on the user's requirements. Analyze 
 - `PLAN_OUTPUT_DIRECTORY` — `plans/`
 - `SOURCE_DIRECTORIES` — search in priority order: `plans/` > `specs/` > `artifacts/plans/` > `artifacts/specs/`
 - `TEST_DIR` — `tests/`
+- `MAX_ROUNDS` — default 3, override with `--rounds N`
+- `LOOP_ENABLED` — default true, set false with `--no-loop`
+- `RESUME` — default false, set true with `--resume`
+
+## Flag Parsing
+
+Parse flags from the invocation before anything else:
+
+| Flag | Effect |
+|------|--------|
+| `--rounds N` | Override max rounds (integer, default 3) |
+| `--no-loop` | Skip the Codex audit loop entirely; produce single-pass plan |
+| `--resume` | Resume from existing state YAML if one exists |
+
+Strip flags from `USER_PROMPT` before processing.
 
 ## Pre-flight
 
@@ -18,32 +35,38 @@ mkdir -p plans/
 
 ## Workflow Overview
 
-Work through these 10 phases in order:
+1. **Parse Requirements** — analyze USER_PROMPT and flags
+2. **Vague Prompt Check** — if prompt is thin, ask clarifying questions
+3. **Discover Source Document** — Source Document Discovery if USER_PROMPT is free text
+4. **Resume Detection** — check for existing state YAML
+5. **Understand Codebase** — explore existing patterns
+6. **Draft Initial Plan (Round 0)** — Claude writes first plan to disk
+7. **Codex Audit Loop** — up to MAX_ROUNDS iterations of Codex critique + Claude revision
+8. **Validate** — verify plan completeness
+9. **Report** — present completed plan summary
 
-1. **Parse Requirements** — analyze USER_PROMPT to understand core problem and desired outcome
-2. **Discover Source Document** — run Source Document Discovery if USER_PROMPT is free text
-3. **Understand Codebase** — explore existing patterns, architecture, and relevant files directly
-4. **Design Solution** — develop technical approach with architecture decisions and implementation strategy
-5. **Plan phases** — structure the implementation into logical phases
-6. **Document Plan** — write comprehensive markdown document following Plan Format
-7. **Generate filename** — create descriptive kebab-case filename
-8. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
-9. **Validate** — verify plan completeness and coherence
-10. **Report** — present completed plan summary
+If `--no-loop`, skip step 7 and go straight from step 6 to step 8.
 
 ---
 
 ## Phase 1: Parse Requirements
 
-Analyze the USER_PROMPT to understand:
-- What is the core problem or desired outcome?
-- What type of task is this (feature|fix|refactor|enhancement|chore)?
-- What is the complexity level (simple|medium|complex)?
-- What constraints or requirements exist?
+Analyze USER_PROMPT to understand:
+- Core problem or desired outcome
+- Task type (feature|fix|refactor|enhancement|chore)
+- Complexity (simple|medium|complex)
+- Constraints or requirements
 
-Ask clarifying questions if intent is not clear.
+## Phase 2: Vague Prompt Check
 
-## Phase 2: Source Document Discovery
+If USER_PROMPT is thin (under ~20 words AND no source document was provided), invoke `AskUserQuestion` with 2-3 clarifying questions before drafting. Topics to probe:
+- Scope boundaries (what's in / out)
+- Constraints (existing systems to integrate with, technologies to use/avoid)
+- Success criteria (what does "done" look like)
+
+If USER_PROMPT is substantive (>20 words OR an attached file/source), skip this phase.
+
+## Phase 3: Source Document Discovery
 
 If USER_PROMPT is a file path, read that file directly as the source document.
 
@@ -54,76 +77,222 @@ If USER_PROMPT is free text (not a path), check for a source document using the 
    - Options: "Yes, use this document" / "No, just use my prompt" / "No, let me specify a different file"
 3. If user confirms, read the source file and use it alongside USER_PROMPT for requirement tag scanning
 
-## Phase 3: Understand Codebase
+## Phase 4: Resume Detection
 
-Explore the codebase directly to understand:
+Generate the kebab-case feature name from USER_PROMPT (used for plan filename later). Check whether `plans/.<feature>.state.yml` already exists.
+
+If state YAML exists:
+- Read it and check `status` field
+- If `status: running` and `--resume` flag was passed: resume from `current_round + 1`
+- If state exists but `--resume` flag was NOT passed: invoke `AskUserQuestion`:
+  - "Existing loop state found for this feature (round N/M, status: <status>). Resume or restart?"
+  - Options: "Resume from round N+1" / "Restart from scratch (overwrites state)" / "Cancel"
+- Act on user choice
+
+If no state exists, proceed normally (round 0 = initial draft).
+
+## Phase 5: Understand Codebase
+
+Explore the codebase directly with `Read` and `Grep` to understand:
 - Existing patterns and architecture
 - Relevant files for the task
 - Dependencies and integrations
 - Test structure and patterns
 
-Use `Read` and `Grep` tools to gather context. Do not use subagents for this phase.
+Do not use subagents for this phase.
 
-## Phase 4: Design Solution
+## Phase 6: Draft Initial Plan (Round 0)
 
-Think deeply (ultrathink) about the best approach:
-- Architecture decisions
-- Implementation strategy
-- Edge cases and error handling
-- Scalability concerns
-- Trade-offs and alternatives considered
+Think deeply (ultrathink) about the best approach. Document architecture decisions, edge cases, error handling, scalability concerns, and trade-offs.
 
-Document the reasoning behind key decisions.
+Structure the implementation into logical phases (Foundation, Core Implementation, Integration & Polish — adapt to task complexity).
 
-## Phase 5: Plan Phases
+Write the plan to `plans/<feature>.md` following the **Plan Format** section below exactly. The format must be preserved across all rounds — downstream tools depend on `[N.M]` task IDs and `[T.N.M]` test IDs.
 
-Structure the implementation into logical phases:
-- **Phase 1: Foundation** — any foundational work needed
-- **Phase 2: Core Implementation** — the main implementation work
-- **Phase 3: Integration & Polish** — integration, testing, and final touches
+If `--no-loop` is set, skip directly to Phase 8 (Validate).
 
-For simple tasks, phases may be combined. For complex tasks, add more phases as needed.
+Otherwise, initialize the state YAML:
 
-## Phase 6: Document Plan
+```yaml
+plan_file: plans/<feature>.md
+prompt: "<original USER_PROMPT>"
+max_rounds: <MAX_ROUNDS>
+current_round: 0
+status: running
+exit_reason: null
+codex_session_id: null
+rounds: []
+```
 
-Follow the Plan Format below to create a comprehensive implementation plan with all required sections.
+Save to `plans/.<feature>.state.yml`.
 
-## Phase 7: Generate Filename
+## Phase 7: Codex Audit Loop
 
-Create a descriptive kebab-case filename based on the plan's main topic, e.g.:
-- `feature-auth-jwt.md`
-- `fix-session-timeout.md`
-- `refactor-api-client.md`
+Run rounds 1 through MAX_ROUNDS. Each round:
 
-## Phase 8: Save Plan File
+### 7.1: Invoke Codex
 
-Write the complete plan to `plans/<filename>.md`. Ensure:
-- Plan is detailed enough that another developer could follow it
-- Code examples or pseudo-code included where appropriate
-- All edge cases and error handling addressed
+For **round 1**, invoke the `/codex` skill in **Challenge mode** — adversarial critique of the plan.
 
-## Phase 9: Validate
+For **rounds 2+**, invoke the `/codex` skill in **Consult mode** with session continuity — Codex remembers the previous round's findings and can check whether Claude actually addressed them.
+
+**Codex prompt template (round 1, Challenge):**
+
+```
+Adversarially review this implementation plan for execution risk. Read the plan
+file at plans/<feature>.md. You have full read access to the codebase — verify
+file paths, patterns, dependencies, and feasibility against actual code.
+
+Look for: missing edge cases, infeasible approaches, second/third-order
+consequences, conflicts with existing patterns, missing dependencies, hidden
+assumptions, misunderstood requirements, gaps in test strategy.
+
+Output every finding with a severity tag in this exact format:
+
+[CRITICAL] <one-line summary>
+  Detail: <evidence and reasoning>
+  Suggested fix: <concrete recommendation>
+
+[WARNING] <one-line summary>
+  Detail: <evidence and reasoning>
+  Suggested fix: <concrete recommendation>
+
+[NOTE] <one-line summary>
+  Detail: <evidence and reasoning>
+
+Severity definitions:
+  CRITICAL = will cause execution failure or wrong behavior
+  WARNING  = significant risk or gap, but plan can proceed with mitigation
+  NOTE     = minor concern, worth considering, not blocking
+
+If the plan is genuinely solid, return findings only at NOTE level or below.
+Do not invent problems. Do not be sycophantic. Be precise.
+```
+
+**Codex prompt template (round 2+, Consult):**
+
+```
+You previously reviewed this plan in round <N-1> and identified these
+findings:
+
+<verbatim findings from previous round>
+
+The plan has been revised. Re-read plans/<feature>.md and:
+
+1. For each previous CRITICAL/WARNING: did Claude actually address it, or
+   just reword? If addressed, say so. If not, re-flag at original severity.
+2. Identify any NEW issues introduced by the revision.
+
+Use the same [CRITICAL]/[WARNING]/[NOTE] severity format. Be especially
+skeptical of findings that look "addressed" but actually aren't.
+```
+
+### 7.2: Handle Codex Unavailable
+
+If Codex CLI is not installed or not authenticated, the `/codex` skill will report so. In that case:
+- Set `status: codex_unavailable` in state YAML
+- Set `exit_reason: "Codex CLI missing or unauthenticated — plan delivered without audit loop"`
+- Skip remaining rounds, proceed to Phase 8
+
+### 7.3: Parse Findings
+
+Extract findings from Codex output by severity tag. Capture verbatim text. Compute counts: `critical_count`, `warning_count`, `note_count`.
+
+### 7.4: Append Round to State
+
+```yaml
+rounds:
+  - round: <N>
+    codex_mode: challenge | consult
+    findings:
+      critical: <verbatim critical findings>
+      warning: <verbatim warning findings>
+      note: <verbatim note findings>
+    counts: { critical: N, warning: N, note: N }
+    plan_diff_pct: <will be filled after revision>
+```
+
+### 7.5: Check Exit Criteria
+
+If `round > 1` AND `critical_count == 0` AND every Warning from prior rounds is either resolved (no longer appearing) or was explicitly dismissed by Claude in the previous revision with reasoning recorded:
+- Set `status: converged`
+- Set `exit_reason: "No critical findings, prior warnings addressed"`
+- Exit loop, proceed to Phase 8
+
+(For round 1, never exit — Claude needs at least one revision pass before exit.)
+
+### 7.6: Claude Revises Plan
+
+Read the findings. Revise `plans/<feature>.md`:
+
+- Address each `[CRITICAL]` finding by changing the plan
+- Address each `[WARNING]` finding by either changing the plan OR adding a Decision/Note explaining why the warning is acceptable
+- Consider `[NOTE]` findings; address only if cheap
+
+The plan format must remain identical (section structure, `[N.M]` IDs, `[T.N.M]` test IDs).
+
+Compute `plan_diff_pct` (lines changed / total lines × 100) between pre-revision and post-revision plan. Update the round entry in state YAML.
+
+### 7.7: Diff-Convergence Safety Exit
+
+If `round > 1` AND `plan_diff_pct < 5`:
+- Set `status: converged`
+- Set `exit_reason: "Plan converged — diff <5% between rounds"`
+- Exit loop, proceed to Phase 8
+
+### 7.8: Hard Stop
+
+If `current_round == MAX_ROUNDS`:
+- Set `status: hard_stopped`
+- Set `exit_reason: "Reached MAX_ROUNDS=<N> hard cap"`
+- Exit loop, proceed to Phase 8
+
+Otherwise increment `current_round` and loop to 7.1.
+
+## Phase 8: Validate
 
 Verify the plan:
-- All required sections present
-- Tasks are actionable and have stable [N.M] ID prefixes
-- Traceability map correctly links #req-* tags to task IDs
+- All required Plan Format sections present
+- Tasks have stable `[N.M]` ID prefixes
+- Tests have stable `[T.N.M]` ID prefixes
+- Traceability map correctly links `#req-*` tags to task IDs (if PRD source had tags)
 - No missing dependencies between tasks
-- Testing strategy is clear and complete
 
-## Phase 10: Report
+If validation fails, log the issue in state YAML and report to the user.
 
-Present the completed plan summary and remind user to run Build when ready.
+## Phase 9: Report
+
+Present the completed plan summary with loop outcome:
+
+```
+Implementation Plan Created
+
+  File: plans/<feature>.md
+  State: plans/.<feature>.state.yml
+  Topic: <brief description>
+
+  Loop Outcome:
+  - Rounds run: <N>/<MAX_ROUNDS>
+  - Exit reason: <exit_reason>
+  - Final findings: <critical> critical / <warning> warning / <note> note
+
+  Key Components:
+  - <main component 1>
+  - <main component 2>
+
+  Next Steps:
+  Run /dev-shard if plan is large, otherwise /dev-build to implement.
+```
 
 ---
 
 ## Instructions
 
 - **IMPORTANT**: If no USER_PROMPT is provided, stop and ask the user to provide it.
-- Determine task type (chore|feature|refactor|fix|enhancement) and complexity (simple|medium|complex)
-- Think deeply (ultrathink) about the best approach
-- Follow the Plan Format below exactly
-- Generate descriptive, kebab-case filename
+- Determine task type and complexity from USER_PROMPT.
+- Think deeply (ultrathink) about the best approach.
+- Follow the Plan Format below exactly — every round must produce a plan in this shape.
+- Generate descriptive, kebab-case filename from the plan's main topic.
 
 ### Tag Propagation
 
@@ -140,7 +309,7 @@ If no `#req-[id]` tags exist, skip tag propagation (graceful degradation).
 
 ## Plan Format
 
-Follow this format exactly:
+Follow this format exactly. **The format must not change between rounds — downstream parsers depend on it.**
 
 ```md
 # Plan: <task name>
@@ -266,20 +435,49 @@ Execute these commands to validate the task is complete:
 
 ---
 
+## State YAML Schema
+
+`plans/.<feature>.state.yml` — the loop's working memory and AI-reviewable audit trail.
+
+```yaml
+plan_file: plans/<feature>.md
+prompt: "<original USER_PROMPT>"
+max_rounds: 3
+current_round: 2
+status: running          # running | converged | hard_stopped | cancelled | codex_unavailable | failed
+exit_reason: null        # filled when status != running
+codex_session_id: "<id from /codex skill for continuity across rounds>"
+started: "2026-04-29T15:00:00Z"
+updated: "2026-04-29T15:12:00Z"
+
+rounds:
+  - round: 1
+    codex_mode: challenge
+    started: "2026-04-29T15:01:00Z"
+    findings:
+      critical:
+        - "[CRITICAL] <verbatim text>"
+      warning:
+        - "[WARNING] <verbatim text>"
+      note:
+        - "[NOTE] <verbatim text>"
+    counts: { critical: 2, warning: 5, note: 3 }
+    plan_diff_pct: 47.0
+    revision_summary: "<one-paragraph description of changes Claude made>"
+
+  - round: 2
+    codex_mode: consult
+    started: "2026-04-29T15:08:00Z"
+    findings: { ... }
+    counts: { critical: 0, warning: 2, note: 4 }
+    plan_diff_pct: 12.3
+    revision_summary: "..."
+```
+
+The findings sections must hold **verbatim Codex output text** so that an AI reviewing this state YAML later can fully reconstruct the audit trail without needing a separate audit markdown.
+
+---
+
 ## Report
 
-After creating and saving the implementation plan, provide a concise report:
-
-```
-Implementation Plan Created
-
-  File: plans/<filename>.md
-  Topic: <brief description of what the plan covers>
-  Key Components:
-  - <main component 1>
-  - <main component 2>
-  - <main component 3>
-
-  Next Steps:
-  Run Build on plans/<filename>.md when ready to implement.
-```
+After the loop completes, present the report defined in Phase 9.

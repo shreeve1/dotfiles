@@ -49,11 +49,11 @@ This sub-skill has a single workflow covering all build scenarios.
 
 ## Pipeline Position
 
-**Comes after:** `/dev-shard` (if plan was too large) or `/dev-validate` (if plan was validated)
+**Comes after:** `/dev-plan` (always) or `/dev-shard` (if plan was too large)
 **Comes before:** `/dev-test`
 
 ```
-/dev-validate → /dev-shard → /dev-build → /dev-test
+/dev-plan → /dev-shard (if needed) → /dev-build → /dev-test
 ```
 
 Minimum viable flow:

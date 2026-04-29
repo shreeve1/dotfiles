@@ -50,7 +50,7 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 **Optional:** Skip for single-epic or small-scope PRDs — run `/dev-plan` directly
 
 ```
-/dev-prd → /dev-epic → /dev-plan (per epic) → /dev-validate → /dev-shard → /dev-build → /dev-test
+/dev-prd → /dev-epic → /dev-plan (per epic) → /dev-shard → /dev-build → /dev-test
 ```
 
 ## Context Files

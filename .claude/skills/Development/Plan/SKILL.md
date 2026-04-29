@@ -1,11 +1,13 @@
 ---
 name: Plan
-description: Create a structured implementation plan with phased task breakdown, technical approach, and acceptance criteria from a PRD, requirements description, or user prompt. USE WHEN implementation plan, tech approach, task breakdown, phased roadmap, plan a feature, plan a fix, plan a refactor, create plan, development plan.
+description: Create a structured implementation plan via an iterative Claude-plan ↔ Codex-audit loop (max 3 rounds, severity-gated early exit). Replaces the prior plan + validate two-step. Produces phased task breakdown, technical approach, and acceptance criteria from a PRD, requirements description, or user prompt. USE WHEN implementation plan, tech approach, task breakdown, phased roadmap, plan a feature, plan a fix, plan a refactor, create plan, development plan, validate plan, pre-flight check, feasibility, risk analysis.
 ---
 
 # Plan Sub-Skill
 
-Creates detailed, actionable implementation plans from requirements, PRDs, or user prompts. Plans are the bridge between ideas and code.
+Creates detailed, actionable implementation plans through an iterative loop: Claude drafts the plan, Codex adversarially audits it against the codebase with severity-tagged findings, Claude revises. Loop runs up to 3 rounds, exiting early when no critical findings remain or the plan converges.
+
+This sub-skill absorbs the previous `/dev-validate` step — Codex's codebase-aware critique covers feasibility and risk analysis as part of every round. Use `--no-loop` to skip the audit and produce a single-pass plan for trivial work.
 
 ## Customization
 
@@ -22,13 +24,13 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
    ```bash
    curl -s -X POST http://localhost:8888/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running the Plan workflow in the Development skill to create an implementation plan"}' \
+     -d '{"message": "Running the Plan workflow in the Development skill to create an implementation plan with the Codex audit loop"}' \
      > /dev/null 2>&1 &
    ```
 
 2. **Output text notification**:
    ```
-   Running the **Plan** workflow in the **Development** skill to create an implementation plan...
+   Running the **Plan** workflow in the **Development** skill to create an implementation plan with the Codex audit loop...
    ```
 
 ## Model Recommendation
@@ -43,9 +45,11 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 
 ## Pipeline Position
 
-**Comes before:** Validate (the validate skill checks the plan for risks)
+**Comes before:** Shard (if plan exceeds token budget) or Build directly
 **Comes after:** Prd (the plan reads the PRD via Source Document Discovery)
-**Output:** `plans/<feature>.md`
+**Output:**
+- `plans/<feature>.md` — canonical plan (format unchanged from prior `/dev-plan`)
+- `plans/.<feature>.state.yml` — loop state with verbatim Codex findings, severity tallies, exit reason
 
 ## Directory Search Order
 
@@ -59,6 +63,15 @@ Plans and source documents are discovered in this priority order:
 
 This sub-skill does not require separate context files. The workflow contains the plan format inline.
 
+## Invocation
+
+| Form | Behavior |
+|------|----------|
+| `/dev-plan <prompt>` | Default — drafts plan, runs up to 3 Codex audit rounds, exits early when no critical findings remain |
+| `/dev-plan <prompt> --rounds N` | Override max rounds (e.g. `--rounds 5` for high-stakes plans, `--rounds 1` for quick check) |
+| `/dev-plan <prompt> --no-loop` | Bypass loop entirely; single-pass plan only — for trivial bug fixes where 3 rounds is overkill |
+| `/dev-plan <prompt> --resume` | Pick up an interrupted loop from saved state YAML |
+
 ## Examples
 
 **Example 1: From PRD**
@@ -66,22 +79,31 @@ This sub-skill does not require separate context files. The workflow contains th
 User: "Create a plan from the recipe app PRD"
 → Discovers artifacts/specs/prd-recipe-app-2026-04-15.md
 → Scans for #req-[id] tags for traceability
-→ 10-phase workflow produces plans/feature-recipe-app.md
-→ Includes Traceability Map linking #req-* tags to task IDs
+→ Drafts plan, then loops Codex Challenge (round 1) → Consult (rounds 2-3)
+→ Produces plans/feature-recipe-app.md with Traceability Map
+→ State YAML at plans/.feature-recipe-app.state.yml
 ```
 
-**Example 2: From free text**
+**Example 2: Quick fix**
 ```
-User: "Add dark mode to the settings page"
-→ No source document found, uses prompt directly
-→ Analyzes codebase for existing patterns
-→ Outputs plans/feature-dark-mode.md
+User: "/dev-plan fix the off-by-one in pagination --no-loop"
+→ Single-pass plan, no Codex audit
+→ Outputs plans/fix-pagination-off-by-one.md
 ```
 
-**Example 3: Complex multi-phase**
+**Example 3: High-stakes plan with extra audit rounds**
 ```
-User: "Plan the migration from REST to GraphQL"
+User: "/dev-plan migrate from REST to GraphQL --rounds 5"
 → Explores codebase for all API endpoints
-→ Designs phased migration strategy (foundation → core → integration)
-→ Includes Testing Strategy and Validation Commands
+→ Drafts phased migration plan
+→ Loops up to 5 Codex audit rounds (exits early when no critical findings)
+→ State YAML carries verbatim Codex findings for later AI review
+```
+
+**Example 4: Resume interrupted loop**
+```
+User: "/dev-plan migrate from REST to GraphQL --resume"
+→ Detects existing plans/.migrate-from-rest-to-graphql.state.yml
+→ Picks up from last completed round
+→ Continues until exit criteria met
 ```
