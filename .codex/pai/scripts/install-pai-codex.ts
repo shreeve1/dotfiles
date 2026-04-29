@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
+import { homedir } from "os";
 import { dirname, join, relative } from "path";
 import { dotfilesPath, paiPath, userSkillRoot } from "../lib/paths";
 import { PAI_ALGORITHM_GUIDANCE } from "../lib/runtime-guidance";
@@ -80,7 +81,10 @@ function mergeConfig(): void {
 }
 
 function hookCommand(name: string): string {
-  return `bun ${JSON.stringify(dotfilesPath(".codex", "pai", "hooks", `${name}.ts`))}`;
+  const path = dotfilesPath(".codex", "pai", "hooks", `${name}.ts`);
+  const home = homedir();
+  const shellPath = path.startsWith(`${home}/`) ? join("$HOME", relative(home, path)) : path;
+  return `bun ${JSON.stringify(shellPath)}`;
 }
 
 function paiHookName(command: unknown): string | null {

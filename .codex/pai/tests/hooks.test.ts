@@ -283,6 +283,8 @@ describe("PAI Codex hooks", () => {
       .filter((command: string) => command?.includes(".codex/pai/hooks/"));
     for (const command of commands) {
       expect(command).not.toContain("git rev-parse");
+      expect(command).not.toContain("/Users/");
+      expect(command).not.toContain("/home/");
       const match = command.match(/\.codex\/pai\/hooks\/([a-z-]+)\.ts/);
       expect(match).toBeTruthy();
       expect(existsSync(dotfilesPath(".codex", "pai", "hooks", `${match![1]}.ts`))).toBe(true);
