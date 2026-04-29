@@ -1,4 +1,4 @@
 interface:
   display_name: "Dev Build"
-  short_description: "Execute written implementation plans"
-  default_prompt: "Use $dev-build to execute this implementation plan."
+  short_description: "Execute plans with claude -p wave audit"
+  default_prompt: "Use $dev-build to execute this implementation plan, with claude -p audit at each wave boundary and auto-fix-and-retry on Critical findings."
