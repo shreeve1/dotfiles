@@ -14,8 +14,10 @@ After each wave's tasks complete, a quick Codex audit reviews the wave's diff fo
 | Form | Behavior |
 |------|----------|
 | `/dev-build <plan>` | Default — wave-end Codex audit on, critical-only auto-fix-and-retry |
+| `/dev-build <plan> --audit-mode=critical-only` | Explicit form of the default; only Critical findings act, Warning/Note logged silently |
 | `/dev-build <plan> --audit-mode=all` | Surface Warnings inline in build output (still auto-fix only on Critical) |
-| `/dev-build <plan> --no-audit` | Skip wave-end audits entirely; build runs as before |
+| `/dev-build <plan> --audit-mode=off` | Skip audit entirely (equivalent to `--no-audit`) |
+| `/dev-build <plan> --no-audit` | Shorthand for `--audit-mode=off`; skip wave-end audits entirely |
 
 ## Customization
 
