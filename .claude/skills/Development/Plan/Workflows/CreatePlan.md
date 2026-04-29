@@ -359,7 +359,7 @@ If no candidates match, skip silently. If candidates match but verification fail
 - **Test paths:** if the plan references `tests/unit/`, `tests/integration/`, or `tests/e2e/`, verify those directories exist or are listed as new. Missing test infrastructure → Warning.
 - **Prerequisite tools:** if the plan adds dependencies via `uv add`, `pnpm add`, etc., verify the package manager is installed. Missing → Critical.
 
-These checks are deterministic and run independently of the audit loop — they catch concrete file/tool reality even when Codex's review missed them. If the loop ran with `claude_unavailable` status, these preflights are the primary safety net.
+These checks are deterministic and run independently of the audit loop — they catch concrete file/tool reality even when Codex's review missed them. If the loop ran with `codex_unavailable` status, these preflights are the primary safety net.
 
 If any check fails, log the failures in the state YAML's `phase_8_findings` block and surface them in the Phase 9 report. Critical-level preflight failures should be flagged for human review in the same way as `failed_stuck` from the loop.
 
@@ -547,7 +547,7 @@ plan_file: plans/<feature>.md
 prompt: "<original USER_PROMPT>"
 max_rounds: 3
 current_round: 2
-status: running          # running | converged | hard_stopped | cancelled | codex_unavailable | codex_sandbox_failed | failed
+status: running          # running | converged | hard_stopped | failed_stuck | cancelled | codex_unavailable | codex_sandbox_failed | build_only | failed
 exit_reason: null        # filled when status != running
 codex_session_id: "<uuid captured from round 1 'session id:' line>"
 started: "2026-04-29T15:00:00Z"
@@ -587,15 +587,35 @@ build_audits:            # populated by /dev-build's Phase 7.5 wave-end audits (
   - wave: 1
     started: "2026-04-29T16:00:00Z"
     files_audited: ["src/foo.py", "tests/test_foo.py"]
-    findings:
-      critical: ["[CRITICAL] <verbatim>"]
-      warning: ["[WARNING] <verbatim>"]
-      note: ["[NOTE] <verbatim>"]
-    counts: { critical: 0, warning: 1, note: 0 }
     outcome: passed      # passed | auto_fixed | escalated_to_user | overridden | audit_skipped
-    recovery: null       # set if Phase 7.5.2 sandbox-recovery fired
-    retry_attempts: 0    # 0 or 1 (hard limit per wave)
-    fix_summary: null    # populated when outcome=auto_fixed; describes what Claude patched
+    skip_reason: null    # set when outcome=audit_skipped: codex_unavailable | doc_only | zero_diff | codex_timeout | codex_failed | malformed_output
+    error_excerpt: null  # set when skip_reason in {codex_failed, malformed_output, codex_timeout}: last ~50 lines of Codex output for debugging
+
+    attempts:            # one entry per audit attempt — initial audit always present; second entry appears only when auto-fix-and-retry-and-re-audit fired
+      - attempt: 1       # 1 = initial audit; 2 = post-fix re-audit
+        kind: initial
+        started: "2026-04-29T16:00:00Z"
+        codex_exit: 0
+        findings:
+          critical: ["[CRITICAL] <verbatim with Affected files line>"]
+          warning: ["[WARNING] <verbatim>"]
+          note: ["[NOTE] <verbatim>"]
+        counts: { critical: 1, warning: 1, note: 0 }
+        # Only present on initial-attempt entries when outcome=auto_fixed:
+        fix_summary: null
+        files_edited: []          # union of Affected files across all Critical findings, edited in step 7.5.5.2
+        validation_command: null  # what was run in step 7.5.5.3
+        validation_passed: null   # bool
+
+      - attempt: 2       # only appears when outcome=auto_fixed; reports the post-fix re-audit
+        kind: post_fix_reaudit
+        started: "2026-04-29T16:02:00Z"
+        codex_exit: 0
+        findings:
+          critical: []
+          warning: []
+          note: ["[NOTE] No findings — diff looks correct."]
+        counts: { critical: 0, warning: 0, note: 1 }
 ```
 
 The findings sections must hold **verbatim Codex output text** so that an AI reviewing this state YAML later can fully reconstruct the audit trail without needing a separate audit markdown.
