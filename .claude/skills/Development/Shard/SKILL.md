@@ -48,11 +48,11 @@ This sub-skill has a single workflow that covers both estimation and sharding.
 
 ## Pipeline Position
 
-**Comes after:** `/dev-validate` (optional but recommended)
+**Comes after:** `/dev-plan`
 **Comes before:** `/dev-build`
 
 ```
-/dev-plan → /dev-validate → /dev-shard → /dev-build
+/dev-plan → /dev-shard → /dev-build
 ```
 
 Shard is only needed when a plan is suspected to exceed a single build session. If the plan fits within budget, the workflow reports success and the plan proceeds directly to Build.

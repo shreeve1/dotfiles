@@ -1,4 +1,4 @@
 interface:
   display_name: "Dev Plan"
-  short_description: "Create implementation plans"
-  default_prompt: "Use $dev-plan to create an implementation plan for this request."
+  short_description: "Create implementation plans with Claude audit loop"
+  default_prompt: "Use $dev-plan to create an implementation plan for this request, with up to 3 rounds of claude -p adversarial audit."

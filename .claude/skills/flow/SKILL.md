@@ -204,7 +204,7 @@ Next morning:
 | | `/Development` | `/flow` |
 |---|---|---|
 | **Style** | Plan-driven, phase-based | Alignment-driven, slice-based |
-| **Planning** | `/dev-plan` → `/dev-validate` → `/dev-shard` | `/grill-me` → `/to-prd` → `/to-issues` |
+| **Planning** | `/dev-plan` (Codex audit loop) → `/dev-shard` | `/grill-me` → `/to-prd` → `/to-issues` |
 | **Execution** | `/dev-build` (waves, within context) | `/ralph` (one issue, fresh context per) |
 | **State** | Plan files in `artifacts/plans/` | Kanban board in `.kanban/` |
 | **Best for** | Large features in one repo | AFK loops, multiple small slices |
