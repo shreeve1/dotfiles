@@ -202,6 +202,154 @@ Only continue when the wave result is coherent.
 
 ---
 
+## Phase 7.5 — Claude Wave-End Audit (default ON)
+
+After a wave's tasks are marked complete and BEFORE moving to the next wave, run a focused `claude -p` audit on the diff this wave produced. The audit catches bugs, missed edge cases, and pattern violations introduced by the wave's work — at the natural boundary where issues are still cheap to fix.
+
+This phase reuses the bare-mode probe + non-bare fallback contract documented in `~/.codex/skills/dev-review/references/deep-review.md` Phase 4. Don't reinvent the shell-out — reuse it.
+
+**Skip this phase entirely when:**
+- `AUDIT_MODE=off` (user passed `--no-audit`).
+- The completed wave contains zero code-changing tasks (only doc/config edits with no executable surface). Determine this by inspecting `git diff` for the wave's file scope: if all changed files match `*.md|*.txt|*.rst` or are pure additions to ignored paths, skip.
+- Claude is unavailable: `which claude` returns nothing, or both bounded auth probes (bare and non-bare per `dev-review` Step 12) fail. Log `audit_skipped: claude_unavailable` to the wave's audit entry and continue.
+
+### 7.5.1 — Capture the wave's diff
+
+Compute the diff for files this wave touched. The simplest reliable method:
+
+```bash
+git diff <wave_start_ref>..HEAD -- <files_touched_by_wave>
+```
+
+If the build is on a fresh branch with `<wave_start_ref>` recorded at Phase 5, use that. Otherwise compare against the previous wave's HEAD. Save the diff to `/tmp/build_wave_<N>_diff.patch` for Claude to read.
+
+### 7.5.2 — Auth probe (run once before first wave audit)
+
+Reuse `dev-review/references/deep-review.md` Phase 4 Step 12 verbatim. Persist the resolved `CLAUDE_MODE_ARGS` in the build state YAML so subsequent wave audits don't re-probe.
+
+If both probes fail, treat as unavailable per the skip clause above.
+
+### 7.5.3 — Invoke Claude (quick check, fresh invocation per wave)
+
+Each wave's audit is independent — no cross-wave session continuity needed. Use a fresh `claude -p` invocation per wave with the diff piped via the prompt file:
+
+```bash
+timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --model opus \
+  --effort medium \
+  --no-session-persistence \
+  --output-format text \
+  --permission-mode dontAsk \
+  --tools "" < /tmp/build_wave_<N>_audit_prompt.txt \
+  > /tmp/build_wave_<N>_audit_out.txt 2>&1
+```
+
+Note `--effort medium` (not `high`) — wave audits are scoped to a focused diff and don't need the deeper reasoning the plan-time loop uses. Faster and cheaper.
+
+If Claude needs to read additional repo files beyond what the prompt contains (rare for diff audits), enable read-only tools as a second attempt — same escalation path as `dev-review` Step 14:
+
+```bash
+timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --model opus \
+  --effort medium \
+  --no-session-persistence \
+  --output-format text \
+  --permission-mode dontAsk \
+  --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *)" \
+  --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,Bash(git reset *),Bash(git checkout *),Bash(rm *)" \
+  --add-dir "$PWD" < /tmp/build_wave_<N>_audit_prompt.txt
+```
+
+### 7.5.4 — Claude prompt template (quick check)
+
+This prompt is intentionally narrow — diff-only review, no codebase-wide tangents:
+
+```
+Review the diff at /tmp/build_wave_<N>_diff.patch as a quick sanity check.
+The diff implements these plan tasks:
+  <list of [N.M] task IDs from the wave with their one-line task description>
+
+Look ONLY at this diff for: real bugs, missed edge cases that the plan called
+out, broken patterns vs the rest of the file, obvious test gaps for the
+changed code paths. Do NOT make codebase-wide architectural recommendations.
+Do NOT suggest improvements that aren't bugs. Be terse.
+
+Output every finding with a severity tag in this exact format:
+
+[CRITICAL] <one-line summary>
+  Detail: <evidence — cite file:line>
+  Suggested fix: <concrete recommendation>
+
+[WARNING] <one-line summary>
+  Detail: ...
+  Suggested fix: ...
+
+[NOTE] <one-line summary>
+  Detail: ...
+
+Severity definitions:
+  CRITICAL = bug that will produce wrong behavior or crash
+  WARNING  = significant gap or pattern violation, should fix soon
+  NOTE     = minor concern, optional
+
+If the diff is clean, output exactly: "[NOTE] No findings — diff looks correct."
+After all findings, on a final line, print exactly: "END_OF_FINDINGS"
+```
+
+### 7.5.5 — Parse findings and append to state
+
+Extract findings from the output. Append to `artifacts/plans/<slug>/state.yml` under a new `build_audits:` section keyed by wave number:
+
+```yaml
+build_audits:
+  - wave: 1
+    started: "2026-04-29T16:00:00Z"
+    files_audited: ["src/foo.py", "tests/test_foo.py"]
+    claude_mode_args: "--bare"      # set once in 7.5.2, reused by all waves
+    findings:
+      critical: ["[CRITICAL] <verbatim>"]
+      warning: ["[WARNING] <verbatim>"]
+      note: ["[NOTE] <verbatim>"]
+    counts: { critical: 0, warning: 1, note: 0 }
+    outcome: passed | auto_fixed | escalated_to_user | audit_skipped
+    retry_attempts: 0  # incremented by 7.5.6 auto-fix path
+```
+
+### 7.5.6 — Handle findings (auto-fix-and-retry)
+
+Per audit-mode:
+
+| Severity | `critical-only` (default) | `all` | `off` |
+|----------|--------------------------|-------|-------|
+| Critical | Auto-fix-and-retry | Auto-fix-and-retry | n/a — phase skipped |
+| Warning  | Logged silently | Surfaced in build output, build continues | n/a |
+| Note     | Logged silently | Logged silently | n/a |
+
+**Auto-fix-and-retry contract for Critical findings:**
+
+1. **Read** each Critical finding's Detail and Suggested fix.
+2. **Patch** the affected files. Constrain edits to ONLY files cited in the finding's `Detail` line — no opportunistic refactors.
+3. **Re-run the wave's relevant validation:** the test commands or validation commands that cover the changed code. Use the plan's `## Validation Commands` filtered to this wave's scope, or the affected `tests/` files via the project's test runner.
+4. **If validation passes:** mark the audit entry's `outcome: auto_fixed`, increment `retry_attempts`, append a `fix_summary` field describing what changed, and proceed to Phase 8.
+5. **If validation fails OR if `retry_attempts >= 1` already (one retry max):** escalate. Mark `outcome: escalated_to_user`. Halt the build. Present findings + attempted fixes via `ask the user` with options:
+   - "I'll fix it manually — pause build" (build halts, user resolves, user re-invokes `$dev-build` to resume from this wave)
+   - "Override and continue" (mark `outcome: overridden`, proceed to Phase 8)
+   - "Abort build" (mark plan as failed, exit)
+
+**Hard limit: one auto-fix attempt per wave.** No infinite loops. Second Critical → user always.
+
+### 7.5.7 — Surface findings to build output
+
+Independent of severity handling, emit a one-line summary to the build's progress output so the user sees audit activity:
+
+```
+Wave <N> audit: 0 critical / 1 warning / 0 note (outcome: passed)
+```
+
+For `--audit-mode=all`, expand Warnings into a brief per-finding line under that summary.
+
+---
+
 ## Phase 8 — Verify Before Claiming Success
 
 Do not report success based only on task execution. Verify the work.
@@ -232,7 +380,8 @@ Repeat:
 4. Execute the wave (Phase 6)
 5. Evaluate results using the structured builder reports (Phase 7)
 6. **Mark progress in the plan file** — modify checkboxes. This is required every loop iteration, not just at the end.
-7. Verify as appropriate (Phase 8)
+7. **Run wave-end Claude audit** (Phase 7.5) — auto-fix-and-retry on Critical, log otherwise. Skip if `--no-audit` or zero code-changing tasks in the wave.
+8. Verify as appropriate (Phase 8)
 
 Stop when:
 - All implementation tasks are complete
