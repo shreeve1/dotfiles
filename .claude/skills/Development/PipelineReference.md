@@ -3,12 +3,12 @@
 ## Pipeline Stages
 
 ```
-┌──────────┐    ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│  /dev-prd │───▶│ /dev-epic │───▶│ /dev-plan │───▶│/dev-validate│──▶│/dev-shard │───▶│/dev-build │───▶│ /dev-test │
-│  Idea→PRD │    │(optional) │    │ PRD→Plan  │    │ Plan check │   │ Split if  │    │ Execute   │    │  Verify   │
-└──────────┘    │Split PRD  │    └──────────┘    └───────────┘    │ too large │    └──────────┘    └──────────┘
-                │into epics │                                       └──────────┘
-                └──────────┘
+┌──────────┐    ┌──────────┐    ┌──────────────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│  /dev-prd │───▶│ /dev-epic │───▶│    /dev-plan     │───▶│/dev-shard │───▶│/dev-build │───▶│ /dev-test │
+│  Idea→PRD │    │(optional) │    │ PRD→Plan         │    │ Split if  │    │ Execute   │    │  Verify   │
+└──────────┘    │Split PRD  │    │ + Codex audit    │    │ too large │    └──────────┘    └──────────┘
+                │into epics │    │ loop (3 rounds)  │    └──────────┘
+                └──────────┘    └──────────────────┘
 Auxiliary (available at any stage):
 ┌──────────────┐  ┌────────────────┐  ┌─────────────┐  ┌──────────┐
 │ /dev-review  │  │ /dev-investigate│  │ /dev-stories │  │ /dev-team│
@@ -22,8 +22,7 @@ Auxiliary (available at any stage):
 |-------|------|-------|--------|
 | **Prd** | Starting from a raw idea | Free text or brainstorming notes | `artifacts/specs/prd-<name>-<date>.md` |
 | **Epic** | After PRD, when PRD is multi-week or 8+ features | PRD file | `artifacts/specs/<parent>/epic-*.md` set |
-| **Plan** | After PRD (or after Epic), before building | PRD or epic mini-PRD | `plans/<feature>.md` |
-| **Validate** | After plan, before building | Plan file | Updated plan with risk analysis |
+| **Plan** | After PRD (or after Epic), before building | PRD or epic mini-PRD | `plans/<feature>.md` + `plans/.<feature>.state.yml` |
 | **Shard** | Plan too large for one session | Plan file | `specs/<plan-name>/shard-*.md` |
 | **Build** | Ready to write code | Plan file | Implemented code + verification |
 | **Test** | After building, before merge | Plan file or test path | Test results + coverage |
@@ -43,17 +42,14 @@ Auxiliary (available at any stage):
 - PRD (or epic mini-PRD) saved to `artifacts/specs/`
 - Plan reads PRD via Source Document Discovery
 - `#req-[id]` tags propagate from PRD → plan tasks
+- Plan runs the Codex audit loop (max 3 rounds) before finalizing
+- Loop absorbs the prior pre-flight validation step — feasibility, risk, and breaking-change analysis happen inside the loop
 
-### Plan → Validate
-- Plan saved to `plans/`
-- Validate reads plan, runs feasibility + risk analysis
-- Updates plan in-place if issues found
-
-### Validate → Shard (conditional)
+### Plan → Shard (conditional)
 - Only if plan exceeds ~150k token budget
 - Shard splits into sequential, dependency-ordered files
 
-### Shard → Build (or Validate → Build)
+### Plan → Build (or Shard → Build)
 - Build reads plan, creates wave schedule
 - Executes dependency-aware parallel task groups
 - Marks progress via checkboxes in plan file
@@ -77,7 +73,7 @@ For most tasks, you don't need the full pipeline:
 ## Full Pipeline (Complex Features)
 
 ```
-/dev-prd "my app idea" → /dev-epic (if multi-week) → /dev-plan → /dev-validate → /dev-shard (if needed) → /dev-build → /dev-test
+/dev-prd "my app idea" → /dev-epic (if multi-week) → /dev-plan → /dev-shard (if needed) → /dev-build → /dev-test
 ```
 
 ## Automated Pipeline
@@ -85,17 +81,16 @@ For most tasks, you don't need the full pipeline:
 ```
 /dev-team "add dark mode to settings"
 ```
-Walk away. Plan → validate → build → test → commit all automated.
+Walk away. Plan (with audit loop) → build → test → commit all automated.
 
 ## Traceability System
 
 Requirements flow through the pipeline via `#req-[id]` tags:
 
 1. **PRD**: Each feature tagged with `#req-<kebab-case-id>` (e.g., `#req-user-login`)
-2. **Plan**: Each task includes relevant `#req-*` tags and stable `[N.M]` ID prefixes
-3. **Validate**: Traceability validation confirms all `#req-*` tags are covered
-4. **Test**: Tests link back to task IDs and acceptance criteria
-5. **Traceability Map**: PRD and plan both include traceability tables
+2. **Plan**: Each task includes relevant `#req-*` tags and stable `[N.M]` ID prefixes; the Codex audit loop verifies traceability coverage as part of every round
+3. **Test**: Tests link back to task IDs and acceptance criteria
+4. **Traceability Map**: PRD and plan both include traceability tables
 
 This ensures nothing gets lost between idea and implementation.
 
@@ -104,6 +99,7 @@ This ensures nothing gets lost between idea and implementation.
 | Purpose | Primary | Fallbacks |
 |---------|---------|-----------|
 | Implementation plans | `plans/` | `specs/`, `artifacts/plans/` |
+| Plan loop state | `plans/.<feature>.state.yml` | — |
 | PRDs | `artifacts/specs/` | — |
 | Brainstorming | `artifacts/brainstorming/` | — |
 | Investigations | `investigations/` | — |

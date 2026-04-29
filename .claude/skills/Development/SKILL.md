@@ -39,8 +39,7 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 |---|---|
 | PRD, product requirements, idea to spec, create PRD | `Prd/SKILL.md` |
 | Epic, decompose PRD, multi-epic, split PRD, PRD too large, epic decomposition | `Epic/SKILL.md` |
-| Implementation plan, tech approach, task breakdown, phased roadmap | `Plan/SKILL.md` |
-| Validate plan, pre-flight check, feasibility, breaking changes, risk analysis | `Validate/SKILL.md` |
+| Implementation plan, tech approach, task breakdown, phased roadmap, validate plan, pre-flight check, feasibility, risk analysis | `Plan/SKILL.md` |
 | Shard, token budget, split plan, context window, plan too large | `Shard/SKILL.md` |
 | Build, execute plan, implement, start coding, wave execution | `Build/SKILL.md` |
 | Test, run tests, coverage, test plan, acceptance criteria | `Test/SKILL.md` |
@@ -51,7 +50,9 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 
 ## Pipeline Flow
 
-**Full pipeline:** `/dev-prd` → `/dev-epic` (optional) → `/dev-plan` → `/dev-validate` → `/dev-shard` → `/dev-build` → `/dev-test`
+**Full pipeline:** `/dev-prd` → `/dev-epic` (optional) → `/dev-plan` → `/dev-shard` → `/dev-build` → `/dev-test`
+
+`/dev-plan` runs an iterative Claude ↔ Codex audit loop (max 3 rounds, severity-gated early exit) and produces a hardened plan ready for execution. The prior `/dev-validate` step has been folded into `/dev-plan`.
 
 **Minimum viable flow:** `/dev-plan` → `/dev-build` → `/dev-test`
 
@@ -67,7 +68,7 @@ If this directory exists, load and apply any PREFERENCES.md or configurations fo
 User: "I want to build a recipe management app"
 → Invokes Prd sub-skill for 5-phase interview
 → Saves PRD to artifacts/specs/
-→ User runs /dev-plan → /dev-validate → /dev-build → /dev-test
+→ User runs /dev-plan → /dev-build → /dev-test
 ```
 
 **Example 2: Quick build from existing plan**
