@@ -42,7 +42,7 @@
     {
       "id": "arr-stack-cleanup",
       "name": "Arr Stack Cleanup",
-      "schedule": "0 * * * *",
+      "schedule": "0 */6 * * *",
       "type": "shell",
       "command": "~/.claude/scripts/arr-stack-cleanup.sh",
       "enabled": true,
