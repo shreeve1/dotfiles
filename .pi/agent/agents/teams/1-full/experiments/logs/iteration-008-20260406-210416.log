@@ -1,7 +1,0 @@
-[team-improve] full: experiment 20260406-210600 — keep — 4.97 → 4.99 — "Add dispatch response contract to dispatcher.md — require lane/rationale, concrete first task, continuation branches or research decision, and explicit verification coverage in dispatch explanations"
-
-Updated:
-- `~/.pi/agent/agents/teams/1-full/dispatcher.md`
-- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
-- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`
-- snapshot: `~/.pi/agent/agents/teams/1-full/experiments/snapshots/20260406-210600/`

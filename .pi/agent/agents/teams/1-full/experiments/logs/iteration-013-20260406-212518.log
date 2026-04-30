@@ -1,1 +1,0 @@
-[team-improve] full: experiment 20260406-212702 — keep — 5.00 → 5.00 — "Simplify `dispatcher.md` by removing the redundant 'ask the user when in doubt about process' fallback so investigation-first routing remains the single rule for ambiguity"

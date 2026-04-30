@@ -1,9 +1,0 @@
-[team-improve] full: experiment 20260406-203756 — keep — 4.79 → 4.83 — "Add Direct Exploration Requests guidance to dispatcher.md — direct scout-only routing for read-only understanding questions with sub-question checklist and no premature planning"
-
-Files updated:
-- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/dispatcher.md`
-- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/experiments/results.tsv`
-- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/experiments/latest.md`
-
-Snapshot:
-- `/Users/james/dotfiles/.pi/agent/agents/teams/1-full/experiments/snapshots/20260406-203756/`
