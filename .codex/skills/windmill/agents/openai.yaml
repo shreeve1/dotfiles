@@ -1,4 +1,0 @@
-interface:
-  display_name: "Windmill"
-  short_description: "Diagnose Windmill and Peppermint automation"
-  default_prompt: "Use $windmill to check the Windmill and Peppermint stack health, logs, and recent automation failures."

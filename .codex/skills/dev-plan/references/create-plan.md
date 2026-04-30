@@ -184,25 +184,23 @@ If `claude` CLI is not installed, or both auth probes fail (Step 7.3), or every 
 
 ### 7.3: Auth probe (run once before round 1)
 
-Use the same bounded probe pattern that `$dev-review` uses (see `~/.codex/skills/dev-review/references/deep-review.md` Phase 4 Step 12). Prefer `--bare`; fall back to non-bare for OAuth/keychain users.
+Use the same bounded probe pattern that `$dev-review` uses (see `~/.codex/skills/dev-review/references/deep-review.md` Phase 4 Step 12). Prefer `--bare`; fall back to non-bare for OAuth/keychain users. Always send the probe text on stdin because `--tools` is variadic, and use `--permission-mode bypassPermissions`. Do not use invalid values such as `--permission-mode dangerously-skip-permissions`.
 
 ```bash
 CLAUDE_AUTH_PROBE="Reply with CLAUDE_AUTH_OK only."
 CLAUDE_MODE_ARGS="--bare"
 
-if timeout 45s claude --bare -p \
+if printf '%s\n' "$CLAUDE_AUTH_PROBE" | timeout 45s claude --bare -p \
   --no-session-persistence \
   --output-format text \
   --tools "" \
-  --permission-mode dontAsk \
-  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  --permission-mode bypassPermissions; then
   CLAUDE_MODE_ARGS="--bare"
-elif timeout 90s claude -p \
+elif printf '%s\n' "$CLAUDE_AUTH_PROBE" | timeout 90s claude -p \
   --no-session-persistence \
   --output-format text \
   --tools "" \
-  --permission-mode dontAsk \
-  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  --permission-mode bypassPermissions; then
   CLAUDE_MODE_ARGS=""
 else
   echo "CLAUDE_NOT_READY"
@@ -237,11 +235,12 @@ Use non-interactive print mode, disable tools by default, pass the context packe
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested findings, or tool calls. Follow the user's severity-tagged finding format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "" < "$CLAUDE_PROMPT_FILE"
 ```
 
@@ -249,17 +248,20 @@ If the audit needs Claude to read additional repo files beyond what the packet c
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested findings, or edit tools. Use only the allowed read-only tools when essential, then follow the user's severity-tagged finding format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *),Bash(git rev-parse *)" \
   --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,Bash(git reset *),Bash(git checkout *),Bash(rm *)" \
   --add-dir "$PWD" < "$CLAUDE_PROMPT_FILE"
 ```
 
 Prefer the no-tools first attempt — it's faster, cheaper, and removes a class of risks. Only escalate to read-only tools when the no-tools pass returns "I cannot verify X without reading file Y" or similar.
+
+Important CLI nuance: `--tools` is variadic. Keep prompts on stdin or in prompt files; do not pass the prompt as a trailing argument after `--tools`, because the CLI can treat it as part of the tools list and then fail with "Input must be provided".
 
 **Prompt template (round 1):**
 

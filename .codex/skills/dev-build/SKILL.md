@@ -7,7 +7,7 @@ description: Execute a written implementation plan or shard with dependency-awar
 
 Execute a plan as the source of truth. Prefer safe serialization over risky parallelism.
 
-After each wave's tasks complete, a quick `claude -p` audit reviews the wave's diff for bugs, missed edge cases, and pattern violations. Critical findings trigger one auto-fix-and-retry attempt before escalating to the user; Warning/Note findings are logged. Default ON; opt out with `--no-audit` for trivial work or when Claude isn't available.
+After each wave's tasks complete, a quick bounded `claude -p` audit reviews the wave's embedded diff for bugs, missed edge cases, and pattern violations. Critical findings trigger one auto-fix-and-retry attempt before escalating to the user; Warning/Note findings are logged. Default ON; opt out with `--no-audit` for trivial work or when Claude isn't available. Never run a plain unbounded `claude -p` for this audit; use the exact command contract in `references/execute-plan.md` (`--permission-mode bypassPermissions`, prompt on stdin, tools disabled by default, audit-specific system prompt) so local hooks, tools, and house styles cannot turn the diff check into an open-ended repo investigation.
 
 ## Invocation
 

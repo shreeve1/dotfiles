@@ -216,7 +216,7 @@ In this step:
 
 After a wave's tasks are marked complete and BEFORE moving to the next wave, run a focused `claude -p` audit on the diff this wave produced. The audit catches bugs, missed edge cases, and pattern violations introduced by the wave's work — at the natural boundary where issues are still cheap to fix.
 
-This phase reuses the bare-mode probe + non-bare fallback contract documented in `~/.codex/skills/dev-review/references/deep-review.md` Phase 4. Don't reinvent the shell-out — reuse it.
+This phase reuses the bare-mode probe + non-bare fallback contract documented in `~/.codex/skills/dev-review/references/deep-review.md` Phase 4. Use the hardened contract: prompt text on stdin, `--permission-mode bypassPermissions`, tools disabled by default, and an audit-specific system prompt. Do not use invalid `--permission-mode dangerously-skip-permissions` values.
 
 **Skip this phase entirely (no `claude -p` call, no state write) when:**
 - `AUDIT_MODE=off` (user passed `--no-audit`).
@@ -249,7 +249,7 @@ If the patch is non-empty, proceed to 7.5.2.
 
 ### 7.5.2 — Auth probe (run once before first wave audit)
 
-Reuse `dev-review/references/deep-review.md` Phase 4 Step 12 verbatim. Persist the resolved `CLAUDE_MODE_ARGS` in the build state YAML so subsequent wave audits don't re-probe.
+Reuse `dev-review/references/deep-review.md` Phase 4 Step 12 with the hardened invocation contract. Persist the resolved `CLAUDE_MODE_ARGS` in the build state YAML so subsequent wave audits don't re-probe.
 
 If both probes fail, treat as unavailable per the skip clause above.
 
@@ -273,11 +273,12 @@ Then invoke `claude -p` with the prompt on stdin:
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse code audit tool. Do not use local house styles, PAI wrappers, status banners, plans, markdown framing, or tool calls. Follow the user's requested finding format exactly." \
   --model opus \
   --effort medium \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "" < /tmp/build_wave_<N>_audit_prompt.txt \
   > /tmp/build_wave_<N>_audit_out.txt 2>&1
 EXIT=$?
@@ -285,15 +286,18 @@ EXIT=$?
 
 Note `--effort medium` (not `high`) — wave audits are scoped to a focused diff and don't need the deeper reasoning the plan-time loop uses. Faster and cheaper.
 
+Do **not** invoke plain `claude -p` for wave audits. In non-bare OAuth/keychain environments, plain `claude -p` loads project/user hooks, local CLAUDE.md/PAI behavior, background context, and default tools. That can turn a bounded diff audit into an open-ended repo investigation, produce no stdout until the final response, and hit the timeout. The audit command must pass the self-contained prompt on stdin, disable tools with `--tools ""`, use `--no-session-persistence`, and provide the audit-specific `--system-prompt` above so output stays parseable.
+
 **Escalation to read-only tools** (fallback only when the embedded patch isn't enough — e.g. a finding requires cross-file context the diff doesn't include): retry the SAME prompt with read-only tools enabled, mirroring `dev-review/references/deep-review.md` Step 14:
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse code audit tool. Do not use local house styles, PAI wrappers, status banners, plans, markdown framing, or edit tools. Use only the allowed read-only tools when essential, then follow the user's requested finding format exactly." \
   --model opus \
   --effort medium \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *)" \
   --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,Bash(git reset *),Bash(git checkout *),Bash(rm *)" \
   --add-dir "$PWD" < /tmp/build_wave_<N>_audit_prompt.txt
