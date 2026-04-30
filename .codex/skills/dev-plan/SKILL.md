@@ -5,7 +5,7 @@ description: Create a structured implementation plan via an iterative Codex-plan
 
 # Dev Plan
 
-Create an implementation plan that can be executed by `$dev-build` and verified by `$dev-test`. Codex drafts the plan, then `claude -p` adversarially audits it against the codebase with severity-tagged findings, and Codex revises. Loop runs up to 3 rounds, exiting earlier when no critical findings remain or the plan converges.
+Create an implementation plan that can be executed by `$dev-build` and verified by `$dev-test`. Codex drafts the plan, then a bounded `claude -p` invocation adversarially audits it against the codebase with severity-tagged findings, and Codex revises. Loop runs up to 3 rounds, exiting earlier when no critical findings remain or the plan converges.
 
 This skill absorbs the previous `$dev-validate` step — Claude's codebase-aware critique covers feasibility, risk, and breaking-change analysis as part of every round. Use `--no-loop` to skip the audit and produce a single-pass plan for trivial work.
 
@@ -27,7 +27,7 @@ This skill absorbs the previous `$dev-validate` step — Claude's codebase-aware
 5. If the loop is enabled, run the Codex ↔ Claude audit loop (up to 3 rounds, severity-gated early exit).
 6. Persist round-by-round state to `artifacts/plans/<slug>/state.yml` with verbatim Claude findings.
 
-Read `references/create-plan.md` for the required plan format, the full loop workflow, the `claude -p` shell-out contract (bare-mode probe with non-bare fallback, timeout wrapper, tools disabled, redaction), the severity taxonomy, exit criteria, and state YAML schema.
+Read `references/create-plan.md` for the required plan format, the full loop workflow, the `claude -p` shell-out contract (bare-mode probe with non-bare fallback, timeout wrapper, `--permission-mode bypassPermissions`, stdin prompt delivery, tools disabled by default, redaction), the severity taxonomy, exit criteria, and state YAML schema.
 
 ## Plan Requirements
 

@@ -39,6 +39,10 @@ trust_level = "trusted"
 [projects."/home/james/homelab"]
 trust_level = "trusted"
 
+[tui]
+terminal_title = ["spinner", "current-dir", "context-remaining", "task-progress"]
+status_line = ["model-with-reasoning", "current-dir", "context-remaining", "task-progress"]
+
 [tui.model_availability_nux]
 "gpt-5.5" = 4
 

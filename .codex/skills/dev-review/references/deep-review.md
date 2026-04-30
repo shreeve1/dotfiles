@@ -9,28 +9,30 @@
 - [Phase 1: Locate and Understand](#phase-1-locate-and-understand)
 - [Phase 2: Multi-Dimensional Analysis](#phase-2-multi-dimensional-analysis)
 - [Phase 3: Interactive Discussion](#phase-3-interactive-discussion)
-- [Phase 4: Claude Cross-Model Review (default)](#phase-4-claude-cross-model-review-default)
+- [Phase 4: Claude Cross-Model Review (mandatory attempt)](#phase-4-claude-cross-model-review-mandatory-attempt)
 - [Phase 5: Apply Changes](#phase-5-apply-changes)
 - [Report](#report)
 - [Error Handling](#error-handling)
 
-Perform a deep, critical review of whatever the user references — code files, configurations, directories, plans, documentation, or the current session context. Analyze for best practice adherence, technical risks, and improvement opportunities. Adapt your analysis dimensions to what's actually being reviewed. Engage in interactive discussion about findings before optionally applying changes.
+Perform a deep, critical review of whatever the user references: code files, configurations, directories, plans, documentation, proposed solutions, pasted proposals, or the current session context. Analyze for best practice adherence, technical risks, and improvement opportunities. Adapt your analysis dimensions to what's actually being reviewed. Engage in interactive discussion about findings before optionally applying changes.
 
 ## Variables
 
-TARGET: $1 — (Optional) Path to a file, directory, plan, topic, or session context to review. If omitted, review the current session context (what's been discussed, decided, and implemented so far).
+TARGET: $1 — (Optional) Path to a file, directory, plan, topic, proposed solution, pasted proposal, or session context to review. If omitted, review the current session context (what's been discussed, decided, proposed, and implemented so far).
+
+No PRD, implementation plan, or code diff is required before using this skill. If the user asks for a second opinion on an idea or solution in the current context window, treat that proposal as the review target.
 
 ## Checklist
 
 You MUST create a task for each of these items and complete them in order:
-1. **Identify review target** — resolve the input to concrete files or session context
-2. **Deep read and comprehension** — thoroughly read the target AND surrounding codebase context
+1. **Identify review target** — resolve the input to concrete files, a pasted proposal, a specific solution, or session context
+2. **Deep read and comprehension** — thoroughly read the target AND enough surrounding codebase or conversation context
 3. **Detect stack and context** — identify languages, frameworks, patterns, and conventions in use
 4. **Select analysis dimensions** — choose relevant review dimensions based on what's being reviewed
 5. **Run multi-dimensional analysis** — analyze each selected dimension with specific, grounded findings
-6. **Present findings interactively** — share analysis per dimension and discuss with the user
-7. **Claude cross-model review (default)** — check `claude` binary + auth, pass Claude the target/context packet, present output, cross-model comparison. Skip only if not installed, auth fails, or user opts out.
-8. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
+6. **Claude cross-model review (mandatory attempt)** — check `claude` binary + auth, pass Claude the target/context packet, present output, cross-model comparison. Skip only if Claude is unavailable, the bounded command fails or times out, or user opts out.
+7. **Present findings interactively** — share Codex findings, Claude findings or skipped reason, overlap, disagreement, and discuss with the user
+8. **Offer next action** — after discussion, offer to update reviewed files when editable, save recommendations, or leave the review as advice
 
 ## Instructions
 
@@ -38,7 +40,7 @@ You MUST create a task for each of these items and complete them in order:
 - **Be balanced**: Acknowledge strengths while calling out concerns. Constructive but honest. Don't sugarcoat real issues, but don't manufacture problems either.
 - **Ground in the codebase**: Don't review in isolation. Cross-reference every claim against actual code — do referenced files exist? Are patterns consistent with the rest of the project? Are assumptions valid?
 - **Think deeply**: Use extended thinking for each analysis dimension. This is not a surface-level scan — reason carefully about second-order effects, implicit assumptions, and non-obvious failure modes.
-- **Be specific**: Reference exact files, line numbers, and code patterns. "This might have issues" is useless. "The `UserService` at `src/services/user.ts:47` uses synchronous DB calls which will block under concurrent load" is useful.
+- **Be specific**: Reference exact files, line numbers, and code patterns when files exist. For non-file targets, reference the section, claim, assumption, quoted excerpt, or conversation decision. "This might have issues" is useless. "`UserService` at `src/services/user.ts:47` uses synchronous DB calls which will block under concurrent load" and "The proposal assumes retries are idempotent, but it never defines an idempotency key" are useful.
 - **Stack-aware best practices**: Detect the language, framework, and ecosystem. Apply best practices specific to that stack (e.g., React component patterns, Go error handling idioms, Python packaging conventions) in addition to universal principles.
 
 ---
@@ -49,12 +51,13 @@ You MUST create a task for each of these items and complete them in order:
    - If `TARGET` is a file path: verify it exists and read it
    - If `TARGET` is a directory: scan its structure, then intelligently select key files to review (entry points, exports, configs, core logic modules). Skip generated files, lock files, and boilerplate. Present your selection to the user with `ask the user` for confirmation.
    - If `TARGET` is a plan: read the plan, map it to referenced files or expected implementation areas, and review feasibility, missing steps, risk, and test coverage
+   - If `TARGET` is a proposed solution or pasted proposal: identify the claims, assumptions, dependencies, failure modes, and verification gaps, then map to codebase context when relevant. Quote or summarize the exact proposal being reviewed at the top of the report so findings have a stable referent.
    - If `TARGET` is a topic or concept: gather relevant files from the conversation context and codebase
    - If no `TARGET` provided: review the current session context — what's been discussed, decided, and implemented so far
-   - If `TARGET` doesn't resolve to anything: ask the user to clarify
+   - If a path-like `TARGET` doesn't exist and there is no usable pasted or session-context target: ask the user to clarify
 
 2. **Deep Comprehension Pass**
-   - read all target files thoroughly
+   - read all target files thoroughly, or capture the proposed solution/session context as the review target
    - Identify related files that provide context (imports, shared utilities, tests, configs)
    - read enough surrounding code to understand patterns, conventions, and architecture
    - Build a mental model of how the reviewed code fits into the broader system
@@ -129,7 +132,7 @@ Available dimensions (select 3-5 most relevant):
 
 9. **Present Findings**
 
-   Present your analysis organized by the dimensions you selected. For each finding:
+   Present final review findings only after the Claude cross-model attempt has completed or been explicitly skipped with a reason. Organize the analysis by the dimensions you selected. For each finding:
    - State the finding clearly with file:line references where applicable
    - Explain the reasoning — why is this a concern or improvement opportunity?
    - Suggest a concrete resolution
@@ -149,15 +152,17 @@ Available dimensions (select 3-5 most relevant):
 
 ---
 
-## Phase 4: Claude Cross-Model Review (default)
+## Phase 4: Claude Cross-Model Review (mandatory attempt)
 
-**Run this phase by default** as part of every Codex review. After Codex's own analysis pass, hand the same target + context to the `claude` CLI for an independent review, then present findings side-by-side.
+**Attempt this phase for every Codex review.** After Codex's own analysis pass, hand the same target + context to the `claude` CLI for an independent review, then present findings side-by-side. This applies equally to code, plans, pasted proposals, specific solutions, topics, and current-session reviews.
 
 Skip this phase only when:
 - `claude` CLI not installed (Step 11 returns NOT_FOUND).
 - Both bounded Claude auth probes fail or time out (Step 12).
 - The bounded Claude review command fails or times out in the selected mode (Step 14).
 - The user explicitly says "codex-only review" / "skip claude" / "no second opinion" / "skip Phase 4".
+
+Never skip the Claude attempt silently. If it cannot run, include the skipped status and concrete reason in the final review.
 
 A Codex session should not recursively run another Codex review by default; use Claude CLI for the independent pass. Only run `codex review` from inside Codex when the user explicitly names a Codex CLI review.
 
@@ -173,25 +178,23 @@ If `NOT_FOUND`: skip this phase and note inline:
 
 12. **Run a lightweight bounded auth probe**
 
-Use a short non-interactive command before sending code or plan context. Prefer `--bare` because it avoids hooks, plugin sync, auto-memory, CLAUDE.md discovery, background prefetches, and other interactive environment behavior. If the bare probe fails, retry once without `--bare` before declaring Claude unavailable; Claude Code bare mode does not read OAuth/keychain login state and may only work with `ANTHROPIC_API_KEY` or an explicit `apiKeyHelper` in `--settings`.
+Use a short non-interactive command before sending code or plan context. Prefer `--bare` because it avoids hooks, plugin sync, auto-memory, CLAUDE.md discovery, background prefetches, and other interactive environment behavior. If the bare probe fails, retry once without `--bare` before declaring Claude unavailable; Claude Code bare mode does not read OAuth/keychain login state and may only work with `ANTHROPIC_API_KEY` or an explicit `apiKeyHelper` in `--settings`. Always send probe text on stdin because `--tools` is variadic, and use `--permission-mode bypassPermissions`. Do not use invalid `--permission-mode dangerously-skip-permissions` values.
 
 ```bash
 CLAUDE_AUTH_PROBE="Reply with CLAUDE_AUTH_OK only."
 CLAUDE_MODE_ARGS="--bare"
 
-if timeout 45s claude --bare -p \
+if printf '%s\n' "$CLAUDE_AUTH_PROBE" | timeout 45s claude --bare -p \
   --no-session-persistence \
   --output-format text \
   --tools "" \
-  --permission-mode dontAsk \
-  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  --permission-mode bypassPermissions; then
   CLAUDE_MODE_ARGS="--bare"
-elif timeout 90s claude -p \
+elif printf '%s\n' "$CLAUDE_AUTH_PROBE" | timeout 90s claude -p \
   --no-session-persistence \
   --output-format text \
   --tools "" \
-  --permission-mode dontAsk \
-  "$CLAUDE_AUTH_PROBE" < /dev/null; then
+  --permission-mode bypassPermissions; then
   CLAUDE_MODE_ARGS=""
 else
   echo "CLAUDE_NOT_READY"
@@ -207,7 +210,7 @@ If either command times out, kill the spawned process if needed before retrying 
 
 Pass Claude enough context to review independently without forcing it to rediscover the entire conversation or invoke repository tools. Keep it compact and explicit:
 
-- Review target: path, directory, diff, plan, topic, or session scope.
+- Review target: path, directory, diff, plan, proposed solution, topic, or session scope.
 - User request and review intent.
 - Detected stack/framework/test setup.
 - Relevant plan or session summary, including decisions, assumptions, and open risks.
@@ -225,26 +228,31 @@ Use non-interactive print mode, disable tools by default, and pass the self-cont
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse code review tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested review, or tool calls. Follow the requested review format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "" < "$CLAUDE_REVIEW_PROMPT_FILE"
 ```
 
-Only enable Claude tools for a second attempt when the self-contained packet is insufficient and the user explicitly wants the extra latency/risk. If tools are enabled, reuse `CLAUDE_MODE_ARGS`, keep `timeout`, use only read-oriented tools, and deny edits:
+Only enable Claude tools for a second attempt when the self-contained packet is insufficient and the user explicitly wants the extra latency/risk. If tools are enabled, reuse `CLAUDE_MODE_ARGS`, keep `timeout`, use only read-oriented tools, and deny edits. Only pass `--add-dir "$REVIEW_ROOT"` when a file or directory review root has been resolved; omit it for pure proposal or current-session reviews.
 
 ```bash
+CLAUDE_ADD_DIR_ARGS=()
+[ -n "${REVIEW_ROOT:-}" ] && CLAUDE_ADD_DIR_ARGS=(--add-dir "$REVIEW_ROOT")
+
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
+  --system-prompt "You are a terse code review tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested review, or edit tools. Use only the allowed read-only tools when essential, then follow the requested review format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
   --output-format text \
-  --permission-mode dontAsk \
+  --permission-mode bypassPermissions \
   --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *),Bash(git rev-parse *)" \
   --disallowedTools "Edit,Write,MultiEdit,NotebookEdit,Bash(git reset *),Bash(git checkout *),Bash(rm *)" \
-  --add-dir "$REVIEW_ROOT" < "$CLAUDE_REVIEW_PROMPT_FILE"
+  "${CLAUDE_ADD_DIR_ARGS[@]}" < "$CLAUDE_REVIEW_PROMPT_FILE"
 ```
 
 If the shell does not support process files conveniently, a heredoc is acceptable. Do not pass a long prompt as a shell argument.
@@ -278,7 +286,7 @@ Codex findings so far:
 <findings, or "none yet">
 
 Please return:
-1. Findings ordered by severity with exact file:line references.
+1. Findings ordered by severity with exact file:line references when available, or exact section/claim references for non-file targets.
 2. Missing tests or validation gaps.
 3. Any Codex findings you disagree with or would downgrade.
 4. Any risks Codex missed.
@@ -313,17 +321,17 @@ CROSS-MODEL ANALYSIS:
 16. **Offer to Apply Changes**
 
     After discussion, ask the user:
-    - "Would you like me to apply the agreed recommendations to the reviewed files?"
+    - "Would you like me to apply the agreed recommendations to the reviewed files or save the recommendations?"
     - Options: "Yes, apply changes" | "No, the discussion was sufficient" | "Save recommendations as a review document"
 
 17. **Apply Updates** (if requested)
 
     If applying changes:
-    - Make the agreed modifications directly to the reviewed files
+    - Make the agreed modifications directly to editable reviewed files or artifacts
     - Show a summary of what was changed
 
     If saving as review document:
-    - Write to a sensible location relative to the reviewed files
+    - Write to a sensible location relative to the reviewed files, plan, or current task artifacts
     - Include all findings, discussion outcomes, and recommendations
 
 ---

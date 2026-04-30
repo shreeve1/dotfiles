@@ -1,7 +1,7 @@
 ---
 name: dev-review
 description: Independent code review using Codex CLI — Claude gathers context, Codex reviews, results discussed interactively before applying changes
-argument-hint: [file, directory, plan, or omit to review what's in context]
+argument-hint: [file, directory, plan, build, proposal, or omit to review what's in context]
 model: opus
 ---
 
@@ -11,13 +11,18 @@ Independent review using Codex CLI as the reviewer. Claude extracts the review t
 
 ## Variables
 
-TARGET: $1 — (Optional) Explicit path or `plan` / `build`. If omitted, extract the review target from conversation context.
+TARGET: $1 — (Optional) One of:
+- `plan` — most recent plan file on disk
+- `build` — uncommitted git changes
+- `proposal` (aliases: `idea`, `context`) — an inline proposal/approach/snippet from the current conversation, even if nothing has been written to disk yet
+- An explicit file or directory path
+- Omitted — extract the review target from conversation context (file paths, plans, diffs, OR inline proposals)
 
 ## Checklist
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Extract review target** — identify what to review from conversation context or argument
+1. **Extract review target** — identify what to review from conversation context or argument (file, plan, build diff, OR inline proposal)
 2. **Verify target with user** — confirm scope before sending to Codex
 3. **Gather surrounding context** — read related files, conventions, plans
 4. **Build review brief** — assemble structured context document
@@ -43,15 +48,17 @@ You MUST create a task for each of these items and complete them in order:
    - File paths that were discussed, modified, or created
    - Plan content (from `/dev-plan` or plan files)
    - Build output or git diffs
+   - **Inline proposals** — code snippets, design approaches, architectural sketches, or solutions you (Claude) proposed in chat that the user wants double-checked, even if not yet written to disk
    - Any explicit TARGET argument
 
    If TARGET argument is provided:
    - `plan` — find the most recent plan file (search `plans/`, `specs/`, then `artifacts/plans/` — matching dev-plan, dev-build, dev-test conventions; ask if ambiguous)
    - `build` — use uncommitted git changes
+   - `proposal` (aliases: `idea`, `context`) — review an inline proposal from the current conversation. Extract the most recent concrete suggestion (snippet, approach, design) from your chat history. If multiple candidates exist, ask the user to pick. The proposal is the *content under review* — not a file on disk.
    - File path — read that file
    - Directory — scan and select key files
 
-   If no TARGET and nothing clear in context: ask the user what to review.
+   If no TARGET and nothing clear in context: ask the user what to review. When inline proposals AND on-disk artifacts both exist in context, list both and let the user choose.
 
 2. **Verify Scope with User**
 
@@ -96,6 +103,13 @@ You MUST create a task for each of these items and complete them in order:
    - Test files for the target
    - Files that import the target
 
+   **For proposal reviews (inline content):**
+   - The proposal itself (pasted verbatim into the brief — be faithful, do not rewrite or "improve" it)
+   - The problem the proposal is intended to solve (extracted from conversation)
+   - Any constraints, requirements, or decisions established earlier in the conversation
+   - Existing files the proposal would touch or interact with (if any are knowable)
+   - If the proposal is purely abstract (no target codebase): skip "related code" and let Codex review on first principles. Note this explicitly in the brief.
+
    **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. Codex can read additional files on disk with `-C` pointing to the project root.
 
 4. **Build Review Brief**
@@ -108,7 +122,7 @@ You MUST create a task for each of these items and complete them in order:
    # Review Brief
 
    ## Review Type
-   [Plan Review | Build Review | Code Review]
+   [Plan Review | Build Review | Code Review | Proposal Review]
 
    ## Project Context
    - Stack: [languages, frameworks, key deps]
@@ -164,10 +178,11 @@ You MUST create a task for each of these items and complete them in order:
    ```
    Note: `codex exec review` does NOT support `-C`. Set the working directory via `cd` before running. It DOES support `--json`, `-o`, and `-`. The brief is piped via stdin to avoid ARG_MAX limits.
 
-   **For plan reviews and file reviews:**
+   **For plan reviews, file reviews, and proposal reviews:**
    ```bash
    codex exec -s read-only -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
    ```
+   For pure-abstract proposal reviews (no codebase to anchor to): use `<project_dir>` = `pwd` and always include `--skip-git-repo-check`.
 
    **Capture output reliably:**
    - Use `--json` to get structured JSONL event stream
@@ -236,7 +251,7 @@ After the review is complete, provide:
 Review Complete (Codex-Powered)
 
 Target: <what was reviewed>
-Type: <Plan | Build | File>
+Type: <Plan | Build | File | Proposal>
 Stack: <detected languages/frameworks>
 Context files: <N files gathered>
 
