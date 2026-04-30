@@ -149,14 +149,15 @@ Codex is invoked via the **`codex` CLI directly** (not the `/codex` skill wrappe
 
 **Round 1 — Challenge mode (fresh session):**
 
-Write the round 1 prompt to a temp file, then run from the repo root:
+Write the round 1 prompt to a temp file, then run from the repo root. **Pipe the prompt via stdin redirect** (`< file.txt`) rather than `"$(cat file.txt)"` arg expansion — see Note below.
 
 ```bash
 cd <repo_root>
 timeout 480 codex exec \
   --sandbox danger-full-access \
   -c model_reasoning_effort='"high"' \
-  "$(cat /tmp/codex_round1_prompt.txt)" \
+  --skip-git-repo-check \
+  < /tmp/codex_round1_prompt.txt \
   > /tmp/codex_round1_out.txt 2>&1
 ```
 
@@ -164,16 +165,18 @@ After completion, extract the session id from the output (line matching `session
 
 **Rounds 2+ — Consult mode with session continuity:**
 
-`codex exec resume` does NOT accept the `--sandbox` flag directly. Use the `-c` config override form:
+`codex exec resume` does NOT accept the `--sandbox` flag directly. Use the `-c` config override form, and pipe the prompt via stdin:
 
 ```bash
 cd <repo_root>
 timeout 480 codex exec resume <codex_session_id> \
   -c sandbox_mode='"danger-full-access"' \
   -c model_reasoning_effort='"high"' \
-  "$(cat /tmp/codex_roundN_prompt.txt)" \
+  < /tmp/codex_roundN_prompt.txt \
   > /tmp/codex_roundN_out.txt 2>&1
 ```
+
+**Note on stdin redirect vs arg expansion:** Prompts containing em-dashes (`—`), smart quotes, or other non-ASCII characters can break shell quoting in `"$(cat ...)"` form, causing Codex to hang reading stdin until the timeout fires (`EXIT=124`). Stdin redirection bypasses the shell entirely and is robust to any prompt content. Always use `< file.txt`.
 
 If the stored session id is unavailable, fall back to `codex exec resume --last`. With `--last`, the same `-c sandbox_mode` override applies — `--sandbox` as a flag is rejected.
 
