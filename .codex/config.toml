@@ -2,7 +2,7 @@ approvals_reviewer = "user"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model_reasoning_effort = "high"
 [projects."/Users/james"]
 trust_level = "trusted"
 
@@ -31,6 +31,12 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [projects."/home/james/1-testytech/homelab"]
+trust_level = "trusted"
+
+[projects."/home/james/.claude"]
+trust_level = "trusted"
+
+[projects."/home/james/homelab"]
 trust_level = "trusted"
 
 [tui.model_availability_nux]

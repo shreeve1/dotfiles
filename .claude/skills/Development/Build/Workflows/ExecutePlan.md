@@ -262,7 +262,7 @@ If the patch is non-empty, proceed to 7.5.2.
 
 ### 7.5.2 — Invoke Codex (quick check, fresh session per wave)
 
-Each wave's audit is independent — no session continuity needed across waves. Use `codex exec` (not `resume`):
+Each wave's audit is independent — no session continuity needed across waves. Use `codex exec` (not `resume`), and **pipe the prompt via stdin redirection** rather than `"$(cat ...)"` arg expansion:
 
 ```bash
 cd <repo_root>
@@ -270,12 +270,14 @@ timeout 300 codex exec \
   --sandbox danger-full-access \
   -c model_reasoning_effort='"high"' \
   --skip-git-repo-check \
-  "$(cat /tmp/build_wave_<N>_audit_prompt.txt)" \
+  < /tmp/build_wave_<N>_audit_prompt.txt \
   > /tmp/build_wave_<N>_audit_out.txt 2>&1
 EXIT=$?
 ```
 
-Note: this invocation uses `--sandbox danger-full-access` from the start (Build's repos are trusted by definition, and Codex's vendored bwrap is unreliable). There is no separate "bwrap recovery" branch — if the audit still fails, treat it as a Codex failure per 7.5.4 below.
+Notes:
+- `--sandbox danger-full-access` from the start (Build's repos are trusted by definition; Codex's vendored bwrap is unreliable). No separate "bwrap recovery" branch — if the audit fails, treat it as a Codex failure per 7.5.4.
+- **stdin redirect (`< file.txt`) is preferred over `"$(cat file.txt)"` arg expansion.** Observed failure mode: prompts containing em-dashes (`—`), smart quotes, or other non-ASCII characters can break shell quoting, causing Codex to hang reading stdin until the timeout fires (`EXIT=124`). Stdin redirection bypasses the shell entirely and is robust to any prompt content.
 
 ### 7.5.3 — Codex prompt template (quick check)
 
