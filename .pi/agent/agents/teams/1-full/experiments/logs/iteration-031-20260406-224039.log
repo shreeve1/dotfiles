@@ -1,6 +1,0 @@
-[team-improve] full: experiment 20260406-224248 — keep — 5.00 → 5.00 — "Simplify documenter.md into a shorter durable documentation contract while preserving doc categorization, navigation maintenance, verification, and reporting behavior"
-
-Updated:
-- `~/.pi/agent/agents/documenter.md`
-- `~/.pi/agent/agents/teams/1-full/experiments/results.tsv`
-- `~/.pi/agent/agents/teams/1-full/experiments/latest.md`

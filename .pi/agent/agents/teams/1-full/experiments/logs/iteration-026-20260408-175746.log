@@ -1,7 +1,0 @@
-## Phase 8 — Exit
-
-```
-[team-improve] full: experiment 20260408-180040 — keep — 5.00 → 5.00 — "Merge dispatcher.md 'After All Dispatches Complete' section into Dispatch Response Contract as Post-completion phase (207→197 lines, 4.8% reduction)"
-```
-
-**Summary:** Ran one simplification experiment on the full team. Merged the standalone "After All Dispatches Complete" section into the "Dispatch Response Contract" section as a "Post-completion" phase. All 41 benchmarks remain at 5.00. The change is purely structural — all semantic guidance preserved, just consolidated user-communication instructions into one section instead of two. Kept.
