@@ -41,6 +41,7 @@ bin/
 .claude/settings-*.json
 
 # Machine-local runtime state (not synced)
+.claude/skills/Automation/References/execution-log.jsonl
 .claude/sessions/
 .claude/session-env/
 .claude/cache/
