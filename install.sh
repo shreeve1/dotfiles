@@ -4,6 +4,23 @@ set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 
+backup_path() {
+  local target="$1"
+  local stamp
+  local backup
+  local n=2
+
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup="$target-bak-$stamp"
+
+  while [ -e "$backup" ] || [ -L "$backup" ]; do
+    backup="$target-bak-$stamp-$n"
+    n=$((n + 1))
+  done
+
+  printf '%s\n' "$backup"
+}
+
 link_path() {
   local source_rel="$1"
   local target_rel="$2"
@@ -26,14 +43,13 @@ link_path() {
       printf 'ok: %s already linked\n' "$target"
       return 0
     fi
-    rm "$target"
+    local backup
+    backup="$(backup_path "$target")"
+    mv "$target" "$backup"
+    printf 'backup-symlink: %s -> %s (was -> %s)\n' "$target" "$backup" "$current"
   elif [ -e "$target" ]; then
-    local backup="$target-bak"
-    local n=2
-    while [ -e "$backup" ] || [ -L "$backup" ]; do
-      backup="$target-bak-$n"
-      n=$((n + 1))
-    done
+    local backup
+    backup="$(backup_path "$target")"
     mv "$target" "$backup"
     printf 'backup: %s -> %s\n' "$target" "$backup"
   fi
@@ -42,40 +58,82 @@ link_path() {
   printf 'linked: %s -> %s\n' "$target" "$source"
 }
 
-link_path "bin/osc52" ".local/bin/osc52"
+is_excluded_pai_path() {
+  case "$1" in
+    .claude/PAI/USER/*|\
+    .claude/PAI/MEMORY/*|\
+    .claude/PAI/*/USER/*|\
+    .claude/PAI/*/MEMORY/*|\
+    .claude/PAI/**/State/*|\
+    .claude/PAI/**/Scratchpad/*|\
+    .claude/PAI/**/*.log|\
+    .claude/PAI/**/*.jsonl|\
+    .claude/PAI/**/secrets.*|\
+    .claude/PAI/config/local*.json|\
+    .codex/pai/USER/*|\
+    .codex/pai/MEMORY/*|\
+    .codex/pai/templates/USER/*|\
+    .codex/pai/*/USER/*|\
+    .codex/pai/*/MEMORY/*|\
+    .codex/pai/**/State/*|\
+    .codex/pai/**/Scratchpad/*|\
+    .codex/pai/**/*.log|\
+    .codex/pai/**/*.jsonl|\
+    .codex/pai/**/secrets.*|\
+    .codex/pai/config/local*.json)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+link_git_tree() {
+  local source_rel="$1"
+  local target_rel="$2"
+  local file
+  local suffix
+
+  while IFS= read -r file; do
+    if is_excluded_pai_path "$file"; then
+      printf 'skip-private: %s\n' "$file"
+      continue
+    fi
+
+    suffix="${file#"$source_rel"/}"
+    link_path "$file" "$target_rel/$suffix"
+  done < <(git -C "$DOTFILES_DIR" ls-files "$source_rel")
+}
 
 link_path ".zshrc" ".zshrc"
+
+# ─── XDG config ────────────────────────────────────────────
 link_path ".config/starship.toml" ".config/starship.toml"
+link_path ".config/ghostty" ".config/ghostty"
+link_path ".config/nushell" ".config/nushell"
+link_path ".config/nvim" ".config/nvim"
+link_path ".config/opencode" ".config/opencode"
 link_path ".config/tmux" ".config/tmux"
-link_path ".config/ghostty/config" ".config/ghostty/config"
 link_path ".config/yazi" ".config/yazi"
-link_path ".config/opencode/agents" ".config/opencode/agents"
-link_path ".config/opencode/commands" ".config/opencode/commands"
-link_path ".config/opencode/opencode.json" ".config/opencode/opencode.json"
-link_path ".config/opencode/opencode.opencode" ".config/opencode/opencode.opencode"
-link_path ".config/opencode/package-lock.json" ".config/opencode/package-lock.json"
-link_path ".config/opencode/package.json" ".config/opencode/package.json"
-link_path ".config/opencode/plugins" ".config/opencode/plugins"
-link_path ".config/opencode/skills" ".config/opencode/skills"
-link_path ".config/opencode/themes" ".config/opencode/themes"
-link_path ".config/opencode/tsconfig.json" ".config/opencode/tsconfig.json"
-link_path ".config/opencode/tui.json" ".config/opencode/tui.json"
+link_path ".config/zellij" ".config/zellij"
 
+# ─── Pi Agent ──────────────────────────────────────────────
 link_path ".pi/agent" ".pi/agent"
-
-link_path ".config/nvim/init.lua" ".config/nvim/init.lua"
-link_path ".config/nvim/lazy-lock.json" ".config/nvim/lazy-lock.json"
+link_path ".pi/agent-sessions" ".pi/agent-sessions"
+link_path ".pi/README.md" ".pi/README.md"
 
 # ─── PAI / Claude Code ───────────────────────────────────
 # Core files
 link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
 link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
 link_path ".claude/install.sh" ".claude/install.sh"
+link_path ".claude/settings.json.template" ".claude/settings.json.template"
 link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
 link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 
 # PAI engine
-link_path ".claude/PAI" ".claude/PAI"
+link_git_tree ".claude/PAI" ".claude/PAI"
 
 # Skills, hooks, commands, agents, lib
 link_path ".claude/skills" ".claude/skills"
@@ -93,7 +151,9 @@ link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
 link_path ".codex/config.toml" ".codex/config.toml"
 link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
+link_path ".codex/agents" ".codex/agents"
 link_path ".codex/rules" ".codex/rules"
+link_git_tree ".codex/pai" ".codex/pai"
 link_path ".codex/skills/dev-build" ".codex/skills/dev-build"
 link_path ".codex/skills/dev-development" ".codex/skills/dev-development"
 link_path ".codex/skills/dev-epic" ".codex/skills/dev-epic"
@@ -105,7 +165,11 @@ link_path ".codex/skills/dev-shard" ".codex/skills/dev-shard"
 link_path ".codex/skills/dev-stories" ".codex/skills/dev-stories"
 link_path ".codex/skills/dev-team" ".codex/skills/dev-team"
 link_path ".codex/skills/dev-test" ".codex/skills/dev-test"
-link_path ".codex/skills/dev-validate" ".codex/skills/dev-validate"
+link_path ".codex/skills/diagnose" ".codex/skills/diagnose"
+link_path ".codex/skills/grill-me" ".codex/skills/grill-me"
+link_path ".codex/skills/improve-codebase-architecture" ".codex/skills/improve-codebase-architecture"
+link_path ".codex/skills/to-issues" ".codex/skills/to-issues"
+link_path ".codex/skills/to-prd" ".codex/skills/to-prd"
 
 # Note: settings.json is NOT symlinked — it contains secrets.
 # Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
