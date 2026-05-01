@@ -1,1 +1,0 @@
-{"timestamp":"2026-04-12T23:21:07.090Z","note":"Widget + chat-api are separate codebases with NO integration. Widget POSTs to n8n webhook (CONFIG.n8nWebhookUrl), chat-api exists as a standalone backend not connected to the widget. PHP plugin only configures n8n_webhook_url, no chatApiUrl or tenant_id config."}

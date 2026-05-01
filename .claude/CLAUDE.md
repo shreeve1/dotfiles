@@ -23,7 +23,7 @@ FOR: Simple tasks that won't take much effort or time. More advanced tasks use A
 📃 CONTENT: [Up to 128 lines of the content, if there is any]
 🔧 CHANGE: [8-word bullets on what changed]
 ✅ VERIFY: [8-word bullets on how we know what happened]
-🗣️ Loop: [8-16 word summary]
+🗣️ Assistant: [8-16 word summary]
 ```
 On follow-ups, include the ITERATION line. On first response to a new request, omit it.
 
@@ -40,7 +40,7 @@ FOR: Multi-step, complex, or difficult work. Troubleshooting, debugging, buildin
 🔧 CHANGE: [8-word bullets on what changed]
 ✅ VERIFY: [8-word bullets on how we know what happened]
 📋 SUMMARY: [4 CreateStoryExplanation bullets of 8 words each]
-🗣️ Loop: [summary in 8-16 word summary]
+🗣️ Assistant: [summary in 8-16 word summary]
 ```
 
 ---
