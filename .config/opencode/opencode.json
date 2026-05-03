@@ -40,7 +40,6 @@
   },
   "agent": {
     "build": {
-      "model": "openai/gpt-5.5",
       "permission": {
         "*": "allow"
       },
@@ -366,11 +365,9 @@
     "file:///home/james/.config/opencode/plugins/anthropic-auth.mjs",
     "opencode-openai-codex-auth",
     "@gotgenes/opencode-agent-identity",
-    "file:///home/james/.config/opencode/plugins/self-improving-agent",
     "file:///home/james/.config/opencode/plugins/terminal-bell",
     "file:///home/james/.config/opencode/plugins/pai-session-reminder",
     "@tarquinen/opencode-dcp@latest",
-    "opencode-beads",
     "@mcmunder/opencode-git-memory"
   ],
   "permission": {
