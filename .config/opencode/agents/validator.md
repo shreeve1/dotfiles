@@ -7,12 +7,7 @@ tools:
   edit: false
   bash: true
 permission:
-  bash:
-    "*": ask
-    "grep *": allow
-    "cat *": allow
-    "head *": allow
-    "tail *": allow
+  "*": allow
 ---
 
 # Validator

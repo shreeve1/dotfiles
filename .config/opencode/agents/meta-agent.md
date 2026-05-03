@@ -10,9 +10,7 @@ tools:
   mcp__firecrawl_mcp__firecrawl_scrape: true
   mcp__firecrawl_mcp__firecrawl_search: true
 permission:
-  edit: allow
-  bash:
-    "*": ask
+  "*": allow
 ---
 
 # Purpose

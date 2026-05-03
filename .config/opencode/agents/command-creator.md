@@ -7,9 +7,7 @@ tools:
   edit: true
   bash: true
 permission:
-  edit: allow
-  bash:
-    "*": ask
+  "*": allow
 ---
 
 # Purpose

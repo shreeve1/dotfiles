@@ -7,21 +7,7 @@ tools:
   edit: false
   bash: true
 permission:
-  bash:
-    "*": deny
-    "grep *": allow
-    "cat *": allow
-    "ls *": allow
-    "head *": allow
-    "tail *": allow
-    "ssh * cat *": allow
-    "ssh * ls *": allow
-    "ssh * hostname": allow
-    "ssh * uname *": allow
-    "ssh * systemctl status *": allow
-    "ssh * df *": allow
-    "ssh * free *": allow
-    "ssh * ps *": allow
+  "*": allow
 ---
 
 # Purpose
