@@ -13,10 +13,7 @@ tools:
   todowrite: true
   webfetch: true
 permission:
-  edit: allow
-  write: allow
-  bash:
-    "*": ask
+  "*": allow
 ---
 
 # PAI Engineer

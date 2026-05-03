@@ -19,6 +19,9 @@
         "patch": true,
         "todowrite": true,
         "webfetch": true
+      },
+      "permission": {
+        "*": "allow"
       }
     },
     "plan": {
@@ -31,6 +34,9 @@
         "grep": true,
         "glob": true,
         "webfetch": true
+      },
+      "permission": {
+        "*": "allow"
       }
     }
   },
@@ -43,34 +49,64 @@
       "color": "error"
     },
     "plan": {
-      "model": "cliproxy/claude-opus-4-7"
+      "model": "cliproxy/claude-opus-4-7",
+      "permission": {
+        "*": "allow"
+      }
     },
     "general": {
-      "model": "cliproxy/claude-haiku-4-5-20251001"
+      "model": "cliproxy/claude-haiku-4-5-20251001",
+      "permission": {
+        "*": "allow"
+      }
     },
     "compaction": {
-      "model": "cliproxy/gpt-5.4"
+      "model": "cliproxy/gpt-5.4",
+      "permission": {
+        "*": "allow"
+      }
     },
     "librarian": {
-      "model": "cliproxy/gpt-5.4"
+      "model": "cliproxy/gpt-5.4",
+      "permission": {
+        "*": "allow"
+      }
     },
     "explore": {
-      "model": "cliproxy/claude-haiku-4-5-20251001"
+      "model": "cliproxy/claude-haiku-4-5-20251001",
+      "permission": {
+        "*": "allow"
+      }
     },
     "document-writer": {
-      "model": "cliproxy/claude-sonnet-4-6"
+      "model": "cliproxy/claude-sonnet-4-6",
+      "permission": {
+        "*": "allow"
+      }
     },
     "quick-review-opus": {
-      "model": "cliproxy/claude-opus-4-7"
+      "model": "cliproxy/claude-opus-4-7",
+      "permission": {
+        "*": "allow"
+      }
     },
     "quick-review-codex": {
-      "model": "cliproxy/gpt-5.3-codex"
+      "model": "cliproxy/gpt-5.3-codex",
+      "permission": {
+        "*": "allow"
+      }
     },
     "infra-scout": {
-      "model": "cliproxy/claude-haiku-4-5-20251001"
+      "model": "cliproxy/claude-haiku-4-5-20251001",
+      "permission": {
+        "*": "allow"
+      }
     },
     "infra-planner": {
-      "model": "cliproxy/claude-sonnet-4-6"
+      "model": "cliproxy/claude-sonnet-4-6",
+      "permission": {
+        "*": "allow"
+      }
     },
     "executor-ssh": {
       "model": "cliproxy/claude-sonnet-4-6",
@@ -85,7 +121,10 @@
       }
     },
     "infra-validator": {
-      "model": "cliproxy/claude-opus-4-7"
+      "model": "cliproxy/claude-opus-4-7",
+      "permission": {
+        "*": "allow"
+      }
     },
     "pai-algorithm": {
       "description": "PAI Algorithm agent — 7-phase problem solving with PRD and ISC criteria",
@@ -98,12 +137,15 @@
       "description": "PAI Engineer — focused code implementation with TDD and surgical fixes",
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "edit": "allow"
+        "*": "allow"
       }
     },
     "pai-architect": {
       "description": "PAI Architect — read-only system design and planning",
-      "model": "cliproxy/claude-opus-4-7"
+      "model": "cliproxy/claude-opus-4-7",
+      "permission": {
+        "*": "allow"
+      }
     }
   },
   "provider": {
@@ -334,6 +376,7 @@
     "@mcmunder/opencode-git-memory"
   ],
   "permission": {
-    "external_directory": "allow"
+    "external_directory": "allow",
+    "*": "allow"
   }
 }
