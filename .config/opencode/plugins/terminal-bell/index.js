@@ -1,11 +1,16 @@
 export const TerminalBell = async ({ $ }) => {
+  const isMac = process.platform === "darwin";
   return {
     event: async ({ event }) => {
       if (event.type === "session.idle") {
         try {
-          await $`afplay /System/Library/Sounds/Glass.aiff`;
+          if (isMac) {
+            await $`afplay /System/Library/Sounds/Glass.aiff`;
+          } else {
+            await $`printf '\a'`;
+          }
         } catch (err) {
-          console.warn("Failed to play audible bell:", err);
+          // bell sound is non-critical, silently continue
         }
       }
     },
