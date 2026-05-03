@@ -1,6 +1,6 @@
 ---
 name: Review
-description: Two-pass code review — Claude deep analysis followed by automatic Codex CLI second opinion, cross-model comparison, interactive findings discussion, and optional change application. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review.
+description: Two-pass code review — Claude deep analysis followed by an independent second opinion via Codex CLI (`codex review`) OR Claude one-shot (`claude -p`) OR both, selected by request keywords. Cross-model comparison, interactive findings discussion, and optional change application. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review, claude review, review with claude, claude -p review.
 ---
 
 ## Customization
@@ -63,32 +63,31 @@ This sub-skill has a single comprehensive workflow. All review requests route to
 
 ## Examples
 
-**Example 1: Review a specific file**
+**Example 1: Review a specific file (default reviewer = codex)**
 ```
 User: "Review src/services/user.ts"
 -> Routes to DeepReview workflow
 -> Phase 1: Locate and understand the file + surrounding context
 -> Phase 2: Multi-dimensional analysis (selects 3-5 relevant dimensions)
 -> Phase 3: Interactive discussion of findings
--> Phase 4: Codex CLI second opinion + cross-model comparison
+-> Phase 4: Independent second opinion — request had no engine keyword, so codex runs (default)
 -> Phase 5: Optional change application
 ```
 
-**Example 2: Review a directory**
+**Example 2: Review a directory with claude -p as the second-opinion reviewer**
 ```
-User: "Review the auth module in src/auth/"
+User: "Review the auth module in src/auth/ with claude"
 -> Routes to DeepReview workflow
--> Scans directory, selects key files for review
--> Confirms selection with user before deep analysis
--> Presents findings per dimension, then runs Codex for second opinion
--> Cross-model comparison highlights what each engine caught independently
+-> Phase 4 dispatcher resolves _REVIEWER=claude (keyword match: "with claude")
+-> Runs `claude -p` in a fresh isolated session against the diff or selected files
+-> Cross-model comparison shows what session-Claude vs claude -p each caught
 ```
 
-**Example 3: Review session context**
+**Example 3: Review session context with both reviewers**
 ```
-User: "Review what we've done so far"
+User: "Review what we've done so far, both reviews"
 -> Routes to DeepReview workflow
--> Reviews current session context — decisions, implementations, discussions
--> Runs Codex review against current git diff if one exists
--> Provides retrospective quality assessment with cross-model analysis
+-> Phase 4 dispatcher resolves _REVIEWER=both
+-> Runs codex AND claude -p, presents both outputs verbatim
+-> Three-way cross-model analysis: this session vs codex vs claude -p
 ```
