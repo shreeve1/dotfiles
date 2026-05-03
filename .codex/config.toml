@@ -51,3 +51,7 @@ status_line = ["model-with-reasoning", "current-dir", "context-remaining", "task
 
 [features]
 codex_hooks = true
+
+[mcp_servers.gitnexus]
+command = "/home/james/.npm-global/bin/gitnexus"
+args = ["mcp"]

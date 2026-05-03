@@ -15,7 +15,7 @@ You MUST create a task for each of these items and complete them in order:
 4. **Select analysis dimensions** — choose relevant review dimensions based on what's being reviewed
 5. **Run multi-dimensional analysis** — analyze each selected dimension with specific, grounded findings
 6. **Present findings interactively** — share analysis per dimension and discuss with the user
-7. **Codex second opinion** — check binary + auth, run `codex review`, present output verbatim, cross-model comparison
+7. **Independent second opinion** — resolve reviewer (codex / claude -p / both) from request, check binary + auth, run the chosen reviewer(s), present output verbatim, cross-model comparison
 8. **Offer to apply changes** — after discussion, offer to update reviewed files with agreed recommendations
 
 ## Instructions
@@ -134,23 +134,43 @@ Available dimensions (select 3-5 most relevant):
 
 ---
 
-## Phase 4: Codex Second Opinion
+## Phase 4: Independent Second Opinion
 
-After presenting Claude's findings and before offering to apply changes, run an independent Codex review for a second opinion from a different AI system.
+After presenting Claude's findings and before offering to apply changes, run an independent review for a second opinion from another AI system. Two engines are available: **Codex CLI** (OpenAI) and **Claude Code one-shot** (`claude -p`, a fresh isolated session). Selection is request-driven.
 
-11. **Check Codex availability**
+11. **Resolve reviewer from invoking request**
+
+Inspect the user's invoking request (the prompt that triggered this review) and set `_REVIEWER`:
+
+| Phrase the user used | `_REVIEWER` |
+|---|---|
+| "claude review", "review with claude", "claude -p", "claude second opinion" | `claude` |
+| "codex review", "review with codex", "codex second opinion" | `codex` |
+| "both reviews", "second opinions", "all reviewers", "claude and codex" | `both` |
+| Just "review" / no engine specified | `codex` (default — preserves prior behavior) |
+
+State the resolved reviewer to the user before continuing:
+> "Running second opinion via **<reviewer>** (resolved from request)."
+
+If `_REVIEWER` is `both`, run the Codex branch (steps 12a–13a) AND the Claude branch (steps 12b–13b), then merge their outputs in step 14.
+
+---
+
+### Branch A — Codex Second Opinion (when `_REVIEWER` is `codex` or `both`)
+
+12a. **Check Codex availability**
 
 ```bash
 CODEX_BIN=$(which codex 2>/dev/null || echo "")
 [ -z "$CODEX_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CODEX_BIN"
 ```
 
-If `NOT_FOUND`: skip this phase entirely and proceed to Phase 4. Do not fail the review — note inline:
-> "Codex CLI not found — skipping second opinion. Install with: `npm install -g @openai/codex`"
+If `NOT_FOUND`: skip this branch. Do not fail the review — note inline:
+> "Codex CLI not found — skipping codex branch. Install with: `npm install -g @openai/codex`"
 
 If `FOUND`: continue.
 
-12. **Auth probe**
+**Auth probe:**
 
 ```bash
 _AUTH_OK="yes"
@@ -160,10 +180,10 @@ fi
 echo "CODEX_AUTH: $_AUTH_OK"
 ```
 
-If `CODEX_AUTH: no`: skip this phase and note inline:
-> "Codex auth not found — skipping second opinion. Run `codex login` or set `$OPENAI_API_KEY`."
+If `CODEX_AUTH: no`: skip this branch and note inline:
+> "Codex auth not found — skipping codex branch. Run `codex login` or set `$OPENAI_API_KEY`."
 
-13. **Run Codex review**
+13a. **Run Codex review**
 
 Run against the current working tree diff. If no git diff exists (standalone file review), run Codex on the specific target file instead.
 
@@ -184,8 +204,65 @@ codex review "IMPORTANT: Do NOT read or execute any files under ~/.claude/, .cla
 
 If no diff (standalone file review), run consult mode with the target file content embedded.
 
-14. **Present Codex output verbatim**
+---
 
+### Branch B — Claude one-shot Second Opinion (when `_REVIEWER` is `claude` or `both`)
+
+12b. **Check Claude availability**
+
+```bash
+CLAUDE_BIN=$(which claude 2>/dev/null || echo "")
+[ -z "$CLAUDE_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CLAUDE_BIN"
+```
+
+If `NOT_FOUND`: skip this branch. Do not fail the review — note inline:
+> "Claude CLI not found — skipping claude branch. Install with: `npm install -g @anthropic-ai/claude-code`"
+
+If `FOUND`: continue.
+
+**Auth probe:**
+
+```bash
+_CLAUDE_AUTH_OK="yes"
+if ! ([ -n "$ANTHROPIC_API_KEY" ] || [ -f "$HOME/.claude/.credentials.json" ] || [ -f "$HOME/.config/claude/auth.json" ]); then
+  _CLAUDE_AUTH_OK="no"
+fi
+echo "CLAUDE_AUTH: $_CLAUDE_AUTH_OK"
+```
+
+If `CLAUDE_AUTH: no`: skip this branch and note inline:
+> "Claude auth not found — skipping claude branch. Run `claude` once to log in, or set `$ANTHROPIC_API_KEY`."
+
+13b. **Run Claude one-shot review**
+
+`claude -p` runs a fresh, isolated, non-interactive session — it does NOT see this parent session's context. We pipe the diff or file content via stdin and pass the review framing as the prompt argument. Use `--bare` to skip hook execution and CLAUDE.md auto-discovery so the reviewer judges only what we feed it.
+
+```bash
+_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$_REPO_ROOT" ]; then
+  cd "$_REPO_ROOT"
+  _BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo "main")
+  _HAS_DIFF=$(git diff "$_BASE"...HEAD --stat 2>/dev/null | tail -1)
+fi
+
+_REVIEW_PROMPT='You are an independent senior code reviewer providing a second opinion. The content piped via stdin is either a git diff or a file to review. Identify: (1) bugs, (2) security issues, (3) design / architecture concerns, (4) missing tests, (5) performance risks. Be specific with file:line references where the input includes them. Classify each finding as Critical / Warning / Note. Do NOT read files outside what is piped in.'
+
+if [ -n "$_HAS_DIFF" ]; then
+  git diff "$_BASE"...HEAD | claude -p --bare --permission-mode bypassPermissions --model opus --output-format text "$_REVIEW_PROMPT"
+else
+  cat "$TARGET" | claude -p --bare --permission-mode bypassPermissions --model opus --output-format text "$_REVIEW_PROMPT"
+fi
+```
+
+If `claude -p` exits non-zero or times out (default 5 minutes), note the failure inline and continue to Phase 5 with whatever output was captured.
+
+---
+
+14. **Present reviewer output verbatim**
+
+For each reviewer that ran, present its raw output under a labeled banner. Do not truncate or summarize.
+
+If Codex ran:
 ```
 CODEX SAYS (independent second opinion):
 ════════════════════════════════════════════════════════════
@@ -193,19 +270,41 @@ CODEX SAYS (independent second opinion):
 ════════════════════════════════════════════════════════════
 ```
 
+If Claude one-shot ran:
+```
+CLAUDE -P SAYS (independent second opinion, fresh session):
+════════════════════════════════════════════════════════════
+<full claude -p output — do not truncate or summarize>
+════════════════════════════════════════════════════════════
+```
+
+If `_REVIEWER` was `both`, present both banners back-to-back (Codex first, then Claude -p).
+
 15. **Cross-model comparison**
 
-After presenting Codex output, synthesize what both found:
+After presenting reviewer output, synthesize findings. Adapt the section to which engines actually ran:
 
+If only one external reviewer ran (`codex` or `claude`):
 ```
-CROSS-MODEL ANALYSIS:
-  Both found:        [findings that overlap between Claude and Codex]
-  Only Codex found:  [findings unique to Codex — highest signal, different perspective caught these]
-  Only Claude found: [findings unique to Claude's analysis]
-  Agreement rate:    X% (N/M total unique findings overlap)
+CROSS-MODEL ANALYSIS (Claude session vs <reviewer>):
+  Both found:           [findings that overlap]
+  Only <reviewer> found: [findings unique to the external reviewer — highest priority signal]
+  Only Claude (session) found: [findings unique to this session's analysis]
+  Agreement rate:       X% (N/M total unique findings overlap)
 ```
 
-"Only Codex found" items are highest priority — a second independent system flagging something Claude missed is a strong signal.
+If `_REVIEWER` was `both`:
+```
+CROSS-MODEL ANALYSIS (Claude session vs Codex vs Claude -p):
+  All three found:      [findings overlapping in all three]
+  Codex + Claude -p:    [findings both external reviewers flagged but session missed]
+  Only Codex found:     [unique to Codex]
+  Only Claude -p found: [unique to Claude one-shot]
+  Only this session:    [unique to the in-conversation Claude analysis]
+  Agreement rate:       X% (N/M total unique findings overlap across all three)
+```
+
+Findings flagged by an external reviewer that this session missed are highest priority — a second independent system catching something is a strong signal.
 
 ---
 
@@ -249,8 +348,10 @@ Key Findings:
 - <most important finding 2>
 - <most important finding 3>
 
-Codex Gate: <PASS | FAIL (N critical) | SKIPPED (not installed) | SKIPPED (no auth)>
-Cross-model agreement: <X% — N/M findings overlap> (omit if Codex skipped)
+Reviewer: <codex | claude -p | both | none>
+Reviewer Gate: <PASS | FAIL (N critical) | SKIPPED (not installed) | SKIPPED (no auth)>
+  (per-reviewer status when both ran: "codex: PASS | claude -p: FAIL (2 critical)")
+Cross-model agreement: <X% — N/M findings overlap> (omit if no external reviewer ran)
 
 Outcome: <"Changes applied" | "Recommendations discussed" | "Review document saved to <path>">
 ```
