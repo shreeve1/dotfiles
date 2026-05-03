@@ -1,23 +1,49 @@
 {
-  "plugin": [
-    "opencode-antigravity-auth@1.6.0",
-    "file:///Users/james/.config/opencode/plugins/anthropic-auth.mjs",
-    "opencode-openai-codex-auth",
-    "@gotgenes/opencode-agent-identity",
-    "file:///Users/james/.config/opencode/plugins/self-improving-agent",
-    "file:///Users/james/.config/opencode/plugins/terminal-bell",
-    "@tarquinen/opencode-dcp@latest",
-    "opencode-beads",
-    "@mcmunder/opencode-git-memory"
+  "$schema": "https://opencode.ai/config.json",
+  "model": "openai/gpt-5.5",
+  "small_model": "cliproxy/claude-haiku-4-5-20251001",
+  "instructions": [
+    "~/.claude/PAI/AISTEERINGRULES.md",
+    "~/.claude/PAI/USER/AISTEERINGRULES.md"
   ],
+  "mode": {
+    "build": {
+      "model": "openai/gpt-5.5",
+      "tools": {
+        "write": true,
+        "edit": true,
+        "bash": true,
+        "read": true,
+        "grep": true,
+        "glob": true,
+        "patch": true,
+        "todowrite": true,
+        "webfetch": true
+      }
+    },
+    "plan": {
+      "model": "cliproxy/claude-opus-4-7",
+      "tools": {
+        "write": false,
+        "edit": false,
+        "bash": false,
+        "read": true,
+        "grep": true,
+        "glob": true,
+        "webfetch": true
+      }
+    }
+  },
   "agent": {
     "build": {
-      "model": "cliproxy/gpt-5.3-codex",
-      "permission": "allow",
+      "model": "openai/gpt-5.5",
+      "permission": {
+        "*": "allow"
+      },
       "color": "error"
     },
     "plan": {
-      "model": "cliproxy/claude-opus-4-6"
+      "model": "cliproxy/claude-opus-4-7"
     },
     "general": {
       "model": "cliproxy/claude-haiku-4-5-20251001"
@@ -35,7 +61,7 @@
       "model": "cliproxy/claude-sonnet-4-6"
     },
     "quick-review-opus": {
-      "model": "cliproxy/claude-opus-4-6"
+      "model": "cliproxy/claude-opus-4-7"
     },
     "quick-review-codex": {
       "model": "cliproxy/gpt-5.3-codex"
@@ -48,25 +74,104 @@
     },
     "executor-ssh": {
       "model": "cliproxy/claude-sonnet-4-6",
-      "permission": "allow"
+      "permission": {
+        "*": "allow"
+      }
     },
     "executor-powershell": {
       "model": "cliproxy/claude-sonnet-4-6",
-      "permission": "allow"
+      "permission": {
+        "*": "allow"
+      }
     },
     "infra-validator": {
-      "model": "cliproxy/claude-opus-4-6"
+      "model": "cliproxy/claude-opus-4-7"
+    },
+    "pai-algorithm": {
+      "description": "PAI Algorithm agent — 7-phase problem solving with PRD and ISC criteria",
+      "model": "cliproxy/claude-opus-4-7",
+      "permission": {
+        "*": "allow"
+      }
+    },
+    "pai-engineer": {
+      "description": "PAI Engineer — focused code implementation with TDD and surgical fixes",
+      "model": "cliproxy/claude-sonnet-4-6",
+      "permission": {
+        "edit": "allow"
+      }
+    },
+    "pai-architect": {
+      "description": "PAI Architect — read-only system design and planning",
+      "model": "cliproxy/claude-opus-4-7"
     }
   },
   "provider": {
-    "zai-coding-plan": {
-      "name": "Z.AI GLM Coding Plan",
+    "cliproxy": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "CLIProxy",
+      "options": {
+        "baseURL": "http://127.0.0.1:8317/v1"
+      },
       "models": {
-        "glm-4.7": {
-          "name": "GLM-4.7"
+        "claude-opus-4-7": {
+          "name": "Claude Opus 4.7 (CLIProxy)",
+          "attachment": true,
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
         },
-        "glm-4.5": {
-          "name": "GLM-4.5"
+        "claude-sonnet-4-6": {
+          "name": "Claude Sonnet 4.6 (CLIProxy)",
+          "attachment": true,
+          "limit": {
+            "context": 200000,
+            "output": 16384
+          }
+        },
+        "claude-haiku-4-5-20251001": {
+          "name": "Claude Haiku 4.5 (CLIProxy)",
+          "attachment": true,
+          "limit": {
+            "context": 200000,
+            "output": 8192
+          }
+        },
+        "gpt-5.4": {
+          "name": "GPT 5.4 (CLIProxy)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          }
+        },
+        "gpt-5.4-mini": {
+          "name": "GPT 5.4 Mini (CLIProxy)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          }
+        },
+        "gpt-5.3-codex": {
+          "name": "GPT 5.3 Codex (CLIProxy)",
+          "limit": {
+            "context": 192000,
+            "output": 16384
+          }
+        },
+        "gpt-5.3-codex-spark": {
+          "name": "GPT 5.3 Codex Spark (CLIProxy)",
+          "limit": {
+            "context": 192000,
+            "output": 16384
+          }
+        },
+        "gpt-5.5": {
+          "name": "GPT 5.5 (CLIProxy)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          }
         }
       }
     },
@@ -182,40 +287,6 @@
         }
       }
     },
-    "kimi-code": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Kimi Code",
-      "options": {
-        "baseURL": "https://api.kimi.com/coding/v1",
-        "apiKey": "{env:KIMI_CODE_TOKEN}"
-      },
-      "models": {
-        "k2p5": {
-          "name": "Kimi K2.5",
-          "reasoning": true,
-          "attachment": false,
-          "limit": {
-            "context": 262144,
-            "output": 32768
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "options": {
-            "interleaved": {
-              "field": "reasoning_content"
-            }
-          }
-        }
-      }
-    },
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "OpenRouter",
@@ -248,71 +319,20 @@
           }
         }
       }
-    },
-    "cliproxy": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "CLIProxy",
-      "options": {
-        "baseURL": "http://127.0.0.1:8317/v1",
-        "apiKey": "{env:CLIPROXY_API_KEY}"
-      },
-      "models": {
-        "claude-opus-4-6": {
-          "name": "Claude Opus 4.6 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 16384
-          }
-        },
-        "claude-sonnet-4-6": {
-          "name": "Claude Sonnet 4.6 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 16384
-          }
-        },
-        "claude-haiku-4-5-20251001": {
-          "name": "Claude Haiku 4.5 (CLIProxy)",
-          "attachment": true,
-          "limit": {
-            "context": 200000,
-            "output": 8192
-          }
-        },
-        "gpt-5.4": {
-          "name": "GPT 5.4 (CLIProxy)",
-          "limit": {
-            "context": 128000,
-            "output": 16384
-          }
-        },
-        "gpt-5.4-mini": {
-          "name": "GPT 5.4 Mini (CLIProxy)",
-          "limit": {
-            "context": 128000,
-            "output": 16384
-          }
-        },
-        "gpt-5.3-codex": {
-          "name": "GPT 5.3 Codex (CLIProxy)",
-          "limit": {
-            "context": 192000,
-            "output": 16384
-          }
-        },
-        "gpt-5.3-codex-spark": {
-          "name": "GPT 5.3 Codex Spark (CLIProxy)",
-          "limit": {
-            "context": 192000,
-            "output": 16384
-          }
-        }
-      }
     }
   },
-  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "opencode-antigravity-auth@1.6.0",
+    "file:///home/james/.config/opencode/plugins/anthropic-auth.mjs",
+    "opencode-openai-codex-auth",
+    "@gotgenes/opencode-agent-identity",
+    "file:///home/james/.config/opencode/plugins/self-improving-agent",
+    "file:///home/james/.config/opencode/plugins/terminal-bell",
+    "file:///home/james/.config/opencode/plugins/pai-session-reminder",
+    "@tarquinen/opencode-dcp@latest",
+    "opencode-beads",
+    "@mcmunder/opencode-git-memory"
+  ],
   "permission": {
     "external_directory": "allow"
   }

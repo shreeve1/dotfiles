@@ -106,6 +106,30 @@ link_git_tree() {
   done < <(git -C "$DOTFILES_DIR" ls-files "$source_rel")
 }
 
+# Copy a starter file to a private/excluded location only if the target doesn't
+# already exist. Used for USER stubs that should be machine-local but need a
+# bootstrap default so referenced paths resolve on a fresh install.
+seed_path() {
+  local source_rel="$1"
+  local target_rel="$2"
+  local source="$DOTFILES_DIR/$source_rel"
+  local target="$HOME/$target_rel"
+
+  if [ ! -e "$source" ]; then
+    printf 'skip-seed: missing source %s\n' "$source"
+    return 0
+  fi
+
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    printf 'ok: %s already present (no overwrite)\n' "$target"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$target")"
+  cp "$source" "$target"
+  printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
+}
+
 link_path ".zshrc" ".zshrc"
 
 # ─── XDG config ────────────────────────────────────────────
@@ -134,6 +158,10 @@ link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 
 # PAI engine
 link_git_tree ".claude/PAI" ".claude/PAI"
+
+# USER stubs — copied (not linked) so personal overrides stay machine-local.
+# Required because opencode.json references these paths in instructions[].
+seed_path ".claude/PAI/USER/AISTEERINGRULES.md" ".claude/PAI/USER/AISTEERINGRULES.md"
 
 # Skills, hooks, commands, agents, lib
 link_path ".claude/skills" ".claude/skills"
