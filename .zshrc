@@ -251,6 +251,7 @@ alias tma='tmux attach -t'
 alias tml='tmux ls'
 alias tms='tmux new -s'
 
+alias op='opencode'
 alias pl='pai -l'
 
 # Machine-local secrets (not tracked in dotfiles)
@@ -271,3 +272,6 @@ bindkey -M viins 'jk' vi-cmd-mode
 [[ -f "$HOME/.atuin/bin/env" ]] && source "$HOME/.atuin/bin/env"
 [[ -f "$HOME/.local/bin/env" ]] && source "$HOME/.local/bin/env"
 export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslmode=disable'
+
+# opencode
+export PATH=/home/james/.opencode/bin:$PATH
