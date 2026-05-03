@@ -1,5 +1,4 @@
 ---
-model: cliproxy/gpt-5.4-mini
 temperature: 0
 permission:
   read: allow

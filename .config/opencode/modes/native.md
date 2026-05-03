@@ -1,5 +1,4 @@
 ---
-model: cliproxy/gpt-5.4
 temperature: 0
 permission:
   write: allow
