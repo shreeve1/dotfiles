@@ -137,10 +137,24 @@ link_path ".config/starship.toml" ".config/starship.toml"
 link_path ".config/ghostty" ".config/ghostty"
 link_path ".config/nushell" ".config/nushell"
 link_path ".config/nvim" ".config/nvim"
-link_path ".config/opencode" ".config/opencode"
 link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
+
+# ─── Opencode (PAI-enabled) ────────────────────────────────
+# Symlinks the entire ~/.config/opencode directory, which contains:
+#   - opencode.json          (provider config + plugin[] registration)
+#   - AGENTS.md              (PAI Mode System block)
+#   - modes/                 (algorithm/native/minimal — primary modes, GPT-backed)
+#   - agents/                (pai-{algorithm,architect,engineer} subagents + others)
+#   - plugins/               (pai-session-reminder, terminal-bell, etc.)
+#   - skills/                (shared with Claude Code via separate symlink)
+#
+# The pai-session-reminder plugin injects mode classifier rules into the
+# system prompt via experimental.chat.system.transform. PAI modes are wired
+# to GPT models (gpt-5.5 / gpt-5.4 / gpt-5.4-mini via cliproxy) because Claude
+# models receive but do not comply with the strict format requirements.
+link_path ".config/opencode" ".config/opencode"
 
 # ─── Pi Agent ──────────────────────────────────────────────
 link_path ".pi/agent" ".pi/agent"
@@ -201,3 +215,27 @@ done
 #   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
 #   3. Edit settings.json with your API keys and machine-specific values
 #   4. bun ~/.claude/install.sh   # runs the PAI installer
+#
+# ─── Opencode post-install verification ────────────────────
+# After install.sh runs, verify opencode + PAI integration:
+#
+#   a. Provider auth (cliproxy must be running locally; PAI modes use it):
+#        curl -s http://127.0.0.1:8317/v1/models | head -c 100
+#        # 401 with "Missing API key" means reachable; configure auth as needed
+#
+#   b. Plugin registration:
+#        opencode debug config | grep pai-session-reminder
+#        # Should appear once in the resolved plugin[] list
+#
+#   c. Mode discovery:
+#        opencode agent list | grep -E "^(algorithm|native|minimal) \(primary\)"
+#        # Should show all three primary modes
+#
+#   d. End-to-end smoke test (creates a PRD + reflection if working):
+#        cd /tmp && opencode run --agent algorithm \
+#          "write /tmp/hello.sh that prints HELLO"
+#        ls ~/.claude/MEMORY/WORK/  # newest dir is your test PRD
+#
+# If MINIMAL/NATIVE/ALGORITHM headers don't appear in output, the model is
+# the issue — Claude declines the strict format; only GPT models comply.
+# The mode files default to gpt-5.5/gpt-5.4/gpt-5.4-mini for that reason.
