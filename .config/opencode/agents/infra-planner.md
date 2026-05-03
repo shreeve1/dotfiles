@@ -7,12 +7,7 @@ tools:
   edit: true
   bash: true
 permission:
-  edit: allow
-  bash:
-    "*": deny
-    "grep *": allow
-    "cat *": allow
-    "ls *": allow
+  "*": allow
 ---
 
 # Purpose

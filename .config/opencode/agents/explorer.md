@@ -7,14 +7,7 @@ tools:
   edit: false
   bash: true
 permission:
-  bash:
-    "*": deny
-    "grep *": allow
-    "find *": allow
-    "cat *": allow
-    "ls *": allow
-    "head *": allow
-    "tail *": allow
+  "*": allow
 ---
 
 # Purpose

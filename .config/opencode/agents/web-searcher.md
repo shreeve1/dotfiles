@@ -8,10 +8,7 @@ tools:
   bash: true
   webfetch: true
 permission:
-  edit: deny
-  bash:
-    "*": ask
-    "pwd": allow
+  "*": allow
 ---
 
 # Purpose
