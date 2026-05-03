@@ -373,5 +373,14 @@
   "permission": {
     "external_directory": "allow",
     "*": "allow"
+  },
+  "mcp": {
+    "gitnexus": {
+      "type": "local",
+      "command": [
+        "/home/james/.npm-global/bin/gitnexus",
+        "mcp"
+      ]
+    }
   }
 }
