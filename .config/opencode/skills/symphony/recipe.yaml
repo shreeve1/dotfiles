@@ -1,0 +1,137 @@
+# See SKILL.md in this directory for detailed phase instructions
+version: "1.0.0"
+title: "Symphony"
+description: "Troubleshoot or safely modify the live Symphony automation service."
+
+parameters:
+  - key: "task-type"
+    type: "select"
+    required: true
+    options:
+      - "diagnose"
+      - "modify"
+      - "live-smoke"
+      - "explain"
+    description: "The kind of Symphony work requested."
+  - key: "live-approval"
+    type: "boolean"
+    required: false
+    default: false
+    description: "Whether James approved a live mutation in this session."
+  - key: "component"
+    type: "string"
+    required: false
+    default: "unknown"
+    description: "The suspected Symphony or homelab integration component."
+
+workflow:
+  - step: 1
+    name: "Safety Gate"
+    description: "Classify the task. Pause for James before live mutation."
+    requires_input:
+      - "task-type"
+      - "live-approval"
+    produces:
+      - "safety-decision"
+    decision_point: true
+  - step: 2
+    name: "Map Components"
+    description: "Read relevant Symphony, homelab, and compose files before assertions or edits."
+    requires_input:
+      - "component"
+    produces:
+      - "component-context"
+    decision_point: false
+  - step: 3
+    name: "Run Diagnostics"
+    description: "Check Docker status, health, logs, env presence, and git state without secrets."
+    requires_input:
+      - "task-type"
+    produces:
+      - "diagnostic-evidence"
+    decision_point: false
+  - step: 4
+    name: "Match Failure"
+    description: "Compare observed behavior against known Symphony failure signatures."
+    requires_input:
+      - "component"
+    produces:
+      - "root-cause-hypothesis"
+    decision_point: false
+  - step: 5
+    name: "Apply Surgical Fix"
+    description: "Patch only the relevant files after reading nearby tests and repo boundaries."
+    requires_input:
+      - "task-type"
+      - "component"
+    produces:
+      - "code-changes"
+    decision_point: false
+  - step: 6
+    name: "Verify Locally"
+    description: "Run tests, diff hygiene, compose config, and Docker build checks."
+    requires_input:
+      - "task-type"
+    produces:
+      - "local-verification"
+    decision_point: false
+  - step: 7
+    name: "Restart Or Smoke"
+    description: "After approval, restart Symphony or run a read-only smoke ticket."
+    requires_input:
+      - "live-approval"
+    produces:
+      - "live-verification"
+    decision_point: true
+  - step: 8
+    name: "Report Evidence"
+    description: "Report health, logs, tests, live actions, repo state, and compose caveats."
+    requires_input:
+      - "task-type"
+    produces:
+      - "final-report"
+    decision_point: false
+
+outputs:
+  - id: "safety-decision"
+    description: "Read-only, code-editing, or live-mutating classification."
+    type: "intermediate"
+    required: true
+  - id: "component-context"
+    description: "Relevant files and verified component relationships."
+    type: "intermediate"
+    required: true
+  - id: "diagnostic-evidence"
+    description: "Read-only evidence for health, logs, env names, and worktrees."
+    type: "intermediate"
+    required: true
+  - id: "root-cause-hypothesis"
+    description: "Known failure match or explicit unknown."
+    type: "intermediate"
+    required: false
+  - id: "code-changes"
+    description: "Surgical code or configuration changes, if any."
+    type: "artifact"
+    required: false
+  - id: "local-verification"
+    description: "Test, diff, compose, and build verification evidence."
+    type: "artifact"
+    required: false
+  - id: "live-verification"
+    description: "Approved live restart or smoke-ticket evidence."
+    type: "artifact"
+    required: false
+  - id: "final-report"
+    description: "Concise user-facing outcome and caveats."
+    type: "artifact"
+    required: true
+
+validation:
+  - name: "Recipe parses as YAML"
+    type: "shell"
+    command: "cd ~/.config/opencode/skills/symphony && python3 -c \"import yaml;yaml.safe_load(open('recipe.yaml'))\""
+  - name: "Recipe schema is valid"
+    type: "shell"
+    command: >-
+      python3 ~/.config/opencode/skills/create-skill/scripts/parse-recipe.py
+      ~/.config/opencode/skills/symphony/recipe.yaml --validate
