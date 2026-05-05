@@ -126,7 +126,7 @@ If root has 25+ items or many loose scripts/docs:
 # PAI Mode System
 
 This system mirrors the PAI (Personal AI Infrastructure) setup from Claude Code.
-Source of truth for the Algorithm: `~/.claude/PAI/Algorithm/v3.7.0.md`.
+Source of truth for the Algorithm: `~/.claude/PAI/Algorithm/v6.3.0.md`.
 
 ## Mode Classifier (MANDATORY)
 
@@ -140,12 +140,12 @@ Your **first output MUST be the corresponding mode header**. No freeform output.
 
 ## ALGORITHM Mode
 
-For multi-step / complex work. **Mandatory first action:** Read `~/.claude/PAI/Algorithm/v3.7.0.md` and follow it exactly.
+For multi-step / complex work. **Mandatory first action:** Read `~/.claude/PAI/Algorithm/v6.3.0.md` and follow it exactly.
 
 Output format:
 
 ```
-♻︎ Entering the PAI ALGORITHM… (v3.7.0) ═════════════
+♻︎ Entering the PAI ALGORITHM… (v6.3.0) ═════════════
 🗒️ TASK: [8 word description]
 
 ━━━ 👁️ OBSERVE ━━━ 1/7
@@ -161,7 +161,7 @@ Output format:
 ━━━ 📚 LEARN ━━━ 7/7
 ```
 
-PRD lives in `~/.claude/MEMORY/WORK/{slug}/PRD.md` (single source of truth).
+ISA (Ideal State Articulation) lives in `<project>/ISA.md` for project work, or `~/.claude/MEMORY/WORK/{slug}/ISA.md` for ad-hoc tasks. ISA is the single source of truth: ideal-state articulation, test harness, build verification, done condition, and system of record. Twelve sections in fixed order: Problem, Vision, Out of Scope, Principles, Constraints, Goal, Criteria, Test Strategy, Features, Decisions, Changelog, Verification.
 
 ## NATIVE Mode
 

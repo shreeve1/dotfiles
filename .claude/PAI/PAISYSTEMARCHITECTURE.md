@@ -544,5 +544,41 @@ User-specific updates are tracked in `USER/UPDATES/`.
 
 | Date | Change | Author | Related |
 |------|--------|--------|---------|
+| 2026-05-05 | OpenCode port v6.3.0: appendix added documenting host-runtime split, ported plugins, tombstoned hooks, identity layer, MEMORY v7.6 zones | PAI | THEHOOKSYSTEM.md, SKILLSYSTEM.md, MEMORYSYSTEM.md |
 | 2026-02-03 | Added Arbol section for cloud execution architecture | {DAIDENTITY.NAME} | ACTIONS.md, PIPELINES.md, FLOWS.md |
 | 2026-01-01 | Initial document creation | {DAIDENTITY.NAME} | - |
+
+---
+
+## Appendix — OpenCode Host Runtime (v6.3.0, 2026-05-05)
+
+The PAI brain at `~/.claude/PAI/` is shared between Claude Code and OpenCode (https://opencode.ai). OpenCode is grafted onto the same brain via six wiring mechanisms in `~/.config/opencode/`:
+
+1. **`opencode.json` `instructions[]`** — pulls `~/.claude/PAI/AISTEERINGRULES.md` + `~/.claude/PAI/USER/AISTEERINGRULES.md`.
+2. **`AGENTS.md`** — Mode Classifier (MINIMAL / NATIVE / ALGORITHM), behavioral rules, identity. Points at `~/.claude/PAI/Algorithm/v6.3.0.md`.
+3. **`modes/algorithm.md`, `modes/native.md`, `modes/minimal.md`** — OpenCode mode files mirroring the classifier.
+4. **`agents/pai-algorithm.md`, `agents/pai-architect.md`, `agents/pai-engineer.md`, `agents/forge.md`, `agents/cato.md`, `agents/anvil.md` (stub)** — subagents.
+5. **Plugins under `~/.config/opencode/plugins/`** — `pai-session-reminder`, `pai-checkpoint-per-isc`, `pai-isa-sync`, `pai-containment-guard`, `pai-config-audit`, `pai-reflection-loop`. See THEHOOKSYSTEM.md appendix for the hook→plugin mapping and tombstone list.
+6. **CLIProxy provider** at `http://127.0.0.1:8317/v1` exposing claude-{opus-4-7, sonnet-4-6, haiku-4-5} and gpt-{5.4, 5.4-mini, 5.3-codex, 5.3-codex-spark, 5.5}.
+
+### Identity layer
+
+`~/.claude/PAI/USER/PRINCIPAL_IDENTITY.md` (James) and `~/.claude/PAI/USER/DA_IDENTITY.md` (PAI) follow upstream PAI v6.3.0 templates with voice/Pulse fields stripped. The OpenCode port doesn't run the Pulse daemon on `localhost:31337`.
+
+### MEMORY v7.6 zones (local convention)
+
+Local convention is `~/.claude/MEMORY/` (no PAI/ prefix), unlike upstream's `~/.claude/PAI/MEMORY/`. Zones in use:
+
+- `WORK/{slug}/` — active session state (ISA.md per session)
+- `LEARNING/REFLECTIONS/` — session reflection JSONL
+- `KNOWLEDGE/` — durable factual knowledge (v6.3.0+)
+- `OBSERVABILITY/` — live system snapshots, config audit logs (v6.3.0+)
+- `VERIFICATION/{slug}/` — per-ISC tool-probe evidence (v6.3.0+)
+- `STATE/` — runtime state (`work.json` mirror written by `pai-isa-sync`)
+- `RELATIONSHIP/`, `VOICE/`, `LEARNING/` — pre-existing
+
+See MEMORYSYSTEM.md for full details.
+
+### Algorithm version
+
+`~/.claude/PAI/Algorithm/LATEST` = `v6.3.0`. Spec at `~/.claude/PAI/Algorithm/v6.3.0.md`. Phase-1 of the OpenCode port (slug `20260505-051000_pai-opencode-v6-port`) bumped LATEST from v3.7.0 to v6.3.0; phase-2 (slug `20260505-061500_pai-opencode-v6-phase2`) ported skills, identity, memory zones, advisor agents, and reachable hooks.

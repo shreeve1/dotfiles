@@ -1057,3 +1057,25 @@ This system ensures:
 2. Specific functionality executes accurately (Workflow Routing in body)
 3. All skills have consistent, predictable structure
 4. **All naming follows TitleCase convention**
+
+---
+
+## Appendix — OpenCode Port Status (v6.3.0, 2026-05-05)
+
+The skills directory at `~/.claude/skills/` is shared between Claude Code and OpenCode. OpenCode's discovery searches `.opencode/skills/`, `~/.config/opencode/skills/`, `.claude/skills/`, `~/.claude/skills/`, `.agents/skills/`, `~/.agents/skills/` and accepts both `skills/` (canonical) and `skill/` (singular, backward-compat) directory names.
+
+### v6.3.0 closed-enumeration thinking skills (16, ported)
+
+These are the only legal capability names the Algorithm may select at THINK time per v6.3.0:
+
+`IterativeDepth`, `ApertureOscillation`, `FirstPrinciples`, `SystemsThinking`, `RootCauseAnalysis`, `Council`, `RedTeam`, `Science`, `BeCreative`, `Ideate`, `BitterPillEngineering`, `Evals`, `WorldThreatModel`, `Fabric`, `ContextSearch`, `ISA`
+
+All 16 ported from upstream PAI v5.0.0 to `~/.claude/skills/`. Each was scrubbed of voice/Pulse contamination (`localhost:31337` curl blocks and `## MANDATORY: Voice Notification` sections) before install. TitleCase preserved — local convention matches upstream.
+
+### Inline-only capabilities (3)
+
+`FeedbackMemoryConsult`, `Advisor`, `ReReadCheck` — used inline in the Algorithm body, no skill files.
+
+### Capability-Name Audit Gate
+
+Per v6.3.0, any capability name selected at OBSERVE→THINK MUST come verbatim from the closed enumeration above. Phantom names = CRITICAL FAILURE. The audit fires at the OBSERVE→THINK boundary.
