@@ -274,4 +274,4 @@ bindkey -M viins 'jk' vi-cmd-mode
 export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslmode=disable'
 
 # opencode
-export PATH=/home/james/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
