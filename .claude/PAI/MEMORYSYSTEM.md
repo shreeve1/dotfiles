@@ -57,6 +57,11 @@ Harvesting (periodic):
 │   │   └── algorithm-reflections.jsonl
 │   └── SIGNALS/            # User satisfaction ratings
 │       └── ratings.jsonl
+├── KNOWLEDGE/              # Durable factual knowledge surfaced during sessions (v6.3.0+)
+├── OBSERVABILITY/          # Live system observation snapshots (v6.3.0+)
+├── VERIFICATION/           # Per-ISC tool-probe evidence (v6.3.0+)
+│   └── {work-slug}/
+│       └── ISC-N.md
 ├── RESEARCH/               # Agent output captures
 │   └── YYYY-MM/
 ├── SECURITY/               # Security audit events
@@ -184,6 +189,31 @@ This is the actual "firehose" - every message, tool call, and response. PAI leve
 1. Root cause identification - what sequence led to the failure?
 2. Pattern detection - do similar failures share characteristics?
 3. Systemic improvement - what changes would prevent this class of failure?
+
+### KNOWLEDGE/ - Durable Knowledge (v6.3.0+)
+
+**What populates it:** AI writes confirmed facts and architectural understanding surfaced during sessions
+**Content:** Cross-cutting reference notes too project-agnostic for a single WORK slug
+**Format:** Markdown files, one topic per file, kebab-case slug
+**Purpose:** Persistent factual record distinct from active work and ephemeral state
+**Distinction:** WORK = active project state. LEARNING = process reflections. KNOWLEDGE = durable facts.
+
+See `KNOWLEDGE/README.md` for what does and does not belong here.
+
+### OBSERVABILITY/ - Live System Observation (v6.3.0+)
+
+**What populates it:** Snapshots of running systems captured during VERIFY/EXECUTE phases
+**Content:** Service health snapshots, curated log excerpts, error patterns, performance baselines, integration availability checks
+**Format:** Subdirectories per system; dated snapshots `YYYY-MM-DD-HHMMSS.md` or rolling files
+**Purpose:** Right-now state of systems we operate inside; old snapshots may be pruned
+**Distinction:** STATE = our internal runtime data. OBSERVABILITY = observed external systems.
+
+### VERIFICATION/ - Tool-Probe Evidence (v6.3.0+)
+
+**What populates it:** Algorithm VERIFY phase writes per-ISC binary check evidence
+**Content:** stdout/stderr captures, Live-Probe artifacts (Doctrine Rule 1), Cato cross-vendor audit summaries (Rule 2a, E4/E5 only), Conflict-Surfacing transcripts (Rule 3), reproducibility scripts
+**Format:** `VERIFICATION/{work-slug}/ISC-N.md` (mirrors WORK slug name)
+**Purpose:** Evidence trail backing every ISC probe; auditable retroactively
 
 ### RESEARCH/ - Agent Outputs
 

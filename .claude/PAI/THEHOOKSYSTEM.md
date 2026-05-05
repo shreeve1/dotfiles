@@ -1329,3 +1329,49 @@ watch(getEventsPath(), (eventType) => { /* read new lines */ });
 **Last Updated:** 2026-02-25
 **Status:** Production - 15 hooks emitting 22 event types across 14 categories
 **Maintainer:** PAI System
+
+---
+
+## Appendix — OpenCode Port Status (v6.3.0, 2026-05-05)
+
+The PAI brain at `~/.claude/PAI/` is shared between Claude Code and OpenCode. Hooks above are all Claude-Code-native (`UserPromptSubmit`, `PostToolUse`, `Stop`, etc.). OpenCode has its own plugin event surface and a smaller subset of upstream hooks have been ported as OpenCode plugins under `~/.config/opencode/plugins/`.
+
+### OpenCode plugin event surface
+
+`command.*, file.*, installation.*, lsp.*, message.*, permission.*, server.*, session.*, todo.*, shell.env, tool.execute.before, tool.execute.after, tui.*, experimental.chat.system.transform, experimental.session.compacting`
+
+Notably **absent**: a `UserPromptSubmit`-equivalent that fires synchronously on prompt submission with the prompt text and lets the plugin mutate or inject context. `experimental.chat.system.transform` only mutates the static system prompt once per chat. Hooks that depend on per-prompt mutation cannot be ported until OpenCode adds such a primitive.
+
+### Ported plugins (4)
+
+| Upstream hook | OpenCode plugin | Trigger | Notes |
+|---|---|---|---|
+| `CheckpointPerISC.hook.ts` | `pai-checkpoint-per-isc` | `tool.execute.after` (write/edit on ISA.md) | Auto-commits opted-in repos on `[ ]→[x]` ISC transitions. Allowlist at `~/.claude/checkpoint-repos.txt`. |
+| `ISASync.hook.ts` | `pai-isa-sync` | `tool.execute.after` (write/edit on ISA.md) | Read-only mirror to `~/.claude/MEMORY/STATE/work.json`. Pulse syndication stripped. |
+| `ContainmentGuard.hook.ts` + `containment-zones.ts` | `pai-containment-guard` | `tool.execute.before` (write/edit) | Inlined zones (`PAI/USER`, `PAI/MEMORY`, `MEMORY`, `settings.local.json`). Patterns user-supplied at `~/.claude/PAI/USER/containment-patterns.txt`. |
+| `ConfigAudit.hook.ts` | `pai-config-audit` | `tool.execute.after` (write/edit on opencode.json) | Append-only sha256 + size audit log to `~/.claude/MEMORY/OBSERVABILITY/config-changes.jsonl`. |
+
+### Plus session-management plugins
+
+- `pai-session-reminder` — `experimental.chat.system.transform` injects v6.3.0 mode-classifier rules + Algorithm reference into every system prompt.
+- `pai-reflection-loop` — `session.idle` ensures `~/.claude/MEMORY/LEARNING/REFLECTIONS/` exists, rotates the JSONL when it crosses 5 MiB, and appends a session-idle marker.
+
+### Tombstoned (architecturally unreachable under current OpenCode runtime)
+
+| Upstream hook | Why blocked |
+|---|---|
+| `RepeatDetection.hook.ts` | Needs per-prompt scan; no `UserPromptSubmit` analogue. |
+| `SatisfactionCapture.hook.ts` | Same gap. |
+| `PromptGuard.hook.ts` | Same gap (needs to vet *before* model sees prompt). |
+| `RelationshipMemory.hook.ts` | Depends on the satisfaction-signal stream above. |
+| `PromptProcessing.hook.ts` (Sonnet classifier) | Same gap. Replaced by static system-prompt injection in `pai-session-reminder` — model self-classifies from the embedded rubric. |
+
+### Folded / skipped
+
+- `IntegrityCheck.hook.ts` — folded into `pai-config-audit` (sha256 every write).
+- `LoadContext.hook.ts` / `RestoreContext.hook.ts` — skipped; OpenCode owns session lifecycle and provides `experimental.session.compacting`.
+- `ContentScanner.hook.ts` — partial reachability via `tool.execute.after` on `webfetch`/`websearch`; deferred.
+
+### Anti-port (deliberate exclusions)
+
+No voice / notification / Pulse-daemon hooks. The OpenCode port doesn't run Pulse on `localhost:31337`. Verified clean: `find ~/.config/opencode/plugins -iname "*voice*" -o -iname "*notif*" -o -iname "*pulse*"` → zero matches.
