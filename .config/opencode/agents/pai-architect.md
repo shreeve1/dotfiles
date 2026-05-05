@@ -1,7 +1,7 @@
 ---
 description: PAI Architect agent for system design. Creates constitutional principles, feature specs, and implementation plans using strategic analysis.
 mode: subagent
-model: cliproxy/claude-opus-4-6
+model: cliproxy/claude-opus-4-7
 tools:
   read: true
   grep: true

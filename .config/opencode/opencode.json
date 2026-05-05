@@ -124,7 +124,7 @@
       }
     },
     "pai-algorithm": {
-      "description": "PAI Algorithm agent — 7-phase problem solving with PRD and ISC criteria",
+      "description": "PAI Algorithm agent — 7-phase problem solving with ISA and ISC criteria",
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
         "*": "allow"
@@ -219,9 +219,13 @@
   },
   "plugin": [
     "opencode-openai-codex-auth",
-    "@gotgenes/opencode-agent-identity",
-    "file:///home/james/.config/opencode/plugins/terminal-bell",
-    "file:///home/james/.config/opencode/plugins/pai-session-reminder",
+    "file://{env:HOME}/.config/opencode/plugins/terminal-bell",
+    "file://{env:HOME}/.config/opencode/plugins/pai-session-reminder",
+    "file://{env:HOME}/.config/opencode/plugins/pai-checkpoint-per-isc",
+    "file://{env:HOME}/.config/opencode/plugins/pai-isa-sync",
+    "file://{env:HOME}/.config/opencode/plugins/pai-containment-guard",
+    "file://{env:HOME}/.config/opencode/plugins/pai-config-audit",
+    "file://{env:HOME}/.config/opencode/plugins/pai-reflection-loop",
     "@tarquinen/opencode-dcp@latest",
     "@mcmunder/opencode-git-memory"
   ],
@@ -236,6 +240,17 @@
         "/home/james/.npm-global/bin/gitnexus",
         "mcp"
       ]
+    },
+    "aws-mcp": {
+      "type": "local",
+      "command": [
+        "uvx",
+        "mcp-proxy-for-aws@latest",
+        "https://aws-mcp.us-east-1.api.aws/mcp",
+        "--metadata",
+        "AWS_REGION=us-west-2"
+      ],
+      "enabled": true
     }
   }
 }
