@@ -1,5 +1,5 @@
 {
-  "name": "opencode-pai-session-reminder",
+  "name": "opencode-pai-mode-router",
   "version": "0.1.0",
   "type": "module",
   "main": "./index.ts"
