@@ -1,3 +1,8 @@
+---
+name: Automation
+description: Manage scheduled tasks (cron), webhook endpoints, and notification delivery (Telegram) for PAI. USE WHEN cron, schedule task, recurring job, webhook, register webhook, send notification, send alert, Telegram, automation.
+---
+
 # Automation Skill
 
 Manage scheduled tasks, webhook endpoints, and notification delivery for PAI.
