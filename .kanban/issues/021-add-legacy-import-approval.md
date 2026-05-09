@@ -1,7 +1,7 @@
 ---
 id: 021
 title: Add legacy import approval
-status: in_progress
+status: review
 type: HITL
 priority: 21
 blocked_by: [008, 017]
