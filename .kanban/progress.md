@@ -124,3 +124,11 @@
 **Files:** `.kanban/issues/001-scaffold-shared-pai-harness-package.md` through `.kanban/issues/027-document-and-reconcile-kanban-scope.md`, `.kanban/progress.md`
 **Decisions:** Priority values intentionally mirror issue IDs to satisfy Ralph's required field without reordering the existing board. Stale locks were not marked done because completion was not re-verified in this recovery pass.
 **Notes for next iteration:** Ralph should revalidate the board before claiming work. If validation passes, #013 is expected to sort before #014 because it has priority 13 and its blockers are done.
+
+## #013 Add provider-agnostic dream pipeline - 2026-05-09
+
+**What changed:** Added `pai-dream` core for turning redacted canonical events into review-gated proposed memories through deterministic and local/offline providers only.
+**Files:** `.pai/src/dream-pipeline.ts`, `.pai/src/cli/pai-dream.ts`, `.pai/src/index.ts`, `.pai/src/memory-store.ts`, `.pai/tests/dream-pipeline.test.ts`, `.pai/docs/pai-dream.md`, `.kanban/issues/013-add-provider-agnostic-dream-pipeline.md`
+**Decisions:** Real Claude inference remains disabled and documented as a future #019 provider option; this slice only enables deterministic and local/offline modes.
+**Conventions established:** Dream outputs are proposed memories with review queue entries, low or medium trust, provenance, confidence, assertion type, source event IDs, and `review_status: proposed`.
+**Notes for next iteration:** #014 is now the next lowest-priority unblocked AFK issue; #019 remains HITL because it enables real provider calls.
