@@ -1,12 +1,14 @@
 ---
 id: 024
 title: Route runtime writes to active writers
-status: pending
+status: in_progress
 type: AFK
 priority: 24
 blocked_by: [023]
 parent: 022
 created: 2026-05-09
+updated: 2026-05-09
+actor: ralph
 ---
 
 ## Parent
