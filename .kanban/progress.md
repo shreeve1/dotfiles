@@ -69,3 +69,11 @@
 **Decisions:** Legacy payloads are not promoted into canonical memory; bridge-read records store metadata, hashes, and provenance only, with `content_copied: false` and low trust.
 **Conventions established:** Denied paths, auth files, private keys, and out-of-scope transcript classes are skipped during inventory; migration bridge state lives under `~/.pai/memory/legacy-bridge.sqlite`.
 **Notes for next iteration:** Adapter tracer and migration-import work should use bridge-read provenance and require separate HITL approval before promoting any legacy payload into canonical memory.
+
+## #018 Add installer contract template - 2026-05-09
+
+**What changed:** Added the adapter install plan contract, safe fixture rendering, validation rules, documentation, and fixture tests for Claude, Codex, OpenCode, and Pi.
+**Files:** `.pai/src/installer-contract.ts`, `.pai/src/index.ts`, `.pai/docs/installer-contract.md`, `.pai/tests/installer-contract.test.ts`, `.kanban/issues/018-add-installer-contract-template.md`
+**Decisions:** Adapter tracer issues may render and validate install plans, but live configuration mutation remains forbidden and deferred to a HITL safe installer issue.
+**Conventions established:** Install plans require explicit user approval and adapter enablement; validators reject runtime/secret path exposure and tracked-source symlinks into runtime stores.
+**Notes for next iteration:** Adapter tracer issues (#009, #010, #011, and related) should use `renderInstallPlanFixture` and `validateInstallPlan` instead of inventing target-specific install shapes.
