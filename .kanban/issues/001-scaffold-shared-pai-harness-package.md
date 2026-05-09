@@ -1,7 +1,7 @@
 ---
 id: 001
 title: Scaffold shared PAI harness package
-status: pending
+status: in_progress
 type: AFK
 blocked_by: []
 parent: null

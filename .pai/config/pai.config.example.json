@@ -1,0 +1,21 @@
+{
+  "runtimeHome": "~/.pai",
+  "runtimePaths": {
+    "eventsDb": "~/.pai/events.sqlite",
+    "redactedTrails": "~/.pai/trails/",
+    "transcripts": "~/.pai/transcripts/",
+    "memory": "~/.pai/memory/",
+    "auth": "~/.pai/auth/"
+  },
+  "adapters": {
+    "claude": { "enabled": false },
+    "codex": { "enabled": false },
+    "opencode": { "enabled": false },
+    "pi": { "enabled": false }
+  },
+  "defaults": {
+    "retainFullPayloads": false,
+    "requireRedactionBeforeStorage": true,
+    "requireExplicitAdapterEnablement": true
+  }
+}
