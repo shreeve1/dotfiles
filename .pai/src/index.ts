@@ -106,15 +106,20 @@ export {
 export {
   DREAM_FUTURE_PROVIDER_OPTIONS,
   DREAM_PIPELINE_VERSION,
+  ClaudeInferenceDreamProvider,
   DeterministicDreamProvider,
   LocalRulesDreamProvider,
   assertDreamEventIsRedacted,
+  defaultDreamProviderEnablement,
+  resolveDreamProvider,
   runDreamPipeline,
   type DreamMemoryCandidate,
   type DreamPipelineOptions,
   type DreamPipelineResult,
   type DreamProvider,
   type DreamProviderContext,
+  type DreamProviderEnablement,
+  type DreamProviderName,
 } from "./dream-pipeline";
 export {
   ISA_MIGRATION_ORDER,
