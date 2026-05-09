@@ -1,7 +1,7 @@
 ---
 id: 025
 title: Freeze Claude/Codex bridge writes
-status: review
+status: done
 type: AFK
 priority: 25
 blocked_by: [023]
@@ -21,14 +21,18 @@ Preserve existing Claude/Codex bridge provenance as archive-only data, and make 
 
 ## Acceptance criteria
 
-- [ ] Claude and Codex are configured as archive-only legacy bridge harnesses by default.
-- [ ] New Claude bridge records/writes throw a structured archive-only error.
-- [ ] New Codex bridge records/writes throw a structured archive-only error.
-- [ ] Historical Claude/Codex bridge reads remain readable for migration/replay tests.
-- [ ] Tests cover both the hard-error path and historical-read compatibility.
-- [ ] Relevant `.pai` tests pass and `.pai` typecheck passes.
-- [ ] This slice does not modify or delete files under `dotfiles/.claude/`.
+- [x] Claude and Codex are configured as archive-only legacy bridge harnesses by default.
+- [x] New Claude bridge records/writes throw a structured archive-only error.
+- [x] New Codex bridge records/writes throw a structured archive-only error.
+- [x] Historical Claude/Codex bridge reads remain readable for migration/replay tests.
+- [x] Tests cover both the hard-error path and historical-read compatibility.
+- [x] Relevant `.pai` tests pass and `.pai` typecheck passes.
+- [x] This slice does not modify or delete files under `dotfiles/.claude/`.
 
 ## Blocked by
 
 - Blocked by #023
+
+## Implementation Notes
+
+Verified the legacy bridge already enforces archive-only behavior for Claude and Codex by default through `ARCHIVE_ONLY_HARNESSES` and `LegacyArchiveOnlyError`. New Claude/Codex bridge-read writes throw structured archive-only errors, while tests preserve historical-read compatibility through configurable fixture behavior.

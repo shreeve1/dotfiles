@@ -156,3 +156,11 @@
 **Decisions:** Claude and Codex remain valid `pai-run` targets for launch compatibility, but shared-memory lifecycle events are empty for them.
 **Conventions established:** `TARGET_SHARED_MEMORY_STATUS` is the runtime source of truth for whether `pai-run` records lifecycle events.
 **Notes for next iteration:** #025 and #026 remain unblocked by #023; #025 sorts next by priority.
+
+## #025 Freeze Claude/Codex bridge writes - 2026-05-09
+
+**What changed:** Verified and closed the archive-only bridge slice; no source changes were needed because `LegacyMigrationBridge` already rejects new Claude/Codex bridge-read writes with structured errors.
+**Files:** `.kanban/issues/025-freeze-claude-codex-bridge-writes.md`
+**Decisions:** `ARCHIVE_ONLY_HARNESSES` keeps Claude/Codex archive-only by default while fixture overrides can exercise historical read compatibility.
+**Conventions established:** New bridge-read writes for archive-only harnesses fail with `LegacyArchiveOnlyError` carrying `code`, `harness`, and `inventory_id`.
+**Notes for next iteration:** #026 is the next lowest-priority unblocked AFK issue.
