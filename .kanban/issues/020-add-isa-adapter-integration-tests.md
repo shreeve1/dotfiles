@@ -1,12 +1,14 @@
 ---
 id: 020
 title: Add ISA adapter integration tests
-status: pending
+status: in_progress
 type: AFK
 priority: 20
 blocked_by: [009, 010, 014]
 parent: null
 created: 2026-05-09
+updated: 2026-05-09
+actor: ralph
 ---
 
 ## What to build
