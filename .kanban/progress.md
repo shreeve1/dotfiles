@@ -180,3 +180,11 @@
 **Decisions:** #009 and #010 are superseded for active shared-memory writes but remain valid historical adapter tracer work. #008 remains the historical read and inventory bridge, with Claude/Codex archive-only for new bridge writes. #011 and #012 are the active shared-memory writer path for OpenCode and Pi.
 **Conventions established:** #013 through #016 and #019 through #021 continue under the narrowed #022 scope. #015 and #021 remain HITL; #019 is also HITL because real provider enablement can transmit redacted local context outside the machine.
 **Notes for next iteration:** The next unblocked AFK issue is #020. #016 remains blocked by #015, #019, #020, and #021; #015, #019, and #021 need human approval before implementation.
+
+## #020 Add ISA adapter integration tests - 2026-05-09
+
+**What changed:** Added fixture-only integration tests proving ISA compatibility works with Claude and Codex adapter tracer fixtures while ISA remains canonical and compatibility PRDs stay legacy-gated.
+**Files:** `.pai/tests/isa-adapter-integration.test.ts`, `.kanban/issues/020-add-isa-adapter-integration-tests.md`
+**Decisions:** Kept this slice test-only: no live adapter config, no writer enablement, no source changes to Claude/Codex tracer behavior. Diagnostics are modeled at the fixture boundary so failures identify mapping, adapter event emission, or legacy compatibility generation.
+**Conventions established:** ISA adapter integration tests should compose existing tracer and ISA compatibility APIs instead of introducing a parallel compatibility layer.
+**Notes for next iteration:** No AFK issue is currently unblocked. #016 remains blocked by #015, #019, and #021; all three are HITL and require human approval before Ralph can continue.
