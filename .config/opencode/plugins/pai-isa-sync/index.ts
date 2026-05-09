@@ -3,7 +3,7 @@
  *
  * Adapted from upstream PAI v6.3.0 hooks/ISASync.hook.ts.
  * OpenCode trigger: `tool.execute.after` filtered to write/edit on ISA.md
- * (or legacy PRD.md) under MEMORY/WORK/<slug>/.
+ * (or legacy PRD.md) under memory/WORK/<slug>/.
  *
  * On each write, parses frontmatter + counts criteria, then upserts an entry
  * in the shared PAI memory substrate work.json. Pure read-only from the ISA's
@@ -103,7 +103,7 @@ function saveWorkJson(data: WorkJson): void {
 }
 
 async function processArtifact(filePath: string): Promise<void> {
-  if (!filePath.includes("MEMORY/WORK/")) return;
+  if (!filePath.includes(`${MEMORY_DIR}/WORK/`)) return;
   const isISA =
     filePath.endsWith("/" + ARTIFACT_FILENAME) ||
     filePath.endsWith(ARTIFACT_FILENAME);
