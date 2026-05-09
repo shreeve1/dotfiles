@@ -115,3 +115,19 @@ export {
   type InstallPlanValidationResult,
   type SymlinkAction,
 } from "./installer-contract";
+export {
+  CLAUDE_HOOK_EVENTS,
+  buildClaudeDirectLaunchEvent,
+  buildClaudeTracerTemplate,
+  claudeTracerRuntimeTemplatePath,
+  extractActiveClaudeHooks,
+  mapClaudeHookObservationToEvent,
+  resolveClaudePaiSession,
+  type ClaudeHookCommand,
+  type ClaudeHookEvent,
+  type ClaudeHookObservation,
+  type ClaudeSessionResolution,
+  type ClaudeSessionResolutionInput,
+  type ClaudeSettingsLike,
+  type ClaudeTracerTemplate,
+} from "./claude-tracer";
