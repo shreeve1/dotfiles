@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { CanonicalMemoryStore } from "../src/memory-store";
-import { LegacyMigrationBridge, classifyLegacySurface } from "../src/legacy-bridge";
+import { LegacyArchiveOnlyError, LegacyMigrationBridge, classifyLegacySurface } from "../src/legacy-bridge";
 
 let runtimeHome: string | undefined;
 let legacyHome: string | undefined;
@@ -51,23 +51,43 @@ describe("LegacyMigrationBridge", () => {
   });
 
   test("bridge-read indexes preserve provenance without copying payload content", () => {
-    const { bridge, roots, memoryFile } = createBridgeFixture();
+    const { bridge, roots, opencodeFile } = createBridgeFixture();
     bridge.inventoryLegacySurfaces(roots);
-    const inventory = bridge.listInventory().find((record) => record.legacy_path === memoryFile)!;
+    const inventory = bridge.listInventory().find((record) => record.legacy_path === opencodeFile)!;
 
     const bridgeRead = bridge.createBridgeReadIndex(inventory.inventory_id, "2026-05-09T00:00:00.000Z");
     const persisted = bridge.listBridgeReads()[0];
 
-    expect(bridgeRead.provenance.legacy_path).toBe(memoryFile);
+    expect(bridgeRead.provenance.legacy_path).toBe(opencodeFile);
     expect(bridgeRead.content_copied).toBe(false);
     expect(bridgeRead.trust_level).toBe("low");
     expect(JSON.stringify(persisted)).not.toContain("legacy memory payload");
-    expect(persisted.provenance.relative_path).toBe("MEMORY/project.md");
+    expect(persisted.provenance.relative_path).toBe("AGENTS.md");
+    bridge.close();
+  });
+
+  test("rejects new Claude and Codex bridge-read writes with structured archive errors", () => {
+    const { bridge, roots, memoryFile, codexFile } = createBridgeFixture();
+    bridge.inventoryLegacySurfaces(roots);
+
+    for (const legacyPath of [memoryFile, codexFile]) {
+      const inventory = bridge.listInventory().find((record) => record.legacy_path === legacyPath)!;
+      expect(() => bridge.createBridgeReadIndex(inventory.inventory_id)).toThrow(LegacyArchiveOnlyError);
+      try {
+        bridge.createBridgeReadIndex(inventory.inventory_id);
+      } catch (error) {
+        expect(error).toBeInstanceOf(LegacyArchiveOnlyError);
+        expect((error as LegacyArchiveOnlyError).code).toBe("archive_only");
+        expect((error as LegacyArchiveOnlyError).inventory_id).toBe(inventory.inventory_id);
+      }
+    }
+
+    expect(bridge.listBridgeReads()).toEqual([]);
     bridge.close();
   });
 
   test("canonical writes stay under runtime memory and do not promote duplicates", () => {
-    const { bridge, roots } = createBridgeFixture();
+    const { bridge, roots } = createBridgeFixture({ archiveOnlyHarnesses: [] });
     const result = bridge.inventoryLegacySurfaces(roots);
     for (const record of result.records) bridge.createBridgeReadIndex(record.inventory_id);
 
@@ -89,7 +109,7 @@ describe("LegacyMigrationBridge", () => {
   });
 });
 
-function createBridgeFixture(options: { includeDenied?: boolean } = {}) {
+function createBridgeFixture(options: { includeDenied?: boolean; archiveOnlyHarnesses?: [] } = {}) {
   runtimeHome = mkdtempSync(join(tmpdir(), "pai-legacy-runtime-"));
   legacyHome = mkdtempSync(join(tmpdir(), "pai-legacy-source-"));
 
@@ -110,7 +130,7 @@ function createBridgeFixture(options: { includeDenied?: boolean } = {}) {
     writeFixture(join(claude, "sessions", "session.jsonl"), "transcript payload");
   }
 
-  const bridge = new LegacyMigrationBridge({ runtimeHome });
+  const bridge = new LegacyMigrationBridge({ runtimeHome, archiveOnlyHarnesses: options.archiveOnlyHarnesses });
   return {
     bridge,
     roots: [
@@ -121,6 +141,8 @@ function createBridgeFixture(options: { includeDenied?: boolean } = {}) {
     ],
     files: [memoryFile, codexFile, opencodeFile, piFile],
     memoryFile,
+    codexFile,
+    opencodeFile,
   };
 }
 

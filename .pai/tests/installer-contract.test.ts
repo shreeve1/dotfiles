@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ACTIVE_SHARED_MEMORY_TARGETS,
+  DISABLED_SHARED_MEMORY_TARGETS,
   INSTALL_PLAN_SCHEMA,
   INSTALL_PLAN_TARGETS,
   renderInstallPlanFixture,
@@ -28,7 +30,8 @@ describe("installer contract", () => {
 
       expect(result).toEqual({ valid: true, issues: [] });
       expect(plan.target_cli).toBe(target);
-      expect(plan.adapter_enablement).toEqual({ adapter: target, enabled: true, explicit_user_approval: true });
+      const enabledByDefault = (ACTIVE_SHARED_MEMORY_TARGETS as readonly string[]).includes(target);
+      expect(plan.adapter_enablement).toEqual({ adapter: target, enabled: enabledByDefault, explicit_user_approval: enabledByDefault });
       expect(plan.required_user_approval).toBe(true);
       expect(plan.live_config_mutation_allowed).toBe(false);
       expect(plan.files_to_change).toHaveLength(1);
@@ -45,17 +48,34 @@ describe("installer contract", () => {
     expect(result.issues.map((issue) => issue.code)).toContain("live_mutation_forbidden");
   });
 
-  test("requires explicit user approval and adapter enablement", () => {
+  test("requires explicit user approval and adapter enablement for active writers", () => {
     const plan = {
-      ...renderInstallPlanFixture("codex"),
+      ...renderInstallPlanFixture("opencode"),
       required_user_approval: false,
-      adapter_enablement: { adapter: "codex", enabled: true, explicit_user_approval: false },
+      adapter_enablement: { adapter: "opencode", enabled: true, explicit_user_approval: false },
     } satisfies InstallPlanCandidate;
     const result = validateInstallPlan(plan);
 
     expect(result.valid).toBe(false);
     expect(result.issues.map((issue) => issue.code)).toContain("approval_required");
     expect(result.issues.map((issue) => issue.code)).toContain("adapter_enablement_required");
+  });
+
+  test("keeps Claude and Codex disabled as historical shared-memory adapters", () => {
+    for (const target of DISABLED_SHARED_MEMORY_TARGETS) {
+      const plan = renderInstallPlanFixture(target);
+      expect(plan.adapter_enablement.enabled).toBe(false);
+      expect(validateInstallPlan(plan)).toEqual({ valid: true, issues: [] });
+
+      const enabledPlan = {
+        ...plan,
+        adapter_enablement: { adapter: target, enabled: true, explicit_user_approval: true },
+      } satisfies InstallPlanCandidate;
+      const result = validateInstallPlan(enabledPlan);
+
+      expect(result.valid).toBe(false);
+      expect(result.issues.map((issue) => issue.code)).toContain("adapter_enablement_required");
+    }
   });
 
   test("rejects secret and runtime path exposure", () => {

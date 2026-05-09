@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CanonicalEventStore } from "../src/event-store";
-import { buildLifecycleEvents, buildPaiRunPlan, createPaiSessionId, recordPaiRunLifecycle } from "../src/session-wrapper";
+import { TARGET_SHARED_MEMORY_STATUS, buildLifecycleEvents, buildPaiRunPlan, createPaiSessionId, recordPaiRunLifecycle } from "../src/session-wrapper";
 
 let runtimeHome: string | undefined;
 
@@ -50,14 +50,27 @@ describe("pai-run session wrapper", () => {
   });
 
   test("builds lifecycle events without invoking live CLIs", () => {
-    const plan = buildPaiRunPlan({ target: "codex", sessionId: "pai_codex", baseEnv: {} });
+    const plan = buildPaiRunPlan({ target: "opencode", sessionId: "pai_opencode", baseEnv: {} });
     const events = buildLifecycleEvents(plan);
 
     expect(events[0].event_type).toBe("session.start");
     expect(events[1].event_type).toBe("session.launch");
     expect(events.at(-1)?.event_type).toBe("session.stop");
-    expect(events.some((event) => event.event_type === "session.degraded_capability")).toBe(true);
+    expect(events.some((event) => event.event_type === "session.degraded_capability")).toBe(false);
     expect(events.every((event) => !("payloads" in event))).toBe(true);
+  });
+
+  test("recognizes Claude and Codex but skips shared-memory lifecycle writes", () => {
+    for (const target of ["claude", "codex"] as const) {
+      const plan = buildPaiRunPlan({ target, sessionId: `pai_${target}`, baseEnv: {} });
+
+      expect(TARGET_SHARED_MEMORY_STATUS[target].enabled).toBe(false);
+      expect(plan.launch.command).toBe(target);
+      expect(plan.shared_memory_writer_enabled).toBe(false);
+      expect(plan.disabled_reason).toContain("historical adapter");
+      expect(plan.lifecycle_events).toEqual([]);
+      expect(buildLifecycleEvents(plan)).toEqual([]);
+    }
   });
 
   test("CLI defaults to dry-run launch planning", () => {
@@ -72,6 +85,7 @@ describe("pai-run session wrapper", () => {
     expect(output.mode).toBe("dry-run");
     expect(output.plan.launch.command).toBe("codex");
     expect(output.plan.launch.args).toEqual(["--help"]);
+    expect(output.plan.shared_memory_writer_enabled).toBe(false);
   });
 
   test("records start, launch, stop, and degraded capability events", () => {

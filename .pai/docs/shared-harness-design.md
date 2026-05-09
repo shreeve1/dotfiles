@@ -2,13 +2,13 @@
 
 ## Status
 
-Draft design. No implementation is implied by this document.
+Current harness scope: OpenCode and Pi are the active shared-memory writers. Claude Code and Codex remain installed tools and historical bridge sources, but they are disabled-by-default for new shared-memory writes.
 
 ## Problem
 
 James uses multiple CLI agent harnesses: Claude Code, Codex, OpenCode, and Pi. Each has different lifecycle hooks, policy controls, transcript formats, memory locations, and context-injection mechanisms. Existing PAI behavior is strict in Claude Code and partially ported into Codex/OpenCode, while Pi currently has strict local instructions but no shared PAI memory integration.
 
-The goal is a shared local-first PAI execution harness that lets every CLI participate in common session identity, memory capture, policy enforcement, redaction, context retrieval, learning, and review without committing runtime memories or secrets into dotfiles.
+The current goal is a shared local-first PAI execution harness where OpenCode and Pi are the only active writers to shared memory. Claude Code and Codex stay usable outside this memory harness and remain available for historical bridge reads, review workflows, and future re-enablement decisions.
 
 ## Non-Goals
 
@@ -63,11 +63,20 @@ Core commands:
 
 Soft aliases may call `pai-run`, for example `pcc`, `pcodex`, `popencode`, and `ppi`, but direct CLI use must remain possible and explicitly handled.
 
+Active shared-memory writer policy:
+
+- OpenCode and Pi install/session plans are enabled by default after explicit user approval.
+- Claude Code and Codex install/session plans are recognized but disabled by default for shared-memory writes.
+- Claude Code and Codex bridge-read records are archive-only; attempted new bridge-read writes fail with a structured archive error.
+- Claude Code and Codex CLIs, auth helpers, and review agents are not removed by this harness scope.
+
 ## Direct Launch Handling
 
 `pai-run` is the preferred session boundary, not the only boundary.
 
 Native adapters must detect whether `PAI_SESSION_ID` is already present.
+
+Only active shared-memory writer adapters emit new lifecycle events into the shared substrate. Disabled historical adapters may still render dry-run plans and report why shared-memory writes are skipped.
 
 If present:
 
@@ -102,9 +111,9 @@ Migration phases:
 1. Inventory: list every legacy read/write surface and classify it as policy, event, memory, work artifact, transcript, user context, or config.
 2. Import: copy or summarize selected legacy data into `~/.pai` with provenance and original path references.
 3. Bridge-read: adapters may read legacy stores only through explicit bridge modules.
-4. Canonical-write: new shared harness writes only to `~/.pai` runtime stores.
+4. Canonical-write: new shared harness writes only to `~/.pai` runtime stores, and only from active OpenCode/Pi writers.
 5. Dual-write only by exception: if a legacy hook requires a legacy write for compatibility, mark the write with `compatibility_write: true` and test it.
-6. Deprecate: set milestones for making each legacy store read-only, ignored, or replaced.
+6. Deprecate: keep Claude/Codex bridge surfaces read-only until an explicit future decision re-enables them.
 
 Read precedence:
 
@@ -117,12 +126,12 @@ Write ownership:
 - Durable shared memories: `~/.pai/memory/**` only.
 - Canonical events: `~/.pai/events.sqlite` plus redacted trail files only.
 - Canonical work artifacts: ISA files managed through `~/.pai` project/work indexes plus repo-local `ISA.md` where appropriate.
-- Legacy writes: compatibility only, never the source of truth.
+- Legacy writes: compatibility only, never the source of truth. Claude/Codex legacy writes are disabled by default for this shared-memory scope.
 
 Migration acceptance tests:
 
-- Claude direct launch does not create divergent active work when `~/.pai` exists.
-- Codex direct launch attaches or reports degraded capability instead of writing only `.codex/pai/MEMORY`.
+- Claude and Codex install fixtures render disabled-by-default shared-memory plans.
+- Claude and Codex bridge-read write attempts fail with structured archive-only errors while existing bridge rows remain readable.
 - OpenCode plugin execution does not double-inject or double-sync ISA.
 - Pi wrapper launch records degraded capability and does not read `auth.json`.
 - Legacy stores can be imported repeatedly without duplicate durable memories.
