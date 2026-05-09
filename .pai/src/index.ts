@@ -151,3 +151,23 @@ export {
   type CodexSessionResolutionInput,
   type CodexTracerTemplate,
 } from "./codex-tracer";
+export {
+  OPENCODE_PLUGIN_EVENTS,
+  OPENCODE_PLUGIN_RESPONSIBILITIES,
+  buildOpenCodeDegradedCapabilityEvent,
+  buildOpenCodeDirectLaunchEvent,
+  buildOpenCodeRetrievalContext,
+  buildOpenCodeTracerTemplate,
+  checkOpenCodePluginOrdering,
+  mapOpenCodePluginObservationToEvent,
+  opencodeTracerRuntimeTemplatePath,
+  resolveOpenCodePaiSession,
+  type OpenCodePluginEvent,
+  type OpenCodePluginObservation,
+  type OpenCodePluginOrderingCheck,
+  type OpenCodeResponsibility,
+  type OpenCodeResponsibilityOwner,
+  type OpenCodeSessionResolution,
+  type OpenCodeSessionResolutionInput,
+  type OpenCodeTracerTemplate,
+} from "./opencode-tracer";
