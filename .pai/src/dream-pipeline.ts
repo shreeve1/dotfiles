@@ -6,11 +6,23 @@ export const DREAM_PIPELINE_VERSION = "pai-dream.v1";
 export const DREAM_FUTURE_PROVIDER_OPTIONS = [
   {
     provider: "claude-inference",
-    status: "future-option",
+    status: "opt-in-real-provider",
     enabled_by_default: false,
     enablement_issue: "#019",
+    privacy_labels: ["redacted-local-context", "external-provider", "review-gated-output"],
+    redaction_required_before_enablement: true,
   },
 ] as const;
+
+export type DreamProviderName = "local" | "deterministic" | "claude-inference";
+
+export type DreamProviderEnablement = {
+  provider: "claude-inference";
+  enabled: boolean;
+  explicit_user_approval: boolean;
+  privacy_labels: readonly string[];
+  redaction_required_before_enablement: true;
+};
 
 export type DreamMemoryCandidate = {
   memory_id: string;
@@ -29,7 +41,7 @@ export type DreamMemoryCandidate = {
 
 export type DreamProvider = {
   name: string;
-  mode: "deterministic-test-double" | "local-offline-rules";
+  mode: "deterministic-test-double" | "local-offline-rules" | "external-inference";
   distill(events: CanonicalEventEnvelope[], context: DreamProviderContext): DreamMemoryCandidate[];
 };
 
@@ -40,6 +52,7 @@ export type DreamProviderContext = {
 
 export type DreamPipelineOptions = {
   provider?: DreamProvider;
+  providerEnablement?: DreamProviderEnablement;
   projectId?: string;
   now?: string;
 };
@@ -71,6 +84,42 @@ export class LocalRulesDreamProvider implements DreamProvider {
   }
 }
 
+export class ClaudeInferenceDreamProvider implements DreamProvider {
+  readonly name = "claude-inference";
+  readonly mode = "external-inference" as const;
+
+  constructor(readonly enablement: DreamProviderEnablement) {}
+
+  distill(): DreamMemoryCandidate[] {
+    throw new Error("claude-inference provider transport is not configured in this dry-run-safe enablement slice");
+  }
+}
+
+export function defaultDreamProviderEnablement(provider: "claude-inference" = "claude-inference"): DreamProviderEnablement {
+  const option = DREAM_FUTURE_PROVIDER_OPTIONS.find((entry) => entry.provider === provider);
+  if (!option) throw new Error(`Unknown real dream provider ${provider}`);
+  return {
+    provider,
+    enabled: option.enabled_by_default,
+    explicit_user_approval: false,
+    privacy_labels: option.privacy_labels,
+    redaction_required_before_enablement: option.redaction_required_before_enablement,
+  };
+}
+
+export function resolveDreamProvider(
+  providerName: DreamProviderName,
+  enablement: DreamProviderEnablement = defaultDreamProviderEnablement(),
+): DreamProvider {
+  if (providerName === "deterministic") return new DeterministicDreamProvider();
+  if (providerName === "local") return new LocalRulesDreamProvider();
+
+  if (!enablement.enabled || !enablement.explicit_user_approval) {
+    throw new Error("claude-inference provider is disabled by default and requires explicit user approval");
+  }
+  return new ClaudeInferenceDreamProvider(enablement);
+}
+
 export function assertDreamEventIsRedacted(event: CanonicalEventEnvelope) {
   const raw = event as CanonicalEventEnvelope & { payload?: unknown; payloads?: unknown };
   if (raw.payload !== undefined || raw.payloads !== undefined) {
@@ -90,6 +139,12 @@ export function runDreamPipeline(
   options: DreamPipelineOptions = {},
 ): DreamPipelineResult {
   const provider = options.provider ?? new LocalRulesDreamProvider();
+  if (provider.mode === "external-inference") {
+    const enablement = options.providerEnablement ?? defaultDreamProviderEnablement("claude-inference");
+    if (!enablement.enabled || !enablement.explicit_user_approval) {
+      throw new Error(`${provider.name} provider requires explicit user approval before use`);
+    }
+  }
   const now = options.now ?? new Date().toISOString();
   const skipped_events: DreamPipelineResult["skipped_events"] = [];
   const safeEvents: CanonicalEventEnvelope[] = [];
@@ -102,6 +157,8 @@ export function runDreamPipeline(
       skipped_events.push({ event_id: event.event_id, reason: error instanceof Error ? error.message : String(error) });
     }
   }
+
+  if (safeEvents.length === 0) return { provider: provider.name, mode: provider.mode, proposed: [], skipped_events };
 
   const candidates = provider.distill(safeEvents, { projectId: options.projectId, now });
   const proposed = candidates.map((candidate) => {
