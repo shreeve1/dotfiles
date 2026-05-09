@@ -4,12 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   },
   "bin": {
     "pai-run": "./src/cli/pai-run.ts",
     "pai-memory": "./src/cli/pai-memory.ts",
     "pai-dream": "./src/cli/pai-dream.ts",
     "pai-policy": "./src/cli/pai-policy.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
   }
 }
