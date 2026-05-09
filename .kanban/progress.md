@@ -188,3 +188,11 @@
 **Decisions:** Kept this slice test-only: no live adapter config, no writer enablement, no source changes to Claude/Codex tracer behavior. Diagnostics are modeled at the fixture boundary so failures identify mapping, adapter event emission, or legacy compatibility generation.
 **Conventions established:** ISA adapter integration tests should compose existing tracer and ISA compatibility APIs instead of introducing a parallel compatibility layer.
 **Notes for next iteration:** No AFK issue is currently unblocked. #016 remains blocked by #015, #019, and #021; all three are HITL and require human approval before Ralph can continue.
+
+## #022 Restrict shared memory to OpenCode and Pi - 2026-05-09
+
+**What changed:** Closed the parent narrowed-scope issue after re-verifying that child slices #023 through #027 satisfy its acceptance criteria.
+**Files:** `.kanban/issues/022-restrict-shared-memory-to-opencode-and-pi.md`, `.kanban/progress.md`
+**Decisions:** No source-code change was needed for the parent closure because existing child-slice code and docs already enforce the OpenCode/Pi active-writer policy and Claude/Codex historical/archive-only policy.
+**Conventions established:** Parent issue closure can be verification-only when all child slices are done, but it still requires the Ralph review state, full check suite, scope diff review, and explicit progress note.
+**Notes for next iteration:** No AFK issue is currently unblocked. #016 remains blocked by HITL issues #015, #019, and #021.
