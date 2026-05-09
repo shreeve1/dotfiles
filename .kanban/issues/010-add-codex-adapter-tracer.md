@@ -1,7 +1,7 @@
 ---
 id: 010
 title: Add Codex adapter tracer
-status: in_progress
+status: review
 type: AFK
 blocked_by: [004, 005, 008, 018]
 parent: null
