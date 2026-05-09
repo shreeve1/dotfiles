@@ -117,6 +117,21 @@ export {
   type DreamProviderContext,
 } from "./dream-pipeline";
 export {
+  ISA_MIGRATION_ORDER,
+  ISA_SECTION_ORDER,
+  generateCompatibilityPrd,
+  mapPrdToIsa,
+  normalizeIsaArtifact,
+  renderCanonicalIsa,
+  validateIsaSectionOrder,
+  type CompatibilityPrd,
+  type IsaArtifact,
+  type IsaMigrationPhase,
+  type IsaSectionName,
+  type LegacyHookRequirement,
+  type PrdArtifact,
+} from "./isa-compatibility";
+export {
   ACTIVE_SHARED_MEMORY_TARGETS,
   DISABLED_SHARED_MEMORY_TARGETS,
   INSTALL_PLAN_ACTIONS,
