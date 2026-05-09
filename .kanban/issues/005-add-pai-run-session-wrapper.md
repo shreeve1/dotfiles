@@ -1,7 +1,7 @@
 ---
 id: 005
 title: Add pai-run session wrapper
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [002, 004]
 parent: null

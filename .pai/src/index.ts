@@ -51,3 +51,16 @@ export {
   type JsonlPendingMarker,
   type ReconciliationResult,
 } from "./event-store";
+export {
+  PAI_RUN_TARGETS,
+  buildLifecycleEvents,
+  buildPaiRunPlan,
+  createPaiSessionId,
+  recordPaiRunLifecycle,
+  type DegradedCapabilityReport,
+  type PaiRunLaunchPlan,
+  type PaiRunLifecycleStore,
+  type PaiRunPlan,
+  type PaiRunPlanOptions,
+  type PaiRunTarget,
+} from "./session-wrapper";
