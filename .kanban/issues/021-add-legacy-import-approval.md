@@ -1,7 +1,7 @@
 ---
 id: 021
 title: Add legacy import approval
-status: review
+status: done
 type: HITL
 priority: 21
 blocked_by: [008, 017]
@@ -17,13 +17,17 @@ Add the human-approved import and promotion flow for legacy Claude, Codex, OpenC
 
 ## Acceptance criteria
 
-- [ ] Import preview lists candidate legacy memories with source path, sensitivity, provenance, confidence, and proposed canonical destination.
-- [ ] User can approve, reject, or defer each import batch before canonical memory writes occur.
-- [ ] Denied paths, auth files, private keys, and excluded transcript classes cannot be imported.
-- [ ] Approved imports write only to `~/.pai` canonical memory with source provenance.
-- [ ] Tests prove rejected and deferred imports do not alter canonical memory state.
+- [x] Import preview lists candidate legacy memories with source path, sensitivity, provenance, confidence, and proposed canonical destination.
+- [x] User can approve, reject, or defer each import batch before canonical memory writes occur.
+- [x] Denied paths, auth files, private keys, and excluded transcript classes cannot be imported.
+- [x] Approved imports write only to `~/.pai` canonical memory with source provenance.
+- [x] Tests prove rejected and deferred imports do not alter canonical memory state.
 
 ## Blocked by
 
 - Blocked by #008.
 - Blocked by #017.
+
+## Implementation Notes
+
+Added `legacy-import-approval` preview and decision APIs. Previews expose source path, sensitivity, provenance, confidence, and proposed `~/.pai` canonical memory destination. Approval decisions write accepted low-trust canonical memories with source provenance; reject and defer decisions return decisions without mutating canonical memory. Denied paths, auth files, private keys, and transcript classes are blocked from import.
