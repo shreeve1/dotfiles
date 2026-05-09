@@ -29,3 +29,11 @@
 **Decisions:** Project IDs are opaque hashes with `git:`, `path:`, or `manual:` prefixes; display aliases are separate sanitized labels; manual alias files live under `~/.pai` via the runtime path resolver.
 **Conventions established:** Do not export remote normalization internals because normalized owner/repo details are hash inputs, not public API; collision handling appends deterministic numeric suffixes without changing display aliases.
 **Notes for next iteration:** Canonical event ingest should attach `project_id` from `resolveProjectIdentity` after redaction/policy checks and should not persist raw remotes or absolute local paths.
+
+## #002 Add canonical event ingest - 2026-05-09
+
+**What changed:** Added the canonical event ingest store with SQLite WAL storage, versioned migrations, redacted JSONL trails, idempotent replay behavior, pending markers, and reconciliation.
+**Files:** `.pai/src/event-store.ts`, `.pai/src/index.ts`, `.pai/tests/event-store.test.ts`, `.kanban/issues/002-add-canonical-event-ingest.md`
+**Decisions:** SQLite is authoritative; JSONL is inspection/recovery only; JSONL accepted events append only after successful SQLite ingest, while interrupted windows use explicit pending markers.
+**Conventions established:** Canonical event envelopes never include raw `payload` or `payloads`; duplicate `event_id` or duplicate `(pai_session_id, sequence)` returns a replayed envelope instead of inserting a second row.
+**Notes for next iteration:** Session wrapper and memory features can depend on `CanonicalEventStore.ingest()` and should continue using redacted destination-prepared events before durable writes.
