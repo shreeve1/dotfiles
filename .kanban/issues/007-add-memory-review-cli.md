@@ -1,7 +1,7 @@
 ---
 id: 007
 title: Add memory review CLI
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [002, 003, 017]
 parent: null

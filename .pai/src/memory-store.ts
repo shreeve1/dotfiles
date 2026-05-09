@@ -49,6 +49,30 @@ export type MemoryStoreOptions = {
   dbPath?: string;
 };
 
+export type MemorySearchFilters = {
+  query?: string;
+  projectId?: string;
+  type?: MemoryType;
+  minConfidence?: number;
+  trustLevel?: TrustLevel;
+  updatedAfter?: string;
+  harness?: string;
+  limit?: number;
+};
+
+export type MemoryContextOptions = {
+  projectId?: string;
+  type?: MemoryType;
+  limit?: number;
+};
+
+export type MemoryContextEntry = Pick<MemoryRecord, "memory_id" | "type" | "scope" | "content" | "source_event_ids" | "provenance" | "confidence" | "trust_level" | "assertion_type">;
+
+export type MemoryContextBlock = {
+  memories: MemoryContextEntry[];
+  content: string;
+};
+
 export const MEMORY_STORE_MIGRATIONS = [
   {
     version: 1,
@@ -81,6 +105,15 @@ export const MEMORY_STORE_MIGRATIONS = [
       )`,
       `CREATE INDEX IF NOT EXISTS memories_type_scope_idx ON memories(type, scope)`,
       `CREATE INDEX IF NOT EXISTS memories_review_trust_idx ON memories(review_status, trust_level, assertion_type)`,
+    ],
+  },
+  {
+    version: 2,
+    statements: [
+      `CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(memory_id UNINDEXED, content, provenance_json)`,
+      `INSERT INTO memory_fts(rowid, memory_id, content, provenance_json)
+       SELECT rowid, memory_id, content, provenance_json FROM memories
+       WHERE rowid NOT IN (SELECT rowid FROM memory_fts)`,
     ],
   },
 ] as const;
@@ -140,6 +173,11 @@ export class CanonicalMemoryStore {
         record.expires_at ?? null,
         record.revalidation_rule ?? null,
       );
+
+    const row = this.db.query("SELECT rowid FROM memories WHERE memory_id = ?").get(record.memory_id) as { rowid: number };
+    this.db
+      .query("INSERT OR REPLACE INTO memory_fts(rowid, memory_id, content, provenance_json) VALUES (?, ?, ?, ?)")
+      .run(row.rowid, record.memory_id, record.content, JSON.stringify(record.provenance));
 
     return record;
   }
@@ -204,6 +242,54 @@ export class CanonicalMemoryStore {
       .query(`SELECT * FROM memories WHERE ${clauses.join(" AND ")} ORDER BY updated_at DESC, memory_id`)
       .all(...params) as MemoryRow[];
     return rows.map(rowToMemory);
+  }
+
+  searchMemories(filters: MemorySearchFilters = {}) {
+    const rows = filters.query
+      ? (this.db
+        .query(
+          `SELECT memories.* FROM memory_fts
+           JOIN memories ON memories.rowid = memory_fts.rowid
+           WHERE memory_fts MATCH ?
+           ORDER BY memories.updated_at DESC, memories.memory_id`,
+        )
+        .all(filters.query) as MemoryRow[])
+      : (this.db.query("SELECT * FROM memories ORDER BY updated_at DESC, memory_id").all() as MemoryRow[]);
+
+    return rows
+      .map(rowToMemory)
+      .filter((memory) => matchesSearchFilters(memory, filters))
+      .slice(0, filters.limit ?? 50);
+  }
+
+  buildContextBlock(options: MemoryContextOptions = {}): MemoryContextBlock {
+    const memories = this.listInstructionEligibleMemories({ projectId: options.projectId, type: options.type })
+      .slice(0, options.limit ?? 5)
+      .map((memory) => ({
+        memory_id: memory.memory_id,
+        type: memory.type,
+        scope: memory.scope,
+        content: memory.content,
+        source_event_ids: memory.source_event_ids,
+        provenance: memory.provenance,
+        confidence: memory.confidence,
+        trust_level: memory.trust_level,
+        assertion_type: memory.assertion_type,
+      }));
+
+    return {
+      memories,
+      content: memories
+        .map((memory) => `- [${memory.memory_id}] ${memory.content} (source_events: ${memory.source_event_ids.join(",")}; confidence: ${memory.confidence}; trust: ${memory.trust_level})`)
+        .join("\n"),
+    };
+  }
+
+  listReviewQueue(state: ReviewStatus = "proposed") {
+    const rows = this.db
+      .query("SELECT * FROM review_queue WHERE state = ? ORDER BY created_at DESC, review_id")
+      .all(state) as ReviewRow[];
+    return rows.map(rowToReview);
   }
 
   typedStoreNames() {
@@ -280,4 +366,14 @@ function rowToReview(row: ReviewRow): ReviewQueueItem {
     created_at: row.created_at,
     decided_at: row.decided_at ?? undefined,
   };
+}
+
+function matchesSearchFilters(memory: MemoryRecord, filters: MemorySearchFilters) {
+  if (filters.projectId && memory.scope !== filters.projectId) return false;
+  if (filters.type && memory.type !== filters.type) return false;
+  if (filters.minConfidence !== undefined && memory.confidence < filters.minConfidence) return false;
+  if (filters.trustLevel && memory.trust_level !== filters.trustLevel) return false;
+  if (filters.updatedAfter && memory.updated_at < filters.updatedAfter) return false;
+  if (filters.harness && memory.provenance.harness !== filters.harness) return false;
+  return true;
 }
