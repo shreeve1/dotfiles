@@ -1,7 +1,7 @@
 ---
 id: 008
 title: Add legacy migration inventory bridge
-status: in_progress
+status: review
 type: AFK
 blocked_by: [002, 003, 017]
 parent: null
