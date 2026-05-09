@@ -45,3 +45,11 @@
 **Decisions:** Default CLI mode is dry-run and does not invoke live CLIs; `--exec` is required for live launch; native command and args are preserved while PAI environment variables are added.
 **Conventions established:** Session wrapper environment uses `PAI_SESSION_ID`, `PAI_RUNTIME_HOME`, `PAI_HARNESS`, `PAI_TARGET_CLI`, and optional `PAI_PROJECT_ID`; lifecycle events use `session.start`, `session.launch`, `session.degraded_capability`, and `session.stop`.
 **Notes for next iteration:** Future memory and review CLIs can launch through `buildPaiRunPlan` and `recordPaiRunLifecycle`; do not install soft aliases automatically.
+
+## #017 Add canonical memory substrate - 2026-05-09
+
+**What changed:** Added a canonical memory substrate with versioned SQLite migrations, typed memory stores, provenance-preserving records, review queue transitions, and trust-gated retrieval.
+**Files:** `.pai/src/memory-store.ts`, `.pai/src/index.ts`, `.pai/tests/memory-store.test.ts`, `.kanban/issues/017-add-canonical-memory-substrate.md`
+**Decisions:** Durable memory records carry explicit assertion type, trust level, review status, source event IDs, provenance, confidence, timestamps, expiration, and revalidation metadata.
+**Conventions established:** Instruction-eligible retrieval only returns accepted memories with medium/high trust and non-inferred assertion types; low-trust, inferred, and unaccepted memories stay out of instruction injection paths.
+**Notes for next iteration:** Future `pai-memory`, dream, migration, and retrieval features should use `CanonicalMemoryStore` instead of inventing alternate memory shapes.
