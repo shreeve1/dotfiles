@@ -1,7 +1,7 @@
 ---
 id: 026
 title: Move OpenCode plugin memory state
-status: in_progress
+status: review
 type: AFK
 priority: 26
 blocked_by: [023]
