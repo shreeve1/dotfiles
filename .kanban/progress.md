@@ -77,3 +77,11 @@
 **Decisions:** Adapter tracer issues may render and validate install plans, but live configuration mutation remains forbidden and deferred to a HITL safe installer issue.
 **Conventions established:** Install plans require explicit user approval and adapter enablement; validators reject runtime/secret path exposure and tracked-source symlinks into runtime stores.
 **Notes for next iteration:** Adapter tracer issues (#009, #010, #011, and related) should use `renderInstallPlanFixture` and `validateInstallPlan` instead of inventing target-specific install shapes.
+
+## #009 Add Claude adapter tracer - 2026-05-09
+
+**What changed:** Added the Claude adapter tracer library, installable tracer template docs, and tests for session attachment, direct-launch managed events, active hook preservation, policy mapping, redacted canonical events, and canonical ingest.
+**Files:** `.pai/src/claude-tracer.ts`, `.pai/src/index.ts`, `.pai/docs/claude-adapter-tracer.md`, `.pai/tests/claude-tracer.test.ts`, `.kanban/issues/009-add-claude-adapter-tracer.md`
+**Decisions:** Claude tracer issues remain template-only and do not mutate `~/.claude/settings.json`; active installed hook commands are preserved in generated templates while uninstalled/document-only hook names are ignored.
+**Conventions established:** Direct Claude launches emit `session.created_by_native_adapter`; `PAI_SESSION_ID` launches emit `session.attached_to_pai_run`; hook observations map to `session.start`, `prompt.submit`, `policy.pre_tool_use`, `tool.post_use`, and `session.stop` through redaction and policy evaluation.
+**Notes for next iteration:** Codex/OpenCode/Pi adapter tracers should mirror this pattern: preserve active behavior, render validated install fixtures only, emit explicit managed/degraded events, and avoid live config mutation.
