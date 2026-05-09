@@ -13,3 +13,11 @@
 **Decisions:** Event payloads are never retained as raw `payloads` on redacted envelopes; destination handoffs use `prepareEventForDestination` so SQLite, JSONL, dream, retrieval, and inference providers receive redacted summaries only.
 **Conventions established:** Redacted events use `schema_version: "pai.event.v1"`, `redaction_status`, `taint_labels`, `payload_size_limit`, `payload_summary`, `findings`, and optional `redaction_destination`.
 **Notes for next iteration:** This slice does not create persistent SQLite/JSONL writers; future storage/export issues should call the redaction boundary before writing or sending any payload-derived content.
+
+## #004 Add canonical policy contract - 2026-05-09
+
+**What changed:** Added the canonical `pai-policy` contract, policy evaluation rules, policy documentation, CLI action output, and adapter fixture tests.
+**Files:** `.pai/src/policy.ts`, `.pai/src/index.ts`, `.pai/src/cli/pai-policy.ts`, `.pai/docs/policy-contract.md`, `.pai/tests/policy.test.ts`, `.kanban/issues/004-add-canonical-policy-contract.md`
+**Decisions:** Policy responses use the canonical actions `allow`, `deny`, `confirm`, `warn`, `redact`, and `degrade`; capability mismatches emit explicit `policy.degraded` events instead of silently succeeding.
+**Conventions established:** Memory, logging, and context-injection failures degrade; security-sensitive and destructive actions confirm or deny when enforceable, and become critical degraded events when an adapter cannot enforce them.
+**Notes for next iteration:** Runtime ingest/session wrappers should call `evaluatePolicy` after redaction and before tool execution, storage, context injection, or adapter lifecycle decisions.
