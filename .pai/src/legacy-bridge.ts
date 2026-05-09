@@ -5,6 +5,7 @@ import { dirname, join, relative } from "node:path";
 import { buildRuntimePaths } from "./runtime-paths";
 
 export const LEGACY_HARNESSES = ["claude", "codex", "opencode", "pi"] as const;
+export const ARCHIVE_ONLY_HARNESSES = ["claude", "codex"] as const;
 export const LEGACY_SURFACE_CLASSES = ["policy", "event", "memory", "work_artifact", "transcript", "user_context", "config"] as const;
 
 export type LegacyHarness = (typeof LEGACY_HARNESSES)[number];
@@ -59,7 +60,21 @@ export type BridgeReadRecord = {
 export type LegacyBridgeOptions = {
   runtimeHome?: string;
   dbPath?: string;
+  archiveOnlyHarnesses?: readonly LegacyHarness[];
 };
+
+export class LegacyArchiveOnlyError extends Error {
+  readonly code = "archive_only";
+  readonly harness: LegacyHarness;
+  readonly inventory_id: string;
+
+  constructor(harness: LegacyHarness, inventoryId: string) {
+    super(`${harness} legacy bridge records are archive-only and cannot receive new bridge-read writes.`);
+    this.name = "LegacyArchiveOnlyError";
+    this.harness = harness;
+    this.inventory_id = inventoryId;
+  }
+}
 
 export const LEGACY_BRIDGE_MIGRATIONS = [
   {
@@ -97,10 +112,12 @@ export const LEGACY_BRIDGE_MIGRATIONS = [
 export class LegacyMigrationBridge {
   readonly dbPath: string;
   private readonly db: Database;
+  private readonly archiveOnlyHarnesses: ReadonlySet<LegacyHarness>;
 
   constructor(options: LegacyBridgeOptions = {}) {
     const runtimePaths = buildRuntimePaths(options.runtimeHome);
     this.dbPath = options.dbPath ?? join(runtimePaths.memoryDir, "legacy-bridge.sqlite");
+    this.archiveOnlyHarnesses = new Set(options.archiveOnlyHarnesses ?? ARCHIVE_ONLY_HARNESSES);
     mkdirSync(dirname(this.dbPath), { recursive: true });
     this.db = new Database(this.dbPath, { create: true });
     this.db.run("PRAGMA journal_mode = WAL");
@@ -153,6 +170,9 @@ export class LegacyMigrationBridge {
   createBridgeReadIndex(inventoryId: string, now = new Date().toISOString()): BridgeReadRecord {
     const inventory = this.getInventory(inventoryId);
     if (!inventory) throw new Error(`Unknown legacy inventory record ${inventoryId}`);
+    if (this.archiveOnlyHarnesses.has(inventory.harness)) {
+      throw new LegacyArchiveOnlyError(inventory.harness, inventory.inventory_id);
+    }
 
     const record: BridgeReadRecord = {
       bridge_id: `bridge:${inventory.path_hash.slice(0, 20)}`,

@@ -52,7 +52,9 @@ export {
   type ReconciliationResult,
 } from "./event-store";
 export {
+  PAI_RUN_SHARED_MEMORY_WRITERS,
   PAI_RUN_TARGETS,
+  TARGET_SHARED_MEMORY_STATUS,
   buildLifecycleEvents,
   buildPaiRunPlan,
   createPaiSessionId,
@@ -85,9 +87,11 @@ export {
   type TrustLevel,
 } from "./memory-store";
 export {
+  ARCHIVE_ONLY_HARNESSES,
   LEGACY_BRIDGE_MIGRATIONS,
   LEGACY_HARNESSES,
   LEGACY_SURFACE_CLASSES,
+  LegacyArchiveOnlyError,
   LegacyMigrationBridge,
   classifyLegacySurface,
   type BridgeReadRecord,
@@ -100,9 +104,12 @@ export {
   type SkippedLegacyPath,
 } from "./legacy-bridge";
 export {
+  ACTIVE_SHARED_MEMORY_TARGETS,
+  DISABLED_SHARED_MEMORY_TARGETS,
   INSTALL_PLAN_ACTIONS,
   INSTALL_PLAN_SCHEMA,
   INSTALL_PLAN_TARGETS,
+  isSharedMemoryWriterEnabledByDefault,
   renderInstallPlanFixture,
   validateInstallPlan,
   type AdapterEnablement,

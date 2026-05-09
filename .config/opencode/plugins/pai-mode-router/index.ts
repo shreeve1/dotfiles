@@ -33,8 +33,10 @@ type RouterState = {
 };
 
 const HOME = homedir();
-const STATE_PATH = join(HOME, ".claude", "MEMORY", "STATE", "mode-router.json");
-const WORK_DIR = join(HOME, ".claude", "MEMORY", "WORK");
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(HOME, ".pai");
+const MEMORY_DIR = join(PAI_RUNTIME_HOME, "memory");
+const STATE_PATH = join(MEMORY_DIR, "STATE", "mode-router.json");
+const WORK_DIR = join(MEMORY_DIR, "WORK");
 const OPENCODE_DIR = join(HOME, ".config", "opencode");
 const ALGORITHM_MODE_PATH = join(OPENCODE_DIR, "modes", "algorithm.md");
 const NATIVE_MODE_PATH = join(OPENCODE_DIR, "modes", "native.md");
@@ -331,7 +333,7 @@ function algorithmDirective(state: SessionState): string {
     "Required first phase: OBSERVE.",
     `An ISA scaffold has been pre-created at: ${state.isaPath ?? ""}`,
     `Session slug: ${state.slug ?? ""}`,
-    "MUST: read ~/.claude/PAI/Algorithm/v6.3.0.md before acting.",
+    "MUST: follow the active PAI Algorithm instructions already present in system context before acting.",
     "MUST: edit the pre-created ISA file (do not create a new one) to fill in Problem, Goal, Criteria, Test Strategy with atomic ISCs.",
     "MUST: complete all 7 phases (OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN).",
     "MUST: keep ISA frontmatter slug, name, tier, phase fields up to date.",
@@ -457,7 +459,7 @@ export const PaiModeRouter: Plugin = async () => {
               text:
                 "[pai-mode-router] This session was auto-classified ALGORITHM. " +
                 `Slug=${session.slug}. ISA stub at ${session.isaPath}. ` +
-                "Begin with the OBSERVE phase, read v6.3.0.md, then edit the ISA.",
+                "Begin with the OBSERVE phase, follow the active Algorithm instructions, then edit the ISA.",
               synthetic: true,
             },
           ],

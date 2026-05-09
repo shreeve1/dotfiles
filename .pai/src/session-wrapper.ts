@@ -6,6 +6,7 @@ import { prepareEventForDestination, type RedactedPaiEvent } from "./redaction";
 import type { AdapterName } from "./config";
 
 export const PAI_RUN_TARGETS = ["claude", "codex", "opencode", "pi"] as const;
+export const PAI_RUN_SHARED_MEMORY_WRITERS = ["opencode", "pi"] as const;
 
 export type PaiRunTarget = (typeof PAI_RUN_TARGETS)[number];
 
@@ -39,6 +40,8 @@ export type PaiRunPlan = {
   project_id?: string;
   adapter_version: string;
   capabilities: AdapterCapabilities;
+  shared_memory_writer_enabled: boolean;
+  disabled_reason?: string;
   launch: PaiRunLaunchPlan;
   lifecycle_events: Array<"session.start" | "session.launch" | "session.stop">;
   degraded_capability_events: DegradedCapabilityReport[];
@@ -74,6 +77,13 @@ const TARGET_CAPABILITIES: Record<PaiRunTarget, AdapterCapabilities> = {
   },
 };
 
+export const TARGET_SHARED_MEMORY_STATUS: Record<PaiRunTarget, { enabled: boolean; reason?: string }> = {
+  claude: { enabled: false, reason: "Claude is a historical adapter and not an active shared-memory writer." },
+  codex: { enabled: false, reason: "Codex is a historical adapter and not an active shared-memory writer." },
+  opencode: { enabled: true },
+  pi: { enabled: true },
+};
+
 export function createPaiSessionId(seed = randomUUID()) {
   return `pai_${seed.replace(/[^a-zA-Z0-9]/g, "")}`;
 }
@@ -83,6 +93,7 @@ export function buildPaiRunPlan(options: PaiRunPlanOptions): PaiRunPlan {
   const paiSessionId = options.sessionId ?? createPaiSessionId();
   const target = options.target;
   const capabilities = TARGET_CAPABILITIES[target];
+  const sharedMemoryStatus = TARGET_SHARED_MEMORY_STATUS[target];
   const env = withSessionEnv(options.baseEnv ?? process.env, {
     paiSessionId,
     runtimeHome,
@@ -98,12 +109,14 @@ export function buildPaiRunPlan(options: PaiRunPlanOptions): PaiRunPlan {
     project_id: options.projectId,
     adapter_version: ADAPTER_VERSION,
     capabilities,
+    shared_memory_writer_enabled: sharedMemoryStatus.enabled,
+    disabled_reason: sharedMemoryStatus.reason,
     launch: {
       command: TARGET_COMMANDS[target],
       args: [...(options.args ?? [])],
       env,
     },
-    lifecycle_events: ["session.start", "session.launch", "session.stop"],
+    lifecycle_events: sharedMemoryStatus.enabled ? ["session.start", "session.launch", "session.stop"] : [],
     degraded_capability_events: degradedCapabilities(capabilities),
     dry_run_default: true,
   };
@@ -115,6 +128,8 @@ export function recordPaiRunLifecycle(plan: PaiRunPlan, store: PaiRunLifecycleSt
 }
 
 export function buildLifecycleEvents(plan: PaiRunPlan) {
+  if (!plan.shared_memory_writer_enabled) return [];
+
   const timestamp = new Date().toISOString();
   let sequence = 1;
   const events = [

@@ -6,7 +6,7 @@
  * (or legacy PRD.md) under MEMORY/WORK/<slug>/.
  *
  * On each write, parses frontmatter + counts criteria, then upserts an entry
- * in ~/.claude/MEMORY/STATE/work.json. Pure read-only from the ISA's
+ * in the shared PAI memory substrate work.json. Pure read-only from the ISA's
  * perspective; the AI writes all ISA content directly.
  *
  * v6.3.0 OpenCode port: stripped Pulse-dashboard syndication
@@ -24,7 +24,9 @@ import { homedir } from "node:os";
 
 const ARTIFACT_FILENAME = "ISA.md";
 const LEGACY_ARTIFACT_FILENAME = "PRD.md";
-const WORK_JSON = join(homedir(), ".claude", "MEMORY", "STATE", "work.json");
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(homedir(), ".pai");
+const MEMORY_DIR = join(PAI_RUNTIME_HOME, "memory");
+const WORK_JSON = join(MEMORY_DIR, "STATE", "work.json");
 
 // Inlined minimal ISA parsing (subset of upstream hooks/lib/isa-utils.ts)
 
