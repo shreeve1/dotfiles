@@ -56,6 +56,7 @@ bin/
 
 # Machine-local runtime state (not synced)
 .claude/skills/Automation/References/execution-log.jsonl
+.claude/skills/Evals/Results/
 .claude/sessions/
 .claude/session-env/
 .claude/cache/
