@@ -1,7 +1,7 @@
 ---
 id: 011
 title: Add OpenCode adapter tracer
-status: in_progress
+status: review
 type: AFK
 blocked_by: [004, 005, 007, 018]
 parent: null
