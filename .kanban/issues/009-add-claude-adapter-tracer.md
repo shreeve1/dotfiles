@@ -1,7 +1,7 @@
 ---
 id: 009
 title: Add Claude adapter tracer
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [004, 005, 008, 018]
 parent: null
