@@ -104,6 +104,15 @@ export {
   type SkippedLegacyPath,
 } from "./legacy-bridge";
 export {
+  LEGACY_IMPORT_DECISIONS,
+  applyLegacyImportDecisions,
+  buildLegacyImportPreview,
+  type LegacyImportDecision,
+  type LegacyImportDecisionInput,
+  type LegacyImportDecisionResult,
+  type LegacyImportPreview,
+} from "./legacy-import-approval";
+export {
   DREAM_FUTURE_PROVIDER_OPTIONS,
   DREAM_PIPELINE_VERSION,
   ClaudeInferenceDreamProvider,
