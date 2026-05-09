@@ -61,3 +61,11 @@
 **Decisions:** `pai-memory context` only emits bounded instruction-eligible memories from the existing trust gate; `pai-memory review list` includes diff preview plus linked memory confidence, assertion type, trust level, type, and source event refs.
 **Conventions established:** Memory search filters are project/type/confidence/trust/recency/harness aware; review actions use `accept`, `reject`, and `defer` mapped to local review queue states.
 **Notes for next iteration:** Future dream/retrieval work should reuse `searchMemories`, `buildContextBlock`, and review queue APIs rather than bypassing trust gates.
+
+## #008 Add legacy migration inventory bridge - 2026-05-09
+
+**What changed:** Added a non-destructive legacy migration bridge that inventories legacy Claude, Codex, OpenCode, and Pi surfaces and creates runtime-local bridge-read indexes.
+**Files:** `.pai/src/legacy-bridge.ts`, `.pai/src/index.ts`, `.pai/tests/legacy-bridge.test.ts`, `.kanban/issues/008-add-legacy-migration-bridge.md`
+**Decisions:** Legacy payloads are not promoted into canonical memory; bridge-read records store metadata, hashes, and provenance only, with `content_copied: false` and low trust.
+**Conventions established:** Denied paths, auth files, private keys, and out-of-scope transcript classes are skipped during inventory; migration bridge state lives under `~/.pai/memory/legacy-bridge.sqlite`.
+**Notes for next iteration:** Adapter tracer and migration-import work should use bridge-read provenance and require separate HITL approval before promoting any legacy payload into canonical memory.
