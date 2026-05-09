@@ -1,7 +1,7 @@
 ---
 id: 004
 title: Add canonical policy contract
-status: in_progress
+status: review
 type: HITL
 blocked_by: [001, 003]
 parent: null
