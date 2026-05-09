@@ -49,7 +49,17 @@ try {
     const action = args.positionals[1] ?? "list";
     if (action === "list") {
       const state = reviewStatusFlag(args, "state") ?? "proposed";
-      console.log(JSON.stringify({ reviews: store.listReviewQueue(state) }, null, 2));
+      const reviews = store.listReviewQueue(state).map((review) => {
+        const memory = store.getMemory(review.memory_id);
+        return {
+          ...review,
+          confidence: memory?.confidence,
+          assertion_type: memory?.assertion_type,
+          trust_level: memory?.trust_level,
+          memory_type: memory?.type,
+        };
+      });
+      console.log(JSON.stringify({ reviews }, null, 2));
     } else if (action === "accept" || action === "reject" || action === "defer") {
       const reviewId = args.positionals[2];
       if (!reviewId) throw new Error(`pai-memory review ${action} requires a review_id`);

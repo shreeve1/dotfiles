@@ -52,10 +52,13 @@ describe("pai-memory CLI", () => {
     store.close();
 
     const listed = runPaiMemory("review", "list", "--runtime-home", runtimeHome!);
-    const listedPayload = JSON.parse(listed.stdout.toString()) as { reviews: Array<{ review_id: string; proposed_diff: string }> };
+    const listedPayload = JSON.parse(listed.stdout.toString()) as { reviews: Array<{ review_id: string; proposed_diff: string; confidence: number; assertion_type: string; trust_level: string }> };
     expect(listed.exitCode).toBe(0);
     expect(listedPayload.reviews[0].review_id).toBe("review-cli");
     expect(listedPayload.reviews[0].proposed_diff).toContain("accept this");
+    expect(listedPayload.reviews[0].confidence).toBe(0.94);
+    expect(listedPayload.reviews[0].assertion_type).toBe("verified");
+    expect(listedPayload.reviews[0].trust_level).toBe("high");
 
     const accepted = runPaiMemory("review", "accept", "review-cli", "--runtime-home", runtimeHome!);
     const acceptedPayload = JSON.parse(accepted.stdout.toString()) as { review: { state: string } };
