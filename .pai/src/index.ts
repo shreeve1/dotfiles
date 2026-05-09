@@ -99,3 +99,19 @@ export {
   type LegacySurfaceRoot,
   type SkippedLegacyPath,
 } from "./legacy-bridge";
+export {
+  INSTALL_PLAN_ACTIONS,
+  INSTALL_PLAN_SCHEMA,
+  INSTALL_PLAN_TARGETS,
+  renderInstallPlanFixture,
+  validateInstallPlan,
+  type AdapterEnablement,
+  type FileChangePlan,
+  type InstallPlan,
+  type InstallPlanActionType,
+  type InstallPlanCandidate,
+  type InstallPlanTarget,
+  type InstallPlanValidationIssue,
+  type InstallPlanValidationResult,
+  type SymlinkAction,
+} from "./installer-contract";
