@@ -64,3 +64,19 @@ export {
   type PaiRunPlanOptions,
   type PaiRunTarget,
 } from "./session-wrapper";
+export {
+  ASSERTION_TYPES,
+  CanonicalMemoryStore,
+  MEMORY_STORE_MIGRATIONS,
+  MEMORY_TYPES,
+  REVIEW_STATUSES,
+  TRUST_LEVELS,
+  type AssertionType,
+  type MemoryRecord,
+  type MemoryStoreOptions,
+  type MemoryType,
+  type ProposedMemoryInput,
+  type ReviewQueueItem,
+  type ReviewStatus,
+  type TrustLevel,
+} from "./memory-store";

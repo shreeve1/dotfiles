@@ -1,0 +1,100 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { CanonicalMemoryStore, MEMORY_TYPES, type ProposedMemoryInput } from "../src/memory-store";
+
+let runtimeHome: string | undefined;
+
+afterEach(() => {
+  if (runtimeHome) rmSync(runtimeHome, { recursive: true, force: true });
+  runtimeHome = undefined;
+});
+
+describe("CanonicalMemoryStore", () => {
+  test("initializes versioned memory migrations and typed stores", () => {
+    const store = createStore();
+    expect(store.appliedMigrations()).toEqual([{ version: 1 }]);
+    expect(store.typedStoreNames().map((entry) => entry.type)).toEqual([...MEMORY_TYPES]);
+    expect(store.typedStoreNames().every((entry) => entry.path.startsWith(join(runtimeHome!, "memory")))).toBe(true);
+    store.close();
+  });
+
+  test("preserves memory provenance and source event references", () => {
+    const store = createStore();
+    const record = store.addMemory(memoryFixture({
+      memory_id: "mem-project-1",
+      source_event_ids: ["event-1", "event-2"],
+      provenance: { harness: "opencode", project_id: "git:abc123", source: "review" },
+    }));
+
+    expect(record.source_event_ids).toEqual(["event-1", "event-2"]);
+    expect(record.provenance).toEqual({ harness: "opencode", project_id: "git:abc123", source: "review" });
+    expect(store.getMemory("mem-project-1")?.provenance).toEqual(record.provenance);
+    store.close();
+  });
+
+  test("supports proposed memory review queue state transitions", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({ memory_id: "mem-review", review_status: "proposed" }));
+    const review = store.enqueueReview({
+      review_id: "review-1",
+      memory_id: "mem-review",
+      proposed_diff: "+ remember safe project fact",
+      source_event_ids: ["event-review"],
+    });
+
+    expect(review.state).toBe("proposed");
+    expect(store.decideReview("review-1", "deferred").state).toBe("deferred");
+    expect(store.getMemory("mem-review")?.review_status).toBe("deferred");
+    expect(store.decideReview("review-1", "accepted").state).toBe("accepted");
+    expect(store.getMemory("mem-review")?.review_status).toBe("accepted");
+    store.close();
+  });
+
+  test("bars low-trust and inferred memories from instruction injection eligibility", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({ memory_id: "mem-accepted", trust_level: "high", assertion_type: "verified", review_status: "accepted" }));
+    store.addMemory(memoryFixture({ memory_id: "mem-low", trust_level: "low", assertion_type: "verified", review_status: "accepted" }));
+    store.addMemory(memoryFixture({ memory_id: "mem-inferred", trust_level: "high", assertion_type: "inferred", review_status: "accepted" }));
+    store.addMemory(memoryFixture({ memory_id: "mem-proposed", trust_level: "high", assertion_type: "verified", review_status: "proposed" }));
+
+    expect(store.listInstructionEligibleMemories().map((memory) => memory.memory_id)).toEqual(["mem-accepted"]);
+    store.close();
+  });
+
+  test("filters eligible memories by project scope and memory type", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({ memory_id: "mem-project", type: "projects", scope: "git:project-a", review_status: "accepted" }));
+    store.addMemory(memoryFixture({ memory_id: "mem-tool", type: "tools", scope: "git:project-a", review_status: "accepted" }));
+    store.addMemory(memoryFixture({ memory_id: "mem-other", type: "projects", scope: "git:project-b", review_status: "accepted" }));
+
+    expect(store.listInstructionEligibleMemories({ projectId: "git:project-a", type: "projects" }).map((memory) => memory.memory_id)).toEqual([
+      "mem-project",
+    ]);
+    store.close();
+  });
+});
+
+function createStore() {
+  runtimeHome = mkdtempSync(join(tmpdir(), "pai-memory-store-"));
+  return new CanonicalMemoryStore({ runtimeHome });
+}
+
+function memoryFixture(overrides: Partial<ProposedMemoryInput> = {}): ProposedMemoryInput {
+  return {
+    memory_id: "mem-1",
+    type: "projects",
+    scope: "git:abc123",
+    source_event_ids: ["event-1"],
+    provenance: { harness: "opencode" },
+    confidence: 0.91,
+    assertion_type: "verified",
+    trust_level: "high",
+    review_status: "accepted",
+    content: "Project prefers bounded context blocks.",
+    expires_at: undefined,
+    revalidation_rule: "revalidate after major harness change",
+    ...overrides,
+  };
+}
