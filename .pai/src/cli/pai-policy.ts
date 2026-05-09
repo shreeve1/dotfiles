@@ -1,4 +1,4 @@
 #!/usr/bin/env bun
-import { DEFAULT_CONFIG } from "../config";
+import { POLICY_ACTIONS } from "../policy";
 
-console.log(`pai-policy scaffold: explicit adapter enablement ${DEFAULT_CONFIG.defaults.requireExplicitAdapterEnablement}`);
+console.log(`pai-policy scaffold: actions ${POLICY_ACTIONS.join(",")}`);
