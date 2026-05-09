@@ -1,7 +1,7 @@
 ---
 id: 027
 title: Document and reconcile kanban scope
-status: in_progress
+status: review
 type: AFK
 priority: 27
 blocked_by: [023, 024, 025, 026]
