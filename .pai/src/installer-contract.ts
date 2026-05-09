@@ -1,6 +1,8 @@
 import type { AdapterName } from "./config";
 
 export const INSTALL_PLAN_TARGETS = ["claude", "codex", "opencode", "pi"] as const;
+export const ACTIVE_SHARED_MEMORY_TARGETS = ["opencode", "pi"] as const;
+export const DISABLED_SHARED_MEMORY_TARGETS = ["claude", "codex"] as const;
 export const INSTALL_PLAN_ACTIONS = ["write_file", "symlink", "enable_adapter"] as const;
 
 export type InstallPlanTarget = (typeof INSTALL_PLAN_TARGETS)[number];
@@ -20,8 +22,8 @@ export type SymlinkAction = {
 
 export type AdapterEnablement = {
   adapter: AdapterName;
-  enabled: true;
-  explicit_user_approval: true;
+  enabled: boolean;
+  explicit_user_approval: boolean;
 };
 
 export type InstallPlan = {
@@ -78,7 +80,8 @@ export const INSTALL_PLAN_SCHEMA = {
     "live config mutation is forbidden during adapter tracer issues",
     "tracked source must not symlink into runtime stores",
     "secret and runtime paths must not be exposed in install plans",
-    "adapter enablement requires explicit user approval",
+    "active shared-memory adapter enablement requires explicit user approval",
+    "claude and codex shared-memory adapter plans are disabled by default",
   ],
 } as const;
 
@@ -98,6 +101,7 @@ const TARGET_ADAPTER_PATHS: Record<InstallPlanTarget, string> = {
 
 export function renderInstallPlanFixture(target_cli: InstallPlanTarget): InstallPlan {
   const configPath = TARGET_CONFIG_PATHS[target_cli];
+  const enabledByDefault = isSharedMemoryWriterEnabledByDefault(target_cli);
   return {
     schema_version: "pai.install-plan.v1",
     target_cli,
@@ -118,8 +122,8 @@ export function renderInstallPlanFixture(target_cli: InstallPlanTarget): Install
     ],
     adapter_enablement: {
       adapter: target_cli,
-      enabled: true,
-      explicit_user_approval: true,
+      enabled: enabledByDefault,
+      explicit_user_approval: enabledByDefault,
     },
     rollback_notes: [
       `Restore ${configPath} from ${configPath}.pai-backup before disabling ${target_cli}.`,
@@ -141,8 +145,12 @@ export function validateInstallPlan(plan: InstallPlanCandidate): InstallPlanVali
     issues.push({ code: "approval_required", message: "Install plans require explicit user approval before application." });
   }
 
-  if (!plan.adapter_enablement.enabled || !plan.adapter_enablement.explicit_user_approval) {
-    issues.push({ code: "adapter_enablement_required", message: "Adapter enablement must be explicit and approved." });
+  if (isSharedMemoryWriterEnabledByDefault(plan.target_cli)) {
+    if (!plan.adapter_enablement.enabled || !plan.adapter_enablement.explicit_user_approval) {
+      issues.push({ code: "adapter_enablement_required", message: "Active shared-memory adapter enablement must be explicit and approved." });
+    }
+  } else if (plan.adapter_enablement.enabled) {
+    issues.push({ code: "adapter_enablement_required", message: "Claude and Codex shared-memory adapters are disabled-by-default historical adapters." });
   }
 
   if (plan.adapter_enablement.adapter !== plan.target_cli) {
@@ -171,6 +179,10 @@ export function validateInstallPlan(plan: InstallPlanCandidate): InstallPlanVali
   }
 
   return { valid: issues.length === 0, issues };
+}
+
+export function isSharedMemoryWriterEnabledByDefault(target: InstallPlanTarget) {
+  return (ACTIVE_SHARED_MEMORY_TARGETS as readonly InstallPlanTarget[]).includes(target);
 }
 
 function collectPlanPaths(plan: InstallPlanCandidate) {
