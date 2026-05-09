@@ -212,3 +212,11 @@
 **Decisions:** Real-provider transport remains unconfigured in this safe slice; approval gates can be exercised, but provider transport throws before any proposed memory write.
 **Conventions established:** External dream providers must expose privacy labels, require explicit enablement and approval, run redaction validation before transport, and write only review-gated proposed memories.
 **Notes for next iteration:** #016 remains blocked only by #021. #021 is HITL and needs explicit approval before Ralph can continue to the smoke test.
+
+## #021 Add legacy import approval - 2026-05-09
+
+**What changed:** Added legacy import preview and approve/reject/defer decision APIs with canonical-memory-only approved writes and safety blocking for denied legacy surfaces.
+**Files:** `.pai/src/legacy-import-approval.ts`, `.pai/tests/legacy-import-approval.test.ts`, `.pai/src/index.ts`, `.kanban/issues/021-add-legacy-import-approval.md`
+**Decisions:** The legacy bridge remains inventory/provenance-only; import approval is a separate boundary that writes only accepted low-trust canonical memories under `~/.pai`.
+**Conventions established:** Legacy import previews must include source path, sensitivity, provenance, confidence, and proposed canonical destination before any import decision is applied.
+**Notes for next iteration:** #016 is now unblocked and is the next AFK smoke-test issue.
