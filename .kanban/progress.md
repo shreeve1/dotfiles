@@ -132,3 +132,11 @@
 **Decisions:** Real Claude inference remains disabled and documented as a future #019 provider option; this slice only enables deterministic and local/offline modes.
 **Conventions established:** Dream outputs are proposed memories with review queue entries, low or medium trust, provenance, confidence, assertion type, source event IDs, and `review_status: proposed`.
 **Notes for next iteration:** #014 is now the next lowest-priority unblocked AFK issue; #019 remains HITL because it enables real provider calls.
+
+## #014 Add ISA compatibility mapping tracer - 2026-05-09
+
+**What changed:** Added the ISA compatibility mapping layer that imports PRD-shaped artifacts into canonical ISA-shaped artifacts, renders fixed-order ISA markdown, and emits compatibility PRDs only for explicit legacy hook requirements.
+**Files:** `.pai/src/isa-compatibility.ts`, `.pai/tests/isa-compatibility.test.ts`, `.pai/docs/isa-compatibility.md`, `.pai/src/index.ts`, `.kanban/issues/014-add-isa-compatibility-tracer.md`
+**Decisions:** Compatibility PRDs are transitional artifacts marked `compatibility_write: true` and `canonical_source: ISA`; ISA remains the source of truth.
+**Conventions established:** ISA migration order is `read support` -> `dual-read` -> `canonical-write` -> `legacy read-only` -> `removal`.
+**Notes for next iteration:** #023 is the next lowest-priority unblocked AFK issue; #015 remains HITL and blocked until #023/#024/#025/#026/#027 reconcile #022 scope.
