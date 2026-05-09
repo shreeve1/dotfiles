@@ -85,3 +85,11 @@
 **Decisions:** Claude tracer issues remain template-only and do not mutate `~/.claude/settings.json`; active installed hook commands are preserved in generated templates while uninstalled/document-only hook names are ignored.
 **Conventions established:** Direct Claude launches emit `session.created_by_native_adapter`; `PAI_SESSION_ID` launches emit `session.attached_to_pai_run`; hook observations map to `session.start`, `prompt.submit`, `policy.pre_tool_use`, `tool.post_use`, and `session.stop` through redaction and policy evaluation.
 **Notes for next iteration:** Codex/OpenCode/Pi adapter tracers should mirror this pattern: preserve active behavior, render validated install fixtures only, emit explicit managed/degraded events, and avoid live config mutation.
+
+## #010 Add Codex adapter tracer - 2026-05-09
+
+**What changed:** Added the Codex adapter tracer library, installable tracer docs, and tests for session attachment, Codex hook contract mapping, bridge compatibility, PRD compatibility, canonical ingest, and auth/approval safety.
+**Files:** `.pai/src/codex-tracer.ts`, `.pai/src/index.ts`, `.pai/docs/codex-adapter-tracer.md`, `.pai/tests/codex-tracer.test.ts`, `.kanban/issues/010-add-codex-adapter-tracer.md`
+**Decisions:** Codex hook session IDs are hashed into canonical `pai_codex_` IDs without exposing raw native IDs; `.codex/pai/MEMORY` remains a bridge-read surface while canonical writes target `~/.pai`.
+**Conventions established:** Codex tracer templates are legacy-compatible, fixture-only, and must not mutate live config, auth, approval policy, or hooks; PRD-first enforcement remains preserved until ISA migration completes.
+**Notes for next iteration:** OpenCode and Pi tracers should reuse the same template-only boundary, canonical session resolution, redacted event mapping, and explicit managed/degraded launch semantics.
