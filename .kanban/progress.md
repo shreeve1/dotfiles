@@ -204,3 +204,11 @@
 **Decisions:** Live installer application remains out of scope; this slice only renders and validates non-mutating dry-runs. Invalid plans exit with code 2 from the CLI.
 **Conventions established:** Installer previews expose `mode: "dry-run"`, the full plan, validation result, ordered steps, and `will_mutate_live_config: false`.
 **Notes for next iteration:** #016 remains blocked by #019 and #021. Both are HITL and need explicit approval before Ralph can continue to the smoke test.
+
+## #019 Add dream provider enablement - 2026-05-09
+
+**What changed:** Added disabled-by-default `claude-inference` provider enablement gates, privacy labels, CLI approval flags, and redaction-before-provider tests for `pai-dream`.
+**Files:** `.pai/src/dream-pipeline.ts`, `.pai/src/cli/pai-dream.ts`, `.pai/src/index.ts`, `.pai/tests/dream-pipeline.test.ts`, `.pai/docs/pai-dream.md`, `.kanban/issues/019-add-dream-provider-enablement.md`
+**Decisions:** Real-provider transport remains unconfigured in this safe slice; approval gates can be exercised, but provider transport throws before any proposed memory write.
+**Conventions established:** External dream providers must expose privacy labels, require explicit enablement and approval, run redaction validation before transport, and write only review-gated proposed memories.
+**Notes for next iteration:** #016 remains blocked only by #021. #021 is HITL and needs explicit approval before Ralph can continue to the smoke test.
