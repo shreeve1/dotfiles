@@ -38,3 +38,16 @@ export {
   type ProjectIdentityInput,
   type ProjectIdentitySource,
 } from "./project-identity";
+export {
+  CanonicalEventStore,
+  EVENT_STORE_MIGRATIONS,
+  buildCanonicalEventEnvelope,
+  type CanonicalEventEnvelope,
+  type EventIngestInput,
+  type EventIngestOptions,
+  type EventIngestResult,
+  type EventIngestStatus,
+  type EventStoreOptions,
+  type JsonlPendingMarker,
+  type ReconciliationResult,
+} from "./event-store";

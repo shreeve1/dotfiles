@@ -1,7 +1,7 @@
 ---
 id: 002
 title: Add canonical event ingest
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [001, 003, 006]
 parent: null
