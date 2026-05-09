@@ -1,7 +1,7 @@
 ---
 id: 023
 title: Disable Claude/Codex default writers
-status: in_progress
+status: review
 type: AFK
 priority: 23
 blocked_by: []
