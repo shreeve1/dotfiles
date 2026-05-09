@@ -1,6 +1,6 @@
 # Installer Contract
 
-`pai-install` work is intentionally deferred. Adapter tracer issues may render and validate install plans, but they must not mutate live CLI configuration.
+`pai-install dry-run <target>` renders and validates install plans without mutating live CLI configuration. Live application of install plans remains deferred until a future explicit approval flow.
 
 An install plan uses schema version `pai.install-plan.v1` and includes:
 
@@ -16,10 +16,20 @@ An install plan uses schema version `pai.install-plan.v1` and includes:
 ## Rules
 
 - Adapter tracer issues may only produce install plans and fixture expectations.
-- Live application of install plans is deferred to the HITL safe installer issue.
+- Live application of install plans remains deferred after the dry-run command; this issue only makes planned changes visible and validated.
 - Plans must not expose auth files, private keys, `.env*`, or runtime stores such as `~/.pai/events.sqlite`, `~/.pai/memory`, `~/.pai/trails`, `~/.pai/transcripts`, or `~/.pai/auth`.
 - Plans must not symlink tracked source files into runtime stores.
 - Adapter enablement must always be explicit and approved by the user.
+
+## Dry-Run Output
+
+Dry-run output is JSON and includes:
+
+- `mode: "dry-run"`.
+- The full install plan.
+- Validation results.
+- Ordered steps for config writes, backups, symlinks, and adapter enablement.
+- `will_mutate_live_config: false`.
 
 ## Fixture Targets
 
