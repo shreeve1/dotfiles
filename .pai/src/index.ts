@@ -31,3 +31,10 @@ export {
   type PolicySeverity,
   type RedactedSubject,
 } from "./policy";
+export {
+  manualProjectAliasesFile,
+  resolveProjectIdentity,
+  type ProjectIdentity,
+  type ProjectIdentityInput,
+  type ProjectIdentitySource,
+} from "./project-identity";
