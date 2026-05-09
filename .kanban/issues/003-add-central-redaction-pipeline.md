@@ -1,7 +1,7 @@
 ---
 id: 003
 title: Add central redaction pipeline
-status: pending
+status: in_progress
 type: HITL
 blocked_by: [001]
 parent: null
