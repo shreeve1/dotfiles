@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { redactEvent, serializeRedactedJsonl, type PaiEventInput, type PayloadSurface } from "../src/redaction";
+import {
+  prepareEventForDestination,
+  redactEvent,
+  serializeRedactedJsonl,
+  type PaiEventInput,
+  type PayloadSurface,
+  type RedactionDestination,
+} from "../src/redaction";
 
 const baseEvent = (payloads: PaiEventInput["payloads"]): PaiEventInput => ({
   event_id: "evt_001",
@@ -21,6 +28,20 @@ describe("central redaction pipeline", () => {
     expect(event.taint_labels).toEqual(["public"]);
     expect(event.payload_size_limit).toBe(512);
     expect(event.payload_summary).toContain("public readme");
+  });
+
+  test("redacts before every outbound destination boundary", () => {
+    const destinations: RedactionDestination[] = ["sqlite", "jsonl", "dream", "retrieval", "inference_provider"];
+
+    for (const destination of destinations) {
+      const event = prepareEventForDestination(destination, baseEvent({ prompt: "token=not-a-real-token send to .env" }));
+
+      expect(event.redaction_destination).toBe(destination);
+      expect(event.redaction_status).toBe("redacted");
+      expect(event).not.toHaveProperty("payloads");
+      expect(event.payload_summary).not.toContain("not-a-real-token");
+      expect(event.payload_summary).not.toContain(".env");
+    }
   });
 
   test("redacts hard denylisted credential paths", () => {

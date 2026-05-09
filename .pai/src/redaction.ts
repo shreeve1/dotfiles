@@ -11,6 +11,8 @@ export type SensitivityLabel = "public" | "sensitive" | "secret" | "oversized";
 
 export type RedactionStatus = "clean" | "redacted" | "blocked";
 
+export type RedactionDestination = "sqlite" | "jsonl" | "dream" | "retrieval" | "inference_provider";
+
 export type RedactionFinding = {
   surface: PayloadSurface;
   kind: "secret_pattern" | "denylisted_path" | "payload_limit";
@@ -34,6 +36,7 @@ export type PaiEventInput = {
 
 export type RedactedPaiEvent = Omit<PaiEventInput, "payloads"> & {
   schema_version: "pai.event.v1";
+  redaction_destination?: RedactionDestination;
   sensitivity: SensitivityLabel;
   taint_labels: SensitivityLabel[];
   redaction_status: RedactionStatus;
@@ -123,6 +126,17 @@ export function redactEvent(input: PaiEventInput, options: RedactionOptions = {}
     payload_size_limit: maxPayloadChars,
     payload_summary: summaries.join("\n"),
     findings,
+  };
+}
+
+export function prepareEventForDestination(
+  destination: RedactionDestination,
+  input: PaiEventInput,
+  options: RedactionOptions = {},
+): RedactedPaiEvent {
+  return {
+    ...redactEvent(input, options),
+    redaction_destination: destination,
   };
 }
 
