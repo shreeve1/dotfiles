@@ -9,6 +9,7 @@
   },
   "bin": {
     "pai-run": "./src/cli/pai-run.ts",
+    "pai-install": "./src/cli/pai-install.ts",
     "pai-memory": "./src/cli/pai-memory.ts",
     "pai-dream": "./src/cli/pai-dream.ts",
     "pai-policy": "./src/cli/pai-policy.ts"
