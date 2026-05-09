@@ -3,6 +3,7 @@ id: 002
 title: Add canonical event ingest
 status: done
 type: AFK
+priority: 2
 blocked_by: [001, 003, 006]
 parent: null
 created: 2026-05-09

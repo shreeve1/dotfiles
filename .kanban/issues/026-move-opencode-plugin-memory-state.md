@@ -3,6 +3,7 @@ id: 026
 title: Move OpenCode plugin memory state
 status: pending
 type: AFK
+priority: 26
 blocked_by: [023]
 parent: 022
 created: 2026-05-09

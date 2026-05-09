@@ -3,6 +3,7 @@ id: 011
 title: Add OpenCode adapter tracer
 status: done
 type: AFK
+priority: 11
 blocked_by: [004, 005, 007, 018]
 parent: null
 created: 2026-05-09

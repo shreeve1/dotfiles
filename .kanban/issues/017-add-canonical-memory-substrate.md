@@ -3,6 +3,7 @@ id: 017
 title: Add canonical memory substrate
 status: done
 type: AFK
+priority: 17
 blocked_by: [002, 003, 006]
 parent: null
 created: 2026-05-09

@@ -3,6 +3,7 @@ id: 012
 title: Add Pi wrapper tracer
 status: done
 type: AFK
+priority: 12
 blocked_by: [005, 018]
 parent: null
 created: 2026-05-09

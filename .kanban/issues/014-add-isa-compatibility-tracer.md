@@ -3,6 +3,7 @@ id: 014
 title: Add ISA compatibility mapping tracer
 status: pending
 type: AFK
+priority: 14
 blocked_by: [007, 008]
 parent: null
 created: 2026-05-09

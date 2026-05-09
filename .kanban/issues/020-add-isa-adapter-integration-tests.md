@@ -3,6 +3,7 @@ id: 020
 title: Add ISA adapter integration tests
 status: pending
 type: AFK
+priority: 20
 blocked_by: [009, 010, 014]
 parent: null
 created: 2026-05-09

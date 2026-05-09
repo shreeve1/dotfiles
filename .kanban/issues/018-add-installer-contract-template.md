@@ -3,6 +3,7 @@ id: 018
 title: Add installer contract template
 status: done
 type: AFK
+priority: 18
 blocked_by: [004]
 parent: null
 created: 2026-05-09

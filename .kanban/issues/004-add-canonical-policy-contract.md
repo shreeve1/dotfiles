@@ -3,6 +3,7 @@ id: 004
 title: Add canonical policy contract
 status: done
 type: HITL
+priority: 4
 blocked_by: [001, 003]
 parent: null
 created: 2026-05-09

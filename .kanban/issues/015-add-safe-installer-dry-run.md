@@ -3,6 +3,7 @@ id: 015
 title: Add safe installer dry-run
 status: pending
 type: HITL
+priority: 15
 blocked_by: [009, 010, 011, 012, 018]
 parent: null
 created: 2026-05-09

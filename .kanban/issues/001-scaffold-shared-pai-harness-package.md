@@ -3,6 +3,7 @@ id: 001
 title: Scaffold shared PAI harness package
 status: done
 type: AFK
+priority: 1
 blocked_by: []
 parent: null
 created: 2026-05-09

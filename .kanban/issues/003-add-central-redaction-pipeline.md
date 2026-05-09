@@ -3,6 +3,7 @@ id: 003
 title: Add central redaction pipeline
 status: done
 type: HITL
+priority: 3
 blocked_by: [001]
 parent: null
 created: 2026-05-09

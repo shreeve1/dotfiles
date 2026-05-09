@@ -3,6 +3,7 @@ id: 009
 title: Add Claude adapter tracer
 status: done
 type: AFK
+priority: 9
 blocked_by: [004, 005, 008, 018]
 parent: null
 created: 2026-05-09
