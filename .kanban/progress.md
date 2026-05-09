@@ -37,3 +37,11 @@
 **Decisions:** SQLite is authoritative; JSONL is inspection/recovery only; JSONL accepted events append only after successful SQLite ingest, while interrupted windows use explicit pending markers.
 **Conventions established:** Canonical event envelopes never include raw `payload` or `payloads`; duplicate `event_id` or duplicate `(pai_session_id, sequence)` returns a replayed envelope instead of inserting a second row.
 **Notes for next iteration:** Session wrapper and memory features can depend on `CanonicalEventStore.ingest()` and should continue using redacted destination-prepared events before durable writes.
+
+## #005 Add pai-run session wrapper - 2026-05-09
+
+**What changed:** Added `pai-run` session wrapper planning and lifecycle recording, a dry-run-by-default CLI, opt-in alias documentation, and tests that avoid live external CLI invocation.
+**Files:** `.pai/src/session-wrapper.ts`, `.pai/src/cli/pai-run.ts`, `.pai/src/index.ts`, `.pai/docs/pai-run.md`, `.pai/tests/session-wrapper.test.ts`, `.kanban/issues/005-add-pai-run-session-wrapper.md`
+**Decisions:** Default CLI mode is dry-run and does not invoke live CLIs; `--exec` is required for live launch; native command and args are preserved while PAI environment variables are added.
+**Conventions established:** Session wrapper environment uses `PAI_SESSION_ID`, `PAI_RUNTIME_HOME`, `PAI_HARNESS`, `PAI_TARGET_CLI`, and optional `PAI_PROJECT_ID`; lifecycle events use `session.start`, `session.launch`, `session.degraded_capability`, and `session.stop`.
+**Notes for next iteration:** Future memory and review CLIs can launch through `buildPaiRunPlan` and `recordPaiRunLifecycle`; do not install soft aliases automatically.
