@@ -164,3 +164,11 @@
 **Decisions:** `ARCHIVE_ONLY_HARNESSES` keeps Claude/Codex archive-only by default while fixture overrides can exercise historical read compatibility.
 **Conventions established:** New bridge-read writes for archive-only harnesses fail with `LegacyArchiveOnlyError` carrying `code`, `harness`, and `inventory_id`.
 **Notes for next iteration:** #026 is the next lowest-priority unblocked AFK issue.
+
+## #026 Move OpenCode plugin memory state - 2026-05-09
+
+**What changed:** Routed OpenCode ISA sync artifact detection to the actual shared PAI memory path and removed the injected Algorithm prompt's required Claude Algorithm file read.
+**Files:** `.config/opencode/plugins/pai-isa-sync/index.ts`, `.config/opencode/modes/algorithm.md`, `.pai/tests/disabled-targets.test.ts`, `.kanban/issues/026-move-opencode-plugin-memory-state.md`
+**Decisions:** OpenCode mode routing should rely on active Algorithm/context instructions already present in system context, not force a `~/.claude` file read.
+**Conventions established:** OpenCode runtime state uses `~/.pai/memory/STATE/` and `~/.pai/memory/WORK/`; source-grep tests guard against reintroducing `~/.claude` in `pai-mode-router` and `pai-isa-sync`.
+**Notes for next iteration:** #027 is now unblocked because #023, #024, #025, and #026 are done.
