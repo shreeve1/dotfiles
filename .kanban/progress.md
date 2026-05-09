@@ -53,3 +53,11 @@
 **Decisions:** Durable memory records carry explicit assertion type, trust level, review status, source event IDs, provenance, confidence, timestamps, expiration, and revalidation metadata.
 **Conventions established:** Instruction-eligible retrieval only returns accepted memories with medium/high trust and non-inferred assertion types; low-trust, inferred, and unaccepted memories stay out of instruction injection paths.
 **Notes for next iteration:** Future `pai-memory`, dream, migration, and retrieval features should use `CanonicalMemoryStore` instead of inventing alternate memory shapes.
+
+## #007 Add memory review CLI - 2026-05-09
+
+**What changed:** Added `pai-memory` search, context, and review commands backed by SQLite FTS, trust-gated retrieval, and local review queue transitions.
+**Files:** `.pai/src/cli/pai-memory.ts`, `.pai/src/memory-store.ts`, `.pai/src/index.ts`, `.pai/tests/memory-store.test.ts`, `.pai/tests/memory-cli.test.ts`, `.kanban/issues/007-add-memory-review-cli.md`
+**Decisions:** `pai-memory context` only emits bounded instruction-eligible memories from the existing trust gate; `pai-memory review list` includes diff preview plus linked memory confidence, assertion type, trust level, type, and source event refs.
+**Conventions established:** Memory search filters are project/type/confidence/trust/recency/harness aware; review actions use `accept`, `reject`, and `defer` mapped to local review queue states.
+**Notes for next iteration:** Future dream/retrieval work should reuse `searchMemories`, `buildContextBlock`, and review queue APIs rather than bypassing trust gates.
