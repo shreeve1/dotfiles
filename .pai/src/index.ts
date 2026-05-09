@@ -84,3 +84,18 @@ export {
   type ReviewStatus,
   type TrustLevel,
 } from "./memory-store";
+export {
+  LEGACY_BRIDGE_MIGRATIONS,
+  LEGACY_HARNESSES,
+  LEGACY_SURFACE_CLASSES,
+  LegacyMigrationBridge,
+  classifyLegacySurface,
+  type BridgeReadRecord,
+  type LegacyBridgeOptions,
+  type LegacyHarness,
+  type LegacyInventoryRecord,
+  type LegacyInventoryResult,
+  type LegacySurfaceClass,
+  type LegacySurfaceRoot,
+  type SkippedLegacyPath,
+} from "./legacy-bridge";
