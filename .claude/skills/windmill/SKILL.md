@@ -1,6 +1,6 @@
 ---
 name: windmill
-description: Diagnose and troubleshoot the Windmill CE instance on aidev (10.20.20.16:8100). Provides health checks, run history analysis, flow diagnostics, schedule verification, log inspection, DB query patterns, and Peppermint ticket inspection. Use when user asks about Windmill status, failing flows, schedule problems, job errors, container health, Peppermint tickets, or anything related to the paperclip2 automation pipeline.
+description: Diagnose and troubleshoot the Windmill CE instance on aidev (10.20.20.16:8100). Provides health checks, run history analysis, flow diagnostics, schedule verification, log inspection, DB query patterns, and Plane ticket inspection. Use when user asks about Windmill status, failing flows, schedule problems, job errors, container health, Plane tickets, or anything related to the homelab patrol pipeline.
 ---
 
 # Windmill CLI
@@ -106,7 +106,7 @@ FROM v2_job_runtime WHERE status = 'running' AND started_at < NOW() - INTERVAL '
 
 ## Workflow 8: Variable/Resource Checks
 
-Paperclip2 failures often come from missing variables. Check without printing secrets:
+Patrol failures often come from missing variables. Check without printing secrets:
 ```bash
 # List variable paths (no values)
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8100/api/w/admins/variables/list" | \
@@ -114,81 +114,58 @@ curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8100/api/w/admins/va
 
 # Check if a specific variable exists
 curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8100/api/w/admins/variables/get/f/admins/paperclip2_dsn"
+  "http://localhost:8100/api/w/admins/variables/get/f/admins/plane_api_key"
 ```
 
-Key variables for paperclip2: `f/admins/cliproxyapi_key`, `f/admins/paperclip2_dsn`
+Key variables for patrol Plane tickets: `f/admins/plane_base_url`, `f/admins/plane_api_key`, `f/admins/plane_workspace_slug`, `f/admins/plane_project_id`
 
-Key variables for Peppermint: `f/admins/peppermint_url`, `f/admins/peppermint_admin_email`, `f/admins/peppermint_admin_password`, `f/admins/peppermint_dsn`
+## Workflow 9: Plane Ticket Inspection
 
-## Workflow 9: Peppermint Ticket Inspection
+Plane is the project management tool where patrol scripts create Todo tickets for failures. Symphony (`plane-symphony-1`) polls Plane for eligible Todo tickets and dispatches OpenCode to work them. Plane API runs on `10.20.20.16:8000`.
 
-Peppermint is the human-readable ticket surface for paperclip2. Container: `windmill-peppermint-1` (port 8201→3000). DB: `peppermint` database on the same `windmill-db-1` container.
-
-**Health check:**
+**Check Symphony health:**
 ```bash
-docker ps --filter name=peppermint --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8201
+cd /home/james/plane && docker compose ps symphony
+docker inspect --format='{{.State.Health.Status}}' plane-symphony-1
+docker compose logs --since=5m symphony
 ```
 
-**List all open tickets (with domain and fingerprint):**
+Expected idle state: `plane-symphony-1` is `Up` and `healthy`. Logs show `tick_completed dispatched=false reason=no-candidates` when no Todo tickets are ready.
+
+**List open Plane issues via API (patrol-created tickets have domain labels):**
 ```bash
-docker exec windmill-db-1 psql -U postgres -d peppermint -c "
-SELECT t.\"Number\", t.title, t.status, t.priority,
-       t.linked->>'paperclip2_fingerprint' AS fingerprint,
-       c.name AS client
-FROM \"Ticket\" t
-LEFT JOIN \"Client\" c ON t.\"clientId\" = c.id
-WHERE t.\"isComplete\" = false
-ORDER BY t.\"updatedAt\" DESC;"
+curl -s -H "X-API-Key: $PLANE_API_KEY" \
+  "http://10.20.20.16:8000/api/v1/workspaces/homelab/projects/$PLANE_PROJECT_ID/issues/?state_group=unstarted" | \
+  python3 -c "import sys,json; [print(i['sequence_id'], i['name'], i.get('labels',[])) for i in json.load(sys.stdin).get('results',[])]"
 ```
 
-**Find ticket by paperclip2 fingerprint:**
-```bash
-docker exec windmill-db-1 psql -U postgres -d peppermint -c "
-SELECT t.\"Number\", t.title, t.status, t.\"isComplete\", t.\"updatedAt\"
-FROM \"Ticket\" t
-WHERE t.linked->>'paperclip2_fingerprint' = '<FINGERPRINT>'
-ORDER BY t.\"createdAt\" DESC;"
-```
-
-**Show recent comments on a ticket (by ticket Number):**
-```bash
-docker exec windmill-db-1 psql -U postgres -d peppermint -c "
-SELECT cm.\"createdAt\", LEFT(cm.text, 200) AS body
-FROM \"Comment\" cm
-JOIN \"Ticket\" t ON cm.\"ticketId\" = t.id
-WHERE t.\"Number\" = <NUMBER>
-ORDER BY cm.\"createdAt\" ASC;"
-```
-
-**Check ticket_close_scheduler run history (last 10 runs):**
+**Check patrol script run history for ticket creation:**
 ```bash
 docker exec windmill-db-1 psql -U postgres -d windmill -c "
 SELECT started_at, duration_ms, status, LEFT(result::text, 300) as result
 FROM v2_job_completed
-WHERE result::text LIKE '%ticket_close%' OR result::text LIKE '%closed%'
+WHERE script_path LIKE '%_patrol' AND started_at >= NOW() - INTERVAL '24 hours'
+ORDER BY started_at DESC LIMIT 20;"
+```
+
+**Check recent ticket-related patrol results:**
+```bash
+docker exec windmill-db-1 psql -U postgres -d windmill -c "
+SELECT started_at, script_path, status, LEFT(result::text, 200) as result
+FROM v2_job_completed
+WHERE result::text LIKE '%plane%' OR result::text LIKE '%ticket%'
 ORDER BY started_at DESC LIMIT 10;"
 ```
 
-Alternatively, check via schedule path:
-```bash
-TOKEN=$(grep -oP 'V7Jz\w+' ~/.claude/projects/-home-james-windmill/memory/windmill-api-key.md | head -1)
-curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8100/api/w/admins/jobs/completed/list?script_path=f/admins/paperclip2/executors/ticket_close_scheduler&per_page=5" | \
-  python3 -c "import sys,json; [print(j['started_at'], j['success']) for j in json.load(sys.stdin)]"
-```
+See [docs/runbooks/automation/symphony.md](/home/james/homelab/docs/runbooks/automation/symphony.md) for full Symphony runbook.
 
-**Manual ticket close via DB (emergency use only — prefer UI or ticket_close_scheduler):**
-```bash
-docker exec windmill-db-1 psql -U postgres -d peppermint -c "
-UPDATE \"Ticket\" SET \"isComplete\" = true, status = 'done', \"updatedAt\" = now()
-WHERE linked->>'paperclip2_fingerprint' = '<FINGERPRINT>' AND \"isComplete\" = false;"
-```
+## Patrol Pipeline
 
-See [REFERENCE.md](REFERENCE.md) for full Peppermint schema details.
+6 domain patrol scripts (secops/infraops/netops/mediaops/storageops/dockerops) run on Windmill schedules. Each executes health checks, and on failure calls `create_plane_ticket.py` to open a Plane Todo ticket. Symphony polls Plane for eligible Todo tickets and dispatches OpenCode sessions against the homelab repo to resolve them.
 
-## Paperclip2 Pipeline
+Patrol scripts in Windmill: `f/admins/homelab_patrols/scripts/*_patrol`
+Source in repo: `automation/homelab-stack/deploy/windmill/*_patrol.py`
+Ticket creation: `automation/homelab-stack/deploy/windmill/create_plane_ticket.py`
+Symphony runbook: `docs/runbooks/automation/symphony.md`
 
-6 domain executors (secops/infraops/netops/mediaops/storageops/dockerops) all chain: domain_executor → decision_executor → executor (tiered dispatch). Plus approval_timeout (standalone, */5min).
-
-See [REFERENCE.md](REFERENCE.md) for DB schema, API endpoints, known bugs, and query patterns.
+See [REFERENCE.md](REFERENCE.md) for Windmill DB schema and query patterns.

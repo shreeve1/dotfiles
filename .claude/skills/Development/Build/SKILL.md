@@ -26,25 +26,6 @@ After each wave's tasks complete, a quick Codex audit reviews the wave's diff fo
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the Build skill to execute the implementation plan", "voice_id": "fTtv3eikoepIosk8dTZ5", "voice_enabled": true}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **Build** skill to execute the implementation plan...
-   ```
-
-**Full documentation:** `~/.claude/PAI/THENOTIFICATIONSYSTEM.md`
-
 ## Model Recommendation
 
 **Recommended model:** Sonnet — build execution benefits from speed for wave-based parallel task spawning. Reserve Opus for complex architectural decisions within tasks.

@@ -10,25 +10,6 @@ description: Generate Playwright-ready user stories from implementation plans â€
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the GenerateStories workflow to create Playwright user stories"}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **GenerateStories** workflow in the **Stories** skill to create Playwright user stories...
-   ```
-
-**This is not optional. Execute this curl command immediately upon skill invocation.**
-
 ## Model Recommendation
 
 **Recommended model: opus** â€” Story generation requires deep plan comprehension, creative coverage of edge cases, and precise YAML formatting. Opus provides the best quality for comprehensive UI flow extraction.

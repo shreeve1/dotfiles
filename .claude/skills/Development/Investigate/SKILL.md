@@ -10,25 +10,6 @@ description: Systematic 6-phase bug investigation loop — understand, resolve a
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the Investigate workflow to diagnose the root cause"}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **Investigate** workflow to diagnose the root cause...
-   ```
-
-**This is not optional. Execute this curl command immediately upon skill invocation.**
-
 ## Model Recommendation
 
 **Recommended model: sonnet** — Investigation is iterative with many read/search/verify cycles. Speed matters more than deep reasoning per cycle. Sonnet provides fast, accurate code tracing while keeping iteration latency low.

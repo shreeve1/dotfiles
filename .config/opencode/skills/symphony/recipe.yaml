@@ -36,7 +36,7 @@ workflow:
     decision_point: true
   - step: 2
     name: "Map Components"
-    description: "Read relevant Symphony, homelab, and compose files before assertions or edits."
+    description: "Read relevant Symphony, homelab, and systemd files before assertions or edits."
     requires_input:
       - "component"
     produces:
@@ -44,7 +44,7 @@ workflow:
     decision_point: false
   - step: 3
     name: "Run Diagnostics"
-    description: "Check Docker status, health, logs, env presence, and git state without secrets."
+    description: "Check systemd status, journal logs, env presence, and git state without secrets."
     requires_input:
       - "task-type"
     produces:
@@ -69,7 +69,7 @@ workflow:
     decision_point: false
   - step: 6
     name: "Verify Locally"
-    description: "Run tests, diff hygiene, compose config, and Docker build checks."
+    description: "Run tests, diff hygiene, py_compile, and systemd unit checks."
     requires_input:
       - "task-type"
     produces:
@@ -85,7 +85,7 @@ workflow:
     decision_point: true
   - step: 8
     name: "Report Evidence"
-    description: "Report health, logs, tests, live actions, repo state, and compose caveats."
+    description: "Report health, logs, tests, live actions, repo state, and systemd caveats."
     requires_input:
       - "task-type"
     produces:
@@ -114,7 +114,7 @@ outputs:
     type: "artifact"
     required: false
   - id: "local-verification"
-    description: "Test, diff, compose, and build verification evidence."
+    description: "Test, diff, py_compile, and systemd verification evidence."
     type: "artifact"
     required: false
   - id: "live-verification"

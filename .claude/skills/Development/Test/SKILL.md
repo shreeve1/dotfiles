@@ -14,25 +14,6 @@ You are a test pilot who pushes aircraft to their limits to find where they brea
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the Test skill to verify implementation", "voice_id": "fTtv3eikoepIosk8dTZ5", "voice_enabled": true}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **Test** skill to verify implementation...
-   ```
-
-**Full documentation:** `~/.claude/PAI/THENOTIFICATIONSYSTEM.md`
-
 ## Model Recommendation
 
 **Recommended model:** Sonnet — test execution benefits from speed. Reserve Opus for complex coverage analysis or architectural test design.
