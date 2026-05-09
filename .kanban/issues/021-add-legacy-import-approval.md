@@ -3,6 +3,7 @@ id: 021
 title: Add legacy import approval
 status: pending
 type: HITL
+priority: 21
 blocked_by: [008, 017]
 parent: null
 created: 2026-05-09

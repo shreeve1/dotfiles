@@ -3,6 +3,7 @@ id: 024
 title: Route runtime writes to active writers
 status: pending
 type: AFK
+priority: 24
 blocked_by: [023]
 parent: 022
 created: 2026-05-09

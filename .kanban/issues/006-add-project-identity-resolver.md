@@ -3,6 +3,7 @@ id: 006
 title: Add project identity resolver
 status: done
 type: AFK
+priority: 6
 blocked_by: [001]
 parent: null
 created: 2026-05-09

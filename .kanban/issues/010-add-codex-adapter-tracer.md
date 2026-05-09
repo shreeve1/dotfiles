@@ -3,6 +3,7 @@ id: 010
 title: Add Codex adapter tracer
 status: done
 type: AFK
+priority: 10
 blocked_by: [004, 005, 008, 018]
 parent: null
 created: 2026-05-09

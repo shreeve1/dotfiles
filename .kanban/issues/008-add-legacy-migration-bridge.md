@@ -3,6 +3,7 @@ id: 008
 title: Add legacy migration inventory bridge
 status: done
 type: AFK
+priority: 8
 blocked_by: [002, 003, 017]
 parent: null
 created: 2026-05-09

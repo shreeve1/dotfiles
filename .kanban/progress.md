@@ -117,3 +117,10 @@
 **Decisions:** #009 Claude tracer and #010 Codex tracer are superseded as active shared-memory writers and retained as historical/template code. #011 OpenCode tracer and #012 Pi tracer remain active writer surfaces. #008 bridge now treats Claude/Codex as archive-only for new bridge-read writes while preserving existing read semantics. OpenCode runtime plugins should write PAI work state under `~/.pai/memory/` instead of Claude memory paths.
 **Conventions established:** Disabled historical adapters must still be recognized by type-level APIs and replay/inventory flows; active flows must skip their shared-memory lifecycle writes. A hard structured archive error is preferred over silent no-op for accidental Claude/Codex bridge writes.
 **Notes for next iteration:** The previous big-bang OpenCode port plan is abandoned. Resume #013, #014, #015, #016, #019, #020, and #021 under the narrower scope, with #015 and #021 still requiring HITL approval.
+
+## Board recovery - 2026-05-09
+
+**What changed:** Added explicit numeric priorities to all issue frontmatter using the existing issue ID order, and reset stale `in_progress` locks for #013 and #022 back to `pending` for retry/reconciliation.
+**Files:** `.kanban/issues/001-scaffold-shared-pai-harness-package.md` through `.kanban/issues/027-document-and-reconcile-kanban-scope.md`, `.kanban/progress.md`
+**Decisions:** Priority values intentionally mirror issue IDs to satisfy Ralph's required field without reordering the existing board. Stale locks were not marked done because completion was not re-verified in this recovery pass.
+**Notes for next iteration:** Ralph should revalidate the board before claiming work. If validation passes, #013 is expected to sort before #014 because it has priority 13 and its blockers are done.

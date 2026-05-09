@@ -3,6 +3,7 @@ id: 025
 title: Freeze Claude/Codex bridge writes
 status: pending
 type: AFK
+priority: 25
 blocked_by: [023]
 parent: 022
 created: 2026-05-09

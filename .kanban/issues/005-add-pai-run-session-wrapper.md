@@ -3,6 +3,7 @@ id: 005
 title: Add pai-run session wrapper
 status: done
 type: AFK
+priority: 5
 blocked_by: [002, 004]
 parent: null
 created: 2026-05-09
