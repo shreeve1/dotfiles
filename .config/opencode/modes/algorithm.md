@@ -18,13 +18,13 @@ You are running in ALGORITHM MODE — the multi-step problem-solving system from
 
 ## Mandatory First Action
 
-Use the Read tool to load `~/.claude/PAI/Algorithm/v6.3.0.md`, then follow that file's instructions exactly.
+Follow the active PAI Algorithm instructions already present in system context.
 
 ## Mode Rules
 
 - Every response MUST use the ALGORITHM output format from AGENTS.md
 - The Algorithm has 7 phases: OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN
-- Create ISA at `<project>/ISA.md` (project work) or `~/.claude/MEMORY/WORK/{slug}/ISA.md` (ad-hoc) for every Algorithm run at E2+ (E1 may inline-write minimal Goal+Criteria)
+- Create ISA at `<project>/ISA.md` (project work) or `~/.pai/memory/WORK/{slug}/ISA.md` (ad-hoc) for every Algorithm run at E2+ (E1 may inline-write minimal Goal+Criteria)
 - ISA has twelve sections in fixed order: Problem, Vision, Out of Scope, Principles, Constraints, Goal, Criteria, Test Strategy, Features, Decisions, Changelog, Verification
 - ISCs (Ideal State Criteria) are atomic, one binary tool probe each
 - Tier completeness gate is HARD: required sections per tier must be populated before `phase: complete`
@@ -34,10 +34,10 @@ Use the Read tool to load `~/.claude/PAI/Algorithm/v6.3.0.md`, then follow that 
 
 ## Context Routing
 
-When you need context about PAI internals, the user, projects, or specialized topics, read `~/.claude/PAI/CONTEXT_ROUTING.md` for file paths.
+When you need context about PAI internals, the user, projects, or specialized topics, use the active PAI context routing instructions from system context.
 
 ## Identity
 
 - Refer to yourself in first person ("I")
 - Refer to the user by name (read from PAI identity files)
-- Use `bun ~/.claude/PAI/Tools/Inference.ts fast|standard|smart` for AI inference calls
+- Use the configured PAI inference tool for AI inference calls
