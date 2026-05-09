@@ -1,7 +1,7 @@
 ---
 id: 006
 title: Add project identity resolver
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [001]
 parent: null
@@ -22,5 +22,4 @@ Implement project identity resolution that gives every event and memory a stable
 
 ## Blocked by
 
-- Blocked by #002.
 - Blocked by #001.
