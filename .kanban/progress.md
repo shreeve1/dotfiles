@@ -140,3 +140,11 @@
 **Decisions:** Compatibility PRDs are transitional artifacts marked `compatibility_write: true` and `canonical_source: ISA`; ISA remains the source of truth.
 **Conventions established:** ISA migration order is `read support` -> `dual-read` -> `canonical-write` -> `legacy read-only` -> `removal`.
 **Notes for next iteration:** #023 is the next lowest-priority unblocked AFK issue; #015 remains HITL and blocked until #023/#024/#025/#026/#027 reconcile #022 scope.
+
+## #023 Disable Claude/Codex default writers - 2026-05-09
+
+**What changed:** Verified and closed the disabled-writer installer contract slice; no source changes were needed because the policy was already implemented by the #022 scope work.
+**Files:** `.kanban/issues/023-disable-claude-codex-default-writers.md`
+**Decisions:** Keep Claude and Codex recognized as historical adapters while rejecting any default shared-memory writer enablement for them.
+**Conventions established:** `ACTIVE_SHARED_MEMORY_TARGETS` remains OpenCode/Pi; `DISABLED_SHARED_MEMORY_TARGETS` remains Claude/Codex.
+**Notes for next iteration:** #024 and #025 are now unblocked by #023; #024 sorts next by priority.
