@@ -1,7 +1,7 @@
 ---
 id: 025
 title: Freeze Claude/Codex bridge writes
-status: in_progress
+status: review
 type: AFK
 priority: 25
 blocked_by: [023]
