@@ -5,6 +5,19 @@ artifacts/
 # Machine-local session work logs (per-machine)
 MEMORY/
 
+# Shared PAI harness runtime state must stay machine-local
+.pai/runtime/
+.pai/**/*.sqlite
+.pai/**/*.sqlite-*
+.pai/**/*.db
+.pai/**/*.jsonl
+.pai/**/MEMORY/
+.pai/**/memory/
+.pai/**/events/
+.pai/**/transcripts/
+.pai/**/auth.json
+.pai/**/secrets.*
+
 # Machine-local helper binaries
 bin/
 
