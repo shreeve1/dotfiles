@@ -1,7 +1,7 @@
 ---
 id: 006
 title: Add project identity resolver
-status: in_progress
+status: review
 type: AFK
 blocked_by: [001]
 parent: null
