@@ -43,7 +43,7 @@ Flow definitions (visual pipeline builder).
 
 | Column | Type | Notes |
 |--------|------|-------|
-| path | text | Primary key (e.g. `f/admins/paperclip2/f/secops_executor`) |
+| path | text | Primary key (e.g. `f/admins/homelab_patrols/f/my_flow`) |
 | value | jsonb | Flow structure: modules, input_transforms, flow_env |
 | schema | jsonb | Input schema for the flow |
 | summary | text | Human-readable description |
@@ -113,7 +113,7 @@ Registered Python/other scripts.
 SELECT path, language, created_at FROM script ORDER BY created_at DESC LIMIT 20;
 
 -- Find scripts by path pattern
-SELECT path, language FROM script WHERE path LIKE '%paperclip2%' ORDER BY path;
+SELECT path, language FROM script WHERE path LIKE '%patrol%' ORDER BY path;
 ```
 
 ## Flow Value JSON Structure
@@ -164,18 +164,18 @@ When a flow has serde corruption:
 ```bash
 # 1. Export the value JSON
 docker exec windmill-db-1 psql -U postgres -d windmill -t -A -c \
-  "SELECT value::text FROM flow WHERE path = 'f/admins/paperclip2/f/MY_FLOW';" > /tmp/flow_backup.json
+  "SELECT value::text FROM flow WHERE path = 'f/admins/homelab_patrols/f/MY_FLOW';" > /tmp/flow_backup.json
 
 # 2. Delete the corrupted row
 docker exec windmill-db-1 psql -U postgres -d windmill -c \
-  "DELETE FROM flow WHERE path = 'f/admins/paperclip2/f/MY_FLOW';"
+  "DELETE FROM flow WHERE path = 'f/admins/homelab_patrols/f/MY_FLOW';"
 
 # 3. Recreate via API (enforces correct serialization)
 python3 -c "
 import json
 value = json.load(open('/tmp/flow_backup.json'))
 payload = {
-    'path': 'f/admins/paperclip2/f/MY_FLOW',
+    'path': 'f/admins/homelab_patrols/f/MY_FLOW',
     'summary': 'My flow summary',
     'value': value,
     'schema': {'type': 'object', 'properties': {}, 'required': []}
@@ -190,7 +190,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
 
 # 4. Verify
 curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8100/api/w/admins/flows/get/f/admins/paperclip2/f/MY_FLOW"
+  "http://localhost:8100/api/w/admins/flows/get/f/admins/homelab_patrols/f/MY_FLOW"
 ```
 
 ## Container Architecture
@@ -225,104 +225,6 @@ curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $TOKEN" \
 
 - **Flow serde corruption**: Flows inserted via direct DB SQL can cause `SqlErr: unexpected null; try decoding as Option`. Fix: delete and recreate via API.
 - **`same_worker` field**: Adding `"same_worker": false` to flow value JSON can break deserialization in CE v1.691.0. Avoid it.
-
-## Peppermint Schema (`peppermint` database)
-
-Peppermint is the ticket surface for paperclip2. All tables use double-quoted PascalCase names (Prisma convention). Connect with:
-
-```bash
-docker exec windmill-db-1 psql -U postgres -d peppermint
-```
-
-Web UI: `http://10.20.20.16:8201` (internal) / `homelab.testytech.net` (external, behind Authelia).
-Admin login: `jamesschriever@gmail.com` — password in `windmill/.env` as `PEPPERMINT_DB_PASSWORD`.
-
-### "Ticket"
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | text | UUID primary key |
-| Number | integer | Auto-increment, human-readable ticket number |
-| title | text | `<domain>:<check_type>:<target> — <message>` |
-| detail | text | First-occurrence finding full message |
-| isComplete | boolean | false = open, true = closed |
-| status | TicketStatus | `needs_support`, `in_progress`, `in_review`, `done` |
-| priority | text | `low`, `medium`, `high` |
-| clientId | text | FK → `"Client".id` (maps to domain) |
-| linked | jsonb | `{"paperclip2_fingerprint": "<16-hex>"}` — used for idempotent lookup |
-| createdAt | timestamptz | |
-| updatedAt | timestamptz | Bumped on every comment append |
-
-Key index: `idx_ticket_paperclip2_fingerprint` on `linked->>'paperclip2_fingerprint'`
-Unique constraint: `uniq_open_ticket_paperclip2_fingerprint` — only one open ticket per fingerprint at a time.
-
-### "Comment"
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | text | UUID primary key |
-| ticketId | text | FK → `"Ticket".id` |
-| text | text | Comment body (plain text, newlines allowed; NUL bytes rejected by Postgres) |
-| public | boolean | Always `true` for paperclip2-written comments |
-| reply | boolean | `false` for paperclip2-written comments (true would mark as a reply thread) |
-| edited | boolean | `false` for paperclip2-written comments |
-| createdAt | timestamptz | |
-
-### "Client"
-
-One row per domain. Seeded at deploy time:
-
-| name | (maps to domain) |
-|------|-----------------|
-| secops | secops |
-| infraops | infraops |
-| netops | netops |
-| mediaops | mediaops |
-| storageops | storageops |
-| dockerops | dockerops |
-
-**Common Peppermint queries:**
-
-```sql
--- Open ticket count by domain
-SELECT c.name AS domain, COUNT(*) AS open
-FROM "Ticket" t JOIN "Client" c ON t."clientId" = c.id
-WHERE t."isComplete" = false GROUP BY c.name ORDER BY open DESC;
-
--- All open tickets with age
-SELECT t."Number", t.title, t.status,
-       NOW() - t."createdAt" AS age,
-       t.linked->>'paperclip2_fingerprint' AS fingerprint
-FROM "Ticket" t WHERE t."isComplete" = false ORDER BY t."createdAt";
-
--- Most recent comment on each open ticket
-SELECT t."Number", t.title, MAX(cm."createdAt") AS last_comment
-FROM "Ticket" t LEFT JOIN "Comment" cm ON cm."ticketId" = t.id
-WHERE t."isComplete" = false GROUP BY t."Number", t.title ORDER BY last_comment DESC;
-
--- Tickets closed in the last 24h
-SELECT t."Number", t.title, t."updatedAt",
-       t.linked->>'paperclip2_fingerprint' AS fingerprint
-FROM "Ticket" t WHERE t."isComplete" = true AND t."updatedAt" >= NOW() - INTERVAL '24 hours'
-ORDER BY t."updatedAt" DESC;
-
--- Full comment trail for a ticket
-SELECT cm."createdAt", cm.text
-FROM "Comment" cm JOIN "Ticket" t ON cm."ticketId" = t.id
-WHERE t."Number" = <N> ORDER BY cm."createdAt";
-```
-
-**Peppermint → paperclip2 cross-DB join** (incidents table lives in `paperclip2` DB — use two queries, not a join):
-
-```bash
-# Step 1: get fingerprint from Peppermint
-FINGERPRINT=$(docker exec windmill-db-1 psql -U postgres -d peppermint -t -A -c \
-  "SELECT linked->>'paperclip2_fingerprint' FROM \"Ticket\" WHERE \"Number\" = <N>;")
-
-# Step 2: look up the incident in paperclip2
-docker exec windmill-db-1 psql -U postgres -d paperclip2 -c \
-  "SELECT id, domain, check_type, target, state, last_seen FROM paperclip2.incidents WHERE fingerprint = '$FINGERPRINT';"
-```
 
 ## Schema Verification
 

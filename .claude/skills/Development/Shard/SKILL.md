@@ -14,25 +14,6 @@ Analyze an implementation plan to estimate whether it can be executed within a s
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the Shard skill to analyze plan token budget", "voice_id": "fTtv3eikoepIosk8dTZ5", "voice_enabled": true}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **Shard** skill to analyze plan token budget...
-   ```
-
-**Full documentation:** `~/.claude/PAI/THENOTIFICATIONSYSTEM.md`
-
 ## Model Recommendation
 
 **Recommended model:** Opus — token estimation requires careful analysis of plan structure, file sizes, and dependency graphs. The sharding algorithm involves multi-step reasoning that benefits from higher capability.
