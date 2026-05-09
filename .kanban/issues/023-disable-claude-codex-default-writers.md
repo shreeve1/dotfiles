@@ -1,12 +1,14 @@
 ---
 id: 023
 title: Disable Claude/Codex default writers
-status: pending
+status: in_progress
 type: AFK
 priority: 23
 blocked_by: []
 parent: 022
 created: 2026-05-09
+updated: 2026-05-09
+actor: ralph
 ---
 
 ## Parent
