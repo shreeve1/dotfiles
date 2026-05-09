@@ -1,7 +1,7 @@
 ---
 id: 018
 title: Add installer contract template
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [004]
 parent: null
