@@ -1,12 +1,14 @@
 ---
 id: 025
 title: Freeze Claude/Codex bridge writes
-status: pending
+status: in_progress
 type: AFK
 priority: 25
 blocked_by: [023]
 parent: 022
 created: 2026-05-09
+updated: 2026-05-09
+actor: ralph
 ---
 
 ## Parent
