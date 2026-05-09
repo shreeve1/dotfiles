@@ -148,3 +148,11 @@
 **Decisions:** Keep Claude and Codex recognized as historical adapters while rejecting any default shared-memory writer enablement for them.
 **Conventions established:** `ACTIVE_SHARED_MEMORY_TARGETS` remains OpenCode/Pi; `DISABLED_SHARED_MEMORY_TARGETS` remains Claude/Codex.
 **Notes for next iteration:** #024 and #025 are now unblocked by #023; #024 sorts next by priority.
+
+## #024 Route runtime writes to active writers - 2026-05-09
+
+**What changed:** Verified and closed the session-wrapper active-writer routing slice; no source changes were needed because runtime metadata and lifecycle gating already matched the narrowed scope.
+**Files:** `.kanban/issues/024-route-runtime-writes-to-active-writers.md`
+**Decisions:** Claude and Codex remain valid `pai-run` targets for launch compatibility, but shared-memory lifecycle events are empty for them.
+**Conventions established:** `TARGET_SHARED_MEMORY_STATUS` is the runtime source of truth for whether `pai-run` records lifecycle events.
+**Notes for next iteration:** #025 and #026 remain unblocked by #023; #025 sorts next by priority.
