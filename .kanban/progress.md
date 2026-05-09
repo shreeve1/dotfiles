@@ -172,3 +172,11 @@
 **Decisions:** OpenCode mode routing should rely on active Algorithm/context instructions already present in system context, not force a `~/.claude` file read.
 **Conventions established:** OpenCode runtime state uses `~/.pai/memory/STATE/` and `~/.pai/memory/WORK/`; source-grep tests guard against reintroducing `~/.claude` in `pai-mode-router` and `pai-isa-sync`.
 **Notes for next iteration:** #027 is now unblocked because #023, #024, #025, and #026 are done.
+
+## #027 Document and reconcile kanban scope - 2026-05-09
+
+**What changed:** Reconciled the kanban scope after #022 so future shared-memory work treats OpenCode and Pi as the active writer path while retaining Claude and Codex as historical tools and archive/read surfaces.
+**Files:** `.pai/docs/shared-harness-design.md`, `.kanban/progress.md`, `.kanban/issues/027-document-and-reconcile-kanban-scope.md`
+**Decisions:** #009 and #010 are superseded for active shared-memory writes but remain valid historical adapter tracer work. #008 remains the historical read and inventory bridge, with Claude/Codex archive-only for new bridge writes. #011 and #012 are the active shared-memory writer path for OpenCode and Pi.
+**Conventions established:** #013 through #016 and #019 through #021 continue under the narrowed #022 scope. #015 and #021 remain HITL; #019 is also HITL because real provider enablement can transmit redacted local context outside the machine.
+**Notes for next iteration:** The next unblocked AFK issue is #020. #016 remains blocked by #015, #019, #020, and #021; #015, #019, and #021 need human approval before implementation.
