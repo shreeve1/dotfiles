@@ -1,7 +1,7 @@
 ---
 id: 020
 title: Add ISA adapter integration tests
-status: in_progress
+status: review
 type: AFK
 priority: 20
 blocked_by: [009, 010, 014]
