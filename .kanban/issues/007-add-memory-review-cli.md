@@ -3,6 +3,7 @@ id: 007
 title: Add memory review CLI
 status: done
 type: AFK
+priority: 7
 blocked_by: [002, 003, 017]
 parent: null
 created: 2026-05-09

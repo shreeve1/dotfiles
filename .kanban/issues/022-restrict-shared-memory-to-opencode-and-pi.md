@@ -1,12 +1,13 @@
 ---
 id: 022
 title: Restrict shared memory to OpenCode and Pi
-status: in_progress
+status: pending
 type: AFK
+priority: 22
 blocked_by: []
 parent: null
 created: 2026-05-09
-updated: 2026-05-09
+updated: 2026-05-09T21:12:47Z
 actor: opencode
 ---
 

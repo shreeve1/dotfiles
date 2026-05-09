@@ -3,6 +3,7 @@ id: 027
 title: Document and reconcile kanban scope
 status: pending
 type: AFK
+priority: 27
 blocked_by: [023, 024, 025, 026]
 parent: 022
 created: 2026-05-09

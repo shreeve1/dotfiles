@@ -3,6 +3,7 @@ id: 019
 title: Add dream provider enablement
 status: pending
 type: HITL
+priority: 19
 blocked_by: [013]
 parent: null
 created: 2026-05-09

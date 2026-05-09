@@ -1,12 +1,13 @@
 ---
 id: 013
 title: Add provider-agnostic dream pipeline
-status: in_progress
+status: pending
 type: AFK
+priority: 13
 blocked_by: [007, 008, 017]
 parent: null
 created: 2026-05-09
-updated: 2026-05-09
+updated: 2026-05-09T21:12:47Z
 actor: ralph
 ---
 
