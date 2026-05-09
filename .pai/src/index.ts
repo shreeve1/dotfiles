@@ -131,3 +131,23 @@ export {
   type ClaudeSettingsLike,
   type ClaudeTracerTemplate,
 } from "./claude-tracer";
+export {
+  CODEX_HOOK_EVENTS,
+  buildCodexDirectLaunchEvent,
+  buildCodexTracerTemplate,
+  codexBridgeCompatibility,
+  codexPrdCompatibility,
+  codexTracerRuntimeTemplatePath,
+  mapCodexHookInputToObservation,
+  mapCodexHookObservationToEvent,
+  resolveCodexPaiSession,
+  type CodexBridgeCompatibility,
+  type CodexHookEvent,
+  type CodexHookInputContract,
+  type CodexHookObservation,
+  type CodexHookTemplate,
+  type CodexPrdCompatibility,
+  type CodexSessionResolution,
+  type CodexSessionResolutionInput,
+  type CodexTracerTemplate,
+} from "./codex-tracer";
