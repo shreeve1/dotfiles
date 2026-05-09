@@ -225,7 +225,6 @@
     "file://{env:HOME}/.config/opencode/plugins/pai-containment-guard",
     "file://{env:HOME}/.config/opencode/plugins/pai-config-audit",
     "file://{env:HOME}/.config/opencode/plugins/pai-reflection-loop",
-    "@tarquinen/opencode-dcp@latest",
     "@mcmunder/opencode-git-memory"
   ],
   "permission": {
