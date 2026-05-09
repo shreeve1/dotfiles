@@ -14,7 +14,7 @@ afterEach(() => {
 describe("CanonicalMemoryStore", () => {
   test("initializes versioned memory migrations and typed stores", () => {
     const store = createStore();
-    expect(store.appliedMigrations()).toEqual([{ version: 1 }]);
+    expect(store.appliedMigrations()).toEqual([{ version: 1 }, { version: 2 }]);
     expect(store.typedStoreNames().map((entry) => entry.type)).toEqual([...MEMORY_TYPES]);
     expect(store.typedStoreNames().every((entry) => entry.path.startsWith(join(runtimeHome!, "memory")))).toBe(true);
     store.close();
@@ -72,6 +72,71 @@ describe("CanonicalMemoryStore", () => {
     expect(store.listInstructionEligibleMemories({ projectId: "git:project-a", type: "projects" }).map((memory) => memory.memory_id)).toEqual([
       "mem-project",
     ]);
+    store.close();
+  });
+
+  test("searches memories with FTS and metadata filters", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({
+      memory_id: "mem-alpha",
+      type: "projects",
+      scope: "git:project-a",
+      provenance: { harness: "opencode" },
+      confidence: 0.95,
+      trust_level: "high",
+      content: "Alpha project prefers small memory context blocks.",
+    }));
+    store.addMemory(memoryFixture({
+      memory_id: "mem-beta",
+      type: "tools",
+      scope: "git:project-a",
+      provenance: { harness: "codex" },
+      confidence: 0.65,
+      trust_level: "medium",
+      content: "Beta tool note mentions memory blocks.",
+    }));
+    store.addMemory(memoryFixture({
+      memory_id: "mem-gamma",
+      scope: "git:project-b",
+      provenance: { harness: "opencode" },
+      content: "Gamma unrelated preference.",
+    }));
+
+    expect(store.searchMemories({ query: "blocks", projectId: "git:project-a", minConfidence: 0.9, trustLevel: "high", harness: "opencode" }).map((memory) => memory.memory_id)).toEqual([
+      "mem-alpha",
+    ]);
+    store.close();
+  });
+
+  test("builds bounded context with provenance metadata from eligible memories only", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({ memory_id: "mem-good", source_event_ids: ["event-good"], content: "Use terse status summaries." }));
+    store.addMemory(memoryFixture({ memory_id: "mem-low", trust_level: "low", content: "Do not inject this low trust memory." }));
+    store.addMemory(memoryFixture({ memory_id: "mem-inferred", assertion_type: "inferred", content: "Do not inject this inferred memory." }));
+
+    const block = store.buildContextBlock({ projectId: "git:abc123", limit: 5 });
+
+    expect(block.memories.map((memory) => memory.memory_id)).toEqual(["mem-good"]);
+    expect(block.memories[0].source_event_ids).toEqual(["event-good"]);
+    expect(block.content).toContain("mem-good");
+    expect(block.content).toContain("event-good");
+    expect(block.content).not.toContain("low trust");
+    expect(block.content).not.toContain("inferred");
+    store.close();
+  });
+
+  test("lists proposed review queue items with diff previews", () => {
+    const store = createStore();
+    store.addMemory(memoryFixture({ memory_id: "mem-review-list", review_status: "proposed" }));
+    store.enqueueReview({
+      review_id: "review-list",
+      memory_id: "mem-review-list",
+      proposed_diff: "+ remember reviewed project convention",
+      source_event_ids: ["event-review-list"],
+    });
+
+    expect(store.listReviewQueue().map((review) => review.review_id)).toEqual(["review-list"]);
+    expect(store.listReviewQueue()[0].proposed_diff).toContain("remember reviewed");
     store.close();
   });
 });
