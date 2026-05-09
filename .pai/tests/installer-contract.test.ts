@@ -4,6 +4,8 @@ import {
   DISABLED_SHARED_MEMORY_TARGETS,
   INSTALL_PLAN_SCHEMA,
   INSTALL_PLAN_TARGETS,
+  renderInstallDryRun,
+  renderInstallDryRunSteps,
   renderInstallPlanFixture,
   validateInstallPlan,
   type InstallPlanCandidate,
@@ -38,6 +40,42 @@ describe("installer contract", () => {
       expect(plan.backup_paths).toContain(plan.files_to_change[0].backup_path);
       expect(plan.rollback_notes.length).toBeGreaterThan(0);
     }
+  });
+
+  test("renders dry-run steps without live config mutation", () => {
+    const dryRun = renderInstallDryRun("opencode");
+
+    expect(dryRun.mode).toBe("dry-run");
+    expect(dryRun.will_mutate_live_config).toBe(false);
+    expect(dryRun.validation).toEqual({ valid: true, issues: [] });
+    expect(dryRun.steps).toContainEqual({
+      action: "write_file",
+      target: "~/.config/opencode/opencode.json",
+      backup_path: "~/.config/opencode/opencode.json.pai-backup",
+      description: "Plan adapter hook insertion for opencode; do not apply in tracer issues.",
+    });
+    expect(dryRun.steps).toContainEqual({
+      action: "symlink",
+      target: "~/.pai/adapters/opencode/current -> ~/.pai/adapters/opencode/tracer.ts",
+      description: "Runtime-local adapter pointer for opencode.",
+    });
+    expect(dryRun.steps).toContainEqual({
+      action: "enable_adapter",
+      target: "opencode",
+      enabled: true,
+      explicit_user_approval: true,
+      description: "Adapter opencode enablement is enabled.",
+    });
+  });
+
+  test("dry-run renderer prints backups, symlinks, and disabled adapter enablement", () => {
+    const plan = renderInstallPlanFixture("claude");
+    const steps = renderInstallDryRunSteps(plan);
+
+    expect(steps.map((step) => step.action)).toEqual(["write_file", "symlink", "enable_adapter"]);
+    expect(steps[0].backup_path).toBe("~/.claude/settings.json.pai-backup");
+    expect(steps[1].target).toBe("~/.pai/adapters/claude/current -> ~/.pai/adapters/claude/tracer.ts");
+    expect(steps[2]).toMatchObject({ target: "claude", enabled: false, explicit_user_approval: false });
   });
 
   test("forbids live config mutation during adapter tracer issues", () => {
@@ -91,6 +129,22 @@ describe("installer contract", () => {
 
     expect(result.valid).toBe(false);
     expect(result.issues.map((issue) => issue.code)).toContain("runtime_or_secret_path_exposed");
+  });
+
+  test("rejects transcripts, DBs, JSONL trails, and auth runtime paths", () => {
+    const plan = {
+      ...renderInstallPlanFixture("opencode"),
+      files_to_change: [
+        { path: "~/.pai/transcripts/session.jsonl", backup_path: "~/.config/opencode/opencode.json.pai-backup", description: "forbidden" },
+        { path: "~/.pai/events.sqlite", backup_path: "~/.config/opencode/opencode.json.pai-backup", description: "forbidden" },
+        { path: "~/.pai/trails/events.jsonl", backup_path: "~/.config/opencode/opencode.json.pai-backup", description: "forbidden" },
+        { path: "~/.pai/auth/token.json", backup_path: "~/.config/opencode/opencode.json.pai-backup", description: "forbidden" },
+      ],
+    } as InstallPlan;
+    const result = validateInstallPlan(plan);
+
+    expect(result.valid).toBe(false);
+    expect(result.issues.filter((issue) => issue.code === "runtime_or_secret_path_exposed")).toHaveLength(4);
   });
 
   test("rejects tracked-source symlinks into runtime stores", () => {

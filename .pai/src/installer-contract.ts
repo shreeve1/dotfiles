@@ -64,6 +64,23 @@ export type InstallPlanValidationResult = {
   issues: InstallPlanValidationIssue[];
 };
 
+export type InstallDryRunStep = {
+  action: InstallPlanActionType;
+  target: string;
+  backup_path?: string;
+  enabled?: boolean;
+  explicit_user_approval?: boolean;
+  description: string;
+};
+
+export type InstallDryRun = {
+  mode: "dry-run";
+  plan: InstallPlan;
+  validation: InstallPlanValidationResult;
+  steps: InstallDryRunStep[];
+  will_mutate_live_config: false;
+};
+
 export const INSTALL_PLAN_SCHEMA = {
   schema_version: "pai.install-plan.v1",
   required: [
@@ -132,6 +149,41 @@ export function renderInstallPlanFixture(target_cli: InstallPlanTarget): Install
     required_user_approval: true,
     live_config_mutation_allowed: false,
   };
+}
+
+export function renderInstallDryRun(target_cli: InstallPlanTarget): InstallDryRun {
+  const plan = renderInstallPlanFixture(target_cli);
+  const validation = validateInstallPlan(plan);
+  return {
+    mode: "dry-run",
+    plan,
+    validation,
+    steps: renderInstallDryRunSteps(plan),
+    will_mutate_live_config: false,
+  };
+}
+
+export function renderInstallDryRunSteps(plan: InstallPlan): InstallDryRunStep[] {
+  return [
+    ...plan.files_to_change.map((file) => ({
+      action: "write_file" as const,
+      target: file.path,
+      backup_path: file.backup_path,
+      description: file.description,
+    })),
+    ...plan.symlink_actions.map((symlink) => ({
+      action: "symlink" as const,
+      target: `${symlink.link_path} -> ${symlink.target_path}`,
+      description: symlink.description,
+    })),
+    {
+      action: "enable_adapter" as const,
+      target: plan.adapter_enablement.adapter,
+      enabled: plan.adapter_enablement.enabled,
+      explicit_user_approval: plan.adapter_enablement.explicit_user_approval,
+      description: `Adapter ${plan.adapter_enablement.adapter} enablement is ${plan.adapter_enablement.enabled ? "enabled" : "disabled"}.`,
+    },
+  ];
 }
 
 export function validateInstallPlan(plan: InstallPlanCandidate): InstallPlanValidationResult {
