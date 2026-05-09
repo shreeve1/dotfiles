@@ -26,7 +26,7 @@ You MUST create a task for each of these items and complete them in order:
 2. **Verify target with user** — confirm scope before sending to Codex
 3. **Gather surrounding context** — read related files, conventions, plans
 4. **Build review brief** — assemble structured context document
-5. **Run Codex review** — execute codex with read-only sandbox
+5. **Run Codex review** — execute Codex with the selected review permission mode
 6. **Present and discuss findings** — parse Codex output, discuss interactively
 7. **Apply agreed changes** — implement only what the user agrees on
 
@@ -34,7 +34,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context Codex receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let Codex form independent opinions.
-- **Read-only Codex.** Plan and file reviews use `-s read-only` sandbox. Build reviews use `codex exec review` which manages its own sandbox — Codex reviews; Claude applies changes later with user approval.
+- **Codex permissions.** Prefer reliable prompt delivery over strict read-only sandboxing. Use `-s danger-full-access` for plan, file, and proposal reviews by default unless the user explicitly asks for read-only. If bubblewrap/read-only restrictions interfere with prompt delivery or file access, retry with `--dangerously-bypass-approvals-and-sandbox`. Build reviews use `codex exec review`; add `--dangerously-bypass-approvals-and-sandbox` when the review command hits sandbox or bubblewrap restrictions. Codex reviews; Claude applies changes later with user approval.
 - **Present Codex findings faithfully.** Don't soften or reinterpret. Show what Codex actually said, then add your own assessment separately.
 - **Flag disagreements.** Where Claude and Codex disagree — that's where the interesting discussion lives.
 
@@ -157,6 +157,13 @@ You MUST create a task for each of these items and complete them in order:
 
 5. **Execute Codex Review**
 
+   **Choose Codex permission mode:**
+   - Default for this workflow: permissive review mode. James has explicitly approved all-permissions/YOLO mode for Codex review handoffs when read-only bubblewrap causes failures.
+   - Use read-only only when the user explicitly requests it for that review: `-s read-only`.
+   - Use permissive sandbox for normal plan/file/proposal reviews: `-s danger-full-access`.
+   - Use YOLO/no-sandbox retry when read-only or bubblewrap fails: `--dangerously-bypass-approvals-and-sandbox`.
+   - Keep the safety boundary at the review workflow: Codex may inspect and report, but Claude applies only user-approved changes afterward.
+
    **Determine project root:**
    ```bash
    git rev-parse --show-toplevel 2>/dev/null
@@ -176,11 +183,19 @@ You MUST create a task for each of these items and complete them in order:
    ```bash
    cd <project_dir> && codex exec review --uncommitted --json -o "$OUTPUT_FILE" - < "$REVIEW_FILE"
    ```
-   Note: `codex exec review` does NOT support `-C`. Set the working directory via `cd` before running. It DOES support `--json`, `-o`, and `-`. The brief is piped via stdin to avoid ARG_MAX limits.
+   If this hits bubblewrap/sandbox restrictions, retry with the approved YOLO review mode:
+   ```bash
+   cd <project_dir> && codex exec review --uncommitted --dangerously-bypass-approvals-and-sandbox --json -o "$OUTPUT_FILE" - < "$REVIEW_FILE"
+   ```
+   Note: `codex exec review` does NOT support `-C`. Set the working directory via `cd` before running. It DOES support `--json`, `-o`, `--dangerously-bypass-approvals-and-sandbox`, and `-`. The brief is piped via stdin to avoid shell escaping and ARG_MAX limits.
 
    **For plan reviews, file reviews, and proposal reviews:**
    ```bash
-   codex exec -s read-only -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
+   codex exec -s danger-full-access -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
+   ```
+   If this still hits bubblewrap/sandbox restrictions, retry with the approved YOLO review mode:
+   ```bash
+   codex exec --dangerously-bypass-approvals-and-sandbox -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
    ```
    For pure-abstract proposal reviews (no codebase to anchor to): use `<project_dir>` = `pwd` and always include `--skip-git-repo-check`.
 

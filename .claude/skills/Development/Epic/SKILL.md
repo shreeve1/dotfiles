@@ -14,25 +14,6 @@ Decompose a large, multi-feature PRD into a set of self-contained per-epic mini-
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the DecomposeEpics workflow in the Epic skill to decompose the PRD into epics", "voice_id": "fTtv3eikoepIosk8dTZ5", "voice_enabled": true}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **DecomposeEpics** workflow in the **Epic** skill to decompose the PRD into epics...
-   ```
-
-**Full documentation:** `~/.claude/PAI/THENOTIFICATIONSYSTEM.md`
-
 ## Model Recommendation
 
 **Recommended model:** Opus — Epic decomposition requires deep analysis of feature dependencies, grouping strategy, and traceability. Opus provides the strongest reasoning for this structural work.

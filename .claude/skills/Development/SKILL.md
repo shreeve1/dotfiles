@@ -14,25 +14,6 @@ Complete software development pipeline: idea → PRD → plan → validate → b
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## MANDATORY: Voice Notification (REQUIRED BEFORE ANY ACTION)
-
-**You MUST send this notification BEFORE doing anything else when this skill is invoked.**
-
-1. **Send voice notification**:
-   ```bash
-   curl -s -X POST http://localhost:8888/notify \
-     -H "Content-Type: application/json" \
-     -d '{"message": "Running the Development skill to ACTION"}' \
-     > /dev/null 2>&1 &
-   ```
-
-2. **Output text notification**:
-   ```
-   Running the **Development** skill to ACTION...
-   ```
-
-**Full documentation:** `~/.claude/PAI/THENOTIFICATIONSYSTEM.md`
-
 ## Workflow Routing
 
 | Request Pattern | Route To |
