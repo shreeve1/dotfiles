@@ -70,6 +70,14 @@ Active shared-memory writer policy:
 - Claude Code and Codex bridge-read records are archive-only; attempted new bridge-read writes fail with a structured archive error.
 - Claude Code and Codex CLIs, auth helpers, and review agents are not removed by this harness scope.
 
+Kanban scope reconciliation:
+
+- #022 is the controlling scope issue for the narrowed shared-memory harness.
+- #009 and #010 are retained as historical adapter tracer work, but are superseded for active shared-memory writes.
+- #008 remains the historical read and inventory bridge; Claude/Codex bridge writes are archive-only for new records.
+- #011 and #012 are the active shared-memory writer path for OpenCode and Pi.
+- #013 through #016 and #019 through #021 continue under this narrowed scope, with HITL issues still requiring explicit human approval before implementation.
+
 ## Direct Launch Handling
 
 `pai-run` is the preferred session boundary, not the only boundary.
