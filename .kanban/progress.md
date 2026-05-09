@@ -196,3 +196,11 @@
 **Decisions:** No source-code change was needed for the parent closure because existing child-slice code and docs already enforce the OpenCode/Pi active-writer policy and Claude/Codex historical/archive-only policy.
 **Conventions established:** Parent issue closure can be verification-only when all child slices are done, but it still requires the Ralph review state, full check suite, scope diff review, and explicit progress note.
 **Notes for next iteration:** No AFK issue is currently unblocked. #016 remains blocked by HITL issues #015, #019, and #021.
+
+## #015 Add safe installer dry-run - 2026-05-09
+
+**What changed:** Added `pai-install dry-run <target>` and dry-run rendering APIs that validate install plans and print planned config writes, backups, symlinks, and adapter enablement without mutating live config.
+**Files:** `.pai/src/installer-contract.ts`, `.pai/src/cli/pai-install.ts`, `.pai/src/index.ts`, `.pai/package.json`, `.pai/tests/installer-contract.test.ts`, `.pai/docs/installer-contract.md`, `.kanban/issues/015-add-safe-installer-dry-run.md`
+**Decisions:** Live installer application remains out of scope; this slice only renders and validates non-mutating dry-runs. Invalid plans exit with code 2 from the CLI.
+**Conventions established:** Installer previews expose `mode: "dry-run"`, the full plan, validation result, ordered steps, and `will_mutate_live_config: false`.
+**Notes for next iteration:** #016 remains blocked by #019 and #021. Both are HITL and need explicit approval before Ralph can continue to the smoke test.
