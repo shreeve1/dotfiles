@@ -1,7 +1,7 @@
 ---
 id: 004
 title: Add canonical policy contract
-status: pending
+status: in_progress
 type: HITL
 blocked_by: [001, 003]
 parent: null
