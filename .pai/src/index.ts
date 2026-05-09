@@ -104,6 +104,19 @@ export {
   type SkippedLegacyPath,
 } from "./legacy-bridge";
 export {
+  DREAM_FUTURE_PROVIDER_OPTIONS,
+  DREAM_PIPELINE_VERSION,
+  DeterministicDreamProvider,
+  LocalRulesDreamProvider,
+  assertDreamEventIsRedacted,
+  runDreamPipeline,
+  type DreamMemoryCandidate,
+  type DreamPipelineOptions,
+  type DreamPipelineResult,
+  type DreamProvider,
+  type DreamProviderContext,
+} from "./dream-pipeline";
+export {
   ACTIVE_SHARED_MEMORY_TARGETS,
   DISABLED_SHARED_MEMORY_TARGETS,
   INSTALL_PLAN_ACTIONS,

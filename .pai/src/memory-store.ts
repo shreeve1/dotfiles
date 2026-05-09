@@ -204,6 +204,26 @@ export class CanonicalMemoryStore {
     return item;
   }
 
+  proposeMemoryWithReview(
+    memory: ProposedMemoryInput,
+    review: Omit<Pick<ReviewQueueItem, "review_id" | "memory_id" | "proposed_diff" | "source_event_ids">, "memory_id" | "source_event_ids">,
+    now = new Date().toISOString(),
+  ) {
+    return this.db.transaction(() => {
+      const record = this.addMemory({ ...memory, review_status: "proposed" }, now);
+      const reviewItem = this.enqueueReview(
+        {
+          review_id: review.review_id,
+          memory_id: record.memory_id,
+          proposed_diff: review.proposed_diff,
+          source_event_ids: record.source_event_ids,
+        },
+        now,
+      );
+      return { memory: record, review: reviewItem };
+    })();
+  }
+
   decideReview(reviewId: string, state: Exclude<ReviewStatus, "proposed">, now = new Date().toISOString()) {
     const item = this.getReview(reviewId);
     if (!item) throw new Error(`Unknown review item ${reviewId}`);
