@@ -1,7 +1,7 @@
 ---
 id: 017
 title: Add canonical memory substrate
-status: in_progress
+status: review
 type: AFK
 blocked_by: [002, 003, 006]
 parent: null
