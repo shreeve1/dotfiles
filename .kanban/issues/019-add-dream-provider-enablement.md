@@ -1,12 +1,14 @@
 ---
 id: 019
 title: Add dream provider enablement
-status: pending
+status: in_progress
 type: HITL
 priority: 19
 blocked_by: [013]
 parent: null
 created: 2026-05-09
+updated: 2026-05-09
+actor: ralph
 ---
 
 ## What to build

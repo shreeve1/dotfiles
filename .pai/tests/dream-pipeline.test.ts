@@ -5,8 +5,11 @@ import { join } from "node:path";
 import { CanonicalEventStore, type EventIngestInput } from "../src/event-store";
 import {
   DREAM_FUTURE_PROVIDER_OPTIONS,
+  ClaudeInferenceDreamProvider,
   DeterministicDreamProvider,
   LocalRulesDreamProvider,
+  defaultDreamProviderEnablement,
+  resolveDreamProvider,
   runDreamPipeline,
   type DreamProvider,
 } from "../src/dream-pipeline";
@@ -69,15 +72,41 @@ describe("provider-agnostic dream pipeline", () => {
     memoryStore.close();
   });
 
-  test("documents Claude inference as future provider but does not enable it", () => {
+  test("documents Claude inference as opt-in provider but does not enable it by default", () => {
     expect(DREAM_FUTURE_PROVIDER_OPTIONS).toEqual([
       {
         provider: "claude-inference",
-        status: "future-option",
+        status: "opt-in-real-provider",
         enabled_by_default: false,
         enablement_issue: "#019",
+        privacy_labels: ["redacted-local-context", "external-provider", "review-gated-output"],
+        redaction_required_before_enablement: true,
       },
     ]);
+    expect(defaultDreamProviderEnablement()).toEqual({
+      provider: "claude-inference",
+      enabled: false,
+      explicit_user_approval: false,
+      privacy_labels: ["redacted-local-context", "external-provider", "review-gated-output"],
+      redaction_required_before_enablement: true,
+    });
+    expect(() => resolveDreamProvider("claude-inference")).toThrow("requires explicit user approval");
+  });
+
+  test("redaction gate runs before opt-in external provider transport", () => {
+    const { eventStore, memoryStore } = createStores();
+    const safe = eventStore.ingest(eventFixture("evt-external-safe", 1)).envelope;
+    const unsafe = { ...safe, event_id: "evt-external-unsafe", payload: "raw local context" } as typeof safe & { payload: string };
+    const enablement = { ...defaultDreamProviderEnablement(), enabled: true, explicit_user_approval: true };
+    const provider = new ClaudeInferenceDreamProvider(enablement);
+
+    const onlyUnsafe = runDreamPipeline(memoryStore, [unsafe], { provider, providerEnablement: enablement });
+    expect(onlyUnsafe.proposed).toEqual([]);
+    expect(onlyUnsafe.skipped_events[0].reason).toBe("Dream event evt-external-unsafe contains raw payload fields");
+    expect(() => runDreamPipeline(memoryStore, [safe], { provider, providerEnablement: enablement })).toThrow("provider transport is not configured");
+    expect(memoryStore.listReviewQueue()).toEqual([]);
+    eventStore.close();
+    memoryStore.close();
   });
 
   test("provider failures do not corrupt accepted memories or review queues", () => {
