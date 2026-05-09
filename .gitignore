@@ -6,6 +6,7 @@ artifacts/
 MEMORY/
 
 # Shared PAI harness runtime state must stay machine-local
+.pai/node_modules/
 .pai/runtime/
 .pai/**/*.sqlite
 .pai/**/*.sqlite-*
