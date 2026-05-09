@@ -220,3 +220,11 @@
 **Decisions:** The legacy bridge remains inventory/provenance-only; import approval is a separate boundary that writes only accepted low-trust canonical memories under `~/.pai`.
 **Conventions established:** Legacy import previews must include source path, sensitivity, provenance, confidence, and proposed canonical destination before any import decision is applied.
 **Notes for next iteration:** #016 is now unblocked and is the next AFK smoke-test issue.
+
+## #016 End-to-end harness smoke test - 2026-05-09
+
+**What changed:** Added a fixture-only end-to-end smoke test proving the shared harness composes adapter fixture flows, `pai-run` planning/lifecycle events, canonical event ingest, memory search/context, policy audit references, and runtime ignore boundaries without live secrets or live CLI launches.
+**Files:** `.pai/tests/end-to-end-harness-smoke.test.ts`, `.kanban/issues/016-end-to-end-harness-smoke-test.md`, `.kanban/progress.md`
+**Decisions:** Kept the slice test-only and used temp runtime homes for Claude, Codex, OpenCode, and Pi. `pai-memory` CLI is exercised only against the temp OpenCode runtime, while live adapter CLIs remain dry-run/fixture-only.
+**Conventions established:** End-to-end harness smoke coverage should compose existing public APIs instead of adding runtime source modules; runtime cleanliness checks must include `.pai` DB, JSONL, transcript, auth, secrets, and memory ignore boundaries.
+**Notes for next iteration:** The AFK board slice for the shared harness smoke path is closed. Future slices can add narrower regression tests around any specific adapter failure surfaced by this smoke test.

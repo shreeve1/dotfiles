@@ -1,7 +1,7 @@
 ---
 id: 016
 title: End-to-end harness smoke test
-status: review
+status: done
 type: AFK
 priority: 16
 blocked_by: [009, 010, 011, 012, 013, 014, 015, 019, 020, 021]
