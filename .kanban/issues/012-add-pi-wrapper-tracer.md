@@ -1,7 +1,7 @@
 ---
 id: 012
 title: Add Pi wrapper tracer
-status: pending
+status: in_progress
 type: AFK
 blocked_by: [005, 018]
 parent: null
