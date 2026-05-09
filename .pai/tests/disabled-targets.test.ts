@@ -31,4 +31,18 @@ describe("disabled shared-memory targets", () => {
       expect(readFileSync(file, "utf8")).not.toContain("~/.claude");
     }
   });
+
+  test("OpenCode mode routing and ISA sync write under shared PAI memory", () => {
+    const root = join(import.meta.dir, "..", "..");
+    const modeRouter = readFileSync(join(root, ".config", "opencode", "plugins", "pai-mode-router", "index.ts"), "utf8");
+    const isaSync = readFileSync(join(root, ".config", "opencode", "plugins", "pai-isa-sync", "index.ts"), "utf8");
+    const algorithmMode = readFileSync(join(root, ".config", "opencode", "modes", "algorithm.md"), "utf8");
+
+    expect(modeRouter).toContain('const MEMORY_DIR = join(PAI_RUNTIME_HOME, "memory")');
+    expect(modeRouter).toContain('const STATE_PATH = join(MEMORY_DIR, "STATE", "mode-router.json")');
+    expect(modeRouter).toContain('const WORK_DIR = join(MEMORY_DIR, "WORK")');
+    expect(isaSync).toContain('const WORK_JSON = join(MEMORY_DIR, "STATE", "work.json")');
+    expect(isaSync).toContain('filePath.includes(`${MEMORY_DIR}/WORK/`)');
+    expect(algorithmMode).not.toContain("Use the Read tool to load `~/.claude/PAI/Algorithm/v6.3.0.md`");
+  });
 });
