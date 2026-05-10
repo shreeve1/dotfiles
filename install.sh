@@ -4,6 +4,25 @@ set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 
+# Canonicalize a path that already exists (resolving every symlink in the
+# chain). Returns nonzero and prints nothing if the path doesn't exist OR if
+# no portable canonicalize tool is available — callers MUST treat empty
+# output as "could not canonicalize", not "different paths". Order tried:
+# `realpath` (coreutils + BSD), `readlink -f` (GNU + recent macOS).
+canonicalize_existing_path() {
+  local p="$1"
+  if [ ! -e "$p" ] && [ ! -L "$p" ]; then
+    return 1
+  fi
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$p" 2>/dev/null && return 0
+  fi
+  if readlink -f / >/dev/null 2>&1; then
+    readlink -f "$p" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
 backup_path() {
   local target="$1"
   local stamp
@@ -36,6 +55,24 @@ link_path() {
 
   mkdir -p "$parent"
 
+  # Self-link guard: if $target resolves (through any ancestor symlink) to the
+  # same canonical path as $source, the target IS the source file. Backing up
+  # and replacing it would clobber the repo. Skip silently.
+  #
+  # Both canonicalizations must succeed and match — empty output means the
+  # platform lacks both `realpath` and `readlink -f`, in which case we MUST
+  # fall through to the existing logic rather than treat empties as equal.
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    local source_canon target_canon
+    source_canon="$(canonicalize_existing_path "$source" || true)"
+    target_canon="$(canonicalize_existing_path "$target" || true)"
+    if [ -n "$source_canon" ] && [ -n "$target_canon" ] \
+        && [ "$source_canon" = "$target_canon" ]; then
+      printf 'ok: %s is the source file (parent already linked)\n' "$target"
+      return 0
+    fi
+  fi
+
   if [ -L "$target" ]; then
     local current
     current="$(readlink "$target")"
@@ -60,6 +97,14 @@ link_path() {
 
 is_excluded_pai_path() {
   case "$1" in
+    .pai/PAI/MEMORY/*|\
+    .pai/PAI/*/MEMORY/*|\
+    .pai/PAI/**/State/*|\
+    .pai/PAI/**/Scratchpad/*|\
+    .pai/PAI/**/*.log|\
+    .pai/PAI/**/*.jsonl|\
+    .pai/PAI/**/secrets.*|\
+    .pai/PAI/config/local*.json|\
     .claude/PAI/USER/*|\
     .claude/PAI/MEMORY/*|\
     .claude/PAI/*/USER/*|\
@@ -148,7 +193,7 @@ link_path ".config/zellij" ".config/zellij"
 #   - modes/                 (algorithm/native/minimal — primary modes, GPT-backed)
 #   - agents/                (pai-{algorithm,architect,engineer} subagents + others)
 #   - plugins/               (pai-session-reminder, terminal-bell, etc.)
-#   - skills/                (shared with Claude Code via separate symlink)
+#   - skills/                (OpenCode-native + forked PAI skill directories)
 #
 # The pai-session-reminder plugin injects mode classifier rules into the
 # system prompt via experimental.chat.system.transform. PAI modes are wired
@@ -161,33 +206,103 @@ link_path ".pi/agent" ".pi/agent"
 link_path ".pi/agent-sessions" ".pi/agent-sessions"
 link_path ".pi/README.md" ".pi/README.md"
 
+# PiPerspective uses the external `pi` CLI as a second-mind reviewer from
+# OpenCode. Dotfiles can link config, but package installs and provider auth
+# are machine-local, so only warn here. See README.md "PiPerspective setup".
+if command -v pi >/dev/null 2>&1; then
+  printf 'ok: pi CLI available: '
+  pi --version 2>&1 | head -n 1 || true
+else
+  printf 'warn: pi CLI not found; PiPerspective reviews will fail until installed\n'
+  printf '      install example: npm install -g @mariozechner/pi-coding-agent\n'
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  printf 'warn: bun not found; PiPerspective Tools/*.ts and OpenCode helpers require bun\n'
+fi
+
+if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules" ]; then
+  printf 'warn: ~/.pi/agent/node_modules missing; run: cd ~/.pi/agent && npm install\n'
+fi
+
+# ─── PAI runtime home (~/.pai) ─────────────────────────────
+# OpenCode (and any future PAI-aware tool) reads PAI doctrine from ~/.pai/PAI
+# and runtime memory from ~/.pai/memory. The source-controlled OpenCode PAI
+# doctrine lives in this repo at .pai/PAI and is linked back to ~/.pai/PAI.
+#
+# Do not source OpenCode PAI files from .claude/PAI. That tree is legacy
+# Claude Code compatibility only.
+#
+# Note on PAI_RUNTIME_HOME: the env var is honored by plugins at runtime
+# (controls where they read patterns and write logs), but `install.sh`,
+# `opencode.json` `instructions[]`, AGENTS.md, and modes/*.md all reference
+# `~/.pai` directly. Setting PAI_RUNTIME_HOME to a non-default path therefore
+# only relocates plugin runtime state, not OpenCode's static instruction
+# lookups. Treat PAI_RUNTIME_HOME as plugin-runtime-only.
+link_git_tree ".pai/PAI" ".pai/PAI"
+
+# Forked OpenCode skill tree is the canonical PAI cognitive skill home.
+# Inline workflow examples in those skills reference paths like
+# `~/.pai/skills/<Name>/...` (matching `~/.pai/PAI/...` convention), so we
+# link `~/.pai/skills` to the actual location on disk
+# (~/.config/opencode/skills) rather than rewriting every example. Custom
+# overrides via `${PAI_DIR:-$HOME/.pai}/skills` work for both the default
+# location and a relocated PAI root.
+if [ -d "$HOME/.config/opencode/skills" ] && [ ! -e "$HOME/.pai/skills" ]; then
+  mkdir -p "$HOME/.pai"
+  ln -s "$HOME/.config/opencode/skills" "$HOME/.pai/skills"
+  printf 'linked: ~/.pai/skills -> ~/.config/opencode/skills\n'
+elif [ -L "$HOME/.pai/skills" ]; then
+  current=$(readlink "$HOME/.pai/skills")
+  expected="$HOME/.config/opencode/skills"
+  if [ "$current" != "$expected" ]; then
+    printf 'warn: ~/.pai/skills points to %s (expected %s)\n' "$current" "$expected"
+  fi
+fi
+
+# One-time migration of the per-machine checkpoint allowlist from the legacy
+# ~/.claude location into ~/.pai. Only runs when the new file is absent so
+# subsequent re-runs are idempotent.
+if [ -f "$HOME/.claude/checkpoint-repos.txt" ] \
+    && [ ! -e "$HOME/.pai/checkpoint-repos.txt" ]; then
+  mkdir -p "$HOME/.pai"
+  cp "$HOME/.claude/checkpoint-repos.txt" "$HOME/.pai/checkpoint-repos.txt"
+  printf 'migrated: ~/.claude/checkpoint-repos.txt -> ~/.pai/checkpoint-repos.txt\n'
+fi
+
 # ─── PAI / Claude Code ───────────────────────────────────
-# Core files
-link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
-link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
-link_path ".claude/install.sh" ".claude/install.sh"
-link_path ".claude/settings.json.template" ".claude/settings.json.template"
-link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
-link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
+# Optional: skip this whole block on machines that do not use Claude Code.
+# Set INSTALL_CLAUDE_CODE=0 to skip. OpenCode does not depend on any of these
+# paths — see the ~/.pai/PAI block above for the OpenCode-required content.
+if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
+  # Core files
+  link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
+  link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
+  link_path ".claude/install.sh" ".claude/install.sh"
+  link_path ".claude/settings.json.template" ".claude/settings.json.template"
+  link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
+  link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 
-# PAI engine
-link_git_tree ".claude/PAI" ".claude/PAI"
+  # PAI engine (legacy Claude Code compatibility; source remains .pai/PAI)
+  link_git_tree ".pai/PAI" ".claude/PAI"
 
-# USER stubs — copied (not linked) so personal overrides stay machine-local.
-# Required because opencode.json references these paths in instructions[].
-seed_path ".claude/PAI/USER/AISTEERINGRULES.md" ".claude/PAI/USER/AISTEERINGRULES.md"
+  # USER stubs — copied (not linked) so personal overrides stay machine-local.
+  seed_path ".pai/PAI/USER/AISTEERINGRULES.md" ".claude/PAI/USER/AISTEERINGRULES.md"
 
-# Skills, hooks, commands, agents, lib
-link_path ".claude/skills" ".claude/skills"
-link_path ".claude/hooks" ".claude/hooks"
-link_path ".claude/commands" ".claude/commands"
-link_path ".claude/agents" ".claude/agents"
-link_path ".claude/lib" ".claude/lib"
+  # Skills, hooks, commands, agents, lib
+  link_path ".claude/skills" ".claude/skills"
+  link_path ".claude/hooks" ".claude/hooks"
+  link_path ".claude/commands" ".claude/commands"
+  link_path ".claude/agents" ".claude/agents"
+  link_path ".claude/lib" ".claude/lib"
 
-# Syncable memory (learning + relationship cross devices)
-link_path ".claude/MEMORY/README.md" ".claude/MEMORY/README.md"
-link_path ".claude/MEMORY/LEARNING" ".claude/MEMORY/LEARNING"
-link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
+  # Syncable memory (learning + relationship cross devices)
+  link_path ".claude/MEMORY/README.md" ".claude/MEMORY/README.md"
+  link_path ".claude/MEMORY/LEARNING" ".claude/MEMORY/LEARNING"
+  link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
+else
+  printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
+fi
 
 # ─── Codex ─────────────────────────────────────────────────
 link_path ".codex/config.toml" ".codex/config.toml"
@@ -234,7 +349,7 @@ done
 #   d. End-to-end smoke test (creates a PRD + reflection if working):
 #        cd /tmp && opencode run --agent algorithm \
 #          "write /tmp/hello.sh that prints HELLO"
-#        ls ~/.claude/MEMORY/WORK/  # newest dir is your test PRD
+#        ls ~/.pai/memory/WORK/  # newest dir is your test ISA
 #
 # If MINIMAL/NATIVE/ALGORITHM headers don't appear in output, the model is
 # the issue — Claude declines the strict format; only GPT models comply.

@@ -1,0 +1,46 @@
+# PiPerspective configuration template
+
+Add the following block to `~/.pai/settings.json`. If you already have a
+top-level object there, merge `pi_perspective` into it.
+
+```jsonc
+{
+  "pi_perspective": {
+    // Global kill switch. When false, all PiPerspective invocations
+    // (manual and auto) return a stub verdict and spawn ZERO pi
+    // subprocesses.
+    "enabled": true,
+
+    // Single model used for THINK, PLAN, and VERIFY in v1.
+    // Default is openai/gpt-5-codex:high because opencode usually runs
+    // a Claude-family model — out-of-family reviewer defeats groupthink.
+    //
+    // If opencode runs an OpenAI-family model, change this to an
+    // Anthropic or Google model instead. The principle is OUT-OF-FAMILY,
+    // not "always OpenAI".
+    "model": "openai/gpt-5-codex:high",
+
+    // Minimum pi --version. VersionCheck.ts asserts at startup.
+    "min_pi_version": "0.73.1",
+
+    // Effort tier -> set of phases that auto-invoke.
+    // Manual invocation always works regardless of tier or kill switch
+    // (well, kill switch wins; effort tier does not).
+    "auto_invoke": {
+      "Standard":      [],
+      "Extended":      ["VERIFY"],
+      "Advanced":      ["PLAN", "VERIFY"],
+      "Deep":          ["THINK", "PLAN", "VERIFY"],
+      "Comprehensive": ["THINK", "PLAN", "VERIFY"]
+    },
+
+    // Thinking level for VERIFY phase. Higher = more cost + latency.
+    // Downshift to "medium" if your 5-run mean latency exceeds 30s.
+    "verify_thinking": "high",
+
+    // Hide blockers below this severity in the default UI summary.
+    // Audit JSON always contains all blockers; this only affects display.
+    "blocker_min_severity_display": "major"
+  }
+}
+```
