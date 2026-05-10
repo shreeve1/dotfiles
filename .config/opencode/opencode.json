@@ -19,7 +19,7 @@
         "webfetch": true
       },
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "plan": {
@@ -40,7 +40,7 @@
   "agent": {
     "build": {
       "permission": {
-        "*": "ask"
+        "*": "allow"
       },
       "color": "error"
     },
@@ -230,7 +230,7 @@
   ],
   "permission": {
     "external_directory": "allow",
-    "*": "ask"
+    "*": "allow"
   },
   "mcp": {
     "gitnexus": {
