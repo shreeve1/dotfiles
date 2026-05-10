@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "small_model": "cliproxy/claude-haiku-4-5-20251001",
   "instructions": [
-    "~/.claude/PAI/AISTEERINGRULES.md",
-    "~/.claude/PAI/USER/AISTEERINGRULES.md"
+    "~/.pai/PAI/AISTEERINGRULES.md",
+    "~/.pai/PAI/USER/AISTEERINGRULES.md"
   ],
   "mode": {
     "build": {
@@ -19,7 +19,7 @@
         "webfetch": true
       },
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "plan": {
@@ -33,113 +33,113 @@
         "webfetch": true
       },
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     }
   },
   "agent": {
     "build": {
       "permission": {
-        "*": "allow"
+        "*": "ask"
       },
       "color": "error"
     },
     "plan": {
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "general": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "compaction": {
       "model": "cliproxy/gpt-5.4",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "librarian": {
       "model": "cliproxy/gpt-5.4",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "explore": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "document-writer": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "quick-review-opus": {
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "quick-review-codex": {
       "model": "cliproxy/gpt-5.3-codex",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "infra-scout": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "infra-planner": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "executor-ssh": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "executor-powershell": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "infra-validator": {
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "pai-algorithm": {
       "description": "PAI Algorithm agent \u2014 7-phase problem solving with ISA and ISC criteria",
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "pai-engineer": {
       "description": "PAI Engineer \u2014 focused code implementation with TDD and surgical fixes",
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     },
     "pai-architect": {
       "description": "PAI Architect \u2014 read-only system design and planning",
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "allow"
+        "*": "ask"
       }
     }
   },
@@ -225,11 +225,12 @@
     "file://{env:HOME}/.config/opencode/plugins/pai-containment-guard",
     "file://{env:HOME}/.config/opencode/plugins/pai-config-audit",
     "file://{env:HOME}/.config/opencode/plugins/pai-reflection-loop",
+    "file://{env:HOME}/.config/opencode/plugins/pai-pi-perspective",
     "@mcmunder/opencode-git-memory"
   ],
   "permission": {
     "external_directory": "allow",
-    "*": "allow"
+    "*": "ask"
   },
   "mcp": {
     "gitnexus": {

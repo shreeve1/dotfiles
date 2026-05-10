@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Mock pi: emits malformed/no JSON to force the fallback parser.
+if [ "$1" = "--version" ]; then
+  echo "0.99.0"
+  exit 0
+fi
+cat >/dev/null 2>&1 || true
+cat <<'EOF'
+I have some thoughts but I am not going to give you JSON. Sorry.
+The diff looks suspicious but I cannot articulate why in a structured way.
+EOF
