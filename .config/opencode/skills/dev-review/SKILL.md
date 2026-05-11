@@ -34,7 +34,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context Codex receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let Codex form independent opinions.
-- **Codex permissions.** Prefer reliable prompt delivery over strict read-only sandboxing. Use `-s danger-full-access` for plan, file, and proposal reviews by default unless the user explicitly asks for read-only. If bubblewrap/read-only restrictions interfere with prompt delivery or file access, retry with `--dangerously-bypass-approvals-and-sandbox`. Build reviews use `codex exec review`; add `--dangerously-bypass-approvals-and-sandbox` when the review command hits sandbox or bubblewrap restrictions. Codex reviews; Claude applies changes later with user approval.
+- **Codex permissions.** Prefer reliable prompt delivery over strict read-only sandboxing. Use `-s danger-full-access` for plan, file, proposal, and build reviews by default unless the user explicitly asks for read-only. If bubblewrap/read-only restrictions interfere with prompt delivery or file access, retry with `--dangerously-bypass-approvals-and-sandbox`. **Do not use `codex exec review --uncommitted` for this workflow:** Codex CLI 0.125.0 rejects `--uncommitted` when combined with stdin or prompt content, so the assembled review brief cannot be delivered reliably. For build reviews, put `git status`, `git diff`, `git diff --staged`, and untracked-file summaries inside the brief and run normal `codex exec` with `-C <project_dir>`. Codex reviews; Claude applies changes later with user approval.
 - **Present Codex findings faithfully.** Don't soften or reinterpret. Show what Codex actually said, then add your own assessment separately.
 - **Flag disagreements.** Where Claude and Codex disagree — that's where the interesting discussion lives.
 
@@ -180,14 +180,15 @@ You MUST create a task for each of these items and complete them in order:
    ```
 
    **For build reviews with uncommitted changes** (must be inside a git repo):
+   Do not use `codex exec review --uncommitted` here. In Codex CLI 0.125.0, `review --uncommitted` cannot accept stdin (`-`) or prompt text, which means it cannot receive the context brief this workflow depends on. Instead, include the uncommitted-change context in the brief and use normal `codex exec`:
    ```bash
-   cd <project_dir> && codex exec review --uncommitted --json -o "$OUTPUT_FILE" - < "$REVIEW_FILE"
+   codex exec -s danger-full-access -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
    ```
    If this hits bubblewrap/sandbox restrictions, retry with the approved YOLO review mode:
    ```bash
-   cd <project_dir> && codex exec review --uncommitted --dangerously-bypass-approvals-and-sandbox --json -o "$OUTPUT_FILE" - < "$REVIEW_FILE"
+   codex exec --dangerously-bypass-approvals-and-sandbox -C <project_dir> --json -o "$OUTPUT_FILE" --skip-git-repo-check - < "$REVIEW_FILE"
    ```
-   Note: `codex exec review` does NOT support `-C`. Set the working directory via `cd` before running. It DOES support `--json`, `-o`, `--dangerously-bypass-approvals-and-sandbox`, and `-`. The brief is piped via stdin to avoid shell escaping and ARG_MAX limits.
+   The brief must contain the build-review payload: `git status --short`, `git diff`, `git diff --staged`, relevant untracked file contents or summaries, validation output, and plan context when available. This preserves prompt delivery and avoids stale or generic no-context review output.
 
    **For plan reviews, file reviews, and proposal reviews:**
    ```bash
