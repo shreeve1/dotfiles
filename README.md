@@ -184,16 +184,17 @@ Optional config lives in `~/.pai/settings.json`:
 {
   "pi_perspective": {
     "enabled": true,
-    "model": "openai/gpt-5-codex:high",
+    "model": "openai-codex/gpt-5.5",
     "min_pi_version": "0.73.1",
     "auto_invoke": {
-      "Standard": [],
-      "Extended": ["VERIFY"],
-      "Advanced": ["PLAN", "VERIFY"],
+      "Standard": ["THINK", "PLAN", "VERIFY"],
+      "Extended": ["THINK", "PLAN", "VERIFY"],
+      "Advanced": ["THINK", "PLAN", "VERIFY"],
       "Deep": ["THINK", "PLAN", "VERIFY"],
       "Comprehensive": ["THINK", "PLAN", "VERIFY"]
     },
-    "verify_thinking": "minimal"
+    "verify_thinking": "minimal",
+    "blocker_min_severity_display": "major"
   }
 }
 ```
@@ -244,3 +245,9 @@ reference `~/.pai` directly. Setting `PAI_RUNTIME_HOME` to a non-default
 path therefore only relocates plugin runtime state. If you want a fully
 relocated runtime, also edit those references and re-link the PAI source
 tree to your custom path.
+
+Remaining portability requirement: a non-`~/.pai` PAI home is not yet a pure
+environment-variable install. To make the runtime fully portable, the installer
+and OpenCode config need a single source of truth for the PAI home path, and the
+static references in `install.sh`, `opencode.json`, `AGENTS.md`, and `modes/*.md`
+need to be generated from that value instead of hard-coding `~/.pai`.
