@@ -1,8 +1,8 @@
 {
-  "lastChangelogVersion": "0.70.0",
-  "defaultProvider": "ollama",
-  "defaultModel": "qwen3-coder-32k:30b",
-  "defaultThinkingLevel": "off",
+  "lastChangelogVersion": "0.74.0",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "defaultThinkingLevel": "high",
   "quietStartup": true,
   "skills": [],
   "theme": "ember",
