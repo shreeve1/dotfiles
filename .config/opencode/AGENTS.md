@@ -142,6 +142,14 @@ Important memory boundary: pi does **not** automatically receive shared PAI memo
 - **Mandatory output format** — Every response uses exactly one of MINIMAL / NATIVE / ALGORITHM. No freeform output.
 - **Response format before questions** — Complete the format output FIRST, then invoke a question at the end.
 
+## Compact Output Policy
+
+Default verbosity is `normal`. `PAI_VERBOSITY` or `.config/opencode/.pai-verbosity` may request `compact`, `normal`, or `expanded`; missing or invalid values fall back to `normal`.
+
+Precedence: safety confirmations and Algorithm schema > exact strings > evidence > compact policy > user preference.
+
+In `compact`, shorten explanatory prose only. Do not compress ISA, ISCs, verification evidence, code, commands, errors, file paths, exact strings, exact output formats, or safety confirmations. Auto-expand for destructive actions, security, infrastructure, credentials, migrations, possible data loss, ambiguity, and multi-step procedure clarity.
+
 ## Behavioral Rules
 
 Behavioral rules (surgical fixes, never assert without verification, ask before destructive actions, read before modifying, minimal scope, identity, etc.) are loaded from `~/.pai/PAI/AISTEERINGRULES.md` and `~/.pai/PAI/USER/AISTEERINGRULES.md` via opencode's `instructions[]`. Those files are authoritative — do not duplicate them here.
@@ -150,103 +158,12 @@ Behavioral rules (surgical fixes, never assert without verification, ask before 
 
 # Subagent Delegation Guide (OpenCode)
 
-PAI registers ~30 specialist subagents under `~/.config/opencode/agents/`. Use them. The Algorithm spec biases toward "do it yourself if Glob+Grep can finish in 30s" — that gate stays — but **once a task crosses that threshold, prefer delegation over doing it solo**. Subagents have fresh context, specialized tooling, or different model strengths.
+Core invariants stay loaded; the full catalog lives at `docs/reference/opencode-subagents.md`.
 
-## Invocation
-
-Invoke a subagent via the **Task tool** with the agent name as `subagent_type`:
-
-```
-Task(
-  description="3-5 word task summary",
-  subagent_type="<agent-name>",   // e.g. "explorer", "forge", "browser-qa"
-  prompt="<detailed task with everything the subagent needs — no shared memory>"
-)
-```
-
-**Two rules that always apply:**
-1. **Each invocation is a fresh context.** The subagent doesn't see this conversation. Pass everything it needs in `prompt` — file paths, constraints, prior decisions, expected output format.
-2. **Parallel by default.** When you have multiple independent subagent calls, issue them in a **single message with multiple tool calls** rather than sequentially. The Task tool was built for fan-out.
-
-## When to delegate (and to whom)
-
-### Code & Execution
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| Multi-file implementation, refactor, or feature build at E3+ | `forge` | GPT-5.4 via codex exec — uncompromising on completeness; produces FORGE REPORT |
-| One-task focused implementation with TDD | `pai-engineer` | Claude-side counterpart; sonnet-4-6, narrow scope |
-| Generic single-task work (write/create/implement) | `builder` | Lightweight executor when forge/engineer are overkill |
-| Full 7-phase Algorithm run on a complex sub-problem | `pai-algorithm` | Gives the sub-problem its own ISA + 7-phase loop |
-| System design / architecture / spec authoring | `pai-architect` | Strategic planning, opus-4-7 |
-| Python CLI + SQLite tooling (stdlib only, FTS5, argparse) | `python-sqlite-cli` | Specialist for that exact shape |
-
-### Investigation & Review
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| "How does X work?" / unfamiliar codebase / structure scan | `explorer` | Fast haiku-backed scout, structured output, surface-level |
-| Confirm a finished task meets criteria | `validator` | Read-only verification against acceptance criteria |
-| Cross-vendor audit at E4/E5 (final gate before marking ISA done) | `cato` | Read-only GPT-5.4 — surfaces Anthropic-family blind spots |
-| Need a second opinion on a strategy packet (Anthropic-side) | `quick-review-opus` | Strict verdict schema |
-| Need a second opinion on a strategy packet (OpenAI-side) | `quick-review-codex` | Same shape, opposite vendor |
-
-### Browser, UI, & Web
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| Validate user stories on a live web app | `browser-qa` | Playwright-driven pass/fail reports |
-| General web automation (scrape, fill, screenshot, PDF, multi-step) | `browser-automation` | Use this, NOT browser-qa, for non-test work |
-| Visual context — capture/compare screenshots, mobile viewport | `ui-reviewer` | Just visual capture, no test framing |
-| JS console errors, exceptions, stack traces | `devtools-console` | Domain-specific |
-| Failed requests, CORS, slow responses, API payload issues | `devtools-network` | Domain-specific |
-| Core Web Vitals, long tasks, layout shifts, memory profiling | `devtools-performance` | Domain-specific |
-| DOM analysis or multi-domain diagnostics spanning console/net/perf | `devtools-inspector` | General-purpose; reach for the specialists first if the issue is clearly one domain |
-
-### Infrastructure (PAI infra-* pipeline)
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| Discover hosts/environments before any state change | `infra-scout` | Read-only recon |
-| Produce a reviewable execution packet for state-changing infra work | `infra-planner` | Strategy step before any executor runs |
-| Verify post-change state matches expected evidence | `infra-validator` | Read-only post-flight |
-| Execute an approved packet on Linux/Unix | `executor-ssh` | Runs ONLY reviewed packets |
-| Execute an approved packet on Windows | `executor-powershell` | Same shape, PowerShell |
-
-**Pipeline rule:** infra changes go scout → planner → human review → executor → validator. Never invoke `executor-*` without a packet from `infra-planner` that has been reviewed.
-
-### Research & Knowledge
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| Quick fact lookup, current docs, news | `web-searcher` | Haiku-backed, fast, single answers |
-| Latest LLM/AI/agent research and tooling | `llm-ai-agents-and-eng-research` | Domain-focused proactive scanner |
-
-### Framework / Skill Authoring
-
-| Trigger | Subagent | Why |
-| --- | --- | --- |
-| Author a new SKILL.md | `skill-author` | Frontmatter, AskUserQuestion flows, CLI integration |
-| Author a new task-focused command file | `command-creator` | Workflow + decision points + script refs |
-| Build a complete subagent + command framework set | `framework-builder` | After skill creation, generates the 3-layer set |
-| Generate a new subagent file from a description | `meta-agent` | Use **proactively** when the user asks for a new agent |
-
-### Disabled
-
-- `anvil` — hard-disabled in this OpenCode port (Moonshot provider not configured). It will fail fast at provider resolution. Use `forge` instead for E3+ code production.
-
-## Parallelism patterns worth knowing
-
-- **Investigation fan-out:** `explorer` × 3 in parallel against different parts of an unfamiliar codebase, then synthesize.
-- **Cross-vendor review:** `quick-review-opus` and `quick-review-codex` in parallel on the same packet — disagreements are signal.
-- **Triage a browser bug:** `devtools-console` + `devtools-network` + `devtools-performance` in parallel; whichever returns a hit owns the issue.
-- **E4/E5 close-out:** finish work → `validator` → `cato`. Cato is the cross-vendor final gate.
-
-## When NOT to delegate
-
-- The task is genuinely a one-step Glob+Grep+Edit (the spec's 30-second gate).
-- The work needs the conversation history that the subagent won't see.
-- You'd be invoking a generic agent (`builder`, `general`) for something that's faster to do directly.
-- The user has explicitly asked you to do it yourself.
-
-When skipping delegation at E4/E5, **show your math** — name the capability you'd have used and why it would add noise. The Algorithm's delegation floor at those tiers is soft, but the burden-of-explanation isn't.
+- Delegate when work exceeds quick local Glob/Grep/Edit and a specialist adds signal.
+- Pass a complete prompt: subagents do not inherit conversation context.
+- Parallelize independent subagent work in one tool-use batch.
+- Do not delegate when direct work is faster, when hidden conversation context matters, or when James asks me to do it myself.
+- Use the `Task` tool with `subagent_type`, a 3-5 word description, and precise expected output.
+- Infra changes follow scout -> planner -> human review -> executor -> validator.
+- `anvil` is disabled in this OpenCode port; use `forge` for GPT-family code production.
