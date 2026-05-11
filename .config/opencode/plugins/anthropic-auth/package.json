@@ -1,6 +1,0 @@
-{
-  "name": "opencode-anthropic-auth",
-  "version": "0.1.0",
-  "type": "module",
-  "main": "./index.mjs"
-}
