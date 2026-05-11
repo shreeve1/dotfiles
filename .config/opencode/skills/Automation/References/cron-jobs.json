@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "managedBlockStart": "# >>> PAI AUTOMATION - DO NOT EDIT BETWEEN THESE MARKERS <<<",
+  "managedBlockEnd": "# <<< PAI AUTOMATION END <<<",
+  "jobs": [
+    {
+      "id": "email-organizer-hourly",
+      "name": "Email Organizer",
+      "schedule": "0 * * * *",
+      "type": "shell",
+      "command": "~/.pai/scripts/email-smart-organizer.sh",
+      "enabled": false,
+      "staggerSeconds": 300,
+      "lockName": "email-organizer",
+      "logFile": "email-organizer.log",
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "zeroday-supply-chain-monitor",
+      "name": "ZeroDay Supply Chain Monitor",
+      "schedule": "0 * * * *",
+      "type": "llm",
+      "command": "~/.pai/scripts/run-zeroday-monitor.sh",
+      "enabled": true,
+      "staggerSeconds": 300,
+      "lockName": "zeroday-monitor",
+      "logFile": "zeroday-monitor.log",
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "qbittorrent-speed-check",
+      "name": "qBittorrent Speed Check",
+      "schedule": "0 */6 * * *",
+      "type": "shell",
+      "command": "~/.pai/scripts/qbit-speed-check.sh",
+      "enabled": true,
+      "staggerSeconds": 300,
+      "lockName": "qbit-speed-check",
+      "logFile": "qbit-speed-check.log",
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "arr-stack-cleanup",
+      "name": "Arr Stack Cleanup",
+      "schedule": "0 */6 * * *",
+      "type": "shell",
+      "command": "~/.pai/scripts/arr-stack-cleanup.sh",
+      "enabled": true,
+      "staggerSeconds": 300,
+      "lockName": "arr-stack-cleanup",
+      "logFile": "arr-stack-cleanup.log",
+      "timeoutSecs": 900,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "itastack-stale-ticket-check-am",
+      "name": "ITAStack Stale Ticket Check (7am-4pm PT)",
+      "schedule": "0 14-23 * * 1-5",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-stale-ticket-check.sh",
+      "enabled": true,
+      "staggerSeconds": 0,
+      "lockName": "itastack-stale-ticket",
+      "logFile": "itastack-stale-ticket.log",
+      "timeoutSecs": 240,
+      "timezone": "UTC"
+    },
+    {
+      "id": "itastack-stale-ticket-check-pm",
+      "name": "ITAStack Stale Ticket Check (5pm-6pm PT)",
+      "schedule": "0 0-1 * * 2-6",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-stale-ticket-check.sh",
+      "enabled": true,
+      "staggerSeconds": 0,
+      "lockName": "itastack-stale-ticket",
+      "logFile": "itastack-stale-ticket.log",
+      "timeoutSecs": 240,
+      "timezone": "UTC"
+    },
+    {
+      "id": "itastack-note-quality-check-am",
+      "name": "ITAStack Note Quality Check (7am-4pm PT)",
+      "schedule": "0 14-23 * * 1-5",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-note-quality-check.sh",
+      "enabled": true,
+      "staggerSeconds": 15,
+      "lockName": "itastack-note-quality",
+      "logFile": "itastack-note-quality.log",
+      "timeoutSecs": 600,
+      "timezone": "UTC"
+    },
+    {
+      "id": "itastack-note-quality-check-pm",
+      "name": "ITAStack Note Quality Check (5pm-6pm PT)",
+      "schedule": "0 0-1 * * 2-6",
+      "type": "shell",
+      "command": "/home/james/itastack/scripts/oversight/run-note-quality-check.sh",
+      "enabled": true,
+      "staggerSeconds": 15,
+      "lockName": "itastack-note-quality",
+      "logFile": "itastack-note-quality.log",
+      "timeoutSecs": 600,
+      "timezone": "UTC"
+    }
+  ]
+}

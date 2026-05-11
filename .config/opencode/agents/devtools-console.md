@@ -8,7 +8,7 @@ tools:
   bash: true
   mcp__chrome_devtools__*: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose

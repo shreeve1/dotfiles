@@ -10,7 +10,7 @@ tools:
   mcp__firecrawl_mcp__firecrawl_scrape: true
   webfetch: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose

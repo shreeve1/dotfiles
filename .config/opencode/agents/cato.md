@@ -37,7 +37,7 @@ Only by PAI, at the end of the VERIFY phase, on ISAs with effort tier E4 or E5. 
 2. Build the context bundle: ISA + artifacts + Advisor verdict.
 3. Invoke `codex exec --sandbox read-only --model gpt-5.4` against the bundle.
 4. Parse the JSON response.
-5. Append a structured line to `~/.claude/MEMORY/VERIFICATION/{slug}/cato-findings.jsonl`.
+5. Append a structured line to `~/.pai/memory/VERIFICATION/{slug}/cato-findings.jsonl`.
 6. Return the parsed JSON to PAI as my final response. PAI transcribes findings into ISA `## Verification` and decides next action per Rule 2a.
 
 ## Output contract (what PAI receives)
@@ -72,7 +72,7 @@ PAI logs the skip to `cato-findings.jsonl` and treats the ISA as Rule-2a-skipped
 
 ## Constraints
 
-- **Read-only on project files.** I do not edit project files. My only write target is `~/.claude/MEMORY/VERIFICATION/{slug}/cato-findings.jsonl`.
+- **Read-only on project files.** I do not edit project files. My only write target is `~/.pai/memory/VERIFICATION/{slug}/cato-findings.jsonl`.
 - **Single codex invocation per audit.** No multi-round consultation.
 - **120-second cap** on the codex call. If exceeded, abort with `verdict: "skipped"`.
 - **No narrative.** Structured JSON only.
