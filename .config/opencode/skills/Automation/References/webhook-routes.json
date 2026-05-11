@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "id": "uptime-kuma",
+      "path": "/uptime-kuma",
+      "authToken": "14e0f1b19baf77504038b516da2da99f8946b315a4e91fb46c1edf639bcb44c3",
+      "transformModule": "uptime-kuma",
+      "notifyChannel": "telegram",
+      "notifyChatId": "8404108011",
+      "enabled": true
+    }
+  ]
+}

@@ -65,12 +65,12 @@ Add to `~/.pai/settings.json` (or merge with existing block):
 {
   "pi_perspective": {
     "enabled": true,                        // global kill switch
-    "model": "openai/gpt-5-codex:high",     // single model, all phases
+    "model": "openai-codex/gpt-5.5",        // single model, all phases
     "min_pi_version": "0.73.1",
     "auto_invoke": {
-      "Standard":      [],
-      "Extended":      ["VERIFY"],
-      "Advanced":      ["PLAN", "VERIFY"],
+      "Standard":      ["THINK", "PLAN", "VERIFY"],
+      "Extended":      ["THINK", "PLAN", "VERIFY"],
+      "Advanced":      ["THINK", "PLAN", "VERIFY"],
       "Deep":          ["THINK", "PLAN", "VERIFY"],
       "Comprehensive": ["THINK", "PLAN", "VERIFY"]
     },
@@ -88,9 +88,9 @@ The Algorithm ISA carries an `E1..E5` tier in its frontmatter; the plugin maps i
 
 | ISA tier | Config tier   | Auto-fires (default)          |
 |----------|---------------|-------------------------------|
-| `E1`     | Standard      | _(none — manual only)_        |
-| `E2`     | Extended      | VERIFY                        |
-| `E3`     | Advanced      | PLAN, VERIFY                  |
+| `E1`     | Standard      | THINK, PLAN, VERIFY           |
+| `E2`     | Extended      | THINK, PLAN, VERIFY           |
+| `E3`     | Advanced      | THINK, PLAN, VERIFY           |
 | `E4`     | Deep          | THINK, PLAN, VERIFY           |
 | `E5`     | Comprehensive | THINK, PLAN, VERIFY           |
 
@@ -100,7 +100,7 @@ The `model` key is a single string applied to all three phases. To swap families
 
 - Anthropic (when opencode runs an OpenAI-family model): `"anthropic/claude-opus-4:high"`
 - Google (alternative out-of-family choice): `"google/gemini-2.5-pro:high"`
-- OpenAI Codex via cliproxy: `"openai-codex/gpt-5.4:high"` (the variant used during acceptance benchmarks).
+- OpenAI Codex via cliproxy: `"openai-codex/gpt-5.5"` (the default for this OpenCode integration).
 
 The principle is *out-of-family relative to the opencode model*, not specifically OpenAI. Per-phase models are deliberately out of scope for v1 (PRD D-01).
 
@@ -128,7 +128,7 @@ The plugin fires pi only when **all** of the following hold:
 3. The ISA frontmatter parses cleanly and contains `slug`, `phase`, and `tier`.
 4. `tier` ∈ {E1..E5} and `phase` ∈ {THINK, PLAN, VERIFY}.
 5. The new `phase` is listed in `auto_invoke[tier]`.
-6. The same (slug, phase, frontmatter-hash) has not already fired (dedup via the `.pi-perspective-state.json` sidecar in the work dir).
+6. The same phase/content hash has not already fired (dedup via the `.pi-perspective-state.json` sidecar in the work dir). If the ISA content changes while still in the same phase, pi fires again.
 
 If any check fails the plugin no-ops silently. Failures from pi itself surface via the alert file (see "Receiving alerts" below); they never crash the editor session.
 

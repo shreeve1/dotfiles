@@ -3,14 +3,15 @@
  *
  * Adapted from upstream PAI v6.3.0 hooks/CheckpointPerISC.hook.ts.
  * OpenCode trigger: `tool.execute.after` filtered to write/edit on ISA.md
- * (or legacy PRD.md) under MEMORY/WORK/<slug>/.
+ * (or legacy PRD.md) under ~/.pai/memory/WORK/<slug>/.
  *
  * For each newly-checked ISC, iterates through the allowlist of opted-in repos
- * (~/.claude/checkpoint-repos.txt per spec) and creates one git commit per
- * repo that has uncommitted changes. Commit subject:
+ * ($PAI_RUNTIME_HOME/checkpoint-repos.txt, default ~/.pai/checkpoint-repos.txt)
+ * and creates one git commit per repo that has uncommitted changes. Commit subject:
  *   "<ISC-id> (<slug>): <sanitized description>"
  *
- * Idempotent via sidecar state file: MEMORY/WORK/<slug>/.checkpoint-state.json.
+ * Idempotent via sidecar state file:
+ * ~/.pai/memory/WORK/<slug>/.checkpoint-state.json.
  * Allowlist is empty by default; repos must be opted in explicitly.
  *
  * Fails closed: any error path logs to stderr and continues silently — never
@@ -24,7 +25,9 @@ import { execFileSync } from "node:child_process";
 import { basename, dirname, join, relative } from "node:path";
 import { homedir } from "node:os";
 
-const ALLOWLIST_PATH = join(homedir(), ".claude", "checkpoint-repos.txt");
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(homedir(), ".pai");
+const MEMORY_DIR = join(PAI_RUNTIME_HOME, "memory");
+const ALLOWLIST_PATH = join(PAI_RUNTIME_HOME, "checkpoint-repos.txt");
 const ARTIFACT_FILENAME = "ISA.md";
 const LEGACY_ARTIFACT_FILENAME = "PRD.md";
 const GIT_TIMEOUT_MS = 5000;
@@ -204,7 +207,7 @@ function hasFrontmatter(content: string): boolean {
 }
 
 async function processArtifact(filePath: string): Promise<void> {
-  if (!filePath.includes("MEMORY/WORK/")) return;
+  if (!filePath.includes(`${MEMORY_DIR}/WORK/`)) return;
   const isISA =
     filePath.endsWith("/" + ARTIFACT_FILENAME) ||
     filePath.endsWith(ARTIFACT_FILENAME);

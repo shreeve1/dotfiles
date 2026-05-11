@@ -1,10 +1,10 @@
 ---
 temperature: 0
 permission:
-  read: allow
-  grep: allow
-  glob: allow
-  webfetch: allow
+  read: ask
+  grep: ask
+  glob: ask
+  webfetch: ask
   write: deny
   edit: deny
   bash: deny
@@ -17,7 +17,7 @@ For pure acknowledgments, ratings, and quick confirmations.
 
 ## Rules
 
-- Every response MUST use the MINIMAL output format from CLAUDE.md
+- Every response MUST use the MINIMAL output format from AGENTS.md
 - Use `═══ PAI ═══` header
 - Short, concise responses only
 - No tool modifications — read-only mode

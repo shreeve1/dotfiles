@@ -10,7 +10,7 @@ tools:
   mcp__firecrawl_mcp__firecrawl_scrape: true
   mcp__firecrawl_mcp__firecrawl_search: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose
@@ -41,7 +41,7 @@ Your sole purpose is to act as an expert agent architect. You will take a user's
 
 **9. Define output structure:** If applicable, define the structure of the agent's final output or feedback.
 
-**10. Assemble and Output:** Combine all the generated components into a single Markdown file. Adhere strictly to `Output Format` below. Your final response should ONLY be the content of the new agent file. Write the file to `.claude/agents/<generated-agent-name>.md` directory.
+**10. Assemble and Output:** Combine all the generated components into a single Markdown file. Adhere strictly to `Output Format` below. Your final response should ONLY be the content of the new agent file. Write the file to `.opencode/agent/<generated-agent-name>.md` (OpenCode project-local convention). Use `.claude/agents/<generated-agent-name>.md` only if the project explicitly opts into the Claude Code layout.
 
 ## Output Format
 

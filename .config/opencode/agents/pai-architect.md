@@ -11,7 +11,7 @@ tools:
   edit: false
   bash: false
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # PAI Architect

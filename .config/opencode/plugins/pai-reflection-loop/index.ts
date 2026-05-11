@@ -9,7 +9,8 @@
  * `session.idle` hook in the OpenCode plugin API.
  *
  * Responsibilities:
- *   1. Ensure ~/.claude/MEMORY/LEARNING/REFLECTIONS/ exists.
+ *   1. Ensure $PAI_RUNTIME_HOME/memory/LEARNING/REFLECTIONS/ exists
+ *      (default ~/.pai/memory/LEARNING/REFLECTIONS/).
  *   2. If algorithm-reflections.jsonl exceeds MAX_BYTES, rotate it to
  *      algorithm-reflections.jsonl.1 (single-generation rotation).
  *   3. Append a session-idle marker line so we can audit which sessions ended
@@ -34,10 +35,10 @@ import {
 import { join } from "node:path";
 import { homedir } from "node:os";
 
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(homedir(), ".pai");
 const REFLECTIONS_DIR = join(
-  homedir(),
-  ".claude",
-  "MEMORY",
+  PAI_RUNTIME_HOME,
+  "memory",
   "LEARNING",
   "REFLECTIONS"
 );

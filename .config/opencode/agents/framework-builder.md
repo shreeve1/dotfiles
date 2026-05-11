@@ -7,7 +7,7 @@ tools:
   edit: true
   bash: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose
@@ -69,7 +69,7 @@ If validation fails, report error with specific missing fields.
 The `subagent_definitions` array contains the user's explicit choices from the interview. Do not redesign or rename them.
 
 For each definition:
-1. Use `definition.name` exactly as the subagent filename: `.claude/agents/{domain}/{name}.md`
+1. Use `definition.name` exactly as the subagent filename: `.opencode/agent/{domain}/{name}.md` (OpenCode project-local convention; use `.claude/agents/{domain}/{name}.md` only if the project explicitly opts into the Claude Code layout)
 2. Use `definition.responsibility` as the frontmatter `description`
 3. Use `definition.scope_included` to write the **Scope > Included** section
 4. Use `definition.scope_excluded` to write the **Scope > Excluded** section — each exclusion should name the sibling subagent that handles it
@@ -95,7 +95,7 @@ Framework Generation Tasks:
 
 For each subagent:
 
-1. Create directory: `.claude/agents/{domain}/`
+1. Create directory: `.opencode/agent/{domain}/` (or `.claude/agents/{domain}/` for Claude Code projects)
 2. Write subagent file with:
    - Frontmatter (name, description, model, tools, skills)
    - Purpose section
@@ -133,7 +133,7 @@ skills:
 
 ## Step 6: Execute Command Creation
 
-Create the command file at `.claude/commands/{command}.md`:
+Create the command file at `.opencode/command/{command}.md` (or `.claude/commands/{command}.md` for Claude Code projects):
 
 1. Choose orchestration pattern (Router/Pipeline/Scatter-Gather)
 2. Define Variables section with $ARGUMENTS mapping
@@ -155,8 +155,8 @@ Command structure follows the Pipeline pattern:
 
 Verify all files exist:
 ```bash
-ls -la .claude/agents/{domain}/
-ls -la .claude/commands/{command}.md
+ls -la .opencode/agent/{domain}/
+ls -la .opencode/command/{command}.md
 ```
 
 Report results in the specified format.
@@ -172,12 +172,12 @@ Domain: {domain}
 Skill: {skill_path}
 
 Created Subagents:
-- .claude/agents/{domain}/{subagent-1}.md
-- .claude/agents/{domain}/{subagent-2}.md
+- .opencode/agent/{domain}/{subagent-1}.md
+- .opencode/agent/{domain}/{subagent-2}.md
 ...
 
 Created Command:
-- .claude/commands/{command}.md
+- .opencode/command/{command}.md
 
 Orchestration Pattern: {pattern}
 
@@ -257,7 +257,7 @@ Resolution:
 
 **Input:**
 - domain: "pandas-data"
-- skill_path: ".claude/skills/pandas-data/SKILL.md"
+- skill_path: ".opencode/skill/pandas-data/SKILL.md"
 - domain_description: "Process CSV files with pandas"
 
 **Generated Subagents:**
@@ -272,7 +272,7 @@ Resolution:
 
 **Input:**
 - domain: "stripe-api"
-- skill_path: ".claude/skills/stripe-api/SKILL.md"
+- skill_path: ".opencode/skill/stripe-api/SKILL.md"
 - domain_description: "Stripe payment processing"
 
 **Generated Subagents:**
@@ -286,7 +286,7 @@ Resolution:
 
 **Input:**
 - domain: "docker-ops"
-- skill_path: ".claude/skills/docker-ops/SKILL.md"
+- skill_path: ".opencode/skill/docker-ops/SKILL.md"
 - domain_description: "Docker container management"
 
 **Generated Subagents:**
