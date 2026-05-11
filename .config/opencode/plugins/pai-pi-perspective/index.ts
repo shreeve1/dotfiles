@@ -1,7 +1,7 @@
 /**
  * pai-pi-perspective — auto-invoke PiPerspective on Algorithm phase transitions.
  *
- * Trigger: tool.execute.after on write/edit of ISA.md under ~/.pai/memory/WORK/.
+ * Trigger: tool.execute.after on write/edit/patch of ISA.md under ~/.pai/memory/WORK/.
  * Same pattern as pai-isa-sync and pai-checkpoint-per-isc — there is no native
  * phase-transition event in the opencode plugin API (see
  * ~/.pai/artifacts/plans/pi-perspective/HOOK-SURFACE.md for the T-13 finding).
@@ -24,10 +24,12 @@
  */
 
 import type { Plugin } from '@opencode-ai/plugin';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   writeFileSync,
@@ -59,9 +61,11 @@ const SKILL_DIR = join(
 const INVOKE_PI = join(SKILL_DIR, 'Tools', 'InvokePi.ts');
 const SIDECAR_FILE = '.pi-perspective-state.json';
 const ALERTS_FILE = 'pi-perspective-alerts.md';
+const RUNS_FILE = 'pi-perspective-runs.md';
 const ARTIFACT_FILENAME = 'ISA.md';
 
 type Phase = 'THINK' | 'PLAN' | 'VERIFY';
+type Verdict = 'FAIL' | 'REFRAME' | 'CONCERNS' | 'PASS';
 type ETier = 'E1' | 'E2' | 'E3' | 'E4' | 'E5';
 type EffortTier =
   | 'Standard'
@@ -85,8 +89,10 @@ const E_TO_TIER: Record<ETier, EffortTier> = {
 interface SidecarState {
   /** Last phase we fired pi for. Null = never fired. */
   last_fired_phase: Phase | null;
+  /** Last content-sensitive fire key; lets changed same-phase ISAs re-fire. */
+  last_fired_key?: string | null;
   /** Wall-clock timestamps of fires, for audit. */
-  fires: { phase: Phase; started_at: string }[];
+  fires: { phase: Phase; started_at: string; key?: string }[];
   /** Alerts the model has already seen (cleared by chat.message hook). */
   seen_alerts: string[];
 }
@@ -94,19 +100,24 @@ interface SidecarState {
 function loadSidecar(workDir: string): SidecarState {
   const file = join(workDir, SIDECAR_FILE);
   if (!existsSync(file)) {
-    return { last_fired_phase: null, fires: [], seen_alerts: [] };
+    return { last_fired_phase: null, last_fired_key: null, fires: [], seen_alerts: [] };
   }
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf-8'));
     return {
       last_fired_phase: parsed.last_fired_phase ?? null,
+      last_fired_key: parsed.last_fired_key ?? null,
       fires: Array.isArray(parsed.fires) ? parsed.fires : [],
       seen_alerts: Array.isArray(parsed.seen_alerts) ? parsed.seen_alerts : [],
     };
   } catch (err) {
     console.error('[pai-pi-perspective] malformed sidecar, resetting:', err);
-    return { last_fired_phase: null, fires: [], seen_alerts: [] };
+    return { last_fired_phase: null, last_fired_key: null, fires: [], seen_alerts: [] };
   }
+}
+
+function fireKey(phase: Phase, content: string): string {
+  return `${phase}:${createHash('sha256').update(content).digest('hex')}`;
 }
 
 function saveSidecar(workDir: string, state: SidecarState): void {
@@ -149,9 +160,9 @@ interface PiPerspectiveConfig {
 }
 
 const DEFAULT_AUTO_INVOKE: Record<EffortTier, Phase[]> = {
-  Standard: [],
-  Extended: ['VERIFY'],
-  Advanced: ['PLAN', 'VERIFY'],
+  Standard: ['THINK', 'PLAN', 'VERIFY'],
+  Extended: ['THINK', 'PLAN', 'VERIFY'],
+  Advanced: ['THINK', 'PLAN', 'VERIFY'],
   Deep: ['THINK', 'PLAN', 'VERIFY'],
   Comprehensive: ['THINK', 'PLAN', 'VERIFY'],
 };
@@ -161,7 +172,7 @@ function loadPiConfig(): PiPerspectiveConfig {
   if (!existsSync(path)) {
     return {
       enabled: true,
-      model: 'openai-codex/gpt-5.4:high',
+      model: 'openai-codex/gpt-5.5',
       auto_invoke: DEFAULT_AUTO_INVOKE,
     };
   }
@@ -170,7 +181,7 @@ function loadPiConfig(): PiPerspectiveConfig {
     const block = parsed?.pi_perspective ?? {};
     return {
       enabled: block.enabled !== false,
-      model: block.model ?? 'openai-codex/gpt-5.4:high',
+      model: block.model ?? 'openai-codex/gpt-5.5',
       auto_invoke: {
         ...DEFAULT_AUTO_INVOKE,
         ...(block.auto_invoke ?? {}),
@@ -180,7 +191,7 @@ function loadPiConfig(): PiPerspectiveConfig {
     console.error('[pai-pi-perspective] settings.json parse failed:', err);
     return {
       enabled: true,
-      model: 'openai-codex/gpt-5.4:high',
+      model: 'openai-codex/gpt-5.5',
       auto_invoke: DEFAULT_AUTO_INVOKE,
     };
   }
@@ -197,7 +208,7 @@ function alertKey(phase: Phase, generatedAt: string): string {
 function appendAlert(
   workDir: string,
   phase: Phase,
-  verdict: 'FAIL' | 'REFRAME' | 'CONCERNS' | 'PASS',
+  verdict: Verdict,
   summary: string,
   auditPath: string | null,
   generatedAt: string
@@ -227,16 +238,83 @@ function appendAlert(
   return key;
 }
 
+function appendRunSummary(
+  workDir: string,
+  phase: Phase,
+  verdict: Verdict,
+  summary: string,
+  auditPath: string | null,
+  generatedAt: string
+): void {
+  const file = join(workDir, RUNS_FILE);
+  const entry =
+    `\n## ${verdict} — ${phase} — ${generatedAt}\n\n` +
+    `${summary.trim()}\n\n` +
+    (auditPath ? `**Full verdict:** ${auditPath}\n` : '') +
+    `\n---\n`;
+  try {
+    if (!existsSync(file)) {
+      const header =
+        `# PiPerspective runs\n\n` +
+        `This file is appended by the \`pai-pi-perspective\` plugin for every ` +
+        `completed pi invocation, including PASS verdicts that do not require ` +
+        `next-turn interruption.\n`;
+      writeFileSync(file, header, 'utf-8');
+    }
+    appendFileSync(file, entry, 'utf-8');
+  } catch (err) {
+    console.error('[pai-pi-perspective] run summary write failed:', err);
+  }
+}
+
+function findAuditPathForVerdict(
+  workDir: string,
+  phase: Phase,
+  generatedAt: string
+): string | null {
+  const auditDir = join(workDir, 'pi-perspective');
+  if (!existsSync(auditDir)) return null;
+  const base = phase.toLowerCase();
+  const candidates = readdirSync(auditDir)
+    .filter((file) => file === `${base}.json` || file.match(new RegExp(`^${base}\\.\\d+\\.json$`)))
+    .map((file) => join(auditDir, file));
+  for (const candidate of candidates) {
+    try {
+      const verdict = JSON.parse(readFileSync(candidate, 'utf-8'));
+      if (verdict?.phase === phase && verdict?.generated_at === generatedAt) {
+        return candidate;
+      }
+    } catch {}
+  }
+  return null;
+}
+
+function buildVerifyDiff(workDir: string): string {
+  const auditDir = join(workDir, 'pi-perspective');
+  mkdirSync(auditDir, { recursive: true });
+  const diffPath = join(auditDir, 'auto-verify.diff');
+  const result = spawnSync('git', ['diff', '--no-ext-diff'], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const diff = result.status === 0
+    ? result.stdout
+    : `# git diff unavailable from ${process.cwd()}\n# ${result.stderr || result.error?.message || 'unknown error'}\n`;
+  writeFileSync(diffPath, diff || '# No working-tree diff captured for this VERIFY phase.\n', 'utf-8');
+  return diffPath;
+}
+
 // ---------------------------------------------------------------------------
 // pi spawn (fire-and-forget)
 // ---------------------------------------------------------------------------
 
-export function _setSpawnPiOverride(fn: typeof spawnPi | null): void {
+function _setSpawnPiOverride(fn: typeof spawnPi | null): void {
   spawnPiOverride = fn;
 }
 let spawnPiOverride: typeof spawnPi | null = null;
 
-export function spawnPi(
+function spawnPi(
   phase: Phase,
   isaPath: string,
   diffPath: string | undefined,
@@ -245,6 +323,7 @@ export function spawnPi(
 ): void {
   if (spawnPiOverride) return spawnPiOverride(phase, isaPath, diffPath, planPath, model);
   const workDir = dirname(isaPath);
+  if (phase === 'VERIFY' && !diffPath) diffPath = buildVerifyDiff(workDir);
   const args = [
     'run',
     INVOKE_PI,
@@ -273,15 +352,20 @@ export function spawnPi(
   child.on('close', (_code: number | null) => {
     try {
       const verdict = JSON.parse(stdout);
-      const v = String(verdict.verdict);
-      if (v === 'FAIL' || v === 'REFRAME') {
+      const v = String(verdict.verdict) as Verdict;
+      const generatedAt = String(verdict.generated_at ?? new Date().toISOString());
+      const auditPath = findAuditPathForVerdict(workDir, phase, generatedAt) ??
+        join(workDir, 'pi-perspective', `${phase.toLowerCase()}.json`);
+      const summary = String(verdict.summary_md ?? '(no summary)');
+      appendRunSummary(workDir, phase, v, summary, auditPath, generatedAt);
+      if (v !== 'PASS') {
         const key = appendAlert(
           workDir,
           phase,
-          v as 'FAIL' | 'REFRAME',
-          String(verdict.summary_md ?? '(no summary)'),
-          join(workDir, 'pi-perspective', `${phase.toLowerCase()}.json`),
-          String(verdict.generated_at ?? new Date().toISOString())
+          v,
+          summary,
+          auditPath,
+          generatedAt
         );
         console.error(
           `[pai-pi-perspective] ${v} verdict on ${phase} for ${isaPath} — alert ${key}`
@@ -312,7 +396,7 @@ export function spawnPi(
 // ISA edit handler
 // ---------------------------------------------------------------------------
 
-export async function handleIsaEdit(filePath: string): Promise<void> {
+async function handleIsaEdit(filePath: string): Promise<void> {
   if (!filePath.includes(`${memoryWorkDir()}/`)) return;
   if (!filePath.endsWith('/' + ARTIFACT_FILENAME)) return;
   if (!existsSync(filePath)) return;
@@ -342,11 +426,13 @@ export async function handleIsaEdit(filePath: string): Promise<void> {
 
   const workDir = dirname(filePath);
   const state = loadSidecar(workDir);
+  const key = fireKey(phase, content);
 
-  if (state.last_fired_phase === phase) return;
+  if (state.last_fired_key === key) return;
 
   state.last_fired_phase = phase;
-  state.fires.push({ phase, started_at: new Date().toISOString() });
+  state.last_fired_key = key;
+  state.fires.push({ phase, key, started_at: new Date().toISOString() });
   saveSidecar(workDir, state);
 
   console.error(
@@ -435,12 +521,12 @@ function markAlertsSeen(): void {
 // Plugin export
 // ---------------------------------------------------------------------------
 
-export const PaiPiPerspective: Plugin = async () => {
+export const PaiPiPerspective = (async () => {
   return {
     'tool.execute.after': async (input, _output) => {
       try {
         const tool = (input as { tool?: string })?.tool;
-        if (tool !== 'write' && tool !== 'edit') return;
+        if (tool !== 'write' && tool !== 'edit' && tool !== 'patch' && tool !== 'apply_patch') return;
         const args = (input as { args?: Record<string, unknown> })?.args;
         const fp =
           (typeof args?.filePath === 'string' && args.filePath) ||
@@ -462,13 +548,13 @@ export const PaiPiPerspective: Plugin = async () => {
         const blocks: string[] = [];
         blocks.push('<pai-pi-perspective-alerts>');
         blocks.push(
-          'PiPerspective has produced FAIL/REFRAME verdicts on recent phase boundaries.'
+          'PiPerspective has produced non-PASS verdicts on recent phase boundaries.'
         );
         blocks.push(
           'You MUST read these before continuing. Each is keyed by `alert_key`.'
         );
         blocks.push(
-          'Decide: override, iterate, or abort. Do not silently merge a FAIL.'
+          'Decide: accept, iterate, override, or abort. Do not silently ignore pi feedback.'
         );
         for (const b of buckets) {
           blocks.push(`\n### work_dir: ${b.workDir}\n`);
@@ -495,4 +581,20 @@ export const PaiPiPerspective: Plugin = async () => {
       }
     },
   };
+}) as Plugin & {
+  __test: {
+    _setSpawnPiOverride: typeof _setSpawnPiOverride;
+    handleIsaEdit: typeof handleIsaEdit;
+    findAuditPathForVerdict: typeof findAuditPathForVerdict;
+    appendRunSummary: typeof appendRunSummary;
+    appendAlert: typeof appendAlert;
+  };
+};
+
+PaiPiPerspective.__test = {
+  _setSpawnPiOverride,
+  handleIsaEdit,
+  findAuditPathForVerdict,
+  appendRunSummary,
+  appendAlert,
 };
