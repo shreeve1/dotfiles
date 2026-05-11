@@ -212,12 +212,9 @@
           }
         }
       }
-    },
-    "openai": {},
-    "zai-coding-plan": {}
+    }
   },
   "plugin": [
-    "opencode-openai-codex-auth",
     "file://{env:HOME}/.config/opencode/plugins/terminal-bell",
     "file://{env:HOME}/.config/opencode/plugins/pai-mode-router",
     "file://{env:HOME}/.config/opencode/plugins/pai-checkpoint-per-isc",
@@ -225,8 +222,7 @@
     "file://{env:HOME}/.config/opencode/plugins/pai-containment-guard",
     "file://{env:HOME}/.config/opencode/plugins/pai-config-audit",
     "file://{env:HOME}/.config/opencode/plugins/pai-reflection-loop",
-    "file://{env:HOME}/.config/opencode/plugins/pai-pi-perspective",
-    "@mcmunder/opencode-git-memory"
+    "file://{env:HOME}/.config/opencode/plugins/pai-pi-perspective"
   ],
   "permission": {
     "external_directory": "allow",
