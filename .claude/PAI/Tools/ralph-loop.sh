@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ralph-loop.sh — AFK implementation loop for local kanban
 # Reads .kanban/issues/ for unblocked AFK issues and implements them one at a time.
-# Each issue runs in a fresh Claude context (Memento approach).
+# Each issue runs in a fresh OpenCode context (Memento approach).
 #
 # Based on Matt Pocock's Ralph loop patterns.
 # Hardened after Codex security review (gpt-5.5, 2026-04-26).
@@ -14,7 +14,7 @@
 #   ./ralph-loop.sh --validate         # Validate kanban schema
 #   ./ralph-loop.sh --stale            # Detect and reset stale locks
 #
-# Requires: jq, claude (Claude Code CLI), git
+# Requires: jq, opencode, git
 
 set -euo pipefail
 
@@ -60,8 +60,8 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-if ! command -v claude &>/dev/null; then
-  echo "Error: claude CLI is required."
+if ! command -v opencode &>/dev/null; then
+  echo "Error: opencode CLI is required."
   exit 1
 fi
 
@@ -379,7 +379,7 @@ End with EXACTLY: <promise:$RUN_ID:REVIEW-PASS</promise> or <promise:$RUN_ID:REV
     exit 0
   fi
 
-  claude -p "$REVIEW_PROMPT" --permission-mode accept-edits
+  opencode run --agent quick-review-codex --dangerously-skip-permissions "$REVIEW_PROMPT"
   exit $?
 fi
 
@@ -546,12 +546,12 @@ On successful completion, output EXACTLY this line (nothing else on that line):
 On blocked/failure, output EXACTLY this line:
 <promise:$RUN_ID:BLOCKED</promise>"
 
-  # Run Claude in the current workspace
-  echo "Starting Claude for issue #$ID..."
+  # Run OpenCode in the current workspace
+  echo "Starting OpenCode for issue #$ID..."
   echo ""
 
   OUTPUT_FILE=$(mktemp)
-  if claude -p "$PROMPT" --permission-mode accept-edits 2>&1 | tee "$OUTPUT_FILE"; then
+  if opencode run --agent build --dangerously-skip-permissions "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"; then
     echo ""
 
     # Check for run-specific completion signal (prevents prompt injection from issue content)
@@ -569,7 +569,7 @@ On blocked/failure, output EXACTLY this line:
     fi
   else
     echo ""
-    echo "Issue #$ID FAILED (Claude exited with error)."
+    echo "Issue #$ID FAILED (OpenCode exited with error)."
     log_progress "$ID" "$TITLE" "FAILED" "**Action needed:** Re-run this issue manually"
     rm -f "$OUTPUT_FILE"
     echo "Stopping loop. Fix the issue and re-run."
