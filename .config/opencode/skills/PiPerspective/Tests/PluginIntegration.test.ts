@@ -25,10 +25,15 @@ import {
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-import {
+import { PaiPiPerspective } from '../../../plugins/pai-pi-perspective/index.ts';
+
+const {
   _setSpawnPiOverride,
   handleIsaEdit,
-} from '../../../plugins/pai-pi-perspective/index.ts';
+  findAuditPathForVerdict,
+  appendRunSummary,
+  appendAlert,
+} = PaiPiPerspective.__test;
 
 interface SpawnCall {
   phase: 'THINK' | 'PLAN' | 'VERIFY';
@@ -42,6 +47,12 @@ let calls: SpawnCall[] = [];
 let workRoot: string;
 let settingsPath: string;
 let savedEnv: { workDir?: string; runtimeHome?: string };
+
+test('plugin module only exports the OpenCode plugin function', async () => {
+  const pluginModule = await import('../../../plugins/pai-pi-perspective/index.ts');
+  expect(typeof pluginModule.PaiPiPerspective).toBe('function');
+  expect(Object.keys(pluginModule)).toEqual(['PaiPiPerspective']);
+});
 
 function isaFor(slug: string, tier: string, phase: string): string {
   return `---
@@ -130,16 +141,17 @@ afterEach(() => {
 });
 
 describe('T-18: effort tier -> workflow dispatch', () => {
-  test('E1 (Standard) fires no workflows on any phase', async () => {
+  test('E1 (Standard) fires all workflows', async () => {
     writeSettings();
     for (const phase of ['THINK', 'PLAN', 'VERIFY']) {
       const isa = writeIsa(`e1-${phase}`, 'E1', phase);
       await handleIsaEdit(isa);
     }
-    expect(calls).toEqual([]);
+    const phases = calls.map((c) => c.phase).sort();
+    expect(phases).toEqual(['PLAN', 'THINK', 'VERIFY']);
   });
 
-  test('E2 (Extended) fires only VERIFY', async () => {
+  test('E2 (Extended) fires all workflows', async () => {
     writeSettings();
     const verifyIsa = writeIsa('e2-verify', 'E2', 'VERIFY');
     await handleIsaEdit(verifyIsa);
@@ -148,19 +160,19 @@ describe('T-18: effort tier -> workflow dispatch', () => {
     const thinkIsa = writeIsa('e2-think', 'E2', 'THINK');
     await handleIsaEdit(thinkIsa);
 
-    expect(calls.length).toBe(1);
-    expect(calls[0].phase).toBe('VERIFY');
-    expect(calls[0].isaPath).toBe(verifyIsa);
+    const phases = calls.map((c) => c.phase).sort();
+    expect(phases).toEqual(['PLAN', 'THINK', 'VERIFY']);
+    expect(calls.find((c) => c.phase === 'VERIFY')?.isaPath).toBe(verifyIsa);
   });
 
-  test('E3 (Advanced) fires PLAN and VERIFY but not THINK', async () => {
+  test('E3 (Advanced) fires all workflows', async () => {
     writeSettings();
     await handleIsaEdit(writeIsa('e3-think', 'E3', 'THINK'));
     await handleIsaEdit(writeIsa('e3-plan', 'E3', 'PLAN'));
     await handleIsaEdit(writeIsa('e3-verify', 'E3', 'VERIFY'));
 
     const phases = calls.map((c) => c.phase).sort();
-    expect(phases).toEqual(['PLAN', 'VERIFY']);
+    expect(phases).toEqual(['PLAN', 'THINK', 'VERIFY']);
   });
 
   test('E4 (Deep) fires all three workflows', async () => {
@@ -183,18 +195,21 @@ describe('T-18: effort tier -> workflow dispatch', () => {
     expect(phases).toEqual(['PLAN', 'THINK', 'VERIFY']);
   });
 
-  test('Sidecar dedup: same phase edited twice fires only once', async () => {
+  test('Sidecar dedup: identical same-phase content fires only once', async () => {
     writeSettings();
     const isa = writeIsa('dedup', 'E2', 'VERIFY');
     await handleIsaEdit(isa);
-    // Simulate a follow-up edit to the ISA still in VERIFY phase.
-    writeFileSync(
-      isa,
-      readFileSync(isa, 'utf8') + '\nextra note\n',
-      'utf-8'
-    );
     await handleIsaEdit(isa);
     expect(calls.length).toBe(1);
+  });
+
+  test('Sidecar dedup: changed same-phase content re-fires', async () => {
+    writeSettings();
+    const isa = writeIsa('dedup-changed', 'E2', 'VERIFY');
+    await handleIsaEdit(isa);
+    writeFileSync(isa, readFileSync(isa, 'utf8') + '\nextra note\n', 'utf-8');
+    await handleIsaEdit(isa);
+    expect(calls.length).toBe(2);
   });
 
   test('Sidecar dedup: phase change re-fires', async () => {
@@ -238,6 +253,87 @@ describe('T-18: effort tier -> workflow dispatch', () => {
     await handleIsaEdit(writeIsa('e2-custom-verify', 'E2', 'VERIFY'));
     const phases = calls.map((c) => c.phase).sort();
     expect(phases).toEqual(['PLAN', 'THINK', 'VERIFY']);
+  });
+
+  test('tool.execute.after handles patch tool edits to ISA files', async () => {
+    writeSettings();
+    const isa = writeIsa('patch-tool', 'E2', 'VERIFY');
+    const plugin = await PaiPiPerspective();
+
+    await plugin['tool.execute.after'](
+      { tool: 'patch', args: { filePath: isa } },
+      {},
+    );
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].phase).toBe('VERIFY');
+    expect(calls[0].isaPath).toBe(isa);
+  });
+});
+
+describe('T-20: alert audit path resolution', () => {
+  test('findAuditPathForVerdict returns the suffixed audit file for repeated phase runs', () => {
+    const workDir = join(workRoot, 'audit-suffix');
+    const auditDir = join(workDir, 'pi-perspective');
+    mkdirSync(auditDir, { recursive: true });
+    writeFileSync(
+      join(auditDir, 'verify.json'),
+      JSON.stringify({ phase: 'VERIFY', generated_at: '2026-01-01T00:00:00.000Z' }),
+      'utf-8',
+    );
+    writeFileSync(
+      join(auditDir, 'verify.2.json'),
+      JSON.stringify({ phase: 'VERIFY', generated_at: '2026-01-01T00:01:00.000Z' }),
+      'utf-8',
+    );
+
+    const resolved = findAuditPathForVerdict(
+      workDir,
+      'VERIFY',
+      '2026-01-01T00:01:00.000Z',
+    );
+
+    expect(resolved).toBe(join(auditDir, 'verify.2.json'));
+  });
+});
+
+describe('T-21: verdict visibility', () => {
+  test('appendRunSummary records PASS verdicts for trigger visibility', () => {
+    const workDir = join(workRoot, 'run-summary');
+    mkdirSync(workDir, { recursive: true });
+
+    appendRunSummary(
+      workDir,
+      'THINK',
+      'PASS',
+      'No concerns.',
+      join(workDir, 'pi-perspective', 'think.json'),
+      '2026-01-01T00:02:00.000Z',
+    );
+
+    const runs = readFileSync(join(workDir, 'pi-perspective-runs.md'), 'utf-8');
+    expect(runs).toContain('# PiPerspective runs');
+    expect(runs).toContain('## PASS — THINK — 2026-01-01T00:02:00.000Z');
+    expect(runs).toContain('No concerns.');
+  });
+
+  test('appendAlert records CONCERNS verdicts for next-turn injection', () => {
+    const workDir = join(workRoot, 'concerns-alert');
+    mkdirSync(workDir, { recursive: true });
+
+    const key = appendAlert(
+      workDir,
+      'PLAN',
+      'CONCERNS',
+      'Plan has minor gaps.',
+      join(workDir, 'pi-perspective', 'plan.json'),
+      '2026-01-01T00:03:00.000Z',
+    );
+
+    const alerts = readFileSync(join(workDir, 'pi-perspective-alerts.md'), 'utf-8');
+    expect(key).toBe('PLAN@2026-01-01T00:03:00.000Z');
+    expect(alerts).toContain('## CONCERNS — PLAN — 2026-01-01T00:03:00.000Z');
+    expect(alerts).toContain('Plan has minor gaps.');
   });
 });
 
