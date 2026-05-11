@@ -26,7 +26,7 @@
  *   standard: model=sonnet,  timeout=30s
  *   smart:    model=opus,    timeout=90s
  *
- * BILLING: Uses Claude CLI with subscription (not API key)
+ * RUNTIME: Uses OpenCode CLI and the configured OpenCode provider.
  *
  * ============================================================================
  */
@@ -54,9 +54,9 @@ export interface InferenceResult {
 
 // Level configurations
 const LEVEL_CONFIG: Record<InferenceLevel, { model: string; defaultTimeout: number }> = {
-  fast: { model: 'haiku', defaultTimeout: 15000 },
-  standard: { model: 'sonnet', defaultTimeout: 30000 },
-  smart: { model: 'opus', defaultTimeout: 90000 },
+  fast: { model: 'cliproxy/claude-haiku-4-5-20251001', defaultTimeout: 15000 },
+  standard: { model: 'cliproxy/claude-sonnet-4-6', defaultTimeout: 30000 },
+  smart: { model: 'cliproxy/claude-opus-4-7', defaultTimeout: 90000 },
 };
 
 /**
@@ -69,32 +69,21 @@ export async function inference(options: InferenceOptions): Promise<InferenceRes
   const timeout = options.timeout || config.defaultTimeout;
 
   return new Promise((resolve) => {
-    // Build environment WITHOUT ANTHROPIC_API_KEY to force subscription auth
-    // Also unset CLAUDECODE so nested `claude` invocations don't trigger the
-    // nested-session guard (hooks run inside Claude Code's environment).
     const env = { ...process.env };
-    delete env.ANTHROPIC_API_KEY;
-    delete env.CLAUDECODE;
 
     const args = [
-      '--print',
+      'run',
       '--model', config.model,
-      '--tools', '',  // Disable tools for faster response
-      '--output-format', 'text',
-      '--setting-sources', '',  // Disable hooks to prevent recursion
-      '--system-prompt', options.systemPrompt,
+      `${options.systemPrompt}\n\n${options.userPrompt}`,
     ];
 
     let stdout = '';
     let stderr = '';
 
-    const proc = spawn('claude', args, {
+    const proc = spawn('opencode', args, {
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-
-    // Write prompt via stdin to avoid ARG_MAX limits on large inputs
-    proc.stdin.write(options.userPrompt);
     proc.stdin.end();
 
     proc.stdout.on('data', (data) => {

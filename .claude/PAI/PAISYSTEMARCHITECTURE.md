@@ -210,11 +210,19 @@ Skills are more than documentation - they are active orchestrators:
 
 **Automatic capture and preservation of valuable work.**
 
-Every session, every insight, every decision—captured automatically:
-- Raw event logging (JSONL)
-- Session summaries
-- Problem-solving narratives
-- Architectural decisions
+OpenCode-era PAI stores runtime memory under `~/.pai/memory/`, not `~/.claude/MEMORY/`. The current system automatically captures operational work state and session routing; durable learning automation is still being completed.
+
+Current memory layers:
+- Operational state: mode routing, work slugs, ISA paths, and criteria mirrors
+- Work artifacts: `WORK/{slug}/ISA.md` for Algorithm sessions
+- Reflection scaffolding: session-idle markers plus model-authored LEARN reflections
+- Canonical reviewed memory: SQLite store with trust/review gates for future context injection
+- Observability: OpenCode config edit audit records and future runtime observations
+
+Planned memory automation:
+- OpenCode event ingestion plugin for prompts, tool outcomes, and final responses
+- Redacted memory proposal pipeline into the review queue
+- Trust-gated context injection from accepted memories
 
 **Key Takeaway:** Memory makes intelligence compound. Without memory, every session starts from zero.
 

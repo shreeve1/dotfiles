@@ -2,11 +2,13 @@
 
 > **PAI 4.0** — This system is under active development. APIs, configuration formats, and features may change without notice.
 
+> **OpenCode status, 2026-05-10:** This document is primarily the legacy Claude Code hook reference. The active OpenCode runtime uses plugins under `~/.config/opencode/plugins/` and memory under `~/.pai/memory/`. See `MEMORYSYSTEM.md` for the current OpenCode memory writers and the gap analysis for the not-yet-implemented memory-ingest plugin.
+
 **Event-Driven Automation Infrastructure**
 
 **Location:** `~/.claude/hooks/`
 **Configuration:** `~/.claude/settings.json`
-**Status:** Active
+**Status:** Legacy Claude Code reference; OpenCode uses `~/.config/opencode/plugins/`
 
 ---
 

@@ -7,9 +7,9 @@
  * A unified CLI for executing Algorithm sessions against PRDs.
  *
  * MODES:
- *   loop        — Autonomous iteration via `claude -p` (SDK). Runs until all
+ *   loop        — Autonomous iteration via `opencode run`. Runs until all
  *                 ISC criteria pass or maxIterations reached. No human needed.
- *   interactive — Launches a full interactive `claude` session with PRD context
+ *   interactive — Launches a full interactive `opencode` session with PRD context
  *                 loaded as the initial prompt. Human-in-the-loop.
  *
  * DASHBOARD INTEGRATION (v0.5.9):
@@ -21,7 +21,7 @@
  *
  * USAGE:
  *   algorithm -m loop -p <PRD> [-n 128]        Autonomous loop execution
- *   algorithm -m interactive -p <PRD>           Interactive claude session
+ *   algorithm -m interactive -p <PRD>           Interactive OpenCode session
  *   algorithm new -t <title> [-e <effort>]      Create a new PRD
  *   algorithm status [-p <PRD>]                 Show PRD status
  *   algorithm pause -p <PRD>                    Pause a running loop
@@ -29,7 +29,7 @@
  *   algorithm stop -p <PRD>                     Stop a loop
  *
  * EXAMPLES:
- *   algorithm -m loop -p ~/.claude/MEMORY/WORK/auth/PRD-20260207-auth.md
+ *   algorithm -m loop -p ~/.pai/memory/WORK/auth/PRD-20260207-auth.md
  *   algorithm -m loop -p /path/to/project/.prd/PRD-20260213-feature.md -n 20
  *   algorithm -m interactive -p PRD-20260213-surface
  *   algorithm new -t "Build auth system" -e Extended
@@ -46,9 +46,9 @@ import { generatePRDTemplate } from "../../hooks/lib/prd-template";
 // ─── Paths ───────────────────────────────────────────────────────────────────
 
 const HOME = process.env.HOME || "~";
-const BASE_DIR = process.env.PAI_DIR || join(HOME, ".claude");
-const ALGORITHMS_DIR = join(BASE_DIR, "MEMORY", "STATE", "algorithms");
-const SESSION_NAMES_PATH = join(BASE_DIR, "MEMORY", "STATE", "session-names.json");
+const BASE_DIR = process.env.PAI_RUNTIME_HOME || process.env.PAI_DIR || join(HOME, ".pai");
+const ALGORITHMS_DIR = join(BASE_DIR, "memory", "STATE", "algorithms");
+const SESSION_NAMES_PATH = join(BASE_DIR, "memory", "STATE", "session-names.json");
 const PROJECTS_DIR = process.env.PROJECTS_DIR || join(HOME, "Projects");
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ Usage:
 
 Modes:
   loop          Autonomous iteration — no human interaction
-  interactive   Full claude session with PRD context loaded
+  interactive   Full OpenCode session with PRD context loaded
 
 Flags:
   -m, --mode <mode>     Execution mode: loop or interactive
@@ -209,7 +209,7 @@ Flags:
   -h, --help            Show this help
 
 PRD Resolution:
-  Full path     ~/.claude/MEMORY/WORK/auth/PRD-20260207-auth.md
+  Full path     ~/.pai/memory/WORK/auth/PRD-20260207-auth.md
   PRD ID        PRD-20260207-auth (searches MEMORY/WORK/ and ~/Projects/*/.prd/)
   Project path  /path/to/project/.prd/PRD-20260213-feature.md
 
@@ -1101,9 +1101,10 @@ async function runLoop(prdPath: string, maxOverride?: number, agentCount: number
     // ── Sequential path: single agent (existing behavior) ──
     const prompt = buildIterationPrompt(absPath, newIteration, max);
 
-    const result = spawnSync("claude", [
-      "-p", prompt,
-      "--allowedTools", "Edit,Write,Bash,Read,Glob,Grep,WebFetch,WebSearch,Task,TaskCreate,TaskUpdate,TaskList,NotebookEdit",
+    const result = spawnSync("opencode", [
+      "run", prompt,
+      "--agent", "build",
+      "--dangerously-skip-permissions",
     ], {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 600_000, // 10 minute timeout per iteration
@@ -1128,7 +1129,7 @@ async function runLoop(prdPath: string, maxOverride?: number, agentCount: number
 
     if (result.status !== 0) {
       const stderr = result.stderr?.toString().trim();
-      console.error(`\x1b[31m  claude -p exited with status ${result.status}\x1b[0m`);
+      console.error(`\x1b[31m  opencode run exited with status ${result.status}\x1b[0m`);
       if (stderr) console.error(`  ${stderr.slice(0, 200)}`);
       if (!state.loopHistory) state.loopHistory = [];
       state.loopHistory.push({
@@ -1211,16 +1212,18 @@ function runInteractive(prdPath: string): void {
   console.log(`\x1b[36m\u25CB\x1b[0m THE ALGORITHM (interactive mode) \u2014 ${prdTitle}`);
   console.log(`  PRD: ${absPath}`);
   console.log(`  Progress: ${criteria.passing}/${criteria.total}`);
-  console.log(`  Launching claude...\n`);
+  console.log(`  Launching opencode...\n`);
 
-  // Launch interactive claude session with PRD context
-  const child = spawn("claude", [
+  // Launch interactive OpenCode session with PRD context
+  const child = spawn("opencode", [
+    "run",
     prompt,
-    "--allowedTools", "Edit,Write,Bash,Read,Glob,Grep,WebFetch,WebSearch,Task,TaskCreate,TaskUpdate,TaskList,NotebookEdit",
+    "--agent", "build",
+    "--dangerously-skip-permissions",
   ], {
     stdio: "inherit",
     cwd: dirname(absPath),
-    env: { ...process.env, CLAUDECODE: undefined },
+    env: { ...process.env },
   });
 
   child.on("exit", (code) => {
