@@ -7,7 +7,7 @@ tools:
   edit: false
   bash: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose
@@ -21,7 +21,7 @@ When invoked, determine the mode and execute accordingly:
 ### Mode 1: Full Exploration
 If given a path/scope (or no specific question), perform a complete surface scan:
 
-1. **Check for CLAUDE.md** - Read `.claude/CLAUDE.md` or `CLAUDE.md` in root if present
+1. **Check for project agent docs** - Read `AGENTS.md` or `.opencode/AGENTS.md` in root if present (first match wins)
 2. **Map directory structure** - Use Glob to identify top-level organization
 3. **Identify tech stack** - Find and quickly scan config files:
    - `package.json` → Node/JS ecosystem
@@ -59,7 +59,7 @@ Always exclude these directories from exploration:
 
 - **Speed over depth** - This agent is optimized for quick reconnaissance
 - **Structured output** - Always return data in the format below for easy parsing
-- **Minimal reads** - Only read CLAUDE.md and key config files; use Glob/Grep for everything else
+- **Minimal reads** - Only read AGENTS.md and key config files; use Glob/Grep for everything else
 - **Pattern recognition** - Identify architecture patterns from directory structure
 - **Complete but concise** - Cover all areas but keep each section brief
 
@@ -147,7 +147,7 @@ recovery: {suggested action}
 **Input:** Path: `/Users/james/myproject`
 
 **Process:**
-1. Read CLAUDE.md if present
+1. Read AGENTS.md if present
 2. Glob top-level directories
 3. Find package.json → Node.js project
 4. Detect React patterns from src/ structure

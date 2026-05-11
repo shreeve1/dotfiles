@@ -7,7 +7,7 @@ tools:
   edit: true
   bash: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Builder

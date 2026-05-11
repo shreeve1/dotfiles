@@ -1,15 +1,15 @@
 ---
 temperature: 0
 permission:
-  write: allow
-  edit: allow
-  bash: allow
-  read: allow
-  grep: allow
-  glob: allow
-  patch: allow
-  todowrite: allow
-  webfetch: allow
+  write: ask
+  edit: ask
+  bash: ask
+  read: ask
+  grep: ask
+  glob: ask
+  patch: ask
+  todowrite: ask
+  webfetch: ask
 ---
 
 # PAI Algorithm Mode

@@ -13,7 +13,8 @@
  *   2. PATTERN_ALLOWLIST: certain authoring files (this plugin source, READMEs,
  *      identity templates) are allowed to embed patterns regardless of zone.
  *
- * IDENTITY_PATTERNS source: ~/.claude/PAI/USER/containment-patterns.txt
+ * IDENTITY_PATTERNS source: $PAI_RUNTIME_HOME/PAI/USER/containment-patterns.txt
+ *   (default ~/.pai/PAI/USER/containment-patterns.txt)
  *   - one regex per line, blank lines and `#` comments ignored
  *   - file is OPTIONAL; if absent or empty, this plugin is a no-op
  *
@@ -29,21 +30,25 @@ import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 import { homedir } from "node:os";
 
-const CLAUDE_ROOT = join(homedir(), ".claude");
-const PATTERNS_FILE = join(CLAUDE_ROOT, "PAI", "USER", "containment-patterns.txt");
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(homedir(), ".pai");
+const PATTERNS_FILE = join(PAI_RUNTIME_HOME, "PAI", "USER", "containment-patterns.txt");
 
-// Containment zones (paths under ~/.claude). Adapted from upstream
-// lib/containment-zones.ts. Components are matched against path segments.
+// Containment zones (paths under $PAI_RUNTIME_HOME). Adapted from upstream
+// lib/containment-zones.ts. Components are matched against path segments
+// of the path relative to PAI_RUNTIME_HOME.
 interface Zone {
   id: string;
   components: string[];
 }
 
+// Canonical OpenCode zones under $PAI_RUNTIME_HOME. The legacy uppercase
+// `PAI/MEMORY` zone was removed alongside the Claude split — kanban issues
+// 022–027 already restricted shared-memory writers to OpenCode and Pi using
+// the lowercase `memory` path. Re-add `PAI/MEMORY` only if a current writer
+// still targets it.
 const ZONES: Zone[] = [
   { id: "user-data", components: ["PAI", "USER"] },
-  { id: "runtime-memory", components: ["PAI", "MEMORY"] },
-  { id: "memory-local", components: ["MEMORY"] },
-  { id: "config-secrets-claude", components: ["settings.local.json"] },
+  { id: "memory-canonical", components: ["memory"] },
 ];
 
 // Files allowed to embed patterns even outside containment zones (authoring,
@@ -58,14 +63,14 @@ const PATTERN_ALLOWLIST_FILES = new Set<string>([
   "index.ts", // this plugin
 ]);
 
-function relativeToClaudeRoot(absPath: string): string | null {
-  if (!absPath.startsWith(CLAUDE_ROOT + sep) && absPath !== CLAUDE_ROOT)
+function relativeToPaiRoot(absPath: string): string | null {
+  if (!absPath.startsWith(PAI_RUNTIME_HOME + sep) && absPath !== PAI_RUNTIME_HOME)
     return null;
-  return absPath.slice(CLAUDE_ROOT.length + 1);
+  return absPath.slice(PAI_RUNTIME_HOME.length + 1);
 }
 
 function isContained(absPath: string): boolean {
-  const rel = relativeToClaudeRoot(absPath);
+  const rel = relativeToPaiRoot(absPath);
   if (rel === null) return false;
   const parts = rel.split(sep).filter(Boolean);
   for (const zone of ZONES) {
@@ -84,9 +89,8 @@ function isContained(absPath: string): boolean {
 
 /**
  * Allowlist is ZONE-SCOPED: a basename match alone is not enough. The
- * destination must also live inside a containment zone (or be ~/.claude/AGENTS.md
- * — the only exception). Otherwise writing identity content to e.g.
- * `/tmp/README.md` would silently bypass the guard.
+ * destination must also live inside a containment zone. Otherwise writing
+ * identity content to e.g. `/tmp/README.md` would silently bypass the guard.
  */
 function isPatternAllowlisted(absPath: string): boolean {
   const base = absPath.slice(absPath.lastIndexOf(sep) + 1);
@@ -194,7 +198,7 @@ export const PaiContainmentGuard: Plugin = async () => {
 
       // Violation: identity-tagged content destined outside containment.
       throw new ContainmentViolation(
-        `pai-containment-guard: write to ${fp} blocked — content matches identity pattern ${matched.source} but destination is not inside a containment zone (PAI/USER, PAI/MEMORY, MEMORY, settings.local.json).`
+        `pai-containment-guard: write to ${fp} blocked — content matches identity pattern ${matched.source} but destination is not inside a containment zone under ${PAI_RUNTIME_HOME} (PAI/USER, memory).`
       );
     },
   };

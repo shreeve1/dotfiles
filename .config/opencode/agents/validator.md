@@ -7,7 +7,7 @@ tools:
   edit: false
   bash: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Validator

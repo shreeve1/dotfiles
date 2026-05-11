@@ -14,7 +14,7 @@ tools:
   todowrite: true
   webfetch: false
 permission:
-  edit: allow
+  edit: ask
   bash:
     "codex *": allow
     "bun *": allow

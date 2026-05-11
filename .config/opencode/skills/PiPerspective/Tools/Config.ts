@@ -32,12 +32,12 @@ export interface PiPerspectiveConfig {
 
 export const DEFAULT_CONFIG: PiPerspectiveConfig = {
   enabled: true,
-  model: 'openai/gpt-5-codex:high',
+  model: 'openai-codex/gpt-5.5',
   min_pi_version: '0.73.1',
   auto_invoke: {
-    Standard: [],
-    Extended: ['VERIFY'],
-    Advanced: ['PLAN', 'VERIFY'],
+    Standard: ['THINK', 'PLAN', 'VERIFY'],
+    Extended: ['THINK', 'PLAN', 'VERIFY'],
+    Advanced: ['THINK', 'PLAN', 'VERIFY'],
     Deep: ['THINK', 'PLAN', 'VERIFY'],
     Comprehensive: ['THINK', 'PLAN', 'VERIFY'],
   },

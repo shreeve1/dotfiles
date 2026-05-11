@@ -7,7 +7,7 @@ tools:
   edit: true
   bash: true
 permission:
-  "*": allow
+  "*": ask
 ---
 
 # Purpose
@@ -88,7 +88,7 @@ Shape the command around `workflow_steps`. For each step:
 
 ## Step 3: Generate the Command File
 
-Write to `.claude/commands/{task_name}.md`.
+Write to `.opencode/command/{task_name}.md` (OpenCode project-local convention). Use `.claude/commands/{task_name}.md` only if the project explicitly opts into the Claude Code layout.
 
 ### Frontmatter
 
@@ -147,7 +147,7 @@ Include `subagent: {name}` when a primary subagent handles the core work — use
 ## Step 4: Verify
 
 ```bash
-ls -la .claude/commands/{task_name}.md
+ls -la .opencode/command/{task_name}.md
 ```
 
 Check: file exists, frontmatter is valid YAML, every `workflow_step` has a corresponding section.

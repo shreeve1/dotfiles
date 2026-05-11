@@ -147,7 +147,7 @@ describe('Config', () => {
     const c = loadConfig({ path: join(tmpdir(), 'definitely-not-here.json') });
     expect(c.enabled).toBe(true);
     expect(c.model).toBe(DEFAULT_CONFIG.model);
-    expect(c.auto_invoke.Extended).toEqual(['VERIFY']);
+    expect(c.auto_invoke.Extended).toEqual(['THINK', 'PLAN', 'VERIFY']);
   });
 
   test('loadConfig merges partial auto_invoke without erasing other tiers', () => {

@@ -6,7 +6,8 @@
  * opencode.json (project-local or global).
  *
  * Captures a JSONL entry per change to
- * ~/.claude/MEMORY/OBSERVABILITY/config-changes.jsonl with shape:
+ * $PAI_RUNTIME_HOME/memory/OBSERVABILITY/config-changes.jsonl
+ * (default ~/.pai/memory/OBSERVABILITY/config-changes.jsonl) with shape:
  *   { timestamp, file_path, sha256, byte_size, tool, session_id? }
  *
  * Read-only, side-effect-only audit; never modifies the config file.
@@ -26,10 +27,10 @@ import { createHash } from "node:crypto";
 import { dirname, join, basename } from "node:path";
 import { homedir } from "node:os";
 
+const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(homedir(), ".pai");
 const AUDIT_LOG = join(
-  homedir(),
-  ".claude",
-  "MEMORY",
+  PAI_RUNTIME_HOME,
+  "memory",
   "OBSERVABILITY",
   "config-changes.jsonl"
 );

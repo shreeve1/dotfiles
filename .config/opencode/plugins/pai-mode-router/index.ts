@@ -23,6 +23,7 @@ type SessionState = {
   slug?: string;
   isaPath?: string;
   classifiedAt: string;
+  algorithmActivatedMessageCount?: number;
   messageCount: number;
   firstPrompt: string;
 };
@@ -79,6 +80,7 @@ const ALGORITHM_KEYWORDS = [
   "setup",
   "deploy",
   "test",
+  "update",
   "evaluate",
   "compare",
   "explore",
@@ -86,6 +88,22 @@ const ALGORITHM_KEYWORDS = [
   "spec",
   "ship",
   "rewrite",
+  "modify",
+];
+
+const ESCALATION_PHRASES = [
+  "make this change",
+  "make the change",
+  "make that change",
+  "implement this",
+  "implement that",
+  "update this",
+  "update that",
+  "fix this",
+  "fix that",
+  "do this",
+  "do that",
+  "go ahead and",
 ];
 
 const NATIVE_INDICATORS = [
@@ -196,6 +214,13 @@ function classify(prompt: string): Mode {
   if (wordCount <= 15) return "NATIVE";
 
   return "ALGORITHM";
+}
+
+function shouldEscalateToAlgorithm(prompt: string): boolean {
+  const text = prompt.toLowerCase().trim();
+  if (!text) return false;
+  if (classify(prompt) === "ALGORITHM") return true;
+  return ESCALATION_PHRASES.some((phrase) => text.includes(phrase));
 }
 
 // -----------------------------------------------------------------------------
@@ -360,10 +385,22 @@ export const PaiModeRouter: Plugin = async () => {
         const existing = state.sessions[sessionID];
         const messageCount = (existing?.messageCount ?? 0) + 1;
 
-        // Only classify on first user message of session.
-        // Subsequent messages keep the same mode but bump messageCount.
+        // Classify on the first user message. Later turns may escalate a
+        // MINIMAL/NATIVE session to ALGORITHM, but never downgrade ALGORITHM.
         if (existing) {
           existing.messageCount = messageCount;
+          if (
+            existing.mode !== "ALGORITHM" &&
+            shouldEscalateToAlgorithm(prompt)
+          ) {
+            const slug = buildSlug(prompt);
+            const isaPath = createIsaStub(slug, prompt);
+            existing.mode = "ALGORITHM";
+            existing.classifiedAt = new Date().toISOString();
+            existing.slug = slug;
+            if (isaPath) existing.isaPath = isaPath;
+            existing.algorithmActivatedMessageCount = messageCount;
+          }
           state.sessions[sessionID] = existing;
           saveState(state);
           return;
@@ -382,6 +419,7 @@ export const PaiModeRouter: Plugin = async () => {
           const isaPath = createIsaStub(slug, prompt);
           session.slug = slug;
           if (isaPath) session.isaPath = isaPath;
+          session.algorithmActivatedMessageCount = messageCount;
         }
 
         state.sessions[sessionID] = session;
@@ -438,8 +476,12 @@ export const PaiModeRouter: Plugin = async () => {
         const session = state.sessions[sessionID];
         if (!session) return;
         if (session.mode !== "ALGORITHM") return;
-        // Only inject on first turn (messageCount === 1).
-        if (session.messageCount !== 1) return;
+        // Inject on the turn where Algorithm was activated. For sessions that
+        // started in ALGORITHM this is turn 1; for escalated sessions it is the
+        // later turn that changed mode.
+        if (session.messageCount !== session.algorithmActivatedMessageCount) {
+          return;
+        }
 
         // Inject a synthetic assistant primer right before this user turn,
         // so the model sees the phase scaffolding it must emit.
