@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "PAI/Tools/Inference.ts",
+    "PAI/Tools/algorithm.ts",
+    "PAI/Tools/RebuildPAI.ts",
+    "PAI/ACTIONS/lib/runner.v2.ts",
+    "PAI/ACTIONS/lib/types.v2.ts"
+  ]
+}

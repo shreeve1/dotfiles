@@ -49,7 +49,16 @@ const HOME = process.env.HOME || "~";
 const BASE_DIR = process.env.PAI_RUNTIME_HOME || process.env.PAI_DIR || join(HOME, ".pai");
 const ALGORITHMS_DIR = join(BASE_DIR, "memory", "STATE", "algorithms");
 const SESSION_NAMES_PATH = join(BASE_DIR, "memory", "STATE", "session-names.json");
+const WORK_DIR = join(BASE_DIR, "memory", "WORK");
 const PROJECTS_DIR = process.env.PROJECTS_DIR || join(HOME, "Projects");
+
+function opencodeRunArgs(prompt: string, agent: string): string[] {
+  const args = ["run", prompt, "--agent", agent];
+  if (process.env.PAI_OPENCODE_AUTO_APPROVE === "1") {
+    args.push("--dangerously-skip-permissions");
+  }
+  return args;
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1099,11 +1108,7 @@ async function runLoop(prdPath: string, maxOverride?: number, agentCount: number
     // ── Sequential path: single agent (existing behavior) ──
     const prompt = buildIterationPrompt(absPath, newIteration, max);
 
-    const result = spawnSync("opencode", [
-      "run", prompt,
-      "--agent", "build",
-      "--dangerously-skip-permissions",
-    ], {
+    const result = spawnSync("opencode", opencodeRunArgs(prompt, "build"), {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 600_000, // 10 minute timeout per iteration
       cwd: dirname(absPath), // Run from PRD's directory context
@@ -1213,12 +1218,7 @@ function runInteractive(prdPath: string): void {
   console.log(`  Launching opencode...\n`);
 
   // Launch interactive OpenCode session with PRD context
-  const child = spawn("opencode", [
-    "run",
-    prompt,
-    "--agent", "build",
-    "--dangerously-skip-permissions",
-  ], {
+  const child = spawn("opencode", opencodeRunArgs(prompt, "build"), {
     stdio: "inherit",
     cwd: dirname(absPath),
     env: { ...process.env },
@@ -1259,9 +1259,9 @@ function createNewPRD(title: string, effortLevel: string = "Standard", outputDir
   if (outputDir) {
     targetDir = resolve(outputDir);
   } else {
-    // Default: create in MEMORY/WORK session directory
+    // Default: create in memory/WORK session directory
     const sessionSlug = `${y}${m}${d}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}_${slug}`;
-    targetDir = join(BASE_DIR, "MEMORY", "WORK", sessionSlug);
+    targetDir = join(WORK_DIR, sessionSlug);
   }
   mkdirSync(targetDir, { recursive: true });
 
@@ -1283,8 +1283,8 @@ function createNewPRD(title: string, effortLevel: string = "Standard", outputDir
 function findAllPRDs(): string[] {
   const files: string[] = [];
 
-  // 1. Scan MEMORY/WORK directory (flat PRD.md + legacy task-level PRDs)
-  const workDir = join(BASE_DIR, "MEMORY", "WORK");
+  // 1. Scan memory/WORK directory (flat PRD.md + legacy task-level PRDs)
+  const workDir = WORK_DIR;
   if (existsSync(workDir)) {
     try {
       for (const session of readdirSync(workDir)) {
@@ -1355,7 +1355,7 @@ function showStatus(specificPath?: string): void {
 
   const files = findAllPRDs();
   if (files.length === 0) {
-    console.log("No PRDs found in MEMORY/WORK/ or project .prd/ directories.");
+    console.log("No PRDs found in memory/WORK/ or project .prd/ directories.");
     return;
   }
 
