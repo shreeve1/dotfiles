@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json"
   },
   "bin": {
     "pai-run": "./src/cli/pai-run.ts",
