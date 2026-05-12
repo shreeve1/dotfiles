@@ -5,7 +5,11 @@ export type PayloadSurface =
   | "command"
   | "env_var"
   | "transcript"
-  | "model_response";
+  | "model_response"
+  | "memory_content"
+  | "memory_provenance";
+
+export type MemorySurface = Extract<PayloadSurface, "memory_content" | "memory_provenance">;
 
 export type SensitivityLabel = "public" | "sensitive" | "secret" | "oversized";
 
@@ -138,6 +142,147 @@ export function prepareEventForDestination(
     ...redactEvent(input, options),
     redaction_destination: destination,
   };
+}
+
+export type PortableMemoryRedactionOptions = {
+  maxPortableChars?: number;
+};
+
+export type PortableMemoryRedactionResult = {
+  redacted: string;
+  findings: RedactionFinding[];
+};
+
+const DEFAULT_PORTABLE_MAX_CHARS = 16384;
+
+export class PortableMemoryOversizeError extends Error {
+  readonly surface: MemorySurface;
+  readonly length: number;
+  readonly limit: number;
+  constructor(surface: MemorySurface, length: number, limit: number) {
+    super(
+      `Portable memory ${surface} length ${length} exceeds limit ${limit}; refusing to truncate. Shrink the memory or raise --max-portable-chars after verifying it does not contain secrets.`,
+    );
+    this.name = "PortableMemoryOversizeError";
+    this.surface = surface;
+    this.length = length;
+    this.limit = limit;
+  }
+}
+
+export function redactPortableMemoryText(
+  surface: MemorySurface,
+  value: string,
+  options: PortableMemoryRedactionOptions = {},
+): PortableMemoryRedactionResult {
+  const limit = options.maxPortableChars ?? DEFAULT_PORTABLE_MAX_CHARS;
+  const findings: RedactionFinding[] = [];
+  let redacted = value;
+
+  for (const { label, pattern } of SECRET_PATTERNS) {
+    redacted = redacted.replace(pattern, () => {
+      findings.push({ surface, kind: "secret_pattern", label });
+      return `[REDACTED:${label}]`;
+    });
+  }
+
+  for (const { label, pattern } of DENYLISTED_PATH_PATTERNS) {
+    redacted = redacted.replace(pattern, (match) => {
+      findings.push({ surface, kind: "denylisted_path", label });
+      const prefix = match.match(/^[\s"'=:]+/)?.[0] ?? "";
+      return `${prefix}[REDACTED_PATH:${label}]`;
+    });
+  }
+
+  if (redacted.length > limit) {
+    throw new PortableMemoryOversizeError(surface, redacted.length, limit);
+  }
+
+  return { redacted, findings };
+}
+
+export const PORTABLE_REDACTION_DEFAULT_MAX_CHARS = DEFAULT_PORTABLE_MAX_CHARS;
+
+const SECRET_KEY_PATTERN = /(?:api[_-]?key|token|secret|password|passwd|credential|cookie|authorization|bearer|session|private[_-]?key)/i;
+
+export type StructuralRedactionResult = {
+  value: unknown;
+  findings: RedactionFinding[];
+};
+
+export function redactPortableMemoryProvenance(
+  provenance: Record<string, unknown>,
+  options: PortableMemoryRedactionOptions = {},
+): StructuralRedactionResult {
+  const limit = options.maxPortableChars ?? DEFAULT_PORTABLE_MAX_CHARS;
+  const findings: RedactionFinding[] = [];
+
+  const cleaned = redactStructural(provenance, findings, false);
+  const serialized = JSON.stringify(cleaned);
+  if (serialized.length > limit) {
+    throw new PortableMemoryOversizeError("memory_provenance", serialized.length, limit);
+  }
+
+  return { value: cleaned, findings };
+}
+
+function redactStructural(value: unknown, findings: RedactionFinding[], underSecretKey: boolean): unknown {
+  if (value === null || value === undefined) return value;
+
+  if (typeof value === "string") {
+    if (underSecretKey) {
+      findings.push({ surface: "memory_provenance", kind: "secret_pattern", label: "secret_key_value" });
+      return "[REDACTED:secret_key_value]";
+    }
+    const { redacted, findings: textFindings } = redactPortableMemoryStringForProvenance(value);
+    findings.push(...textFindings);
+    return redacted;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    if (underSecretKey) {
+      findings.push({ surface: "memory_provenance", kind: "secret_pattern", label: "secret_key_value" });
+      return "[REDACTED:secret_key_value]";
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactStructural(entry, findings, underSecretKey));
+  }
+
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const childUnderSecret = underSecretKey || SECRET_KEY_PATTERN.test(key);
+      out[key] = redactStructural(child, findings, childUnderSecret);
+    }
+    return out;
+  }
+
+  return value;
+}
+
+function redactPortableMemoryStringForProvenance(value: string): { redacted: string; findings: RedactionFinding[] } {
+  const findings: RedactionFinding[] = [];
+  let redacted = value;
+
+  for (const { label, pattern } of SECRET_PATTERNS) {
+    redacted = redacted.replace(pattern, () => {
+      findings.push({ surface: "memory_provenance", kind: "secret_pattern", label });
+      return `[REDACTED:${label}]`;
+    });
+  }
+
+  for (const { label, pattern } of DENYLISTED_PATH_PATTERNS) {
+    redacted = redacted.replace(pattern, (match) => {
+      findings.push({ surface: "memory_provenance", kind: "denylisted_path", label });
+      const prefix = match.match(/^[\s"'=:]+/)?.[0] ?? "";
+      return `${prefix}[REDACTED_PATH:${label}]`;
+    });
+  }
+
+  return { redacted, findings };
 }
 
 export function serializeRedactedJsonl(event: RedactedPaiEvent): string {
