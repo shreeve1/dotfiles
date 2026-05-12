@@ -1,6 +1,9 @@
 {
   "name": "opencode-user-plugins",
   "type": "module",
+  "scripts": {
+    "test:pai-mode-router": "bun test plugins/pai-mode-router/index.test.ts"
+  },
   "dependencies": {
     "@opencode-ai/plugin": "1.14.46",
     "zod": "^4.4.3"
