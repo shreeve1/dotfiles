@@ -75,3 +75,7 @@ bun run src/cli/pai-memory.ts import-portable \
 ```
 
 Both commands accept `--dry-run` to validate without writing. Import dry-run does **not** create a SQLite database when pointed at a fresh runtime home.
+
+## Capture Loop Integration
+
+The Phase 6 capture loop produces *proposals*, never auto-accepts. After acceptance, set `PAI_AUTO_EXPORT_ON_ACCEPT=1` to have `pai-memory review accept` refresh this directory automatically via atomic rename. See `.pai/README.md` for distill/review/auto-export details.

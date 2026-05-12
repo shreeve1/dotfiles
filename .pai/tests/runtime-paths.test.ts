@@ -18,6 +18,8 @@ describe("runtime path resolution", () => {
       transcriptsDir: "/tmp/pai-runtime/transcripts",
       memoryDir: "/tmp/pai-runtime/memory",
       authDir: "/tmp/pai-runtime/auth",
+      stateDir: "/tmp/pai-runtime/state",
+      logsDir: "/tmp/pai-runtime/logs",
     });
   });
 });

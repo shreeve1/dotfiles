@@ -101,11 +101,15 @@ const CODEX_CAPABILITIES: AdapterCapabilities = {
   can_attach_native_session_id: false,
 };
 
+export const CODEX_STOP_DISTILL_COMMAND =
+  "( pai-memory distill --quiet & disown ) >/dev/null 2>&1";
+
 const DEFAULT_HOOK_TEMPLATES: CodexHookTemplate[] = [
   { event: "SessionStart", command: "bun ~/.pai/adapters/codex/tracer.ts --event SessionStart", legacy_compatible: true },
   { event: "UserPromptSubmit", command: "bun ~/.pai/adapters/codex/tracer.ts --event UserPromptSubmit", legacy_compatible: true },
   { event: "PostToolUse", command: "bun ~/.pai/adapters/codex/tracer.ts --event PostToolUse", legacy_compatible: true },
   { event: "Stop", command: "bun ~/.pai/adapters/codex/tracer.ts --event Stop", legacy_compatible: true },
+  { event: "Stop", command: CODEX_STOP_DISTILL_COMMAND, legacy_compatible: true },
 ];
 
 export function resolveCodexPaiSession(input: CodexSessionResolutionInput = {}): CodexSessionResolution {

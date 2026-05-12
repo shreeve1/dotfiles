@@ -8,6 +8,8 @@ export type RuntimePaths = {
   transcriptsDir: string;
   memoryDir: string;
   authDir: string;
+  stateDir: string;
+  logsDir: string;
 };
 
 export function defaultRuntimeHome(): string {
@@ -22,5 +24,7 @@ export function buildRuntimePaths(runtimeHome = defaultRuntimeHome()): RuntimePa
     transcriptsDir: join(runtimeHome, "transcripts"),
     memoryDir: join(runtimeHome, "memory"),
     authDir: join(runtimeHome, "auth"),
+    stateDir: join(runtimeHome, "state"),
+    logsDir: join(runtimeHome, "logs"),
   };
 }

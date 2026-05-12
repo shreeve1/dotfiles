@@ -78,20 +78,36 @@ describe("OpenCode PAI entrypoints", () => {
     }
   });
 
-  test("OpenCode wildcard permissions ask by default", () => {
+  test("OpenCode wildcard permissions ask by default outside opted-in scopes", () => {
     const config = JSON.parse(readFileSync(join(repoRoot, ".config/opencode/opencode.json"), "utf8"));
 
-    function collectWildcardPermissions(value: unknown): string[] {
+    // Wildcard `"*": "allow"` is permitted only in scopes where the user has explicitly
+    // opted into permissive behavior:
+    //   - mode.build / agent.build (build-scoped permissive tooling)
+    //   - top-level `permission` (the global opt-in policy)
+    // Every other named scope — plan, general, compaction, custom agents, etc. — must
+    // default to `ask` so derived modes/agents never silently broaden tool access.
+    type WildcardEntry = { path: string; value: string };
+    function collectWildcardPermissions(value: unknown, path: string[] = []): WildcardEntry[] {
       if (!value || typeof value !== "object") return [];
       const record = value as Record<string, unknown>;
-      const current = typeof record["*"] === "string" ? [record["*"] as string] : [];
-      return Object.values(record).reduce<string[]>((acc, child) => {
-        acc.push(...collectWildcardPermissions(child));
+      const here: WildcardEntry[] =
+        typeof record["*"] === "string"
+          ? [{ path: path.join("."), value: record["*"] as string }]
+          : [];
+      return Object.entries(record).reduce<WildcardEntry[]>((acc, [key, child]) => {
+        if (key === "*") return acc;
+        acc.push(...collectWildcardPermissions(child, [...path, key]));
         return acc;
-      }, current);
+      }, here);
     }
 
-    expect(collectWildcardPermissions(config)).not.toContain("allow");
+    const allowEntries = collectWildcardPermissions(config).filter(
+      (entry) => entry.value === "allow",
+    );
+    const allowedScopes = new Set(["permission", "mode.build.permission", "agent.build.permission"]);
+    const offending = allowEntries.filter((entry) => !allowedScopes.has(entry.path));
+    expect(offending).toEqual([]);
   });
 
   test("OpenCode mode and agent frontmatter does not auto-allow tools by default", () => {

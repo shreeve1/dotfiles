@@ -165,6 +165,10 @@ export type PortableImportResult = {
   total: number;
 };
 
+export type ProposeMemoryIfMissingResult =
+  | { status: "proposed"; memory: MemoryRecord; review: ReviewQueueItem }
+  | { status: "skipped"; reason: "already_proposed"; memory_id: string };
+
 export const MEMORY_STORE_MIGRATIONS = [
   {
     version: 1,
@@ -320,6 +324,19 @@ export class CanonicalMemoryStore {
       );
       return { memory: record, review: reviewItem };
     })();
+  }
+
+  proposeMemoryIfMissing(
+    memory: ProposedMemoryInput,
+    review: Omit<Pick<ReviewQueueItem, "review_id" | "memory_id" | "proposed_diff" | "source_event_ids">, "memory_id" | "source_event_ids">,
+    now = new Date().toISOString(),
+  ): ProposeMemoryIfMissingResult {
+    const existing = this.getMemory(memory.memory_id);
+    if (existing) {
+      return { status: "skipped", reason: "already_proposed", memory_id: memory.memory_id };
+    }
+    const created = this.proposeMemoryWithReview(memory, review, now);
+    return { status: "proposed", memory: created.memory, review: created.review };
   }
 
   decideReview(reviewId: string, state: Exclude<ReviewStatus, "proposed">, now = new Date().toISOString()) {
