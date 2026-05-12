@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "default_portable_types": [
+      "profile",
+      "projects",
+      "tools",
+      "learning",
+      "procedures"
+    ],
+    "source_harnesses": [],
+    "record_count": 0
+  },
+  "memories": []
+}

@@ -2,6 +2,12 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { buildRuntimePaths } from "./runtime-paths";
+import {
+  redactPortableMemoryProvenance,
+  redactPortableMemoryText,
+  type PortableMemoryRedactionOptions,
+  type RedactionFinding,
+} from "./redaction";
 
 export const MEMORY_TYPES = ["profile", "projects", "tools", "learning", "work", "procedures"] as const;
 export const ASSERTION_TYPES = ["user-stated", "observed", "inferred", "verified"] as const;
@@ -73,6 +79,92 @@ export type MemoryContextBlock = {
   content: string;
 };
 
+export const PORTABLE_EXPORT_SCHEMA_VERSION = 1 as const;
+export type PortableExportSchemaVersion = typeof PORTABLE_EXPORT_SCHEMA_VERSION;
+
+export const PORTABLE_MEMORY_TYPES = ["profile", "projects", "tools", "learning", "procedures"] as const;
+export type PortableMemoryType = (typeof PORTABLE_MEMORY_TYPES)[number];
+
+export function isPortableMemoryType(value: string): value is PortableMemoryType {
+  return (PORTABLE_MEMORY_TYPES as readonly string[]).includes(value);
+}
+
+export class PortableMemoryTypeError extends Error {
+  readonly attemptedType: string;
+  constructor(attemptedType: string) {
+    super(
+      `Memory type ${JSON.stringify(attemptedType)} is not portable. Portable types are: ${PORTABLE_MEMORY_TYPES.join(", ")}.`,
+    );
+    this.name = "PortableMemoryTypeError";
+    this.attemptedType = attemptedType;
+  }
+}
+
+export class PortableSchemaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PortableSchemaError";
+  }
+}
+
+export type PortableMemoryRecord = {
+  memory_id: string;
+  type: PortableMemoryType;
+  scope: string;
+  source_event_ids: string[];
+  provenance: Record<string, unknown>;
+  confidence: number;
+  assertion_type: AssertionType;
+  trust_level: TrustLevel;
+  review_status: ReviewStatus;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string;
+  revalidation_rule?: string;
+};
+
+export type PortableExportMetadata = {
+  default_portable_types: readonly PortableMemoryType[];
+  source_harnesses: string[];
+  record_count: number;
+};
+
+export type PortableExportDocument = {
+  schema_version: PortableExportSchemaVersion;
+  metadata: PortableExportMetadata;
+  memories: PortableMemoryRecord[];
+};
+
+export type PortableExportFindings = {
+  redaction: RedactionFinding[];
+};
+
+export type PortableExportResult = {
+  document: PortableExportDocument;
+  findings: PortableExportFindings;
+};
+
+export type PortableExportFilters = {
+  projectId?: string;
+  type?: PortableMemoryType;
+  trustLevel?: TrustLevel;
+  includeIneligible?: boolean;
+};
+
+export type PortableExportOptions = PortableExportFilters & PortableMemoryRedactionOptions;
+
+export type PortableImportConflict = {
+  memory_id: string;
+  reason: "exists_locally";
+};
+
+export type PortableImportResult = {
+  imported: string[];
+  skipped: PortableImportConflict[];
+  total: number;
+};
+
 export const MEMORY_STORE_MIGRATIONS = [
   {
     version: 1,
@@ -114,6 +206,12 @@ export const MEMORY_STORE_MIGRATIONS = [
       `INSERT INTO memory_fts(rowid, memory_id, content, provenance_json)
        SELECT rowid, memory_id, content, provenance_json FROM memories
        WHERE rowid NOT IN (SELECT rowid FROM memory_fts)`,
+    ],
+  },
+  {
+    version: 3,
+    statements: [
+      `ALTER TABLE memories ADD COLUMN runtime_metadata_json TEXT`,
     ],
   },
 ] as const;
@@ -316,6 +414,194 @@ export class CanonicalMemoryStore {
     return MEMORY_TYPES.map((type) => ({ type, path: join(dirname(this.dbPath), type) }));
   }
 
+  exportPortableMemories(options: PortableExportOptions = {}): PortableExportResult {
+    if (options.type !== undefined && !isPortableMemoryType(options.type)) {
+      throw new PortableMemoryTypeError(options.type);
+    }
+
+    const candidates = options.includeIneligible
+      ? this.listAllMemoriesForPortableExport({ projectId: options.projectId, type: options.type })
+      : this.listInstructionEligibleMemories({ projectId: options.projectId, type: options.type as MemoryType | undefined });
+
+    const filtered = candidates.filter((memory) => {
+      if (!isPortableMemoryType(memory.type)) return false;
+      if (options.trustLevel && memory.trust_level !== options.trustLevel) return false;
+      return true;
+    });
+
+    const findings: RedactionFinding[] = [];
+    const portableRecords: PortableMemoryRecord[] = filtered.map((memory) => {
+      const contentResult = redactPortableMemoryText("memory_content", memory.content, options);
+      findings.push(...contentResult.findings);
+
+      const provenanceResult = redactPortableMemoryProvenance(memory.provenance, options);
+      findings.push(...provenanceResult.findings);
+      const safeProvenance = provenanceResult.value as Record<string, unknown>;
+
+      return {
+        memory_id: memory.memory_id,
+        type: memory.type as PortableMemoryType,
+        scope: memory.scope,
+        source_event_ids: [...memory.source_event_ids],
+        provenance: safeProvenance,
+        confidence: memory.confidence,
+        assertion_type: memory.assertion_type,
+        trust_level: memory.trust_level,
+        review_status: memory.review_status,
+        content: contentResult.redacted,
+        created_at: memory.created_at,
+        updated_at: memory.updated_at,
+        expires_at: memory.expires_at,
+        revalidation_rule: memory.revalidation_rule,
+      };
+    });
+
+    portableRecords.sort(comparePortableRecords);
+
+    const harnesses = new Set<string>();
+    for (const record of portableRecords) {
+      const harness = record.provenance.harness;
+      if (typeof harness === "string") harnesses.add(harness);
+    }
+
+    const document: PortableExportDocument = {
+      schema_version: PORTABLE_EXPORT_SCHEMA_VERSION,
+      metadata: {
+        default_portable_types: PORTABLE_MEMORY_TYPES,
+        source_harnesses: [...harnesses].sort(),
+        record_count: portableRecords.length,
+      },
+      memories: portableRecords,
+    };
+
+    return { document, findings: { redaction: findings } };
+  }
+
+  importPortableMemories(document: PortableExportDocument, now = new Date().toISOString()): PortableImportResult {
+    validatePortableExportDocument(document);
+
+    const imported: string[] = [];
+    const skipped: PortableImportConflict[] = [];
+
+    for (const record of document.memories) {
+      if (!isPortableMemoryType(record.type)) {
+        throw new PortableMemoryTypeError(record.type);
+      }
+
+      if (this.getMemory(record.memory_id)) {
+        skipped.push({ memory_id: record.memory_id, reason: "exists_locally" });
+        continue;
+      }
+
+      this.upsertMemoryFromPortable(record, now);
+      imported.push(record.memory_id);
+    }
+
+    return { imported, skipped, total: document.memories.length };
+  }
+
+  upsertMemoryFromPortable(record: PortableMemoryRecord, now = new Date().toISOString()): MemoryRecord {
+    const stored: MemoryRecord = {
+      memory_id: record.memory_id,
+      type: record.type,
+      scope: record.scope,
+      source_event_ids: [...record.source_event_ids],
+      provenance: { ...record.provenance },
+      confidence: record.confidence,
+      assertion_type: record.assertion_type,
+      trust_level: record.trust_level,
+      review_status: record.review_status,
+      content: record.content,
+      created_at: record.created_at,
+      updated_at: record.updated_at,
+      expires_at: record.expires_at,
+      revalidation_rule: record.revalidation_rule,
+    };
+
+    const runtimeMetadata = {
+      portable_import: {
+        imported_at: now,
+        source_memory_id: record.memory_id,
+      },
+    };
+
+    this.db
+      .query(
+        `INSERT INTO memories (
+          memory_id, type, scope, source_event_ids, provenance_json, confidence,
+          assertion_type, trust_level, review_status, content, created_at,
+          updated_at, expires_at, revalidation_rule, runtime_metadata_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(memory_id) DO UPDATE SET
+          type = excluded.type,
+          scope = excluded.scope,
+          source_event_ids = excluded.source_event_ids,
+          provenance_json = excluded.provenance_json,
+          confidence = excluded.confidence,
+          assertion_type = excluded.assertion_type,
+          trust_level = excluded.trust_level,
+          review_status = excluded.review_status,
+          content = excluded.content,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at,
+          expires_at = excluded.expires_at,
+          revalidation_rule = excluded.revalidation_rule,
+          runtime_metadata_json = excluded.runtime_metadata_json`,
+      )
+      .run(
+        stored.memory_id,
+        stored.type,
+        stored.scope,
+        JSON.stringify(stored.source_event_ids),
+        JSON.stringify(stored.provenance),
+        stored.confidence,
+        stored.assertion_type,
+        stored.trust_level,
+        stored.review_status,
+        stored.content,
+        stored.created_at,
+        stored.updated_at,
+        stored.expires_at ?? null,
+        stored.revalidation_rule ?? null,
+        JSON.stringify(runtimeMetadata),
+      );
+
+    const row = this.db.query("SELECT rowid FROM memories WHERE memory_id = ?").get(stored.memory_id) as { rowid: number };
+    this.db
+      .query("INSERT OR REPLACE INTO memory_fts(rowid, memory_id, content, provenance_json) VALUES (?, ?, ?, ?)")
+      .run(row.rowid, stored.memory_id, stored.content, JSON.stringify(stored.provenance));
+
+    return stored;
+  }
+
+  getRuntimeMemoryMetadata(memoryId: string): Record<string, unknown> | undefined {
+    const row = this.db
+      .query("SELECT runtime_metadata_json FROM memories WHERE memory_id = ?")
+      .get(memoryId) as { runtime_metadata_json: string | null } | null;
+    if (!row || !row.runtime_metadata_json) return undefined;
+    return JSON.parse(row.runtime_metadata_json) as Record<string, unknown>;
+  }
+
+  private listAllMemoriesForPortableExport(filters: { projectId?: string; type?: PortableMemoryType } = {}) {
+    const clauses: string[] = [];
+    const params: string[] = [];
+
+    if (filters.projectId) {
+      clauses.push("scope = ?");
+      params.push(filters.projectId);
+    }
+    if (filters.type) {
+      clauses.push("type = ?");
+      params.push(filters.type);
+    }
+
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = this.db
+      .query(`SELECT * FROM memories ${where} ORDER BY type, scope, memory_id`)
+      .all(...params) as MemoryRow[];
+    return rows.map(rowToMemory);
+  }
+
   private applyMigrations() {
     this.db.run("CREATE TABLE IF NOT EXISTS memory_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
     for (const migration of MEMORY_STORE_MIGRATIONS) {
@@ -345,6 +631,7 @@ type MemoryRow = {
   updated_at: string;
   expires_at: string | null;
   revalidation_rule: string | null;
+  runtime_metadata_json: string | null;
 };
 
 type ReviewRow = {
@@ -386,6 +673,84 @@ function rowToReview(row: ReviewRow): ReviewQueueItem {
     created_at: row.created_at,
     decided_at: row.decided_at ?? undefined,
   };
+}
+
+function comparePortableRecords(a: PortableMemoryRecord, b: PortableMemoryRecord) {
+  if (a.type !== b.type) return a.type < b.type ? -1 : 1;
+  if (a.scope !== b.scope) return a.scope < b.scope ? -1 : 1;
+  if (a.memory_id !== b.memory_id) return a.memory_id < b.memory_id ? -1 : 1;
+  return 0;
+}
+
+export function validatePortableExportDocument(document: unknown): asserts document is PortableExportDocument {
+  if (!document || typeof document !== "object") {
+    throw new PortableSchemaError("Portable export document must be an object");
+  }
+  const doc = document as Record<string, unknown>;
+  if (doc.schema_version !== PORTABLE_EXPORT_SCHEMA_VERSION) {
+    throw new PortableSchemaError(
+      `Unsupported portable export schema_version ${JSON.stringify(doc.schema_version)}; expected ${PORTABLE_EXPORT_SCHEMA_VERSION}`,
+    );
+  }
+  if (!doc.metadata || typeof doc.metadata !== "object") {
+    throw new PortableSchemaError("Portable export document missing metadata object");
+  }
+  if (!Array.isArray(doc.memories)) {
+    throw new PortableSchemaError("Portable export document memories must be an array");
+  }
+  for (let index = 0; index < doc.memories.length; index += 1) {
+    validatePortableMemoryRecord(doc.memories[index], index);
+  }
+}
+
+function validatePortableMemoryRecord(value: unknown, index: number): asserts value is PortableMemoryRecord {
+  if (!value || typeof value !== "object") {
+    throw new PortableSchemaError(`Portable memory record at index ${index} must be an object`);
+  }
+  const record = value as Record<string, unknown>;
+  requireString(record, "memory_id", index);
+  requireString(record, "type", index);
+  if (!isPortableMemoryType(record.type as string)) {
+    throw new PortableSchemaError(
+      `Portable memory record at index ${index} has non-portable type ${JSON.stringify(record.type)}`,
+    );
+  }
+  requireString(record, "scope", index);
+  if (!Array.isArray(record.source_event_ids) || !record.source_event_ids.every((entry) => typeof entry === "string")) {
+    throw new PortableSchemaError(`Portable memory record at index ${index} has invalid source_event_ids`);
+  }
+  if (!record.provenance || typeof record.provenance !== "object" || Array.isArray(record.provenance)) {
+    throw new PortableSchemaError(`Portable memory record at index ${index} has invalid provenance`);
+  }
+  if (typeof record.confidence !== "number" || record.confidence < 0 || record.confidence > 1) {
+    throw new PortableSchemaError(`Portable memory record at index ${index} has invalid confidence`);
+  }
+  requireEnum(record, "assertion_type", ASSERTION_TYPES, index);
+  requireEnum(record, "trust_level", TRUST_LEVELS, index);
+  requireEnum(record, "review_status", REVIEW_STATUSES, index);
+  requireString(record, "content", index);
+  requireString(record, "created_at", index);
+  requireString(record, "updated_at", index);
+  if (record.expires_at !== undefined && typeof record.expires_at !== "string") {
+    throw new PortableSchemaError(`Portable memory record at index ${index} has invalid expires_at`);
+  }
+  if (record.revalidation_rule !== undefined && typeof record.revalidation_rule !== "string") {
+    throw new PortableSchemaError(`Portable memory record at index ${index} has invalid revalidation_rule`);
+  }
+}
+
+function requireString(record: Record<string, unknown>, key: string, index: number) {
+  if (typeof record[key] !== "string" || (record[key] as string).length === 0) {
+    throw new PortableSchemaError(`Portable memory record at index ${index} missing string field ${key}`);
+  }
+}
+
+function requireEnum<T extends readonly string[]>(record: Record<string, unknown>, key: string, allowed: T, index: number) {
+  if (typeof record[key] !== "string" || !(allowed as readonly string[]).includes(record[key] as string)) {
+    throw new PortableSchemaError(
+      `Portable memory record at index ${index} field ${key} must be one of ${allowed.join(", ")}`,
+    );
+  }
 }
 
 function matchesSearchFilters(memory: MemoryRecord, filters: MemorySearchFilters) {

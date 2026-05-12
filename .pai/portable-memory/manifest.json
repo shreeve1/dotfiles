@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "description": "Portable PAI memory manifest. References tracked export files in this directory. No machine-local absolute paths or machine identifiers.",
+  "exports": [
+    {
+      "path": "exports/accepted-memories.json",
+      "kind": "accepted-memories",
+      "schema_version": 1
+    }
+  ]
+}
