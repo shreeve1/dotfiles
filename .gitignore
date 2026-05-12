@@ -20,6 +20,9 @@ plans/
 .pai/**/memory/
 .pai/**/events/
 .pai/**/transcripts/
+.pai/**/state/
+.pai/**/logs/
+.pai/**/*.lock
 .pai/**/auth.json
 .pai/**/secrets.*
 
