@@ -70,12 +70,16 @@ const CLAUDE_CAPABILITIES: AdapterCapabilities = {
   can_attach_native_session_id: true,
 };
 
+export const CLAUDE_STOP_DISTILL_COMMAND =
+  "( pai-memory distill --quiet & disown ) >/dev/null 2>&1";
+
 const DEFAULT_TEMPLATE_HOOKS: ClaudeHookCommand[] = [
   { event: "SessionStart", command: "bun ~/.pai/adapters/claude/tracer.ts --event SessionStart" },
   { event: "UserPromptSubmit", command: "bun ~/.pai/adapters/claude/tracer.ts --event UserPromptSubmit" },
   { event: "PreToolUse", matcher: "*", command: "bun ~/.pai/adapters/claude/tracer.ts --event PreToolUse --matcher '*'" },
   { event: "PostToolUse", matcher: "*", command: "bun ~/.pai/adapters/claude/tracer.ts --event PostToolUse --matcher '*'" },
   { event: "Stop", command: "bun ~/.pai/adapters/claude/tracer.ts --event Stop" },
+  { event: "Stop", command: CLAUDE_STOP_DISTILL_COMMAND },
 ];
 
 export function resolveClaudePaiSession(input: ClaudeSessionResolutionInput = {}): ClaudeSessionResolution {

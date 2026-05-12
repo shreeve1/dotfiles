@@ -217,6 +217,18 @@ export class CanonicalEventStore {
     return rows.map((row) => JSON.parse(row.envelope_json) as CanonicalEventEnvelope);
   }
 
+  listEventsForDistill(options: { sinceTimestamp?: string; sessionCursors?: Record<string, number> } = {}): CanonicalEventEnvelope[] {
+    const all = this.listEvents();
+    if (options.sinceTimestamp !== undefined) {
+      return all.filter((event) => event.timestamp > options.sinceTimestamp!);
+    }
+    const cursors = options.sessionCursors ?? {};
+    return all.filter((event) => {
+      const cursor = cursors[event.pai_session_id] ?? 0;
+      return event.sequence > cursor;
+    });
+  }
+
   private applyMigrations() {
     this.db.run("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
 

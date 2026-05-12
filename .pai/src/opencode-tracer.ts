@@ -79,6 +79,9 @@ export const OPENCODE_CAPABILITIES: AdapterCapabilities = {
   can_attach_native_session_id: false,
 };
 
+export const OPENCODE_STOP_DISTILL_COMMAND =
+  "( pai-memory distill --quiet & disown ) >/dev/null 2>&1";
+
 const TEMPLATE_HOOKS: OpenCodeTracerTemplate["hook_templates"] = [
   { event: "SessionStart", command: "bun ~/.pai/adapters/opencode/tracer.ts --event SessionStart" },
   { event: "UserPromptSubmit", command: "bun ~/.pai/adapters/opencode/tracer.ts --event UserPromptSubmit" },
@@ -86,6 +89,7 @@ const TEMPLATE_HOOKS: OpenCodeTracerTemplate["hook_templates"] = [
   { event: "PolicyDecision", command: "bun ~/.pai/adapters/opencode/tracer.ts --event PolicyDecision" },
   { event: "Retrieval", command: "pai-memory context --project $PAI_PROJECT_ID" },
   { event: "Stop", command: "bun ~/.pai/adapters/opencode/tracer.ts --event Stop" },
+  { event: "Stop", command: OPENCODE_STOP_DISTILL_COMMAND },
 ];
 
 export function resolveOpenCodePaiSession(input: OpenCodeSessionResolutionInput = {}): OpenCodeSessionResolution {

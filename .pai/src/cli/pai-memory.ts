@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import {
   CanonicalMemoryStore,
   MEMORY_TYPES,
@@ -20,6 +20,12 @@ import {
   type TrustLevel,
 } from "../memory-store";
 import { PortableMemoryOversizeError } from "../redaction";
+import {
+  autoExportAfterAccept,
+  distillWithLock,
+  reviewPending,
+} from "../distill";
+import type { DreamProviderName } from "../dream-pipeline";
 
 type ParsedArgs = {
   positionals: string[];
@@ -39,6 +45,8 @@ try {
     runExportPortable(args);
   } else if (command === "import-portable") {
     runImportPortable(args);
+  } else if (command === "distill") {
+    runDistill(args);
   } else {
     runStoreCommand(command, args);
   }
@@ -85,11 +93,35 @@ function runStoreCommand(command: string, args: ParsedArgs) {
           };
         });
         console.log(JSON.stringify({ reviews }, null, 2));
+      } else if (action === "pending") {
+        const runtimeHome = stringFlag(args, "runtime-home");
+        store.close();
+        const staleDays = integerFlag(args, "stale-days");
+        const summary = reviewPending({ runtimeHome, staleDays });
+        console.log(JSON.stringify(summary, null, 2));
+        return;
       } else if (action === "accept" || action === "reject" || action === "defer") {
         const reviewId = args.positionals[2];
         if (!reviewId) throw new Error(`pai-memory review ${action} requires a review_id`);
         const nextState = action === "accept" ? "accepted" : action === "reject" ? "rejected" : "deferred";
-        console.log(JSON.stringify({ review: store.decideReview(reviewId, nextState) }, null, 2));
+        const review = store.decideReview(reviewId, nextState);
+        store.close();
+
+        let autoExport: ReturnType<typeof autoExportAfterAccept> | undefined;
+        if (action === "accept") {
+          const output = stringFlag(args, "auto-export-output") ?? join(
+            stringFlag(args, "runtime-home") ?? "",
+            "portable-memory",
+            "exports",
+            "accepted-memories.json",
+          );
+          autoExport = autoExportAfterAccept({
+            runtimeHome: stringFlag(args, "runtime-home"),
+            output,
+          });
+        }
+        console.log(JSON.stringify({ review, auto_export: autoExport }, null, 2));
+        return;
       } else {
         throw new Error(`Unknown review action ${action}`);
       }
@@ -240,6 +272,35 @@ function runImportPortable(args: ParsedArgs) {
   );
 }
 
+function runDistill(args: ParsedArgs) {
+  const providerRaw = stringFlag(args, "provider") ?? "local";
+  if (providerRaw !== "local" && providerRaw !== "deterministic" && providerRaw !== "claude-inference") {
+    throw new Error(`Unknown distill provider ${providerRaw}`);
+  }
+  const provider = providerRaw as DreamProviderName;
+  const dryRun = booleanFlag(args, "dry-run") === true;
+  const quiet = booleanFlag(args, "quiet") === true;
+  const sinceTimestamp = stringFlag(args, "since");
+  const projectId = stringFlag(args, "project");
+  const harness = stringFlag(args, "harness");
+  const debounceSeconds = integerFlag(args, "debounce-seconds");
+
+  const summary = distillWithLock({
+    runtimeHome: stringFlag(args, "runtime-home"),
+    provider,
+    dryRun,
+    quiet,
+    sinceTimestamp,
+    projectId,
+    harnessFilter: harness,
+    debounceSeconds,
+  });
+
+  if (!quiet) {
+    console.log(JSON.stringify(summary, null, 2));
+  }
+}
+
 function parseArgs(values: string[]): ParsedArgs {
   const positionals: string[] = [];
   const flags: Record<string, string | true> = {};
@@ -315,10 +376,17 @@ function usage() {
   pai-memory search [query] [--project ID] [--type TYPE] [--confidence N] [--trust LEVEL] [--since ISO] [--harness NAME] [--limit N]
   pai-memory context [--project ID] [--type TYPE] [--limit N]
   pai-memory review list [--state proposed|accepted|rejected|deferred]
-  pai-memory review accept|reject|defer <review_id>
+  pai-memory review pending [--stale-days N] [--runtime-home PATH]
+  pai-memory review accept|reject|defer <review_id> [--auto-export-output PATH]
   pai-memory export-portable [--output PATH] [--dry-run] [--project ID] [--type TYPE] [--trust LEVEL] [--include-ineligible] [--max-portable-chars N] [--runtime-home PATH]
   pai-memory import-portable --input PATH [--dry-run] [--project ID] [--type TYPE] [--runtime-home PATH]
+  pai-memory distill [--provider local|deterministic|claude-inference] [--since ISO] [--project ID] [--harness NAME] [--dry-run] [--quiet] [--debounce-seconds N] [--runtime-home PATH]
 
 Portable types: ${PORTABLE_MEMORY_TYPES.join(", ")}. The "work" type is rejected for portable export/import.
+
+Environment variables:
+  PAI_AUTO_EXPORT_ON_ACCEPT=1       Auto-refresh portable export after review accept.
+  PAI_DISTILL_DEBOUNCE_SECONDS=N    Override default 60s debounce for distill (Stop-hook safe).
+  PAI_REVIEW_STALE_DAYS=N           Override default 14-day stale flag for review pending.
 `);
 }
