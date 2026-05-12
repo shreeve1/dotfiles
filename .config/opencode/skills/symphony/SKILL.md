@@ -1,11 +1,11 @@
 ---
 name: symphony
-description: Troubleshoot and safely modify the Plane-backed Symphony automation service. Use when diagnosing Symphony polling, Plane ticket pickup, Windmill ticket creation, systemd health, OpenCode agent dispatch, Plane state transitions, or changing files under /home/james/plane/symphony or related homelab integration.
+description: Troubleshoot and safely modify the Plane-backed Symphony automation service. Use when diagnosing Symphony polling, Plane ticket pickup, Windmill ticket creation, systemd health, pi agent dispatch, Plane state transitions, or changing files under /home/james/plane/symphony or related homelab integration.
 ---
 
 # Symphony
 
-Use this skill for future Symphony troubleshooting or modification sessions. Symphony is a live automation path: Windmill creates Plane Todo tickets, the `symphony-host.service` systemd service polls Plane, claims eligible tickets, runs OpenCode against `/home/james/homelab`, and updates Plane states/comments.
+Use this skill for future Symphony troubleshooting or modification sessions. Symphony is a live automation path: Windmill creates Plane Todo tickets, the `symphony-host.service` systemd service polls Plane, claims eligible tickets, runs the `pi` coding tool against `/home/james/homelab`, and updates Plane states/comments.
 
 ## Safety Gate
 
@@ -24,10 +24,10 @@ Live mutations include `systemctl start`, `restart`, `stop`, `enable`, `disable`
 
 Primary Symphony repo: `/home/james/plane/symphony`.
 
-- `config.py`: loads `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`, `PLANE_PROJECT_ID`, `HOMELAB_REPO_PATH`, `OPENCODE_BIN`, optional `SYMPHONY_OPENCODE_AGENT`/`SYMPHONY_OPENCODE_MODEL`, poll/run timeouts, and `/tmp/symphony.lock`; repr redacts the key.
+- `config.py`: loads `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`, `PLANE_PROJECT_ID`, `HOMELAB_REPO_PATH`, `PI_BIN`, optional `SYMPHONY_PI_PROVIDER`/`SYMPHONY_PI_MODEL`, poll/run timeouts, and the configured Symphony lock path; repr redacts the key.
 - `plane_poller.py`: polls Plane Todo issues, caps pagination at `MAX_PAGES_PER_TICK = 3`, uses `X-API-Key`, follows redirects, appends trailing slash for writes, and builds a configured `PlaneAdapter`.
 - `scheduler.py`: locks each tick, reconciles stale Running tickets, refuses dirty homelab worktrees, claims Todo issues, runs agents, transitions Done/In Review/Blocked, and logs `tick_completed`.
-- `agent_runner.py`: verifies `opencode run --agent`, injects `plane_cli.py` as `plane`, sets `SYMPHONY_*` environment variables, and runs OpenCode in `/home/james/homelab`; when `SYMPHONY_OPENCODE_MODEL` is set, it passes `--model` explicitly to avoid OpenCode state leakage.
+- `agent_runner.py`: verifies `pi --print --no-session` support, injects `plane_cli.py` as `plane`, sets `SYMPHONY_*` environment variables, and runs `pi --print --no-session --provider <provider> --model <model> <prompt>` in `/home/james/homelab`.
 - `plane_cli.py`: helper available to dispatched agents as `plane done`, `plane review`, `plane blocked`, and `plane comment`; uses `X-API-Key` and trailing slash Plane paths.
 - `main.py`: service entrypoint; wires config, HTTP transport, configured Plane adapter, agent runner, prompt renderer, and scheduler loop.
 - The active deployment is the `symphony-host.service` systemd unit; there is no Docker image or compose entry for Symphony.
@@ -37,7 +37,7 @@ Related homelab repo: `/home/james/homelab`.
 - `automation/homelab-stack/src/homelab_router/plane_adapter.py`: shared Plane adapter and transport contract.
 - `automation/homelab-stack/src/homelab_router/plane_contract.py`: Plane project UUID and state UUIDs.
 - `automation/homelab-stack/deploy/windmill/create_plane_ticket.py`: self-contained Windmill script that creates/updates Plane Todo tickets by stable external ID.
-- `automation/homelab-stack/src/homelab_router/prompt_renderer.py`: renders Plane issue content into the OpenCode agent prompt using `/home/james/homelab/WORKFLOW.md`.
+- `automation/homelab-stack/src/homelab_router/prompt_renderer.py`: renders Plane issue content into the pi prompt using `/home/james/homelab/WORKFLOW.md`.
 
 Live systemd service: `symphony-host.service`.
 
@@ -45,7 +45,8 @@ Live systemd service: `symphony-host.service`.
 - Working directory: `/home/james/plane/symphony`.
 - Runtime user/group: `james:james`.
 - Environment file: `/home/james/plane/symphony-host.env`; inspect variable names or booleans only, not secret values.
-- Key unit environment: `HOME=/home/james`, `PYTHONPATH=/home/james/plane/symphony:/home/james/homelab/automation/homelab-stack/src`, `HOMELAB_REPO_PATH=/home/james/homelab`, `OPENCODE_BIN=/home/james/.opencode/bin/opencode`, `SYMPHONY_LOCK_PATH=/run/symphony/symphony.lock`, `SYMPHONY_OPENCODE_AGENT=build`, optional `SYMPHONY_OPENCODE_MODEL=zai-coding-plan/glm-5.1`, `PLANE_API_URL=http://127.0.0.1:8000`, `PLANE_WORKSPACE_SLUG=homelab`, and `PLANE_PROJECT_ID=cff68c17-bff6-452f-89b3-9b570613cfaa`.
+- Key runtime environment: `HOME=/home/james`, `PYTHONPATH=/home/james/plane/symphony:/home/james/homelab/automation/homelab-stack/src`, `HOMELAB_REPO_PATH=/home/james/homelab`, `PI_BIN`, `SYMPHONY_PI_PROVIDER` (default `zai`), `SYMPHONY_PI_MODEL` (default `glm-5.1:high`), `SYMPHONY_LOCK_PATH=/run/symphony/symphony.lock`, `PLANE_API_URL=http://127.0.0.1:8000`, `PLANE_WORKSPACE_SLUG=homelab`, and `PLANE_PROJECT_ID=cff68c17-bff6-452f-89b3-9b570613cfaa`.
+- The unit file may still contain legacy `OPENCODE_*` environment entries from the pre-pi executor path; treat them as stale unless current Python source or logs prove they are used. The active dispatch path requires `PI_BIN`.
 - Runtime directory: `/run/symphony` with lock path `/run/symphony/symphony.lock`.
 
 ## Diagnostic Workflow
@@ -96,7 +97,7 @@ Use these known fixes before inventing new approaches.
 - Smoke ticket stuck Running: scheduler or injected `plane` helper may not transition terminal states.
 - Missing Plane comments: ensure POST paths include trailing slash before request.
 - Invalid label UUID: omit arbitrary label strings unless using real Plane label UUIDs.
-- OpenCode dispatch failure: verify `opencode run --agent` is supported by the mounted binary.
+- pi dispatch failure: verify `PI_BIN` exists and is executable, `pi --help` advertises `--print --no-session`, `SYMPHONY_PI_PROVIDER`/`SYMPHONY_PI_MODEL` are valid, and `ZAI_API_KEY` or the configured provider credentials are available without printing secret values.
 - Dirty homelab after agent: Symphony should transition In Review and comment a diff stat.
 
 ## Modification Workflow
