@@ -5,6 +5,10 @@ artifacts/
 # Machine-local session work logs (per-machine)
 MEMORY/
 
+# Machine-local plan artifacts (per-machine)
+Plans/
+plans/
+
 # Shared PAI harness runtime state must stay machine-local
 .pai/node_modules/
 .pai/runtime/
