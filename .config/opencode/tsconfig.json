@@ -10,6 +10,6 @@
     "lib": ["ES2022"],
     "types": ["bun-types"]
   },
-  "include": ["plugin/**/*.ts"],
+  "include": ["plugins/**/*.ts"],
   "exclude": ["node_modules"]
 }

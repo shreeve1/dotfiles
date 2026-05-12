@@ -8,10 +8,10 @@ import { dirname, join } from "node:path";
 //
 // Auto-classifies every user prompt into MINIMAL / NATIVE / ALGORITHM and
 // steers the model accordingly:
-//   - chat.message: classify, persist state, pre-create ISA stub for ALGORITHM
+//   - chat.message: classify, persist state, choose lite vs durable Algorithm
 //   - experimental.chat.system.transform: inject mode-specific system content
-//   - experimental.chat.messages.transform: inject phase header on first
-//                                            ALGORITHM message of a session
+//   - experimental.chat.messages.transform: inject Algorithm-lite reminders
+//   - tool.execute.before/after: enforce Algorithm-lite checklist initialization
 //
 // Replaces pai-session-reminder.
 // =============================================================================
@@ -22,6 +22,11 @@ type SessionState = {
   mode: Mode;
   slug?: string;
   isaPath?: string;
+  algorithm?: {
+    contract: "lite" | "isa";
+    initialized?: boolean;
+    initializedAt?: string;
+  };
   classifiedAt: string;
   algorithmActivatedMessageCount?: number;
   messageCount: number;
@@ -36,7 +41,9 @@ type RouterState = {
 const HOME = homedir();
 const PAI_RUNTIME_HOME = process.env.PAI_RUNTIME_HOME || join(HOME, ".pai");
 const MEMORY_DIR = join(PAI_RUNTIME_HOME, "memory");
-const STATE_PATH = join(MEMORY_DIR, "STATE", "mode-router.json");
+const STATE_PATH =
+  process.env.PAI_MODE_ROUTER_STATE_PATH ||
+  join(MEMORY_DIR, "STATE", "mode-router.json");
 const WORK_DIR = join(MEMORY_DIR, "WORK");
 const OPENCODE_DIR = join(HOME, ".config", "opencode");
 const ALGORITHM_MODE_PATH = join(OPENCODE_DIR, "modes", "algorithm.md");
@@ -121,6 +128,35 @@ const NATIVE_INDICATORS = [
   "tell me",
   "read",
   "look at",
+];
+
+const ISA_ESCALATION_KEYWORDS = [
+  "isa",
+  "prd",
+  "spec",
+  "implementation plan",
+  "multi-file",
+  "migration",
+  "infrastructure",
+  "production",
+  "deploy",
+  "destructive",
+  "delete",
+  "remove",
+  "force push",
+  "database",
+  "schema",
+  "architecture",
+];
+
+const VAGUE_CRITERIA = [
+  "do it",
+  "do the task",
+  "complete task",
+  "finish task",
+  "make it work",
+  "handle request",
+  "satisfy user",
 ];
 
 // -----------------------------------------------------------------------------
@@ -221,6 +257,44 @@ function shouldEscalateToAlgorithm(prompt: string): boolean {
   if (!text) return false;
   if (classify(prompt) === "ALGORITHM") return true;
   return ESCALATION_PHRASES.some((phrase) => text.includes(phrase));
+}
+
+function shouldCreateDurableIsa(prompt: string): boolean {
+  const text = prompt.toLowerCase();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount > 160) return true;
+  return ISA_ESCALATION_KEYWORDS.some((k) => text.includes(k));
+}
+
+function initializeAlgorithmState(session: SessionState, prompt: string): void {
+  const slug = buildSlug(prompt);
+  session.slug = slug;
+  if (shouldCreateDurableIsa(prompt)) {
+    const isaPath = createIsaStub(slug, prompt);
+    if (isaPath) session.isaPath = isaPath;
+    session.algorithm = { contract: "isa", initialized: Boolean(isaPath) };
+    return;
+  }
+  session.algorithm = { contract: "lite", initialized: false };
+}
+
+function isAlgorithmLite(session: SessionState): boolean {
+  return session.mode === "ALGORITHM" && session.algorithm?.contract === "lite";
+}
+
+function isValidLiteTodo(args: any): boolean {
+  const todos = args?.todos;
+  if (!Array.isArray(todos)) return false;
+  if (todos.length < 2 || todos.length > 8) return false;
+  return todos.every((todo: any) => {
+    const content = String(todo?.content ?? "").trim();
+    if (content.length < 12 || content.length > 180) return false;
+    const lower = content.toLowerCase();
+    if (VAGUE_CRITERIA.some((v) => lower === v || lower.includes(v))) {
+      return false;
+    }
+    return true;
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -332,6 +406,10 @@ function modeBanner(state: SessionState): string {
   lines.push(`MODE: ${state.mode}`);
   if (state.slug) lines.push(`SLUG: ${state.slug}`);
   if (state.isaPath) lines.push(`ISA: ${state.isaPath}`);
+  if (state.algorithm) {
+    lines.push(`CONTRACT: ${state.algorithm.contract}`);
+    lines.push(`CONTRACT_INITIALIZED: ${Boolean(state.algorithm.initialized)}`);
+  }
   lines.push(`CLASSIFIED_AT: ${state.classifiedAt}`);
   lines.push("</pai-mode-router>");
   return lines.join("\n");
@@ -351,6 +429,21 @@ function modeSystemBlock(mode: Mode): string {
 }
 
 function algorithmDirective(state: SessionState): string {
+  if (state.algorithm?.contract === "lite") {
+    return [
+      "<pai-algorithm-directive>",
+      "You are running under PAI Algorithm-lite.",
+      "Your first output line MUST be: ════ PAI | ALGORITHM MODE ═══════════════════",
+      `Session slug: ${state.slug ?? ""}`,
+      "MUST: use the existing todowrite tool before any other tool.",
+      "MUST: make todowrite contain 2-8 compact criteria/tasks that express goal, plan, and verification work.",
+      "MUST: complete OBSERVE → THINK → PLAN → EXECUTE → VERIFY → LEARN in the response flow.",
+      "MUST: verify criteria before claiming completion.",
+      "DO NOT create an ISA file unless the task escalates to durable/multi-session work or the user explicitly asks for one.",
+      "DO NOT skip criteria just because this is Algorithm-lite.",
+      "</pai-algorithm-directive>",
+    ].join("\n");
+  }
   return [
     "<pai-algorithm-directive>",
     "You are running under the PAI Algorithm v6.3.0.",
@@ -393,12 +486,9 @@ export const PaiModeRouter: Plugin = async () => {
             existing.mode !== "ALGORITHM" &&
             shouldEscalateToAlgorithm(prompt)
           ) {
-            const slug = buildSlug(prompt);
-            const isaPath = createIsaStub(slug, prompt);
             existing.mode = "ALGORITHM";
             existing.classifiedAt = new Date().toISOString();
-            existing.slug = slug;
-            if (isaPath) existing.isaPath = isaPath;
+            initializeAlgorithmState(existing, prompt);
             existing.algorithmActivatedMessageCount = messageCount;
           }
           state.sessions[sessionID] = existing;
@@ -415,10 +505,7 @@ export const PaiModeRouter: Plugin = async () => {
         };
 
         if (mode === "ALGORITHM") {
-          const slug = buildSlug(prompt);
-          const isaPath = createIsaStub(slug, prompt);
-          session.slug = slug;
-          if (isaPath) session.isaPath = isaPath;
+          initializeAlgorithmState(session, prompt);
           session.algorithmActivatedMessageCount = messageCount;
         }
 
@@ -476,15 +563,26 @@ export const PaiModeRouter: Plugin = async () => {
         const session = state.sessions[sessionID];
         if (!session) return;
         if (session.mode !== "ALGORITHM") return;
-        // Inject on the turn where Algorithm was activated. For sessions that
-        // started in ALGORITHM this is turn 1; for escalated sessions it is the
-        // later turn that changed mode.
-        if (session.messageCount !== session.algorithmActivatedMessageCount) {
+        // Durable ISA sessions get one activation primer. Lite sessions keep
+        // getting a short reminder until todowrite initializes the contract.
+        if (
+          session.algorithm?.contract !== "lite" &&
+          session.messageCount !== session.algorithmActivatedMessageCount
+        ) {
+          return;
+        }
+        if (isAlgorithmLite(session) && session.algorithm?.initialized) {
           return;
         }
 
-        // Inject a synthetic assistant primer right before this user turn,
-        // so the model sees the phase scaffolding it must emit.
+        const primerText = isAlgorithmLite(session)
+          ? "[pai-mode-router] This session is ALGORITHM-lite. Before any other tool, call todowrite with 2-8 compact criteria/tasks covering goal, plan, and verification. Do not create an ISA unless escalation is needed."
+          : "[pai-mode-router] This session was auto-classified ALGORITHM. " +
+            `Slug=${session.slug}. ISA stub at ${session.isaPath}. ` +
+            "Begin with the OBSERVE phase, follow the active Algorithm instructions, then edit the ISA.";
+
+        // Inject a synthetic user primer right before this user turn, so the
+        // model sees the active enforcement contract near the current prompt.
         const primer = {
           info: {
             id: `pai-router-primer-${Date.now()}`,
@@ -498,10 +596,7 @@ export const PaiModeRouter: Plugin = async () => {
               sessionID,
               messageID: `pai-router-primer-${Date.now()}`,
               type: "text",
-              text:
-                "[pai-mode-router] This session was auto-classified ALGORITHM. " +
-                `Slug=${session.slug}. ISA stub at ${session.isaPath}. ` +
-                "Begin with the OBSERVE phase, follow the active Algorithm instructions, then edit the ISA.",
+              text: primerText,
               synthetic: true,
             },
           ],
@@ -512,6 +607,56 @@ export const PaiModeRouter: Plugin = async () => {
           "[pai-mode-router] messages.transform hook failed",
           err,
         );
+      }
+    },
+
+    "tool.execute.before": async (input: any) => {
+      try {
+        const sessionID: string | undefined = input?.sessionID;
+        const tool: string | undefined = input?.tool;
+        if (!sessionID || !tool) return;
+        const state = loadState();
+        const session = state.sessions[sessionID];
+        if (!session || !isAlgorithmLite(session)) return;
+        if (session.algorithm?.initialized) return;
+        if (tool === "todowrite") return;
+        console.error(
+          `[pai-mode-router] ALGORITHM-lite blocked ${tool} before todowrite initialization for session ${sessionID}`
+        );
+        throw new Error(
+          "pai-mode-router: ALGORITHM-lite requires todowrite with 2-8 compact criteria before any other tool."
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("pai-mode-router:")) {
+          throw err;
+        }
+        console.error("[pai-mode-router] tool.execute.before failed", err);
+      }
+    },
+
+    "tool.execute.after": async (input: any) => {
+      try {
+        const sessionID: string | undefined = input?.sessionID;
+        const tool: string | undefined = input?.tool;
+        if (!sessionID || tool !== "todowrite") return;
+        const state = loadState();
+        const session = state.sessions[sessionID];
+        if (!session || !isAlgorithmLite(session)) return;
+        if (!isValidLiteTodo(input?.args)) return;
+        if (session.algorithm?.initialized) return;
+        session.algorithm = {
+          contract: "lite",
+          initialized: true,
+          initializedAt:
+            session.algorithm?.initializedAt ?? new Date().toISOString(),
+        };
+        state.sessions[sessionID] = session;
+        saveState(state);
+        console.error(
+          `[pai-mode-router] ALGORITHM-lite initialized by todowrite for session ${sessionID}`
+        );
+      } catch (err) {
+        console.error("[pai-mode-router] tool.execute.after failed", err);
       }
     },
   };
