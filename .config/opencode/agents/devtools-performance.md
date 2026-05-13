@@ -1,14 +1,15 @@
 ---
 description: Performance profiling specialist. Use for analyzing Core Web Vitals, long tasks, layout shifts, memory usage, and runtime bottlenecks. For console errors, use devtools-console. For network issues, use devtools-network.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
   mcp__chrome_devtools__*: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

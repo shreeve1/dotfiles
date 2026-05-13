@@ -1,13 +1,14 @@
 ---
 description: Infrastructure strategy planner that produces a reviewable execution packet before any state-changing action.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

@@ -33,7 +33,7 @@
         "webfetch": true
       },
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     }
   },
@@ -46,100 +46,100 @@
     },
     "plan": {
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "general": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "compaction": {
       "model": "cliproxy/gpt-5.4",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "librarian": {
       "model": "cliproxy/gpt-5.4",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "explore": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "document-writer": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "quick-review-opus": {
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "quick-review-codex": {
       "model": "cliproxy/gpt-5.3-codex",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "infra-scout": {
       "model": "cliproxy/claude-haiku-4-5-20251001",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "infra-planner": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "executor-ssh": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "executor-powershell": {
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "infra-validator": {
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "pai-algorithm": {
-      "description": "PAI Algorithm agent \u2014 7-phase problem solving with ISA and ISC criteria",
+      "description": "PAI Algorithm agent — 7-phase problem solving with ISA and ISC criteria",
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "pai-engineer": {
-      "description": "PAI Engineer \u2014 focused code implementation with TDD and surgical fixes",
+      "description": "PAI Engineer — focused code implementation with TDD and surgical fixes",
       "model": "cliproxy/claude-sonnet-4-6",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     },
     "pai-architect": {
-      "description": "PAI Architect \u2014 read-only system design and planning",
+      "description": "PAI Architect — read-only system design and planning",
       "model": "cliproxy/claude-opus-4-7",
       "permission": {
-        "*": "ask"
+        "*": "allow"
       }
     }
   },

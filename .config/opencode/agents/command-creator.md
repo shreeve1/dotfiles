@@ -1,13 +1,14 @@
 ---
 description: Creates task-focused command files that define a specific workflow users accomplish. Generates commands named after the task with step-by-step workflows, AskUserQuestion decision points, and real script references.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

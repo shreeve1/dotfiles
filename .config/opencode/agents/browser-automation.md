@@ -1,13 +1,14 @@
 ---
 description: General-purpose browser automation specialist. Use for web tasks like navigation, form filling, data extraction, screenshots, PDF generation, and multi-step workflows. For user story validation with pass/fail reporting, use browser-qa instead.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

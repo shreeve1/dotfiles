@@ -1,15 +1,16 @@
 ---
 description: Investigative analyst using Perplexity-style web research. Triple-checks sources, connects disparate information across paper trails, delivers evidence-based findings with journalistic rigor. Use for research tasks where source verification, fact-chains, and cross-referencing matter more than breadth or speed.
 mode: subagent
-model: anthropic/claude-sonnet-4-5-20250929
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: false
   bash: true
+  todowrite: true
   webfetch: true
   websearch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

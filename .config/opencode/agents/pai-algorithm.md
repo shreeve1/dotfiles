@@ -13,7 +13,7 @@ tools:
   todowrite: true
   webfetch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # PAI Algorithm Agent

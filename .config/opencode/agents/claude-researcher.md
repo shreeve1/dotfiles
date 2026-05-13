@@ -1,15 +1,16 @@
 ---
 description: Strategic / academic researcher using Claude-style multi-query decomposition and parallel synthesis. Excels at distilling research into strategic insights with second-order analysis. Use when the question is less "what is true" and more "what does it mean and what happens next?"
 mode: subagent
-model: anthropic/claude-sonnet-4-5-20250929
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: false
   bash: true
+  todowrite: true
   webfetch: true
   websearch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

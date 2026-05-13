@@ -9,14 +9,11 @@ tools:
   grep: true
   glob: true
   write: true
+  todowrite: true
   edit: false
   patch: false
 permission:
-  edit: deny
-  bash:
-    "codex *": allow
-    "bun *": allow
-    "*": ask
+  "*": allow
 ---
 
 # Cato — The Cross-Vendor Auditor

@@ -1,13 +1,14 @@
 ---
 description: Read-only validation agent that checks if a task was completed successfully. Use after a builder finishes to verify work meets acceptance criteria.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
+model: cliproxy/claude-opus-4-7
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Validator

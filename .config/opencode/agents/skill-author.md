@@ -1,13 +1,14 @@
 ---
 description: Claude Code SKILL.md authoring specialist. Use for creating well-structured skill files with proper frontmatter, AskUserQuestion flows, and CLI integration patterns.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
+model: cliproxy/claude-opus-4-7
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

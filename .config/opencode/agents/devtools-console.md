@@ -1,14 +1,15 @@
 ---
 description: Console error monitoring and JavaScript debugging specialist. Use for triaging console errors, warnings, JS exceptions, and stack trace analysis. For network issues, use devtools-network. For performance, use devtools-performance.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
   mcp__chrome_devtools__*: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

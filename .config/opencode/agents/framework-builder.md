@@ -1,13 +1,14 @@
 ---
 description: Framework generation specialist. Creates subagents and commands for the 3-layer Claude Code architecture. Use when building complete framework sets after skill creation.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose
