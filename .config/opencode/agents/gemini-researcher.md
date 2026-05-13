@@ -1,15 +1,16 @@
 ---
 description: Multi-perspective researcher using Google Gemini. Breaks complex queries into 3-10 variations and launches parallel investigations for comprehensive coverage. Specialist in "have we considered..." angles, scenario planning, and stress-testing conclusions through diverse viewpoints. Use for research tasks where multi-angle synthesis matters more than speed.
 mode: subagent
-model: anthropic/claude-sonnet-4-5-20250929
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: false
   bash: true
+  todowrite: true
   webfetch: true
   websearch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

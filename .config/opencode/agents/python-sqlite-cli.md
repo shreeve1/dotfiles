@@ -1,13 +1,14 @@
 ---
 description: Python CLI + SQLite specialist. Use for building stdlib-only Python CLI tools with SQLite backends, FTS5 search, argparse, and JSON output.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
+model: cliproxy/claude-opus-4-7
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

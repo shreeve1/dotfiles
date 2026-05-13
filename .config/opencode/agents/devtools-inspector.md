@@ -1,14 +1,15 @@
 ---
 description: General-purpose Chrome DevTools inspector. Use for DOM analysis, screenshots, multi-domain diagnostics, and tasks spanning console/network/performance. For domain-specific deep dives, use devtools-console, devtools-network, or devtools-performance instead.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
   mcp__chrome_devtools__*: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

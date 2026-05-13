@@ -6,12 +6,13 @@ tools:
   read: true
   grep: true
   glob: true
+  todowrite: true
   webfetch: true
   write: false
   edit: false
   bash: false
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # PAI Architect

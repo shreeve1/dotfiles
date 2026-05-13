@@ -1,13 +1,14 @@
 ---
 description: Read-only infrastructure scout for host and environment discovery before any strategy or execution.
 mode: subagent
-model: zai-coding-plan/glm-4.7
+model: cliproxy/claude-haiku-4-5-20251001
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose
