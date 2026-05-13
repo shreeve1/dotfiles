@@ -1,13 +1,14 @@
 ---
 description: OpenAI-side opposing reviewer for strategy packets and sensitive changes. Returns strict verdict schema only.
 mode: subagent
-model: openai/gpt-5.3-codex
+model: cliproxy/gpt-5.3-codex
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

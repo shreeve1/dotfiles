@@ -1,13 +1,14 @@
 ---
 description: PowerShell executor for approved Windows infrastructure plans. Executes only reviewed packets.
 mode: subagent
-model: anthropic/claude-sonnet-4-6
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

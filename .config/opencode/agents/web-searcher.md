@@ -1,14 +1,15 @@
 ---
 description: Use proactively for quick web searches to find current information, documentation, news, and general knowledge. Efficient general-purpose web search specialist optimized for fast, concise information retrieval.
 mode: subagent
-model: anthropic/claude-haiku-4-20250514
+model: cliproxy/claude-haiku-4-5-20251001
 tools:
   write: true
   edit: false
   bash: true
+  todowrite: true
   webfetch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

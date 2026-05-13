@@ -1,13 +1,14 @@
 ---
 description: Automated web UI testing specialist. Validates user stories against live web applications using Playwright and generates structured pass/fail test reports. For general browser tasks (scraping, form filling, screenshots), use browser-automation instead.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

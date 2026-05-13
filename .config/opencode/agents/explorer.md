@@ -1,13 +1,14 @@
 ---
 description: Fast codebase scout for orchestration agents. Use proactively when you need quick context about project structure, tech stack, or to answer targeted questions about a codebase. Optimized for surface-level scans with structured output.
 mode: subagent
-model: anthropic/claude-haiku-4-20250514
+model: cliproxy/claude-haiku-4-5-20251001
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

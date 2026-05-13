@@ -1,13 +1,14 @@
 ---
 description: Browser automation specialist for capturing screenshots and visual analysis. Use proactively when visual context is needed - full page screenshots, element-specific captures, mobile viewport testing, or comparing UI states.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

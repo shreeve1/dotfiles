@@ -1,16 +1,17 @@
 ---
 description: Generates a new, complete Claude Code sub-agent configuration file from a user's description. Use this to create new agents. Use this Proactively when user asks you to create a new sub agent.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
+model: cliproxy/claude-opus-4-7
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
   webfetch: true
   mcp__firecrawl_mcp__firecrawl_scrape: true
   mcp__firecrawl_mcp__firecrawl_search: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

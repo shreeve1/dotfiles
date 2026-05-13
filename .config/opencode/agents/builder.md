@@ -1,13 +1,14 @@
 ---
 description: Generic engineering agent that executes ONE task at a time. Use when work needs to be done - writing code, creating files, implementing features.
 mode: subagent
-model: anthropic/claude-opus-4-20250514
+model: cliproxy/claude-opus-4-7
 tools:
   write: true
   edit: true
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Builder

@@ -1,13 +1,14 @@
 ---
 description: Read-only infra validator for post-change verification against expected evidence.
 mode: subagent
-model: anthropic/claude-opus-4-6
+model: cliproxy/claude-opus-4-7
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

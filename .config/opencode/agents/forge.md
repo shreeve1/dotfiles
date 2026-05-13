@@ -14,15 +14,7 @@ tools:
   todowrite: true
   webfetch: false
 permission:
-  edit: ask
-  bash:
-    "codex *": allow
-    "bun *": allow
-    "git diff*": allow
-    "git status*": allow
-    "git log*": allow
-    "curl *": allow
-    "*": ask
+  "*": allow
 ---
 
 # Forge — The Uncompromising Craftsman

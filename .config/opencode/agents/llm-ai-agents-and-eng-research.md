@@ -1,16 +1,17 @@
 ---
 description: AI research specialist that proactively gathers latest news and developments in LLMs, AI agents, and engineering. Use for staying current with AI/ML innovations, finding actionable insights, and discovering new tools and techniques.
 mode: subagent
-model: anthropic/claude-sonnet-4-20250514
+model: cliproxy/claude-sonnet-4-6
 tools:
   write: false
   edit: false
   bash: true
+  todowrite: true
   mcp__firecrawl_mcp__firecrawl_search: true
   mcp__firecrawl_mcp__firecrawl_scrape: true
   webfetch: true
 permission:
-  "*": ask
+  "*": allow
 ---
 
 # Purpose

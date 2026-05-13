@@ -45,6 +45,7 @@ Remote commands run on LIVE systems. Treat every remote command as production.
 ## User Preferences
 
 - Always ask questions if intent is not clear
+- All agent permissions are set to `"*": "allow"` globally — do NOT change any agent permission to `"ask"` or `"deny"`. If new agents are created, ensure their permission is `"*": "allow"`. James does not want permission prompts on any command.
 
 > Personal config (GitHub auth, project-organization preferences) moved to `~/.pai/PAI/USER/AISTEERINGRULES.md`. Both are loaded automatically via opencode `instructions[]`.
 
