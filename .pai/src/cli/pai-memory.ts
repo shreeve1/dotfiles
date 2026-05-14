@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { buildRuntimePaths } from "../runtime-paths";
 import {
   CanonicalMemoryStore,
   MEMORY_TYPES,
@@ -57,7 +58,32 @@ try {
 }
 
 function runStoreCommand(command: string, args: ParsedArgs) {
-  const store = new CanonicalMemoryStore({ runtimeHome: stringFlag(args, "runtime-home") });
+  const runtimeHome = stringFlag(args, "runtime-home");
+  if (!memoryDbExists(runtimeHome)) {
+    if (command === "search") {
+      console.log(JSON.stringify({ memories: [] }, null, 2));
+      return;
+    }
+    if (command === "context") {
+      console.log(JSON.stringify({ memories: [], content: "" }, null, 2));
+      return;
+    }
+    if (command === "review") {
+      const action = args.positionals[1] ?? "list";
+      if (action === "list") {
+        console.log(JSON.stringify({ reviews: [] }, null, 2));
+        return;
+      }
+      if (action === "pending") {
+        const staleDays = integerFlag(args, "stale-days");
+        const summary = reviewPending({ runtimeHome, staleDays });
+        console.log(JSON.stringify(summary, null, 2));
+        return;
+      }
+    }
+  }
+
+  const store = new CanonicalMemoryStore({ runtimeHome });
   try {
     if (command === "search") {
       const filters: MemorySearchFilters = {
@@ -94,7 +120,6 @@ function runStoreCommand(command: string, args: ParsedArgs) {
         });
         console.log(JSON.stringify({ reviews }, null, 2));
       } else if (action === "pending") {
-        const runtimeHome = stringFlag(args, "runtime-home");
         store.close();
         const staleDays = integerFlag(args, "stale-days");
         const summary = reviewPending({ runtimeHome, staleDays });
@@ -159,7 +184,26 @@ function runExportPortable(args: ParsedArgs) {
     throw new Error("export-portable requires --output PATH (or --dry-run to preview)");
   }
 
-  const store = new CanonicalMemoryStore({ runtimeHome: stringFlag(args, "runtime-home") });
+  const runtimeHome = stringFlag(args, "runtime-home");
+  if (dryRun && !memoryDbExists(runtimeHome)) {
+    console.log(
+      JSON.stringify(
+        {
+          command: "export-portable",
+          dry_run: true,
+          output: null,
+          record_count: 0,
+          source_harnesses: [],
+          redaction_findings: [],
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
+  const store = new CanonicalMemoryStore({ runtimeHome });
   let result;
   try {
     result = store.exportPortableMemories(options);
@@ -299,6 +343,10 @@ function runDistill(args: ParsedArgs) {
   if (!quiet) {
     console.log(JSON.stringify(summary, null, 2));
   }
+}
+
+function memoryDbExists(runtimeHome?: string): boolean {
+  return existsSync(join(buildRuntimePaths(runtimeHome).memoryDir, "memories.sqlite"));
 }
 
 function parseArgs(values: string[]): ParsedArgs {
