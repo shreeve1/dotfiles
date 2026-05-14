@@ -409,6 +409,18 @@ export type ReviewPendingSummary = {
 export function reviewPending(options: { runtimeHome?: string; now?: string; staleDays?: number } = {}): ReviewPendingSummary {
   const now = options.now ?? new Date().toISOString();
   const staleDays = options.staleDays ?? Number.parseInt(process.env.PAI_REVIEW_STALE_DAYS ?? "14", 10);
+  const memoryDbPath = join(buildRuntimePaths(options.runtimeHome).memoryDir, "memories.sqlite");
+  if (!existsSync(memoryDbPath)) {
+    return {
+      total: 0,
+      by_type: {},
+      stale_threshold_days: staleDays,
+      stale: [],
+      items: [],
+      watermark_age: buildWatermarkAge(readWatermarkFile(options.runtimeHome), now),
+    };
+  }
+
   const store = new CanonicalMemoryStore({ runtimeHome: options.runtimeHome });
   let items: ReviewPendingItem[] = [];
   const byType: Record<string, number> = {};
@@ -435,6 +447,19 @@ export function reviewPending(options: { runtimeHome?: string; now?: string; sta
   }
 
   const watermark = readWatermarkFile(options.runtimeHome);
+  const watermarkAge = buildWatermarkAge(watermark, now);
+
+  return {
+    total: items.length,
+    by_type: byType,
+    stale_threshold_days: staleDays,
+    stale: items.filter((item) => item.stale),
+    items,
+    watermark_age: watermarkAge,
+  };
+}
+
+function buildWatermarkAge(watermark: WatermarkFile, now: string): WatermarkAge[] {
   const watermarkAge: WatermarkAge[] = [];
   for (const [harness, byProvider] of Object.entries(watermark)) {
     for (const [provider, sessions] of Object.entries(byProvider)) {
@@ -449,15 +474,7 @@ export function reviewPending(options: { runtimeHome?: string; now?: string; sta
       }
     }
   }
-
-  return {
-    total: items.length,
-    by_type: byType,
-    stale_threshold_days: staleDays,
-    stale: items.filter((item) => item.stale),
-    items,
-    watermark_age: watermarkAge,
-  };
+  return watermarkAge;
 }
 
 export function autoExportOnAcceptEnabled(env: Record<string, string | undefined> = process.env): boolean {

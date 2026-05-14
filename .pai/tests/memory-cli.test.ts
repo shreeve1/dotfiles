@@ -12,6 +12,43 @@ afterEach(() => {
 });
 
 describe("pai-memory CLI", () => {
+  test("read-only commands do not create SQLite in a fresh runtime", () => {
+    runtimeHome = mkdtempSync(join(tmpdir(), "pai-memory-cli-readonly-"));
+    const dbPath = join(runtimeHome, "memory", "memories.sqlite");
+
+    const search = runPaiMemory("search", "anything", "--runtime-home", runtimeHome);
+    expect(search.exitCode).toBe(0);
+    expect(JSON.parse(search.stdout.toString())).toEqual({ memories: [] });
+    expect(existsSync(dbPath)).toBe(false);
+
+    const context = runPaiMemory("context", "--runtime-home", runtimeHome);
+    expect(context.exitCode).toBe(0);
+    expect(JSON.parse(context.stdout.toString())).toEqual({ memories: [], content: "" });
+    expect(existsSync(dbPath)).toBe(false);
+
+    const reviewList = runPaiMemory("review", "list", "--runtime-home", runtimeHome);
+    expect(reviewList.exitCode).toBe(0);
+    expect(JSON.parse(reviewList.stdout.toString())).toEqual({ reviews: [] });
+    expect(existsSync(dbPath)).toBe(false);
+
+    const reviewPending = runPaiMemory("review", "pending", "--runtime-home", runtimeHome);
+    expect(reviewPending.exitCode).toBe(0);
+    expect(JSON.parse(reviewPending.stdout.toString()).total).toBe(0);
+    expect(existsSync(dbPath)).toBe(false);
+  });
+
+  test("export-portable dry-run does not create SQLite in a fresh runtime", () => {
+    runtimeHome = mkdtempSync(join(tmpdir(), "pai-memory-cli-export-readonly-"));
+    const dbPath = join(runtimeHome, "memory", "memories.sqlite");
+
+    const result = runPaiMemory("export-portable", "--dry-run", "--runtime-home", runtimeHome);
+    expect(result.exitCode).toBe(0);
+    const payload = JSON.parse(result.stdout.toString()) as { dry_run: boolean; record_count: number };
+    expect(payload.dry_run).toBe(true);
+    expect(payload.record_count).toBe(0);
+    expect(existsSync(dbPath)).toBe(false);
+  });
+
   test("search returns FTS matches without live external dependencies", () => {
     const store = createSeededStore();
     store.addMemory(memoryFixture({ memory_id: "mem-cli-search", content: "CLI search finds durable memory conventions." }));
