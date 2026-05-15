@@ -61,7 +61,7 @@ describe("OpenCode PAI entrypoints", () => {
     expect(source).not.toContain('join(BASE_DIR, "MEMORY", "WORK")');
   });
 
-  test("OpenCode auto-approval is opt-in, not default", () => {
+  test("OpenCode auto-approval is controlled separately from run invocations", () => {
     const algorithmSource = readFileSync(join(repoRoot, ".pai/PAI/Tools/algorithm.ts"), "utf8");
     const ralphSource = readFileSync(join(repoRoot, ".pai/PAI/Tools/ralph-loop.sh"), "utf8");
     const permissionLines = `${algorithmSource}\n${ralphSource}`
@@ -70,6 +70,7 @@ describe("OpenCode PAI entrypoints", () => {
 
     expect(algorithmSource).toContain("PAI_OPENCODE_AUTO_APPROVE");
     expect(ralphSource).toContain("PAI_OPENCODE_AUTO_APPROVE");
+    expect(ralphSource).toContain('"${PAI_OPENCODE_AUTO_APPROVE:-1}" == "1"');
     expect(permissionLines.length).toBeGreaterThan(0);
     for (const line of permissionLines) {
       expect(line).not.toContain("opencode run");
