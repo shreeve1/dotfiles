@@ -566,7 +566,11 @@ function algorithmDirective(state: SessionState): string {
       `Session slug: ${state.slug ?? ""}`,
       "MUST: use the existing todowrite tool before any other tool.",
       "MUST: make todowrite contain 2-8 compact criteria/tasks that express goal, plan, and verification work.",
-      "MUST: complete OBSERVE → THINK → PLAN → EXECUTE → VERIFY → LEARN in the response flow.",
+      "MUST: complete OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN with visible phase labels in the response flow.",
+      "MUST: in PLAN include a visible DELIVERABLE MANIFEST with D1/D2/etc mapped to the user's sub-tasks.",
+      "MUST: in PLAN include a visible DELEGATION GATE explaining why work is direct or delegated.",
+      "MUST: in PLAN include a visible PARALLELISM OPPORTUNITY SCAN, even if the answer is sequential only.",
+      "MUST: include BUILD when artifacts/code/config are changed; otherwise state BUILD: not needed for this review/answer.",
       "MUST: verify criteria before claiming completion.",
       "DO NOT create an ISA file unless the task escalates to durable/multi-session work or the user explicitly asks for one.",
       "DO NOT skip criteria just because this is Algorithm-lite.",
@@ -575,7 +579,7 @@ function algorithmDirective(state: SessionState): string {
   }
   return [
     "<pai-algorithm-directive>",
-    "You are running under the PAI Algorithm v6.3.0 (durable-ISA contract).",
+    "You are running under the PAI Algorithm v6.4.0 (durable-ISA contract).",
     "Your first output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════",
     "Required first phase: OBSERVE.",
     `An ISA scaffold has been pre-created at: ${state.isaPath ?? ""}`,
