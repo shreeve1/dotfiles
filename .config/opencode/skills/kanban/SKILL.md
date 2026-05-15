@@ -27,7 +27,6 @@ Each issue file uses YAML frontmatter + markdown body:
 id: 1
 title: Short descriptive title
 status: pending
-type: AFK
 blocked_by: []
 parent: null
 priority: 0
@@ -53,7 +52,7 @@ Any additional context.
 
 ### Required fields
 
-Every issue MUST have: `id`, `title`, `status`, `type`, `blocked_by`, `created`
+Every issue MUST have: `id`, `title`, `status`, `blocked_by`, `created`
 
 ### Field reference
 
@@ -62,7 +61,6 @@ Every issue MUST have: `id`, `title`, `status`, `type`, `blocked_by`, `created`
 | `id` | yes | integer | Unique, sequential, no gaps within active board |
 | `title` | yes | string | Short descriptive name |
 | `status` | yes | see below | Current lifecycle state |
-| `type` | yes | `HITL`, `AFK` | Who drives execution |
 | `blocked_by` | yes | integer array | IDs that must be `done` first |
 | `parent` | no | integer or null | Parent epic issue. Children block parent completion. |
 | `priority` | no | integer (lower = higher priority) | Breaks ties among ready issues. Default 0. |
@@ -101,7 +99,7 @@ These are independent. An issue can have `blocked_by: []` (no dependencies) and 
 
 - If issue A has `parent: 5`, then issue 5 is blocked by A (and all its siblings).
 - Parent issues cannot be `done` until all children are `done`.
-- Parent CAN be `AFK` while children are `blocked` — the parent just waits.
+- Parent CAN be `pending` while children are `blocked` — the parent just waits.
 - `next` includes parents only when all children are `done`.
 
 ### Priority and ordering
@@ -115,19 +113,6 @@ An issue is `done` when:
 2. Tests/lint/typecheck pass (if applicable)
 3. Changes are committed to git (if the project uses git)
 4. The implementer has verified the behavior matches the slice description
-
-## HITL Safety Policy
-
-These task types are ALWAYS `HITL`, never `AFK`:
-- Authentication or authorization changes
-- Billing or payment logic
-- Database migrations (destructive)
-- File deletions
-- Security-sensitive code (keys, tokens, secrets)
-- Dependency version upgrades (major/minor)
-- Production configuration changes
-
-When `/to-issues` classifies a slice, it MUST mark these as HITL regardless of complexity.
 
 ## Commands
 
@@ -167,30 +152,29 @@ Show the current board state. Scan all `.kanban/issues/*.md` files, parse frontm
 
 ```
 ## Pending (3)
-  #1  Auth schema change            [AFK] p:0
-  #2  Auth API endpoint             [AFK] p:0  blocked by #1
-  #3  Review dashboard design       [HITL] p:1
+  #1  Auth schema change            p:0
+  #2  Auth API endpoint             p:0  blocked by #1
+  #3  Dashboard design               p:1
 
 ## In Progress (1)
-  #1  Auth schema change            [AFK] p:0  (15 min)
+  #1  Auth schema change            p:0  (15 min)
 
 ## Review (1)
-  #7  Add logging                   [AFK] p:0
+  #7  Add logging                   p:0
 
 ## Blocked (1)
-  #6  Refresh token endpoint        [AFK] p:0  blocked by #2
+  #6  Refresh token endpoint        p:0  blocked by #2
     Blocker: Waiting on auth API
 
 ## Done (2)
-  #4  Project setup                 [AFK]
-  #5  Design review                 [HITL]
+  #4  Project setup
+  #5  Design pass
 
 ## Cancelled (1)
-  #8  Old approach                  [AFK]
+  #8  Old approach
 
 ## Stats
   Total: 8 | Pending: 3 | In Progress: 1 | Review: 1 | Blocked: 1 | Done: 2 | Cancelled: 1
-  AFK: 6 | HITL: 2
   DAG depth: 3 (longest dependency chain)
 ```
 
@@ -206,12 +190,11 @@ Display the full issue file for the given ID. Find it by matching the `id:` fiel
 
 Find the next issue to work on. Rules:
 1. Must be `status: pending`
-2. Must be `type: AFK` (for Ralph loop) or any type (for human)
-3. All `blocked_by` issues must have `status: done`
-4. All children must be `done` (if this is a parent)
-5. Sort by priority (lowest number first), then by ID (lowest first)
+2. All `blocked_by` issues must have `status: done`
+3. All children must be `done` (if this is a parent)
+4. Sort by priority (lowest number first), then by ID (lowest first)
 
-Display the issue and suggest either running `/ralph` (if AFK) or working on it interactively (if HITL).
+Display the issue and suggest running `/ralph` to implement it.
 
 ### `move <id> <status>`
 
@@ -226,7 +209,7 @@ Refuse invalid transitions (e.g., `done` → `in-progress`). Only `blocked` → 
 
 ### `create`
 
-Interactively create a new issue. Ask for title, type, description, acceptance criteria, priority, and blocked_by. Auto-assign the next available ID. Validate that blocked_by IDs exist.
+Interactively create a new issue. Ask for title, description, acceptance criteria, verification command, priority, and blocked_by. Auto-assign the next available ID. Validate that blocked_by IDs exist.
 
 ### `progress`
 
@@ -240,7 +223,7 @@ Display the dependency graph as a tree. Also validate for cycles and invalid ref
 #4  Project setup [done]
   └── #1  Auth schema change [in-progress]
         └── #2  Auth API endpoint [pending]
-              ├── #3  Dashboard [pending, HITL]
+              ├── #3  Dashboard [pending]
               └── #6  Refresh tokens [pending]
 
 Errors: none
@@ -255,7 +238,7 @@ Move all `done` and `cancelled` issues to `.kanban/archive/`. Archived issues re
 ## Integration
 
 - `/to-issues` writes here when `.kanban/` exists
-- `/ralph` reads from here to find AFK work and appends to `progress.md`
+- `/ralph` reads from here to find the next unblocked issue and appends to `progress.md`
 - Issues follow the same vertical-slice format as `/to-issues`
 - Progress notes provide continuity across context windows
 
@@ -268,7 +251,6 @@ Move all `done` and `cancelled` issues to `.kanban/archive/`. Archived issues re
 - **DAG depth stat** — helps estimate how many context windows the project needs
 - **Audit trail** — `updated`, `actor`, `previous_status` fields track who changed what and when
 - **Priority field** — explicit ordering prevents nondeterministic issue selection
-- **HITL safety policy** — prevents auto-implementing dangerous changes
 - **`validate` command** — catches schema issues before they break the loop
 - **`stale` command** — recovers from crashed sessions that left issues in `in-progress`
 - **Archive preserves dependencies** — archived issues are treated as `done` for resolution
