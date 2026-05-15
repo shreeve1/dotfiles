@@ -1,6 +1,6 @@
 ---
 name: Plan
-description: Create a structured implementation plan via an iterative Claude-plan ↔ Codex-audit loop (max 3 rounds, severity-gated early exit). Replaces the prior plan + validate two-step. Produces phased task breakdown, technical approach, and acceptance criteria from a PRD, requirements description, or user prompt. USE WHEN implementation plan, tech approach, task breakdown, phased roadmap, plan a feature, plan a fix, plan a refactor, create plan, development plan, validate plan, pre-flight check, feasibility, risk analysis.
+description: Create a structured implementation plan via an iterative Claude-plan ↔ Codex-audit loop (max 3 rounds, severity-gated early exit). USE WHEN implementation plan, tech approach, task breakdown, phased roadmap, plan a feature, plan a fix, plan a refactor, create plan, development plan, validate plan, pre-flight check, feasibility, risk analysis.
 ---
 
 # Plan Sub-Skill

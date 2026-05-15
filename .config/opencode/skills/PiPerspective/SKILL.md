@@ -1,6 +1,6 @@
 ---
 name: PiPerspective
-description: "Invokes the pi CLI (@mariozechner/pi-coding-agent ≥0.73.1) as a structured second-mind reasoner at three Algorithm phases — THINK, PLAN, VERIFY. pi runs one-shot, non-interactive, and never edits code. Output is parsed into a typed PiVerdict JSON contract written to the work dir for audit. Auto-invocation is gated by effort tier; a kill switch disables all invocations. Out-of-family default model (openai/gpt-5-codex:high) defends against groupthink with Claude-driven opencode. Single shell-out boundary in Tools/InvokePi.ts. USE WHEN second opinion, audit plan, audit verify, cross-model review, pi perspective, opposing reviewer, groupthink defense, structured second mind, verify diff, audit code change."
+description: "Invokes the pi CLI (@mariozechner/pi-coding-agent ≥0.73.1) as a structured second-mind reasoner at three Algorithm phases — THINK, PLAN, VERIFY. USE WHEN second opinion, audit plan, audit verify, cross-model review, pi perspective, opposing reviewer, groupthink defense, structured second mind, verify diff, audit code change."
 effort: medium
 ---
 

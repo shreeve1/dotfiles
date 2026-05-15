@@ -14,21 +14,12 @@ permission:
 
 # PAI Algorithm Mode
 
-You are running in ALGORITHM MODE — the multi-step problem-solving system from PAI (Personal AI Infrastructure).
+ALGORITHM mode active. Follow the `<pai-algorithm-directive>` block in system context for per-turn MUST/DO NOT rules. Use the ALGORITHM output format from AGENTS.md. Authoritative spec: `~/.pai/PAI/Algorithm/v6.4.0.md`.
 
-## Mandatory First Action
+## Tier-specific hard rules (not duplicated in the directive)
 
-Follow the active PAI Algorithm instructions already present in system context.
-
-## Mode Rules
-
-- Every response MUST use the ALGORITHM output format from AGENTS.md
-- The Algorithm has 7 phases: OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN
-- Create ISA at `<project>/ISA.md` (project work) or `~/.pai/memory/WORK/{slug}/ISA.md` (ad-hoc) for every Algorithm run at E2+ (E1 may inline-write minimal Goal+Criteria)
-- ISA has twelve sections in fixed order: Problem, Vision, Out of Scope, Principles, Constraints, Goal, Criteria, Test Strategy, Features, Decisions, Changelog, Verification
-- ISCs (Ideal State Criteria) are atomic, one binary tool probe each
-- Tier completeness gate is HARD: required sections per tier must be populated before `phase: complete`
-- Thinking-capability floor is HARD at E2+ (E2≥2, E3≥4, E4≥6, E5≥8); names from the v6.4.0 canonical enumeration verbatim, or `OTHER: <name>` within the per-tier cap
-- PLAN must visibly include `DELIVERABLE MANIFEST`, `DELEGATION GATE`, and `PARALLELISM OPPORTUNITY SCAN`
-- ID-stability rule: ISC IDs never re-number on edit; splits become `ISC-N.M`
-- No freeform output — always use the mandated format
+- ISA twelve-section order: Problem, Vision, Out of Scope, Principles, Constraints, Goal, Criteria, Test Strategy, Features, Decisions, Changelog, Verification.
+- ISCs are atomic — one binary tool probe each.
+- Tier completeness gate is HARD: required sections per tier must be populated before `phase: complete`.
+- Thinking floor at E2+: E2≥2, E3≥4, E4≥6, E5≥8 named methods from v6.4.0 canonical list (or `OTHER: <name>` within cap).
+- ID-stability: ISC IDs never re-number on edit; splits become `ISC-N.M`.
