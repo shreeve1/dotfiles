@@ -4,6 +4,11 @@
 **Status:** active  <!-- active | paused | blocked | done | abandoned -->
 **Created:** <YYYY-MM-DD>
 **Last updated:** <YYYY-MM-DD>
+**Max checkpoints:** <integer, default 20>  <!-- hard cap; work blocks when reached -->
+**Max attempts per checkpoint:** <integer, default 3>
+**Status cadence:** <integer, default 3>  <!-- surface a status update to the user every N checkpoints -->
+**Validation timeout:** <minutes, default 5>  <!-- bound per validation run -->
+**Validation is read-only:** <yes | no>  <!-- MUST be "yes" for the verifier to be used; if "no", the verify step is skipped and Status: done requires explicit user confirmation. Re-running a mutating validation is unsafe. -->
 
 ## Objective
 <One concrete sentence describing the end state. Not a list of tasks — the destination.>
@@ -14,6 +19,8 @@
 ## Validation command(s)
 ```bash
 # Exact command(s) that produce the stopping signal.
+# MUST be read-only / idempotent (no service starts, no DB writes, no cache mutations, no snapshot updates).
+# The verifier re-runs this command in a fresh session — non-idempotent commands cause silent corruption.
 # Example:
 # npm test -- --run
 # bun test
