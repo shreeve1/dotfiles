@@ -250,6 +250,8 @@ alias tm='tmux'
 alias tma='tmux attach -t'
 alias tml='tmux ls'
 alias tms='tmux new -s'
+alias tralph="tmux new-session -d -s ralph 'PAI_OPENCODE_AUTO_APPROVE=1 ~/.pai/PAI/Tools/ralph-loop.sh 2>&1 | tee -a .kanban/ralph-loop.log; echo; echo Ralph loop exited. Press Ctrl-D to close this tmux session.; exec zsh'"
+alias tmk='tmux kill-session -t'
 
 alias op='opencode'
 alias pl='pai -l'

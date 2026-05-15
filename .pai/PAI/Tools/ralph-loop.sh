@@ -33,7 +33,7 @@ STALE_THRESHOLD_MINUTES=30
 RUN_ID=$(uuidgen 2>/dev/null || echo "ralph-$$-$(date +%s)")
 
 OPENCODE_PERMISSION_ARGS=()
-if [[ "${PAI_OPENCODE_AUTO_APPROVE:-}" == "1" ]]; then
+if [[ "${PAI_OPENCODE_AUTO_APPROVE:-1}" == "1" ]]; then
   OPENCODE_PERMISSION_ARGS+=(--dangerously-skip-permissions)
 fi
 
@@ -98,7 +98,7 @@ parse_issue() {
   : "${id:=0}"
   : "${title:=untitled}"
   : "${status:=unknown}"
-  : "${typ:=unknown}"
+  : "${typ:=AFK}"
   : "${priority:=0}"
   : "${updated:=}"
 
@@ -107,7 +107,7 @@ parse_issue() {
   if [[ "$blocked_by" == "[]" ]] || [[ -z "$blocked_by" ]]; then
     blocked_json="[]"
   else
-    blocked_json=$(echo "$blocked_by" | sed 's/\[//;s/\]//' | tr ',' '\n' | jq -R . | jq -s .)
+    blocked_json=$(echo "$blocked_by" | sed 's/\[//;s/\]//' | tr ',' '\n' | jq -R 'gsub("^\\s+|\\s+$"; "") | tonumber? // .' | jq -s .)
   fi
 
   jq -n \
@@ -176,7 +176,7 @@ validate_board() {
 
   # Check blocked_by references exist
   local all_ids_json
-  all_ids_json=$(printf '%s\n' "${ids[@]}" | jq -R . | jq -s '.')
+  all_ids_json=$(printf '%s\n' "${ids[@]}" | jq -R 'tonumber? // .' | jq -s '.')
 
   for f in "$ISSUES_DIR"/*.md; do
     [[ -f "$f" ]] || continue
@@ -186,7 +186,7 @@ validate_board() {
     for bid in $(echo "$parsed" | jq -r '.blocked_by[]'); do
       if ! echo "$all_ids_json" | jq -e ". | index($bid)" >/dev/null 2>&1; then
         # Check archive
-        if [[ -d "$ARCHIVE_DIR" ]] && find "$ARCHIVE_DIR" -name "*.md" -exec grep -l "^id: $bid$" {} \; 2>/dev/null | head -1 | grep -q .; then
+        if [[ -d "$ARCHIVE_DIR" ]] && find "$ARCHIVE_DIR" -name "*.md" -exec grep -El "^id: 0*$bid$" {} \; 2>/dev/null | head -1 | grep -q .; then
           : # archived, OK
         else
           echo "  ERROR: $f — blocked_by #$bid does not exist (not in issues/ or archive/)"
@@ -253,7 +253,7 @@ stale_check() {
 check_dirty_worktree() {
   if git rev-parse --git-dir >/dev/null 2>&1; then
     local dirty
-    dirty=$(git status --porcelain 2>/dev/null)
+    dirty=$(git status --porcelain 2>/dev/null | grep -vE '^.. \.kanban/.*\.log$' || true)
     if [[ -n "$dirty" ]]; then
       echo "ERROR: Dirty worktree detected. Commit or stash before running ralph-loop."
       echo ""
@@ -298,6 +298,213 @@ log_progress() {
     echo "" >> "$PROGRESS_FILE"
     tail -200 "$ARCHIVE_DIR/progress-archive.md" >> "$PROGRESS_FILE"
   fi
+}
+
+# ============================================================
+# Update a scalar frontmatter field, inserting it if missing
+# ============================================================
+upsert_frontmatter_field() {
+  local file="$1"
+  local field="$2"
+  local value="$3"
+
+  FIELD="$field" VALUE="$value" perl -0pi -e '
+    my $field = $ENV{"FIELD"};
+    my $value = $ENV{"VALUE"};
+    if (s/^\Q$field\E:\s*.*$/$field: $value/m) {
+      next;
+    }
+    s/\A---\n/---\n$field: $value\n/s;
+  ' "$file"
+}
+
+# ============================================================
+# Mark a reviewed issue done after an independent PASS review
+# ============================================================
+mark_issue_done() {
+  local file="$1"
+
+  upsert_frontmatter_field "$file" "status" "done"
+  upsert_frontmatter_field "$file" "updated" "$(date '+%Y-%m-%d')"
+  upsert_frontmatter_field "$file" "actor" "ralph"
+  upsert_frontmatter_field "$file" "previous_status" "review"
+}
+
+# ============================================================
+# Commit review closeout changes so the next issue starts clean
+# ============================================================
+commit_review_closeout() {
+  local issue_id="$1"
+  local issue_title="$2"
+  local issue_file="$3"
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    return 0
+  fi
+
+  git add "$issue_file" "$PROGRESS_FILE"
+  if git diff --cached --quiet; then
+    return 0
+  fi
+
+  git commit -m "review(#$issue_id): $issue_title"
+}
+
+# ============================================================
+# Ensure each successful issue has an implementation commit
+# ============================================================
+commit_or_verify_implementation() {
+  local issue_id="$1"
+  local issue_title="$2"
+  local before_head="$3"
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local dirty
+  dirty=$(git status --porcelain 2>/dev/null | grep -vE '^.. \.kanban/.*\.log$' || true)
+  if [[ -n "$dirty" ]]; then
+    git add -A
+    git reset -q -- .kanban/*.log 2>/dev/null || true
+    if ! git diff --cached --quiet; then
+      git commit -m "feat(#$issue_id): $issue_title"
+    fi
+  fi
+
+  local after_head
+  after_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+  if [[ -n "$before_head" && -n "$after_head" && "$before_head" == "$after_head" ]]; then
+    echo "ERROR: Issue #$issue_id completed without an implementation commit."
+    return 1
+  fi
+
+  return 0
+}
+
+# ============================================================
+# Mark a reviewed issue blocked after an independent FAIL review
+# ============================================================
+mark_issue_review_blocked() {
+  local file="$1"
+
+  upsert_frontmatter_field "$file" "status" "blocked"
+  upsert_frontmatter_field "$file" "updated" "$(date '+%Y-%m-%d')"
+  upsert_frontmatter_field "$file" "actor" "ralph"
+  upsert_frontmatter_field "$file" "previous_status" "review"
+}
+
+# ============================================================
+# Mark an implementation issue blocked before review
+# ============================================================
+mark_issue_blocked() {
+  local file="$1"
+  local reason="$2"
+
+  upsert_frontmatter_field "$file" "status" "blocked"
+  upsert_frontmatter_field "$file" "updated" "$(date '+%Y-%m-%d')"
+  upsert_frontmatter_field "$file" "actor" "ralph"
+  upsert_frontmatter_field "$file" "previous_status" "pending"
+
+  if ! grep -q '^## Blocker' "$file"; then
+    {
+      echo ""
+      echo "## Blocker"
+      echo ""
+      echo "$reason"
+    } >> "$file"
+  fi
+}
+
+# ============================================================
+# Commit blocked or failed issue bookkeeping
+# ============================================================
+commit_issue_bookkeeping() {
+  local issue_id="$1"
+  local issue_title="$2"
+  local prefix="$3"
+  local issue_file="$4"
+
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    return 0
+  fi
+
+  git add "$issue_file" "$PROGRESS_FILE"
+  if git diff --cached --quiet; then
+    return 0
+  fi
+
+  git commit -m "$prefix(#$issue_id): $issue_title"
+}
+
+# ============================================================
+# Run mandatory fresh-session review before advancing
+# ============================================================
+review_completed_issue() {
+  local issue_id="$1"
+  local issue_title="$2"
+  local issue_file="$3"
+
+  local review_prompt="You are reviewing a completed Ralph issue for quality.
+
+Run ID: $RUN_ID
+Issue file: $issue_file
+
+Read the issue file, then review all changed files. Use git diff HEAD~1 if a recent commit exists; otherwise use git status and git diff to inspect the working tree.
+
+Check ALL of these:
+1. Every acceptance criterion checkbox is checked AND verified
+2. The verification command from the issue's ## Verification section passes
+3. Lint passes if configured
+4. Typecheck passes if configured
+5. No unrelated changes leaked into the diff
+6. Changes match the issue scope — no scope creep
+7. No security concerns
+8. .kanban/progress.md was updated for this issue with what changed, decisions, conventions, and notes for next iteration
+
+Report as one of:
+- PASS: all criteria verified, no issues
+- PASS WITH NOTES: all criteria met, but suggestions for future
+- FAIL: criteria not met, needs rework
+
+End with EXACTLY: <promise:$RUN_ID:REVIEW-PASS</promise> or <promise:$RUN_ID:REVIEW-FAIL</promise>"
+
+  echo "Starting fresh review for issue #$issue_id..."
+  echo ""
+
+  local review_output_file
+  review_output_file=$(mktemp)
+  if opencode run --agent quick-review-codex "${OPENCODE_PERMISSION_ARGS[@]}" "$review_prompt" 2>&1 | tee "$review_output_file"; then
+    echo ""
+    if grep -q "<promise:$RUN_ID:REVIEW-PASS</promise>" "$review_output_file"; then
+      echo "Review passed for issue #$issue_id."
+      mark_issue_done "$issue_file"
+      log_progress "$issue_id" "$issue_title" "REVIEW PASS" "**Review:** Fresh quick-review-codex session passed. Issue marked done."
+      commit_review_closeout "$issue_id" "$issue_title" "$issue_file"
+      rm -f "$review_output_file"
+      return 0
+    fi
+
+    if grep -q "<promise:$RUN_ID:REVIEW-FAIL</promise>" "$review_output_file"; then
+      echo "Review failed for issue #$issue_id. Marking blocked."
+      mark_issue_review_blocked "$issue_file"
+      log_progress "$issue_id" "$issue_title" "REVIEW FAIL" "**Action needed:** Fresh review failed. Check review output and issue file."
+      rm -f "$review_output_file"
+      return 1
+    fi
+
+    echo "Review completed but no structured review signal detected. Marking blocked."
+    mark_issue_review_blocked "$issue_file"
+    log_progress "$issue_id" "$issue_title" "REVIEW UNCONFIRMED" "**Action needed:** No review promise detected. Manual verification required."
+    rm -f "$review_output_file"
+    return 1
+  fi
+
+  echo "Review command failed for issue #$issue_id. Marking blocked."
+  mark_issue_review_blocked "$issue_file"
+  log_progress "$issue_id" "$issue_title" "REVIEW ERROR" "**Action needed:** Review session exited with an error."
+  rm -f "$review_output_file"
+  return 1
 }
 
 # ============================================================
@@ -517,8 +724,9 @@ Your instructions:
 4. Plan your approach briefly (2-3 sentences)
 5. Implement the full vertical slice end-to-end
 6. Run tests/lint/typecheck to verify
+7. If the project uses git, commit all implementation changes, the issue file, and .kanban/progress.md with message: feat(#$ID): $TITLE
 
-SAFETY: Stop immediately and report <promise:$RUN_ID:BLOCKED</promise> if this issue involves:
+SAFETY: Stop immediately and report <promise:$RUN_ID:BLOCKED</promise> if this issue involves any of the following, unless the issue frontmatter explicitly contains afk_approved: true:
 - Authentication or authorization changes
 - Billing or payment logic
 - Database migrations (destructive)
@@ -538,6 +746,10 @@ When done, update the issue file:
 Then write progress to .kanban/progress.md:
 - Append section with issue number, title, what changed, decisions, conventions, notes for next iteration
 
+Then commit the completed implementation if git is available:
+- git add all files changed for this issue, the issue file, and .kanban/progress.md
+- git commit -m 'feat(#$ID): $TITLE'
+
 If you CANNOT complete the issue:
 - Change status: pending to status: blocked
 - Add updated: $(date '+%Y-%m-%d')
@@ -555,6 +767,11 @@ On blocked/failure, output EXACTLY this line:
   echo "Starting OpenCode for issue #$ID..."
   echo ""
 
+  BEFORE_HEAD=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    BEFORE_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "")
+  fi
+
   OUTPUT_FILE=$(mktemp)
   if opencode run --agent build "${OPENCODE_PERMISSION_ARGS[@]}" "$PROMPT" 2>&1 | tee "$OUTPUT_FILE"; then
     echo ""
@@ -562,20 +779,37 @@ On blocked/failure, output EXACTLY this line:
     # Check for run-specific completion signal (prevents prompt injection from issue content)
     if grep -q "<promise:$RUN_ID:COMPLETE</promise>" "$OUTPUT_FILE"; then
       echo "Issue #$ID completed successfully."
-      log_progress "$ID" "$TITLE" "DONE" "**Files:** See Implementation Notes in issue file"
+      log_progress "$ID" "$TITLE" "IMPLEMENTED" "**Files:** See Implementation Notes in issue file. Starting fresh review before next issue."
+      if ! commit_or_verify_implementation "$ID" "$TITLE" "$BEFORE_HEAD"; then
+        mark_issue_review_blocked "$FILE"
+        log_progress "$ID" "$TITLE" "COMMIT MISSING" "**Action needed:** Implementation completed but no implementation commit was created."
+        rm -f "$OUTPUT_FILE"
+        exit 1
+      fi
+      if ! review_completed_issue "$ID" "$TITLE" "$FILE"; then
+        echo "Stopping loop because issue #$ID did not pass review."
+        rm -f "$OUTPUT_FILE"
+        exit 1
+      fi
     elif grep -q "<promise:$RUN_ID:BLOCKED</promise>" "$OUTPUT_FILE"; then
       echo "Issue #$ID BLOCKED. Check the issue file for details."
+      mark_issue_blocked "$FILE" "Ralph stopped before implementation or review. Check the run output for details."
       log_progress "$ID" "$TITLE" "BLOCKED" "**Action needed:** Check issue file for Blocker section"
+      commit_issue_bookkeeping "$ID" "$TITLE" "block" "$FILE"
       # Continue to next issue instead of stopping
     else
       echo "Issue #$ID completed but no structured signal detected."
       echo "WARNING: Verify manually. The agent may not have followed the protocol."
+      mark_issue_blocked "$FILE" "Ralph did not receive a structured completion or blocked signal. Manual verification required."
       log_progress "$ID" "$TITLE" "DONE (UNCONFIRMED)" "**Note:** No completion signal detected. Manual verification required."
+      commit_issue_bookkeeping "$ID" "$TITLE" "block" "$FILE"
     fi
   else
     echo ""
     echo "Issue #$ID FAILED (OpenCode exited with error)."
+    mark_issue_blocked "$FILE" "OpenCode exited with an error during Ralph implementation. Re-run manually after investigating the log."
     log_progress "$ID" "$TITLE" "FAILED" "**Action needed:** Re-run this issue manually"
+    commit_issue_bookkeeping "$ID" "$TITLE" "block" "$FILE"
     rm -f "$OUTPUT_FILE"
     echo "Stopping loop. Fix the issue and re-run."
     exit 1
@@ -598,6 +832,21 @@ On blocked/failure, output EXACTLY this line:
     sleep 3
   fi
 done
+
+if [[ "$DRY_RUN" == false && $COUNT -gt 0 ]]; then
+  if [[ $LIMIT -eq 0 ]]; then
+    echo ""
+    echo "Rescanning for newly unblocked issues..."
+    exec "$0"
+  fi
+
+  REMAINING=$((LIMIT - COUNT))
+  if [[ $REMAINING -gt 0 ]]; then
+    echo ""
+    echo "Rescanning for newly unblocked issues... remaining limit: $REMAINING"
+    exec "$0" --limit "$REMAINING"
+  fi
+fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
