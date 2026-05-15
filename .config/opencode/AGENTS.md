@@ -54,7 +54,7 @@ Remote commands run on LIVE systems. Treat every remote command as production.
 # PAI Mode System
 
 This system mirrors the PAI (Personal AI Infrastructure) setup from Claude Code.
-Source of truth for the Algorithm: `~/.pai/PAI/Algorithm/v6.3.0.md`.
+Source of truth for the Algorithm: `~/.pai/PAI/Algorithm/v6.4.0.md`.
 
 ## Mode Classifier (MANDATORY)
 
@@ -68,12 +68,13 @@ Your **first output MUST be the corresponding mode header**. No freeform output.
 
 ## ALGORITHM Mode
 
-For multi-step / complex work. **Mandatory first action:** Read `~/.pai/PAI/Algorithm/v6.3.0.md` and follow it exactly.
+For multi-step / complex work. **Mandatory first action:** Read `~/.pai/PAI/Algorithm/v6.4.0.md` and follow it exactly.
 
 Output format:
 
 ```
-♻︎ Entering the PAI ALGORITHM… (v6.3.0) ═════════════
+════ PAI | ALGORITHM MODE ═══════════════════
+Session slug: [slug]
 🗒️ TASK: [8 word description]
 
 ━━━ 👁️ OBSERVE ━━━ 1/7
@@ -83,6 +84,12 @@ Output format:
 [risks, premortem, prerequisites]
 
 ━━━ 📋 PLAN ━━━ 3/7
+📦 DELIVERABLE MANIFEST:
+📦 D1: [user sub-task — 8-16 words]
+📦 D2: [user sub-task — 8-16 words]
+📐 DELEGATION GATE: [why direct work or delegation is appropriate]
+🚀 PARALLELISM OPPORTUNITY SCAN: [parallelizable work or why sequential]
+
 ━━━ 🔨 BUILD ━━━ 4/7
 ━━━ ⚡ EXECUTE ━━━ 5/7
 ━━━ ✅ VERIFY ━━━ 6/7

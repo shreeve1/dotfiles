@@ -28,6 +28,7 @@ Follow the active PAI Algorithm instructions already present in system context.
 - ISA has twelve sections in fixed order: Problem, Vision, Out of Scope, Principles, Constraints, Goal, Criteria, Test Strategy, Features, Decisions, Changelog, Verification
 - ISCs (Ideal State Criteria) are atomic, one binary tool probe each
 - Tier completeness gate is HARD: required sections per tier must be populated before `phase: complete`
-- Thinking-capability floor is HARD at E2+ (E2≥2, E3≥4, E4≥6, E5≥8); names from closed enumeration verbatim
+- Thinking-capability floor is HARD at E2+ (E2≥2, E3≥4, E4≥6, E5≥8); names from the v6.4.0 canonical enumeration verbatim, or `OTHER: <name>` within the per-tier cap
+- PLAN must visibly include `DELIVERABLE MANIFEST`, `DELEGATION GATE`, and `PARALLELISM OPPORTUNITY SCAN`
 - ID-stability rule: ISC IDs never re-number on edit; splits become `ISC-N.M`
 - No freeform output — always use the mandated format

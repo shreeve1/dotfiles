@@ -141,6 +141,20 @@ test("todowriteSeenAt set means the gate is open", async () => {
   await expect(beforeTool("read")).resolves.toBeUndefined();
 });
 
+test("Algorithm-lite directive preserves visible PLAN subprocess markers", async () => {
+  writeState(false);
+  const output = { system: [] as string[] };
+  await hooks["experimental.chat.system.transform"]?.({ sessionID }, output);
+  const system = output.system.join("\n");
+
+  expect(system).toContain("Algorithm-lite");
+  expect(system).not.toContain("durable-ISA contract");
+  expect(system).toContain("OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN");
+  expect(system).toContain("DELIVERABLE MANIFEST");
+  expect(system).toContain("DELEGATION GATE");
+  expect(system).toContain("PARALLELISM OPPORTUNITY SCAN");
+});
+
 async function classifyViaHook(promptText: string, sid: string) {
   await hooks["chat.message"]?.(
     { sessionID: sid },
@@ -353,6 +367,21 @@ test("durable-ISA: initialized=true alone does NOT open the gate (regression)", 
 test("durable-ISA: todowriteSeenAt set means the gate is open", async () => {
   writeDurableState(true, "2026-05-14T01:02:03.000Z");
   await expect(beforeToolDurable("bash")).resolves.toBeUndefined();
+});
+
+test("durable-ISA directive references current Algorithm version", async () => {
+  writeDurableState(false);
+  const output = { system: [] as string[] };
+  await hooks["experimental.chat.system.transform"]?.(
+    { sessionID: durableSessionID },
+    output,
+  );
+  const system = output.system.join("\n");
+
+  expect(system).toContain("PAI Algorithm v6.4.0");
+  expect(system).toContain("durable-ISA contract");
+  expect(system).toContain("An ISA scaffold has been pre-created at: /tmp/test-isa.md");
+  expect(system).toContain("OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN");
 });
 
 // -----------------------------------------------------------------------------

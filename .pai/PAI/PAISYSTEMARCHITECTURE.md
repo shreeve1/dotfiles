@@ -589,4 +589,4 @@ See MEMORYSYSTEM.md for full details.
 
 ### Algorithm version
 
-`~/.pai/PAI/Algorithm/LATEST` = `v6.3.0`. Spec at `~/.pai/PAI/Algorithm/v6.3.0.md`. Phase-1 of the OpenCode port (slug `20260505-051000_pai-opencode-v6-port`) bumped LATEST from v3.7.0 to v6.3.0; phase-2 (slug `20260505-061500_pai-opencode-v6-phase2`) ported skills, identity, memory zones, advisor agents, and reachable hooks.
+`~/.pai/PAI/Algorithm/LATEST` = `v6.4.0`. Spec at `~/.pai/PAI/Algorithm/v6.4.0.md`. Phase-1 of the OpenCode port (slug `20260505-051000_pai-opencode-v6-port`) bumped LATEST from v3.7.0 to v6.3.0; phase-2 (slug `20260505-061500_pai-opencode-v6-phase2`) ported skills, identity, memory zones, advisor agents, and reachable hooks; v6.4.0 is the current Algorithm pointer.
