@@ -1,6 +1,6 @@
 ---
 name: Review
-description: Two-pass code review — Claude analysis plus independent second opinion via codex CLI or claude -p, selected by request keywords. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review, claude review, claude -p review.
+description: Independent code review — gathers context, runs a fresh OpenCode reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review` skill.
 ---
 
 ## Customization
@@ -10,19 +10,13 @@ description: Two-pass code review — Claude analysis plus independent second op
 
 If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
 
-## Model Recommendation
+## Routing
 
-**Recommended model: opus** — Deep review requires extended thinking for thorough multi-dimensional analysis, second-order effect reasoning, and careful cross-referencing against codebase conventions.
+All review requests — file, directory, plan, build, proposal, session context — route to the canonical skill:
 
-## Workflow Routing
+`~/.config/opencode/skills/dev-review/SKILL.md`
 
-| Request Pattern | Route To |
-|---|---|
-| Review, code review, deep review, audit code, PR review | `Workflows/DeepReview.md` |
-| Any file, directory, or topic review | `Workflows/DeepReview.md` |
-| Session context review (no target specified) | `Workflows/DeepReview.md` |
-
-This sub-skill has a single comprehensive workflow. All review requests route to `DeepReview.md`.
+There is no longer a separate Development/Review workflow. The Development pack's Review entry point exists only to keep pipeline routing consistent; the actual review logic lives in `dev-review`.
 
 ## Pipeline Position
 
@@ -32,43 +26,32 @@ This sub-skill has a single comprehensive workflow. All review requests route to
 - After `/dev-build` — review implemented code before testing
 - After `/dev-test` — review test quality and coverage
 - Before merge — final quality gate
-- Standalone — review any code, config, or architecture at any time
+- Standalone — review any code, config, plan, or architecture at any time
 
 **Does not require input from other pipeline stages.** Operates independently on whatever target is provided.
 
-## Context Files
-
-| File | Purpose |
-|------|---------|
-| `Workflows/DeepReview.md` | Full 5-phase review workflow |
-
 ## Examples
 
-**Example 1: Review a specific file (default reviewer = codex)**
+**Example 1: Review a specific file**
 ```
 User: "Review src/services/user.ts"
--> Routes to DeepReview workflow
--> Phase 1: Locate and understand the file + surrounding context
--> Phase 2: Multi-dimensional analysis (selects 3-5 relevant dimensions)
--> Phase 3: Interactive discussion of findings
--> Phase 4: Independent second opinion — request had no engine keyword, so codex runs (default)
--> Phase 5: Optional change application
+-> Loads dev-review skill
+-> Target = file path
+-> Fresh opencode session reviews; findings discussed interactively
 ```
 
-**Example 2: Review a directory with claude -p as the second-opinion reviewer**
+**Example 2: Review the current plan for gaps**
 ```
-User: "Review the auth module in src/auth/ with claude"
--> Routes to DeepReview workflow
--> Phase 4 dispatcher resolves _REVIEWER=claude (keyword match: "with claude")
--> Runs `claude -p` in a fresh isolated session against the diff or selected files
--> Cross-model comparison shows what session-Claude vs claude -p each caught
+User: "Review the plan for gaps"
+-> Loads dev-review skill
+-> Target = plan (or context)
+-> Fresh opencode session reviews; findings discussed interactively
 ```
 
-**Example 3: Review session context with both reviewers**
+**Example 3: Review uncommitted changes**
 ```
-User: "Review what we've done so far, both reviews"
--> Routes to DeepReview workflow
--> Phase 4 dispatcher resolves _REVIEWER=both
--> Runs codex AND claude -p, presents both outputs verbatim
--> Three-way cross-model analysis: this session vs codex vs claude -p
+User: "Review the build"
+-> Loads dev-review skill
+-> Target = build (git diff)
+-> Fresh opencode session reviews; findings discussed interactively
 ```
