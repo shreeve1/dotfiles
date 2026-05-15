@@ -1,6 +1,6 @@
 ---
 name: Review
-description: Two-pass code review — Claude deep analysis followed by an independent second opinion via Codex CLI (`codex review`) OR Claude one-shot (`claude -p`) OR both, selected by request keywords. Cross-model comparison, interactive findings discussion, and optional change application. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review, claude review, review with claude, claude -p review.
+description: Two-pass code review — Claude analysis plus independent second opinion via codex CLI or claude -p, selected by request keywords. USE WHEN review, code review, deep review, audit code, PR review, review file, review directory, review session, best practices, technical risk, review architecture, second opinion, codex review, claude review, claude -p review.
 ---
 
 ## Customization
