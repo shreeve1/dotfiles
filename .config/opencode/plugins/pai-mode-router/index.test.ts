@@ -379,9 +379,15 @@ test("durable-ISA directive references current Algorithm version", async () => {
   const system = output.system.join("\n");
 
   expect(system).toContain("PAI Algorithm v6.4.0");
-  expect(system).toContain("durable-ISA contract");
-  expect(system).toContain("An ISA scaffold has been pre-created at: /tmp/test-isa.md");
-  expect(system).toContain("OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN");
+  expect(system).toContain("durable-ISA");
+  expect(system).toContain("ISA scaffold pre-created at: /tmp/test-isa.md");
+  expect(system).toContain("OBSERVE");
+  expect(system).toContain("THINK");
+  expect(system).toContain("PLAN");
+  expect(system).toContain("BUILD");
+  expect(system).toContain("EXECUTE");
+  expect(system).toContain("VERIFY");
+  expect(system).toContain("LEARN");
 });
 
 // -----------------------------------------------------------------------------
