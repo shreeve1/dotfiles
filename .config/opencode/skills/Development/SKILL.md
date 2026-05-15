@@ -1,6 +1,6 @@
 ---
 name: Development
-description: Software development pipeline — PRD creation, epic decomposition, implementation planning, pre-flight validation, token-aware sharding, wave-based parallel building, multi-mode testing, deep code review, systematic bug investigation, Playwright user stories, and automated team pipeline. USE WHEN create PRD, epic, decompose PRD, implementation plan, validate plan, shard plan, build, execute plan, run tests, code review, investigate bug, user stories, Playwright, dev team, development pipeline, write code, software project.
+description: Software development pipeline — PRD, epic decomposition, planning, validation, sharding, parallel build, testing, code review, bug investigation, Playwright stories, team pipeline. USE WHEN create PRD, epic, decompose PRD, implementation plan, validate plan, shard plan, build, execute plan, run tests, code review, investigate bug, user stories, Playwright, dev team, development pipeline, write code, software project.
 ---
 
 # Development

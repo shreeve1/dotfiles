@@ -558,38 +558,38 @@ function modeSystemBlock(mode: Mode): string {
 }
 
 function algorithmDirective(state: SessionState): string {
+  const slug = state.slug ?? "";
+  const shared = [
+    "First output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════",
+    `Session slug: ${slug}`,
+    "MUST: use todowrite BEFORE any other tool; the tool layer blocks all other tool calls until todowrite is initialized.",
+    "MUST: complete OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN with visible phase labels.",
+    "MUST: OBSERVE is the first phase; do not reorder.",
+    "MUST: PLAN includes visible DELIVERABLE MANIFEST, DELEGATION GATE, and PARALLELISM OPPORTUNITY SCAN.",
+    "MUST: verify criteria before claiming completion.",
+    "DO NOT skip phases. DO NOT bypass ISC verification. DO NOT emit text before the banner.",
+  ];
   if (state.algorithm?.contract === "lite") {
     return [
       "<pai-algorithm-directive>",
-      "You are running under PAI Algorithm-lite.",
-      "Your first output line MUST be: ════ PAI | ALGORITHM MODE ═══════════════════",
-      `Session slug: ${state.slug ?? ""}`,
-      "MUST: use the existing todowrite tool before any other tool.",
-      "MUST: make todowrite contain 2-8 compact criteria/tasks that express goal, plan, and verification work.",
-      "MUST: complete OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN with visible phase labels in the response flow.",
-      "MUST: in PLAN include a visible DELIVERABLE MANIFEST with D1/D2/etc mapped to the user's sub-tasks.",
-      "MUST: in PLAN include a visible DELEGATION GATE explaining why work is direct or delegated.",
-      "MUST: in PLAN include a visible PARALLELISM OPPORTUNITY SCAN, even if the answer is sequential only.",
-      "MUST: include BUILD when artifacts/code/config are changed; otherwise state BUILD: not needed for this review/answer.",
-      "MUST: verify criteria before claiming completion.",
-      "DO NOT create an ISA file unless the task escalates to durable/multi-session work or the user explicitly asks for one.",
+      "Contract: PAI Algorithm-lite.",
+      ...shared,
+      "MUST: todowrite contains 2-8 compact criteria covering goal, plan, and verification.",
+      "MUST: BUILD is included when artifacts/code/config change; otherwise state BUILD: not needed.",
+      "DO NOT create an ISA file unless the task escalates to durable/multi-session work or the user explicitly asks.",
       "DO NOT skip criteria just because this is Algorithm-lite.",
       "</pai-algorithm-directive>",
     ].join("\n");
   }
   return [
     "<pai-algorithm-directive>",
-    "You are running under the PAI Algorithm v6.4.0 (durable-ISA contract).",
-    "Your first output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════",
-    "Required first phase: OBSERVE.",
-    `An ISA scaffold has been pre-created at: ${state.isaPath ?? ""}`,
-    `Session slug: ${state.slug ?? ""}`,
-    "MUST: use the existing todowrite tool BEFORE any other tool. todowrite must contain 2-8 atomic criteria covering Problem, Goal, ISC verification, and the 7 Algorithm phases. The tool layer will block all other tool calls until todowrite is initialized.",
-    "MUST: follow the active PAI Algorithm instructions already present in system context before acting.",
-    "MUST: edit the pre-created ISA file (do not create a new one) to fill in Problem, Goal, Criteria, Test Strategy with atomic ISCs.",
-    "MUST: complete all 7 phases (OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN).",
-    "MUST: keep ISA frontmatter slug, name, tier, phase fields up to date.",
-    "DO NOT skip phases. DO NOT bypass ISC verification. DO NOT emit any text before the banner line.",
+    "Contract: PAI Algorithm v6.4.0 (durable-ISA).",
+    `ISA scaffold pre-created at: ${state.isaPath ?? ""}`,
+    ...shared,
+    "MUST: todowrite contains 2-8 atomic criteria covering Problem, Goal, ISC verification, and the 7 phases.",
+    "MUST: follow the PAI Algorithm instructions in system context before acting.",
+    "MUST: edit the pre-created ISA file (do not create a new one) — fill Problem, Goal, Criteria, Test Strategy with atomic ISCs.",
+    "MUST: keep ISA frontmatter slug, name, tier, phase fields current.",
     "</pai-algorithm-directive>",
   ].join("\n");
 }

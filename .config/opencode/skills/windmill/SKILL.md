@@ -1,6 +1,6 @@
 ---
 name: windmill
-description: Diagnose and troubleshoot the Windmill CE instance on aidev (10.20.20.16:8100). Provides health checks, run history analysis, flow diagnostics, schedule verification, log inspection, DB query patterns, and Plane ticket inspection. Use when user asks about Windmill status, failing flows, schedule problems, job errors, container health, Plane tickets, or anything related to the homelab patrol pipeline.
+description: Diagnose and troubleshoot the Windmill CE instance on aidev (10.20.20.16:8100).
 ---
 
 # Windmill CLI
