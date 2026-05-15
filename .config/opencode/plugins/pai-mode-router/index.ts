@@ -560,14 +560,14 @@ function modeSystemBlock(mode: Mode): string {
 function algorithmDirective(state: SessionState): string {
   const slug = state.slug ?? "";
   const shared = [
-    "First output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════",
+    "First output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════ — no prose, no acknowledgment, no tool call before it.",
     `Session slug: ${slug}`,
+    "MUST: emit all 7 phase labels visibly in the response, in order: ━━━ 👁️ OBSERVE ━━━ 1/7, ━━━ 🧠 THINK ━━━ 2/7, ━━━ 📋 PLAN ━━━ 3/7, ━━━ 🔨 BUILD ━━━ 4/7, ━━━ ⚡ EXECUTE ━━━ 5/7, ━━━ ✅ VERIFY ━━━ 6/7, ━━━ 📚 LEARN ━━━ 7/7.",
+    "MUST: PLAN includes visible 📦 DELIVERABLE MANIFEST, 📐 DELEGATION GATE, and 🚀 PARALLELISM OPPORTUNITY SCAN — even for short tasks.",
     "MUST: use todowrite BEFORE any other tool; the tool layer blocks all other tool calls until todowrite is initialized.",
-    "MUST: complete OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN with visible phase labels.",
-    "MUST: OBSERVE is the first phase; do not reorder.",
-    "MUST: PLAN includes visible DELIVERABLE MANIFEST, DELEGATION GATE, and PARALLELISM OPPORTUNITY SCAN.",
+    "MUST: BUILD is included when artifacts/code/config change; otherwise state `BUILD: not needed`.",
     "MUST: verify criteria before claiming completion.",
-    "DO NOT skip phases. DO NOT bypass ISC verification. DO NOT emit text before the banner.",
+    "DO NOT skip phases. DO NOT bypass ISC verification. DO NOT emit text before the banner. DO NOT collapse multiple phases into one heading. The ALGORITHM format is mandatory regardless of task size.",
   ];
   if (state.algorithm?.contract === "lite") {
     return [
@@ -575,9 +575,8 @@ function algorithmDirective(state: SessionState): string {
       "Contract: PAI Algorithm-lite.",
       ...shared,
       "MUST: todowrite contains 2-8 compact criteria covering goal, plan, and verification.",
-      "MUST: BUILD is included when artifacts/code/config change; otherwise state BUILD: not needed.",
       "DO NOT create an ISA file unless the task escalates to durable/multi-session work or the user explicitly asks.",
-      "DO NOT skip criteria just because this is Algorithm-lite.",
+      "DO NOT skip phases or criteria just because this is Algorithm-lite — lite means no ISA file, NOT shorter output.",
       "</pai-algorithm-directive>",
     ].join("\n");
   }
