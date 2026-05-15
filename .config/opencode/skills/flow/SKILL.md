@@ -1,28 +1,27 @@
 ---
 name: flow
-description: End-to-end alignment-to-implementation pipeline using grill-me, to-prd, to-issues, kanban, and ralph. Based on Matt Pocock's workshop workflow. Use when user wants to start a new feature, run the full flow, check pipeline status, or do AFK coding.
+description: End-to-end alignment-to-implementation pipeline using grill-me, to-prd, to-issues, kanban, and ralph. Based on Matt Pocock's workshop workflow. Use when user wants to start a new feature, run the full flow, or check pipeline status.
 ---
 
 # /flow — Alignment to Implementation Pipeline
 
-The complete pipeline from idea to working code. Based on Matt Pocock's workshop: align before you build, slice vertically, implement AFK, review with fresh eyes.
+The complete pipeline from idea to working code. Based on Matt Pocock's workshop: align before you build, slice vertically into independently-buildable issues, then let Ralph implement each one in a fresh session with a fresh-session review.
 
 ## Pipeline Visual
 
 ```
-┌────────────┐   ┌────────────┐   ┌──────────────┐   ┌────────────┐   ┌──────────────┐   ┌──────────────┐
-│  /grill-me  │──▶│  /to-prd   │──▶│  /to-issues  │──▶│  /kanban    │──▶│  /ralph      │──▶│  /review     │
-│  Align      │   │  PRD       │   │  Slice       │   │  Board      │   │  Implement   │   │  Verify      │
-│  (HITL)     │   │  (HITL)    │   │  (HITL)      │   │  (HITL)     │   │  (AFK)       │   │  (AFK/HITL)  │
-└────────────┘   └────────────┘   └──────────────┘   └────────────┘   └──────────────┘   └──────────────┘
-     Day shift         Day shift        Day shift        Day shift         Night shift        Either
+┌────────────┐   ┌────────────┐   ┌──────────────┐   ┌────────────┐   ┌──────────────────────┐
+│  /grill-me │──▶│  /to-prd   │──▶│  /to-issues  │──▶│  /kanban   │──▶│  /ralph              │
+│  Align     │   │  PRD       │   │  Slice +     │   │  Board     │   │  Implement + review  │
+│            │   │            │   │  verify cmd  │   │            │   │  (fresh session each)│
+└────────────┘   └────────────┘   └──────────────┘   └────────────┘   └──────────────────────┘
 ```
 
 Auxiliary (available at any stage):
 ```
 ┌────────────────┐  ┌──────────────────┐  ┌──────────────────────┐  ┌──────────────────┐
-│  /tdd          │  │  /codex review    │  │  /improve-codebase-  │  │  /design-an-     │
-│  Red-green-    │  │  Independent 2nd  │  │  architecture        │  │  interface       │
+│  /tdd          │  │  /codex review   │  │  /improve-codebase-  │  │  /design-an-     │
+│  Red-green-    │  │  Independent 2nd │  │  architecture        │  │  interface       │
 │  refactor      │  │  opinion         │  │  Deep modules        │  │  Compare designs │
 └────────────────┘  └──────────────────┘  └──────────────────────┘  └──────────────────┘
 ```
@@ -37,7 +36,7 @@ Detect what the user needs and route to the right phase:
 | Create PRD, product requirements, spec | `/to-prd` |
 | Break into issues, vertical slices, create tickets | `/to-issues` |
 | Board status, kanban, show issues, what's next | `/kanban` |
-| Implement, ralph, AFK, run loop, start building | `/ralph` |
+| Implement, ralph, run loop, build next issue | `/ralph` |
 | Full pipeline, "take this from idea to code" | Start from Phase 1 |
 | Status, "where am I", "what's the state" | Detect phase below |
 
@@ -86,14 +85,14 @@ User: "OK let's write the PRD"
 
 ### Phase 3: Slice — `/to-issues`
 
-Break the PRD into vertical slices (tracer bullets).
+Break the PRD into vertical slices (tracer bullets) that Ralph can build end-to-end.
 
 ```
 User: "Break this into issues"
 → Invoke /to-issues
 → Creates thin end-to-end slices, not horizontal layers
 → Each slice cuts through ALL integration layers
-→ Tags each as HITL or AFK
+→ Each slice ships with an automated verification command
 → Sets up dependency DAG
 ```
 
@@ -102,7 +101,8 @@ User: "Break this into issues"
 **Key rules:**
 - Many thin slices > few thick ones
 - Each slice is demoable on its own
-- Auth, billing, migrations, deletions = always HITL
+- Every slice has a concrete verification command — Ralph must be able to verify objectively
+- No "needs design decision" placeholders — resolve them before writing the issue
 
 ### Phase 4: Board — `/kanban`
 
@@ -112,49 +112,47 @@ Review and manage the board.
 User: "Show me the board"
 → Invoke /kanban board
 → Shows pending, in-progress, review, blocked, done
-→ Shows DAG depth, AFK/HITL counts
+→ Shows DAG depth
 → Suggests next action
 ```
 
 **Output:** Board state displayed to user.
 
-### Phase 5: Implement — `/ralph`
+### Phase 5: Implement — `/ralph` (fresh session per issue)
 
-Pick up AFK issues and implement one at a time.
+Pick up the next unblocked issue and implement it. One issue per invocation, then stop.
 
-**Interactive (within Claude Code):**
+**Interactive (inside opencode):**
 ```
 User: "/ralph"
-→ Scans board for unblocked AFK issues
-→ Implements one issue
+→ Scans board for the next unblocked issue
+→ Implements that single issue end-to-end
+→ Spawns a FRESH review session (separate context) to verify
 → Writes progress notes
-→ Offers to continue or stop
+→ Stops. User re-invokes /ralph for the next issue.
 ```
 
-**True AFK (from terminal):**
+**Batched (from terminal — fresh session per issue is guaranteed by the script):**
 ```bash
-./ralph-loop.sh --limit 5          # Implement 5 issues
+./ralph-loop.sh --limit 5          # Implement 5 issues, fresh opencode session per issue
 ./ralph-loop.sh --dry-run          # Preview what would run
-./ralph-loop.sh --review           # Review last completed issue
+./ralph-loop.sh --review           # Review last completed issue (fresh session)
 ./ralph-loop.sh --validate         # Check board integrity
 ./ralph-loop.sh --stale            # Find stale locks
 ```
 
 **Key rules:**
-- ONLY ONE ISSUE per iteration
-- Fresh context per issue (Memento approach)
-- Stop at ~80k tokens or quality drop
+- ONE ISSUE per `/ralph` invocation
+- Fresh context per issue (Memento approach) — implementer never carries state from prior issues
+- Fresh context for the review (separate `opencode run` invocation)
 - Progress notes carry architectural decisions between contexts
 
-### Phase 6: Review — `/ralph --review` or `/codex review`
+### Phase 6: Review — built into `/ralph`
 
-Review completed work with fresh eyes.
+Review is not a separate phase — `/ralph` always runs a fresh-session review between implement and `status: done`. If you want a second independent pass:
 
 ```
-→ Invoke /ralph --review (Claude Code review)
-→ OR invoke /codex review (independent second opinion from OpenAI)
-→ Checks acceptance criteria, tests, scope creep
-→ PASS → done. FAIL → blocked.
+→ /codex review   (independent second opinion from OpenAI)
 ```
 
 ## Minimum Viable Flow
@@ -162,39 +160,33 @@ Review completed work with fresh eyes.
 For small features:
 
 ```
-/grill-me → /to-prd → /to-issues → /ralph
+/grill-me → /to-prd → /to-issues → /ralph (run repeatedly)
 ```
 
-Skip kanban management — `/ralph` handles it automatically.
+`/ralph` handles board state automatically.
 
 ## Full Pipeline
 
 For complex features:
 
 ```
-/grill-me → /to-prd → /to-issues → /kanban validate → /kanban dag → /ralph → /ralph --review
+/grill-me → /to-prd → /to-issues → /kanban validate → /kanban dag → /ralph (loop) → /codex review
 ```
 
-## Day/Night Workflow
+## Hands-off Mode
 
-**Day shift (HITL):**
-1. `/grill-me` — align on what to build
-2. `/to-prd` — capture the design concept
-3. `/to-issues` — slice into vertical tickets
-4. `/kanban board` — review the board, check priorities
-5. Go home
-
-**Night shift (AFK):**
-```bash
+```
 cd ~/my-project
 ~/.pai/PAI/Tools/ralph-loop.sh --limit 10
 ```
 
-Next morning:
+Each issue runs in its own `opencode run` session. Each review runs in its own `opencode run` session. Crashes leave stale locks recoverable via `--stale`.
+
+Morning check:
 ```bash
 ~/.pai/PAI/Tools/ralph-loop.sh --review    # review last issue
 ~/.pai/PAI/Tools/ralph-loop.sh --stale     # check for crashed runs
-/kanban board                                  # see what got done
+/kanban board                              # see what got done
 ```
 
 ## Relationship to /Development
@@ -207,10 +199,10 @@ Next morning:
 | **Planning** | `/dev-plan` (Codex audit loop) → `/dev-shard` | `/grill-me` → `/to-prd` → `/to-issues` |
 | **Execution** | `/dev-build` (waves, within context) | `/ralph` (one issue, fresh context per) |
 | **State** | Plan files in `artifacts/plans/` | Kanban board in `.kanban/` |
-| **Best for** | Large features in one repo | AFK loops, multiple small slices |
+| **Best for** | Large features in one repo | Many small slices with fresh-session execution |
 | **Context mgmt** | Sharding (pre-emptive splits) | Memento (clear between issues) |
 
-Both can coexist. Use `/Development` for complex in-session builds. Use `/flow` when you want to set up AFK work and walk away.
+Both can coexist. Use `/Development` for complex in-session builds. Use `/flow` when you want each slice executed in its own session with a separate reviewer pass.
 
 ## Tool Reference
 
@@ -218,10 +210,10 @@ Both can coexist. Use `/Development` for complex in-session builds. Use `/flow` 
 |------|----------|---------|
 | `/grill-me` | `${PAI_DIR:-$HOME/.pai}/skills/grill-me/` | Alignment interview |
 | `/to-prd` | `${PAI_DIR:-$HOME/.pai}/skills/to-prd/` | PRD creation |
-| `/to-issues` | `${PAI_DIR:-$HOME/.pai}/skills/to-issues/` | Vertical slice breakdown |
+| `/to-issues` | `${PAI_DIR:-$HOME/.pai}/skills/to-issues/` | Vertical slice breakdown with verification commands |
 | `/kanban` | `${PAI_DIR:-$HOME/.pai}/skills/kanban/` | Local board management |
-| `/ralph` | `${PAI_DIR:-$HOME/.pai}/skills/ralph/` | AFK implementation loop (in Claude Code) |
-| `ralph-loop.sh` | `~/.pai/PAI/Tools/ralph-loop.sh` | AFK implementation loop (bash, external) |
+| `/ralph` | `${PAI_DIR:-$HOME/.pai}/skills/ralph/` | Per-issue fresh-session implementation + review |
+| `ralph-loop.sh` | `~/.pai/PAI/Tools/ralph-loop.sh` | Batch driver — fresh `opencode run` per issue and per review |
 | `/tdd` | `${PAI_DIR:-$HOME/.pai}/skills/tdd/` | Test-driven development |
 | `/codex review` | gstack skill | Independent OpenAI review |
 | `/improve-codebase-architecture` | `${PAI_DIR:-$HOME/.pai}/skills/improve-codebase-architecture/` | Deep module analysis |
@@ -245,11 +237,10 @@ From Matt Pocock's workshop and production workflow:
 
 1. **Alignment beats specs** — grill until shared understanding, then build
 2. **Vertical slices over horizontal phases** — thin cuts through all layers
-3. **Fresh context per issue** — clear beats compacting (Memento approach)
-4. **Single-feature constraint** — one issue per iteration, no scope creep
-5. **Implement-then-review** — separate reviewer catches what implementer missed
-6. **Progress notes bridge contexts** — conventions, decisions, notes survive clearing
-7. **HITL for decisions, AFK for implementation** — day shift vs night shift
-8. **HITL safety policy** — auth, billing, migrations, deletions are never AFK
-9. **UUID completion signals** — prevent prompt injection from issue content
-10. **Dirty worktree check** — never start on uncommitted changes
+3. **Every slice is buildable** — automated verification command per issue, no human gates
+4. **Fresh context per issue** — clear beats compacting (Memento approach)
+5. **Fresh context per review** — separate reviewer session catches what the implementer missed
+6. **Single-feature constraint** — one issue per `/ralph` invocation, no scope creep
+7. **Progress notes bridge contexts** — conventions, decisions, notes survive clearing
+8. **UUID completion signals** — prevent prompt injection from issue content
+9. **Dirty worktree check** — never start on uncommitted changes

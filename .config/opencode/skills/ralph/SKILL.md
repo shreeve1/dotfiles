@@ -1,21 +1,26 @@
 ---
 name: ralph
-description: Run the AFK implementation loop. Picks up unblocked AFK issues from local kanban and implements them one at a time with fresh context per issue. Use when user wants to run the Ralph loop, implement issues automatically, or do AFK coding.
+description: Run the Ralph implementation loop. Picks up the next unblocked issue from the local kanban and implements + reviews it in fresh sessions, one issue per invocation. Use when the user wants to run the Ralph loop, implement the next issue, or grind through the board.
 ---
 
 # Ralph Loop
 
-Pick up unblocked AFK issues from `.kanban/` and implement them one at a time. Each issue gets full attention — read, plan, implement, verify, review, mark done.
+Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in a fresh session. Then review it in a separate fresh session. Then stop. The user (or `ralph-loop.sh`) re-invokes `/ralph` for the next issue.
 
 ## Philosophy
 
-From Matt Pocock's workshop and production workflow:
-- **ONLY WORK ON A SINGLE ISSUE PER ITERATION** — bounded scope, no scope creep
-- Each issue is a vertical slice (tracer bullet) — thin cut through all layers
-- Fresh context per issue — stay in the smart zone (under 100k tokens)
-- Implementation is AFK work — alignment already happened during /grill-me and /to-prd
-- Mark done, write progress notes, clear, next issue — Memento approach, no compacting
-- Implement-then-review — a second pass with fresh eyes catches what the implementer missed
+- **One issue per invocation** — bounded scope, fresh context every time. No batching.
+- **Fresh session for implement, fresh session for review** — the implementer and the reviewer must not share a context window. A fresh reviewer catches what the implementer rationalized away.
+- **Every issue is buildable** — `/to-issues` already guaranteed each slice is verifiable by an automated check. Ralph just executes.
+- **Vertical slice or nothing** — implement the whole tracer bullet; do not stop at one layer.
+- **Memento approach** — clear beats compacting. `.kanban/progress.md` carries architectural continuity between sessions.
+
+## Execution modes
+
+There are two ways to drive Ralph; both honor fresh-session-per-issue:
+
+1. **Bash loop (recommended for unattended runs)** — `~/.pai/PAI/Tools/ralph-loop.sh` invokes `opencode run --agent build` per issue and `opencode run --agent quick-review-codex` per review. Each `opencode run` is a fresh session by construction.
+2. **Interactive `/ralph`** — this skill. Processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next. Reviewer pass within this skill is performed by spawning a fresh `opencode run` via bash so the review context is genuinely separate.
 
 ## Pre-flight Checks
 
@@ -49,6 +54,7 @@ Run a quick validation:
 - All `blocked_by` IDs reference existing issues
 - No cycles in the dependency graph
 - Required fields present
+- Each issue has a `## Verification` section with a concrete command
 
 If validation fails, report errors and stop. Do not implement on a broken board.
 
@@ -58,10 +64,8 @@ If validation fails, report errors and stop. Do not implement on a broken board.
 
 Read all `.kanban/issues/*.md` files. Find issues where:
 - `status: pending`
-- `type: AFK`
 - All `blocked_by` IDs have `status: done` (or are archived)
 - All children are `done` (if this is a parent)
-- Not in the HITL safety policy list
 
 Sort by priority (lowest number first), then by ID (lowest first).
 
@@ -72,60 +76,60 @@ If no eligible issues, report the board state and stop.
 Show the user which issue is next:
 
 ```
-Next up: #2 Auth API endpoint [AFK] priority:0
+Next up: #2 Auth API endpoint  priority:0
 Blocked by: #1 (done)
+Verification: npm test && npm run typecheck
 
 1. Implement it now
 2. Show full issue first
 3. Skip to next
 ```
 
-### 3. Implement (single issue)
+### 3. Implement (single issue, fresh context)
 
 For the selected issue:
 
-1. **Read** the full issue file — understand the vertical slice
-2. **Set `status: in_progress`** — update the issue file immediately before starting work. This makes stale lock recovery work if the session crashes mid-implementation.
+1. **Read** the full issue file — understand the vertical slice and the verification command.
+2. **Set `status: in-progress`** — update the issue file immediately before starting work. This makes stale lock recovery work if the session crashes mid-implementation.
 3. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
-4. **Explore** the relevant code — understand current state
-5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc)
+4. **Explore** the relevant code — understand current state.
+5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc).
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
-7. **Verify** — run tests, lint, typecheck, or manual checks as appropriate
-8. **Commit** — if the project uses git, commit with message: `feat(#ID): brief description`
+7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
+8. **Commit** — if the project uses git, commit with message: `feat(#ID): brief description`.
 
-### 4. Review (implement-then-review pattern — MANDATORY, NO EXCEPTIONS)
+### 4. Review in a fresh session (MANDATORY, NOT OPTIONAL)
 
-**This step is not optional.** You MUST complete the review before proceeding to step 5 or moving to the next issue. Skipping this step is the single most common failure mode — it means acceptance criteria go unchecked, scope creep goes undetected, and bugs ship without a second look.
-
-After implementation, set the issue to `status: review` and run a review. **Do NOT set `status: done` until the review passes.** The issue status sequence is: `pending` → `in_progress` → `review` → `done`. You may never skip `review`.
+**You MUST complete this review before marking the issue done. There is no in-session review fallback.** Issue status sequence is: `pending` → `in-progress` → `review` → `done`. You may never skip `review`.
 
 **Review procedure:**
 
 1. **Set status to review** — update the issue file to `status: review`.
 2. **Commit that status change** — `git add .kanban/ && git commit -m "review(#ID): brief description"`
-3. **Re-read the issue's acceptance criteria** — every single checkbox.
-4. **Re-read every changed file** — open each file touched by the implementation and read it fresh, checking against the criteria.
-5. **Run the full check suite** — tests, lint, typecheck. Record the output.
-6. **Check `git diff HEAD~1`** — verify no unrelated changes leaked in and no scope creep occurred.
+3. **Spawn a fresh review session via bash** — the reviewer must NOT inherit the implementer's context:
 
-**What the review checks (completion gate):**
-1. All acceptance criteria checkboxes are checked — each one is verified, not assumed
-2. Tests pass (exit code 0)
-3. Lint passes
-4. Typecheck passes (if typed language)
-5. No unrelated changes in the diff
-6. Changes match the issue scope (no scope creep)
+   ```bash
+   opencode run --agent quick-review-codex "$(cat <<'EOF'
+   Review issue #<ID> in .kanban/issues/.
+   Read the issue file, then run `git diff HEAD~1` and read every changed file.
+   Verify:
+   1. Every acceptance criterion checkbox is objectively satisfied.
+   2. The verification command from the issue's ## Verification section passes (exit code 0).
+   3. Lint and typecheck pass.
+   4. No unrelated changes leaked into the diff.
+   5. Scope matches the issue — no scope creep.
 
-**Review options:**
-- Option A (within same session, if tokens permit): re-read changed files, check against criteria
-- Option B (recommended): mark `status: review`, start fresh session. A fresh reviewer context reads the issue and the diff, verifies each criterion.
+   Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion.
+   EOF
+   )"
+   ```
+
+   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session.
 
 **Review outcomes:**
 - PASS → `status: done`, check all boxes, write progress
 - PASS WITH NOTES → `status: done`, but log notes for future reference
-- FAIL → `status: blocked`, add Blocker section explaining what failed
-
-**Self-check before proceeding:** After completing the review, explicitly confirm to yourself: "I re-read every changed file and verified each acceptance criterion." If you cannot honestly say this, you have not completed the review.
+- FAIL → `status: blocked`, add `## Blocker` section explaining what failed. Do NOT retry in this session; the user re-runs `/ralph` after addressing the blocker.
 
 ### 5. Mark done + write progress
 
@@ -133,7 +137,7 @@ Update the issue file:
 - `status: done`
 - Each acceptance criterion checkbox: `- [x]`
 - `updated: <today>`
-- `actor: ralph` (or `human`)
+- `actor: ralph`
 - Add `## Implementation Notes` section with what was done
 
 Append to `.kanban/progress.md`:
@@ -154,7 +158,7 @@ Key additions to progress notes beyond what changed:
 
 Progress notes are the continuity mechanism between context windows. This is how architectural decisions survive the Memento approach.
 
-### 6. Continue or stop
+### 6. Stop. One issue per invocation.
 
 After completing an issue, report:
 
@@ -162,27 +166,10 @@ After completing an issue, report:
 Done: #2 Auth API endpoint
 Files changed: src/auth/api.ts, src/auth/schema.ts, tests/auth.test.ts
 Progress logged to .kanban/progress.md
-Next: #3 Review dashboard design [HITL] — needs human
-
-Continue to next AFK issue? (#4 is ready)
+Next eligible: #4 (run /ralph again to pick it up)
 ```
 
-If the next issue is HITL, flag it and stop — human needed.
-If the next issue is AFK, offer to continue.
-
-### 7. Smart zone discipline
-
-After completing 2-3 issues (or when you notice quality dropping), STOP:
-
-```
-Quality signal detected. STOPPING to preserve quality.
-Progress logged to .kanban/progress.md
-
-Run /kanban board to see progress, then start a fresh session with /ralph.
-The next session will read progress.md and pick up where you left off.
-```
-
-This is the Memento approach — clear beats compacting. Do not try to squeeze one more issue into a tired context window. The progress notes ensure nothing is lost.
+Then exit. Do NOT continue to the next issue in the same session — fresh context per issue is the whole point. The user (or `ralph-loop.sh`) re-invokes `/ralph` for #4.
 
 ## Interruption Recovery
 
@@ -196,10 +183,8 @@ If the session is interrupted (crash, timeout, user cancel):
 
 ## When to stop
 
-- No more AFK issues are eligible (all blocked or done)
-- Next issue is HITL (needs human)
-- Quality is dropping (approaching smart zone limit)
-- Implementation fails twice on the same issue (escalate to human)
+- No more eligible issues (all blocked or done)
+- Implementation fails twice on the same issue (escalate to user)
 - User interrupts
 - Agent encounters something ambiguous — stop and ask (Matt's Sand Castle rule)
 
@@ -211,36 +196,21 @@ If implementation fails:
 3. Add a `## Blocker` section to the issue describing what went wrong
 4. Append to progress.md noting the failure and what was attempted
 5. Report to the user with the blocker details
-6. Move to the next eligible issue if available
+6. Stop. Do not pick up another issue in this session.
 
 ## Stop conditions (from Matt's AGENTS.md)
 
 Immediately stop and escalate if:
 - The task is ambiguous — you're not sure what to do
-- The implementation requires deleting existing files
+- The implementation requires deleting files outside the issue's stated scope
 - Tests are failing and you can't fix them within scope
 - You need credentials or environment variables you don't have
 - You're touching files outside the issue's scope
 
-## HITL Safety Policy
-
-NEVER auto-implement issues matching these patterns, even if marked AFK:
-- Authentication or authorization changes
-- Billing or payment logic
-- Database migrations (destructive)
-- File deletions
-- Security-sensitive code (keys, tokens, secrets)
-- Dependency version upgrades (major/minor)
-- Production configuration changes
-
-If `/ralph` encounters an AFK issue that matches these patterns, stop, set status to `blocked`, and flag it for human review.
-
 ## Full workflow context
 
 ```
-/grill-me → /to-prd → /to-issues → /kanban (board view) → /ralph (AFK loop)
-     HITL        HITL       HITL          HITL                AFK
+/grill-me → /to-prd → /to-issues → /kanban (board view) → /ralph (per-issue fresh-session loop)
 ```
 
-Day shift: alignment, PRD, issue breakdown
-Night shift: Ralph loop implements AFK issues
+`/to-issues` guarantees every slice is independently buildable and has an automated verification command. `/ralph` (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.
