@@ -1,0 +1,158 @@
+# Reference adapter for Temporal workflows and schedules.
+#
+# Assumes:
+#  - `temporal` CLI 0.10+ on PATH, configured (TEMPORAL_ADDRESS, namespace).
+#  - `jq` on PATH.
+#  - `TEMPORAL_TASK_QUEUE` is exported in the driver shell (apply_cmd readiness probe).
+#  - Workflow code lives in workflows/, activities in activities/.
+#  - Schedule specs live in schedules/ as YAML for `temporal schedule create/update`.
+#  - Worker is bootstrapped via worker/main.py with a `worker.pid` PID file.
+#
+# Required .gitignore entries for this adapter:
+#   snapshots/
+#   .autoagent/
+#   worker.pid
+#   worker.log
+# If these are tracked, RunLoop's `git reset --hard HEAD~1` on discard will
+# delete the snapshot file mid-restore and re-run the worker readiness probe
+# against stale state.
+#
+# Snapshot scope (IMPORTANT):
+# This adapter snapshots SCHEDULE SPECS only. Workflow CODE is reverted via git
+# (`rollback_cmd`). In-flight workflow EXECUTIONS are NOT snapshotted — they
+# cannot be rewound. Mutations that change workflow code while executions are
+# running may leave those executions on the old code path until they complete
+# or are terminated. If this matters, drain the namespace before iterating,
+# or restrict edit_surface to schedules/** only.
+name: temporal-system
+loop_mode: self_driven
+
+sut:
+  description: "Temporal workflow + its schedule + activity definitions."
+  paths:
+    - workflows
+    - activities
+    - schedules
+  live: true
+
+mutator:
+  edit_surface:
+    - "workflows/**"
+    - "activities/**"
+    - "schedules/**"
+  fixed:
+    - "worker/main.py"
+    - "worker/config.py"
+    - "adapter.yaml"
+  apply_cmd: |
+    set -euo pipefail
+    # Re-register every schedule spec. Fail loudly on the first real error.
+    for spec in schedules/*.yaml; do
+      sid=$(basename "$spec" .yaml)
+      if temporal schedule list -o json | jq -e --arg s "$sid" '.[] | select(.scheduleId == $s)' >/dev/null; then
+        temporal schedule update -s "$sid" -f - < "$spec"
+      else
+        temporal schedule create -s "$sid" -f - < "$spec"
+      fi
+    done
+    # Stop the previous worker by PID, not by `pkill -f` (which over-matches).
+    if [ -f worker.pid ]; then
+      pid=$(cat worker.pid)
+      if kill -0 "$pid" 2>/dev/null; then
+        kill "$pid"
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          kill -0 "$pid" 2>/dev/null || break
+          sleep 0.5
+        done
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+      rm -f worker.pid
+    fi
+    # Start new worker, capture its PID, and verify readiness.
+    nohup python worker/main.py > worker.log 2>&1 &
+    echo $! > worker.pid
+    # Worker-readiness check: poll task queue for >= 1 poller. Bounded retry.
+    : "${TEMPORAL_TASK_QUEUE:?TEMPORAL_TASK_QUEUE must be set for the readiness probe}"
+    ready=0
+    for _ in $(seq 1 30); do
+      pollers=$(temporal task-queue describe -t "$TEMPORAL_TASK_QUEUE" -o json 2>/dev/null \
+                  | jq '[.pollers // []] | flatten | length')
+      if [ "${pollers:-0}" -ge 1 ]; then ready=1; break; fi
+      sleep 1
+    done
+    if [ "$ready" -ne 1 ]; then
+      echo "FATAL: worker failed to register pollers within 30s" >&2
+      exit 1
+    fi
+  # Drops the mutation commit from step 5 of RunLoop. The mutation commit is the
+  # ONLY commit created in the mutate phase (the ledger is committed AFTER
+  # rollback per RunLoop step 8b.iv), so HEAD~1 is universally correct.
+  # Live schedule state is restored by RunLoop step 8b.ii (BEFORE this runs)
+  # via snapshot.restore_cmd.
+  rollback_cmd: "git reset --hard HEAD~1"
+
+probe:
+  dir: probes
+  list_glob: "probes/*/probe.yaml"
+
+verifier:
+  # Repo-relative path. Loop driver wires this into AUTOAGENT_SCORE_FILE
+  # before invoking runner.cmd.
+  score_file: ".autoagent/last_score"
+  score_file_scope: repo
+  pass_threshold: 0.5
+  emits_cost: false
+
+runner:
+  cmd: "bash {probe}/verify.sh"
+  concurrency: 4
+  timeout_seconds: 600
+
+snapshot:
+  # Captures every schedule spec into a single archive. Each schedule's YAML
+  # body is preceded by a delimiter line `=== SCHEDULE: <id> ===` so restore
+  # can split it back out unambiguously.
+  capture_cmd: |
+    set -euo pipefail
+    for sid in $(temporal schedule list -o json | jq -r '.[].scheduleId'); do
+      echo "=== SCHEDULE: $sid ==="
+      temporal schedule describe -s "$sid" -o yaml
+    done
+  # Reads the captured archive on stdin and converges live state to it:
+  #   - schedules in archive but missing live    → create
+  #   - schedules in archive and live            → update
+  #   - schedules live but NOT in archive        → delete (added since capture)
+  restore_cmd: |
+    set -euo pipefail
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+    current=""
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^===\ SCHEDULE:\ (.+)\ ===$ ]]; then
+        current="${BASH_REMATCH[1]}"
+        : > "$tmpdir/$current.yaml"
+      elif [ -n "$current" ]; then
+        printf '%s\n' "$line" >> "$tmpdir/$current.yaml"
+      fi
+    done
+    captured_ids=$(cd "$tmpdir" && ls *.yaml 2>/dev/null | sed 's/\.yaml$//' || true)
+    live_ids=$(temporal schedule list -o json | jq -r '.[].scheduleId')
+    for spec in "$tmpdir"/*.yaml; do
+      [ -e "$spec" ] || continue
+      sid=$(basename "$spec" .yaml)
+      if echo "$live_ids" | grep -Fxq "$sid"; then
+        temporal schedule update -s "$sid" -f - < "$spec"
+      else
+        temporal schedule create -s "$sid" -f - < "$spec"
+      fi
+    done
+    for sid in $live_ids; do
+      if ! echo "$captured_ids" | grep -Fxq "$sid"; then
+        temporal schedule delete -s "$sid"
+      fi
+    done
+  dir: snapshots
+
+loop:
+  plateau_iterations: 5
+  human_checkpoint_every: 10
