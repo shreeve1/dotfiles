@@ -1,0 +1,73 @@
+# Wiki Log
+
+Append entries with this format:
+
+## [YYYY-MM-DD] type | Title
+
+- Actor: agent or human
+- Inputs: paths or prompt summary
+- Outputs: changed pages
+- Notes: key decisions or unresolved questions
+
+## 2026-05-16 setup | Initialize LLM Wiki
+
+- Actor: PAI
+- Inputs: `AGENTS.md`, `README.md`, `.config/opencode/skills/llm-wiki-setup/Workflows/Setup.md`, `.config/opencode/skills/llm-wiki-setup/Templates.md`
+- Outputs: `wiki/README.md`, `wiki/index.md`, `wiki/log.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `AGENTS.md`
+- Notes: Domain is PAI dotfiles; initial source types are docs and codebase notes; generated Markdown wiki files should be committed; candidate promotion requires James approval; citation style is inline path citations.
+
+## 2026-05-16 review-fix | Align setup with candidate-gate templates
+
+- Actor: PAI
+- Inputs: `dev-review` findings, `.config/opencode/skills/llm-wiki-setup/Templates.md`, `.config/opencode/skills/llm-wiki-setup/Architecture.md`, `.config/opencode/skills/llm-wiki-setup/Workflows/RefactorAgents.md`
+- Outputs: `AGENTS.md`, `wiki/README.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`, `wiki/raw/assets/`
+- Notes: Added candidate review queue, discard workflow, raw asset path, key-takeaways gates, candidate-index wording, claim ID convention, index-first routing language, expanded lint checks, and explicit source-specific raw-source git policy.
+
+## 2026-05-16 setup-rerun | Verify existing LLM Wiki setup
+
+- Actor: PAI
+- Inputs: `AGENTS.md`, `README.md`, `wiki/`, `.config/opencode/skills/llm-wiki-setup/Workflows/Setup.md`, `.config/opencode/skills/llm-wiki-setup/Workflows/RefactorAgents.md`, `.config/opencode/skills/llm-wiki-setup/Templates.md`
+- Outputs: `wiki/log.md`
+- Notes: Re-ran setup for the existing wiki, preserved existing wiki content, confirmed required directories and core files are present, confirmed `AGENTS.md` already contains the required LLM Wiki operating rules, and found no approved source files under `wiki/raw/` to ingest.
+
+## 2026-05-16 ingest | Dotfiles README
+
+- Actor: PAI
+- Inputs: `README.md`, `wiki/raw/dotfiles-readme.md`
+- Outputs: `wiki/raw/dotfiles-readme.md`, `wiki/candidates/source-dotfiles-readme.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested the first approved source from the shortlist as an immutable raw snapshot, created a candidate source summary, added candidate routing entries marked non-authoritative, and recorded claims C-0002 through C-0007.
+
+## 2026-05-16 ingest | Core operating rules batch
+
+- Actor: PAI
+- Inputs: `AGENTS.md`, `.config/opencode/AGENTS.md`, `.pai/PAI/README.md`, `wiki/raw/dotfiles-agents.md`, `wiki/raw/opencode-agents.md`, `wiki/raw/pai-readme.md`
+- Outputs: `wiki/raw/dotfiles-agents.md`, `wiki/raw/opencode-agents.md`, `wiki/raw/pai-readme.md`, `wiki/candidates/source-dotfiles-agents.md`, `wiki/candidates/source-opencode-agents.md`, `wiki/candidates/source-pai-readme.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested the next approved source batch as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0008 through C-0019.
+
+## 2026-05-16 ingest | Steering and Algorithm doctrine
+
+- Actor: PAI
+- Inputs: `.pai/PAI/AISTEERINGRULES.md`, `.pai/PAI/Algorithm/v6.4.0.md`, `wiki/raw/pai-ai-steering-rules.md`, `wiki/raw/pai-algorithm-v6.4.0.md`
+- Outputs: `wiki/raw/pai-ai-steering-rules.md`, `wiki/raw/pai-algorithm-v6.4.0.md`, `wiki/candidates/source-pai-ai-steering-rules.md`, `wiki/candidates/source-pai-algorithm-v6.4.0.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested steering and Algorithm doctrine as immutable raw snapshots, created two candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0020 through C-0031.
+
+## 2026-05-16 ingest | Architecture memory and subagent references
+
+- Actor: PAI
+- Inputs: `.pai/PAI/PAISYSTEMARCHITECTURE.md`, `.pai/PAI/MEMORYSYSTEM.md`, `docs/reference/opencode-subagents.md`, `wiki/raw/pai-system-architecture.md`, `wiki/raw/pai-memory-system.md`, `wiki/raw/opencode-subagents.md`
+- Outputs: `wiki/raw/pai-system-architecture.md`, `wiki/raw/pai-memory-system.md`, `wiki/raw/opencode-subagents.md`, `wiki/candidates/source-pai-system-architecture.md`, `wiki/candidates/source-pai-memory-system.md`, `wiki/candidates/source-opencode-subagents.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested architecture, memory, and subagent routing references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0032 through C-0046.
+
+## 2026-05-16 ingest | Skill hook and agent systems
+
+- Actor: PAI
+- Inputs: `.pai/PAI/SKILLSYSTEM.md`, `.pai/PAI/THEHOOKSYSTEM.md`, `.pai/PAI/PAIAGENTSYSTEM.md`, `wiki/raw/pai-skill-system.md`, `wiki/raw/pai-hook-system.md`, `wiki/raw/pai-agent-system.md`
+- Outputs: `wiki/raw/pai-skill-system.md`, `wiki/raw/pai-hook-system.md`, `wiki/raw/pai-agent-system.md`, `wiki/candidates/source-pai-skill-system.md`, `wiki/candidates/source-pai-hook-system.md`, `wiki/candidates/source-pai-agent-system.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested skill, hook, and agent system references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0047 through C-0057.
+
+## 2026-05-16 ingest | Context delegation and CLI architecture
+
+- Actor: PAI
+- Inputs: `.pai/PAI/CONTEXT_ROUTING.md`, `.pai/PAI/THEDELEGATIONSYSTEM.md`, `.pai/PAI/CLIFIRSTARCHITECTURE.md`, `wiki/raw/pai-context-routing.md`, `wiki/raw/pai-delegation-system.md`, `wiki/raw/pai-cli-first-architecture.md`
+- Outputs: `wiki/raw/pai-context-routing.md`, `wiki/raw/pai-delegation-system.md`, `wiki/raw/pai-cli-first-architecture.md`, `wiki/candidates/source-pai-context-routing.md`, `wiki/candidates/source-pai-delegation-system.md`, `wiki/candidates/source-pai-cli-first-architecture.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested context routing, delegation, and CLI-first architecture references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0058 through C-0068.

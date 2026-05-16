@@ -5,7 +5,7 @@ description: LLM Wiki project setup and maintenance. USE WHEN set up LLM wiki, i
 
 # LLM Wiki Setup
 
-Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable raw sources, LLM-maintained Markdown wiki, persistent index/log/routing files, claim provenance, candidate review gates, and project `AGENTS.md` workflow integration.
+Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable raw sources, LLM-maintained Markdown wiki, persistent index/log files, project `AGENTS.md` workflow integration, plus default implementation extensions for routing, claim provenance, and candidate review gates.
 
 ## Workflow Routing
 
@@ -22,11 +22,12 @@ Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable
 
 - Wiki root: `wiki/`
 - Raw sources: `wiki/raw/`
-- Candidate review gate: enabled by default
-- Claim provenance: required for factual claims
-- Routing file: `wiki/ROUTING.md`
+- Candidate review gate: enabled by default as a skill extension
+- Claim provenance: required for factual claims as a skill extension
+- Routing file: `wiki/ROUTING.md` as a skill extension
 - Search tooling: document optional local search; do not install without explicit approval
 - `AGENTS.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules
+- Post-setup ingestion handoff: perform the first approved ingest when sources are named, otherwise suggest a prioritized ingest shortlist
 
 ## Required Interview
 
@@ -47,7 +48,9 @@ Use the defaults above when James says to proceed without more customization.
 - Treat `wiki/raw/` as immutable source-of-truth input.
 - Generated wiki pages must cite raw sources or existing wiki pages.
 - New pages and risky updates go through `wiki/candidates/` first.
+- Candidate pages must remain discoverable until promoted or discarded.
 - Existing pages can be updated directly only when the source impact is clear and cited.
+- After setup, do not stop at an empty wiki: either run `Workflows/Ingest.md` for named/approved sources or report a prioritized ingest shortlist with exact source paths or source-selection questions.
 - Prefer small, deterministic Markdown files over new infrastructure.
 - Do not install qmd, MCP servers, Obsidian plugins, or other tooling without explicit approval.
 - Do not initialize a project wiki inside this skill's own install repository unless James explicitly confirms that target.

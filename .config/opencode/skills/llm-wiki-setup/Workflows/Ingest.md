@@ -9,16 +9,18 @@ Use this workflow when adding a new source to the wiki.
 
 ## Procedure
 
-1. Read `wiki/ROUTING.md`, `wiki/index.md`, and `wiki/CLAIMS.md`.
+1. Read `wiki/index.md`, then `wiki/ROUTING.md`, then `wiki/CLAIMS.md`.
 2. Read the raw source.
 3. Produce a short source summary with citations to the raw path.
-4. Extract entities, concepts, decisions, contradictions, and atomic claims.
-5. Check existing promoted pages before creating new candidates.
-6. Create candidate pages in `wiki/candidates/` using page frontmatter from `Templates.md`.
-7. Update `wiki/CLAIMS.md` with important claims and citation paths. Assign claim IDs by scanning existing `C-####` IDs and using the next available zero-padded integer.
-8. Update `wiki/index.md` only for promoted pages; list candidates separately if useful.
-9. Update `wiki/ROUTING.md` with candidate branches only when the route is clearly durable.
-10. Append an ingest entry to `wiki/log.md`.
+4. Discuss key takeaways or emphasis with James when the source is substantial, ambiguous, or likely to touch multiple pages.
+5. Extract entities, concepts, decisions, contradictions, and atomic claims.
+6. Check existing promoted pages before creating new candidates or updating existing pages.
+7. Update existing promoted pages directly only when the source impact is clear, cited, and low-risk; otherwise create candidates.
+8. Create candidate pages in `wiki/candidates/` using page frontmatter from `Templates.md`.
+9. Update `wiki/CLAIMS.md` with important claims and citation paths. Assign claim IDs by scanning existing `C-####` IDs and using the next available zero-padded integer. Candidate claims must point to `wiki/candidates/...` until promotion.
+10. Update `wiki/index.md`: promoted-page sections for promoted pages only, and the candidate review queue for candidates.
+11. Update `wiki/ROUTING.md` with candidate routes only when the route is clearly durable, and mark those routes as candidate/non-authoritative.
+12. Append an ingest entry to `wiki/log.md`.
 
 ## Candidate Naming
 
@@ -45,4 +47,6 @@ Confirm:
 - Source remains in `wiki/raw/`.
 - Candidate pages include frontmatter, sources, and confidence.
 - `CLAIMS.md` entries cite exact source paths.
+- Candidate claims and routes point to `wiki/candidates/...` until promotion.
+- `index.md` lists candidates in the candidate review queue without treating them as promoted pages.
 - `log.md` has an ingest entry.
