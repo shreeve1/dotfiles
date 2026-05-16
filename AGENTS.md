@@ -20,6 +20,7 @@ This project uses `wiki/` as an LLM-maintained knowledge base for PAI dotfiles, 
 - `wiki/raw/`: immutable source material; read and cite it, but do not rewrite it after ingest.
 - `wiki/raw/sessions/`: curated session captures created by `/wiki-update` when conversation evidence needs citation.
 - `wiki/candidates/`: generated pages awaiting James approval before promotion.
+- Candidate pages must stay discoverable in `wiki/index.md` and `wiki/ROUTING.md` until promoted or discarded.
 - `wiki/sources/`: promoted source summaries.
 - `wiki/entities/`: promoted entity pages.
 - `wiki/concepts/`: promoted concept pages.
@@ -30,7 +31,7 @@ This project uses `wiki/` as an LLM-maintained knowledge base for PAI dotfiles, 
 ### Required Files
 
 - Read `wiki/index.md` before wiki-backed answers, then use `wiki/ROUTING.md` to narrow broad searches.
-- Append every ingest, query save, lint, and promotion to `wiki/log.md`.
+- Append every ingest, query save, lint, promotion, and discard to `wiki/log.md`.
 - Track important factual claims in `wiki/CLAIMS.md` with inline path citations.
 - Generated Markdown wiki files are intended to be committed to git; do not add raw-source `.gitignore` rules without explicit approval.
 - Raw-source git policy is source-specific: ask before adding large/binary raw files, ignoring raw paths, or moving raw sources to external storage.

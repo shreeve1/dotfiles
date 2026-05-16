@@ -178,8 +178,6 @@ Use these skills alongside `pai-core`:
 - `ContextSearch`: recover prior work, session memory, ISAs, and decisions
 - `mem`: browse or manage durable memory artifacts
 - `save`: persist reusable handoff notes or conventions
-- `gitnexus-debugging`: trace code failures when GitNexus is indexed
-- `gitnexus-impact-analysis`: inspect blast radius before changing shared code
 - `BitterPillEngineering`: audit instruction sets for stale or redundant rules
 - `create-skill`, `skill-creator`, or `write-a-skill`: update or create skills
 
