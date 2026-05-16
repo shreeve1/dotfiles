@@ -71,3 +71,10 @@ Append entries with this format:
 - Inputs: `.pai/PAI/CONTEXT_ROUTING.md`, `.pai/PAI/THEDELEGATIONSYSTEM.md`, `.pai/PAI/CLIFIRSTARCHITECTURE.md`, `wiki/raw/pai-context-routing.md`, `wiki/raw/pai-delegation-system.md`, `wiki/raw/pai-cli-first-architecture.md`
 - Outputs: `wiki/raw/pai-context-routing.md`, `wiki/raw/pai-delegation-system.md`, `wiki/raw/pai-cli-first-architecture.md`, `wiki/candidates/source-pai-context-routing.md`, `wiki/candidates/source-pai-delegation-system.md`, `wiki/candidates/source-pai-cli-first-architecture.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
 - Notes: Ingested context routing, delegation, and CLI-first architecture references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, and recorded claims C-0058 through C-0068.
+
+## 2026-05-16 ingest | Tools notifications and PRD format
+
+- Actor: PAI
+- Inputs: `.pai/PAI/TOOLS.md`, `.pai/PAI/THENOTIFICATIONSYSTEM.md`, `.pai/PAI/PRDFORMAT.md`, `wiki/raw/pai-tools.md`, `wiki/raw/pai-notification-system.md`, `wiki/raw/pai-prd-format.md`
+- Outputs: `wiki/raw/pai-tools.md`, `wiki/raw/pai-notification-system.md`, `wiki/raw/pai-prd-format.md`, `wiki/candidates/source-pai-tools.md`, `wiki/candidates/source-pai-notification-system.md`, `wiki/candidates/source-pai-prd-format.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested tools, notification, and PRD format references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, recorded claims C-0069 through C-0080, and flagged PRD source-of-truth claims as needing reconciliation with current ISA doctrine.

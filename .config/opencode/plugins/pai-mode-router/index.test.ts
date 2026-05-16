@@ -155,13 +155,104 @@ test("Algorithm-lite directive preserves visible PLAN subprocess markers", async
   expect(system).toContain("PARALLELISM OPPORTUNITY SCAN");
 });
 
-async function classifyViaHook(promptText: string, sid: string) {
+async function classifyViaHook(
+  promptText: string,
+  sid: string,
+  input: Record<string, unknown> = {},
+) {
   await hooks["chat.message"]?.(
-    { sessionID: sid },
+    { sessionID: sid, ...input },
     { parts: [{ type: "text", text: promptText }] },
   );
   return JSON.parse(readFileSync(statePath, "utf8")).sessions[sid];
 }
+
+test("Task subagent prompts bypass mode routing and tool gates", async () => {
+  const sid = "ses_test_task_subagent_explore";
+  const session = await classifyViaHook(
+    "Review the PAI opencode plugin layer in /home/james/dotfiles and report findings.",
+    sid,
+    { agent: "explore" },
+  );
+  expect(session).toBeUndefined();
+  await expect(
+    hooks["tool.execute.before"]?.(
+      { tool: "read", sessionID: sid, callID: "call_read" },
+      { args: {} },
+    ),
+  ).resolves.toBeUndefined();
+});
+
+test("Task subagent bypass clears stale router state", async () => {
+  const session = await classifyViaHook(
+    "Review the PAI opencode plugin layer in /home/james/dotfiles and report findings.",
+    sessionID,
+    { agent: "explore" },
+  );
+  expect(session).toBeUndefined();
+  expect(readSession()).toBeUndefined();
+  await expect(beforeTool("read")).resolves.toBeUndefined();
+});
+
+test("primary build agent prompts still route through Algorithm", async () => {
+  const sid = "ses_test_primary_build_algorithm";
+  const session = await classifyViaHook(
+    "Please refactor the auth service, add migration tests, and update integration coverage.",
+    sid,
+    { agent: "build" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("primary plan agent prompts still route through Algorithm", async () => {
+  const sid = "ses_test_primary_plan_algorithm";
+  const session = await classifyViaHook(
+    "Create an implementation plan for refactoring the auth service and updating integration coverage.",
+    sid,
+    { agent: "plan" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("explicit pai-algorithm subagent remains router-managed", async () => {
+  const sid = "ses_test_pai_algorithm_subagent";
+  const session = await classifyViaHook(
+    "Run the full Algorithm to implement this complex multi-step task.",
+    sid,
+    { agent: "pai-algorithm" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("ambiguous general agent still routes through Algorithm", async () => {
+  const sid = "ses_test_general_agent_algorithm";
+  const session = await classifyViaHook(
+    "Please refactor the auth service, add migration tests, and update integration coverage.",
+    sid,
+    { agent: "general" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("custom PAI agents still route unless explicitly subagent", async () => {
+  const sid = "ses_test_pai_engineer_primary_algorithm";
+  const session = await classifyViaHook(
+    "Please refactor the auth service, add migration tests, and update integration coverage.",
+    sid,
+    { agent: "pai-engineer" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("explicit subagent mode bypasses custom PAI worker", async () => {
+  const sid = "ses_test_pai_engineer_subagent_bypass";
+  const session = await classifyViaHook(
+    "Please refactor the auth service, add migration tests, and update integration coverage.",
+    sid,
+    { agent: "pai-engineer", mode: "subagent" },
+  );
+  expect(session).toBeUndefined();
+});
 
 test("session naming sub-agent prompt classifies MINIMAL with no ISA", async () => {
   const sid = "ses_test_subagent_naming";

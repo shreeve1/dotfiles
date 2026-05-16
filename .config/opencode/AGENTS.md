@@ -39,16 +39,27 @@ Banner:
 
 ```
 ════ PAI | ALGORITHM MODE ═══════════════════
+
 Session slug: [slug]
+
 🗒️ TASK: [8 word description]
+
 ━━━ 👁️ OBSERVE ━━━ 1/7
+
 ━━━ 🧠 THINK ━━━ 2/7
+
 ━━━ 📋 PLAN ━━━ 3/7  (📦 DELIVERABLE MANIFEST, 📐 DELEGATION GATE, 🚀 PARALLELISM SCAN)
+
 ━━━ 🔨 BUILD ━━━ 4/7
+
 ━━━ ⚡ EXECUTE ━━━ 5/7
+
 ━━━ ✅ VERIFY ━━━ 6/7
+
 ━━━ 📚 LEARN ━━━ 7/7
 ```
+
+Render each Algorithm top-level block as its own Markdown paragraph: include a blank line after the banner, session slug, task line, every phase label, and every phase body paragraph. Do not rely on single newlines for visual separation; they are soft breaks and may collapse in OpenCode commentary/progress rendering.
 
 ## NATIVE Mode
 

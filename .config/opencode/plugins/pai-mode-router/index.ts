@@ -12,6 +12,8 @@ import { dirname, join } from "node:path";
 //   - experimental.chat.system.transform: inject mode-specific system content
 //   - experimental.chat.messages.transform: inject Algorithm-lite reminders
 //   - tool.execute.before/after: enforce Algorithm-lite checklist initialization
+//   - non-primary Task subagents: bypass routing so worker prompts do not inherit
+//     primary-agent Algorithm ceremony or todowrite gates
 //
 // Replaces pai-session-reminder.
 // =============================================================================
@@ -41,6 +43,48 @@ type SessionState = {
 };
 
 const PRIMER_ATTEMPTS_CAP = 5;
+
+// The router is a primary-agent response-format controller. Known Task-created
+// worker subagents already have their own prompts and tool contracts; routing
+// them through Algorithm mode creates memory noise and can block workers that do
+// not expose todowrite. Keep primary/ambiguous agents routed unless opencode
+// explicitly marks the hook input as a subagent.
+const ROUTER_MANAGED_AGENTS = new Set(["build", "plan", "pai-algorithm"]);
+const ROUTER_BYPASS_AGENTS = new Set([
+  "browser-automation",
+  "browser-qa",
+  "builder",
+  "cato",
+  "claude-researcher",
+  "command-creator",
+  "devtools-console",
+  "devtools-inspector",
+  "devtools-network",
+  "devtools-performance",
+  "document-writer",
+  "executor-powershell",
+  "executor-ssh",
+  "explore",
+  "explorer",
+  "forge",
+  "framework-builder",
+  "gemini-researcher",
+  "grok-researcher",
+  "infra-planner",
+  "infra-scout",
+  "infra-validator",
+  "librarian",
+  "llm-ai-agents-and-eng-research",
+  "meta-agent",
+  "perplexity-researcher",
+  "python-sqlite-cli",
+  "quick-review-codex",
+  "quick-review-opus",
+  "skill-author",
+  "ui-reviewer",
+  "validator",
+  "web-searcher",
+]);
 
 type RouterState = {
   sessions: Record<string, SessionState>;
@@ -342,6 +386,24 @@ function isSubagentPrompt(prompt: string): boolean {
   return SUBAGENT_PROMPT_FINGERPRINTS.some((f) => text.includes(f));
 }
 
+function normalizeAgentName(agent: unknown): string | undefined {
+  if (typeof agent !== "string") return undefined;
+  const name = agent.trim();
+  return name.length > 0 ? name : undefined;
+}
+
+function hookInputDeclaresSubagent(input: any): boolean {
+  return [input?.agentMode, input?.agent_mode, input?.mode].some(
+    (mode) => typeof mode === "string" && mode.trim() === "subagent",
+  );
+}
+
+function shouldBypassModeRouterForAgent(input: any): boolean {
+  const agent = normalizeAgentName(input?.agent);
+  if (!agent || ROUTER_MANAGED_AGENTS.has(agent)) return false;
+  return hookInputDeclaresSubagent(input) || ROUTER_BYPASS_AGENTS.has(agent);
+}
+
 function classify(prompt: string): Mode {
   const text = prompt.toLowerCase().trim();
   if (!text) return "MINIMAL";
@@ -577,6 +639,7 @@ function algorithmDirective(state: SessionState): string {
     "First output line MUST be EXACTLY: ════ PAI | ALGORITHM MODE ═══════════════════ — no prose, no acknowledgment, no tool call before it.",
     `Session slug: ${slug}`,
     "MUST: emit all 7 phase labels visibly in the response, in order: ━━━ 👁️ OBSERVE ━━━ 1/7, ━━━ 🧠 THINK ━━━ 2/7, ━━━ 📋 PLAN ━━━ 3/7, ━━━ 🔨 BUILD ━━━ 4/7, ━━━ ⚡ EXECUTE ━━━ 5/7, ━━━ ✅ VERIFY ━━━ 6/7, ━━━ 📚 LEARN ━━━ 7/7.",
+    "MUST: render Algorithm output as separate Markdown blocks with blank lines after the banner, session slug, task line, every phase label, and every phase body paragraph. Do not rely on single newlines because OpenCode commentary/progress rendering may collapse Markdown soft breaks into spaces.",
     "MUST: PLAN includes visible 📦 DELIVERABLE MANIFEST, 📐 DELEGATION GATE, and 🚀 PARALLELISM OPPORTUNITY SCAN — even for short tasks.",
     "MUST: use todowrite BEFORE any other tool; the tool layer blocks all other tool calls until todowrite is initialized.",
     "MUST: BUILD is included when artifacts/code/config change; otherwise state `BUILD: not needed`.",
@@ -617,6 +680,14 @@ export const PaiModeRouter: Plugin = async () => {
       try {
         const sessionID: string | undefined = input?.sessionID;
         if (!sessionID) return;
+        if (shouldBypassModeRouterForAgent(input)) {
+          const state = loadState();
+          if (state.sessions[sessionID]) {
+            delete state.sessions[sessionID];
+            saveState(state);
+          }
+          return;
+        }
         const parts = output?.parts ?? [];
         const rawPrompt = extractPromptText(parts);
         if (!rawPrompt) return;
@@ -748,6 +819,7 @@ export const PaiModeRouter: Plugin = async () => {
           : "[pai-mode-router] This session is ALGORITHM (durable-ISA). " +
             `Slug=${session.slug}. ISA stub at ${session.isaPath}. ` +
             "Your first output line MUST be: ════ PAI | ALGORITHM MODE ═══════════════════. " +
+            "Render Algorithm output with blank lines between top-level blocks; single newlines may collapse in commentary/progress display. " +
             "Before any other tool, call todowrite with 2-8 atomic criteria covering Problem, Goal, ISC verification, and the 7 Algorithm phases. The tool layer will block other tools until todowrite runs. Then begin OBSERVE and edit the ISA in place.";
 
         // Inject a synthetic user primer right before this user turn, so the

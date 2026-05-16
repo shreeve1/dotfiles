@@ -5,6 +5,9 @@ artifacts/
 # Machine-local session work logs (per-machine)
 MEMORY/
 
+# Machine-local kanban/runtime logs
+.kanban/*.log
+
 # Machine-local plan artifacts (per-machine)
 Plans/
 plans/
