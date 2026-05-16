@@ -23,16 +23,19 @@ import {
   writeFileSync,
 } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
 import { PaiPiPerspective } from '../../../plugins/pai-pi-perspective/index.ts';
 
 const {
   _setSpawnPiOverride,
   handleIsaEdit,
+  handleAlgorithmLiteVerify,
   findAuditPathForVerdict,
   appendRunSummary,
   appendAlert,
+  loadSidecar,
+  saveSidecar,
 } = PaiPiPerspective.__test;
 
 interface SpawnCall {
@@ -90,6 +93,30 @@ function writeSettings(opts: {
     settingsPath,
     JSON.stringify({ pi_perspective: block }, null, 2),
     'utf-8'
+  );
+}
+
+function writeModeRouterSession(
+  sessionID: string,
+  slug: string,
+  contract: 'lite' | 'isa' = 'lite',
+): void {
+  const stateDir = join(dirname(settingsPath), 'memory', 'STATE');
+  mkdirSync(stateDir, { recursive: true });
+  const statePath = join(stateDir, 'mode-router.json');
+  const existing = existsSync(statePath)
+    ? JSON.parse(readFileSync(statePath, 'utf-8'))
+    : { sessions: {} };
+  existing.sessions ??= {};
+  existing.sessions[sessionID] = {
+    mode: 'ALGORITHM',
+    slug,
+    algorithm: { contract, initialized: true },
+  };
+  writeFileSync(
+    statePath,
+    JSON.stringify(existing, null, 2),
+    'utf-8',
   );
 }
 
@@ -271,6 +298,78 @@ describe('T-18: effort tier -> workflow dispatch', () => {
   });
 });
 
+describe('T-22: Algorithm-lite VERIFY dispatch', () => {
+  test('Algorithm-lite VERIFY context fires once per completed assistant text', async () => {
+    writeSettings();
+    writeModeRouterSession('session-lite', 'lite-verify-slug');
+    const text = '════ PAI | ALGORITHM MODE ═══════════════════\n━━━ ✅ VERIFY ━━━ 6/7\nverified';
+
+    await handleAlgorithmLiteVerify('session-lite', text);
+    await handleAlgorithmLiteVerify('session-lite', text);
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].phase).toBe('VERIFY');
+    expect(calls[0].isaPath).toBe(
+      join(workRoot, 'lite-verify-slug', 'pi-perspective-lite-context.md'),
+    );
+    const context = readFileSync(calls[0].isaPath, 'utf-8');
+    expect(context).toContain('Algorithm-lite PiPerspective VERIFY Context');
+    expect(context).toContain('verified');
+  });
+
+  test('event hook runs Algorithm-lite VERIFY on session idle', async () => {
+    writeSettings();
+    writeModeRouterSession('session-event-lite', 'lite-event-slug');
+    const plugin = await PaiPiPerspective();
+    const text = '════ PAI | ALGORITHM MODE ═══════════════════\n━━━ ✅ VERIFY ━━━ 6/7\nready';
+
+    await plugin.event?.({
+      event: {
+        type: 'message.part.updated',
+        properties: {
+          part: {
+            id: 'part-1',
+            sessionID: 'session-event-lite',
+            messageID: 'message-1',
+            type: 'text',
+            text,
+          },
+        },
+      },
+    });
+    await plugin.event?.({
+      event: {
+        type: 'message.updated',
+        properties: {
+          info: {
+            id: 'message-1',
+            sessionID: 'session-event-lite',
+            role: 'assistant',
+            time: { created: 1, completed: 2 },
+          },
+        },
+      },
+    });
+    await plugin.event?.({
+      event: { type: 'session.idle', properties: { sessionID: 'session-event-lite' } },
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].phase).toBe('VERIFY');
+  });
+
+  test('Algorithm-lite VERIFY ignores durable sessions and non-VERIFY text', async () => {
+    writeSettings();
+    writeModeRouterSession('session-durable', 'durable-slug', 'isa');
+    writeModeRouterSession('session-lite-no-verify', 'lite-no-verify-slug');
+
+    await handleAlgorithmLiteVerify('session-durable', '━━━ ✅ VERIFY ━━━ 6/7');
+    await handleAlgorithmLiteVerify('session-lite-no-verify', '━━━ 📚 LEARN ━━━ 7/7');
+
+    expect(calls).toEqual([]);
+  });
+});
+
 describe('T-20: alert audit path resolution', () => {
   test('findAuditPathForVerdict returns the suffixed audit file for repeated phase runs', () => {
     const workDir = join(workRoot, 'audit-suffix');
@@ -314,7 +413,59 @@ describe('T-21: verdict visibility', () => {
     const runs = readFileSync(join(workDir, 'pi-perspective-runs.md'), 'utf-8');
     expect(runs).toContain('# PiPerspective runs');
     expect(runs).toContain('## PASS — THINK — 2026-01-01T00:02:00.000Z');
+    expect(runs).toContain('**run_key:** `THINK@2026-01-01T00:02:00.000Z`');
     expect(runs).toContain('No concerns.');
+  });
+
+  test('system transform injects unseen PASS run summaries once', async () => {
+    const workDir = join(workRoot, 'visible-pass-run');
+    mkdirSync(workDir, { recursive: true });
+    const state = loadSidecar(workDir);
+    state.seen_runs_initialized = true;
+    saveSidecar(workDir, state);
+    appendRunSummary(
+      workDir,
+      'VERIFY',
+      'PASS',
+      'No concerns.',
+      join(workDir, 'pi-perspective', 'verify.json'),
+      '2026-01-01T00:04:00.000Z',
+    );
+    const plugin = await PaiPiPerspective();
+    const output = { system: [] as string[] };
+
+    await plugin['experimental.chat.system.transform']?.({ sessionID: 's', model: {} as any }, output);
+
+    expect(output.system.length).toBe(1);
+    expect(output.system[0]).toContain('<pai-pi-perspective-runs>');
+    expect(output.system[0]).toContain('## PASS — VERIFY — 2026-01-01T00:04:00.000Z');
+    expect(output.system[0]).toContain('No concerns.');
+
+    await plugin['chat.message']?.({ sessionID: 's' } as any, {} as any);
+    const second = { system: [] as string[] };
+    await plugin['experimental.chat.system.transform']?.({ sessionID: 's', model: {} as any }, second);
+    expect(second.system).toEqual([]);
+  });
+
+  test('pre-existing run summaries are marked seen without injection', async () => {
+    const workDir = join(workRoot, 'historical-pass-run');
+    mkdirSync(workDir, { recursive: true });
+    appendRunSummary(
+      workDir,
+      'VERIFY',
+      'PASS',
+      'Historical run.',
+      join(workDir, 'pi-perspective', 'verify.json'),
+      '2026-01-01T00:05:00.000Z',
+    );
+    const plugin = await PaiPiPerspective();
+    const output = { system: [] as string[] };
+
+    await plugin['experimental.chat.system.transform']?.({ sessionID: 's', model: {} as any }, output);
+
+    expect(output.system).toEqual([]);
+    const state = loadSidecar(workDir);
+    expect(state.seen_runs).toContain('VERIFY@2026-01-01T00:05:00.000Z');
   });
 
   test('appendAlert records CONCERNS verdicts for next-turn injection', () => {

@@ -158,6 +158,17 @@ const ISA_ESCALATION_KEYWORDS = [
   "architecture",
 ];
 
+const EXPLICIT_LITE_CONTRACT_PATTERNS = [
+  /\balgorithm-lite\b/,
+  /\balgorithm\s+lite\b/,
+  /\bcontract\s*:\s*lite\b/,
+  /\blite\s+contract\b/,
+  /\bno\s+isa\b/,
+  /\bdo\s+not\s+create\s+(?:an?\s+)?isa\b/,
+  /\bdon['’]?t\s+create\s+(?:an?\s+)?isa\b/,
+  /\bwithout\s+(?:an?\s+)?isa\b/,
+];
+
 const VAGUE_CRITERIA = [
   "do it",
   "do the task",
@@ -380,6 +391,9 @@ function shouldEscalateToAlgorithm(prompt: string): boolean {
 function shouldCreateDurableIsa(prompt: string): boolean {
   const text = prompt.toLowerCase();
   const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (EXPLICIT_LITE_CONTRACT_PATTERNS.some((pattern) => pattern.test(text))) {
+    return false;
+  }
   if (wordCount > 160) return true;
   return ISA_ESCALATION_KEYWORDS.some((k) => text.includes(k));
 }

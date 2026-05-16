@@ -2,6 +2,8 @@
  * pai-pi-perspective — auto-invoke PiPerspective on Algorithm phase transitions.
  *
  * Trigger: tool.execute.after on write/edit/patch of ISA.md under ~/.pai/memory/WORK/.
+ * Algorithm-lite VERIFY runs additionally trigger from session-idle events using
+ * the latest completed assistant text as a context artifact.
  * Same pattern as pai-isa-sync and pai-checkpoint-per-isc — there is no native
  * phase-transition event in the opencode plugin API (see
  * ~/.pai/artifacts/plans/pi-perspective/HOOK-SURFACE.md for the T-13 finding).
@@ -95,12 +97,27 @@ interface SidecarState {
   fires: { phase: Phase; started_at: string; key?: string }[];
   /** Alerts the model has already seen (cleared by chat.message hook). */
   seen_alerts: string[];
+  /** Run summaries the model has already seen (cleared by chat.message hook). */
+  seen_runs: string[];
+  /** Prevents historical run summaries from being injected after upgrades. */
+  seen_runs_initialized: boolean;
+}
+
+function emptySidecar(): SidecarState {
+  return {
+    last_fired_phase: null,
+    last_fired_key: null,
+    fires: [],
+    seen_alerts: [],
+    seen_runs: [],
+    seen_runs_initialized: false,
+  };
 }
 
 function loadSidecar(workDir: string): SidecarState {
   const file = join(workDir, SIDECAR_FILE);
   if (!existsSync(file)) {
-    return { last_fired_phase: null, last_fired_key: null, fires: [], seen_alerts: [] };
+    return emptySidecar();
   }
   try {
     const parsed = JSON.parse(readFileSync(file, 'utf-8'));
@@ -109,10 +126,12 @@ function loadSidecar(workDir: string): SidecarState {
       last_fired_key: parsed.last_fired_key ?? null,
       fires: Array.isArray(parsed.fires) ? parsed.fires : [],
       seen_alerts: Array.isArray(parsed.seen_alerts) ? parsed.seen_alerts : [],
+      seen_runs: Array.isArray(parsed.seen_runs) ? parsed.seen_runs : [],
+      seen_runs_initialized: parsed.seen_runs_initialized === true,
     };
   } catch (err) {
     console.error('[pai-pi-perspective] malformed sidecar, resetting:', err);
-    return { last_fired_phase: null, last_fired_key: null, fires: [], seen_alerts: [] };
+    return emptySidecar();
   }
 }
 
@@ -247,8 +266,10 @@ function appendRunSummary(
   generatedAt: string
 ): void {
   const file = join(workDir, RUNS_FILE);
+  const key = alertKey(phase, generatedAt);
   const entry =
     `\n## ${verdict} — ${phase} — ${generatedAt}\n\n` +
+    `**run_key:** \`${key}\`\n\n` +
     `${summary.trim()}\n\n` +
     (auditPath ? `**Full verdict:** ${auditPath}\n` : '') +
     `\n---\n`;
@@ -265,6 +286,38 @@ function appendRunSummary(
   } catch (err) {
     console.error('[pai-pi-perspective] run summary write failed:', err);
   }
+}
+
+interface RunEntry {
+  key: string;
+  body: string;
+}
+
+function parseRuns(runsPath: string): RunEntry[] {
+  if (!existsSync(runsPath)) return [];
+  const text = readFileSync(runsPath, 'utf-8');
+  const entries: RunEntry[] = [];
+  const sections = text.split(/\n## /).slice(1);
+  for (const sec of sections) {
+    const body = '## ' + sec.split('\n---')[0].trim();
+    const explicit = sec.match(/\*\*run_key:\*\*\s*`([^`]+)`/);
+    if (explicit) {
+      entries.push({ key: explicit[1], body });
+      continue;
+    }
+    const heading = sec.split('\n', 1)[0]?.trim() ?? '';
+    const inferred = heading.match(/^(PASS|CONCERNS|FAIL|REFRAME) — (THINK|PLAN|VERIFY) — (.+)$/);
+    if (!inferred) continue;
+    entries.push({ key: `${inferred[2]}@${inferred[3]}`, body });
+  }
+  return entries;
+}
+
+function ensureRunVisibilityInitialized(workDir: string, state: SidecarState): void {
+  if (state.seen_runs_initialized) return;
+  const existing = parseRuns(join(workDir, RUNS_FILE)).map((run) => run.key);
+  state.seen_runs = [...new Set([...state.seen_runs, ...existing])];
+  state.seen_runs_initialized = true;
 }
 
 function findAuditPathForVerdict(
@@ -430,6 +483,7 @@ async function handleIsaEdit(filePath: string): Promise<void> {
 
   if (state.last_fired_key === key) return;
 
+  ensureRunVisibilityInitialized(workDir, state);
   state.last_fired_phase = phase;
   state.last_fired_key = key;
   state.fires.push({ phase, key, started_at: new Date().toISOString() });
@@ -440,6 +494,114 @@ async function handleIsaEdit(filePath: string): Promise<void> {
   );
 
   spawnPi(phase, filePath, undefined, undefined, cfg.model);
+}
+
+// ---------------------------------------------------------------------------
+// Algorithm-lite VERIFY handler
+// ---------------------------------------------------------------------------
+
+const LITE_VERIFY_CONTEXT_FILE = 'pi-perspective-lite-context.md';
+const VERIFY_PHASE_MARKER = '━━━ ✅ VERIFY ━━━ 6/7';
+const assistantTextParts = new Map<string, Map<string, string>>();
+const lastAssistantTextBySession = new Map<string, string>();
+const pendingSeenAlerts = new Map<string, Set<string>>();
+const pendingSeenRuns = new Map<string, Set<string>>();
+
+interface ModeRouterSession {
+  mode?: string;
+  slug?: string;
+  algorithm?: {
+    contract?: string;
+  };
+}
+
+function modeRouterStatePath(): string {
+  return join(paiRuntimeHome(), 'memory', 'STATE', 'mode-router.json');
+}
+
+function liteSessionSlug(sessionID: string): string | null {
+  try {
+    const path = modeRouterStatePath();
+    if (!existsSync(path)) return null;
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'));
+    const session = parsed?.sessions?.[sessionID] as ModeRouterSession | undefined;
+    if (session?.mode !== 'ALGORITHM') return null;
+    if (session.algorithm?.contract !== 'lite') return null;
+    return session.slug ?? null;
+  } catch (err) {
+    console.error('[pai-pi-perspective] mode-router state read failed:', err);
+    return null;
+  }
+}
+
+function writeLiteVerifyContext(workDir: string, slug: string, assistantText: string): string {
+  mkdirSync(workDir, { recursive: true });
+  const contextPath = join(workDir, LITE_VERIFY_CONTEXT_FILE);
+  const content =
+    `# Algorithm-lite PiPerspective VERIFY Context\n\n` +
+    `Session slug: ${slug}\n\n` +
+    `Generated: ${new Date().toISOString()}\n\n` +
+    `This is not a durable ISA. It is the Algorithm-lite assistant response ` +
+    `captured at session idle so PiPerspective can review the VERIFY step.\n\n` +
+    `## Assistant Response\n\n` +
+    '```markdown\n' +
+    assistantText.trim() +
+    '\n```\n';
+  writeFileSync(contextPath, content, 'utf-8');
+  return contextPath;
+}
+
+async function handleAlgorithmLiteVerify(
+  sessionID: string,
+  assistantText: string | undefined
+): Promise<void> {
+  if (!assistantText?.includes(VERIFY_PHASE_MARKER)) return;
+  const slug = liteSessionSlug(sessionID);
+  if (!slug) return;
+  const cfg = loadPiConfig();
+  if (!cfg.enabled) return;
+
+  const workDir = join(memoryWorkDir(), slug);
+  const state = loadSidecar(workDir);
+  const key = fireKey('VERIFY', `lite:${sessionID}:${assistantText}`);
+  if (state.last_fired_key === key) return;
+
+  ensureRunVisibilityInitialized(workDir, state);
+  const contextPath = writeLiteVerifyContext(workDir, slug, assistantText);
+  state.last_fired_phase = 'VERIFY';
+  state.last_fired_key = key;
+  state.fires.push({ phase: 'VERIFY', key, started_at: new Date().toISOString() });
+  saveSidecar(workDir, state);
+
+  console.error(
+    `[pai-pi-perspective] firing pi for VERIFY (contract=lite) on ${contextPath}`
+  );
+  spawnPi('VERIFY', contextPath, undefined, undefined, cfg.model);
+}
+
+function rememberAssistantTextPart(part: any): void {
+  if (part?.type !== 'text') return;
+  if (typeof part.sessionID !== 'string') return;
+  if (typeof part.messageID !== 'string') return;
+  if (typeof part.id !== 'string') return;
+  if (typeof part.text !== 'string') return;
+  const key = `${part.sessionID}:${part.messageID}`;
+  const parts = assistantTextParts.get(key) ?? new Map<string, string>();
+  parts.set(part.id, part.text);
+  assistantTextParts.set(key, parts);
+}
+
+function rememberCompletedAssistantMessage(info: any): void {
+  if (info?.role !== 'assistant') return;
+  if (!info.time?.completed) return;
+  if (typeof info.sessionID !== 'string') return;
+  if (typeof info.id !== 'string') return;
+  const key = `${info.sessionID}:${info.id}`;
+  const parts = assistantTextParts.get(key);
+  if (!parts) return;
+  const text = [...parts.values()].join('\n').trim();
+  assistantTextParts.delete(key);
+  if (text) lastAssistantTextBySession.set(info.sessionID, text);
 }
 
 // ---------------------------------------------------------------------------
@@ -492,29 +654,75 @@ function collectUnseenAlerts(): { workDir: string; alerts: AlertEntry[] }[] {
   return result;
 }
 
-function markAlertsSeen(): void {
+function collectUnseenRuns(): { workDir: string; runs: RunEntry[] }[] {
+  const result: { workDir: string; runs: RunEntry[] }[] = [];
   let slugs: string[] = [];
   try {
     slugs = readdirSync(memoryWorkDir());
   } catch {
-    return;
+    return result;
   }
   for (const slug of slugs) {
     const workDir = join(memoryWorkDir(), slug);
+    const runsPath = join(workDir, RUNS_FILE);
+    if (!existsSync(runsPath)) continue;
+    const state = loadSidecar(workDir);
+    if (!state.seen_runs_initialized) {
+      ensureRunVisibilityInitialized(workDir, state);
+      saveSidecar(workDir, state);
+      continue;
+    }
+    const seen = new Set(state.seen_runs);
+    const all = parseRuns(runsPath);
+    const unseen = all.filter((run) => !seen.has(run.key));
+    if (unseen.length > 0) result.push({ workDir, runs: unseen });
+  }
+  return result;
+}
+
+function queueSeen(map: Map<string, Set<string>>, workDir: string, key: string): void {
+  const keys = map.get(workDir) ?? new Set<string>();
+  keys.add(key);
+  map.set(workDir, keys);
+}
+
+function markAlertsSeen(): void {
+  if (pendingSeenAlerts.size === 0) return;
+  for (const [workDir, keys] of pendingSeenAlerts) {
     const alertsPath = join(workDir, ALERTS_FILE);
     if (!existsSync(alertsPath)) continue;
     const state = loadSidecar(workDir);
     const seenSet = new Set(state.seen_alerts);
-    const all = parseAlerts(alertsPath);
     let changed = false;
-    for (const a of all) {
-      if (!seenSet.has(a.key)) {
-        state.seen_alerts.push(a.key);
+    for (const key of keys) {
+      if (!seenSet.has(key)) {
+        state.seen_alerts.push(key);
         changed = true;
       }
     }
     if (changed) saveSidecar(workDir, state);
   }
+  pendingSeenAlerts.clear();
+}
+
+function markRunsSeen(): void {
+  if (pendingSeenRuns.size === 0) return;
+  for (const [workDir, keys] of pendingSeenRuns) {
+    const runsPath = join(workDir, RUNS_FILE);
+    if (!existsSync(runsPath)) continue;
+    const state = loadSidecar(workDir);
+    if (!state.seen_runs_initialized) continue;
+    const seenSet = new Set(state.seen_runs);
+    let changed = false;
+    for (const key of keys) {
+      if (!seenSet.has(key)) {
+        state.seen_runs.push(key);
+        changed = true;
+      }
+    }
+    if (changed) saveSidecar(workDir, state);
+  }
+  pendingSeenRuns.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -523,6 +731,31 @@ function markAlertsSeen(): void {
 
 export const PaiPiPerspective = (async () => {
   return {
+    event: async (input: any) => {
+      try {
+        const evt = input?.event;
+        if (!evt?.type) return;
+        if (evt.type === 'message.part.updated') {
+          rememberAssistantTextPart(evt.properties?.part);
+          return;
+        }
+        if (evt.type === 'message.updated') {
+          rememberCompletedAssistantMessage(evt.properties?.info);
+          return;
+        }
+        if (evt.type === 'session.idle') {
+          const sessionID = evt.properties?.sessionID;
+          if (typeof sessionID !== 'string') return;
+          await handleAlgorithmLiteVerify(
+            sessionID,
+            lastAssistantTextBySession.get(sessionID)
+          );
+        }
+      } catch (err) {
+        console.error('[pai-pi-perspective] event uncaught:', err);
+      }
+    },
+
     'tool.execute.after': async (input, _output) => {
       try {
         const tool = (input as { tool?: string })?.tool;
@@ -542,25 +775,48 @@ export const PaiPiPerspective = (async () => {
       try {
         const cfg = loadPiConfig();
         if (!cfg.enabled) return;
-        const buckets = collectUnseenAlerts();
-        if (buckets.length === 0) return;
+        const runBuckets = collectUnseenRuns();
+        const alertBuckets = collectUnseenAlerts();
+        if (runBuckets.length === 0 && alertBuckets.length === 0) return;
 
         const blocks: string[] = [];
-        blocks.push('<pai-pi-perspective-alerts>');
-        blocks.push(
-          'PiPerspective has produced non-PASS verdicts on recent phase boundaries.'
-        );
-        blocks.push(
-          'You MUST read these before continuing. Each is keyed by `alert_key`.'
-        );
-        blocks.push(
-          'Decide: accept, iterate, override, or abort. Do not silently ignore pi feedback.'
-        );
-        for (const b of buckets) {
-          blocks.push(`\n### work_dir: ${b.workDir}\n`);
-          for (const a of b.alerts) blocks.push(a.body);
+        if (runBuckets.length > 0) {
+          blocks.push('<pai-pi-perspective-runs>');
+          blocks.push(
+            'PiPerspective completed these phase-boundary runs since the last turn.'
+          );
+          blocks.push(
+            'You MUST surface each verdict and concise summary to James before continuing.'
+          );
+          for (const b of runBuckets) {
+            blocks.push(`\n### work_dir: ${b.workDir}\n`);
+            for (const run of b.runs) {
+              blocks.push(run.body);
+              queueSeen(pendingSeenRuns, b.workDir, run.key);
+            }
+          }
+          blocks.push('</pai-pi-perspective-runs>');
         }
-        blocks.push('</pai-pi-perspective-alerts>');
+        if (alertBuckets.length > 0) {
+          blocks.push('<pai-pi-perspective-alerts>');
+          blocks.push(
+            'PiPerspective has produced non-PASS verdicts on recent phase boundaries.'
+          );
+          blocks.push(
+            'You MUST read these before continuing. Each is keyed by `alert_key`.'
+          );
+          blocks.push(
+            'Decide: accept, iterate, override, or abort. Do not silently ignore pi feedback.'
+          );
+          for (const b of alertBuckets) {
+            blocks.push(`\n### work_dir: ${b.workDir}\n`);
+            for (const a of b.alerts) {
+              blocks.push(a.body);
+              queueSeen(pendingSeenAlerts, b.workDir, a.key);
+            }
+          }
+          blocks.push('</pai-pi-perspective-alerts>');
+        }
         const merged = blocks.join('\n');
         if (Array.isArray(output?.system)) {
           output.system.unshift(merged);
@@ -576,6 +832,7 @@ export const PaiPiPerspective = (async () => {
     'chat.message': async (_input, _output) => {
       try {
         markAlertsSeen();
+        markRunsSeen();
       } catch (err) {
         console.error('[pai-pi-perspective] chat.message uncaught:', err);
       }
@@ -585,16 +842,24 @@ export const PaiPiPerspective = (async () => {
   __test: {
     _setSpawnPiOverride: typeof _setSpawnPiOverride;
     handleIsaEdit: typeof handleIsaEdit;
+    handleAlgorithmLiteVerify: typeof handleAlgorithmLiteVerify;
     findAuditPathForVerdict: typeof findAuditPathForVerdict;
     appendRunSummary: typeof appendRunSummary;
     appendAlert: typeof appendAlert;
+    loadSidecar: typeof loadSidecar;
+    saveSidecar: typeof saveSidecar;
+    parseRuns: typeof parseRuns;
   };
 };
 
 PaiPiPerspective.__test = {
   _setSpawnPiOverride,
   handleIsaEdit,
+  handleAlgorithmLiteVerify,
   findAuditPathForVerdict,
   appendRunSummary,
   appendAlert,
+  loadSidecar,
+  saveSidecar,
+  parseRuns,
 };
