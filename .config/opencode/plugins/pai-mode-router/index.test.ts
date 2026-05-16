@@ -205,6 +205,17 @@ test("real user algorithm prompt still classifies ALGORITHM", async () => {
   expect(session.mode).toBe("ALGORITHM");
 });
 
+test("explicit Algorithm-lite no-ISA prompt stays lite despite ISA keyword", async () => {
+  const sid = "ses_test_explicit_lite_no_isa";
+  const session = await classifyViaHook(
+    "Use Algorithm-lite. Do not create an ISA. Perform a tiny verified diagnostic of PiPerspective setup: check `pi --version` and check `~/.pai/settings.json` to confirm Standard and Extended include THINK, PLAN, VERIFY. Then report the result using the full PAI Algorithm seven phase labels through VERIFY and LEARN.",
+    sid,
+  );
+  expect(session.mode).toBe("ALGORITHM");
+  expect(session.algorithm?.contract).toBe("lite");
+  expect(session.isaPath).toBeUndefined();
+});
+
 // -----------------------------------------------------------------------------
 // Skill preamble stripping — a trivial user tail must NOT escalate to durable
 // ISA just because the auto-injected skill body contains ISA escalation
