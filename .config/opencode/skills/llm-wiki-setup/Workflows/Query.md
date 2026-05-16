@@ -4,8 +4,8 @@ Use this workflow when answering questions from the project wiki.
 
 ## Procedure
 
-1. Read `wiki/ROUTING.md` and select the most relevant branches.
-2. Read `wiki/index.md` for the selected branches.
+1. Read `wiki/index.md` to identify relevant promoted pages and candidate context.
+2. Use `wiki/ROUTING.md` to narrow branches when the index is too broad.
 3. Read only relevant promoted pages and `wiki/CLAIMS.md` entries.
 4. Answer from promoted wiki knowledge first.
 5. If promoted pages are insufficient, say what is missing and ask whether to inspect raw sources.
@@ -16,6 +16,7 @@ Use this workflow when answering questions from the project wiki.
 
 - Distinguish promoted knowledge from candidates.
 - Do not treat candidate pages as authoritative unless James explicitly asks.
+- Candidate rows in `wiki/index.md` are discoverability aids, not promoted knowledge.
 - Say `I don't know from the current wiki` when evidence is insufficient.
 - Prefer concise answers with paths for follow-up reading.
 

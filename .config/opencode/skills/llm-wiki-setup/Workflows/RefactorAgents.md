@@ -16,7 +16,7 @@ Use this workflow to add project-local LLM Wiki operating rules to `AGENTS.md` w
 1. Identify existing sections and project-specific rules.
 2. Determine whether a `LLM Wiki` section already exists.
 3. If absent, insert the section after project overview/editing conventions if present; otherwise append it near the end.
-4. If present, update it to include directories, required files, ingest, query, promotion, and lint workflows.
+4. If present, update it to include directories, required files, wiki-first project search, session update, ingest, query, promotion, and lint workflows.
 5. Preserve local style: heading levels, tone, and path formatting. Remap the template's `##` and `###` heading depths to fit the surrounding `AGENTS.md` hierarchy instead of pasting them verbatim when that would break structure.
 6. Verify no existing non-wiki instruction was removed.
 
@@ -26,10 +26,14 @@ The final `AGENTS.md` must mention:
 
 - `wiki/raw/` is immutable.
 - `wiki/candidates/` is the review gate.
-- Read `wiki/ROUTING.md` and `wiki/index.md` before wiki-backed answers.
+- Read `wiki/index.md` before wiki-backed answers, then use `wiki/ROUTING.md` to narrow broad searches.
+- Include a `Wiki-First Project Search` rule: for project-specific questions, investigations, design tasks, bug hunts, or code searches that require project context, check the wiki before broad repository search.
+- When codebase, docs, or external search reveals durable knowledge missing from the wiki, mention the wiki gap and propose an ingest, candidate update, or promotion path.
 - Append operations to `wiki/log.md`.
 - Track factual claims in `wiki/CLAIMS.md`.
+- Use `/wiki-update` to capture durable session decisions, verified facts, and follow-ups into the wiki.
 - Offer to save durable query outputs as candidate pages.
+- Include the lint workflow and candidate cleanup rules.
 
 ## Verification
 

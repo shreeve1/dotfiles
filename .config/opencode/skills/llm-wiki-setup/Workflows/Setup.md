@@ -12,9 +12,9 @@ Ask only for missing information. Defaults are:
 
 - Wiki root: `wiki/`
 - Raw sources: `wiki/raw/`
-- Candidate review gate: enabled
-- Claims: enabled via `wiki/CLAIMS.md`
-- Routing: enabled via `wiki/ROUTING.md`
+- Candidate review gate: enabled as a skill extension
+- Claims: enabled via `wiki/CLAIMS.md` as a skill extension
+- Routing: enabled via `wiki/ROUTING.md` as a skill extension
 - Optional search tooling: document only
 - `AGENTS.md`: preserve existing rules, refactor lightly, add LLM Wiki section
 
@@ -68,6 +68,8 @@ Create missing files from `Templates.md`:
 
 Customize the initial `ROUTING.md` branches to the project domain when there is enough context.
 
+Append a setup entry to `wiki/log.md` using the `Templates.md` log format. Include created files, selected defaults, unanswered choices, and whether this was a fresh setup, partial recovery, or re-run.
+
 ## 5. Configure Raw Source Git Policy
 
 Ask how raw sources should be handled in git:
@@ -93,6 +95,18 @@ Verify with exact probes:
 - `wiki/log.md` contains a setup entry.
 - Existing unrelated `wiki/` content was not overwritten.
 
-## 8. Report
+## 8. Initial Ingestion Handoff
 
-Report changed files, unanswered choices, and next recommended ingest source.
+Do not end setup with only an empty wiki.
+
+If James named initial sources and they are available under `wiki/raw/`, run `Workflows/Ingest.md` for the first approved source, then ask whether to continue with the remaining sources.
+
+If James named initial sources but they are not yet under `wiki/raw/`, report the exact files or source material needed and where they should be placed before ingest.
+
+If no initial sources were named, inspect the project README, existing `AGENTS.md`, and obvious project docs read during setup. Suggest a prioritized shortlist of 3-5 high-value ingest sources with why each matters. Include source paths when known.
+
+Do not auto-ingest the whole repository. Prefer source documents and stable project guides before code files. Ask before ingesting large, binary, generated, private, or ambiguous material.
+
+## 9. Report
+
+Report changed files, unanswered choices, ingestion performed if any, and the prioritized next ingest shortlist.

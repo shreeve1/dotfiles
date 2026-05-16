@@ -18,7 +18,6 @@ This project uses `wiki/` as an LLM-maintained knowledge base for PAI dotfiles, 
 ### Directories
 
 - `wiki/raw/`: immutable source material; read and cite it, but do not rewrite it after ingest.
-- `wiki/raw/sessions/`: curated session captures created by `/wiki-update` when conversation evidence needs citation.
 - `wiki/candidates/`: generated pages awaiting James approval before promotion.
 - `wiki/sources/`: promoted source summaries.
 - `wiki/entities/`: promoted entity pages.
@@ -34,21 +33,6 @@ This project uses `wiki/` as an LLM-maintained knowledge base for PAI dotfiles, 
 - Track important factual claims in `wiki/CLAIMS.md` with inline path citations.
 - Generated Markdown wiki files are intended to be committed to git; do not add raw-source `.gitignore` rules without explicit approval.
 - Raw-source git policy is source-specific: ask before adding large/binary raw files, ignoring raw paths, or moving raw sources to external storage.
-
-### Wiki-First Project Search
-
-For any project-specific question, investigation, design task, bug hunt, or code search that requires looking up project context, check the wiki first.
-
-1. Read `wiki/index.md` before searching broadly.
-2. Use `wiki/ROUTING.md` to identify relevant promoted pages, candidates, and claim entries.
-3. Read relevant wiki pages and `wiki/CLAIMS.md` entries before using general repository search.
-4. If the wiki does not contain enough information, search the codebase, docs, or external sources as needed.
-5. When non-wiki search reveals durable project knowledge, propose ingesting the source into `wiki/raw/`, creating or updating a page in `wiki/candidates/`, or promoting an existing candidate after James approves.
-6. If external or codebase search was needed to answer a wiki-backed question, mention the wiki gap and proposed ingest or promotion path in the final answer.
-
-### Session Update Workflow
-
-Use `/wiki-update` during or after meaningful sessions to capture durable decisions, verified facts, root causes, follow-ups, and reusable context. Create curated raw session captures under `wiki/raw/sessions/` when conversation evidence is needed. Do not archive full transcripts, secrets, private material, or raw pasted user content without explicit approval. New or risky session-derived knowledge goes through `wiki/candidates/` and must update `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md`.
 
 ### Ingest Workflow
 
