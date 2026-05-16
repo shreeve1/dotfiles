@@ -1,0 +1,49 @@
+# Reference adapter for "anything I can drive from a shell command."
+#
+# Use this for: scrapers, ETL jobs, cron jobs, scheduled lambdas, CI tasks,
+# any custom automation. The contract is minimal — each probe's verify.sh
+# writes a float in [0.0, 1.0] to $AUTOAGENT_SCORE_FILE (set by the runner
+# from verifier.score_file below).
+name: my-automation
+loop_mode: self_driven
+
+sut:
+  description: "A CLI-driven automation (replace this)."
+  paths:
+    - src
+    - config
+  live: false
+
+mutator:
+  edit_surface:
+    - "src/**"
+    - "config/**"
+  fixed:
+    - "src/adapter/**"
+    - "adapter.yaml"
+  apply_cmd: null
+  rollback_cmd: "git reset --hard HEAD~1"
+
+probe:
+  dir: probes
+  list_glob: "probes/*/probe.yaml"
+
+verifier:
+  # Repo-relative. Loop driver wires this into AUTOAGENT_SCORE_FILE
+  # before invoking runner.cmd.
+  score_file: ".autoagent/last_score"
+  score_file_scope: repo
+  pass_threshold: 0.5
+  emits_cost: false
+
+runner:
+  # {probe} is replaced verbatim by the loop driver with the probe directory.
+  cmd: "bash {probe}/verify.sh"
+  concurrency: 1
+  timeout_seconds: 120
+
+loop:
+  plateau_iterations: 5
+  human_checkpoint_every: 10
+
+# Omit `snapshot:` when sut.live is false.
