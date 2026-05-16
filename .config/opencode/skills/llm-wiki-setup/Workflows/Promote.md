@@ -25,6 +25,17 @@ Use this workflow to move reviewed candidate pages into the promoted wiki.
 9. Update `wiki/CLAIMS.md` for claim page paths.
 10. Append a promotion entry to `wiki/log.md`.
 
+## Discarding Candidates
+
+When James or the project owner rejects a candidate instead of promoting it:
+
+1. Read the candidate page and identify its candidate index row, candidate routes, and candidate claim references.
+2. Remove every candidate-only `wiki/CLAIMS.md` entry that points to the rejected `wiki/candidates/...` path, or mark it inactive after clearing the removed candidate page path.
+3. Remove candidate-only routes from `wiki/ROUTING.md`.
+4. Remove the candidate row from the `wiki/index.md` candidate review queue.
+5. Remove the candidate file only after the cleanup is verified.
+6. Append a discard entry to `wiki/log.md` with the reason when provided.
+
 ## Verification
 
 Confirm:
@@ -35,3 +46,5 @@ Confirm:
 - Index row points to the promoted path.
 - Routes include the promoted path where relevant.
 - Claims point to the promoted page path.
+
+For discarded candidates, confirm no index row, route, or claim still points at the removed candidate path.
