@@ -78,3 +78,17 @@ Append entries with this format:
 - Inputs: `.pai/PAI/TOOLS.md`, `.pai/PAI/THENOTIFICATIONSYSTEM.md`, `.pai/PAI/PRDFORMAT.md`, `wiki/raw/pai-tools.md`, `wiki/raw/pai-notification-system.md`, `wiki/raw/pai-prd-format.md`
 - Outputs: `wiki/raw/pai-tools.md`, `wiki/raw/pai-notification-system.md`, `wiki/raw/pai-prd-format.md`, `wiki/candidates/source-pai-tools.md`, `wiki/candidates/source-pai-notification-system.md`, `wiki/candidates/source-pai-prd-format.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
 - Notes: Ingested tools, notification, and PRD format references as immutable raw snapshots, created three candidate source summaries, added candidate routing entries marked non-authoritative, recorded claims C-0069 through C-0080, and flagged PRD source-of-truth claims as needing reconciliation with current ISA doctrine.
+
+## 2026-05-16 ingest | Actions pipelines and flows
+
+- Actor: PAI
+- Inputs: `.pai/PAI/ACTIONS.md`, `.pai/PAI/PIPELINES.md`, `.pai/PAI/FLOWS.md`, `wiki/raw/pai-actions.md`, `wiki/raw/pai-pipelines.md`, `wiki/raw/pai-flows.md`
+- Outputs: `wiki/raw/pai-actions.md`, `wiki/raw/pai-pipelines.md`, `wiki/raw/pai-flows.md`, `wiki/candidates/source-pai-actions.md`, `wiki/candidates/source-pai-pipelines.md`, `wiki/candidates/source-pai-flows.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested Actions, Pipelines, and Flows framework references as immutable raw snapshots, created three candidate source summaries, added a candidate routing section for Actions Pipelines And Flows, and recorded claims C-0081 through C-0093 with active-development caveats.
+
+## 2026-05-16 ingest | Documentation CLI and extendability
+
+- Actor: PAI
+- Inputs: `.pai/PAI/DOCUMENTATIONINDEX.md`, `.pai/PAI/CLI.md`, `.pai/PAI/SYSTEM_USER_EXTENDABILITY.md`, `wiki/raw/pai-documentation-index.md`, `wiki/raw/pai-cli.md`, `wiki/raw/pai-system-user-extendability.md`
+- Outputs: `wiki/raw/pai-documentation-index.md`, `wiki/raw/pai-cli.md`, `wiki/raw/pai-system-user-extendability.md`, `wiki/candidates/source-pai-documentation-index.md`, `wiki/candidates/source-pai-cli.md`, `wiki/candidates/source-pai-system-user-extendability.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Ingested documentation index, CLI, and SYSTEM/USER extendability references as immutable raw snapshots, created three candidate source summaries, added an Extensibility And Customization routing section, recorded claims C-0094 through C-0105, and substituted this batch after `HowToAskQuestions.md` and `Principles.md` were not found under `.pai/PAI/`.
