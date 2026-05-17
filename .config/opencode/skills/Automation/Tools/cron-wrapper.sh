@@ -5,16 +5,23 @@
 set -euo pipefail
 
 # --- Export stable environment ---
-export HOME="${HOME:-/Users/james}"
-export PATH="/Users/james/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Applications/cmux.app/Contents/Resources/bin:/Users/james/.bun/bin"
-
-# Resolve OpenCode binary dynamically for LLM runner scripts.
-OPENCODE_BIN="$(command -v opencode 2>/dev/null || echo "/Applications/cmux.app/Contents/Resources/bin/opencode")"
-export OPENCODE_BIN
+export HOME="${HOME:-/home/james}"
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Applications/cmux.app/Contents/Resources/bin:${PATH:-}"
 
 # PAI runtime root
 PAI_DIR="${PAI_DIR:-$HOME/.pai}"
 export PAI_DIR
+
+# Resolve OpenCode binary dynamically for LLM runner scripts.
+OPENCODE_BIN="$(command -v opencode 2>/dev/null || true)"
+if [[ -z "$OPENCODE_BIN" && -x "/Applications/cmux.app/Contents/Resources/bin/opencode" ]]; then
+  OPENCODE_BIN="/Applications/cmux.app/Contents/Resources/bin/opencode"
+fi
+OPENCODE_BIN="${OPENCODE_BIN:-opencode}"
+export OPENCODE_BIN
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EXEC_LOG="$PAI_DIR/logs/automation-execution.jsonl"
 
 # gog file-based keyring password (Keychain inaccessible under cron launchd context)
 if [[ -f "$PAI_DIR/secrets/gog-keyring-password" ]]; then
@@ -128,7 +135,8 @@ cleanup() {
   local LOG_ENTRY
   LOG_ENTRY=$(printf '{"timestamp":"%s","jobId":"%s","status":"%s","durationMs":%d,"exitCode":%d}\n' \
     "$TIMESTAMP" "$JOB_ID" "$STATUS" "$DURATION_MS" "$EXIT_CODE")
-  echo "$LOG_ENTRY" >> "$HOME/.opencode/skill/Automation/References/execution-log.jsonl"
+  mkdir -p "$(dirname "$EXEC_LOG")"
+  echo "$LOG_ENTRY" >> "$EXEC_LOG"
 
   # On failure: send Telegram alert
   if [[ $EXIT_CODE -ne 0 ]]; then
@@ -138,7 +146,7 @@ cleanup() {
     fi
     local ALERT_MSG
     ALERT_MSG="*PAI Cron Alert*\nJob: ${JOB_ID}\nExit code: ${EXIT_CODE}\nDuration: ${DURATION_MS}ms\n\nLast log lines:\n\`\`\`\n${LAST_LINES}\n\`\`\`"
-    "$HOME/.opencode/skill/Automation/Tools/telegram-send.sh" --silent "$ALERT_MSG" 2>/dev/null || true
+    "$SCRIPT_DIR/telegram-send.sh" --silent "$ALERT_MSG" 2>/dev/null || true
   fi
 
   exit $EXIT_CODE
@@ -146,7 +154,6 @@ cleanup() {
 trap cleanup EXIT
 
 # --- Log rotation ---
-EXEC_LOG="$HOME/.opencode/skill/Automation/References/execution-log.jsonl"
 MAX_EXEC_LOG_BYTES=10485760  # 10MB
 MAX_JOB_LOG_BYTES=5242880    # 5MB
 

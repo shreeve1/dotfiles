@@ -53,6 +53,32 @@
       "timezone": "America/Los_Angeles"
     },
     {
+      "id": "pai-memory-distill-nightly",
+      "name": "PAI Memory Distill Nightly",
+      "schedule": "17 2 * * *",
+      "type": "shell",
+      "command": "~/dotfiles/scripts/pai/run-memory-distill.sh",
+      "enabled": true,
+      "staggerSeconds": 120,
+      "lockName": "pai-memory-distill",
+      "logFile": "pai-memory-distill.log",
+      "timeoutSecs": 900,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "pai-memory-review-pending-morning",
+      "name": "PAI Memory Review Pending Morning",
+      "schedule": "30 8 * * *",
+      "type": "shell",
+      "command": "~/dotfiles/scripts/pai/run-memory-review-pending.sh",
+      "enabled": true,
+      "staggerSeconds": 120,
+      "lockName": "pai-memory-review-pending",
+      "logFile": "pai-memory-review-pending.log",
+      "timeoutSecs": 300,
+      "timezone": "America/Los_Angeles"
+    },
+    {
       "id": "itastack-stale-ticket-check-am",
       "name": "ITAStack Stale Ticket Check (7am-4pm PT)",
       "schedule": "0 14-23 * * 1-5",

@@ -94,4 +94,7 @@ Providers available in this AFK slice:
   local          local/offline rules-only provider
   deterministic deterministic test double
   claude-inference opt-in real-provider placeholder; disabled unless both approval flags are passed`);
+  console.error(`
+Operational note:
+  pai-dream run is the direct experimental path. Use pai-memory distill for the safer lock, debounce, watermark, duplicate-replay, and review-reminder workflow.`);
 }
