@@ -229,6 +229,13 @@ export class CanonicalEventStore {
     });
   }
 
+  maxSequenceForSession(paiSessionId: string): number {
+    const row = this.db
+      .query("SELECT MAX(sequence) AS max_sequence FROM events WHERE pai_session_id = ?")
+      .get(paiSessionId) as { max_sequence: number | null } | null;
+    return row?.max_sequence ?? 0;
+  }
+
   private applyMigrations() {
     this.db.run("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
 

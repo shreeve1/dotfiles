@@ -24,21 +24,37 @@ Model + tools execute work
     ├── model edits ISA.md directly during Algorithm work
     ├── pai-isa-sync mirrors ISA state to STATE/work.json
     ├── pai-config-audit records OpenCode config edits
+    ├── pai-opencode-tracer writes redacted canonical events to ~/.pai/events.sqlite
     └── pai-reflection-loop records idle markers in LEARNING/REFLECTIONS/
+    ↓
+pai-memory distill --provider local
+    └── proposes review-queued memories only; acceptance remains James-controlled
 ```
 
-The current OpenCode implementation is **partially automated**:
+The current OpenCode implementation is **review-gated and partially automated**:
 
 - Work state and ISA scaffolds are created automatically.
 - Reflection files are created automatically, but substantive learning content is still model-authored during LEARN.
-- The canonical SQLite memory store exists and is tested, but automatic live-session memory distillation is not yet wired into an active OpenCode plugin.
+- Redacted OpenCode prompt/tool/idle events are captured by `pai-opencode-tracer` into `~/.pai/events.sqlite` and `~/.pai/trails/events.jsonl`.
+- Local distillation can propose memories into the SQLite review queue, but it never auto-accepts them.
+- Automatic context injection is still not wired into OpenCode startup; accepted-memory retrieval remains explicit unless separately approved.
 
 ---
 
 ## Directory Structure
 
 ```
-~/.pai/memory/
+~/.pai/
+├── events.sqlite                  # Canonical redacted event store
+├── trails/
+│   └── events.jsonl               # Append-only redacted event trail
+├── state/
+│   ├── opencode-tracer-sequences.json
+│   ├── distill-watermark.json
+│   └── distill-debounce.json
+├── logs/
+│   └── distill.log
+└── memory/
 ├── WORK/                         # Active and historical task artifacts
 │   └── {timestamp_slug}/
 │       └── ISA.md                # Ideal State Artifact for Algorithm work
@@ -93,6 +109,8 @@ Current OpenCode writers:
 
 - `pai-mode-router` writes `STATE/mode-router.json`.
 - `pai-isa-sync` writes `STATE/work.json` after Write/Edit operations on `ISA.md` or legacy `PRD.md` under `memory/WORK/`.
+- `pai-opencode-tracer` writes `~/.pai/state/opencode-tracer-sequences.json` so event ordering survives plugin reloads.
+- `pai-memory distill` writes `~/.pai/state/distill-watermark.json`, `~/.pai/state/distill-debounce.json`, and `~/.pai/state/distill.lock` during local distillation.
 
 `mode-router.json` records session ID, mode, classification time, first prompt, message count, slug, and ISA path.
 
@@ -120,6 +138,24 @@ Current OpenCode writer:
 - `pai-config-audit` writes `OBSERVABILITY/config-changes.jsonl` when OpenCode tools write/edit `opencode.json` or `opencode.jsonc`.
 
 Each entry includes timestamp, file path, SHA-256, byte size, tool, and optional session ID.
+
+### Canonical Event Store
+
+**Purpose:** Capture redacted local runtime evidence that can later feed review-gated memory proposals.
+
+**Location:** `~/.pai/events.sqlite`
+
+**JSONL trail:** `~/.pai/trails/events.jsonl`
+
+**Active OpenCode writer:** `pai-opencode-tracer`
+
+Captured event surfaces:
+
+- User prompt text from `chat.message`, after synthetic/internal primer filtering.
+- Strict allowlist tool metadata from `tool.execute.after`: tool name, high-level status, path category, and redacted summary only.
+- Session stop markers from `session.idle` bus events.
+
+The plugin does not serialize arbitrary tool args, auth headers, environment values, raw tool output, or raw `payload`/`payloads` fields. Event sequence state is recoverable from the canonical event store if plugin state is stale or corrupt.
 
 ### VERIFICATION
 
@@ -176,6 +212,7 @@ Only memories with `review_status = accepted`, `trust_level` medium/high, and no
 | `pai-config-audit` | after Write/Edit of `opencode.json[c]` | `OBSERVABILITY/config-changes.jsonl` | No, audit only |
 | `pai-containment-guard` | before Write/Edit | blocks unsafe writes outside `~/.pai/PAI/USER` and `~/.pai/memory` | No |
 | `pai-checkpoint-per-isc` | after Write/Edit of ISA/PRD | `.checkpoint-state.json` and optional git commits | No |
+| `pai-opencode-tracer` | `chat.message`, `tool.execute.after`, `session.idle` | `~/.pai/events.sqlite`, `~/.pai/trails/events.jsonl`, `~/.pai/state/opencode-tracer-sequences.json` | No, event evidence only |
 
 ---
 
@@ -201,15 +238,36 @@ bun ~/.pai/src/cli/pai-memory.ts review list
 
 In the current OpenCode setup, this capability exists in code and tests, but there is no active plugin that automatically injects this context into every session.
 
+### Review-gated distillation
+
+Local distillation is run manually or by disabled-by-default Automation jobs:
+
+```bash
+bun ~/.pai/src/cli/pai-memory.ts distill --provider local --quiet
+bun ~/.pai/src/cli/pai-memory.ts review pending
+```
+
+Runner scripts live at:
+
+- `~/dotfiles/scripts/pai/run-memory-distill.sh`
+- `~/dotfiles/scripts/pai/run-memory-review-pending.sh`
+
+Automation registry entries exist for nightly distill and morning review reminders, but they are disabled until event capture has been smoke-tested or James explicitly approves enabling them.
+
+`pai-dream run` remains an experimental direct path. Prefer `pai-memory distill` for normal use because it applies locks, debounce, watermarks, duplicate-replay handling, and review queue semantics.
+
 ---
 
 ## Known Gaps And Recommendations
 
-1. **Build an OpenCode memory-ingest plugin.** It should observe prompts, assistant summaries, tool outcomes, and final responses, redact sensitive data, write canonical events, and optionally propose memories through `CanonicalMemoryStore.proposeMemoryWithReview`.
-2. **Wire `pai-memory context` into OpenCode startup or first-turn retrieval.** Use trust-gated accepted memories only, scoped by project ID when available.
-3. **Add review UX for proposed memories.** `pai-memory review list|accept|reject|defer` exists; it needs a regular workflow or command surfaced to James.
-4. **Update or split `THEHOOKSYSTEM.md`.** It is still primarily a OpenCode hook reference. Keep it as legacy reference or add an OpenCode plugin-system companion doc.
-5. **Decide where substantive LEARN reflections are authored.** Current plugin only writes idle markers; the model must write actual learning entries unless a distillation plugin is added.
+1. **Wire `pai-memory context` into OpenCode startup or first-turn retrieval only after separate approval.** Use trust-gated accepted memories only, scoped by project ID when available.
+2. **Add review UX for proposed memories.** `pai-memory review list|accept|reject|defer` exists; it needs a regular workflow or command surfaced to James.
+3. **Update or split `THEHOOKSYSTEM.md`.** It is still primarily a OpenCode hook reference. Keep it as legacy reference or add an OpenCode plugin-system companion doc.
+4. **Decide where substantive LEARN reflections are authored.** Current reflection plugin only writes idle markers; the model must write actual learning entries unless a separately approved distillation plugin is added.
+
+Diary, reflection, or REM-style prose is not a memory promotion source. Proposed durable memory should come from canonical redacted events, then pass through the review queue.
+
+Rollback path: remove `file://{env:HOME}/.config/opencode/plugins/pai-opencode-tracer` from `opencode.json`, keep the Automation memory jobs disabled, and review/reject any existing proposed memories rather than deleting them.
 
 ---
 
