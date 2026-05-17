@@ -223,6 +223,7 @@
     "file://{env:HOME}/.config/opencode/plugins/pai-containment-guard",
     "file://{env:HOME}/.config/opencode/plugins/pai-config-audit",
     "file://{env:HOME}/.config/opencode/plugins/pai-reflection-loop",
+    "file://{env:HOME}/.config/opencode/plugins/pai-opencode-tracer",
     "file://{env:HOME}/.config/opencode/plugins/pai-pi-perspective"
   ],
   "permission": {
