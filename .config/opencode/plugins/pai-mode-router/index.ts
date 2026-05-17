@@ -226,9 +226,10 @@ const VAGUE_CRITERIA = [
 // Distinctive markers from internal sub-agent / classifier system prompts that
 // the router historically mis-classified as ALGORITHM and scaffolded ISAs from
 // (session titler, sentiment scorer, summary generator, auth handshake, etc.).
-// Matching any of these short-circuits classification to MINIMAL so no slug or
-// ISA is created. Keep entries narrow and verbatim to avoid suppressing real
-// user prompts that merely reuse the same words.
+// Matching any of these bypasses routing entirely so hidden utility agents do
+// not inherit PAI response-format system prompts. Keep entries narrow and
+// verbatim to avoid suppressing real user prompts that merely reuse the same
+// words.
 const SUBAGENT_PROMPT_FINGERPRINTS = [
   "you are naming a work session",
   "generate an exactly 4-word title",
@@ -696,6 +697,14 @@ export const PaiModeRouter: Plugin = async () => {
         const prompt = stripSkillPreamble(rawPrompt);
 
         const state = loadState();
+        if (isSubagentPrompt(prompt)) {
+          if (state.sessions[sessionID]) {
+            delete state.sessions[sessionID];
+            saveState(state);
+          }
+          return;
+        }
+
         const existing = state.sessions[sessionID];
         const messageCount = (existing?.messageCount ?? 0) + 1;
 

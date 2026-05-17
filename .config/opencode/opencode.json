@@ -57,7 +57,7 @@
       }
     },
     "compaction": {
-      "model": "cliproxy/gpt-5.4",
+      "model": "openai/gpt-5.5",
       "permission": {
         "*": "allow"
       }
