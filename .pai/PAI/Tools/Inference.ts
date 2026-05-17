@@ -32,6 +32,9 @@
  */
 
 import { spawn } from "child_process";
+import { mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type InferenceLevel = 'fast' | 'standard' | 'smart';
 
@@ -61,6 +64,19 @@ const LEVEL_CONFIG: Record<InferenceLevel, { model: string; defaultTimeout: numb
   smart: { model: 'cliproxy/claude-opus-4-7', defaultTimeout: 90000 },
 };
 
+export const OPENCODE_UTILITY_TITLE = 'PAI Utility Inference';
+export const DEFAULT_OPENCODE_UTILITY_DIR = join(homedir(), '.pai', 'memory', 'Scratchpad', 'opencode-utility');
+
+export function opencodeUtilityDir(env: Record<string, string | undefined> = process.env): string {
+  const override = env.PAI_OPENCODE_UTILITY_DIR?.trim();
+  return override || DEFAULT_OPENCODE_UTILITY_DIR;
+}
+
+export function ensureOpenCodeUtilityDir(directory = opencodeUtilityDir()): string {
+  mkdirSync(directory, { recursive: true });
+  return directory;
+}
+
 export function buildOpenCodeMessage(options: InferenceOptions): string {
   const systemPrompt = options.systemPrompt?.trim();
   const userPrompt = options.userPrompt.trim();
@@ -77,11 +93,13 @@ export function buildOpenCodeMessage(options: InferenceOptions): string {
   ].join("\n");
 }
 
-export function buildOpenCodeArgs(options: InferenceOptions, model: string): string[] {
+export function buildOpenCodeArgs(options: InferenceOptions, model: string, directory = opencodeUtilityDir()): string[] {
   return [
     'run',
     '--pure',
     '--model', model,
+    '--title', OPENCODE_UTILITY_TITLE,
+    '--dir', directory,
     buildOpenCodeMessage(options),
   ];
 }
@@ -106,7 +124,8 @@ export async function inference(options: InferenceOptions): Promise<InferenceRes
   return new Promise((resolve) => {
     const env = { ...process.env };
 
-    const args = buildOpenCodeArgs(options, config.model);
+    const utilityDir = ensureOpenCodeUtilityDir();
+    const args = buildOpenCodeArgs(options, config.model, utilityDir);
 
     let stdout = '';
     let stderr = '';
@@ -120,6 +139,7 @@ export async function inference(options: InferenceOptions): Promise<InferenceRes
 
     const proc = spawn('opencode', args, {
       env,
+      cwd: utilityDir,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     proc.stdin.end();
