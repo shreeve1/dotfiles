@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { buildOpenCodeArgs, buildOpenCodeMessage, formatTimeoutError } from "../PAI/Tools/Inference";
+import {
+  OPENCODE_UTILITY_TITLE,
+  buildOpenCodeArgs,
+  buildOpenCodeMessage,
+  formatTimeoutError,
+  opencodeUtilityDir,
+} from "../PAI/Tools/Inference";
 
 const repoRoot = join(import.meta.dir, "..", "..");
 
@@ -164,6 +170,7 @@ describe("OpenCode PAI entrypoints", () => {
     const args = buildOpenCodeArgs(
       { systemPrompt: "Answer briefly.", userPrompt: "Reply ok." },
       "cliproxy/claude-haiku-4-5-20251001",
+      "/tmp/pai-opencode-utility-test",
     );
 
     expect(args.slice(0, 4)).toEqual([
@@ -172,7 +179,20 @@ describe("OpenCode PAI entrypoints", () => {
       "--model",
       "cliproxy/claude-haiku-4-5-20251001",
     ]);
+    expect(args).toContain("--title");
+    expect(args[args.indexOf("--title") + 1]).toBe(OPENCODE_UTILITY_TITLE);
+    expect(args).toContain("--dir");
+    expect(args[args.indexOf("--dir") + 1]).toBe("/tmp/pai-opencode-utility-test");
     expect(args.join(" ")).not.toContain("--dangerously-skip-permissions");
+  });
+
+  test("Inference scratch directory can be overridden", () => {
+    expect(opencodeUtilityDir({ PAI_OPENCODE_UTILITY_DIR: "/tmp/custom-pai-inference" })).toBe(
+      "/tmp/custom-pai-inference",
+    );
+    expect(opencodeUtilityDir({ PAI_OPENCODE_UTILITY_DIR: "   " })).toContain(
+      ".pai/memory/Scratchpad/opencode-utility",
+    );
   });
 
   test("Inference timeout errors preserve subprocess evidence", () => {
