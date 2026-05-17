@@ -254,37 +254,35 @@ test("explicit subagent mode bypasses custom PAI worker", async () => {
   expect(session).toBeUndefined();
 });
 
-test("session naming sub-agent prompt classifies MINIMAL with no ISA", async () => {
+test("session naming sub-agent prompt bypasses router injection", async () => {
   const sid = "ses_test_subagent_naming";
   const session = await classifyViaHook(
     'You are naming a work session. Generate an EXACTLY 4-word title that reads like a short news headline. Reply with CLAUDE_AUTH_OK only.',
     sid,
   );
-  expect(session.mode).toBe("MINIMAL");
-  expect(session.slug).toBeUndefined();
-  expect(session.isaPath).toBeUndefined();
+  expect(session).toBeUndefined();
+
+  const output = { system: [] as string[] };
+  await hooks["experimental.chat.system.transform"]?.({ sessionID: sid }, output);
+  expect(output.system).toEqual([]);
 });
 
-test("summary generator sub-agent prompt classifies MINIMAL with no ISA", async () => {
+test("summary generator sub-agent prompt bypasses router injection", async () => {
   const sid = "ses_test_subagent_summary";
   const session = await classifyViaHook(
     "Create a 2-4 word complete sentence summarizing the user's request. Output only the sentence.",
     sid,
   );
-  expect(session.mode).toBe("MINIMAL");
-  expect(session.slug).toBeUndefined();
-  expect(session.isaPath).toBeUndefined();
+  expect(session).toBeUndefined();
 });
 
-test("sentiment scorer sub-agent prompt classifies MINIMAL with no ISA", async () => {
+test("sentiment scorer sub-agent prompt bypasses router injection", async () => {
   const sid = "ses_test_subagent_sentiment";
   const session = await classifyViaHook(
     "Analyze James Schriever's message for emotional sentiment toward Loop. Loop must NEVER self-rate. OUTPUT FORMAT (JSON only): { rating, sentiment, confidence }",
     sid,
   );
-  expect(session.mode).toBe("MINIMAL");
-  expect(session.slug).toBeUndefined();
-  expect(session.isaPath).toBeUndefined();
+  expect(session).toBeUndefined();
 });
 
 test("real user algorithm prompt still classifies ALGORITHM", async () => {
