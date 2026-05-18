@@ -65,7 +65,7 @@ Zero custom code — no TypeScript wrappers, no custom classes. Everything uses 
 | `Recipes/SummarizePage.md` | Recipe: extract page content summary |
 | `Recipes/ScreenshotCompare.md` | Recipe: before/after visual comparison |
 | `Recipes/FormFill.md` | Recipe: fill form fields with provided data |
-| `Workflows/ReviewStories.md` | Orchestrator: fan out stories to parallel UIReviewers |
+| `Workflows/ReviewStories.md` | Orchestrator: fan out stories to parallel ui-reviewers |
 | `Workflows/Automate.md` | Template engine: load and execute recipes |
 | `Workflows/Update.md` | Version check and verification workflow |
 | `~/.claude/agents/BrowserAgent.md` | AI-driven browser agent definition |

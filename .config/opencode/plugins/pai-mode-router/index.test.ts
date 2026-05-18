@@ -152,6 +152,12 @@ test("Algorithm-lite directive preserves visible PLAN subprocess markers", async
   expect(system).toContain("OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN");
   expect(system).toContain("DELIVERABLE MANIFEST");
   expect(system).toContain("DELEGATION GATE");
+  expect(system).toContain("DELEGATION GATE is binding");
+  expect(system).toContain("unfamiliar-code investigation");
+  expect(system).toContain("pattern searches spanning multiple directories");
+  expect(system).toContain("post-change verification");
+  expect(system).not.toContain("Prefer subagents");
+  expect(system).not.toContain("or explicitly state why not");
   expect(system).toContain("PARALLELISM OPPORTUNITY SCAN");
 });
 
@@ -224,34 +230,50 @@ test("explicit pai-algorithm subagent remains router-managed", async () => {
   expect(session.mode).toBe("ALGORITHM");
 });
 
-test("ambiguous general agent still routes through Algorithm", async () => {
-  const sid = "ses_test_general_agent_algorithm";
+test("unknown primary-like agent still routes through Algorithm", async () => {
+  const sid = "ses_test_unknown_agent_algorithm";
   const session = await classifyViaHook(
     "Please refactor the auth service, add migration tests, and update integration coverage.",
     sid,
+    { agent: "custom-primary" },
+  );
+  expect(session.mode).toBe("ALGORITHM");
+});
+
+test("worker agents bypass router by name", async () => {
+  const general = await classifyViaHook(
+    "Run this composed custom-agent prompt as an isolated worker.",
+    "ses_test_general_bypass_by_name",
     { agent: "general" },
   );
-  expect(session.mode).toBe("ALGORITHM");
-});
-
-test("custom PAI agents still route unless explicitly subagent", async () => {
-  const sid = "ses_test_pai_engineer_primary_algorithm";
-  const session = await classifyViaHook(
+  const engineer = await classifyViaHook(
     "Please refactor the auth service, add migration tests, and update integration coverage.",
-    sid,
+    "ses_test_pai_engineer_bypass_by_name",
     { agent: "pai-engineer" },
   );
-  expect(session.mode).toBe("ALGORITHM");
+  const architect = await classifyViaHook(
+    "Design an auth service architecture and identify integration boundaries.",
+    "ses_test_pai_architect_bypass_by_name",
+    { agent: "pai-architect" },
+  );
+  expect(general).toBeUndefined();
+  expect(engineer).toBeUndefined();
+  expect(architect).toBeUndefined();
 });
 
-test("explicit subagent mode bypasses custom PAI worker", async () => {
-  const sid = "ses_test_pai_engineer_subagent_bypass";
-  const session = await classifyViaHook(
+test("explicit subagent mode bypasses PAI workers", async () => {
+  const engineer = await classifyViaHook(
     "Please refactor the auth service, add migration tests, and update integration coverage.",
-    sid,
+    "ses_test_pai_engineer_subagent_bypass",
     { agent: "pai-engineer", mode: "subagent" },
   );
-  expect(session).toBeUndefined();
+  const architect = await classifyViaHook(
+    "Design an auth service architecture and identify integration boundaries.",
+    "ses_test_pai_architect_subagent_bypass",
+    { agent: "pai-architect", mode: "subagent" },
+  );
+  expect(engineer).toBeUndefined();
+  expect(architect).toBeUndefined();
 });
 
 test("session naming sub-agent prompt bypasses router injection", async () => {
@@ -484,6 +506,12 @@ test("durable-ISA directive references current Algorithm version", async () => {
   expect(system).toContain("OBSERVE");
   expect(system).toContain("THINK");
   expect(system).toContain("PLAN");
+  expect(system).toContain("DELEGATION GATE is binding");
+  expect(system).toContain("unfamiliar-code investigation");
+  expect(system).toContain("pattern searches spanning multiple directories");
+  expect(system).toContain("post-change verification");
+  expect(system).not.toContain("Prefer subagents");
+  expect(system).not.toContain("or explicitly state why not");
   expect(system).toContain("BUILD");
   expect(system).toContain("EXECUTE");
   expect(system).toContain("VERIFY");

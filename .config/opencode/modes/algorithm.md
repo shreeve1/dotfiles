@@ -22,6 +22,7 @@ ALGORITHM mode is active. Use the ALGORITHM output format from AGENTS.md. Author
 - Every response MUST emit all 7 phase labels visibly, in order: OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN. BUILD may state `BUILD: not needed` when nothing changes.
 - Every Algorithm top-level block MUST be separated with blank lines: after the banner, session slug, task line, every phase label, and every phase body paragraph. Do not rely on single newlines; OpenCode commentary/progress rendering may collapse Markdown soft breaks into spaces.
 - PLAN MUST visibly include `📦 DELIVERABLE MANIFEST`, `📐 DELEGATION GATE`, and `🚀 PARALLELISM OPPORTUNITY SCAN` — even for short tasks.
+- DELEGATION GATE is binding: for broad exploration, unfamiliar-code work, pattern searches spanning multiple directories, multi-file edits, research, browser/debug triage, risky review, or post-change verification, launch the matching `Task` subagent unless a valid `Delegation exception:` is written.
 - todowrite MUST be the first tool, before any read/grep/glob/bash/edit/write. The tool layer blocks other tools until todowrite runs.
 - No freeform output. The ALGORITHM format is mandatory regardless of task size.
 

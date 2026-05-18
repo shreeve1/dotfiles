@@ -203,7 +203,7 @@ Check ENTITIES.md for categories with fewer than 3 entities. For each thin categ
 **Launch 2-3 targeted researcher agents:**
 ```
 Task({
-  subagent_type: "PerplexityResearcher",
+  subagent_type: "perplexity-researcher",
   prompt: "Find 3-5 notable {entity_category} in the {domain} space.
            For each: name, one-line description, why they matter.
            Already known: {list existing entities in this category}.
@@ -229,7 +229,7 @@ Task({
 
 ```
 Task({
-  subagent_type: "ClaudeResearcher",
+  subagent_type: "claude-researcher",
   prompt: "Deep research on {entity_name} in the context of {domain}.
            Focus on: {template_fields_for_this_category}
            Context: {1-paragraph from LANDSCAPE.md about this entity's category}
@@ -237,14 +237,14 @@ Task({
 })
 
 Task({
-  subagent_type: "PerplexityResearcher",
+  subagent_type: "perplexity-researcher",
   prompt: "Find recent information about {entity_name}:
            latest news, funding, product launches, key hires, partnerships.
            Focus on developments in the last 12 months."
 })
 
 Task({
-  subagent_type: "GeminiResearcher",
+  subagent_type: "gemini-researcher",
   prompt: "Research {entity_name}: competitive position, strengths, weaknesses,
            how they compare to {list 2-3 related entities from ENTITIES.md}.
            What makes them distinctive in the {domain} landscape?"

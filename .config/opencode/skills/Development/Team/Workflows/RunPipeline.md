@@ -35,41 +35,21 @@ You are the coordinator for the dev-agent pipeline using agent teams. Your job i
    - If not, check `plans/`, `specs/`, and `artifacts/plans/` for a relevant plan
    - If no plan exists, create one inline during the build phase
 
-### Phase 2: Create the Team
+### Phase 2: Spawn the Coordinator
 
-4. **Create the dev-agent team:**
-
-```
-TeamCreate({
-  team_name: "dev-agent",
-  description: "Fully automated development pipeline: plan -> validate -> build -> test -> commit"
-})
-```
-
-5. **Spawn the team-lead agent:**
+4. **Spawn the team-lead agent:**
 
 ```
-Agent({
+Task({
   subagent_type: "general",
-  name: "team-lead",
-  team_name: "dev-agent",
-  description: "Coordinate dev-agent pipeline for: REQUEST"
+  description: "Coordinate dev-agent pipeline",
+  prompt: "Coordinate a fully automated development pipeline for REQUEST. Use the gathered codebase context: [key findings]. Follow the plan -> validate -> build -> test -> commit phases. Return phase results, verification evidence, and any blockers."
 })
 ```
 
 ### Phase 3: Provide Request and Coordinate
 
-6. **Send the request to team-lead:**
-
-```
-SendMessage({
-  type: "message",
-  recipient: "team-lead",
-  content: "Starting pipeline for: REQUEST. Here is the context gathered from codebase exploration: [key findings]. Follow the plan -> validate -> build -> test -> commit phases."
-})
-```
-
-7. **Team-lead coordination responsibilities:**
+5. **Team-lead coordination responsibilities:**
 
 The team-lead will coordinate all phases. Provide detailed guidance:
 

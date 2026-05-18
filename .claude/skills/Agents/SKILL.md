@@ -1,19 +1,19 @@
 ---
 name: Agents
-description: Compose CUSTOM agents from Base Traits + Voice + Specialization for specialized perspectives. USE WHEN create custom agents, spin up agents, specialized agents, agent personalities, available traits, list traits, agent voices, compose agent, load agent context, agent profile, spawn parallel agents, launch agents. NOT for agent teams/swarms (use Delegation skill → TeamCreate).
+description: Compose CUSTOM agents from Base Traits + Voice + Specialization for specialized perspectives. USE WHEN create custom agents, spin up agents, specialized agents, agent personalities, available traits, list traits, agent voices, compose agent, load agent context, agent profile, spawn parallel agents, launch agents. NOT for agent teams/swarms (use Delegation skill).
 ---
 
 ## 🚨 SCOPE BOUNDARY — This Skill vs Agent Teams
 
 | {PRINCIPAL.NAME} Says | Which System | NOT This Skill? |
 |-------------|-------------|-----------------|
-| "**custom agents**", "spin up agents", "launch agents" | **THIS SKILL** (Agents) → ComposeAgent → `Task(subagent_type="general-purpose")` | |
-| "**create an agent team**", "**agent team**", "**swarm**" | **Delegation skill** → `TeamCreate` tool | **YES — NOT this skill** |
+| "**custom agents**", "spin up agents", "launch agents" | **THIS SKILL** (Agents) → ComposeAgent → `Task(subagent_type="general")` | |
+| "**create an agent team**", "**agent team**", "**swarm**" | **Delegation skill** → runtime-dependent team tools or parallel `Task(...)` fanout | **YES — NOT this skill** |
 
-**If {PRINCIPAL.NAME} says "agent team" or "swarm", do NOT use this skill. Use the Delegation skill which routes to `TeamCreate`.**
+**If {PRINCIPAL.NAME} says "agent team" or "swarm", do NOT use this skill. Use the Delegation skill, which selects available team tooling or parallel `Task(...)` fanout.**
 
 - **This skill** = one-shot parallel workers with unique identities, NO shared state, fire-and-forget
-- **Agent teams** (Delegation → TeamCreate) = persistent coordinated teams with shared task lists, messaging, multi-turn collaboration
+- **Agent teams** (Delegation) = coordinated multi-agent work using available team tooling or primary-context orchestration
 
 ---
 
@@ -39,7 +39,7 @@ description: Compose CUSTOM agents from Base Traits + Voice + Specialization for
 # Agents - Custom Agent Composition System
 
 **Auto-routes when user mentions custom agents, agent creation, or specialized personalities.**
-**Does NOT handle agent teams/swarms — that's Delegation skill → TeamCreate.**
+**Does NOT handle agent teams/swarms — that's the Delegation skill.**
 
 ## Configuration: Base + User Merge
 
@@ -135,11 +135,11 @@ The Agents skill is a complete agent composition and management system:
 
 | User Says | What to Use | Why |
 |-----------|-------------|-----|
-| "**custom agents**", "create **custom** agents" | ComposeAgent + `general-purpose` | Unique personalities, voices, colors |
+| "**custom agents**", "create **custom** agents" | ComposeAgent + `general` | Unique personalities, voices, colors |
 | "agents", "launch agents", "bunch of agents" | SpawnParallel workflow | Same identity, parallel grunt work |
 | "use [named agent]" | Named agent | Pre-defined personality from USER config |
 
-**NEVER use static agent types (Architect, Engineer, etc.) for custom agents — always use `general-purpose` with ComposeAgent prompts.**
+**NEVER use static worker types (`pai-architect`, `pai-engineer`, etc.) for custom agents — always use `general` with ComposeAgent prompts.**
 
 ## Components
 

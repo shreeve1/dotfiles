@@ -11,12 +11,12 @@ description: Parallelize work via background/foreground agents, built-in types, 
 
 | {PRINCIPAL.NAME} Says | System | Tool | What Happens |
 |-------------|--------|------|-------------|
-| "**custom agents**", "spin up agents", "launch agents" | **Agents Skill** (ComposeAgent) | `Task(subagent_type="general-purpose", prompt=<ComposeAgent output>)` | Unique personalities, voices, colors via trait composition |
-| "**create an agent team**", "**agent team**", "**swarm**" | **Claude Code Teams** | `TeamCreate` → `TaskCreate` → `SendMessage` | Persistent team with shared task list, message coordination, multi-turn collaboration |
+| "**custom agents**", "spin up agents", "launch agents" | **Agents Skill** (ComposeAgent) | `Task(subagent_type="general", prompt=<ComposeAgent output>)` | Unique personalities, voices, colors via trait composition |
+| "**create an agent team**", "**agent team**", "**swarm**" | **Runtime-dependent teams** | Use team tools only if exposed; otherwise parallel `Task(...)` fanout | Coordinated multi-agent work |
 
 **These are NOT the same thing:**
 - **Custom agents** = one-shot parallel workers with unique identities, launched via `Task()`, no shared state
-- **Agent teams** = persistent coordinated teams with shared task lists, messaging, and multi-turn collaboration via `TeamCreate`
+- **Agent teams** = persistent coordinated teams only when team tools are exposed; otherwise emulate with parallel `Task(...)` calls and primary-context reconciliation
 
 ## When the Algorithm Should Use This Skill
 
@@ -25,44 +25,44 @@ description: Parallelize work via background/foreground agents, built-in types, 
 - **Specialized expertise** needed (architecture design, implementation, ISC optimization)
 - **Large codebase changes** spanning 5+ files benefit from parallel workers
 - **Research + execution** can proceed simultaneously
-- **"Create an agent team"** — use TeamCreate for persistent coordinated teams
+- **"Create an agent team"** — use team tools only if visible in the active runtime; otherwise use parallel Task fanout
 
 ## Delegation Patterns
 
 ### 1. Built-In Agents
 
-Use `Task(subagent_type="AgentType")` with these specialized agents:
+Use `Task(subagent_type="agent-slug")` with these specialized agents:
 
 | Agent Type | Specialization | When to Use |
 |-----------|---------------|-------------|
-| `Engineer` | TDD implementation, code changes | Code-heavy tasks requiring tests |
-| `Architect` | System design, structure decisions | Architecture planning, design specs |
-| `Algorithm` | ISC optimization, criteria work | ISC-specialized verification |
-| `Explore` | Fast codebase search | Quick file/pattern discovery |
-| `Plan` | Implementation strategy | Design before execution |
+| `pai-engineer` | TDD implementation, code changes | Code-heavy tasks requiring tests |
+| `pai-architect` | System design, structure decisions | Architecture planning, design specs |
+| `pai-algorithm` | ISC optimization, criteria work | ISC-specialized verification |
+| `explorer` | Fast codebase search | Quick file/pattern discovery |
+| `plan` | Implementation strategy | Design before execution |
 
 **Always include:** Full context, effort budget, expected output format.
 
 ### 2. Worktree-Isolated Agents
 
-Run agents in their own git worktree with `isolation: "worktree"` for file-safe parallelism:
+Run agents in their own git worktree only when the active Task schema exposes worktree isolation for file-safe parallelism:
 
 ```
-Task(subagent_type="Engineer", isolation: "worktree", prompt="...")
+Task(subagent_type="pai-engineer", prompt="...")
 ```
 
-- Each agent gets its own working tree — no file conflicts with other agents
-- Worktree auto-created on spawn, auto-cleaned when agent finishes (unless changes made)
+- Each isolated agent gets its own working tree — no file conflicts with other agents
+- Worktree isolation is schema-dependent; do not pass an `isolation` field unless the active tool schema exposes it
 - Use when multiple agents edit the same files or for competing approaches
-- Can combine with `run_in_background: true` for non-blocking isolated work
-- **Built-in agents with `isolation: worktree` in frontmatter** (Engineer, Architect) auto-isolate on every spawn
+- Prefer file ownership splits when worktree isolation is unavailable
+- Use dedicated worktrees only when the active environment exposes worktree isolation; otherwise split edits by file ownership and reconcile in the primary context.
 
 ### 3. Background Agents
 
-Run agents with `run_in_background: true` for non-blocking parallel work:
+Run independent agents in parallel by issuing multiple Task calls in one tool-use batch:
 
 ```
-Task(subagent_type="Engineer", run_in_background: true, prompt="...")
+Task(subagent_type="pai-engineer", prompt="...")
 ```
 
 - Use when results aren't needed immediately
@@ -80,43 +80,41 @@ Standard `Task()` calls that block until complete:
 ### 4. Custom Agents (via Agents Skill)
 
 **Trigger:** "custom agents", "spin up agents", "launch agents", "specialized agents"
-**Action:** Invoke the **Agents skill** → run `ComposeAgent.ts` → launch with `Task(subagent_type="general-purpose")`
+**Action:** Invoke the **Agents skill** → run `ComposeAgent.ts` → launch with `Task(subagent_type="general")`
 
 ```bash
 # Step 1: Compose agent identity
 bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "security,skeptical,thorough" --task "Review auth" --output json
 
 # Step 2: Launch with composed prompt
-Task(subagent_type="general-purpose", prompt=<ComposeAgent JSON .prompt field>)
+Task(subagent_type="general", prompt=<ComposeAgent JSON .prompt field>)
 ```
 
 - Each agent gets unique personality, voice, and color via ComposeAgent
 - Use DIFFERENT trait combinations for each agent to get unique voices
-- Never use built-in agent types (Engineer, Architect) for custom work
+- Never use built-in worker types (`pai-engineer`, `pai-architect`) for custom work
 - Ideal for: domain experts, adversarial reviewers, creative brainstormers, parallel analysis
 
-### 5. Agent Teams (via TeamCreate)
+### 5. Agent Teams (runtime-dependent)
 
 **Trigger:** "create an agent team", "agent team", "swarm", "team of agents"
-**Action:** Use `TeamCreate` tool → `TaskCreate` → spawn teammates via `Task(team_name=...)` → coordinate via `SendMessage`
+**Action:** Use team tools only when the active runtime exposes them; otherwise use parallel `Task(...)` calls and reconcile in the primary context.
 
 ```
-1. TeamCreate(team_name="my-project")           # Creates team + task list
-2. TaskCreate(subject="Implement auth module")   # Create team tasks
-3. Task(subagent_type="Engineer", team_name="my-project", name="auth-engineer")  # Spawn teammate
-4. TaskUpdate(taskId="1", owner="auth-engineer") # Assign task
-5. SendMessage(type="message", recipient="auth-engineer", content="...")  # Coordinate
+Task(subagent_type="pai-architect", prompt="Plan the approach and return risks/sequence")
+Task(subagent_type="pai-engineer", prompt="Implement the assigned slice and report verification")
+Task(subagent_type="validator", prompt="Validate the completed slice against acceptance criteria")
 ```
 
 **This is a COMPLETELY DIFFERENT system from custom agents:**
 - **Custom agents** (Agents skill) = fire-and-forget parallel workers, no shared state
-- **Agent teams** (TeamCreate) = persistent coordinated teams with shared task lists, messaging, multi-turn
+- **Agent teams** = persistent coordinated teams when team tools exist; otherwise primary-context orchestration over parallel Task calls
 
 **Team Guidelines:**
 - Use for 3+ independently workable criteria at Extended+
 - Large complex coding tasks benefit most
 - Each teammate works independently on assigned tasks via shared task list
-- Parent coordinates via `SendMessage`, reconciles results
+- Parent coordinates through explicit prompts, then reconciles results
 - Teammates go idle between turns — send messages to wake them
 
 ### 6. Parallel Task Dispatch
@@ -146,11 +144,10 @@ Not all delegation needs a full agent. Match delegation weight to task complexit
 **For:** One-shot extraction, classification, summarization, simple Q&A against provided content.
 
 ```
-Task(subagent_type="general-purpose", model="haiku", max_turns=3, prompt="...")
+Task(subagent_type="general", prompt="...")
 ```
 
-- Use `model="haiku"` for cost/speed efficiency
-- Set `max_turns=3` — if it can't finish in 3 turns, it needs full delegation
+- Keep the prompt and expected output small; if it needs tools or multiple turns, it needs full delegation
 - Provide all input inline in the prompt (no tool use expected)
 - Examples: "Classify this text as X/Y/Z", "Extract the 5 key points from this", "Summarize this in 2 sentences"
 
@@ -158,11 +155,11 @@ Task(subagent_type="general-purpose", model="haiku", max_turns=3, prompt="...")
 **For:** Multi-step reasoning, tasks requiring tool use (file reads, searches, web), tasks that need their own iteration loop.
 
 ```
-Task(subagent_type="general-purpose", prompt="...")  # or specialized agent type
+Task(subagent_type="general", prompt="...")  # or specialized agent slug
 ```
 
-- Default model (sonnet/opus inherited from parent)
-- No max_turns restriction — agent iterates until done
+- Agent model is configured in the subagent definition
+- Let the agent iterate until done within its assigned scope
 - Agent uses tools autonomously (Read, Grep, Bash, etc.)
 - Examples: "Research X and produce a report", "Refactor these 5 files", "Debug why test Y fails"
 

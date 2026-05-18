@@ -49,11 +49,11 @@ For each `.yaml` file:
 - Extract `name`, `url`, and `stories[]` array
 - Each story in the array becomes one UIReviewer dispatch
 
-### 3. Fan Out to Parallel UIReviewers
+### 3. Fan Out to Parallel ui-reviewers
 
 For each individual story, spawn one UIReviewer agent via the Task tool. **All Task calls go in a single message** for true parallelism.
 
-**Maximum 8 UIReviewers per invocation.** If more than 8 stories, batch into groups of 8.
+**Maximum 8 ui-reviewers per invocation.** If more than 8 stories, batch into groups of 8.
 
 **Prompt template per UIReviewer:**
 
@@ -76,7 +76,7 @@ Execute this story. Follow your 5-phase workflow. Return the JSON report AND the
 
 ### 4. Collect Results
 
-After all UIReviewers complete, parse each agent's output for the `RESULT:` sentinel line:
+After all ui-reviewers complete, parse each agent's output for the `RESULT:` sentinel line:
 
 ```
 RESULT: PASS | Steps: N/M | Assertions: X/Y | Duration: Zs
@@ -103,7 +103,7 @@ Include screenshot paths from each UIReviewer's report for failed stories.
 
 ## Design Decisions
 
-- **Task parallelism, not TeamCreate.** UIReviewers are stateless parallel workers. Multiple `Task(subagent_type="UIReviewer")` calls in one message achieve true parallelism without swarm coordination overhead.
+- **Task parallelism, not team tooling.** ui-reviewers are stateless parallel workers. Multiple `Task(subagent_type="ui-reviewer")` calls in one message achieve true parallelism without swarm coordination overhead.
 - **Stories as YAML text in prompt.** Avoids the agent needing to read the story file — reduces agent tool calls and speeds execution.
 - **RESULT sentinel parsing.** Simple string parsing on the last line — no fragile JSON extraction from freeform agent output.
 - **8-agent limit.** Matches PAI's parallel agent guidance and avoids resource contention.

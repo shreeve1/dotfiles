@@ -60,15 +60,15 @@ PAI uses a **hybrid agent system** that combines:
 
 | {PRINCIPAL.NAME} Says | What to Use | Why |
 |-------------|-------------|-----|
-| "**custom agents**", "spin up **custom** agents", "create **custom** agents" | **ComposeAgent + general-purpose** | Unique identity, voice, color |
+| "**custom agents**", "spin up **custom** agents", "create **custom** agents" | **ComposeAgent + general** | Unique identity, voice, color |
 | "spin up agents", "bunch of agents", "launch 5 agents to do X" | **Parallel agents** | Same identity, grunt work |
 | Named agents like "use Marcus" or "ask Serena" | **Named Agent** | Persistent identity from this file |
 
-**CRITICAL: Custom agents NEVER use static agent types (Architect, Engineer, etc.) — always use `general-purpose` with ComposeAgent prompts.**
+**CRITICAL: Custom agents NEVER use static worker types (`pai-architect`, `pai-engineer`, etc.) — always use `general` with ComposeAgent prompts.**
 
 ---
 
-### Pattern 1: CUSTOM AGENTS → ComposeAgent + general-purpose
+### Pattern 1: CUSTOM AGENTS → ComposeAgent + general
 
 **Trigger words:** "custom agents", "custom", "specialized agents with different expertise"
 
@@ -76,10 +76,10 @@ PAI uses a **hybrid agent system** that combines:
 1. Run `bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts` for EACH agent
 2. Use DIFFERENT trait combinations to get unique voices AND colors
 3. Each agent gets a personality-matched ElevenLabs voice and unique color
-4. Launch with `subagent_type: "general-purpose"` - NEVER use static types
+4. Launch with `subagent_type: "general"` - NEVER use static types
 
 **Why this matters:**
-- Custom agents have unique identities - NOT static types (Architect, Engineer, etc.)
+- Custom agents have unique identities - NOT static worker types (`pai-architect`, `pai-engineer`, etc.)
 - ComposeAgent provides: prompt, voice, voice_id, color
 - Varied traits → different voice mappings AND different colors
 
@@ -94,7 +94,7 @@ bun run ComposeAgent.ts --traits "medical,empathetic,consultative" --task "Neuro
 bun run ComposeAgent.ts --traits "research,bold,adversarial" --task "Marine biologist" --output json
 
 # Then launch each with their custom prompt (NEVER use static agent types):
-Task(prompt=<ComposeAgent output>, subagent_type="general-purpose", model="sonnet")
+Task(prompt=<ComposeAgent output>, subagent_type="general")
 # Results: 5 agents with 5 different voices AND 5 different colors
 ```
 
@@ -113,8 +113,8 @@ Task(prompt=<ComposeAgent output>, subagent_type="general-purpose", model="sonne
 ```bash
 # {PRINCIPAL.NAME}: "Spin up 5 agents to research these companies"
 # {DAIDENTITY.NAME} launches 5 parallel agents:
-Task(prompt="Research Company A...", subagent_type="general-purpose", model="haiku")
-Task(prompt="Research Company B...", subagent_type="general-purpose", model="haiku")
+Task(prompt="Research Company A...", subagent_type="general")
+Task(prompt="Research Company B...", subagent_type="general")
 # etc.
 ```
 
@@ -124,20 +124,20 @@ Task(prompt="Research Company B...", subagent_type="general-purpose", model="hai
 
 ```bash
 # WRONG: User says "custom agents" but you use a static agent type
-Task(prompt="...", subagent_type="Architect")  # NO - custom agents get "general-purpose"
-Task(prompt="...", subagent_type="Engineer") # NO - custom agents are NOT static types
+Task(prompt="...", subagent_type="pai-architect")  # NO - custom agents get "general"
+Task(prompt="...", subagent_type="pai-engineer") # NO - custom agents are NOT static worker types
 
 # WRONG: Describing custom agents as "intern agents" or "architect agents"
 "Spinning up 3 intern agents..." # NO - they're CUSTOM agents, not interns
 
 # WRONG: Not using ComposeAgent for custom agents
-Task(prompt="You are Dr. Nova...", subagent_type="general-purpose")
+Task(prompt="You are Dr. Nova...", subagent_type="general")
 # Missing: voice, color - should have run ComposeAgent first
 ```
 
 **CORRECT: Custom agents flow:**
 1. ComposeAgent with traits → get prompt, voice_id, color
-2. Task with that prompt + `subagent_type: "general-purpose"`
+2. Task with that prompt + `subagent_type: "general"`
 3. Describe as "custom agents" not "intern agents"
 
 **Available Traits {DAIDENTITY.NAME} Can Compose:**

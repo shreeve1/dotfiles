@@ -210,7 +210,7 @@ The parser uses the `GeminiResearcher` agent for heavy lifting:
 ```bash
 # Launched via Task tool
 Task(
-  subagent_type: "GeminiResearcher",
+  subagent_type: "gemini-researcher",
   prompt: "Extract entities from: [content]"
 )
 ```
