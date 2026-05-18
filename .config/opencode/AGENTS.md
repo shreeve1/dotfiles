@@ -122,10 +122,12 @@ Memory boundary: pi does NOT auto-receive PAI memory. THINK sees only ISA; PLAN 
 
 Full catalog: `docs/reference/opencode-subagents.md`.
 
-- Delegate when work exceeds quick local Glob/Grep/Edit and a specialist adds signal.
+- Subagent delegation is default-ON for non-trivial work. If a trigger below matches, launch the matching `Task` subagent before direct broad reads/searches/edits.
+- Mandatory triggers: `explorer` before broad repo/codebase discovery, unfamiliar-code investigation, or pattern searches spanning multiple directories; `validator` after meaningful code/config/instruction edits before claiming completion; `forge` or `pai-engineer` for multi-file implementation/refactor/debug work; `pai-architect` for architecture/specs; browser/devtools specialists for UI/debug work; researcher agents for current-source work.
+- Direct Glob/Grep/Edit is allowed only after delegation starts, or for exact known-file/single-probe work that will not load broad context.
+- If not delegating when a trigger appears to match, write `Delegation exception:` with one narrow reason in the DELEGATION GATE. Valid reasons: James explicitly asked me to do it myself; no tool work is needed; exact single-file/single-probe task under ~50 lines; subagent lacks necessary unstated conversation context. “Adds ceremony” is not enough by itself.
 - Pass a complete prompt: subagents don't inherit conversation context.
 - Parallelize independent subagent work in one tool-use batch.
-- Don't delegate when direct work is faster, when hidden context matters, or when {PRINCIPAL.NAME} asks me to do it myself.
 - Use the `Task` tool with `subagent_type`, 3-5 word description, precise expected output.
 - Infra changes: scout → planner → human review → executor → validator.
 - `anvil` disabled; use `forge` for GPT-family code production.

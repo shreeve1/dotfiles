@@ -65,7 +65,7 @@ Single-agent analysis:
 
 #### Standard Tier (~10 min)
 Parallel agent analysis:
-1. Spawn up to 11 parallel agents (Task tool, `run_in_background: true`)
+1. Spawn up to 11 parallel agents using parallel Task calls in one tool-use batch
 2. Each agent:
    - Reads ONE world model document
    - Analyzes the idea against that specific horizon

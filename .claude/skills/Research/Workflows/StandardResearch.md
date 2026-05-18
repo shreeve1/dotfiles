@@ -32,13 +32,13 @@ Create ONE focused query optimized for each researcher's strengths:
 
 ```typescript
 Task({
-  subagent_type: "ClaudeResearcher",
+  subagent_type: "claude-researcher",
   description: "[topic] analysis",
   prompt: "Do ONE search for: [query optimized for depth/analysis]. Return findings immediately."
 })
 
 Task({
-  subagent_type: "GeminiResearcher",
+  subagent_type: "gemini-researcher",
   description: "[topic] perspectives",
   prompt: "Do ONE search for: [query optimized for breadth/perspectives]. Return findings immediately."
 })

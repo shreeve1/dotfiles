@@ -69,8 +69,8 @@ From recipe frontmatter `tool` field:
 | Tool Value | Execution Method |
 |-----------|-----------------|
 | `playwright-cli` | Execute steps as sequential `playwright-cli` Bash commands |
-| `BrowserAgent` | Spawn `Task(subagent_type="BrowserAgent", prompt=resolved_template)` |
-| `UIReviewer` | Spawn `Task(subagent_type="UIReviewer", prompt=resolved_template)` |
+| `browser-automation` | Spawn `Task(subagent_type="browser-automation", prompt=resolved_template)` |
+| `ui-reviewer` | Spawn `Task(subagent_type="ui-reviewer", prompt=resolved_template)` |
 
 Default: `playwright-cli` if `tool` field is missing.
 

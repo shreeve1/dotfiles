@@ -80,7 +80,7 @@ Report: "Current Algorithm: v{VERSION} — {N} sections, {M} rules"
 Spawn 1 agent:
 
 ```
-Use Task tool with subagent_type=general-purpose:
+Use Task tool with subagent_type=general:
 
 "Mine algorithm reflections specifically for Algorithm improvement patterns.
 

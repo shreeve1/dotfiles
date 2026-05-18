@@ -1,6 +1,6 @@
 # OpenCode Subagent Reference
 
-This is the on-demand catalog for OpenCode subagent routing. Keep always-loaded prompts limited to the delegation invariants: pass complete context, parallelize independent work, and avoid delegation when direct Glob/Grep/Edit is faster.
+This is the on-demand catalog for OpenCode subagent routing. Delegation is default-ON for non-trivial work: preserve primary context, pass complete context, parallelize independent work, and use direct tools only for exact known-file/single-probe work or a documented `Delegation exception:`.
 
 ## Code And Execution
 
@@ -60,16 +60,19 @@ Pipeline rule: infra work goes scout -> planner -> human review -> executor -> v
 
 ## Parallel Patterns
 
+- Context-preserving scout: use `explorer` before broad repo discovery so the primary context does not fill with search output.
 - Investigation fan-out: run multiple `explorer` agents over separate areas.
 - Cross-vendor review: run `quick-review-opus` and `quick-review-codex` together.
 - Browser bug triage: run console, network, and performance specialists in parallel.
 - E4/E5 close-out: finish work, then `validator`, then `cato`.
 
-## Do Not Delegate
+## Delegation Exceptions
 
-- Direct Glob/Grep/Edit can finish faster than agent setup.
-- The task needs unstated conversation context.
-- A generic agent would add ceremony rather than signal.
+- Narrow exact-file or single-probe work can finish without broad context loading.
+- No tool work is needed.
+- The task needs unstated conversation context that cannot be provided in a complete prompt.
 - James explicitly asked me to do it myself.
+
+When an exception is used in Algorithm mode, write `Delegation exception:` with the reason in the DELEGATION GATE.
 
 Disabled: `anvil` is not configured in this OpenCode port. Use `forge` for GPT-family code production.

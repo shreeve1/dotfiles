@@ -40,16 +40,15 @@ bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts \
 
 Each call returns: name, voice, voice_id, color, traits, and a full prompt with unique personality.
 
-### Step 3: Launch with general-purpose
+### Step 3: Launch with general
 
-**ALWAYS use `subagent_type: "general-purpose"` — NEVER use static types.**
+**ALWAYS use `subagent_type: "general"` — NEVER use static worker types.**
 
 ```typescript
-Agent({
+Task({
   description: "Council member 1 - systems architect",
   prompt: <composedAgentPrompt + round instructions + topic context>,
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 ```
 
@@ -70,7 +69,7 @@ The specific traits should be tailored to the topic, not generic.
 
 | Scenario | WRONG | RIGHT |
 |----------|-------|-------|
-| Any council debate | `Agent(subagent_type="Architect")` | ComposeAgent → `Agent(subagent_type="general-purpose")` |
-| Security topic | `Agent(subagent_type="Silas")` | ComposeAgent with `security,adversarial,bold` traits |
-| Design question | `Agent(subagent_type="Designer")` | ComposeAgent with `ux,enthusiastic,exploratory` traits |
-| Research needed | `Agent(subagent_type="PerplexityResearcher")` | ComposeAgent with `research,thorough,comparative` traits |
+| Any council debate | `Task(subagent_type="pai-architect")` | ComposeAgent → `Task(subagent_type="general")` |
+| Security topic | static persona agent | ComposeAgent with `security,adversarial,bold` traits |
+| Design question | static persona agent | ComposeAgent with `ux,enthusiastic,exploratory` traits |
+| Research needed | static researcher persona | ComposeAgent with `research,thorough,comparative` traits |

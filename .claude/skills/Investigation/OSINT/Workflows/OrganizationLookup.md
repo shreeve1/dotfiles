@@ -188,28 +188,28 @@ Running the **OrganizationLookup** workflow in the **OSINT** skill to research o
 
 ```typescript
 // Registration & Legal Status — IRS, ProPublica, GuideStar, state registries
-Task({ subagent_type: "PerplexityResearcher", prompt: "Verify registration and legal status of [organization]. Search IRS Select Check for tax-exempt status, ProPublica Nonprofit Explorer for 990 filings, GuideStar/Candid for transparency profile, and state charity registration databases. Report EIN, ruling year, deductibility status, and any revocations." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Verify registration and legal status of [organization]. Search IRS Select Check for tax-exempt status, ProPublica Nonprofit Explorer for 990 filings, GuideStar/Candid for transparency profile, and state charity registration databases. Report EIN, ruling year, deductibility status, and any revocations." })
 
 // Financial Analysis — IRS 990, annual reports, USAspending
-Task({ subagent_type: "ClaudeResearcher", prompt: "Analyze financial health of [organization] using IRS 990 filings (via ProPublica), annual reports, and USAspending (government grants). Calculate program efficiency ratio, revenue trends, compensation analysis, and funding source diversification." })
+Task({ subagent_type: "claude-researcher", prompt: "Analyze financial health of [organization] using IRS 990 filings (via ProPublica), annual reports, and USAspending (government grants). Calculate program efficiency ratio, revenue trends, compensation analysis, and funding source diversification." })
 
 // Leadership Background — LinkedIn, ZoomInfo, public records
-Task({ subagent_type: "ClaudeResearcher", prompt: "Research leadership and board of [organization] via LinkedIn, ZoomInfo, and public appointment records. Map executive backgrounds, board member affiliations, compensation (from 990 Part VII), and potential conflicts of interest." })
+Task({ subagent_type: "claude-researcher", prompt: "Research leadership and board of [organization] via LinkedIn, ZoomInfo, and public appointment records. Map executive backgrounds, board member affiliations, compensation (from 990 Part VII), and potential conflicts of interest." })
 
 // Grant & Funding Sources — Foundation Directory, USAspending, donor disclosures
-Task({ subagent_type: "PerplexityResearcher", prompt: "Map funding sources for [organization] via Foundation Directory (grants received), USAspending (government contracts), and published donor lists. Identify top funders, grant amounts, and any concerning funding patterns." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Map funding sources for [organization] via Foundation Directory (grants received), USAspending (government contracts), and published donor lists. Identify top funders, grant amounts, and any concerning funding patterns." })
 
 // News & Reputation — GDELT, MediaCloud, Google News, Charity Navigator
-Task({ subagent_type: "GeminiResearcher", prompt: "Analyze media coverage and reputation of [organization] via GDELT, MediaCloud, and Google News. Check Charity Navigator rating, BBB Wise Giving Alliance, and GuideStar seal status. Identify any controversies, criticism, or investigative reporting." })
+Task({ subagent_type: "gemini-researcher", prompt: "Analyze media coverage and reputation of [organization] via GDELT, MediaCloud, and Google News. Check Charity Navigator rating, BBB Wise Giving Alliance, and GuideStar seal status. Identify any controversies, criticism, or investigative reporting." })
 
 // Legal & Compliance — PACER, CourtListener, OFAC, OIG
-Task({ subagent_type: "GrokResearcher", prompt: "Search PACER and CourtListener for legal proceedings involving [organization]. Check OFAC sanctions list, OIG exclusion list, and state AG enforcement actions. Report any regulatory issues or compliance violations." })
+Task({ subagent_type: "grok-researcher", prompt: "Search PACER and CourtListener for legal proceedings involving [organization]. Check OFAC sanctions list, OIG exclusion list, and state AG enforcement actions. Report any regulatory issues or compliance violations." })
 
 // Digital Presence & Infrastructure — BuiltWith, SecurityTrails, crt.sh, Shodan
-Task({ subagent_type: "GeminiResearcher", prompt: "Profile digital infrastructure of [organization] — website technology via BuiltWith, domain/DNS via SecurityTrails, subdomains via crt.sh, and exposed services via Shodan. Assess security posture and digital maturity." })
+Task({ subagent_type: "gemini-researcher", prompt: "Profile digital infrastructure of [organization] — website technology via BuiltWith, domain/DNS via SecurityTrails, subdomains via crt.sh, and exposed services via Shodan. Assess security posture and digital maturity." })
 
 // Mission Impact & Program Assessment
-Task({ subagent_type: "GrokResearcher", prompt: "Assess program impact and mission effectiveness of [organization]. Search for independent evaluations, program outcomes data, academic citations, and beneficiary testimonials. Compare stated mission against actual activities and spending." })
+Task({ subagent_type: "grok-researcher", prompt: "Assess program impact and mission effectiveness of [organization]. Search for independent evaluations, program outcomes data, academic citations, and beneficiary testimonials. Compare stated mission against actual activities and spending." })
 ```
 
 ---

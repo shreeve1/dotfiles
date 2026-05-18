@@ -110,34 +110,34 @@ Use these specific sources per investigation phase:
 
 ```typescript
 // Business Registration — OpenCorporates, SEC EDGAR, Companies House, SAM.gov
-Task({ subagent_type: "PerplexityResearcher", prompt: "Search OpenCorporates, SEC EDGAR, and Companies House for business registrations of [company]. Check SAM.gov for government contractor status. Verify legal entity name, jurisdiction, status, and filing history." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Search OpenCorporates, SEC EDGAR, and Companies House for business registrations of [company]. Check SAM.gov for government contractor status. Verify legal entity name, jurisdiction, status, and filing history." })
 
 // Leadership & Key Personnel — LinkedIn, ZoomInfo, Apollo, RocketReach
-Task({ subagent_type: "ClaudeResearcher", prompt: "Research founders and executives of [company] via LinkedIn, ZoomInfo, Apollo, and RocketReach. Map career histories, board memberships, and professional credentials." })
+Task({ subagent_type: "claude-researcher", prompt: "Research founders and executives of [company] via LinkedIn, ZoomInfo, Apollo, and RocketReach. Map career histories, board memberships, and professional credentials." })
 
 // Financial Intelligence — Crunchbase, PitchBook, D&B, AlphaSense
-Task({ subagent_type: "ClaudeResearcher", prompt: "Research funding history and financial health of [company] via Crunchbase, PitchBook, Dun & Bradstreet, and AlphaSense. Map funding rounds, investors, revenue signals, and credit ratings." })
+Task({ subagent_type: "claude-researcher", prompt: "Research funding history and financial health of [company] via Crunchbase, PitchBook, Dun & Bradstreet, and AlphaSense. Map funding rounds, investors, revenue signals, and credit ratings." })
 
 // Legal & Regulatory — PACER, CourtListener, UniCourt
-Task({ subagent_type: "GrokResearcher", prompt: "Search PACER (federal), CourtListener, and UniCourt for legal proceedings involving [company]. Check for regulatory enforcement actions, lawsuits, and compliance issues." })
+Task({ subagent_type: "grok-researcher", prompt: "Search PACER (federal), CourtListener, and UniCourt for legal proceedings involving [company]. Check for regulatory enforcement actions, lawsuits, and compliance issues." })
 
 // Patent & Intellectual Property — USPTO, Google Patents, Espacenet, Lens.org
-Task({ subagent_type: "ClaudeResearcher", prompt: "Search USPTO, Google Patents, Espacenet, and Lens.org for patents and IP filings by [company]. Assess innovation portfolio and technology moat." })
+Task({ subagent_type: "claude-researcher", prompt: "Search USPTO, Google Patents, Espacenet, and Lens.org for patents and IP filings by [company]. Assess innovation portfolio and technology moat." })
 
 // Tech Profiling & Infrastructure — BuiltWith, Wappalyzer, Netcraft
-Task({ subagent_type: "GeminiResearcher", prompt: "Profile technology stack of [company] using BuiltWith, Wappalyzer, and Netcraft. Identify frameworks, analytics, CDNs, hosting, and third-party integrations." })
+Task({ subagent_type: "gemini-researcher", prompt: "Profile technology stack of [company] using BuiltWith, Wappalyzer, and Netcraft. Identify frameworks, analytics, CDNs, hosting, and third-party integrations." })
 
 // Media & News Coverage — GDELT, MediaCloud, Google News
-Task({ subagent_type: "PerplexityResearcher", prompt: "Analyze media coverage of [company] via GDELT, MediaCloud, and Google News. Distinguish earned media from paid/promotional content. Track sentiment over time." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Analyze media coverage of [company] via GDELT, MediaCloud, and Google News. Distinguish earned media from paid/promotional content. Track sentiment over time." })
 
 // Competitive Intelligence — SimilarWeb, SEMrush, Owler
-Task({ subagent_type: "GeminiResearcher", prompt: "Map competitive landscape for [company] using SimilarWeb (traffic), SEMrush (SEO/ads), and Owler (competitor tracking). Identify market position and key competitors." })
+Task({ subagent_type: "gemini-researcher", prompt: "Map competitive landscape for [company] using SimilarWeb (traffic), SEMrush (SEO/ads), and Owler (competitor tracking). Identify market position and key competitors." })
 
 // Sanctions & Compliance — OFAC, EU Sanctions, OpenSanctions
-Task({ subagent_type: "GrokResearcher", prompt: "Check [company] against OFAC SDN list, EU Consolidated Sanctions, and OpenSanctions database. Verify no sanctions, export controls, or debarment listings." })
+Task({ subagent_type: "grok-researcher", prompt: "Check [company] against OFAC SDN list, EU Consolidated Sanctions, and OpenSanctions database. Verify no sanctions, export controls, or debarment listings." })
 
 // Corporate Ownership & VC — OpenOwnership, GLEIF LEI, Dealroom, Tracxn, Wellfound
-Task({ subagent_type: "PerplexityResearcher", prompt: "Map corporate ownership structure of [company] via OpenOwnership, GLEIF LEI database. Check startup/VC data on Dealroom, Tracxn, and Wellfound for investment history and cap table insights." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Map corporate ownership structure of [company] via OpenOwnership, GLEIF LEI database. Check startup/VC data on Dealroom, Tracxn, and Wellfound for investment history and cap table insights." })
 ```
 
 ---

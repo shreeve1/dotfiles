@@ -38,7 +38,7 @@ Persistent storage across sessions:
 TypeScript utilities in `PAI/Tools/`: `Inference.ts` (AI calls), `algorithm.ts` (Algorithm CLI), `RebuildPAI.ts`, `SessionProgress.ts`, `Banner.ts`, and more.
 
 ### Agents (`PAIAGENTSYSTEM.md`)
-14 specialized agent types (Algorithm, Engineer, Architect, Designer, Researcher variants). Custom agents via the Agents skill. Agent teams for coordinated multi-agent work.
+OpenCode subagents use lowercase slugs such as `pai-algorithm`, `pai-engineer`, `pai-architect`, `explorer`, and researcher variants. See `docs/reference/opencode-subagents.md` for the active catalog. Custom agents are composed via the Agents skill and launched through `general`.
 
 ### Security
 OpenCode plugin and permission-based security guards tool access, path containment, command execution, and secret scanning.

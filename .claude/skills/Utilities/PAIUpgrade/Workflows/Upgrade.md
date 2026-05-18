@@ -37,7 +37,7 @@ Both threads run in parallel for efficiency.
 Spawn 4 parallel agents to gather user context:
 
 ```
-Use Task tool with subagent_type=general-purpose, run 4 agents in parallel:
+Use Task tool with subagent_type=general, run 4 agents in parallel:
 
 Agent 1 - TELOS Analysis:
 "Read and analyze the user's TELOS files to understand their current focus:
@@ -101,7 +101,7 @@ Format as structured JSON."
 Spawn 4 parallel agents to check sources:
 
 ```
-Use Task tool with subagent_type=general-purpose, run 3 agents in parallel:
+Use Task tool with subagent_type=general, run 3 agents in parallel:
 
 Agent 1 - Anthropic Sources:
 "Check Anthropic sources for updates and EXTRACT GRANULAR TECHNIQUES:
@@ -254,7 +254,7 @@ EFFORT LEVEL: Return within 90 seconds. If queries are slow, reduce per_page to 
 Spawn 1 parallel agent alongside Threads 1 and 2:
 
 ```
-Use Task tool with subagent_type=general-purpose, run 1 agent in parallel with above:
+Use Task tool with subagent_type=general, run 1 agent in parallel with above:
 
 Agent - Reflection Miner:
 "Mine internal algorithm reflections for recurring improvement patterns.

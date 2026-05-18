@@ -191,5 +191,5 @@ SUMMARY, ANALYSIS, ACTIONS, RESULTS, STATUS, CAPTURE, NEXT, STORY EXPLANATION, C
 | `traits` field | Omitted | ComposeAgent trait keys |
 | `source` field | Omitted | `"ComposeAgent"` or `"manual"` |
 | Permissions | Full custom permissions block | Standard permissions (can customize) |
-| `subagent_type` | Uses agent name (e.g., `Engineer`) | Always `general-purpose` |
+| `subagent_type` | Uses agent name (e.g., `pai-engineer`) | Always `general` |
 | Lifecycle | Permanent, ships with PAI | User-managed (create/delete) |

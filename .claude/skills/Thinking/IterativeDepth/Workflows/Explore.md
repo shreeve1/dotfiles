@@ -88,7 +88,7 @@ After all passes complete:
 ### Step 5: Integrate
 
 Return the enriched criteria to the calling context:
-- If called from Algorithm OBSERVE: Feed directly into TaskCreate calls
+- If called from Algorithm OBSERVE: feed directly into the calling ISA/todo criteria set
 - If called standalone: Present the enriched criteria set to the user
 
 ## Output Format
@@ -103,13 +103,13 @@ Return the enriched criteria to the calling context:
 - Anti-criteria discovered: {count}
 
 📋 NEW ISC CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-"]
+[List each new criterion, prefixed "ISC-"]
 
 📋 REFINED ISC CRITERIA:
-[Use TaskUpdate for each, with evidence of what changed]
+[List each refined criterion with evidence of what changed]
 
 📋 NEW ANTI-CRITERIA:
-[Use TaskCreate for each, prefixed "ISC-A"]
+[List each new anti-criterion, prefixed "ISC-A"]
 
 💡 Key Insight: [The most surprising finding across all lenses — the thing single-pass analysis would have missed]
 ```

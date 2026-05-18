@@ -8,7 +8,7 @@ You are executing the analyze-ai-trends command to perform deep trend analysis a
    - Sort chronologically to understand evolution over time
 
 2. **Analyze trends across all logs**
-   - Use the Task tool with subagent_type="GeminiResearcher"
+   - Use the Task tool with subagent_type="gemini-researcher"
    - Prompt the researcher to identify:
      - **EVOLVING TRENDS**: What patterns are emerging, strengthening, or weakening over time?
      - **RECURRING THEMES**: What topics, companies, or technologies keep appearing?

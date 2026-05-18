@@ -28,7 +28,7 @@ Compose 4 agents with topic-specific traits via ComposeAgent, then announce:
 
 ### Step 2: Parallel Perspective Gathering
 
-Launch all council members in parallel using `subagent_type: "general-purpose"`.
+Launch all council members in parallel using `subagent_type: "general"`.
 
 **Each agent prompt includes the composed agent's full prompt PLUS:**
 ```

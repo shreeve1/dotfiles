@@ -61,13 +61,12 @@ Use the most direct tool that preserves the source faithfully. If the request is
 - Use the `WebFetch` tool for URLs when the task is small or you only need to inspect a few pages directly.
 - For search-driven discovery, use the `WebSearch` tool first, then `WebFetch` the most relevant result pages.
 - If the initial page is a portal index, identify likely child pages worth following before writing files.
-- For multi-page extraction, delegate to a background Agent using the `Agent` tool with `run_in_background: true`. Give it the full job — not just research but also writing all output files:
+- For multi-page extraction, delegate to a subagent using the `Task` tool. Give it the full job — not just research but also writing all output files:
 
 ```
-Agent({
+Task({
   description: "Fetch and build full apidocs/ from <URL>",
-  subagent_type: "general-purpose",
-  run_in_background: true,
+  subagent_type: "general",
   prompt: "Fetch API documentation from <URL> and generate a complete apidocs/ directory in <output-path>. Use WebFetch to retrieve the portal index and all child reference pages. Save fetched content to apidocs/source/. Create per-resource markdown files in apidocs/resources/. Create cross-cutting reference guides (authentication, pagination, rate-limits, errors) in apidocs/reference/. Write apidocs/README.md as the navigable entry point with a resource table and directory map. Report file counts and any gaps when complete."
 })
 ```

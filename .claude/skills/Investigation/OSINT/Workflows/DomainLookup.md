@@ -195,28 +195,28 @@ Running the **DomainLookup** workflow in the **OSINT** skill to investigate doma
 
 ```typescript
 // WHOIS & Registration Intel — DomainTools, ViewDNS
-Task({ subagent_type: "PerplexityResearcher", prompt: "Research domain registration for [domain] via DomainTools and ViewDNS. Get WHOIS history, registrant changes, reverse WHOIS on registrant email, and name server history. Report registration timeline and ownership patterns." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Research domain registration for [domain] via DomainTools and ViewDNS. Get WHOIS history, registrant changes, reverse WHOIS on registrant email, and name server history. Report registration timeline and ownership patterns." })
 
 // DNS & Subdomain Enumeration — SecurityTrails, DNSDumpster, crt.sh
-Task({ subagent_type: "ClaudeResearcher", prompt: "Enumerate subdomains and DNS records for [domain] via SecurityTrails (current + historical DNS), DNSDumpster (passive recon), and crt.sh (certificate transparency). Map all discovered subdomains with their IP resolutions." })
+Task({ subagent_type: "claude-researcher", prompt: "Enumerate subdomains and DNS records for [domain] via SecurityTrails (current + historical DNS), DNSDumpster (passive recon), and crt.sh (certificate transparency). Map all discovered subdomains with their IP resolutions." })
 
 // Technology Fingerprint — BuiltWith, Wappalyzer, Netcraft
-Task({ subagent_type: "GeminiResearcher", prompt: "Profile technology stack of [domain] using BuiltWith, Wappalyzer, and Netcraft. Identify web framework, CMS, CDN, analytics, hosting provider, and all third-party integrations." })
+Task({ subagent_type: "gemini-researcher", prompt: "Profile technology stack of [domain] using BuiltWith, Wappalyzer, and Netcraft. Identify web framework, CMS, CDN, analytics, hosting provider, and all third-party integrations." })
 
 // Infrastructure Scanning — Shodan, Censys
-Task({ subagent_type: "PerplexityResearcher", prompt: "Search Shodan and Censys for [domain] and its resolved IPs. Report open ports, services, SSL certificates, server versions, and any known vulnerabilities on exposed services." })
+Task({ subagent_type: "perplexity-researcher", prompt: "Search Shodan and Censys for [domain] and its resolved IPs. Report open ports, services, SSL certificates, server versions, and any known vulnerabilities on exposed services." })
 
 // Reputation Assessment — VirusTotal, URLScan.io, PhishTank
-Task({ subagent_type: "GrokResearcher", prompt: "Check [domain] reputation via VirusTotal (scan results, community scores), URLScan.io (live analysis, redirects), and PhishTank (phishing reports). Report detection ratios and threat classifications." })
+Task({ subagent_type: "grok-researcher", prompt: "Check [domain] reputation via VirusTotal (scan results, community scores), URLScan.io (live analysis, redirects), and PhishTank (phishing reports). Report detection ratios and threat classifications." })
 
 // Abuse & Threat Intel — AbuseIPDB, GreyNoise, Pulsedive
-Task({ subagent_type: "GrokResearcher", prompt: "Check [domain] IPs against AbuseIPDB (abuse reports, confidence score), GreyNoise (scanning activity classification), and Pulsedive (threat intel aggregation). Report abuse history and threat indicators." })
+Task({ subagent_type: "grok-researcher", prompt: "Check [domain] IPs against AbuseIPDB (abuse reports, confidence score), GreyNoise (scanning activity classification), and Pulsedive (threat intel aggregation). Report abuse history and threat indicators." })
 
 // Breach & Leak Exposure — HIBP, Intelligence X
-Task({ subagent_type: "GeminiResearcher", prompt: "Search HIBP and Intelligence X for [domain] email addresses in data breaches. Check for leaked credentials, paste site exposure, and dark web mentions associated with the domain." })
+Task({ subagent_type: "gemini-researcher", prompt: "Search HIBP and Intelligence X for [domain] email addresses in data breaches. Check for leaked credentials, paste site exposure, and dark web mentions associated with the domain." })
 
 // Related Domain Discovery — Reverse WHOIS, Certificate SAN, IP neighbors
-Task({ subagent_type: "ClaudeResearcher", prompt: "Discover domains related to [domain] via reverse WHOIS (same registrant), certificate SAN entries, shared IP hosting, and shared name servers. Map the full domain footprint of the entity behind this domain." })
+Task({ subagent_type: "claude-researcher", prompt: "Discover domains related to [domain] via reverse WHOIS (same registrant), certificate SAN entries, shared IP hosting, and shared name servers. Map the full domain footprint of the entity behind this domain." })
 ```
 
 ---

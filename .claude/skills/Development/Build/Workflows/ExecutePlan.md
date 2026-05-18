@@ -134,7 +134,7 @@ Record `PRE_WAVE_SNAPSHOT` (the tree SHA) for use by Phase 7.5.1. The same mecha
 
 ## Phase 6 — Execute the Wave
 
-Use `TaskCreate` for each task in the wave, then spawn builder agents in parallel.
+Create one explicit `Task(...)` prompt for each task in the wave, then spawn builder agents in parallel.
 
 Use parallel tasks only when the wave contains truly independent tasks. Otherwise, use a single task or run tasks sequentially.
 
@@ -162,7 +162,7 @@ Instructions:
 1. Read the full plan at the path above for context, architecture, and Relevant Files
 2. Implement ONLY the task groups assigned to you
 3. Do not implement task groups outside your assignment
-4. Use TaskUpdate to mark your task as completed when finished
+4. Report task completion status and verification evidence when finished
 5. Report all files created or modified
 
 When finished, report using this format:

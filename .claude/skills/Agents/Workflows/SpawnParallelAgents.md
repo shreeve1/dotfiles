@@ -79,20 +79,17 @@ Company A: Acme AI Security Corp
 Task({
   description: "Research Company A",
   prompt: agent1Prompt,
-  subagent_type: "general-purpose",
-  model: "haiku"  // or "sonnet" depending on complexity
+  subagent_type: "general"
 })
 Task({
   description: "Research Company B",
   prompt: agent2Prompt,
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 Task({
   description: "Research Company C",
   prompt: agent3Prompt,
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 // ... up to N agents
 ```
@@ -119,30 +116,21 @@ Check for:
 4. Recommendations for follow-up research
 
 Provide a brief assessment and any issues found.`,
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 ```
 
-## Timing & Model Selection
+## Timing Scope
 
 **Timing flows from the Algorithm.** The main agent validates a timing tier (fast|standard|deep) in the THINK phase. Every agent prompt MUST include a `## Scope` section:
 
-| Timing | Model | Scope |
-|--------|-------|-------|
-| `fast` | `haiku` | Under 500 words, direct answer only |
-| `standard` | `sonnet` | Focused work, under 1500 words |
-| `deep` | `opus` | Comprehensive analysis, no limit |
+| Timing | Scope |
+|--------|-------|
+| `fast` | Under 500 words, direct answer only |
+| `standard` | Focused work, under 1500 words |
+| `deep` | Comprehensive analysis, no limit |
 
-**Choose model based on timing tier AND task complexity:**
-
-| Task Type | Model | Reason |
-|-----------|-------|--------|
-| Simple checks (URL validation, file existence, basic lookups) | `haiku` | 10-20x faster, more than sufficient |
-| Standard research/analysis (company research, code review) | `sonnet` | Balanced capability and speed |
-| Deep reasoning (strategic analysis, architectural decisions) | `opus` | Maximum intelligence required |
-
-**Parallel execution especially benefits from `haiku` - spawning 10 haiku agents is both faster AND cheaper than 1 opus agent doing sequential work.**
+OpenCode subagents carry their models in agent definitions. Select the subagent identity and timing scope; do not pass a per-call `model` argument unless the active Task tool schema exposes it.
 
 ## Example: Research 5 Companies
 
@@ -154,40 +142,34 @@ Provide a brief assessment and any issues found.`,
 Task({
   description: "Research Acme AI Security",
   prompt: "Research Acme AI Security Corp: products, market, partnerships, tech stack",
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 Task({
   description: "Research Bolt Security AI",
   prompt: "Research Bolt Security AI: products, market, partnerships, tech stack",
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 Task({
   description: "Research Cipher AI Defense",
   prompt: "Research Cipher AI Defense: products, market, partnerships, tech stack",
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 Task({
   description: "Research Delta Threat Intel",
   prompt: "Research Delta Threat Intelligence: products, market, partnerships, tech stack",
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 Task({
   description: "Research Echo AI Protection",
   prompt: "Research Echo AI Protection Systems: products, market, partnerships, tech stack",
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 
 // After results return, spotcheck:
 Task({
   description: "Spotcheck company research",
   prompt: "Review these 5 company research results for consistency and gaps: [results]",
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 ```
 
@@ -209,8 +191,7 @@ items.forEach(item => {
   Task({
     description: `Process ${item}`,
     prompt: `Analyze ${item} for: [criteria]`,
-    subagent_type: "general-purpose",
-    model: "haiku"
+    subagent_type: "general"
   });
 });
 ```
@@ -219,7 +200,7 @@ items.forEach(item => {
 
 **Input:** Multiple files to analyze
 **Action:** One agent per file, same analysis criteria
-**Model:** `sonnet` for code analysis, `haiku` for simple checks
+**Subagent:** use `general` for composed parallel workers, or a specialized OpenCode subagent when the task has a clear specialist.
 
 ```typescript
 const files = ["src/auth.ts", "src/db.ts", "src/api.ts"];
@@ -229,8 +210,7 @@ files.forEach(file => {
   Task({
     description: `Analyze ${file}`,
     prompt: `Review ${file} for security issues, focusing on: [checklist]`,
-    subagent_type: "general-purpose",
-    model: "sonnet"
+    subagent_type: "general"
   });
 });
 ```
@@ -239,7 +219,7 @@ files.forEach(file => {
 
 **Input:** Multiple data points/questions
 **Action:** One agent per question, independent research
-**Model:** `sonnet` for research, `haiku` for fact-checking
+**Subagent:** use `general` for composed parallel workers, or a researcher subagent when source retrieval dominates.
 
 ```typescript
 const questions = [
@@ -255,8 +235,7 @@ questions.forEach(q => {
   Task({
     description: `Research: ${q}`,
     prompt: `Find reliable answer to: ${q}. Include sources.`,
-    subagent_type: "general-purpose",
-    model: "haiku"
+    subagent_type: "general"
   });
 });
 ```
@@ -284,8 +263,7 @@ Verify:
 - No conflicting data
 
 Flag any issues for follow-up.`,
-  subagent_type: "general-purpose",
-  model: "haiku"  // Fast spotcheck
+  subagent_type: "general"
 })
 ```
 
@@ -314,22 +292,20 @@ Task({ ... })  // Agent 3
 Task({
   description: "Research X",
   prompt: "Research X and report findings",
-  subagent_type: "Intern",  // DOES NOT EXIST — removed from system
-  model: "haiku"
+  subagent_type: "<nonexistent-agent>"  // DOES NOT EXIST — removed from system
 })
 ```
 
-**✅ RIGHT: Use general-purpose agents or agents composed via ComposeAgent**
+**✅ RIGHT: Use `general` agents or agents composed via ComposeAgent**
 ```typescript
-// For simple parallel work, use general-purpose type
+// For simple parallel work, use general type
 Task({
   description: "Research X",
   prompt: "Research X and report findings",
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 // For specialized parallel work, compose a custom agent first via ComposeAgent
-// or use a specialized type like "Engineer", "Architect", etc.
+// or use a specialized type like "pai-engineer", "pai-architect", etc.
 ```
 
 **❌ WRONG: Skipping spotcheck**
@@ -346,20 +322,15 @@ Task({
 // THEN report as complete
 ```
 
-**❌ WRONG: Using opus for simple parallel tasks**
+**❌ WRONG: Passing model overrides without schema support**
 ```typescript
-// Each agent uses opus = slow + expensive
-Task({ ..., model: "opus" })
-Task({ ..., model: "opus" })
-Task({ ..., model: "opus" })
+Task({ ..., subagent_type: "general" })
 ```
 
-**✅ RIGHT: Use haiku for grunt work**
+**✅ RIGHT: Pick the right subagent and scope**
 ```typescript
-// 10-20x faster, sufficient for simple tasks
-Task({ ..., model: "haiku" })
-Task({ ..., model: "haiku" })
-Task({ ..., model: "haiku" })
+Task({ ..., subagent_type: "general" })
+Task({ ..., subagent_type: "explorer" })
 ```
 
 ## Voice Output

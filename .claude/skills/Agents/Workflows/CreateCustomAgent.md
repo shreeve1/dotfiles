@@ -23,7 +23,7 @@ Running **CreateCustomAgent** in **Agents**...
 - "I need specialized agents with Z expertise"
 - "Generate N custom agents to analyze..."
 
-**KEY TRIGGER: The word "custom" means truly unique agents - NOT static types (Architect, Engineer, etc.) — always use `general-purpose` with ComposeAgent prompts.**
+**KEY TRIGGER: The word "custom" means truly unique agents - NOT static worker types (`pai-architect`, `pai-engineer`, etc.) — always use `general` with ComposeAgent prompts.**
 
 ## The Workflow
 
@@ -80,27 +80,24 @@ ComposeAgent returns JSON with:
 
 **Use a SINGLE message with MULTIPLE Task calls for parallel execution.**
 
-**CRITICAL: Use `subagent_type: "general-purpose"` - NEVER use static types like "Architect" or "Engineer" for custom agents.**
+**CRITICAL: Use `subagent_type: "general"` - NEVER use static worker types like `pai-architect` or `pai-engineer` for custom agents.**
 
 ```typescript
 // Send all in ONE message:
 Task({
   description: "Research agent 1 - enthusiastic",
   prompt: <agent1_full_prompt>,
-  subagent_type: "general-purpose",
-  model: "sonnet"  // or "haiku" for speed
+  subagent_type: "general"
 })
 Task({
   description: "Research agent 2 - skeptical",
   prompt: <agent2_full_prompt>,
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 Task({
   description: "Research agent 3 - analytical",
   prompt: <agent3_full_prompt>,
-  subagent_type: "general-purpose",
-  model: "sonnet"
+  subagent_type: "general"
 })
 ```
 
@@ -130,8 +127,7 @@ After all agents complete, launch one more to verify consistency:
 Task({
   description: "Spotcheck custom agent results",
   prompt: "Review these results for consistency and completeness: [results]",
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 ```
 
