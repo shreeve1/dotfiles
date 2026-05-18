@@ -35,6 +35,7 @@ Use the Read tool to load `~/.pai/PAI/Algorithm/v6.4.0.md`, then follow that fil
 - Tier completeness gate is HARD: required sections per tier must be populated before `phase: complete`
 - Thinking floor is HARD at E2+ (E2≥2, E3≥4, E4≥6, E5≥8); names from the v6.4.0 canonical enumeration verbatim, or `OTHER: <name>` within the per-tier cap
 - PLAN must visibly include `DELIVERABLE MANIFEST`, `DELEGATION GATE`, and `PARALLELISM OPPORTUNITY SCAN`
+- DELEGATION GATE is binding: use matching `Task` subagents for broad exploration, unfamiliar-code work, pattern searches spanning multiple directories, multi-file edits, research, browser/debug triage, risky review, and post-change verification unless a valid `Delegation exception:` is written
 - ≥1 anti-criterion required (`Anti:` prefix); ≥1 antecedent when goal is experiential
 - Check off criteria immediately when satisfied with verification evidence captured in same tool block
 - Every response uses the ALGORITHM output format from AGENTS.md

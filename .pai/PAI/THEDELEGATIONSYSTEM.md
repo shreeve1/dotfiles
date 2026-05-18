@@ -15,42 +15,29 @@ extracted_from: SKILL.md lines 535-627
 
 **WHENEVER A TASK CAN BE PARALLELIZED, USE MULTIPLE AGENTS!**
 
-### Model Selection for Agents (CRITICAL FOR SPEED)
+### Context Preservation for Agents (CRITICAL FOR SPEED)
 
-**The Task tool has a `model` parameter - USE IT.**
+**Use subagents to keep the primary context clean.** Broad searches, exploratory reads, research retrieval, browser diagnostics, and verification output should happen in isolated worker contexts when possible.
 
-Agents default to inheriting the parent model (often Opus). This is SLOW for simple tasks. Each inference with 30K+ context takes 5-15 seconds on Opus. A simple 10-tool-call task = 1-2+ minutes of pure thinking time.
+OpenCode subagents have models configured in their agent definitions. Do not pass a per-call `model` argument unless the active Task tool schema exposes it in the current environment.
 
-**Model Selection Matrix:**
+**Routing Matrix:**
 
-| Task Type | Model | Why |
-|-----------|-------|-----|
-| Deep reasoning, complex architecture, strategic decisions | `opus` | Maximum intelligence needed |
-| Standard implementation, moderate complexity, most coding | `sonnet` | Good balance of speed + capability |
-| Simple lookups, file reads, quick checks, parallel grunt work | `haiku` | 10-20x faster, sufficient intelligence |
-
-**Examples:**
-
-```typescript
-// WRONG - defaults to Opus, takes minutes
-Task({ prompt: "Check if blue bar exists on website", subagent_type: "general-purpose" })
-
-// RIGHT - Haiku for simple visual check
-Task({ prompt: "Check if blue bar exists on website", subagent_type: "general-purpose", model: "haiku" })
-
-// RIGHT - Sonnet for standard coding task
-Task({ prompt: "Implement the login form validation", subagent_type: "Engineer", model: "sonnet" })
-
-// RIGHT - Opus for complex architectural planning
-Task({ prompt: "Design the distributed caching strategy", subagent_type: "Architect", model: "opus" })
-```
+| Task Type | Subagent | Why |
+|-----------|----------|-----|
+| Broad codebase exploration, quick file discovery | `explorer` | Keeps search noise out of primary context |
+| Focused implementation packet | `pai-engineer` | Bounded code work with TDD discipline |
+| Deep multi-file implementation at E3+ | `forge` | GPT-family producer for completeness |
+| Architecture/design/specification | `pai-architect` | Strategic planning in isolated context |
+| Post-change verification | `validator` | Independent acceptance check |
+| Research/current-source work | researcher agents | Keeps source retrieval out of primary context |
 
 **Rule of Thumb:**
-- If it's grunt work or verification → `haiku`
-- If it's implementation or research → `sonnet`
-- If it requires deep strategic thinking → `opus` (or let it default)
-
-**Parallel tasks especially benefit from haiku** - launching 5 haiku agents is faster AND cheaper than 1 Opus agent doing sequential work.
+- If it is broad exploration → `explorer`
+- If it is focused implementation → `pai-engineer`
+- If it is verification → `validator`
+- If it needs current sources → researcher agents
+- If it is multi-file production-grade coding at E3+ → `forge`
 
 ### Agent Types
 
@@ -64,9 +51,9 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 
 **Agent routing by task type:**
 - **Research tasks** → Use the Research skill (has dedicated researcher agents)
-- **Code implementation** → Use Engineer agents (`subagent_type: "Engineer"`)
-- **Architecture/design** → Use Architect agents (`subagent_type: "Architect"`)
-- **Everything else** → Use Agents skill → ComposeAgent → `subagent_type: "general-purpose"`
+- **Code implementation** → Use `pai-engineer`
+- **Architecture/design** → Use `pai-architect`
+- **Everything else** → Use Agents skill → ComposeAgent → `subagent_type: "general"`
 
 ### 🚨 AGENT ROUTING (Always Active)
 
@@ -74,30 +61,30 @@ Use the Agents skill to compose task-specific agents with unique traits, voices,
 
 | User Says | System | Tool | What Happens |
 |-------------|--------|------|-------------|
-| "**custom agents**", "spin up agents", "launch agents" | **Agents Skill** (ComposeAgent) | `Task(subagent_type="general-purpose", prompt=<ComposeAgent output>)` | Unique personalities, voices, colors via trait composition |
+| "**custom agents**", "spin up agents", "launch agents" | **Agents Skill** (ComposeAgent) | `Task(subagent_type="general", prompt=<ComposeAgent output>)` | Unique personalities, voices, colors via trait composition |
 | "**create an agent team**", "**agent team**", "**swarm**" | **OpenCode agent orchestration** | `Task` subagents plus shared ISA/todo state | Persistent team with shared criteria, message coordination, multi-turn collaboration |
 
 **These are NOT the same thing:**
 - **Custom agents** = one-shot parallel workers with unique identities, launched via `Task()`, no shared state
-- **Agent teams** = persistent coordinated teams with shared task lists, messaging, and multi-turn collaboration via `TeamCreate`
+- **Agent teams** = runtime-dependent coordinated teams when team tools exist; otherwise use parallel `Task(...)` calls and reconcile in the primary context
 
 **Additional routing by task type:**
 
 | User Says | What to Use | Why |
 |-------------|-------------|-----|
-| "**custom agents**", "spin up **custom** agents" | **ComposeAgent** → `general-purpose` | Unique prompts, unique voices |
-| "spin up agents", "bunch of agents", "launch agents" | **ComposeAgent** → `general-purpose` | Task-specific agents with proper expertise |
+| "**custom agents**", "spin up **custom** agents" | **ComposeAgent** → `general` | Unique prompts, unique voices |
+| "spin up agents", "bunch of agents", "launch agents" | **ComposeAgent** → `general` | Task-specific agents with proper expertise |
 | "research X", "investigate Y" | **Research skill** | Dedicated researcher agents |
-| Code implementation tasks | **Engineer** agent | Specialized for TDD/code |
-| Architecture/design tasks | **Architect** agent | Specialized for system design |
+| Code implementation tasks | **`pai-engineer`** | Specialized for TDD/code |
+| Architecture/design tasks | **`pai-architect`** | Specialized for system design |
 
 **For ALL parallel work:**
 1. Invoke the Agents skill → ComposeAgent for EACH agent with appropriate traits
 2. Use DIFFERENT trait combinations to get unique voices and expertise
-3. Launch with the full ComposeAgent-generated prompt as `subagent_type: "general-purpose"`
+3. Launch with the full ComposeAgent-generated prompt as `subagent_type: "general"`
 4. Each agent gets a personality-matched ElevenLabs voice
 
-**For research specifically:** Use the Research skill, which has dedicated researcher agents (ClaudeResearcher, GeminiResearcher, etc.)
+**For research specifically:** Use the Research skill, which has dedicated researcher agents (`claude-researcher`, `gemini-researcher`, `perplexity-researcher`, `grok-researcher`, etc.)
 
 **Reference:** Agents skill (`~/.config/opencode/skills/Agents/SKILL.md`)
 
@@ -113,26 +100,25 @@ When delegating, ALWAYS include:
 
 Every agent prompt MUST include a `## Scope` section that matches the validated timing tier from the Algorithm's THINK phase. This prevents agents from over-producing on simple tasks or under-delivering on complex ones.
 
-**Timing + Model Selection:**
+**Timing Scope:**
 
-| Timing | Model | Agent Output | Example |
-|--------|-------|-------------|---------|
-| **fast** | `haiku` | <500 words, direct answer | "Check if server is running" |
-| **standard** | `sonnet` | <1500 words, focused work | "Implement login validation" |
-| **deep** | `opus` | No limit, thorough analysis | "Comprehensive security audit" |
+| Timing | Agent Output | Example |
+|--------|--------------|---------|
+| **fast** | <500 words, direct answer | "Check if server is running" |
+| **standard** | <1500 words, focused work | "Implement login validation" |
+| **deep** | No limit, thorough analysis | "Comprehensive security audit" |
 
 **Examples:**
 
 ```typescript
-// FAST — simple check, haiku model, minimal output
+// FAST — simple check, minimal output
 Task({
   prompt: `Check if the auth middleware exports are correct.
 ## Scope
 Timing: FAST — direct answer only.
 - Under 500 words
 - Answer the question, report the result, done`,
-  subagent_type: "Explore",
-  model: "haiku"
+  subagent_type: "explorer"
 })
 
 // STANDARD — typical implementation work
@@ -142,8 +128,7 @@ Task({
 Timing: STANDARD — focused implementation.
 - Under 1500 words
 - Stay on task, deliver the work, verify it works`,
-  subagent_type: "Engineer",
-  model: "sonnet"
+  subagent_type: "pai-engineer"
 })
 
 // DEEP — comprehensive analysis
@@ -154,8 +139,7 @@ Timing: DEEP — comprehensive analysis.
 - No word limit
 - Explore alternatives, consider edge cases
 - Thorough verification and documentation`,
-  subagent_type: "Pentester",
-  model: "opus"
+  subagent_type: "devtools-inspector"
 })
 ```
 

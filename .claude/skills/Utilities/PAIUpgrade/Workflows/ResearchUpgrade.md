@@ -42,7 +42,7 @@ Accept input as:
 Spawn 4 parallel agents to research the feature:
 
 ```
-Use Task tool with subagent_type=general-purpose, run 4 agents in parallel:
+Use Task tool with subagent_type=general, run 4 agents in parallel:
 
 Agent 1 - Official Documentation:
 "Research [FEATURE] in official Anthropic documentation:

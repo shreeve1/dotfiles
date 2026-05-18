@@ -17,7 +17,7 @@
 
 ```typescript
 Task({
-  subagent_type: "ClaudeResearcher",
+  subagent_type: "claude-researcher",
   description: "[topic] quick lookup",
   prompt: "Do ONE web search for: [query]. Return the key findings immediately. Keep it brief and factual."
 })

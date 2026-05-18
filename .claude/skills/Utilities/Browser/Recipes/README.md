@@ -38,7 +38,7 @@ Parameters are resolved by simple string replacement. Unresolved parameters (no 
 |-------|----------|-------------|
 | `name` | Yes | Human-readable recipe name |
 | `description` | Yes | What the recipe does (one sentence) |
-| `tool` | Yes | Which tool executes: `playwright-cli`, `BrowserAgent`, or `UIReviewer` |
+| `tool` | Yes | Which tool executes: `playwright-cli`, `browser-automation`, or `ui-reviewer` |
 | `defaults` | No | Default values for template parameters |
 
 ## Tool Selection
@@ -46,8 +46,8 @@ Parameters are resolved by simple string replacement. Unresolved parameters (no 
 | Tool | When to Use |
 |------|------------|
 | `playwright-cli` | Deterministic steps, no AI reasoning needed |
-| `BrowserAgent` | Needs AI to decide what to do based on page content |
-| `UIReviewer` | Structured validation with assertions |
+| `browser-automation` | Needs AI to decide what to do based on page content |
+| `ui-reviewer` | Structured validation with assertions |
 
 ## Running Recipes
 

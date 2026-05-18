@@ -106,7 +106,7 @@ Use when native URL fetching fails.
 bun ${PAI_DIR:-$HOME/.pai}/skills/_HARVEST/Tools/harvest.ts "<the same input the user sent into summarize>"
 ```
 
-Use `Bash` with `run_in_background: true`. The CLI handles source detection (URL / YouTube / text), body fetch, Arbol classification, and executor dispatch — never re-implement the writer here.
+Use `Bash` to run the command directly. The CLI handles source detection (URL / YouTube / text), body fetch, Arbol classification, and executor dispatch — never re-implement the writer here.
 
 **Input-type gate:**
 

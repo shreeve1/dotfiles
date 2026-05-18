@@ -22,9 +22,9 @@ PAI has three agent systems that serve different purposes. Confusing them causes
 
 ```typescript
 // ❌ WRONG - These are Task tool subagent_types, NOT custom agents
-Task({ subagent_type: "Architect", prompt: "..." })
-Task({ subagent_type: "Designer", prompt: "..." })
-Task({ subagent_type: "Engineer", prompt: "..." })
+Task({ subagent_type: "pai-architect", prompt: "..." })
+Task({ subagent_type: "general", prompt: "..." })
+Task({ subagent_type: "pai-engineer", prompt: "..." })
 
 // ✅ RIGHT - Invoke the Agents skill for custom agents
 Skill("Agents")  // → CreateCustomAgent workflow
@@ -43,11 +43,11 @@ Skill("Agents")  // → CreateCustomAgent workflow
 | User Says | Action | Implementation |
 |-----------|--------|----------------|
 | "**custom agents**", "spin up **custom** agents" | Invoke Agents skill | `Skill("Agents")` → CreateCustomAgent workflow |
-| "agents", "launch agents", "parallel agents" | Custom agents via Agents skill | `Skill("Agents")` → ComposeAgent → `Task({ subagent_type: "general-purpose" })` |
+| "agents", "launch agents", "parallel agents" | Custom agents via Agents skill | `Skill("Agents")` → ComposeAgent → `Task({ subagent_type: "general" })` |
 | "research X", "investigate Y" | Research skill | `Skill("Research")` → appropriate researcher agents |
-| "use Remy", "get Ava to" | Named agent | Use appropriate researcher subagent_type |
-| (Code implementation) | Engineer | `Task({ subagent_type: "Engineer" })` |
-| (Architecture/design) | Architect | `Task({ subagent_type: "Architect" })` |
+| "use Ava", "get Alex to" | Named agent | Use appropriate researcher subagent_type |
+| (Code implementation) | `pai-engineer` | `Task({ subagent_type: "pai-engineer" })` |
+| (Architecture/design) | `pai-architect` | `Task({ subagent_type: "pai-architect" })` |
 
 ### Custom Agent Creation Flow
 
@@ -74,17 +74,16 @@ These are pre-built agents available through OpenCode's task/subagent mechanism.
 
 | Subagent Type | Purpose | When Used |
 |---------------|---------|-----------|
-| `Architect` | System design | Development skill workflows |
-| `Designer` | UX/UI design | Development skill workflows |
-| `Engineer` | Code implementation | Development skill workflows |
-| `general-purpose` | Custom agents via ComposeAgent | Parallel work with task-specific prompts |
-| `Explore` | Codebase exploration | Finding files, understanding structure |
-| `Plan` | Implementation planning | Plan mode |
-| `QATester` | Quality assurance | Browser testing workflows |
-| `Pentester` | Security testing | WebAssessment workflows |
-| `ClaudeResearcher` | Claude-based research | Research skill workflows |
-| `GeminiResearcher` | Gemini-based research | Research skill workflows |
-| `GrokResearcher` | Grok-based research | Research skill workflows |
+| `pai-architect` | System design | Development skill workflows |
+| `general` | Custom agents via ComposeAgent | Parallel work with task-specific prompts |
+| `pai-engineer` | Code implementation | Development skill workflows |
+| `explorer` | Codebase exploration | Finding files, understanding structure |
+| `browser-qa` | Quality assurance | Browser testing workflows |
+| `devtools-inspector` | Browser/security inspection | WebAssessment workflows |
+| `claude-researcher` | Claude-based research | Research skill workflows |
+| `gemini-researcher` | Gemini-based research | Research skill workflows |
+| `perplexity-researcher` | Source-verifying research | Research skill workflows |
+| `grok-researcher` | Contrarian fact research | Research skill workflows |
 
 **These do NOT have unique voices or ComposeAgent composition.**
 
@@ -96,11 +95,11 @@ Named agents have rich backstories, personality traits, and mapped ElevenLabs vo
 
 | Agent | Role | Voice | Use For |
 |-------|------|-------|---------|
-| Serena Blackwood | Architect | Premium UK Female | Long-term architecture decisions |
-| Marcus Webb | Engineer | Premium Male | Strategic technical leadership |
-| Rook Blackburn | Pentester | Enhanced UK Male | Security testing with personality |
-| Ava Sterling | Claude Researcher | Premium US Female | Strategic research |
-| Alex Rivera | Gemini Researcher | Multi-perspective | Comprehensive analysis |
+| Serena Blackwood | Architecture advisor | Premium UK Female | Long-term architecture decisions |
+| Marcus Webb | Engineering advisor | Premium Male | Strategic technical leadership |
+| Rook Blackburn | Security tester | Enhanced UK Male | Security testing with personality |
+| Ava Sterling | Strategic researcher | Premium US Female | Strategic research |
+| Alex Rivera | Multi-perspective researcher | Multi-perspective | Comprehensive analysis |
 
 **Full backstories and voice settings:** Individual `agents/*.md` files (persona frontmatter + body)
 
@@ -134,19 +133,19 @@ Custom agents are composed on-the-fly from traits using ComposeAgent. Each uniqu
 
 ---
 
-## Model Selection
+## Agent Selection
 
-Always specify the appropriate model for agent work:
+Use the appropriate OpenCode subagent for agent work. OpenCode subagents carry their configured models in their agent definitions; do not pass a per-call `model` field unless the active Task tool schema exposes it.
 
-| Task Type | Model | Speed |
-|-----------|-------|-------|
-| Simple checks, grunt work | `haiku` | 10-20x faster |
-| Standard analysis, implementation | `sonnet` | Balanced |
-| Deep reasoning, architecture | `opus` | Maximum intelligence |
+| Task Type | Subagent | Why |
+|-----------|----------|-----|
+| Simple checks, codebase scouting | `explorer` | Fast isolated reconnaissance |
+| Standard implementation | `pai-engineer` | Focused TDD/code execution |
+| Deep reasoning, architecture | `pai-architect` | Maximum design focus |
 
 ```typescript
-// Parallel custom agents benefit from haiku/sonnet for speed
-Task({ prompt: agentPrompt, subagent_type: "general-purpose", model: "sonnet" })
+// Parallel custom agents use the general OpenCode subagent.
+Task({ prompt: agentPrompt, subagent_type: "general" })
 ```
 
 ---
@@ -158,8 +157,7 @@ Task({ prompt: agentPrompt, subagent_type: "general-purpose", model: "sonnet" })
 ```typescript
 Task({
   prompt: "Verify consistency across all agent outputs: [results]",
-  subagent_type: "general-purpose",
-  model: "haiku"
+  subagent_type: "general"
 })
 ```
 

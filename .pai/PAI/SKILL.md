@@ -125,9 +125,9 @@ Every capability audit evaluates ALL 25. No exceptions. Capabilities are organiz
 
 | # | Capability | Skill / Invocation | Description |
 |---|-----------|-------------------|-------------|
-| 10 | **Algorithm Agents** | `Task: subagent_type=Algorithm` | ISC-specialized subagents |
-| 11 | **Engineer Agents** | `Task: subagent_type=Engineer` | Build and implement |
-| 12 | **Architect Agents** | `Task: subagent_type=Architect` | Design, structure, system thinking |
+| 10 | **Algorithm Agents** | `Task: subagent_type=pai-algorithm` | ISC-specialized subagents |
+| 11 | **Engineer Agents** | `Task: subagent_type=pai-engineer` | Build and implement |
+| 12 | **Architect Agents** | `Task: subagent_type=pai-architect` | Design, structure, system thinking |
 | 13 | **Research** | `Research` skill | Multi-model parallel research — ALL research goes through this skill |
 | 14 | **Custom Agents** | `Agents` skill / `ComposeAgent` | Full-identity agents with unique name, voice, persona |
 
@@ -137,13 +137,13 @@ Every capability audit evaluates ALL 25. No exceptions. Capabilities are organiz
 |---|-----------|-------------------|-------------|
 | 15 | **Council** | `Council` skill | Multi-agent structured debate |
 | 16 | **Red Team** | `RedTeam` skill | Adversarial analysis, 32 agents |
-| 17 | **Agent Teams (Swarm)** | `TeamCreate` + `SendMessage` | Coordinated multi-agent with shared tasks |
+| 17 | **Agent Teams (Swarm)** | Runtime-dependent team tools or parallel `Task(...)` | Coordinated multi-agent work |
 
 **SECTION E: Execution & Verification (Do the work, prove it's right)**
 
 | # | Capability | Skill / Invocation | Description |
 |---|-----------|-------------------|-------------|
-| 18 | **Parallelization** | `run_in_background: true` | Multiple background agents |
+| 18 | **Parallelization** | parallel `Task(...)` calls | Multiple independent agents |
 | 19 | **Creative Branching** | Multiple agents, different approaches | Divergent exploration of alternatives |
 | 20 | **Git Branching** | `GitBranching` skill / `git worktree` | Isolated experiments in work trees |
 | 21 | **Evals** | `Evals` skill | Automated comparison / bakeoffs |

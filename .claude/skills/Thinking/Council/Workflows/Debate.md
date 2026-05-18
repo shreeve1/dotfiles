@@ -190,13 +190,13 @@ If user specifies custom members, adjust accordingly:
 
 | Council Role | Task subagent_type | Personality Reference |
 |--------------|-------------------|----------------------|
-| Architect | Architect | Serena Blackwood |
-| Designer | Designer | Aditi Sharma |
-| Engineer | Engineer | Marcus Webb |
-| Researcher | PerplexityResearcher | Ava Chen |
-| Security | Pentester | Rook Blackburn |
-| general-purpose | Custom Agent (ComposeAgent) | Task-specific |
-| Writer | (use general-purpose with writer prompt) | Emma Hartley |
+| Architect | pai-architect | Serena Blackwood |
+| Designer | general (via ComposeAgent) | Aditi Sharma |
+| Engineer | pai-engineer | Marcus Webb |
+| Researcher | perplexity-researcher | Ava Chen |
+| Security | general (via ComposeAgent) | Rook Blackburn |
+| Custom | general (via ComposeAgent) | Task-specific |
+| Writer | general (with writer prompt) | Emma Hartley |
 
 ## Timing
 

@@ -55,7 +55,7 @@ bunx playwright screenshot "https://example.com" /tmp/bunx-test.png
 ### 4. Verify BrowserAgent Works
 
 ```
-Task(subagent_type="BrowserAgent", prompt="Navigate to https://example.com. Take a snapshot. Report page title.")
+Task(subagent_type="browser-automation", prompt="Navigate to https://example.com. Take a snapshot. Report page title.")
 ```
 
 ### 5. Core playwright-cli Commands Reference
@@ -89,7 +89,7 @@ ls skills/Utilities/Browser/Recipes/*.md
 
 ```
 # Quick validation: run one story from HackerNews.yaml
-Task(subagent_type="UIReviewer", prompt="
+Task(subagent_type="ui-reviewer", prompt="
   Validate Hacker News front page loads.
   URL: https://news.ycombinator.com
   Steps: 1. Wait for page to load.

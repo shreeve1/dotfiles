@@ -25,13 +25,13 @@ Add these as needed based on the topic:
 
 | Council Role | Task subagent_type | Personality |
 |--------------|-------------------|-------------|
-| Architect | Architect | Serena Blackwood |
-| Designer | Designer | Aditi Sharma |
-| Engineer | Engineer | Marcus Webb |
-| Researcher | PerplexityResearcher | Ava Chen |
-| Security | Pentester | Rook Blackburn |
-| Fresh Eyes | general-purpose (via ComposeAgent) | Custom composed |
-| Writer | general-purpose (via ComposeAgent) | Emma Hartley |
+| Architect | pai-architect | Serena Blackwood |
+| Designer | general (via ComposeAgent) | Aditi Sharma |
+| Engineer | pai-engineer | Marcus Webb |
+| Researcher | perplexity-researcher | Ava Chen |
+| Security | general (via ComposeAgent) | Rook Blackburn |
+| Fresh Eyes | general (via ComposeAgent) | Custom composed |
+| Writer | general (with writer prompt) | Emma Hartley |
 
 ## Custom Council Composition
 

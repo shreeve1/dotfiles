@@ -108,10 +108,9 @@ const { prompt, model } = loader.generateEnrichedPrompt(
 
 // Spawn the agent with enriched prompt
 Task({
-  subagent_type: "general-purpose",
+  subagent_type: "general",
   description: "Architecture design task",
-  prompt: prompt,
-  model: model
+  prompt: prompt
 });
 ```
 
@@ -238,10 +237,9 @@ const { prompt, model } = loader.generateEnrichedPrompt(
 
 // Spawn with Task tool
 await Task({
-  subagent_type: "general-purpose",
+  subagent_type: "general",
   description: shortDescription,
-  prompt: prompt,
-  model: model
+  prompt: prompt
 });
 ```
 

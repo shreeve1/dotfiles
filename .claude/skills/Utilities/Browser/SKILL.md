@@ -41,7 +41,7 @@ If this directory exists, load and apply any PREFERENCES.md, configurations, or 
 
 | Trigger Words | Workflow | What It Does |
 |--------------|----------|-------------|
-| "review stories", "run stories", "ui review", "validate stories" | `Workflows/ReviewStories.md` | Fan out YAML stories to parallel UIReviewers |
+| "review stories", "run stories", "ui review", "validate stories" | `Workflows/ReviewStories.md` | Fan out YAML stories to parallel ui-reviewers |
 | "automate", "recipe", "template", or a recipe name | `Workflows/Automate.md` | Load and execute a parameterized recipe template |
 | "update", "check version" | `Workflows/Update.md` | Verify browser tools are current and working |
 
@@ -260,7 +260,7 @@ For tasks requiring AI decision-making about what to do next. Both agents use `p
 
 ```
 # Multi-step interaction needing AI reasoning (worth the 30K token cost)
-Task(subagent_type="BrowserAgent", prompt="
+Task(subagent_type="browser-automation", prompt="
   Navigate to http://localhost:3000/login.
   Type 'admin' into the username field.
   Type 'password' into the password field.
@@ -272,14 +272,14 @@ Task(subagent_type="BrowserAgent", prompt="
 ")
 
 # Structured test validation
-Task(subagent_type="UIReviewer", prompt="
+Task(subagent_type="ui-reviewer", prompt="
   URL: http://localhost:3000.
   Steps: 1. Click 'Blog'. 2. Assert: blog listing visible. 3. Click first article. 4. Assert: article content visible.
 ")
 
 # Parallel verification (8 pages at once)
-Task(subagent_type="BrowserAgent", prompt="Check http://localhost:3000/page1")
-Task(subagent_type="BrowserAgent", prompt="Check http://localhost:3000/page2")
+Task(subagent_type="browser-automation", prompt="Check http://localhost:3000/page1")
+Task(subagent_type="browser-automation", prompt="Check http://localhost:3000/page2")
 ```
 
 ---
@@ -349,7 +349,7 @@ playwright-cli -s=debug close
 
 **Step 2 (only if CLI isn't enough — 30K tokens):**
 ```
-Task(subagent_type="BrowserAgent", prompt="
+Task(subagent_type="browser-automation", prompt="
   Navigate to http://myapp.com/users.
   Take a screenshot.
   Check console for errors.

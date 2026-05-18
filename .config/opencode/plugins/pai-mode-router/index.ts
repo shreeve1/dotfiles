@@ -48,7 +48,8 @@ const PRIMER_ATTEMPTS_CAP = 5;
 // worker subagents already have their own prompts and tool contracts; routing
 // them through Algorithm mode creates memory noise and can block workers that do
 // not expose todowrite. Keep primary/ambiguous agents routed unless opencode
-// explicitly marks the hook input as a subagent.
+// explicitly marks the hook input as a subagent. PAI worker agents are listed
+// here because they are context-preserving workers, not primary orchestrators.
 const ROUTER_MANAGED_AGENTS = new Set(["build", "plan", "pai-algorithm"]);
 const ROUTER_BYPASS_AGENTS = new Set([
   "browser-automation",
@@ -68,6 +69,7 @@ const ROUTER_BYPASS_AGENTS = new Set([
   "explorer",
   "forge",
   "framework-builder",
+  "general",
   "gemini-researcher",
   "grok-researcher",
   "infra-planner",
@@ -76,6 +78,8 @@ const ROUTER_BYPASS_AGENTS = new Set([
   "librarian",
   "llm-ai-agents-and-eng-research",
   "meta-agent",
+  "pai-architect",
+  "pai-engineer",
   "perplexity-researcher",
   "python-sqlite-cli",
   "quick-review-codex",
@@ -642,6 +646,7 @@ function algorithmDirective(state: SessionState): string {
     "MUST: emit all 7 phase labels visibly in the response, in order: ━━━ 👁️ OBSERVE ━━━ 1/7, ━━━ 🧠 THINK ━━━ 2/7, ━━━ 📋 PLAN ━━━ 3/7, ━━━ 🔨 BUILD ━━━ 4/7, ━━━ ⚡ EXECUTE ━━━ 5/7, ━━━ ✅ VERIFY ━━━ 6/7, ━━━ 📚 LEARN ━━━ 7/7.",
     "MUST: render Algorithm output as separate Markdown blocks with blank lines after the banner, session slug, task line, every phase label, and every phase body paragraph. Do not rely on single newlines because OpenCode commentary/progress rendering may collapse Markdown soft breaks into spaces.",
     "MUST: PLAN includes visible 📦 DELIVERABLE MANIFEST, 📐 DELEGATION GATE, and 🚀 PARALLELISM OPPORTUNITY SCAN — even for short tasks.",
+    "MUST: DELEGATION GATE is binding. For broad repo/codebase discovery, unfamiliar-code investigation, pattern searches spanning multiple directories, multi-file edits, research, browser/debug triage, risky review, or post-change verification, launch the matching Task subagent before direct broad tool work unless you write `Delegation exception:` with a valid narrow reason.",
     "MUST: use todowrite BEFORE any other tool; the tool layer blocks all other tool calls until todowrite is initialized.",
     "MUST: BUILD is included when artifacts/code/config change; otherwise state `BUILD: not needed`.",
     "MUST: verify criteria before claiming completion.",

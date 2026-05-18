@@ -90,10 +90,9 @@ const { prompt, model } = loader.generateEnrichedPrompt(
 
 ```typescript
 await Task({
-  subagent_type: "general-purpose",
+  subagent_type: "general",
   description: "Architecture design task",
-  prompt: prompt,
-  model: model
+  prompt: prompt
 });
 ```
 

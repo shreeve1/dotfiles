@@ -63,7 +63,7 @@ Output the debate header with the composed agent names:
 
 Launch 4 parallel Agent calls (one per composed council member).
 
-**CRITICAL: Use `subagent_type: "general-purpose"` for ALL agents. NEVER use built-in types.**
+**CRITICAL: Use `subagent_type: "general"` for ALL composed agents. NEVER use built-in worker types.**
 
 **Each agent prompt includes the composed agent's full prompt PLUS:**
 ```

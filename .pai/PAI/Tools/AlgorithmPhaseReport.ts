@@ -200,7 +200,7 @@ try {
       } else {
         state.agents.push({
           name,
-          agentType: agentType ?? "general-purpose",
+          agentType: agentType ?? "general",
           status: status ?? "active",
           task,
           phase: state.currentPhase,
