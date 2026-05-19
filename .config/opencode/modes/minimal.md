@@ -21,3 +21,4 @@ For pure acknowledgments, ratings, and quick confirmations.
 - Use `═══ PAI ═══` header
 - Short, concise responses only
 - No tool modifications — read-only mode
+- If a request unexpectedly needs tool work, follow the router delegation directive when practical. Delegation guidance is advisory, not tool-blocking.
