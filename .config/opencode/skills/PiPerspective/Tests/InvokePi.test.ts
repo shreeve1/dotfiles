@@ -77,7 +77,7 @@ describe('Schema', () => {
     expect(r.ok).toBe(true);
   });
 
-  test('validateVerdict rejects schema_version != 1', () => {
+  test('validateVerdict accepts schema_version 2 (Wave 4 union)', () => {
     const r = validateVerdict({
       phase: 'VERIFY',
       verdict: 'PASS',
@@ -86,6 +86,20 @@ describe('Schema', () => {
       summary_md: 'ok',
       raw_model_id: 'test',
       schema_version: 2,
+      generated_at: '2026-05-10T00:00:00.000Z',
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  test('validateVerdict rejects schema_version outside the union (e.g. 3)', () => {
+    const r = validateVerdict({
+      phase: 'VERIFY',
+      verdict: 'PASS',
+      blockers: [],
+      suggestions: [],
+      summary_md: 'ok',
+      raw_model_id: 'test',
+      schema_version: 3,
       generated_at: '2026-05-10T00:00:00.000Z',
     });
     expect(r.ok).toBe(false);
@@ -143,7 +157,7 @@ describe('ParseFallback', () => {
       reason: 'no JSON block found in pi stdout',
     });
     expect(v.verdict).toBe('FAIL');
-    expect(v.schema_version).toBe(1);
+    expect(v.schema_version).toBe(2);
     expect(v.blockers).toHaveLength(1);
     expect(v.blockers[0].severity).toBe('critical');
     expect(v.blockers[0].id).toContain('parse');
@@ -290,7 +304,7 @@ describe('invokePi parse paths', () => {
     });
     expect(res.verdict.verdict).toBe('PASS');
     expect(res.verdict.phase).toBe('VERIFY');
-    expect(res.verdict.schema_version).toBe(1);
+    expect(res.verdict.schema_version).toBe(2);
   });
 
   test('FAIL verdict with blocker is preserved and re-hashed', () => {
