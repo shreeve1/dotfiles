@@ -36,6 +36,11 @@ type SessionState = {
     todowriteSeenAt?: string;
     primerAttempts?: number;
   };
+  delegation?: {
+    required: boolean;
+    reason?: string;
+    taskSeenAt?: string;
+  };
   classifiedAt: string;
   algorithmActivatedMessageCount?: number;
   messageCount: number;
@@ -185,6 +190,51 @@ const NATIVE_INDICATORS = [
   "tell me",
   "read",
   "look at",
+];
+
+const DELEGATION_BROAD_TRIGGERS = [
+  "all files",
+  "across",
+  "codebase",
+  "multi-file",
+  "multiple files",
+  "pattern search",
+  "project",
+  "repo",
+  "repository",
+  "several files",
+  "unfamiliar",
+  "workspace",
+];
+
+const DELEGATION_WORK_TRIGGERS = [
+  "analyze",
+  "architect",
+  "architecture",
+  "audit",
+  "browser",
+  "build",
+  "debug",
+  "devtools",
+  "diagnose",
+  "fix",
+  "frontend",
+  "implement",
+  "investigate",
+  "migrate",
+  "refactor",
+  "research",
+  "review",
+  "test",
+  "triage",
+  "ui",
+  "validate",
+  "verify",
+  "website",
+];
+
+const DELEGATION_OPT_OUT_PATTERNS = [
+  /\b(do it yourself|no subagents?|without subagents?|don['’]?t use subagents?)\b/,
 ];
 
 const ISA_ESCALATION_KEYWORDS = [
@@ -465,6 +515,32 @@ function shouldCreateDurableIsa(prompt: string): boolean {
   return ISA_ESCALATION_KEYWORDS.some((k) => text.includes(k));
 }
 
+function delegationRequirement(prompt: string, mode: Mode): { required: boolean; reason?: string } {
+  const text = prompt.toLowerCase().trim();
+  if (!text || isSubagentPrompt(prompt)) return { required: false };
+  if (DELEGATION_OPT_OUT_PATTERNS.some((pattern) => pattern.test(text))) {
+    return { required: false };
+  }
+  if (/\bgit\b/.test(text) && /\b(commit|push|status|diff|log|remote)\b/.test(text)) {
+    return { required: false };
+  }
+
+  const broad = DELEGATION_BROAD_TRIGGERS.find((trigger) => text.includes(trigger));
+  if (broad) {
+    return { required: true, reason: `broad trigger: ${broad}` };
+  }
+
+  const work = DELEGATION_WORK_TRIGGERS.find((trigger) => text.includes(trigger));
+  if (work && mode === "ALGORITHM") {
+    return { required: true, reason: `non-trivial work trigger: ${work}` };
+  }
+  if (work && /\b(current|source|vendor|browser|website|ui|frontend|debug|review|audit|research)\b/.test(text)) {
+    return { required: true, reason: `specialist trigger: ${work}` };
+  }
+
+  return { required: false };
+}
+
 function initializeAlgorithmState(session: SessionState, prompt: string): void {
   const slug = buildSlug(prompt);
   session.slug = slug;
@@ -475,6 +551,15 @@ function initializeAlgorithmState(session: SessionState, prompt: string): void {
     return;
   }
   session.algorithm = { contract: "lite", initialized: false };
+}
+
+function initializeDelegationState(session: SessionState, prompt: string): void {
+  const requirement = delegationRequirement(prompt, session.mode);
+  if (!requirement.required) return;
+  session.delegation = {
+    required: true,
+    reason: requirement.reason,
+  };
 }
 
 function isAlgorithmLite(session: SessionState): boolean {
@@ -676,6 +761,21 @@ function algorithmDirective(state: SessionState): string {
   ].join("\n");
 }
 
+function delegationDirective(state: SessionState): string {
+  const required = Boolean(state.delegation?.required && !state.delegation?.taskSeenAt);
+  const reason = state.delegation?.reason ?? "none";
+  return [
+    "<pai-delegation-directive>",
+    "Subagent delegation is default-ON for non-trivial work in every mode, not only ALGORITHM.",
+    "MUST: use Task subagents before direct broad reads/searches/edits for broad repo/codebase discovery, unfamiliar-code investigation, pattern searches spanning multiple directories, multi-file edits, research, browser/debug triage, risky review, or post-change verification.",
+    "Direct read/grep/glob/bash/edit/write/patch/webfetch before Task is allowed only for exact known-file/single-probe work that did not trigger delegation.",
+    `DELEGATION_REQUIRED: ${required}`,
+    `DELEGATION_REASON: ${reason}`,
+    "If DELEGATION_REQUIRED is true, call Task with the matching subagent before direct context-loading or editing tools. This is an advisory directive; the tool layer does not block direct tools.",
+    "</pai-delegation-directive>",
+  ].join("\n");
+}
+
 // -----------------------------------------------------------------------------
 // Plugin
 // -----------------------------------------------------------------------------
@@ -726,6 +826,7 @@ export const PaiModeRouter: Plugin = async () => {
             initializeAlgorithmState(existing, prompt);
             existing.algorithmActivatedMessageCount = messageCount;
           }
+          initializeDelegationState(existing, prompt);
           state.sessions[sessionID] = existing;
           saveState(state);
           return;
@@ -743,6 +844,7 @@ export const PaiModeRouter: Plugin = async () => {
           initializeAlgorithmState(session, prompt);
           session.algorithmActivatedMessageCount = messageCount;
         }
+        initializeDelegationState(session, prompt);
 
         state.sessions[sessionID] = session;
         saveState(state);
@@ -762,6 +864,7 @@ export const PaiModeRouter: Plugin = async () => {
         const blocks: string[] = [
           modeBanner(session),
           modeSystemBlock(session.mode),
+          delegationDirective(session),
         ];
         if (session.mode === "ALGORITHM") {
           blocks.push(algorithmDirective(session));
@@ -872,21 +975,24 @@ export const PaiModeRouter: Plugin = async () => {
         if (!sessionID || !tool) return;
         const state = loadState();
         const session = state.sessions[sessionID];
-        if (!session || !requiresTodowriteFirst(session)) return;
+        if (!session) return;
         // Gate on whether todowrite has actually been observed in this
         // session, NOT on `initialized` — which durable sessions set when
         // the ISA stub is scaffolded, before any todowrite call.
-        if (session.algorithm?.todowriteSeenAt) return;
-        if (tool === "todowrite") return;
-        const contractLabel = isAlgorithmDurable(session)
-          ? "ALGORITHM durable-ISA"
-          : "ALGORITHM-lite";
-        console.error(
-          `[pai-mode-router] ${contractLabel} blocked ${tool} before todowrite initialization for session ${sessionID}`
-        );
-        throw new Error(
-          `pai-mode-router: ${contractLabel} requires todowrite with 2-8 compact criteria before any other tool.`
-        );
+        if (requiresTodowriteFirst(session) && !session.algorithm?.todowriteSeenAt) {
+          if (tool !== "todowrite") {
+            const contractLabel = isAlgorithmDurable(session)
+              ? "ALGORITHM durable-ISA"
+              : "ALGORITHM-lite";
+            console.error(
+              `[pai-mode-router] ${contractLabel} blocked ${tool} before todowrite initialization for session ${sessionID}`
+            );
+            throw new Error(
+              `pai-mode-router: ${contractLabel} requires todowrite with 2-8 compact criteria before any other tool.`
+            );
+          }
+          return;
+        }
       } catch (err) {
         if (err instanceof Error && err.message.startsWith("pai-mode-router:")) {
           throw err;
@@ -899,10 +1005,25 @@ export const PaiModeRouter: Plugin = async () => {
       try {
         const sessionID: string | undefined = input?.sessionID;
         const tool: string | undefined = input?.tool;
-        if (!sessionID || tool !== "todowrite") return;
+        if (!sessionID || !tool) return;
         const state = loadState();
         const session = state.sessions[sessionID];
-        if (!session || !requiresTodowriteFirst(session)) return;
+        if (!session) return;
+
+        if (tool === "task") {
+          if (session.delegation?.required && !session.delegation.taskSeenAt) {
+            session.delegation.taskSeenAt = new Date().toISOString();
+            state.sessions[sessionID] = session;
+            saveState(state);
+            console.error(
+              `[pai-mode-router] delegation directive satisfied by Task for session ${sessionID}`
+            );
+          }
+          return;
+        }
+
+        if (tool !== "todowrite") return;
+        if (!requiresTodowriteFirst(session)) return;
         if (!isValidLiteTodo(input?.args)) return;
         if (session.algorithm?.todowriteSeenAt) return;
         const contract = session.algorithm?.contract ?? "lite";
