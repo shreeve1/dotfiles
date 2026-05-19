@@ -21,14 +21,17 @@ export interface FallbackInput {
 }
 
 /**
- * Build a minimal PiVerdict from arbitrary pi stdout.
- * Verdict is always CONCERNS so downstream UI surfaces it but does
- * not block.
+ * Build a PiVerdict from arbitrary pi stdout.
+ *
+ * Parse failure is treated as a first-class FAIL with a synthesized
+ * `critical` blocker (id includes `parse-error`) so the alert path lights
+ * up and the user can distinguish a true `CONCERNS` from "pi output was
+ * unparseable". The raw stdout is preserved in `summary_md` for forensics.
  */
 export function buildFallbackVerdict(input: FallbackInput): PiVerdict {
   const banner = input.reason
-    ? `**[PiPerspective fallback parser]** ${input.reason}\n\n---\n\n`
-    : `**[PiPerspective fallback parser]** schema validation failed; raw pi output preserved below.\n\n---\n\n`;
+    ? `**[PiPerspective parse failure]** ${input.reason}\n\n---\n\n`
+    : `**[PiPerspective parse failure]** schema validation failed; raw pi output preserved below.\n\n---\n\n`;
 
   // Truncate absurdly long stdout to keep audit files manageable (<= 64 KiB).
   const MAX = 64 * 1024;
@@ -37,10 +40,35 @@ export function buildFallbackVerdict(input: FallbackInput): PiVerdict {
       ? input.rawStdout.slice(0, MAX) + `\n\n... [truncated ${input.rawStdout.length - MAX} chars]`
       : input.rawStdout;
 
+  // Excerpt the head of stdout for the blocker detail so the alert payload
+  // stays compact (the audit JSON still has the full summary_md).
+  const EXCERPT_MAX = 2_000;
+  const stdoutExcerpt =
+    input.rawStdout.length > EXCERPT_MAX
+      ? input.rawStdout.slice(0, EXCERPT_MAX) + `\n\n... [truncated ${input.rawStdout.length - EXCERPT_MAX} chars]`
+      : input.rawStdout;
+
+  const summary = 'PiPerspective could not parse pi output';
   return {
     phase: input.phase,
-    verdict: 'CONCERNS',
-    blockers: [],
+    verdict: 'FAIL',
+    blockers: [
+      {
+        // Stable literal id so downstream alert dedup keys this verdict
+        // distinctly from real reviewer concerns. (Real blockers are
+        // re-hashed by enrichVerdict in InvokePi.ts; fallback verdicts
+        // bypass that path on purpose.)
+        id: 'parse-error',
+        severity: 'critical',
+        summary,
+        detail_md:
+          (input.reason ? `**Reason:** ${input.reason}\n\n` : '') +
+          '```\n' +
+          stdoutExcerpt +
+          '\n```\n',
+        evidence: ['stdout'],
+      },
+    ],
     suggestions: [],
     summary_md: banner + safeStdout,
     raw_model_id: input.modelId,

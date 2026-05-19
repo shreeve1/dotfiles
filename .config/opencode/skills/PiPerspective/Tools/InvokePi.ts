@@ -53,7 +53,7 @@ import {
   type PiVerdict,
   validateVerdict,
 } from './Schema.ts';
-import { assertPiVersion, PiVersionError } from './VersionCheck.ts';
+import { assertPiVersion, PiVersionError, supportsStructuredOutput } from './VersionCheck.ts';
 
 // ---------------------------------------------------------------------------
 // Public API: invokePi
@@ -84,14 +84,18 @@ export interface InvokeResult {
   durationMs: number;
 }
 
+// Timeouts tuned for `verify_thinking: high` (and the matching THINK/PLAN
+// thinking levels). VERIFY runs at `high` were observed in the 19-29s range
+// on small diffs; larger real-world diffs are expected to exceed the prior
+// 45s ceiling. THINK/PLAN are sized for the more discursive contracts.
 const PHASE_DEFAULTS: Record<
   Phase,
   { timeoutMs: number; tools: string[] | null; workflowFile: string }
 > = {
-  THINK: { timeoutMs: 60_000, tools: null, workflowFile: 'Think.md' },
-  PLAN: { timeoutMs: 90_000, tools: null, workflowFile: 'Plan.md' },
+  THINK: { timeoutMs: 120_000, tools: null, workflowFile: 'Think.md' },
+  PLAN: { timeoutMs: 180_000, tools: null, workflowFile: 'Plan.md' },
   VERIFY: {
-    timeoutMs: 45_000,
+    timeoutMs: 120_000,
     tools: ['read', 'grep', 'find', 'ls'],
     workflowFile: 'Verify.md',
   },
@@ -220,6 +224,14 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     args.push('--thinking', cfg.verify_thinking);
   }
 
+  // Structured-output mode (Item #1): when pi supports `--response-format` and
+  // the model is from the openai-codex family, request JSON output explicitly.
+  // Gracefully no-op on older pi binaries or non-codex models.
+  const effectiveModel = req.model ?? cfg.model;
+  if (effectiveModel.startsWith('openai-codex/') && supportsStructuredOutput({ binary: req.binary })) {
+    args.push('--response-format', 'json');
+  }
+
   const timeoutMs = req.timeoutMs ?? phaseCfg.timeoutMs;
   const bin = req.binary ?? 'pi';
   const t0 = Date.now();
@@ -230,6 +242,10 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     maxBuffer: 16 * 1024 * 1024,
   });
   const durationMs = Date.now() - t0;
+  // Surface the latency margin so the next ceiling is visible before it bites.
+  console.error(
+    `[pi-perspective] ${req.phase} duration=${durationMs}ms timeout=${timeoutMs}ms`
+  );
 
   const rawStdout = result.stdout ?? '';
   const rawStderr = result.stderr ?? '';

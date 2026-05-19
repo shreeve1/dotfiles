@@ -176,6 +176,8 @@ interface PiPerspectiveConfig {
   enabled: boolean;
   model: string;
   auto_invoke: Record<EffortTier, Phase[]>;
+  /** Max bytes of diff content forwarded to pi for VERIFY. Default 200 KiB. */
+  diff_size_cap_bytes: number;
 }
 
 const DEFAULT_AUTO_INVOKE: Record<EffortTier, Phase[]> = {
@@ -186,6 +188,8 @@ const DEFAULT_AUTO_INVOKE: Record<EffortTier, Phase[]> = {
   Comprehensive: ['THINK', 'PLAN', 'VERIFY'],
 };
 
+const DEFAULT_DIFF_SIZE_CAP_BYTES = 200 * 1024;
+
 function loadPiConfig(): PiPerspectiveConfig {
   const path = join(paiRuntimeHome(), 'settings.json');
   if (!existsSync(path)) {
@@ -193,11 +197,16 @@ function loadPiConfig(): PiPerspectiveConfig {
       enabled: true,
       model: 'openai-codex/gpt-5.5',
       auto_invoke: DEFAULT_AUTO_INVOKE,
+      diff_size_cap_bytes: DEFAULT_DIFF_SIZE_CAP_BYTES,
     };
   }
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf-8'));
     const block = parsed?.pi_perspective ?? {};
+    const rawCap = block.diff_size_cap_bytes;
+    const capBytes = typeof rawCap === 'number' && rawCap > 0
+      ? rawCap
+      : DEFAULT_DIFF_SIZE_CAP_BYTES;
     return {
       enabled: block.enabled !== false,
       model: block.model ?? 'openai-codex/gpt-5.5',
@@ -205,6 +214,7 @@ function loadPiConfig(): PiPerspectiveConfig {
         ...DEFAULT_AUTO_INVOKE,
         ...(block.auto_invoke ?? {}),
       },
+      diff_size_cap_bytes: capBytes,
     };
   } catch (err) {
     console.error('[pai-pi-perspective] settings.json parse failed:', err);
@@ -212,6 +222,7 @@ function loadPiConfig(): PiPerspectiveConfig {
       enabled: true,
       model: 'openai-codex/gpt-5.5',
       auto_invoke: DEFAULT_AUTO_INVOKE,
+      diff_size_cap_bytes: DEFAULT_DIFF_SIZE_CAP_BYTES,
     };
   }
 }
@@ -342,20 +353,67 @@ function findAuditPathForVerdict(
   return null;
 }
 
-function buildVerifyDiff(workDir: string): string {
+interface VerifyDiffResult {
+  diffPath: string;
+  /** Bytes of the captured diff (post-truncation if any). */
+  diffBytes: number;
+  /** True when the diff exceeded `diff_size_cap_bytes` and pi must be skipped. */
+  oversized: boolean;
+  /** When oversized, the original (un-truncated) byte count for the summary. */
+  originalBytes: number;
+}
+
+function resolveGitToplevel(startDir: string): string {
+  const probe = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+    cwd: startDir,
+    encoding: 'utf-8',
+  });
+  if (probe.status === 0) {
+    const top = probe.stdout.trim();
+    if (top) return top;
+  }
+  console.error(
+    `[pai-pi-perspective] not in a git repo at ${startDir}; ` +
+      `falling back to process.cwd() for git diff`
+  );
+  return startDir;
+}
+
+function buildVerifyDiff(workDir: string, sizeCapBytes: number): VerifyDiffResult {
   const auditDir = join(workDir, 'pi-perspective');
   mkdirSync(auditDir, { recursive: true });
   const diffPath = join(auditDir, 'auto-verify.diff');
+  const repoRoot = resolveGitToplevel(process.cwd());
   const result = spawnSync('git', ['diff', '--no-ext-diff'], {
-    cwd: process.cwd(),
+    cwd: repoRoot,
     encoding: 'utf-8',
     maxBuffer: 16 * 1024 * 1024,
   });
   const diff = result.status === 0
     ? result.stdout
-    : `# git diff unavailable from ${process.cwd()}\n# ${result.stderr || result.error?.message || 'unknown error'}\n`;
-  writeFileSync(diffPath, diff || '# No working-tree diff captured for this VERIFY phase.\n', 'utf-8');
-  return diffPath;
+    : `# git diff unavailable from ${repoRoot}\n# ${result.stderr || result.error?.message || 'unknown error'}\n`;
+  const originalBytes = Buffer.byteLength(diff, 'utf-8');
+  if (originalBytes > sizeCapBytes) {
+    const stub =
+      `# Diff exceeded PiPerspective size cap (${originalBytes} bytes > ${sizeCapBytes} bytes).\n` +
+      `# pi was NOT invoked; a synthesized CONCERNS run was recorded instead.\n` +
+      `# Regenerate with a smaller diff or raise pi_perspective.diff_size_cap_bytes in settings.json.\n`;
+    writeFileSync(diffPath, stub, 'utf-8');
+    return {
+      diffPath,
+      diffBytes: Buffer.byteLength(stub, 'utf-8'),
+      oversized: true,
+      originalBytes,
+    };
+  }
+  const safeDiff = diff || '# No working-tree diff captured for this VERIFY phase.\n';
+  writeFileSync(diffPath, safeDiff, 'utf-8');
+  return {
+    diffPath,
+    diffBytes: Buffer.byteLength(safeDiff, 'utf-8'),
+    oversized: false,
+    originalBytes,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +434,34 @@ function spawnPi(
 ): void {
   if (spawnPiOverride) return spawnPiOverride(phase, isaPath, diffPath, planPath, model);
   const workDir = dirname(isaPath);
-  if (phase === 'VERIFY' && !diffPath) diffPath = buildVerifyDiff(workDir);
+  if (phase === 'VERIFY' && !diffPath) {
+    const cfg = loadPiConfig();
+    const diffResult = buildVerifyDiff(workDir, cfg.diff_size_cap_bytes);
+    if (diffResult.oversized) {
+      // Short-circuit: never spawn pi on an oversized diff. Record a
+      // synthesized CONCERNS run so the UX still sees a verdict for this
+      // VERIFY boundary, and stop here.
+      const generatedAt = new Date().toISOString();
+      const summary =
+        `diff exceeded ${cfg.diff_size_cap_bytes} bytes ` +
+        `(actual ${diffResult.originalBytes}); pi was not invoked.`;
+      appendRunSummary(
+        workDir,
+        'VERIFY',
+        'CONCERNS',
+        summary,
+        diffResult.diffPath,
+        generatedAt
+      );
+      console.error(
+        `[pai-pi-perspective] VERIFY diff oversize ` +
+          `(${diffResult.originalBytes} > ${cfg.diff_size_cap_bytes}) ` +
+          `— skipping pi spawn for ${isaPath}`
+      );
+      return;
+    }
+    diffPath = diffResult.diffPath;
+  }
   const args = [
     'run',
     INVOKE_PI,
@@ -849,6 +934,8 @@ export const PaiPiPerspective = (async () => {
     loadSidecar: typeof loadSidecar;
     saveSidecar: typeof saveSidecar;
     parseRuns: typeof parseRuns;
+    buildVerifyDiff: typeof buildVerifyDiff;
+    resolveGitToplevel: typeof resolveGitToplevel;
   };
 };
 
@@ -862,4 +949,6 @@ PaiPiPerspective.__test = {
   loadSidecar,
   saveSidecar,
   parseRuns,
+  buildVerifyDiff,
+  resolveGitToplevel,
 };

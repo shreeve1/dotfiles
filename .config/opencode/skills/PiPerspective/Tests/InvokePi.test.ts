@@ -8,8 +8,9 @@
  *     shell-out boundary passes correct flags (ISC-02, ISC-03).
  *   - JSON happy path: pi emits valid fenced JSON, wrapper returns PASS.
  *   - FAIL path: pi emits FAIL with a blocker; wrapper preserves it.
- *   - Fallback path: pi emits no JSON; wrapper produces CONCERNS stub
- *     instead of throwing (ISC-04).
+ *   - Fallback path: pi emits no JSON; wrapper produces FAIL with a
+ *     synthesized critical parse-error blocker instead of throwing (ISC-02
+ *     of the May 19 pi-perspective-improvements plan, supersedes ISC-04).
  *   - Kill switch: enabled=false -> zero subprocesses (ISC-11).
  *   - Version check: pi < min_pi_version fails fast.
  *   - Audit write: produces <work_dir>/pi-perspective/<phase>.json
@@ -134,11 +135,22 @@ describe('ParseFallback', () => {
     expect(extractFencedJson('no json here')).toBeNull();
   });
 
-  test('buildFallbackVerdict always produces verdict=CONCERNS', () => {
-    const v = buildFallbackVerdict({ phase: 'VERIFY', rawStdout: 'x', modelId: 'm' });
-    expect(v.verdict).toBe('CONCERNS');
-    expect(v.blockers).toEqual([]);
+  test('buildFallbackVerdict produces FAIL with a critical parse-error blocker', () => {
+    const v = buildFallbackVerdict({
+      phase: 'VERIFY',
+      rawStdout: 'garbage stdout',
+      modelId: 'm',
+      reason: 'no JSON block found in pi stdout',
+    });
+    expect(v.verdict).toBe('FAIL');
     expect(v.schema_version).toBe(1);
+    expect(v.blockers).toHaveLength(1);
+    expect(v.blockers[0].severity).toBe('critical');
+    expect(v.blockers[0].id).toContain('parse');
+    expect(v.blockers[0].summary).toContain('parse');
+    expect(v.blockers[0].detail_md).toContain('garbage stdout');
+    expect(v.blockers[0].evidence).toEqual(['stdout']);
+    expect(v.summary_md).toContain('parse failure');
   });
 });
 
@@ -298,7 +310,7 @@ describe('invokePi parse paths', () => {
     expect(res.verdict.blockers[0].id).toBe(blockerId('VERIFY', 'Off-by-one in loop body'));
   });
 
-  test('malformed pi output falls back to CONCERNS without throwing', () => {
+  test('malformed pi output falls back to FAIL with a parse-error blocker', () => {
     const { isaPath } = freshWorkdir();
     const res = invokePi({
       phase: 'VERIFY',
@@ -307,8 +319,12 @@ describe('invokePi parse paths', () => {
       binary: join(MOCKBIN, 'pi-malformed'),
       config: { ...DEFAULT_CONFIG },
     });
-    expect(res.verdict.verdict).toBe('CONCERNS');
-    expect(res.verdict.summary_md).toContain('PiPerspective fallback parser');
+    expect(res.verdict.verdict).toBe('FAIL');
+    expect(res.verdict.blockers).toHaveLength(1);
+    expect(res.verdict.blockers[0].severity).toBe('critical');
+    expect(res.verdict.blockers[0].id).toContain('parse');
+    expect(res.verdict.blockers[0].summary).toContain('parse');
+    expect(res.verdict.summary_md).toContain('PiPerspective parse failure');
   });
 });
 
