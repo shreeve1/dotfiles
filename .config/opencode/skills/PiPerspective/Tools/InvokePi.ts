@@ -54,7 +54,7 @@ import {
   type PiVerdict,
   validateVerdict,
 } from './Schema.ts';
-import { assertPiVersion, PiVersionError, supportsStructuredOutput } from './VersionCheck.ts';
+import { assertPiVersion, PiVersionError } from './VersionCheck.ts';
 
 // ---------------------------------------------------------------------------
 // Public API: invokePi
@@ -269,13 +269,14 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     args.push('--thinking', thinkingLevel);
   }
 
-  // Structured-output mode (Item #1): when pi supports JSON mode and the model
-  // is from the openai-codex family, request JSON output explicitly.
-  // Gracefully no-op on older pi binaries or non-codex models.
-  const effectiveModel = req.model ?? cfg.model;
-  if (effectiveModel.startsWith('openai-codex/') && supportsStructuredOutput({ binary: req.binary })) {
-    args.push('--mode', 'json');
-  }
+  // Note: pi 0.74.0's `--mode json` emits structured session EVENT NDJSON
+  // (one line per agent_start/message_start/message_end/turn_end/...), not a
+  // single JSON verdict. The wrapper's parser expects text-mode output where
+  // the model emits a fenced ```json``` block (see Workflows/*.md). Passing
+  // `--mode json` here breaks parsing for every verdict — confirmed via live
+  // A/B against the agent-team-timer fixture on 2026-05-19. Leave the flag
+  // off; rely on the model to honor the JSON contract from the workflow
+  // prompt, then parse with extractFencedJson/extractBareJson.
 
   const timeoutMs = req.timeoutMs ?? phaseCfg.timeoutMs;
   const bin = req.binary ?? 'pi';

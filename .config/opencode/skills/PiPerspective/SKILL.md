@@ -305,7 +305,7 @@ bun run ~/.config/opencode/skills/PiPerspective/Tools/CiGate.ts \
 - `Tools/Config.ts` — typed config loader with defaults.
 - `Tools/Schema.ts` — `PiVerdict` types + Zod validator + `blockerId` helper + `LATEST_SCHEMA_VERSION`.
 - `Tools/ParseFallback.ts` — markdown-only fallback verdict (FAIL + parse-error blocker per Wave 1).
-- `Tools/VersionCheck.ts` — asserts `pi --version` ≥ `min_pi_version` + `supportsStructuredOutput()` probe.
+- `Tools/VersionCheck.ts` — asserts `pi --version` ≥ `min_pi_version`.
 - `Tools/RenderPlanDisagreement.ts` — PLAN UX renderer (routes via `SchemaMigrate.migrate`).
 - `Tools/RenderReframe.ts` — THINK REFRAME UX renderer (routes via `SchemaMigrate.migrate`).
 - `Tools/RenderTelemetry.ts` — stats.jsonl renderer (Wave 3 / ISC-10).

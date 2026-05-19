@@ -271,7 +271,12 @@ describe('invokePi flag construction', () => {
     }
   });
 
-  test('openai-codex models request structured output with --mode json', () => {
+  test('does NOT pass --mode json (pi 0.74.0 emits event NDJSON for that mode)', () => {
+    // Live A/B on 2026-05-19 against agent-team-timer fixture: `--mode json`
+    // produced session event NDJSON that extractFencedJson cannot parse,
+    // yielding a parse-error FAIL stub on every run. Text-mode output with
+    // a model-emitted fenced ```json``` block is the contract the wrapper
+    // expects. See InvokePi.ts comment above the (removed) flag push.
     const { isaPath } = freshWorkdir();
     const res = invokePi({
       phase: 'THINK',
@@ -280,9 +285,7 @@ describe('invokePi flag construction', () => {
       config: { ...DEFAULT_CONFIG, model: 'openai-codex/gpt-5.5' },
     });
     const args = res.rawStderr.split('\n').filter((l) => l.startsWith('ARG:')).map((l) => l.slice(4));
-    const modeIdx = args.indexOf('--mode');
-    expect(modeIdx).toBeGreaterThan(-1);
-    expect(args[modeIdx + 1]).toBe('json');
+    expect(args).not.toContain('--mode');
     expect(args).not.toContain('--response-format');
   });
 
