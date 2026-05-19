@@ -358,6 +358,64 @@ describe('T-22: Algorithm-lite VERIFY dispatch', () => {
     expect(calls[0].phase).toBe('VERIFY');
   });
 
+  test('documented text-complete hook captures Algorithm-lite VERIFY text', async () => {
+    writeSettings();
+    writeModeRouterSession('session-text-complete-lite', 'lite-text-complete-slug');
+    const plugin = await PaiPiPerspective();
+    const text = '════ PAI | ALGORITHM MODE ═══════════════════\n━━━ ✅ VERIFY ━━━ 6/7\nready';
+
+    await (plugin as any)['experimental.text.complete']?.(
+      {
+        sessionID: 'session-text-complete-lite',
+        messageID: 'message-1',
+        partID: 'part-1',
+      },
+      { text },
+    );
+    await plugin.event?.({
+      event: { type: 'session.idle', properties: { sessionID: 'session-text-complete-lite' } },
+    });
+
+    expect(calls.length).toBe(1);
+    expect(calls[0].phase).toBe('VERIFY');
+    expect(calls[0].isaPath).toBe(
+      join(workRoot, 'lite-text-complete-slug', 'pi-perspective-lite-context.md'),
+    );
+  });
+
+  test('documented text-complete hook ignores incomplete payloads', async () => {
+    writeSettings();
+    const plugin = await PaiPiPerspective();
+    const text = '════ PAI | ALGORITHM MODE ═══════════════════\n━━━ ✅ VERIFY ━━━ 6/7\nready';
+    const cases = [
+      [{ messageID: 'message-1', partID: 'part-1' }, { text }],
+      [{ sessionID: 'session-missing-message', partID: 'part-1' }, { text }],
+      [{ sessionID: 'session-missing-part', messageID: 'message-1' }, { text }],
+      [{ sessionID: 'session-missing-text', messageID: 'message-1', partID: 'part-1' }, {}],
+      [{ sessionID: 'session-empty-text', messageID: 'message-1', partID: 'part-1' }, { text: '' }],
+      [null, { text }],
+      [{ sessionID: 'session-non-string-text', messageID: 'message-1', partID: 'part-1' }, { text: 42 }],
+    ] as const;
+
+    for (const [input, output] of cases) {
+      await (plugin as any)['experimental.text.complete']?.(input, output);
+    }
+    for (const sessionID of [
+      'session-missing-message',
+      'session-missing-part',
+      'session-missing-text',
+      'session-empty-text',
+      'session-non-string-text',
+    ]) {
+      writeModeRouterSession(sessionID, `${sessionID}-slug`);
+      await plugin.event?.({
+        event: { type: 'session.idle', properties: { sessionID } },
+      });
+    }
+
+    expect(calls).toEqual([]);
+  });
+
   test('Algorithm-lite VERIFY ignores durable sessions and non-VERIFY text', async () => {
     writeSettings();
     writeModeRouterSession('session-durable', 'durable-slug', 'isa');

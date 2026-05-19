@@ -1012,6 +1012,27 @@ export const PaiPiPerspective = (async () => {
         console.error('[pai-pi-perspective] chat.message uncaught:', err);
       }
     },
+
+    'experimental.text.complete': async (input: any, output: any) => {
+      try {
+        const sessionID = typeof input?.sessionID === 'string' ? input.sessionID : undefined;
+        const messageID = typeof input?.messageID === 'string' ? input.messageID : undefined;
+        const partID = typeof input?.partID === 'string' ? input.partID : undefined;
+        const text = typeof output?.text === 'string' ? output.text : undefined;
+        if (!sessionID || !messageID || !partID || !text) return;
+
+        rememberAssistantTextPart({
+          type: 'text',
+          sessionID,
+          messageID,
+          id: partID,
+          text,
+        });
+        lastAssistantTextBySession.set(sessionID, text.trim());
+      } catch (err) {
+        console.error('[pai-pi-perspective] experimental.text.complete uncaught:', err);
+      }
+    },
   };
 }) as Plugin & {
   __test: {

@@ -271,6 +271,21 @@ describe('invokePi flag construction', () => {
     }
   });
 
+  test('openai-codex models request structured output with --mode json', () => {
+    const { isaPath } = freshWorkdir();
+    const res = invokePi({
+      phase: 'THINK',
+      isaPath,
+      binary: join(MOCKBIN, 'pi-pass'),
+      config: { ...DEFAULT_CONFIG, model: 'openai-codex/gpt-5.5' },
+    });
+    const args = res.rawStderr.split('\n').filter((l) => l.startsWith('ARG:')).map((l) => l.slice(4));
+    const modeIdx = args.indexOf('--mode');
+    expect(modeIdx).toBeGreaterThan(-1);
+    expect(args[modeIdx + 1]).toBe('json');
+    expect(args).not.toContain('--response-format');
+  });
+
   test('model flag uses config.model by default and override when provided', () => {
     const { isaPath } = freshWorkdir();
     const res1 = invokePi({
