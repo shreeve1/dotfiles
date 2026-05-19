@@ -56,6 +56,7 @@ const PRIMER_ATTEMPTS_CAP = 5;
 // explicitly marks the hook input as a subagent. PAI worker agents are listed
 // here because they are context-preserving workers, not primary orchestrators.
 const ROUTER_MANAGED_AGENTS = new Set(["build", "plan", "pai-algorithm"]);
+const ROUTER_UTILITY_AGENTS = new Set(["compaction", "summary", "title"]);
 const ROUTER_BYPASS_AGENTS = new Set([
   "browser-automation",
   "browser-qa",
@@ -456,7 +457,16 @@ function hookInputDeclaresSubagent(input: any): boolean {
 function shouldBypassModeRouterForAgent(input: any): boolean {
   const agent = normalizeAgentName(input?.agent);
   if (!agent || ROUTER_MANAGED_AGENTS.has(agent)) return false;
-  return hookInputDeclaresSubagent(input) || ROUTER_BYPASS_AGENTS.has(agent);
+  return (
+    ROUTER_UTILITY_AGENTS.has(agent) ||
+    hookInputDeclaresSubagent(input) ||
+    ROUTER_BYPASS_AGENTS.has(agent)
+  );
+}
+
+function isRouterUtilityAgent(input: any): boolean {
+  const agent = normalizeAgentName(input?.agent);
+  return Boolean(agent && ROUTER_UTILITY_AGENTS.has(agent));
 }
 
 function classify(prompt: string): Mode {
@@ -787,10 +797,12 @@ export const PaiModeRouter: Plugin = async () => {
         const sessionID: string | undefined = input?.sessionID;
         if (!sessionID) return;
         if (shouldBypassModeRouterForAgent(input)) {
-          const state = loadState();
-          if (state.sessions[sessionID]) {
-            delete state.sessions[sessionID];
-            saveState(state);
+          if (!isRouterUtilityAgent(input)) {
+            const state = loadState();
+            if (state.sessions[sessionID]) {
+              delete state.sessions[sessionID];
+              saveState(state);
+            }
           }
           return;
         }
@@ -855,6 +867,7 @@ export const PaiModeRouter: Plugin = async () => {
 
     "experimental.chat.system.transform": async (input: any, output: any) => {
       try {
+        if (shouldBypassModeRouterForAgent(input)) return;
         const sessionID: string | undefined = input?.sessionID;
         if (!sessionID) return;
         const state = loadState();
@@ -886,6 +899,7 @@ export const PaiModeRouter: Plugin = async () => {
       output: any,
     ) => {
       try {
+        if (shouldBypassModeRouterForAgent(_input)) return;
         if (!Array.isArray(output?.messages)) return;
         const messages = output.messages;
         // Find the first user message in the array; that's the active turn.
@@ -970,6 +984,7 @@ export const PaiModeRouter: Plugin = async () => {
 
     "tool.execute.before": async (input: any) => {
       try {
+        if (shouldBypassModeRouterForAgent(input)) return;
         const sessionID: string | undefined = input?.sessionID;
         const tool: string | undefined = input?.tool;
         if (!sessionID || !tool) return;
@@ -1003,6 +1018,7 @@ export const PaiModeRouter: Plugin = async () => {
 
     "tool.execute.after": async (input: any) => {
       try {
+        if (shouldBypassModeRouterForAgent(input)) return;
         const sessionID: string | undefined = input?.sessionID;
         const tool: string | undefined = input?.tool;
         if (!sessionID || !tool) return;

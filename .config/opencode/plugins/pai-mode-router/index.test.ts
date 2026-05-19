@@ -392,6 +392,29 @@ test("session naming sub-agent prompt bypasses router injection", async () => {
   expect(output.system).toEqual([]);
 });
 
+for (const utilityAgent of ["title", "summary", "compaction"]) {
+  test(`hidden ${utilityAgent} agent bypasses router injection without deleting primary state`, async () => {
+    const output = { parts: [{ type: "text", text: "Create a concise utility response." }] };
+    await hooks["chat.message"]?.({ sessionID, agent: utilityAgent }, output);
+
+    expect(readSession().messageCount).toBe(1);
+
+    const system = { system: ["base"] as string[] };
+    await hooks["experimental.chat.system.transform"]?.(
+      { sessionID, agent: utilityAgent },
+      system,
+    );
+    expect(system.system).toEqual(["base"]);
+
+    await expect(
+      hooks["tool.execute.before"]?.(
+        { tool: "read", sessionID, agent: utilityAgent, callID: `call_${utilityAgent}_read` },
+        { args: {} },
+      ),
+    ).resolves.toBeUndefined();
+  });
+}
+
 test("summary generator sub-agent prompt bypasses router injection", async () => {
   const sid = "ses_test_subagent_summary";
   const session = await classifyViaHook(
