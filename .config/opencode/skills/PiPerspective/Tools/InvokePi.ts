@@ -269,12 +269,12 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     args.push('--thinking', thinkingLevel);
   }
 
-  // Structured-output mode (Item #1): when pi supports `--response-format` and
-  // the model is from the openai-codex family, request JSON output explicitly.
+  // Structured-output mode (Item #1): when pi supports JSON mode and the model
+  // is from the openai-codex family, request JSON output explicitly.
   // Gracefully no-op on older pi binaries or non-codex models.
   const effectiveModel = req.model ?? cfg.model;
   if (effectiveModel.startsWith('openai-codex/') && supportsStructuredOutput({ binary: req.binary })) {
-    args.push('--response-format', 'json');
+    args.push('--mode', 'json');
   }
 
   const timeoutMs = req.timeoutMs ?? phaseCfg.timeoutMs;

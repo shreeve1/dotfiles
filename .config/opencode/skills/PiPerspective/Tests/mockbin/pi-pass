@@ -9,6 +9,12 @@ if [ "$1" = "--version" ]; then
   exit 0
 fi
 
+if [ "$1" = "--help" ]; then
+  printf '%s\n' 'pi - mock AI coding assistant'
+  printf '%s\n' '  --mode <mode>  Output mode: text (default), json, or rpc'
+  exit 0
+fi
+
 for arg in "$@"; do
   printf 'ARG:%s\n' "$arg" >&2
 done

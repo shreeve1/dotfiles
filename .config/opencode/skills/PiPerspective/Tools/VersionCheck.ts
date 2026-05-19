@@ -108,7 +108,7 @@ let cachedStructuredOutputSupport: boolean | null = null;
 
 /**
  * Probe `pi --help` and return true iff the installed binary advertises a
- * `--response-format` flag. Cached for the process lifetime.
+ * structured JSON mode flag. Cached for the process lifetime.
  *
  * The probe is conservative: any failure to spawn or parse defaults to
  * `false` so we gracefully fall back to free-form output on older pi
@@ -135,7 +135,9 @@ export function supportsStructuredOutput(opts?: {
       helpText = '';
     }
   }
-  const supported = /(^|\s)--response-format(\b|\s|=)/.test(helpText ?? '');
+  const supported = (helpText ?? '')
+    .split(/\r?\n/)
+    .some((line) => /(^|\s)--mode(\b|\s|=)/i.test(line) && /\bjson\b/i.test(line));
   if (!opts?.helpText) cachedStructuredOutputSupport = supported;
   return supported;
 }
