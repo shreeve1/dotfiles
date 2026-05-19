@@ -74,7 +74,10 @@ Add to `~/.pai/settings.json` (or merge with existing block):
       "Deep":          ["THINK", "PLAN", "VERIFY"],
       "Comprehensive": ["THINK", "PLAN", "VERIFY"]
     },
+    "think_thinking": "high",
+    "plan_thinking": "high",
     "verify_thinking": "minimal",
+    "telemetry": true,
     "blocker_min_severity_display": "major"
   }
 }
@@ -104,7 +107,7 @@ The `model` key is a single string applied to all three phases. To swap families
 
 The principle is *out-of-family relative to the opencode model*, not specifically OpenAI. Per-phase models are deliberately out of scope for v1 (PRD D-01).
 
-The `:<thinking>` suffix on the model id (e.g. `:high`) is honored by THINK and PLAN. VERIFY adds an explicit `--thinking <level>` flag from `verify_thinking` because VERIFY tuning is the dominant cost driver (see "Tuning verify_thinking" below).
+Each phase has its own `--thinking <level>` flag sourced from `think_thinking`, `plan_thinking`, and `verify_thinking` respectively (Wave 3 / Item #8). All three default to `high`. Lower a single phase independently — e.g., drop `verify_thinking` to `minimal` when the dominant cost driver is VERIFY latency (see "Tuning verify_thinking" below).
 
 ### Tuning `verify_thinking`
 
@@ -117,7 +120,26 @@ The `:<thinking>` suffix on the model id (e.g. `:high`) is honored by THINK and 
 | `low`     | 39.6 s       | FAIL          | PASS         |
 | `minimal` | **28.1 s**   | FAIL          | PASS         |
 
-`minimal` is the default. Raise to `medium` or `high` if VERIFY starts missing real defects on harder diffs; the cost is ~2–3× latency. There is no `think_thinking` / `plan_thinking` knob — THINK and PLAN inherit reasoning level from the `:<thinking>` suffix in the `model` id.
+`minimal` is the default for `verify_thinking`. Raise to `medium` or `high` if VERIFY starts missing real defects on harder diffs; the cost is ~2–3× latency. `think_thinking` and `plan_thinking` default to `high` and accept the same enum (`minimal | low | medium | high | xhigh`).
+
+### Telemetry
+
+Every successful pi invocation appends one JSON line to `<work_dir>/pi-perspective-stats.jsonl` (Wave 3 / Item #9). The line shape is:
+
+```json
+{"phase":"VERIFY","verdict":"PASS","duration_ms":27542,"model":"openai-codex/gpt-5.5","thinking":"high","input_chars":12345,"timestamp":"2026-05-19T..."}
+```
+
+Set `pi_perspective.telemetry = false` to disable. Disabled mode produces no file. Kill-switched invocations also produce no telemetry — only real spawns are recorded.
+
+Render a per-phase latency + verdict-distribution table:
+
+```bash
+bun run ~/.config/opencode/skills/PiPerspective/Tools/RenderTelemetry.ts --work-dir <path>
+bun run ~/.config/opencode/skills/PiPerspective/Tools/RenderTelemetry.ts --all
+```
+
+Columns: `phase`, `count`, `mean_ms`, `p50_ms`, `p95_ms`, `verdict_distribution`. Malformed lines are skipped with a stderr warning; the renderer never crashes on a partial JSONL write.
 
 ### Auto-invocation rules
 

@@ -21,13 +21,22 @@ export type EffortTier =
 
 export type Severity = 'critical' | 'major' | 'minor';
 
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+
 export interface PiPerspectiveConfig {
   enabled: boolean;
   model: string;
   min_pi_version: string;
   auto_invoke: Record<EffortTier, ('THINK' | 'PLAN' | 'VERIFY')[]>;
-  verify_thinking: 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  think_thinking: ThinkingLevel;
+  plan_thinking: ThinkingLevel;
+  verify_thinking: ThinkingLevel;
   blocker_min_severity_display: Severity;
+  /**
+   * Wave 3 / Item #9. When false, `invokePi` does NOT append a line to
+   * `<work_dir>/pi-perspective-stats.jsonl`. Default true (opt-out).
+   */
+  telemetry: boolean;
 }
 
 export const DEFAULT_CONFIG: PiPerspectiveConfig = {
@@ -41,8 +50,11 @@ export const DEFAULT_CONFIG: PiPerspectiveConfig = {
     Deep: ['THINK', 'PLAN', 'VERIFY'],
     Comprehensive: ['THINK', 'PLAN', 'VERIFY'],
   },
+  think_thinking: 'high',
+  plan_thinking: 'high',
   verify_thinking: 'high',
   blocker_min_severity_display: 'major',
+  telemetry: true,
 };
 
 const SETTINGS_PATH = join(homedir(), '.pai', 'settings.json');
