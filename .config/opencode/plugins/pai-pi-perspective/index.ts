@@ -139,8 +139,32 @@ function fireKey(phase: Phase, content: string): string {
   return `${phase}:${createHash('sha256').update(content).digest('hex')}`;
 }
 
+// Sidecar GC caps (Item #5 / Wave 2 / Task 3.1).
+//
+// `fires` is a forensic log; we keep the most-recent 50 entries to bound
+// the file size while preserving a useful audit trail. `seen_alerts` and
+// `seen_runs` are dedup-key sets; trimming oldest is safe as long as the
+// corresponding alert/run file rotates entries past the cap at the same
+// pace (otherwise a re-injection could occur). The 200-key cap is well
+// above the natural turnover of an active WORK dir.
+const SIDECAR_CAP_FIRES = 50;
+const SIDECAR_CAP_SEEN_ALERTS = 200;
+const SIDECAR_CAP_SEEN_RUNS = 200;
+
+function trimFront<T>(arr: T[], cap: number): T[] {
+  if (arr.length <= cap) return arr;
+  return arr.slice(arr.length - cap);
+}
+
+function gcSidecar(state: SidecarState): void {
+  state.fires = trimFront(state.fires, SIDECAR_CAP_FIRES);
+  state.seen_alerts = trimFront(state.seen_alerts, SIDECAR_CAP_SEEN_ALERTS);
+  state.seen_runs = trimFront(state.seen_runs, SIDECAR_CAP_SEEN_RUNS);
+}
+
 function saveSidecar(workDir: string, state: SidecarState): void {
   try {
+    gcSidecar(state);
     const file = join(workDir, SIDECAR_FILE);
     writeFileSync(file, JSON.stringify(state, null, 2) + '\n', 'utf-8');
   } catch (err) {
@@ -619,6 +643,34 @@ function liteSessionSlug(sessionID: string): string | null {
   }
 }
 
+/**
+ * Resolve the active session's WORK slug from mode-router state. Unlike
+ * `liteSessionSlug`, this accepts any contract (`isa` or `lite`) and any
+ * ALGORITHM mode. Returns null if the session is unknown, not in
+ * ALGORITHM mode, or the state file is missing/malformed.
+ *
+ * Used by `collectUnseen*` to scope cross-session injection (Wave 2 /
+ * Task 3.2). Returning null deliberately preserves the legacy
+ * "scan all WORK/" fallback so NATIVE/MINIMAL sessions, Algorithm-lite
+ * sessions without router state, and tests that don't write mode-router
+ * still see alerts/runs.
+ */
+function sessionSlug(sessionID: string | undefined): string | null {
+  if (!sessionID) return null;
+  try {
+    const path = modeRouterStatePath();
+    if (!existsSync(path)) return null;
+    const parsed = JSON.parse(readFileSync(path, 'utf-8'));
+    const session = parsed?.sessions?.[sessionID] as ModeRouterSession | undefined;
+    if (session?.mode !== 'ALGORITHM') return null;
+    return session.slug ?? null;
+  } catch (err) {
+    // Mode-router writes are not atomic; tolerate partial JSON.
+    console.error('[pai-pi-perspective] mode-router state read failed:', err);
+    return null;
+  }
+}
+
 function writeLiteVerifyContext(workDir: string, slug: string, assistantText: string): string {
   mkdirSync(workDir, { recursive: true });
   const contextPath = join(workDir, LITE_VERIFY_CONTEXT_FILE);
@@ -713,20 +765,32 @@ function parseAlerts(alertsPath: string): AlertEntry[] {
 
 /**
  * Find every WORK/<slug>/ that has both an ISA and a sidecar, then collect
- * unseen alerts. Cross-session: we don't have a session→slug map in this
- * plugin, so we inject all unseen alerts on the assumption that the user is
- * working on one Algorithm task at a time. If that turns out to be wrong,
- * we can scope to the most-recently-edited slug.
+ * unseen alerts.
+ *
+ * Scoping rule (Wave 2 / Task 3.2):
+ *   - When `sessionID` resolves to a slug via `sessionSlug()`, we look at
+ *     ONLY that slug's WORK dir. Parallel sessions can no longer
+ *     cross-pollinate alerts.
+ *   - When `sessionID` is missing or has no slug entry, fall back to the
+ *     legacy "scan all WORK/" behavior. Preserves backward compat for
+ *     NATIVE/MINIMAL sessions and Algorithm-lite sessions whose
+ *     mode-router state hasn't been populated yet.
  */
-function collectUnseenAlerts(): { workDir: string; alerts: AlertEntry[] }[] {
-  const result: { workDir: string; alerts: AlertEntry[] }[] = [];
-  let slugs: string[] = [];
+function candidateSlugs(sessionID: string | undefined): string[] {
+  const scoped = sessionSlug(sessionID);
+  if (scoped) return [scoped];
   try {
-    slugs = readdirSync(memoryWorkDir());
+    return readdirSync(memoryWorkDir());
   } catch {
-    return result;
+    return [];
   }
-  for (const slug of slugs) {
+}
+
+function collectUnseenAlerts(
+  sessionID?: string,
+): { workDir: string; alerts: AlertEntry[] }[] {
+  const result: { workDir: string; alerts: AlertEntry[] }[] = [];
+  for (const slug of candidateSlugs(sessionID)) {
     const workDir = join(memoryWorkDir(), slug);
     const alertsPath = join(workDir, ALERTS_FILE);
     if (!existsSync(alertsPath)) continue;
@@ -739,15 +803,11 @@ function collectUnseenAlerts(): { workDir: string; alerts: AlertEntry[] }[] {
   return result;
 }
 
-function collectUnseenRuns(): { workDir: string; runs: RunEntry[] }[] {
+function collectUnseenRuns(
+  sessionID?: string,
+): { workDir: string; runs: RunEntry[] }[] {
   const result: { workDir: string; runs: RunEntry[] }[] = [];
-  let slugs: string[] = [];
-  try {
-    slugs = readdirSync(memoryWorkDir());
-  } catch {
-    return result;
-  }
-  for (const slug of slugs) {
+  for (const slug of candidateSlugs(sessionID)) {
     const workDir = join(memoryWorkDir(), slug);
     const runsPath = join(workDir, RUNS_FILE);
     if (!existsSync(runsPath)) continue;
@@ -860,9 +920,38 @@ export const PaiPiPerspective = (async () => {
       try {
         const cfg = loadPiConfig();
         if (!cfg.enabled) return;
-        const runBuckets = collectUnseenRuns();
-        const alertBuckets = collectUnseenAlerts();
+        const sessionID =
+          typeof (_input as { sessionID?: unknown })?.sessionID === 'string'
+            ? ((_input as { sessionID: string }).sessionID)
+            : undefined;
+        const runBuckets = collectUnseenRuns(sessionID);
+        const alertBuckets = collectUnseenAlerts(sessionID);
         if (runBuckets.length === 0 && alertBuckets.length === 0) return;
+
+        // Build a Set of run keys being injected this turn. Any alert whose
+        // alert_key matches a run_key is a duplicate (both share the
+        // `<phase>@<generated_at>` format) and must be filtered out so the
+        // verdict body appears exactly once — in the runs section.
+        const injectedRunKeys = new Set<string>();
+        for (const b of runBuckets) {
+          for (const run of b.runs) injectedRunKeys.add(run.key);
+        }
+
+        // Dedup alerts in-place; if an alert was already covered by the
+        // runs block we still mark it seen so it doesn't re-inject later.
+        const dedupedAlertBuckets: { workDir: string; alerts: AlertEntry[] }[] = [];
+        for (const b of alertBuckets) {
+          const kept: AlertEntry[] = [];
+          for (const a of b.alerts) {
+            if (injectedRunKeys.has(a.key)) {
+              // Mark seen so future turns don't re-evaluate it.
+              queueSeen(pendingSeenAlerts, b.workDir, a.key);
+              continue;
+            }
+            kept.push(a);
+          }
+          if (kept.length > 0) dedupedAlertBuckets.push({ workDir: b.workDir, alerts: kept });
+        }
 
         const blocks: string[] = [];
         if (runBuckets.length > 0) {
@@ -882,7 +971,7 @@ export const PaiPiPerspective = (async () => {
           }
           blocks.push('</pai-pi-perspective-runs>');
         }
-        if (alertBuckets.length > 0) {
+        if (dedupedAlertBuckets.length > 0) {
           blocks.push('<pai-pi-perspective-alerts>');
           blocks.push(
             'PiPerspective has produced non-PASS verdicts on recent phase boundaries.'
@@ -893,7 +982,7 @@ export const PaiPiPerspective = (async () => {
           blocks.push(
             'Decide: accept, iterate, override, or abort. Do not silently ignore pi feedback.'
           );
-          for (const b of alertBuckets) {
+          for (const b of dedupedAlertBuckets) {
             blocks.push(`\n### work_dir: ${b.workDir}\n`);
             for (const a of b.alerts) {
               blocks.push(a.body);
@@ -902,6 +991,7 @@ export const PaiPiPerspective = (async () => {
           }
           blocks.push('</pai-pi-perspective-alerts>');
         }
+        if (blocks.length === 0) return;
         const merged = blocks.join('\n');
         if (Array.isArray(output?.system)) {
           output.system.unshift(merged);
@@ -936,6 +1026,13 @@ export const PaiPiPerspective = (async () => {
     parseRuns: typeof parseRuns;
     buildVerifyDiff: typeof buildVerifyDiff;
     resolveGitToplevel: typeof resolveGitToplevel;
+    sessionSlug: typeof sessionSlug;
+    collectUnseenAlerts: typeof collectUnseenAlerts;
+    collectUnseenRuns: typeof collectUnseenRuns;
+    gcSidecar: typeof gcSidecar;
+    SIDECAR_CAP_FIRES: typeof SIDECAR_CAP_FIRES;
+    SIDECAR_CAP_SEEN_ALERTS: typeof SIDECAR_CAP_SEEN_ALERTS;
+    SIDECAR_CAP_SEEN_RUNS: typeof SIDECAR_CAP_SEEN_RUNS;
   };
 };
 
@@ -951,4 +1048,11 @@ PaiPiPerspective.__test = {
   parseRuns,
   buildVerifyDiff,
   resolveGitToplevel,
+  sessionSlug,
+  collectUnseenAlerts,
+  collectUnseenRuns,
+  gcSidecar,
+  SIDECAR_CAP_FIRES,
+  SIDECAR_CAP_SEEN_ALERTS,
+  SIDECAR_CAP_SEEN_RUNS,
 };
