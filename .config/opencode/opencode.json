@@ -62,6 +62,14 @@
         "*": "allow"
       }
     },
+    "title": {
+      "model": "cliproxy/claude-haiku-4-5-20251001",
+      "temperature": 0.1,
+      "prompt": "Generate only the final OpenCode conversation title text. Do not include markdown, quotes, labels, prefixes, colons, or explanations. Never start with '#', 'Conversation Title', 'Title', or similar labels. Keep the title concise, specific, and 3-7 words.",
+      "permission": {
+        "*": "allow"
+      }
+    },
     "librarian": {
       "model": "cliproxy/gpt-5.4",
       "permission": {
