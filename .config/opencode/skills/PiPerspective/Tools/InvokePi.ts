@@ -49,6 +49,7 @@ import {
 } from './ParseFallback.ts';
 import {
   blockerId,
+  LATEST_SCHEMA_VERSION,
   type Phase,
   type PiVerdict,
   validateVerdict,
@@ -116,7 +117,7 @@ function killSwitchStub(req: InvokeRequest, cfg: PiPerspectiveConfig): PiVerdict
       '**[PiPerspective kill switch]** `pi_perspective.enabled = false` in settings; ' +
       'no pi invocation was performed. Set `enabled: true` in `~/.pai/settings.json` to re-enable.',
     raw_model_id: req.model ?? cfg.model,
-    schema_version: 1,
+    schema_version: LATEST_SCHEMA_VERSION,
     generated_at: new Date().toISOString(),
   };
 }
@@ -379,7 +380,10 @@ export function invokePi(req: InvokeRequest): InvokeResult {
 function enrichVerdict(obj: any, phase: Phase, modelId: string): any {
   const out = { ...obj };
   out.phase = phase;
-  out.schema_version = 1;
+  // Wave 4 / ISC-13: emit at the current latest schema_version. The Zod
+  // schema accepts the union 1|2, and SchemaMigrate forward-migrates any
+  // legacy v1 verdicts already on disk.
+  out.schema_version = LATEST_SCHEMA_VERSION;
   if (!out.generated_at) out.generated_at = new Date().toISOString();
   if (!out.raw_model_id) out.raw_model_id = modelId;
   if (!Array.isArray(out.blockers)) out.blockers = [];

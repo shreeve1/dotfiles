@@ -29,6 +29,30 @@ export interface PiSuggestion {
   detail_md: string;
 }
 
+/**
+ * Optional telemetry block added in schema_version 2 (Wave 4 / ISC-14).
+ * Both fields are optional even on v2 verdicts — older clients that don't
+ * emit telemetry remain valid post-migration.
+ */
+export interface PiTelemetry {
+  duration_ms?: number;
+  input_chars?: number;
+}
+
+/**
+ * Schema versions accepted on the wire. v1 is the original shape; v2 is
+ * v1 + optional `telemetry`. The Zod schema accepts the union so both
+ * versions validate transparently.
+ */
+export type SchemaVersion = 1 | 2;
+
+/**
+ * Wave 4 / ISC-13: bump LATEST_SCHEMA_VERSION here to enable a new
+ * migration. SchemaMigrate.migrate() always returns objects at this
+ * version.
+ */
+export const LATEST_SCHEMA_VERSION = 2 as const;
+
 export interface PiVerdict {
   phase: Phase;
   verdict: Verdict;
@@ -36,8 +60,10 @@ export interface PiVerdict {
   suggestions: PiSuggestion[];
   summary_md: string;
   raw_model_id: string;
-  schema_version: 1;
+  schema_version: SchemaVersion;
   generated_at: string; // ISO8601
+  /** Wave 4 / schema_version 2 only. Absent on v1. */
+  telemetry?: PiTelemetry;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +87,16 @@ export const PiSuggestionSchema: z.ZodType<PiSuggestion> = z.object({
   detail_md: z.string(),
 });
 
+export const PiTelemetrySchema: z.ZodType<PiTelemetry> = z.object({
+  duration_ms: z.number().nonnegative().optional(),
+  input_chars: z.number().nonnegative().optional(),
+});
+
+/**
+ * Wave 4 / ISC-13, ISC-14: schema_version is a union of 1 and 2 so existing
+ * audit files on disk continue to validate. The `telemetry` field is optional
+ * regardless of version (v1 simply never sets it).
+ */
 export const PiVerdictSchema: z.ZodType<PiVerdict> = z.object({
   phase: PhaseSchema,
   verdict: VerdictSchema,
@@ -68,8 +104,9 @@ export const PiVerdictSchema: z.ZodType<PiVerdict> = z.object({
   suggestions: z.array(PiSuggestionSchema),
   summary_md: z.string(),
   raw_model_id: z.string().min(1),
-  schema_version: z.literal(1),
+  schema_version: z.union([z.literal(1), z.literal(2)]),
   generated_at: z.string().min(1),
+  telemetry: PiTelemetrySchema.optional(),
 });
 
 // ---------------------------------------------------------------------------

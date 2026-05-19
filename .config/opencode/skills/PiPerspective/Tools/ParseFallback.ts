@@ -10,7 +10,7 @@
  * Per PLAN §2.3.
  */
 
-import type { Phase, PiVerdict } from './Schema.ts';
+import { LATEST_SCHEMA_VERSION, type Phase, type PiVerdict } from './Schema.ts';
 
 export interface FallbackInput {
   phase: Phase;
@@ -72,7 +72,7 @@ export function buildFallbackVerdict(input: FallbackInput): PiVerdict {
     suggestions: [],
     summary_md: banner + safeStdout,
     raw_model_id: input.modelId,
-    schema_version: 1,
+    schema_version: LATEST_SCHEMA_VERSION,
     generated_at: new Date().toISOString(),
   };
 }

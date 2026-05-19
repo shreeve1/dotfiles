@@ -41,14 +41,17 @@ Every invocation produces a `PiVerdict` JSON object (schema in `Tools/Schema.ts`
   suggestions: [{ summary, detail_md }],
   summary_md: string,
   raw_model_id: string,
-  schema_version: 1,
-  generated_at: ISO8601
+  schema_version: 1 | 2,
+  generated_at: ISO8601,
+  telemetry?: { duration_ms?: number, input_chars?: number }  // v2 only
 }
 ```
 
 Audit copy written to `<work_dir>/pi-perspective/<phase>.json` where `<work_dir>` = parent of the active ISA path. Re-runs append a numeric suffix (`verify.json`, `verify.2.json`).
 
-If pi's JSON output fails Zod validation, `Tools/ParseFallback.ts` produces a minimal `PiVerdict` with `verdict: 'CONCERNS'` and the raw stdout in `summary_md`, then logs `WARN PiPerspective: schema parse failed, used fallback`.
+Wave 4 / Item #12: new verdicts emit `schema_version: 2`. The Zod schema accepts the union `1 | 2` so existing v1 audit files on disk continue to validate. Renderers (`RenderPlanDisagreement.ts`, `RenderReframe.ts`) and `CiGate.ts` route every verdict through `Tools/SchemaMigrate.ts::migrate()`, which forward-migrates v1 inputs to v2 idempotently. Migrations live under `Tools/Migrations/`; add a new file (e.g. `v2-to-v3.ts`) and extend the migration chain in `SchemaMigrate.ts` to land a future schema bump. See ISC-13 / ISC-14 / ISC-16.
+
+If pi's JSON output fails Zod validation, `Tools/ParseFallback.ts` produces a `PiVerdict` with `verdict: 'FAIL'` and a synthesized `parse-error` critical blocker (raw stdout preserved in `summary_md` and the blocker `detail_md`), then logs `WARN PiPerspective: no JSON block in pi stdout, used fallback`. Wave 1 / Item #2.
 
 ### Verdict semantics
 
@@ -84,6 +87,22 @@ Add to `~/.pai/settings.json` (or merge with existing block):
 ```
 
 All keys are optional; missing keys fall back to the defaults in `Tools/Config.ts`. A partial `auto_invoke` overlay is merged tier-by-tier — overriding `Deep` does not clear the other tiers.
+
+#### Config key reference (Waves 1-4)
+
+| Key                       | Default     | Layer  | Purpose                                                                                    |
+|---------------------------|-------------|--------|--------------------------------------------------------------------------------------------|
+| `enabled`                 | `true`      | both   | Global kill switch.                                                                        |
+| `model`                   | see below   | wrap   | Single model id used by all three phases.                                                  |
+| `min_pi_version`          | `0.73.1`    | wrap   | Hard floor on the `pi` binary version.                                                     |
+| `auto_invoke`             | all phases  | plugin | Effort-tier → phase-list overlay.                                                          |
+| `think_thinking`          | `high`      | wrap   | THINK `--thinking` level (Wave 3 / ISC-08).                                                |
+| `plan_thinking`           | `high`      | wrap   | PLAN `--thinking` level (Wave 3 / ISC-08).                                                 |
+| `verify_thinking`         | `minimal`   | wrap   | VERIFY `--thinking` level. See "Tuning" table.                                             |
+| `telemetry`               | `true`      | wrap   | When false, suppresses `pi-perspective-stats.jsonl` appends (Wave 3 / ISC-09).             |
+| `diff_size_cap_bytes`     | `204800`    | plugin | Auto-VERIFY diff cap. Oversized diffs short-circuit to `CONCERNS` (Wave 1 / ISC-03).       |
+| `slug_scope_alerts`       | always on   | plugin | Alert/run collection is scoped to the active session slug; falls back to scan-all when the mode-router has no slug for that session (Wave 2 / ISC-06). Not a tunable knob — documented here so operators can find it. |
+| `blocker_min_severity_display` | `major` | plugin | Minimum blocker severity shown in alert banners.                                           |
 
 ### Effort tier mapping
 
@@ -236,7 +255,43 @@ bun run ~/.config/opencode/skills/PiPerspective/Tools/RenderReframe.ts \
   [--out <path>]
 ```
 
-Both renderers end with an action menu (adopt / iterate / override / abort) so the user has an explicit decision surface.
+Both renderers end with an action menu (adopt / iterate / override / abort) so the user has an explicit decision surface. Each renderer loads the verdict via `Tools/SchemaMigrate.ts::migrate()`, so v1 and v2 verdicts produce identical output (ISC-16).
+
+### `/pi` slash command (Wave 4 / ISC-12)
+
+A first-class manual entry point for PiPerspective from inside opencode:
+
+```
+/pi think
+/pi plan  [--plan <path>]
+/pi verify [--diff <path>]
+```
+
+The command resolves the active session's slug via `~/.pai/memory/STATE/mode-router.json`, locates `~/.pai/memory/WORK/<slug>/ISA.md`, and shells out to `Tools/InvokePi.ts`. The verdict is rendered inline (`RenderPlanDisagreement.ts` / `RenderReframe.ts` / plain JSON depending on phase + verdict). Exit codes mirror `Tools/InvokePi.ts` (0 on PASS/CONCERNS, 1 on FAIL/REFRAME).
+
+**Security model — `--diff <path>` validation.** The user-supplied diff path is the only attacker-controlled input. Before passing it to `Tools/InvokePi.ts` the command must:
+
+1. Resolve the input to an absolute path.
+2. Reject if the resolved path is **not** prefix-matched by either the active WORK dir (`~/.pai/memory/WORK/<slug>/`) or `git rev-parse --show-toplevel` of the current cwd.
+3. Re-check after `realpath` to defeat symlink escapes.
+
+The command spec lives at `.config/opencode/commands/pi.md`.
+
+### CI integration (`CiGate.ts` — Wave 4 / Item #10 / ISC-11)
+
+Use `Tools/CiGate.ts` to turn any PiVerdict JSON file into a PR-comment markdown blob:
+
+```bash
+bun run ~/.config/opencode/skills/PiPerspective/Tools/InvokePi.ts \
+  --phase VERIFY --isa ISA.md --diff diff.patch --json > verdict.json
+bun run ~/.config/opencode/skills/PiPerspective/Tools/CiGate.ts \
+  --verdict verdict.json | gh pr comment <PR> --body-file -
+```
+
+- Exit 0 on PASS / CONCERNS — informational comment, CI proceeds.
+- Exit 1 on FAIL / REFRAME — blocking comment, CI fails the job.
+- Accepts both v1 and v2 schema_version inputs via `SchemaMigrate.migrate()`.
+- Stable section headers (`## Blockers`, `## Suggestions`) for downstream scraping.
 
 ## Workflows
 
@@ -248,11 +303,15 @@ Both renderers end with an action menu (adopt / iterate / override / abort) so t
 
 - `Tools/InvokePi.ts` — only place that spawns `pi`.
 - `Tools/Config.ts` — typed config loader with defaults.
-- `Tools/Schema.ts` — `PiVerdict` types + Zod validator + `blockerId` helper.
-- `Tools/ParseFallback.ts` — markdown-only fallback verdict.
-- `Tools/VersionCheck.ts` — asserts `pi --version` ≥ `min_pi_version` (reads from stdout or stderr).
-- `Tools/RenderPlanDisagreement.ts` — PLAN UX renderer.
-- `Tools/RenderReframe.ts` — THINK REFRAME UX renderer.
+- `Tools/Schema.ts` — `PiVerdict` types + Zod validator + `blockerId` helper + `LATEST_SCHEMA_VERSION`.
+- `Tools/ParseFallback.ts` — markdown-only fallback verdict (FAIL + parse-error blocker per Wave 1).
+- `Tools/VersionCheck.ts` — asserts `pi --version` ≥ `min_pi_version` + `supportsStructuredOutput()` probe.
+- `Tools/RenderPlanDisagreement.ts` — PLAN UX renderer (routes via `SchemaMigrate.migrate`).
+- `Tools/RenderReframe.ts` — THINK REFRAME UX renderer (routes via `SchemaMigrate.migrate`).
+- `Tools/RenderTelemetry.ts` — stats.jsonl renderer (Wave 3 / ISC-10).
+- `Tools/SchemaMigrate.ts` — forward-only verdict migration (Wave 4 / ISC-13). All renderers and `CiGate.ts` load through this helper.
+- `Tools/Migrations/v1-to-v2.ts` — first migration. Add `vN-to-vN+1.ts` siblings + extend the ladder in `SchemaMigrate.ts` to bump again.
+- `Tools/CiGate.ts` — PR-comment markdown renderer (Wave 4 / ISC-11). Exit 0 on PASS/CONCERNS, 1 on FAIL/REFRAME.
 
 The plugin lives separately at `~/.config/opencode/plugins/pai-pi-perspective/` and is registered in `opencode.json`. It does **not** spawn pi directly; it shells out to `Tools/InvokePi.ts` so the single-boundary invariant holds.
 
