@@ -41,7 +41,7 @@ export const DEFAULT_CONFIG: PiPerspectiveConfig = {
     Deep: ['THINK', 'PLAN', 'VERIFY'],
     Comprehensive: ['THINK', 'PLAN', 'VERIFY'],
   },
-  verify_thinking: 'minimal',
+  verify_thinking: 'high',
   blocker_min_severity_display: 'major',
 };
 
