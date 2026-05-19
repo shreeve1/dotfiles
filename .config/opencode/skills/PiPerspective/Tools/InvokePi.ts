@@ -32,7 +32,7 @@
  */
 
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join, resolve } from 'path';
 import { parseArgs } from 'util';
@@ -162,6 +162,43 @@ function buildUserPrompt(req: InvokeRequest): string {
 }
 
 /**
+ * Wave 3 / Item #9 / ISC-09. Append a single JSON line to
+ * `<work_dir>/pi-perspective-stats.jsonl` describing the just-completed
+ * invocation. Gated by `cfg.telemetry`; defaults to enabled. Errors are
+ * logged to stderr but never propagated — telemetry must not break a
+ * successful verdict path.
+ */
+export function appendTelemetry(opts: {
+  isaPath: string;
+  phase: Phase;
+  verdict: PiVerdict;
+  durationMs: number;
+  modelId: string;
+  thinking: string;
+  inputChars: number;
+  cfg: PiPerspectiveConfig;
+}): void {
+  if (opts.cfg.telemetry === false) return;
+  try {
+    const workDir = dirname(resolve(opts.isaPath));
+    const file = join(workDir, 'pi-perspective-stats.jsonl');
+    const line =
+      JSON.stringify({
+        phase: opts.phase,
+        verdict: opts.verdict.verdict,
+        duration_ms: opts.durationMs,
+        model: opts.modelId,
+        thinking: opts.thinking,
+        input_chars: opts.inputChars,
+        timestamp: new Date().toISOString(),
+      }) + '\n';
+    appendFileSync(file, line, 'utf-8');
+  } catch (err) {
+    console.error('[pi-perspective] telemetry append failed:', err);
+  }
+}
+
+/**
  * Public entrypoint. Pure function over filesystem: reads ISA/diff, spawns
  * pi, parses output, writes audit file. Returns the structured result.
  */
@@ -218,10 +255,17 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     args.push('--tools', phaseCfg.tools.join(','));
   }
 
-  // Pass thinking level for VERIFY (per config). THINK/PLAN inherit model's
-  // default thinking level via the `:high` suffix in the model id.
-  if (req.phase === 'VERIFY' && cfg.verify_thinking) {
-    args.push('--thinking', cfg.verify_thinking);
+  // Pass thinking level per phase (Wave 3 / Item #8 / ISC-08). Each phase
+  // has its own config key so operators can dial THINK/PLAN independently
+  // of VERIFY without changing the model id suffix.
+  const thinkingLevel =
+    req.phase === 'VERIFY'
+      ? cfg.verify_thinking
+      : req.phase === 'PLAN'
+      ? cfg.plan_thinking
+      : cfg.think_thinking;
+  if (thinkingLevel) {
+    args.push('--thinking', thinkingLevel);
   }
 
   // Structured-output mode (Item #1): when pi supports `--response-format` and
@@ -250,14 +294,25 @@ export function invokePi(req: InvokeRequest): InvokeResult {
   const rawStdout = result.stdout ?? '';
   const rawStderr = result.stderr ?? '';
 
+  const modelId = req.model ?? cfg.model;
   if (result.error) {
     const verdict = buildFallbackVerdict({
       phase: req.phase,
       rawStdout,
-      modelId: req.model ?? cfg.model,
+      modelId,
       reason: `spawn error: ${result.error.message}`,
     });
     const auditPath = req.noAudit ? null : writeAudit(req.isaPath, verdict);
+    appendTelemetry({
+      isaPath: req.isaPath,
+      phase: req.phase,
+      verdict,
+      durationMs,
+      modelId,
+      thinking: thinkingLevel ?? '',
+      inputChars: userPrompt.length,
+      cfg,
+    });
     return { verdict, auditPath, rawStdout, rawStderr, exitCode: -1, durationMs };
   }
 
@@ -267,7 +322,7 @@ export function invokePi(req: InvokeRequest): InvokeResult {
   if (candidate) {
     // Force phase + schema_version + generated_at + raw_model_id even if pi
     // omitted them or got them wrong.
-    const enriched = enrichVerdict(candidate, req.phase, req.model ?? cfg.model);
+    const enriched = enrichVerdict(candidate, req.phase, modelId);
     const v = validateVerdict(enriched);
     if (v.ok) {
       verdict = v.value;
@@ -275,7 +330,7 @@ export function invokePi(req: InvokeRequest): InvokeResult {
       verdict = buildFallbackVerdict({
         phase: req.phase,
         rawStdout,
-        modelId: req.model ?? cfg.model,
+        modelId,
         reason: `schema validation failed: ${v.error.issues
           .slice(0, 3)
           .map((i) => `${i.path.join('.')}: ${i.message}`)
@@ -289,13 +344,23 @@ export function invokePi(req: InvokeRequest): InvokeResult {
     verdict = buildFallbackVerdict({
       phase: req.phase,
       rawStdout,
-      modelId: req.model ?? cfg.model,
+      modelId,
       reason: 'no JSON block found in pi stdout',
     });
     console.error('WARN PiPerspective: no JSON block in pi stdout, used fallback');
   }
 
   const auditPath = req.noAudit ? null : writeAudit(req.isaPath, verdict);
+  appendTelemetry({
+    isaPath: req.isaPath,
+    phase: req.phase,
+    verdict,
+    durationMs,
+    modelId,
+    thinking: thinkingLevel ?? '',
+    inputChars: userPrompt.length,
+    cfg,
+  });
   return {
     verdict,
     auditPath,
