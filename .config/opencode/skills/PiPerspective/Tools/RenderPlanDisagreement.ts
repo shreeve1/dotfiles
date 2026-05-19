@@ -21,7 +21,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { parseArgs } from 'util';
 
-import { validateVerdict } from './Schema.ts';
+import { migrate } from './SchemaMigrate.ts';
 
 interface Blocker {
   id: string;
@@ -144,21 +144,20 @@ if (import.meta.main) {
     process.exit(2);
   }
 
-  let verdict: any;
+  let raw: any;
   try {
-    verdict = JSON.parse(readFileSync(values.verdict, 'utf8'));
+    raw = JSON.parse(readFileSync(values.verdict, 'utf8'));
   } catch (e) {
     console.error(`Verdict file is not valid JSON: ${(e as Error).message}`);
     process.exit(2);
   }
-  const v = validateVerdict(verdict);
-  if (!v.ok) {
-    console.error(
-      `Verdict failed schema validation: ${v.error.issues
-        .slice(0, 3)
-        .map((i) => `${i.path.join('.')}: ${i.message}`)
-        .join('; ')}`
-    );
+  // Wave 4 / ISC-16: route through SchemaMigrate so v1 verdicts already on
+  // disk render identically to v2 verdicts. migrate() also validates.
+  let verdict: any;
+  try {
+    verdict = migrate(raw);
+  } catch (e) {
+    console.error((e as Error).message);
     process.exit(2);
   }
   if (verdict.phase !== 'PLAN') {
