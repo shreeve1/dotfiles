@@ -1,6 +1,6 @@
 # OpenCode Subagent Reference
 
-This is the on-demand catalog for OpenCode subagent routing. Delegation is default-ON for non-trivial work: preserve primary context, pass complete context, parallelize independent work, and use direct tools only for exact known-file/single-probe work or a documented `Delegation exception:`.
+This is the on-demand catalog for OpenCode subagent routing. Delegation is default-ON for non-trivial work: preserve primary context, pass complete context, parallelize independent work, and use direct tools only for exact known-file/single-probe work or a documented `Delegation exception:`. The mode router highlights obvious broad/non-trivial prompts with `DELEGATION_REQUIRED: true`; it does not block direct tools.
 
 ## Code And Execution
 

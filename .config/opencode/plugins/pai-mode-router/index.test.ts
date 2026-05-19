@@ -57,6 +57,25 @@ function beforeTool(tool: string) {
   );
 }
 
+function beforeToolFor(sid: string, tool: string) {
+  return hooks["tool.execute.before"]?.(
+    { tool, sessionID: sid, callID: `call_${tool}` },
+    { args: {} },
+  );
+}
+
+function afterTaskFor(sid: string) {
+  return hooks["tool.execute.after"]?.(
+    {
+      tool: "task",
+      sessionID: sid,
+      callID: "call_task",
+      args: { subagent_type: "explorer", description: "Inspect codebase", prompt: "Inspect the codebase and return findings." },
+    },
+    { title: "", output: "", metadata: {} },
+  );
+}
+
 function afterTodowrite(todos: Array<{ content: string; status: string; priority: string }>) {
   return hooks["tool.execute.after"]?.(
     {
@@ -159,6 +178,90 @@ test("Algorithm-lite directive preserves visible PLAN subprocess markers", async
   expect(system).not.toContain("Prefer subagents");
   expect(system).not.toContain("or explicitly state why not");
   expect(system).toContain("PARALLELISM OPPORTUNITY SCAN");
+});
+
+test("native broad codebase prompt marks delegation without blocking reads", async () => {
+  const sid = "ses_test_native_delegation_gate";
+  const session = await classifyViaHook("Look at the codebase.", sid);
+  expect(session.mode).toBe("NATIVE");
+  expect(session.delegation?.required).toBe(true);
+  expect(session.delegation?.reason).toContain("codebase");
+
+  const output = { system: [] as string[] };
+  await hooks["experimental.chat.system.transform"]?.({ sessionID: sid }, output);
+  const system = output.system.join("\n");
+  expect(system).toContain("DELEGATION_REQUIRED: true");
+  expect(system).toContain("Task subagents before direct broad reads");
+
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
+  await expect(beforeToolFor(sid, "task")).resolves.toBeUndefined();
+  await afterTaskFor(sid);
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
+});
+
+test("existing native session re-arms delegation without blocking direct tools", async () => {
+  const sid = "ses_test_followup_delegation_gate";
+  const first = await classifyViaHook("Show me the current file.", sid);
+  expect(first.mode).toBe("NATIVE");
+  expect(first.delegation).toBeUndefined();
+
+  const second = await classifyViaHook("Now look across the codebase.", sid);
+  expect(second.mode).toBe("NATIVE");
+  expect(second.delegation?.required).toBe(true);
+  expect(second.delegation?.taskSeenAt).toBeUndefined();
+  await expect(beforeToolFor(sid, "grep")).resolves.toBeUndefined();
+  await afterTaskFor(sid);
+  await expect(beforeToolFor(sid, "grep")).resolves.toBeUndefined();
+});
+
+test("existing broad follow-up resets delegation advisory without Task blocking", async () => {
+  const sid = "ses_test_delegation_rearm_after_task";
+  await classifyViaHook("Look at the codebase.", sid);
+  await afterTaskFor(sid);
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
+
+  const second = await classifyViaHook("Now investigate the repository for similar issues.", sid);
+  expect(second.delegation?.required).toBe(true);
+  expect(second.delegation?.taskSeenAt).toBeUndefined();
+  await expect(beforeToolFor(sid, "read")).rejects.toThrow(
+    "requires todowrite",
+  );
+  await hooks["tool.execute.after"]?.(
+    {
+      tool: "todowrite",
+      sessionID: sid,
+      callID: "call_todowrite",
+      args: { todos: validTodos },
+    },
+    { title: "", output: "", metadata: {} },
+  );
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
+});
+
+test("algorithm delegation advisory does not block direct reads after todowrite", async () => {
+  const sid = "ses_test_algorithm_delegation_gate";
+  const session = await classifyViaHook(
+    "Please refactor the auth service, add migration tests, and update integration coverage.",
+    sid,
+  );
+  expect(session.mode).toBe("ALGORITHM");
+  expect(session.delegation?.required).toBe(true);
+
+  await expect(beforeToolFor(sid, "read")).rejects.toThrow(
+    "requires todowrite",
+  );
+  await hooks["tool.execute.after"]?.(
+    {
+      tool: "todowrite",
+      sessionID: sid,
+      callID: "call_todowrite",
+      args: { todos: validTodos },
+    },
+    { title: "", output: "", metadata: {} },
+  );
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
+  await afterTaskFor(sid);
+  await expect(beforeToolFor(sid, "read")).resolves.toBeUndefined();
 });
 
 async function classifyViaHook(
