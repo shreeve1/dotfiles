@@ -97,49 +97,6 @@ export function assertPiVersion(
 /** Test-only: reset the cached version. */
 export function _resetVersionCache(): void {
   cachedVersion = null;
-  cachedStructuredOutputSupport = null;
-}
-
-// ---------------------------------------------------------------------------
-// Structured-output capability detection
-// ---------------------------------------------------------------------------
-
-let cachedStructuredOutputSupport: boolean | null = null;
-
-/**
- * Probe `pi --help` and return true iff the installed binary advertises a
- * structured JSON mode flag. Cached for the process lifetime.
- *
- * The probe is conservative: any failure to spawn or parse defaults to
- * `false` so we gracefully fall back to free-form output on older pi
- * versions.
- *
- * Test override: pass `opts.helpText` to skip the spawn entirely and
- * inspect a synthetic help string.
- */
-export function supportsStructuredOutput(opts?: {
-  binary?: string;
-  helpText?: string;
-  refresh?: boolean;
-}): boolean {
-  if (cachedStructuredOutputSupport !== null && !opts?.refresh && !opts?.helpText) {
-    return cachedStructuredOutputSupport;
-  }
-  let helpText = opts?.helpText;
-  if (helpText === undefined) {
-    const bin = opts?.binary ?? 'pi';
-    try {
-      const result = spawnSync(bin, ['--help'], { encoding: 'utf8', timeout: 5_000 });
-      helpText = (result.stdout ?? '') + '\n' + (result.stderr ?? '');
-    } catch {
-      helpText = '';
-    }
-  }
-  const supported = (helpText ?? '')
-    .split(/\r?\n/)
-    .some((line) => /(^|\s)--mode(\b|\s|=)/i.test(line) && /\bjson\b/i.test(line));
-  if (!opts?.helpText) cachedStructuredOutputSupport = supported;
-  return supported;
 }
 
 // ---------------------------------------------------------------------------
