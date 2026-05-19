@@ -14,7 +14,10 @@ $ARGUMENTS
 ## Behaviour
 
 1. Load `.config/opencode/skills/dev-review/SKILL.md` and follow its workflow exactly.
-2. Pass any positional argument as `TARGET`:
+2. Optional reviewer model flags:
+   - `--claude` — use Claude Opus 4.7 via `cliproxy/claude-opus-4-7`
+   - `--gpt` — use GPT 5.5 via `openai/gpt-5.5`
+3. Pass any positional argument as `TARGET` after removing model flags:
    - `plan` — most recent plan file on disk
    - `build` — uncommitted git changes
    - `proposal` (aliases: `idea`, `context`) — an inline proposal from the current conversation

@@ -1,7 +1,7 @@
 ---
 name: dev-review
 description: Independent review of the current context, plan, build, file, or proposal using a fresh OpenCode session — primary agent gathers context, a separate `opencode run` invocation reviews, results discussed interactively before applying any changes.
-argument-hint: [plan | build | proposal | file/dir path | omit to review what's in context]
+argument-hint: [--claude | --gpt] [plan | build | proposal | file/dir path | omit to review what's in context]
 model: opus
 ---
 
@@ -19,6 +19,12 @@ TARGET: $1 — (Optional) One of:
 - `proposal` (aliases: `idea`, `context`) — an inline proposal/approach/snippet from the current conversation, even if nothing has been written to disk yet
 - An explicit file or directory path
 - Omitted — extract the review target from conversation context (file paths, plans, diffs, OR inline proposals). Default behaviour: review the current plan/context for gaps.
+
+REVIEWER_MODEL_ARGS: Optional reviewer model selector array from the raw arguments:
+- `--claude` — set to `("--model" "cliproxy/claude-opus-4-7")`
+- `--gpt` — set to `("--model" "openai/gpt-5.5")`
+- Omitted — use an empty array and preserve the current default reviewer model behaviour
+- Both flags present — ask the user to choose one before running the reviewer
 
 ## Checklist
 
@@ -45,6 +51,12 @@ You MUST create a task for each of these items and complete them in order:
 ### Phase 1: Extract and Verify
 
 1. **Extract Review Target**
+
+   First parse model selector flags from the raw arguments:
+   - If `--claude` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "cliproxy/claude-opus-4-7")`
+   - If `--gpt` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "openai/gpt-5.5")`
+   - If both are present, ask the user which reviewer model to use and stop until they answer
+   - Remove `--claude` and `--gpt` from the argument string before interpreting TARGET
 
    Scan the conversation context for:
    - File paths that were discussed, modified, or created
@@ -178,6 +190,7 @@ You MUST create a task for each of these items and complete them in order:
    **Run the reviewer in a fresh OpenCode session with fully open permissions:**
    ```bash
    opencode run \
+     "${REVIEWER_MODEL_ARGS[@]}" \
      --dangerously-skip-permissions \
      --dir <project_dir> \
      --format default \
@@ -187,6 +200,8 @@ You MUST create a task for each of these items and complete them in order:
    ```
 
    Notes:
+   - `--claude` maps to `--model cliproxy/claude-opus-4-7`; `--gpt` maps to `--model openai/gpt-5.5`.
+   - If neither model flag is provided, use an empty `REVIEWER_MODEL_ARGS` array and preserve the current default reviewer model behaviour.
    - `--dangerously-skip-permissions` auto-approves permissions that are not explicitly denied. Matches the user's global `"*": "allow"` posture.
    - `--dir` sets the working directory so the reviewer can read related files in the project.
    - `-f "$REVIEW_FILE"` attaches the brief as a file. The positional message tells the reviewer to read the attachment and follow the embedded format spec.
