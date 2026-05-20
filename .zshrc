@@ -233,6 +233,43 @@ alias y='yazi'
 # Open nvim with nvim-tree focused on a path (default: cwd)
 nt() { nvim "${1:-.}" +NvimTreeFocus; }
 
+# Copy text to LOCAL clipboard via OSC 52 (works through SSH).
+# Requires a terminal that supports OSC 52 (Ghostty, iTerm2, WezTerm, Kitty,
+# Alacritty, recent tmux with `set -g set-clipboard on`).
+# Usage:
+#   echo foo | clip
+#   clip "some text"
+clip() {
+  local data
+  if [ $# -gt 0 ]; then
+    data="$*"
+  else
+    data="$(cat)"
+  fi
+  printf '\033]52;c;%s\a' "$(printf '%s' "$data" | base64 | tr -d '\n')"
+}
+
+# Copy a file's path (relative to $2, default cwd) to the local clipboard.
+# Usage:
+#   relpath some/file.txt        # relative to cwd
+#   relpath /etc/hosts ~         # relative to ~
+relpath() {
+  if [ $# -lt 1 ]; then
+    printf 'usage: relpath <file> [base]\n' >&2
+    return 1
+  fi
+  realpath --relative-to="${2:-.}" "$1" | tr -d '\n' | clip
+}
+
+# Copy the absolute path of a file to the local clipboard.
+abspath() {
+  if [ $# -lt 1 ]; then
+    printf 'usage: abspath <file>\n' >&2
+    return 1
+  fi
+  realpath "$1" | tr -d '\n' | clip
+}
+
 # Ghostty CLI wrapper
 if [[ $IS_MACOS -eq 1 ]]; then
   ghostty() {

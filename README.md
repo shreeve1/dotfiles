@@ -271,6 +271,13 @@ Defined in `.zshrc` (linked by `install.sh`):
 | Name | Definition | Purpose |
 | --- | --- | --- |
 | `nt [path]` | `nvim "${1:-.}" +NvimTreeFocus` | open nvim with nvim-tree focused on `path` (default: cwd) |
+| `clip [text]` | OSC 52 escape to terminal | copy stdin or args to the **local** clipboard, even over SSH |
+| `relpath <file> [base]` | `realpath --relative-to=... \| clip` | copy a file's relative path to local clipboard |
+| `abspath <file>` | `realpath ... \| clip` | copy a file's absolute path to local clipboard |
+
+`clip`/`relpath`/`abspath` rely on OSC 52, which is supported by Ghostty,
+iTerm2, WezTerm, Kitty, Alacritty, and recent tmux (`set -g set-clipboard
+on`). macOS Terminal.app does not support OSC 52.
 
 ### Migration from `~/.claude/...` runtime state
 
