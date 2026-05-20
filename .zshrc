@@ -230,6 +230,9 @@ alias op='opencode'
 alias opweb='opencode web --hostname 0.0.0.0 --port 4096'
 alias y='yazi'
 
+# Open nvim with nvim-tree focused on a path (default: cwd)
+nt() { nvim "${1:-.}" +NvimTreeFocus; }
+
 # Ghostty CLI wrapper
 if [[ $IS_MACOS -eq 1 ]]; then
   ghostty() {
@@ -277,3 +280,6 @@ export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslm
 
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
+
+# Auto-Warpify
+[[ "$-" == *i* ]] && printf 'P$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "Linux" }}�' 
