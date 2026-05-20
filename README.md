@@ -102,6 +102,7 @@ Minimal shape:
 - links `~/.config/opencode`, including PiPerspective skill/plugin files and plugin registration in `opencode.json`
 - links Pi config under `~/.pi/agent` but does not install global npm packages or write API keys
 - warns if `pi`, `bun`, or `~/.pi/agent/node_modules` are missing; the installer does not auto-install dependencies
+- warns if `nvim`, `rg`, `fd`, `node`, `npm`, `python3`, or `make` are missing (used by the Neovim config)
 
 ## Notes
 
@@ -221,6 +222,55 @@ memory injection. If pi needs memory context, copy exact excerpts into the ISA
 or plan explicitly.
 
 More detail: `~/.config/opencode/skills/PiPerspective/SKILL.md`.
+
+### Neovim setup
+
+`install.sh` symlinks `~/.config/nvim` to this repo. On first launch, the
+config (kickstart-based, lazy.nvim plugin manager) will:
+
+- clone lazy.nvim into `~/.local/share/nvim/lazy/`
+- install every plugin declared in `init.lua` (incl. `nvim-tree/nvim-tree.lua`)
+- run Mason to install LSPs (`pyright`, `ts_ls`, `lua_ls`) and formatters
+  (`stylua`, `prettier`, `black`, `isort`)
+
+Prerequisites (the installer only warns; nothing is auto-installed):
+
+| Tool | Used by |
+| --- | --- |
+| `nvim` >= 0.10 | the config itself |
+| `ripgrep` (`rg`) | telescope `live_grep` |
+| `fd` | telescope `find_files` (faster finder) |
+| `make` + a C compiler | builds `telescope-fzf-native` |
+| `node` + `npm` | Mason installs `ts_ls`, `prettier` |
+| `python3` + `pip` | Mason installs `pyright`, `black`, `isort` |
+| a Nerd Font | icons (`have_nerd_font = true` in `init.lua`) |
+
+Quick install on Debian/Ubuntu:
+
+```bash
+sudo apt install neovim git ripgrep fd-find build-essential nodejs npm python3 python3-pip
+```
+
+On macOS:
+
+```bash
+brew install neovim ripgrep fd node python git
+```
+
+Then on a fresh machine, after running `install.sh`:
+
+```bash
+nvim --headless "+Lazy! sync" +qa   # optional: pre-warm plugin install
+nvim                                # first interactive launch finishes Mason setup
+```
+
+### Shell aliases / functions
+
+Defined in `.zshrc` (linked by `install.sh`):
+
+| Name | Definition | Purpose |
+| --- | --- | --- |
+| `nt [path]` | `nvim "${1:-.}" +NvimTreeFocus` | open nvim with nvim-tree focused on `path` (default: cwd) |
 
 ### Migration from `~/.claude/...` runtime state
 

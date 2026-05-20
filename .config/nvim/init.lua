@@ -7,6 +7,10 @@ vim.g.maplocalleader = '\x13'
 
 vim.g.have_nerd_font = true
 
+-- Disable netrw (required by nvim-tree; must run before plugins load)
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
 -- ============================================================================
 -- Options
 -- ============================================================================
@@ -370,7 +374,7 @@ require('lazy').setup({
           telescope = true,
           treesitter = true,
           mini = true,
-          neotree = true,
+          nvimtree = true,
           blink_cmp = true,
         },
       }
@@ -440,25 +444,26 @@ require('lazy').setup({
   },
 
   -- ========================================================================
-  -- Neo-tree: file explorer sidebar
+  -- nvim-tree: file explorer sidebar
   -- ========================================================================
   {
-    'nvim-neo-tree/neo-tree.nvim',
-    branch = 'v3.x',
+    'nvim-tree/nvim-tree.lua',
     dependencies = {
-      'nvim-lua/plenary.nvim',
-      'nvim-tree/nvim-web-devicons',
-      'MunifTanjim/nui.nvim',
+      { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
     },
-    cmd = 'Neotree',
+    cmd = { 'NvimTreeToggle', 'NvimTreeFocus', 'NvimTreeFindFile' },
     keys = {
-      { '<leader>e', '<cmd>Neotree toggle<CR>', desc = 'Toggle File [E]xplorer' },
+      { '<leader>e',  '<cmd>NvimTreeToggle<CR>',   desc = 'Toggle File [E]xplorer' },
+      { '<leader>ef', '<cmd>NvimTreeFindFile<CR>', desc = '[E]xplorer [F]ind current file' },
     },
     opts = {
-      filesystem = {
-        follow_current_file = { enabled = true },
-        filtered_items = { visible = true },
-      },
+      sort = { sorter = 'case_sensitive' },
+      view = { width = 32 },
+      renderer = { group_empty = true },
+      filters = { dotfiles = false, git_ignored = false },
+      git = { enable = true },
+      update_focused_file = { enable = true },
+      actions = { open_file = { quit_on_open = false } },
     },
   },
 

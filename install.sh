@@ -221,6 +221,34 @@ if ! command -v bun >/dev/null 2>&1; then
   printf 'warn: bun not found; PiPerspective Tools/*.ts and OpenCode helpers require bun\n'
 fi
 
+# ─── Neovim ────────────────────────────────────────────────
+# The .config/nvim symlink is created by link_path above. On first launch,
+# nvim will bootstrap lazy.nvim, install all plugins (incl. nvim-tree.lua),
+# and Mason will fetch the configured LSPs and formatters. The checks below
+# only warn about missing prerequisites — nothing is auto-installed.
+if command -v nvim >/dev/null 2>&1; then
+  printf 'ok: nvim available: '
+  nvim --version 2>&1 | head -n 1 || true
+else
+  printf 'warn: nvim not found; install neovim (>= 0.10) to use ~/.config/nvim\n'
+fi
+
+for tool in rg fd node npm python3; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    case "$tool" in
+      rg)      printf 'warn: ripgrep (rg) not found; telescope live_grep will fail\n' ;;
+      fd)      printf 'warn: fd not found; telescope find_files will fall back to slower finder\n' ;;
+      node)    printf 'warn: node not found; mason-installed JS/TS LSP (ts_ls) and prettier need node\n' ;;
+      npm)     printf 'warn: npm not found; mason cannot install JS/TS tooling\n' ;;
+      python3) printf 'warn: python3 not found; mason cannot install pyright/black/isort\n' ;;
+    esac
+  fi
+done
+
+if ! command -v make >/dev/null 2>&1; then
+  printf 'warn: make not found; telescope-fzf-native build will be skipped\n'
+fi
+
 if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules" ]; then
   printf 'warn: ~/.pi/agent/node_modules missing; run: cd ~/.pi/agent && npm install\n'
 fi
