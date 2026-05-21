@@ -73,6 +73,26 @@ link_path() {
     fi
   fi
 
+  # Git reads .gitignore during tree traversal and warns on symlinked copies.
+  # Keep legacy Claude PAI mirror .gitignore files as regular files.
+  case "$target_rel" in
+    .claude/PAI/.gitignore|.claude/PAI/*/.gitignore)
+      if [ -e "$target" ] && [ ! -L "$target" ] && cmp -s "$source" "$target"; then
+        printf 'ok: %s already copied\n' "$target"
+        return 0
+      fi
+      if [ -e "$target" ] || [ -L "$target" ]; then
+        local backup
+        backup="$(backup_path "$target")"
+        mv "$target" "$backup"
+        printf 'backup-copy-target: %s -> %s\n' "$target" "$backup"
+      fi
+      cp "$source" "$target"
+      printf 'copied: %s -> %s\n' "$target" "$source"
+      return 0
+      ;;
+  esac
+
   if [ -L "$target" ]; then
     local current
     current="$(readlink "$target")"
