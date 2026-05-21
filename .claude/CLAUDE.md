@@ -1,63 +1,28 @@
-# PAI 4.0.3 — Personal AI Infrastructure
+# Claude Code Agent Notes
 
-# MODES
+Behavioral guidelines to reduce common coding mistakes. Merge with project-specific instructions as needed.
 
-PAI runs in two modes: NATIVE, and ALGORITHM. All subagents use NATIVE mode unless otherwise specified. Only the primary calling agent, the primary DA in DA_IDENTITY, can use ALGORITHM mode.
+## Think Before Coding
 
-Every response uses exactly one mode. BEFORE ANY WORK, classify the request and select a mode:
+- State assumptions explicitly when they matter.
+- Ask before choosing between materially different interpretations.
+- Prefer the simpler correct approach.
+- Stop and ask when requirements are unclear.
 
-- **Greetings, ratings, acknowledgments** → MINIMAL
-- **Single-step, quick tasks (under 2 minutes of work)** → NATIVE
-- **Everything else** → ALGORITHM
+## Simplicity First
 
-Your first output MUST be the mode header. No freeform output. No skipping this step.
+- Build only what was requested.
+- Avoid speculative abstractions and configurability.
+- Keep changes small and focused.
 
-## NATIVE MODE
-FOR: Simple tasks that won't take much effort or time. More advanced tasks use ALGORITHM MODE below.
+## Surgical Changes
 
-```
-════ PAI | NATIVE MODE ═══════════════════════
-🗒️ TASK: [8 word description]
-[work]
-🔄 ITERATION on: [16 words of context if this is a follow-up]
-📃 CONTENT: [Up to 128 lines of the content, if there is any]
-🔧 CHANGE: [8-word bullets on what changed]
-✅ VERIFY: [8-word bullets on how we know what happened]
-🗣️ Loop: [8-16 word summary]
-```
-On follow-ups, include the ITERATION line. On first response to a new request, omit it.
+- Read relevant files before editing.
+- Touch only files needed for the task.
+- Preserve existing style.
+- Do not revert unrelated user changes.
 
-## ALGORITHM MODE
-FOR: Multi-step, complex, or difficult work. Troubleshooting, debugging, building, designing, investigating, refactoring, planning, or any task requiring multiple files or steps.
+## Verify
 
-**MANDATORY FIRST ACTION:** Use the Read tool to load `PAI/Algorithm/v6.4.0.md`, then follow that file's instructions exactly. Starting with it's entering of the Algorithm voice command and processing. Do NOT improvise your own "algorithm" format; you switch all processing and responses to the actual Algorithm in that file until the Algorithm completes.
-
-## MINIMAL — pure acknowledgments, ratings
-```
-═══ PAI ═══════════════════════════
-🔄 ITERATION on: [16 words of context if this is a follow-up]
-📃 CONTENT: [Up to 24 lines of the content, if there is any]
-🔧 CHANGE: [8-word bullets on what changed]
-✅ VERIFY: [8-word bullets on how we know what happened]
-📋 SUMMARY: [4 CreateStoryExplanation bullets of 8 words each]
-🗣️ Loop: [summary in 8-16 word summary]
-```
-
----
-
-### Critical Rules (Zero Exceptions)
-
-- **Mandatory output format** — Every response MUST use exactly one of the output formats above (ALGORITHM, NATIVE, or MINIMAL). No freeform output.
-- **Response format before questions** — Always complete the current response format output FIRST, then invoke AskUserQuestion at the end.
-
----
-
-### Context Routing
-
-When you need context about any of these topics, read `~/.claude/PAI/CONTEXT_ROUTING.md` for the file path:
-
-- PAI internals
-- The user, their life and work, etc
-- Your own personality and rules
-- Any project referenced, any work, etc.
-- Basically anything that's specialized
+- Run the smallest relevant validation.
+- Report what was verified and any gaps.

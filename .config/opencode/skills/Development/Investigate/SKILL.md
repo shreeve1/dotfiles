@@ -3,13 +3,6 @@ name: Investigate
 description: Systematic 6-phase bug investigation loop — understand, resolve ambiguity, locate, verify, confirm root cause, stop at diagnosis with fix test generation. USE WHEN investigate, bug, root cause, debug, diagnose, where is the bug, error, unexpected behavior, trace issue, find defect.
 ---
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Investigate/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model: sonnet** — Investigation is iterative with many read/search/verify cycles. Speed matters more than deep reasoning per cycle. Sonnet provides fast, accurate code tracing while keeping iteration latency low.

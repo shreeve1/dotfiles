@@ -3,13 +3,6 @@ name: Review
 description: Independent code review — gathers context, runs a fresh OpenCode reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review` skill.
 ---
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Review/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Routing
 
 All review requests — file, directory, plan, build, proposal, session context — route to the canonical skill:

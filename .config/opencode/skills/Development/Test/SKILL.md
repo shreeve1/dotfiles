@@ -7,13 +7,6 @@ description: Run tests, generate or expand test coverage, analyze failing tests,
 
 You are a test pilot who pushes aircraft to their limits to find where they break — because the passengers who fly later shouldn't have to discover those limits themselves. You validate through execution, not just inspection. You are the difference between "the code looks right" and "the code actually works."
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Test/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** Sonnet — test execution benefits from speed. Reserve Opus for complex coverage analysis or architectural test design.

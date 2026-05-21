@@ -17,10 +17,7 @@ Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in 
 
 ## Execution modes
 
-There are two ways to drive Ralph; both honor fresh-session-per-issue:
-
-1. **Bash loop (recommended for unattended runs)** — `~/.pai/PAI/Tools/ralph-loop.sh` invokes `opencode run --agent build` per issue and `opencode run --agent quick-review-codex` per review. Each `opencode run` is a fresh session by construction.
-2. **Interactive `/ralph`** — this skill. Processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next. Reviewer pass within this skill is performed by spawning a fresh `opencode run` via bash so the review context is genuinely separate.
+Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next issue. Reviewer pass within this skill is performed by spawning a fresh `opencode run` via bash so the review context is genuinely separate.
 
 ## Pre-flight Checks
 

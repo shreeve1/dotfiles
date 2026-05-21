@@ -9,13 +9,6 @@ Creates detailed, actionable implementation plans through an iterative loop: Cla
 
 This sub-skill absorbs the previous `/dev-validate` step — Codex's codebase-aware critique covers feasibility and risk analysis as part of every round. Use `--no-loop` to skip the audit and produce a single-pass plan for trivial work.
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Plan/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** `opus` — Planning benefits from deep reasoning for architecture decisions, dependency analysis, and edge case identification.
