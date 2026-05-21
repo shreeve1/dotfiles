@@ -1,1 +1,1 @@
-/// <reference types="vite/client" />
+/home/james/dotfiles/.pai/PAI/Tools/pipeline-monitor-ui/src/vite-env.d.ts
