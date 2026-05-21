@@ -337,7 +337,7 @@ Otherwise loop back to 7.1 to start round `current_round + 1`. (No separate incr
 
 ### 7.9: Cleanup Codex Side-Effects
 
-Codex sessions invoked from a repo with PAI-style hooks (`SessionStart`, `UserPromptSubmit`, etc.) create stub PRD files under `artifacts/specs/<derived-from-prompt>/PRD.md` on every round. These are unrelated to the Plan workflow's outputs and accumulate noise.
+Codex sessions invoked from a repo with legacy project hooks (`SessionStart`, `UserPromptSubmit`, etc.) create stub PRD files under `artifacts/specs/<derived-from-prompt>/PRD.md` on every round. These are unrelated to the Plan workflow's outputs and accumulate noise.
 
 After exiting the loop (whether via convergence, hard-stop, or codex_unavailable):
 

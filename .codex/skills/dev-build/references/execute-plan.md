@@ -273,7 +273,7 @@ Then invoke `claude -p` with the prompt on stdin:
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse code audit tool. Do not use local house styles, PAI wrappers, status banners, plans, markdown framing, or tool calls. Follow the user's requested finding format exactly." \
+  --system-prompt "You are a terse code audit tool. Do not use local house styles, local wrappers, status banners, plans, markdown framing, or tool calls. Follow the user's requested finding format exactly." \
   --model opus \
   --effort medium \
   --no-session-persistence \
@@ -286,13 +286,13 @@ EXIT=$?
 
 Note `--effort medium` (not `high`) — wave audits are scoped to a focused diff and don't need the deeper reasoning the plan-time loop uses. Faster and cheaper.
 
-Do **not** invoke plain `claude -p` for wave audits. In non-bare OAuth/keychain environments, plain `claude -p` loads project/user hooks, local CLAUDE.md/PAI behavior, background context, and default tools. That can turn a bounded diff audit into an open-ended repo investigation, produce no stdout until the final response, and hit the timeout. The audit command must pass the self-contained prompt on stdin, disable tools with `--tools ""`, use `--no-session-persistence`, and provide the audit-specific `--system-prompt` above so output stays parseable.
+Do **not** invoke plain `claude -p` for wave audits. In non-bare OAuth/keychain environments, plain `claude -p` loads project/user hooks, local CLAUDE.md behavior, background context, and default tools. That can turn a bounded diff audit into an open-ended repo investigation, produce no stdout until the final response, and hit the timeout. The audit command must pass the self-contained prompt on stdin, disable tools with `--tools ""`, use `--no-session-persistence`, and provide the audit-specific `--system-prompt` above so output stays parseable.
 
 **Escalation to read-only tools** (fallback only when the embedded patch isn't enough — e.g. a finding requires cross-file context the diff doesn't include): retry the SAME prompt with read-only tools enabled, mirroring `dev-review/references/deep-review.md` Step 14:
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse code audit tool. Do not use local house styles, PAI wrappers, status banners, plans, markdown framing, or edit tools. Use only the allowed read-only tools when essential, then follow the user's requested finding format exactly." \
+  --system-prompt "You are a terse code audit tool. Do not use local house styles, local wrappers, status banners, plans, markdown framing, or edit tools. Use only the allowed read-only tools when essential, then follow the user's requested finding format exactly." \
   --model opus \
   --effort medium \
   --no-session-persistence \

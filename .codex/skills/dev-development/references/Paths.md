@@ -4,7 +4,7 @@
 `artifacts/{kind}/{slug}/`. There is exactly one valid location per artifact type.
 Top-level `plans/`, `specs/`, `investigations/` are deprecated.
 
-This mirrors the Claude Code / PAI Development pipeline so Codex sessions and
+This mirrors the Claude Code development pipeline so Codex sessions and
 Claude Code sessions can collaborate on the same project's artifacts without
 fighting over directory layout.
 
