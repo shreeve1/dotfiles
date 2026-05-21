@@ -1,6 +1,6 @@
 # Dotfiles Documentation
 
-Reference material that is useful to PAI/OpenCode but too bulky for always-loaded prompts.
+Reference material that is useful to OpenCode but too bulky for always-loaded prompts.
 
 ## Reference
 

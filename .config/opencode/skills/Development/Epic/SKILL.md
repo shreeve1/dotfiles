@@ -7,13 +7,6 @@ description: Decompose a large multi-epic PRD into per-epic mini-PRDs that /dev-
 
 Decompose a large, multi-feature PRD into a set of self-contained per-epic mini-PRDs. Each mini-PRD is a complete, stand-alone PRD that `/dev-plan` can consume without reading the parent. This is the PRD-layer counterpart to `Shard` (which operates on plans).
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Epic/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** Opus — Epic decomposition requires deep analysis of feature dependencies, grouping strategy, and traceability. Opus provides the strongest reasoning for this structural work.

@@ -1,1 +1,0 @@
-/home/james/dotfiles/.pai/PAI/USER/GITHUB_AUTH.md

@@ -1,1 +1,0 @@
-/home/james/dotfiles/.pai/PAI/Tools/NeofetchBanner.ts

@@ -1,1 +1,0 @@
-/home/james/dotfiles/.pai/PAI/ACTIONS/A_EXAMPLE_SUMMARIZE/action.ts

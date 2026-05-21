@@ -73,26 +73,6 @@ link_path() {
     fi
   fi
 
-  # Git reads .gitignore during tree traversal and warns on symlinked copies.
-  # Keep legacy Claude PAI mirror .gitignore files as regular files.
-  case "$target_rel" in
-    .claude/PAI/.gitignore|.claude/PAI/*/.gitignore)
-      if [ -e "$target" ] && [ ! -L "$target" ] && cmp -s "$source" "$target"; then
-        printf 'ok: %s already copied\n' "$target"
-        return 0
-      fi
-      if [ -e "$target" ] || [ -L "$target" ]; then
-        local backup
-        backup="$(backup_path "$target")"
-        mv "$target" "$backup"
-        printf 'backup-copy-target: %s -> %s\n' "$target" "$backup"
-      fi
-      cp "$source" "$target"
-      printf 'copied: %s -> %s\n' "$target" "$source"
-      return 0
-      ;;
-  esac
-
   if [ -L "$target" ]; then
     local current
     current="$(readlink "$target")"
@@ -113,62 +93,6 @@ link_path() {
 
   ln -s "$source" "$target"
   printf 'linked: %s -> %s\n' "$target" "$source"
-}
-
-is_excluded_pai_path() {
-  case "$1" in
-    .pai/PAI/MEMORY/*|\
-    .pai/PAI/*/MEMORY/*|\
-    .pai/PAI/**/State/*|\
-    .pai/PAI/**/Scratchpad/*|\
-    .pai/PAI/**/*.log|\
-    .pai/PAI/**/*.jsonl|\
-    .pai/PAI/**/secrets.*|\
-    .pai/PAI/config/local*.json|\
-    .claude/PAI/USER/*|\
-    .claude/PAI/MEMORY/*|\
-    .claude/PAI/*/USER/*|\
-    .claude/PAI/*/MEMORY/*|\
-    .claude/PAI/**/State/*|\
-    .claude/PAI/**/Scratchpad/*|\
-    .claude/PAI/**/*.log|\
-    .claude/PAI/**/*.jsonl|\
-    .claude/PAI/**/secrets.*|\
-    .claude/PAI/config/local*.json|\
-    .codex/pai/USER/*|\
-    .codex/pai/MEMORY/*|\
-    .codex/pai/templates/USER/*|\
-    .codex/pai/*/USER/*|\
-    .codex/pai/*/MEMORY/*|\
-    .codex/pai/**/State/*|\
-    .codex/pai/**/Scratchpad/*|\
-    .codex/pai/**/*.log|\
-    .codex/pai/**/*.jsonl|\
-    .codex/pai/**/secrets.*|\
-    .codex/pai/config/local*.json)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-link_git_tree() {
-  local source_rel="$1"
-  local target_rel="$2"
-  local file
-  local suffix
-
-  while IFS= read -r file; do
-    if is_excluded_pai_path "$file"; then
-      printf 'skip-private: %s\n' "$file"
-      continue
-    fi
-
-    suffix="${file#"$source_rel"/}"
-    link_path "$file" "$target_rel/$suffix"
-  done < <(git -C "$DOTFILES_DIR" ls-files "$source_rel")
 }
 
 # Copy a starter file to a private/excluded location only if the target doesn't
@@ -195,6 +119,31 @@ seed_path() {
   printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
 }
 
+remove_repo_owned_symlink() {
+  local target_rel="$1"
+  local target="$HOME/$target_rel"
+  local current
+
+  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+    return 0
+  fi
+
+  if [ -L "$target" ]; then
+    current="$(readlink "$target")"
+    case "$current" in
+      "$DOTFILES_DIR"/*|"$HOME/.config/opencode/skills")
+        rm "$target"
+        printf 'removed: %s (legacy PAI symlink)\n' "$target"
+        ;;
+      *)
+        printf 'warn: %s exists but is not repo-owned (points to %s)\n' "$target" "$current"
+        ;;
+    esac
+  else
+    printf 'warn: legacy PAI path remains; remove manually if unwanted: %s\n' "$target"
+  fi
+}
+
 link_path ".zshrc" ".zshrc"
 
 # ─── XDG config ────────────────────────────────────────────
@@ -206,19 +155,12 @@ link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
 
-# ─── Opencode (PAI-enabled) ────────────────────────────────
+# ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)
-#   - AGENTS.md              (PAI Mode System block)
-#   - modes/                 (algorithm/native/minimal — primary modes, GPT-backed)
-#   - agents/                (pai-{algorithm,architect,engineer} subagents + others)
-#   - plugins/               (pai-session-reminder, terminal-bell, etc.)
-#   - skills/                (OpenCode-native + forked PAI skill directories)
-#
-# The pai-session-reminder plugin injects mode classifier rules into the
-# system prompt via experimental.chat.system.transform. PAI modes are wired
-# to GPT models (gpt-5.5 / gpt-5.4 / gpt-5.4-mini via cliproxy) because Claude
-# models receive but do not comply with the strict format requirements.
+#   - AGENTS.md              (global agent guidance)
+#   - plugins/               (tokenjuice, caveman, etc.)
+#   - skills/                (OpenCode-native skill directories)
 link_path ".config/opencode" ".config/opencode"
 
 # ─── Pi Agent ──────────────────────────────────────────────
@@ -273,81 +215,34 @@ if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules
   printf 'warn: ~/.pi/agent/node_modules missing; run: cd ~/.pi/agent && npm install\n'
 fi
 
-# ─── PAI runtime home (~/.pai) ─────────────────────────────
-# OpenCode (and any future PAI-aware tool) reads PAI doctrine from ~/.pai/PAI
-# and runtime memory from ~/.pai/memory. The source-controlled OpenCode PAI
-# doctrine lives in this repo at .pai/PAI and is linked back to ~/.pai/PAI.
-#
-# Do not source OpenCode PAI files from .claude/PAI. That tree is legacy
-# Claude Code compatibility only.
-#
-# Note on PAI_RUNTIME_HOME: the env var is honored by plugins at runtime
-# (controls where they read patterns and write logs), but `install.sh`,
-# `opencode.json` `instructions[]`, AGENTS.md, and modes/*.md all reference
-# `~/.pai` directly. Setting PAI_RUNTIME_HOME to a non-default path therefore
-# only relocates plugin runtime state, not OpenCode's static instruction
-# lookups. Treat PAI_RUNTIME_HOME as plugin-runtime-only.
-link_git_tree ".pai/PAI" ".pai/PAI"
+# ─── Removed PAI runtime cleanup ───────────────────────────
+# PAI is no longer installed from this dotfiles repo. Remove old repo-owned
+# symlinks so a pull + install on another machine stops using the old system.
+remove_repo_owned_symlink ".pai/PAI"
+remove_repo_owned_symlink ".pai/skills"
+remove_repo_owned_symlink ".claude/PAI"
+remove_repo_owned_symlink ".codex/pai"
+remove_repo_owned_symlink ".claude/hooks"
+remove_repo_owned_symlink ".claude/lib"
+remove_repo_owned_symlink ".claude/skills"
+remove_repo_owned_symlink ".claude/agents"
+remove_repo_owned_symlink ".claude/MEMORY"
+remove_repo_owned_symlink ".claude/install.sh"
+remove_repo_owned_symlink ".claude/statusline-command.sh"
+remove_repo_owned_symlink ".codex/agents"
 
-# Forked OpenCode skill tree is the canonical PAI cognitive skill home.
-# Inline workflow examples in those skills reference paths like
-# `~/.pai/skills/<Name>/...` (matching `~/.pai/PAI/...` convention), so we
-# link `~/.pai/skills` to the actual location on disk
-# (~/.config/opencode/skills) rather than rewriting every example. Custom
-# overrides via `${PAI_DIR:-$HOME/.pai}/skills` work for both the default
-# location and a relocated PAI root.
-if [ -d "$HOME/.config/opencode/skills" ] && [ ! -e "$HOME/.pai/skills" ]; then
-  mkdir -p "$HOME/.pai"
-  ln -s "$HOME/.config/opencode/skills" "$HOME/.pai/skills"
-  printf 'linked: ~/.pai/skills -> ~/.config/opencode/skills\n'
-elif [ -L "$HOME/.pai/skills" ]; then
-  current=$(readlink "$HOME/.pai/skills")
-  expected="$HOME/.config/opencode/skills"
-  if [ "$current" != "$expected" ]; then
-    printf 'warn: ~/.pai/skills points to %s (expected %s)\n' "$current" "$expected"
-  fi
-fi
-
-# One-time migration of the per-machine checkpoint allowlist from the legacy
-# ~/.claude location into ~/.pai. Only runs when the new file is absent so
-# subsequent re-runs are idempotent.
-if [ -f "$HOME/.claude/checkpoint-repos.txt" ] \
-    && [ ! -e "$HOME/.pai/checkpoint-repos.txt" ]; then
-  mkdir -p "$HOME/.pai"
-  cp "$HOME/.claude/checkpoint-repos.txt" "$HOME/.pai/checkpoint-repos.txt"
-  printf 'migrated: ~/.claude/checkpoint-repos.txt -> ~/.pai/checkpoint-repos.txt\n'
-fi
-
-# ─── PAI / Claude Code ───────────────────────────────────
+# ─── Claude Code ───────────────────────────────────────────
 # Optional: skip this whole block on machines that do not use Claude Code.
-# Set INSTALL_CLAUDE_CODE=0 to skip. OpenCode does not depend on any of these
-# paths — see the ~/.pai/PAI block above for the OpenCode-required content.
+# Set INSTALL_CLAUDE_CODE=0 to skip. OpenCode does not depend on these paths.
 if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   # Core files
   link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
   link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
-  link_path ".claude/install.sh" ".claude/install.sh"
   link_path ".claude/settings.json.template" ".claude/settings.json.template"
-  link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
   link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 
-  # PAI engine (legacy Claude Code compatibility; source remains .pai/PAI)
-  link_git_tree ".pai/PAI" ".claude/PAI"
-
-  # USER stubs — copied (not linked) so personal overrides stay machine-local.
-  seed_path ".pai/PAI/USER/AISTEERINGRULES.md" ".claude/PAI/USER/AISTEERINGRULES.md"
-
-  # Skills, hooks, commands, agents, lib
-  link_path ".claude/skills" ".claude/skills"
-  link_path ".claude/hooks" ".claude/hooks"
+  # Commands
   link_path ".claude/commands" ".claude/commands"
-  link_path ".claude/agents" ".claude/agents"
-  link_path ".claude/lib" ".claude/lib"
-
-  # Syncable memory (learning + relationship cross devices)
-  link_path ".claude/MEMORY/README.md" ".claude/MEMORY/README.md"
-  link_path ".claude/MEMORY/LEARNING" ".claude/MEMORY/LEARNING"
-  link_path ".claude/MEMORY/RELATIONSHIP" ".claude/MEMORY/RELATIONSHIP"
 else
   printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
 fi
@@ -356,9 +251,7 @@ fi
 link_path ".codex/config.toml" ".codex/config.toml"
 link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
-link_path ".codex/agents" ".codex/agents"
 link_path ".codex/rules" ".codex/rules"
-link_git_tree ".codex/pai" ".codex/pai"
 
 for skill_dir in "$DOTFILES_DIR"/.codex/skills/*; do
   [ -d "$skill_dir" ] || continue
@@ -377,28 +270,14 @@ done
 #   1. git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh
 #   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
 #   3. Edit settings.json with your API keys and machine-specific values
-#   4. bun ~/.claude/install.sh   # runs the PAI installer
 #
 # ─── Opencode post-install verification ────────────────────
-# After install.sh runs, verify opencode + PAI integration:
+# After install.sh runs, verify opencode:
 #
-#   a. Provider auth (cliproxy must be running locally; PAI modes use it):
+#   a. Provider auth (cliproxy must be running locally):
 #        curl -s http://127.0.0.1:8317/v1/models | head -c 100
 #        # 401 with "Missing API key" means reachable; configure auth as needed
 #
 #   b. Plugin registration:
-#        opencode debug config | grep pai-session-reminder
-#        # Should appear once in the resolved plugin[] list
-#
-#   c. Mode discovery:
-#        opencode agent list | grep -E "^(algorithm|native|minimal) \(primary\)"
-#        # Should show all three primary modes
-#
-#   d. End-to-end smoke test (creates a PRD + reflection if working):
-#        cd /tmp && opencode run --agent algorithm \
-#          "write /tmp/hello.sh that prints HELLO"
-#        ls ~/.pai/memory/WORK/  # newest dir is your test ISA
-#
-# If MINIMAL/NATIVE/ALGORITHM headers don't appear in output, the model is
-# the issue — Claude declines the strict format; only GPT models comply.
-# The mode files default to gpt-5.5/gpt-5.4/gpt-5.4-mini for that reason.
+#        opencode debug config | grep caveman
+#        # Should show the caveman plugin if enabled.

@@ -1,1 +1,0 @@
-/home/james/dotfiles/.pai/PAI/CONTEXT_ROUTING.md
