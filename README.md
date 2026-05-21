@@ -60,11 +60,9 @@ DOTFILES_DIR=/path/to/dotfiles /path/to/dotfiles/install.sh
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
 - links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1`
-- removes old repo-owned PAI symlinks left by earlier installs
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
 ## Notes
 
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
-- PAI system files were removed from this repo; old local leftovers are ignored and should be deleted if unwanted.
