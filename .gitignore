@@ -12,11 +12,6 @@ MEMORY/
 Plans/
 plans/
 
-# Removed PAI system artifacts stay local if left from old installs
-.pai/
-.claude/PAI/
-.codex/pai/
-
 # Machine-local helper binaries
 bin/
 
@@ -73,9 +68,6 @@ bin/
 # Machine-local MEMORY (session/work/state/learnings are per-machine)
 .claude/MEMORY/
 
-# Legacy PAI installer (not synced)
-.claude/PAI-Install/
-
 # gstack (third-party skill — install separately on each device)
 .claude/skills/gstack/
 
@@ -105,9 +97,6 @@ bin/
 .codex/.tmp/
 .codex/memories/
 .codex/skills/.system/
-
-# Codex PAI backup archives from old installs
-.codex/pai-backups/
 
 # Backup / temp files
 *.bak

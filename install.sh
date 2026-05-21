@@ -119,31 +119,6 @@ seed_path() {
   printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
 }
 
-remove_repo_owned_symlink() {
-  local target_rel="$1"
-  local target="$HOME/$target_rel"
-  local current
-
-  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
-    return 0
-  fi
-
-  if [ -L "$target" ]; then
-    current="$(readlink "$target")"
-    case "$current" in
-      "$DOTFILES_DIR"/*|"$HOME/.config/opencode/skills")
-        rm "$target"
-        printf 'removed: %s (legacy PAI symlink)\n' "$target"
-        ;;
-      *)
-        printf 'warn: %s exists but is not repo-owned (points to %s)\n' "$target" "$current"
-        ;;
-    esac
-  else
-    printf 'warn: legacy PAI path remains; remove manually if unwanted: %s\n' "$target"
-  fi
-}
-
 link_path ".zshrc" ".zshrc"
 
 # ─── XDG config ────────────────────────────────────────────
@@ -214,22 +189,6 @@ fi
 if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules" ]; then
   printf 'warn: ~/.pi/agent/node_modules missing; run: cd ~/.pi/agent && npm install\n'
 fi
-
-# ─── Removed PAI runtime cleanup ───────────────────────────
-# PAI is no longer installed from this dotfiles repo. Remove old repo-owned
-# symlinks so a pull + install on another machine stops using the old system.
-remove_repo_owned_symlink ".pai/PAI"
-remove_repo_owned_symlink ".pai/skills"
-remove_repo_owned_symlink ".claude/PAI"
-remove_repo_owned_symlink ".codex/pai"
-remove_repo_owned_symlink ".claude/hooks"
-remove_repo_owned_symlink ".claude/lib"
-remove_repo_owned_symlink ".claude/skills"
-remove_repo_owned_symlink ".claude/agents"
-remove_repo_owned_symlink ".claude/MEMORY"
-remove_repo_owned_symlink ".claude/install.sh"
-remove_repo_owned_symlink ".claude/statusline-command.sh"
-remove_repo_owned_symlink ".codex/agents"
 
 # ─── Claude Code ───────────────────────────────────────────
 # Optional: skip this whole block on machines that do not use Claude Code.

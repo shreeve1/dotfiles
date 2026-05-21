@@ -235,7 +235,7 @@ Use non-interactive print mode, disable tools by default, pass the context packe
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested findings, or tool calls. Follow the user's severity-tagged finding format exactly." \
+  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, local wrappers, status banners, markdown framing outside the requested findings, or tool calls. Follow the user's severity-tagged finding format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
@@ -248,7 +248,7 @@ If the audit needs Claude to read additional repo files beyond what the packet c
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested findings, or edit tools. Use only the allowed read-only tools when essential, then follow the user's severity-tagged finding format exactly." \
+  --system-prompt "You are a terse implementation-plan audit tool. Do not use local house styles, local wrappers, status banners, markdown framing outside the requested findings, or edit tools. Use only the allowed read-only tools when essential, then follow the user's severity-tagged finding format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \

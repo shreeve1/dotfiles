@@ -228,7 +228,7 @@ Use non-interactive print mode, disable tools by default, and pass the self-cont
 
 ```bash
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse code review tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested review, or tool calls. Follow the requested review format exactly." \
+  --system-prompt "You are a terse code review tool. Do not use local house styles, local wrappers, status banners, markdown framing outside the requested review, or tool calls. Follow the requested review format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
@@ -244,7 +244,7 @@ CLAUDE_ADD_DIR_ARGS=()
 [ -n "${REVIEW_ROOT:-}" ] && CLAUDE_ADD_DIR_ARGS=(--add-dir "$REVIEW_ROOT")
 
 timeout 180s claude $CLAUDE_MODE_ARGS -p \
-  --system-prompt "You are a terse code review tool. Do not use local house styles, PAI wrappers, status banners, markdown framing outside the requested review, or edit tools. Use only the allowed read-only tools when essential, then follow the requested review format exactly." \
+  --system-prompt "You are a terse code review tool. Do not use local house styles, local wrappers, status banners, markdown framing outside the requested review, or edit tools. Use only the allowed read-only tools when essential, then follow the requested review format exactly." \
   --model opus \
   --effort high \
   --no-session-persistence \
