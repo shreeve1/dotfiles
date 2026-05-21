@@ -133,9 +133,12 @@ bin/
 
 # Backup / temp files
 *.bak
+*.bak-*
+*-bak-*
 *.tmp
 *.swp
 *.swo
 *~
 .DS_Store
 .claude.bak/
+.config/opencode-pre-reset-*/
