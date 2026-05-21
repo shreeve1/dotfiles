@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Mock pi: pretends to be too old (0.50.0 < 0.73.1) so VersionCheck fails.
-if [ "$1" = "--version" ]; then
-  echo "0.50.0"
-  exit 0
-fi
-echo "should not reach here" >&2
-exit 99
