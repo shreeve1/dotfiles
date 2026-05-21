@@ -1,1 +1,0 @@
-/home/james/dotfiles/.pai/PAI/USER/PRINCIPAL_IDENTITY.md

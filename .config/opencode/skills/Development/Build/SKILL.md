@@ -19,13 +19,6 @@ After each wave's tasks complete, a quick Codex audit reviews the wave's diff fo
 | `/dev-build <plan> --audit-mode=off` | Skip audit entirely (equivalent to `--no-audit`) |
 | `/dev-build <plan> --no-audit` | Shorthand for `--audit-mode=off`; skip wave-end audits entirely |
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Build/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** Sonnet — build execution benefits from speed for wave-based parallel task spawning. Reserve Opus for complex architectural decisions within tasks.

@@ -7,13 +7,6 @@ description: Transform a raw idea into a structured, AI-agent-actionable Product
 
 Transforms raw ideas into structured, buildable PRDs optimized for AI coding agents.
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Prd/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** `opus` — PRD creation benefits from deep reasoning for competitive analysis, user research synthesis, and architectural decisions.

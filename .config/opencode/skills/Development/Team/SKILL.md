@@ -9,13 +9,6 @@ Fully automated pipeline: **plan -> validate -> build -> test -> commit**.
 
 Each phase runs in its own isolated context via agent teams, providing complete hands-off execution.
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Team/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model: opus** — This skill requires complex coordination of multiple agents across phases, making strategic decisions about task dependencies, and handling error recovery. Opus provides the strongest reasoning for multi-agent orchestration.

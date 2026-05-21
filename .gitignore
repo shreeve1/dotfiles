@@ -12,22 +12,10 @@ MEMORY/
 Plans/
 plans/
 
-# Shared PAI harness runtime state must stay machine-local
-.pai/node_modules/
-.pai/runtime/
-.pai/**/*.sqlite
-.pai/**/*.sqlite-*
-.pai/**/*.db
-.pai/**/*.jsonl
-.pai/**/MEMORY/
-.pai/**/memory/
-.pai/**/events/
-.pai/**/transcripts/
-.pai/**/state/
-.pai/**/logs/
-.pai/**/*.lock
-.pai/**/auth.json
-.pai/**/secrets.*
+# Removed PAI system artifacts stay local if left from old installs
+.pai/
+.claude/PAI/
+.codex/pai/
 
 # Machine-local helper binaries
 bin/
@@ -85,10 +73,7 @@ bin/
 # Machine-local MEMORY (session/work/state/learnings are per-machine)
 .claude/MEMORY/
 
-# Claude PAI user-owned TELOS context
-.claude/PAI/USER/TELOS/
-
-# PAI-Install (re-run installer on each device)
+# Legacy PAI installer (not synced)
 .claude/PAI-Install/
 
 # gstack (third-party skill — install separately on each device)
@@ -121,14 +106,7 @@ bin/
 .codex/memories/
 .codex/skills/.system/
 
-# Codex PAI port - user-owned state, local logs, secrets, and backups
-.codex/pai/USER/
-.codex/pai/MEMORY/
-.codex/pai/config/local*.json
-.codex/pai/**/*.log
-.codex/pai/**/*.jsonl
-.codex/pai/**/secrets.*
-.codex/pai/.backups/
+# Codex PAI backup archives from old installs
 .codex/pai-backups/
 
 # Backup / temp files

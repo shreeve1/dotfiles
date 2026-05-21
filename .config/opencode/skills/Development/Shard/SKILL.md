@@ -7,13 +7,6 @@ description: Analyze plan token budget and split into ordered shards if the plan
 
 Analyze an implementation plan to estimate whether it can be executed within a single ~150k token build session. If the plan exceeds the budget, split it into an ordered chain of self-contained shards that can be built sequentially.
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/Shard/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Model Recommendation
 
 **Recommended model:** Opus — token estimation requires careful analysis of plan structure, file sizes, and dependency graphs. The sharding algorithm involves multi-step reasoning that benefits from higher capability.

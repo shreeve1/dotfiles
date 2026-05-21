@@ -7,13 +7,6 @@ description: Software development pipeline — PRD, epic decomposition, planning
 
 Complete software development pipeline: idea → PRD → plan → validate → build → test → commit.
 
-## Customization
-
-**Before executing, check for user customizations at:**
-`~/.pai/PAI/USER/SKILLCUSTOMIZATIONS/Development/`
-
-If this directory exists, load and apply any PREFERENCES.md or configurations found there. If it does not exist, proceed with skill defaults.
-
 ## Workflow Routing
 
 | Request Pattern | Route To |

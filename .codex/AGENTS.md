@@ -66,25 +66,3 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 * * *
 
 These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
-<!-- PAI-CODEX-PORT:START -->
-## PAI Codex Port
-
-- This block defines the Codex-native PAI defaults; system, developer, and project AGENTS.md instructions still override it.
-- Upstream PAI material under `.codex/pai` is advisory unless restated here or in an invoked PAI skill.
-- Use `$pai-core` for PAI philosophy, memory routing, TELOS context, and port conventions.
-- Consult `.codex/pai/USER` only when user-owned context is relevant to the current task.
-- Use `.codex/pai/MEMORY` for durable local observations only when the task creates information worth preserving.
-- Generated PAI skills are installed from `.codex/pai/skills/pai-*` into `$HOME/.agents/skills/pai-*`; existing `.codex/skills` dev-pipeline skills remain separate.
-- Unsupported audio, desktop-alert, terminal-title, and provider-specific runtime behavior is intentionally disabled in this port.
-
-### PAI Algorithm Loop
-
-- For non-trivial planning, design, implementation, or investigation work, run the PAI loop: Observe -> Think -> Plan -> Build -> Execute -> Verify -> Review -> Learn.
-- For planning tasks, create or update a repo-local PRD before implementation. Use `artifacts/specs/<slug>/PRD.md` unless the user supplies another PRD/plan path or the task is clearly a small one-step fix.
-- Fill the PRD with the requested outcome, current state, ideal state criteria, scope, assumptions, risks, approach, and verification plan before deriving an implementation plan from it.
-- Keep the PRD or supplied plan current when decisions change during execution.
-- Before finalizing substantive work, review the result against the PRD/plan, acceptance criteria, tests, and stated constraints; report unresolved gaps.
-- During Learn, write a short durable note only for reusable corrections, decisions, user preferences, or workflow failures. Prefer `.codex/pai/MEMORY/learning/` for lessons and `.codex/pai/MEMORY/work/active.md` for active work carryover.
-- Keep trivial one-step tasks lightweight; do not create PRDs or memory notes when they add no value.
-<!-- PAI-CODEX-PORT:END -->

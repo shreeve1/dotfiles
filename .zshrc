@@ -290,11 +290,9 @@ alias tm='tmux'
 alias tma='tmux attach -t'
 alias tml='tmux ls'
 alias tms='tmux new -s'
-alias tralph="tmux new-session -d -s ralph 'PAI_OPENCODE_AUTO_APPROVE=1 ~/.pai/PAI/Tools/ralph-loop.sh 2>&1 | tee -a .kanban/ralph-loop.log; echo; echo Ralph loop exited. Press Ctrl-D to close this tmux session.; exec zsh'"
 alias tmk='tmux kill-session -t'
 
 alias op='opencode'
-alias pl='pai -l'
 
 # Machine-local secrets (not tracked in dotfiles)
 [[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
@@ -302,9 +300,6 @@ if [[ $IS_MACOS -eq 1 ]]; then
   export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
   export PATH="/opt/homebrew/bin:$PATH"
 fi
-
-# PAI alias
-alias pai='bun $HOME/dotfiles/.claude/PAI/Tools/pai.ts'
 
 # Vi mode - must be last so starship/atuin don't overwrite bindings
 bindkey -v
