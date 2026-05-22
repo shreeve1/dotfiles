@@ -183,6 +183,8 @@ You MUST create a task for each of these items and complete them in order:
    REVIEW_FILE=$(mktemp /tmp/opencode-review-XXXXXX.md)
    OUTPUT_FILE=$(mktemp /tmp/opencode-review-output-XXXXXX.txt)
    # Write the brief content to $REVIEW_FILE using the Write tool
+   # NOTE: mktemp creates an empty file. If using Claude Code's Write tool, it will require a Read first.
+   # Read the empty file once, then Write — or use `mktemp -u` to get a name without creating the file.
    ```
 
    **Run the reviewer in a fresh OpenCode session with fully open permissions:**
@@ -193,6 +195,7 @@ You MUST create a task for each of these items and complete them in order:
      --dir <project_dir> \
      --format default \
      -f "$REVIEW_FILE" \
+     -- \
      "Read the attached review brief and produce findings in the exact format specified inside the brief. You are read-only — do not modify any files." \
      > "$OUTPUT_FILE" 2>&1
    ```
@@ -202,7 +205,8 @@ You MUST create a task for each of these items and complete them in order:
    - If neither model flag is provided, use an empty `REVIEWER_MODEL_ARGS` array and preserve the current default reviewer model behaviour.
    - `--dangerously-skip-permissions` auto-approves permissions that are not explicitly denied. Matches the user's global `"*": "allow"` posture.
    - `--dir` sets the working directory so the reviewer can read related files in the project.
-   - `-f "$REVIEW_FILE"` attaches the brief as a file. The positional message tells the reviewer to read the attachment and follow the embedded format spec.
+   - `-f "$REVIEW_FILE"` attaches the brief as a file. The `--` separator terminates option parsing so the positional message is interpreted as a message (not another file path). Without `--`, opencode treats positional tokens after `-f` as additional file arguments and errors with `File not found: <message text>`.
+   - The positional message tells the reviewer to read the attachment and follow the embedded format spec.
    - `--format default` produces human-readable output. Use `--format json` if you want raw JSON events for stricter parsing.
    - The session is fresh by default — do **not** pass `--continue` or `--session`. The whole point is an independent perspective.
 
