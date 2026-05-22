@@ -38,8 +38,23 @@ vim.o.tabstop = 4             -- Tab width
 vim.o.shiftwidth = 4          -- Indent width
 vim.o.expandtab = true        -- Use spaces not tabs
 
--- Sync clipboard with OS
+-- Sync clipboard with OS. Over SSH, use OSC52 so yanks land in the local
+-- terminal clipboard instead of looking for xclip/wl-copy on the remote host.
 vim.o.clipboard = 'unnamedplus'
+if vim.env.SSH_TTY or vim.env.SSH_CONNECTION then
+  local osc52 = require 'vim.ui.clipboard.osc52'
+  vim.g.clipboard = {
+    name = 'OSC52',
+    copy = {
+      ['+'] = osc52.copy '+',
+      ['*'] = osc52.copy '*',
+    },
+    paste = {
+      ['+'] = osc52.paste '+',
+      ['*'] = osc52.paste '*',
+    },
+  }
+end
 
 -- ============================================================================
 -- Keymaps
@@ -464,6 +479,16 @@ require('lazy').setup({
       git = { enable = true },
       update_focused_file = { enable = true },
       actions = { open_file = { quit_on_open = false } },
+      on_attach = function(bufnr)
+        local api = require 'nvim-tree.api'
+        api.config.mappings.default_on_attach(bufnr)
+        vim.keymap.set('n', 'Y', function()
+          local node = api.tree.get_node_under_cursor()
+          if not node then return end
+          vim.fn.setreg('+', node.absolute_path)
+          vim.notify('Copied path: ' .. node.absolute_path)
+        end, { buffer = bufnr, desc = 'Copy absolute path' })
+      end,
     },
   },
 
