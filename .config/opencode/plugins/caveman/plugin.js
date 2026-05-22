@@ -28,16 +28,16 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const here = dirname(fileURLToPath(import.meta.url));
 
-// When installed: caveman-config.cjs sits next to plugin.js (copied by
-// bin/install.js, renamed to .cjs because this directory's package.json
-// declares "type": "module" — bare .js would be loaded as ESM and break
-// require()). When loaded from the source tree (tests, dev): fall back
-// to the canonical src/hooks/caveman-config.js, which lives in a directory
-// whose own package.json pins "type": "commonjs". One source of truth
-// either way.
+// Canonical helper now lives at ~/.claude/hooks/caveman-config.cjs so Claude
+// Code hooks and this OpenCode plugin share one source. Fall back to a sibling
+// copy if present (legacy installs), or the old opencode hooks location, for
+// graceful transition. The .cjs extension is required because this plugin
+// directory's package.json declares "type": "module".
 function loadConfig() {
-  try { return require(join(here, 'caveman-config.cjs')); }
-  catch (_) { return require(join(here, '..', '..', 'hooks', 'caveman-config.js')); }
+  const sharedPath = path.join(os.homedir(), '.claude', 'hooks', 'caveman-config.cjs');
+  try { return require(sharedPath); } catch (_) {}
+  try { return require(join(here, 'caveman-config.cjs')); } catch (_) {}
+  return require(join(here, '..', '..', 'hooks', 'caveman-config.js'));
 }
 const config = loadConfig();
 
@@ -46,20 +46,9 @@ const { getDefaultMode, safeWriteFlag, readFlag, VALID_MODES } = config;
 // Modes handled by independent skills — not selectable via /caveman <arg>.
 const INDEPENDENT_MODES = new Set(['commit', 'review', 'compress']);
 
-function opencodeConfigDir() {
-  if (process.env.XDG_CONFIG_HOME) {
-    return path.join(process.env.XDG_CONFIG_HOME, 'opencode');
-  }
-  if (process.platform === 'win32') {
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'opencode'
-    );
-  }
-  return path.join(os.homedir(), '.config', 'opencode');
-}
-
-const flagPath = path.join(opencodeConfigDir(), '.caveman-active');
+// Shared activation flag — same path used by ~/.claude/hooks/caveman-*.cjs so
+// Claude Code and OpenCode see the same state.
+const flagPath = path.join(os.homedir(), '.claude', '.caveman-active');
 
 function reinforcementLine(mode) {
   return 'CAVEMAN MODE ACTIVE (' + mode + '). ' +

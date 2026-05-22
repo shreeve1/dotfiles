@@ -34,7 +34,7 @@ Before editing, read:
 - Existing `wiki/` if present.
 - Project README or equivalent top-level docs if present.
 
-Determine the project root before creating files. If the current project root is this skill's install repository, or contains `.config/opencode/skills/llm-wiki-setup/`, stop and ask James to confirm that the dotfiles repo is the intended target before creating `wiki/`.
+Determine the project root before creating files. If the current project root is this skill's install repository, or contains `.claude/skills/llm-wiki-setup/`, stop and ask James to confirm that the dotfiles repo is the intended target before creating `wiki/`.
 
 Detect existing wiki state before writing:
 

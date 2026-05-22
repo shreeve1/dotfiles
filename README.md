@@ -27,12 +27,43 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
   .config/
     opencode/
       opencode.json
-      skills/
-      plugins/
+      AGENTS.md      → symlink to ../../.claude/CLAUDE.md (canonical guidance)
+      plugins/       (tokenjuice, caveman runtime adapter)
+      commands/      (OpenCode-only slash command wrappers)
   .claude/
+    CLAUDE.md        (canonical agent guidance for Claude Code AND OpenCode)
+    skills/          (canonical shared skills, discovered by both tools)
+    hooks/           (Claude Code hook scripts, incl. caveman dynamic state)
+    commands/
+    settings.json.template
+    switch-provider.sh
   .codex/
   install.sh
 ```
+
+### Canonical vs tool-specific
+
+| Concern | Canonical Home | Why |
+|---|---|---|
+| Global agent guidance | `~/.claude/CLAUDE.md` | OpenCode reads via `AGENTS.md` symlink. |
+| Reusable skills | `~/.claude/skills/` | Claude reads natively, OpenCode falls back to `~/.claude/skills/`. |
+| Hook scripts | `~/.claude/hooks/` | Claude-specific runtime. OpenCode plugin reuses the helper module here. |
+| Provider/model config | tool-specific | Claude `~/.claude/settings*.json`; OpenCode `~/.config/opencode/opencode.json`. Schemas differ — no shared format. |
+| MCP servers | tool-specific | Claude: `~/.claude.json` (machine-local) or `claude mcp add`; OpenCode: `opencode.json`. |
+
+## New Machine Setup
+
+1. Clone repo to `~/dotfiles`.
+2. Install local runtime prerequisites you want on this machine.
+3. Run installer.
+4. Seed Claude settings: `cp ~/.claude/settings.json.template ~/.claude/settings.json` then fill in API keys.
+5. (Optional) Register Claude MCP servers per-machine:
+
+   ```bash
+   claude mcp add --scope user caveman-shrink -- npx -y caveman-shrink
+   ```
+
+   This writes to `~/.claude.json` (intentionally outside the dotfiles repo).
 
 ## New Machine Setup
 
@@ -66,3 +97,19 @@ DOTFILES_DIR=/path/to/dotfiles /path/to/dotfiles/install.sh
 
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
+- Caveman dynamic state lives at `~/.claude/.caveman-active` and is gitignored. Claude Code SessionStart and UserPromptSubmit hooks (`~/.claude/hooks/caveman-*.cjs`) and the OpenCode plugin (`~/.config/opencode/plugins/caveman/plugin.js`) read/write the same path.
+
+## Validation
+
+After install, verify both tools see canonical content:
+
+```bash
+claude --version                       # Claude Code installed
+opencode --version                     # OpenCode installed
+opencode debug skill | grep -i caveman # OpenCode discovers canonical skills
+diff ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md  # symlink resolves
+```
+
+In an interactive Claude Code session: `/memory`, `/skills`, `/hooks`, `/mcp`, `/doctor`.
+
+If `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` or `OPENCODE_DISABLE_CLAUDE_CODE=1` is set, OpenCode will not see canonical skills. Unset to restore shared discovery.

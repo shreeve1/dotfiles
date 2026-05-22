@@ -7,7 +7,7 @@ description: Independent code review — gathers context, runs a fresh OpenCode 
 
 All review requests — file, directory, plan, build, proposal, session context — route to the canonical skill:
 
-`~/.config/opencode/skills/dev-review/SKILL.md`
+`~/.claude/skills/dev-review/SKILL.md`
 
 There is no longer a separate Development/Review workflow. The Development pack's Review entry point exists only to keep pipeline routing consistent; the actual review logic lives in `dev-review`.
 

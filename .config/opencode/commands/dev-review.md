@@ -7,13 +7,13 @@ agent: build
 
 Thin entry point. Loads and runs the `dev-review` skill, which is the single source of truth.
 
-Skill: `.config/opencode/skills/dev-review/SKILL.md`
+Skill: `~/.claude/skills/dev-review/SKILL.md`
 
 $ARGUMENTS
 
 ## Behaviour
 
-1. Load `.config/opencode/skills/dev-review/SKILL.md` and follow its workflow exactly.
+1. Load `~/.claude/skills/dev-review/SKILL.md` and follow its workflow exactly.
 2. Optional reviewer model flags:
    - `--claude` — use Claude Opus 4.7 via `cliproxy/claude-opus-4-7`
    - `--gpt` — use GPT 5.5 via `openai/gpt-5.5`

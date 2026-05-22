@@ -27,7 +27,7 @@ The verifier re-runs the validation command. If validation mutates state (starts
 GOAL_DIR=".opencode/state/goals/$GOAL_NAME"
 # Optional env tuning:
 # VERIFY_TIMEOUT_MIN=5  VERIFY_MODEL="anthropic/claude-sonnet-4-5"
-~/.config/opencode/skills/goal/scripts/verify.sh "$GOAL_DIR"
+~/.claude/skills/goal/scripts/verify.sh "$GOAL_DIR"
 ```
 
 The script:
