@@ -1,8 +1,6 @@
 ---
 name: dev-review
-description: Independent review of the current context, plan, build, file, or proposal using a fresh OpenCode session — primary agent gathers context, a separate `opencode run` invocation reviews, results discussed interactively before applying any changes.
-argument-hint: [--claude | --gpt] [plan | build | proposal | file/dir path | omit to review what's in context]
-model: opus
+description: Independent code review using a fresh OpenCode session as the reviewer. USE WHEN user says "dev-review", "/dev-review", "independent review", or wants a second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--gpt` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
 ---
 
 # Dev Review (OpenCode-Powered)

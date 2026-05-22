@@ -133,9 +133,11 @@ link_path ".config/zellij" ".config/zellij"
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)
-#   - AGENTS.md              (global agent guidance)
+#   - AGENTS.md              (symlink → ~/.claude/CLAUDE.md, canonical guidance)
 #   - plugins/               (tokenjuice, caveman, etc.)
-#   - skills/                (OpenCode-native skill directories)
+#   - commands/              (OpenCode-only slash command wrappers)
+# Canonical shared skills now live under ~/.claude/skills/ (linked below).
+# OpenCode auto-discovers them unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1.
 link_path ".config/opencode" ".config/opencode"
 
 # ─── Pi Agent ──────────────────────────────────────────────
@@ -196,12 +198,18 @@ fi
 if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   # Core files
   link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
-  link_path ".claude/CLAUDE.md.template" ".claude/CLAUDE.md.template"
   link_path ".claude/settings.json.template" ".claude/settings.json.template"
   link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 
-  # Commands
+  # Commands (kept for any project-local compatibility wrappers)
   link_path ".claude/commands" ".claude/commands"
+
+  # Canonical shared skills — read by Claude Code natively and by OpenCode
+  # via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
+  link_path ".claude/skills" ".claude/skills"
+
+  # Claude Code hooks (caveman SessionStart + UserPromptSubmit, shared helpers).
+  link_path ".claude/hooks" ".claude/hooks"
 else
   printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
 fi

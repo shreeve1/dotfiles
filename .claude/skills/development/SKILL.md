@@ -1,5 +1,5 @@
 ---
-name: Development
+name: development
 description: Software development pipeline — PRD, epic decomposition, planning, validation, sharding, parallel build, testing, code review, bug investigation, Playwright stories, team pipeline. USE WHEN create PRD, epic, decompose PRD, implementation plan, validate plan, shard plan, build, execute plan, run tests, code review, investigate bug, user stories, Playwright, dev team, development pipeline, write code, software project.
 ---
 
@@ -11,16 +11,16 @@ Complete software development pipeline: idea → PRD → plan → validate → b
 
 | Request Pattern | Route To |
 |---|---|
-| PRD, product requirements, idea to spec, create PRD | `Prd/SKILL.md` |
-| Epic, decompose PRD, multi-epic, split PRD, PRD too large, epic decomposition | `Epic/SKILL.md` |
-| Implementation plan, tech approach, task breakdown, phased roadmap, validate plan, pre-flight check, feasibility, risk analysis | `Plan/SKILL.md` |
-| Shard, token budget, split plan, context window, plan too large | `Shard/SKILL.md` |
-| Build, execute plan, implement, start coding, wave execution | `Build/SKILL.md` |
-| Test, run tests, coverage, test plan, acceptance criteria | `Test/SKILL.md` |
-| Review, code review, audit code, deep review, PR review | `Review/SKILL.md` |
-| Investigate, bug, root cause, debug, diagnose, where is the bug | `Investigate/SKILL.md` |
-| User stories, Playwright stories, UI flows, browser stories | `Stories/SKILL.md` |
-| Dev team, automated pipeline, full team build, hands-off build | `Team/SKILL.md` |
+| PRD, product requirements, idea to spec, create PRD | `Prd/PRD.md` |
+| Epic, decompose PRD, multi-epic, split PRD, PRD too large, epic decomposition | `Epic/EPIC.md` |
+| Implementation plan, tech approach, task breakdown, phased roadmap, validate plan, pre-flight check, feasibility, risk analysis | `Plan/PLAN.md` |
+| Shard, token budget, split plan, context window, plan too large | `Shard/SHARD.md` |
+| Build, execute plan, implement, start coding, wave execution | `Build/BUILD.md` |
+| Test, run tests, coverage, test plan, acceptance criteria | `Test/TEST.md` |
+| Review, code review, audit code, deep review, PR review | `Review/REVIEW.md` |
+| Investigate, bug, root cause, debug, diagnose, where is the bug | `Investigate/INVESTIGATE.md` |
+| User stories, Playwright stories, UI flows, browser stories | `Stories/STORIES.md` |
+| Dev team, automated pipeline, full team build, hands-off build | `Team/TEAM.md` |
 
 ## Pipeline Flow
 

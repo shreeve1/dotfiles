@@ -64,5 +64,21 @@
   },
   "model": "sonnet",
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": []
+  "enabledMcpjsonServers": [],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ~/.claude/hooks/caveman-session-start.cjs" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node ~/.claude/hooks/caveman-user-prompt.cjs" }
+        ]
+      }
+    ]
+  }
 }
