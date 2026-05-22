@@ -60,8 +60,9 @@
       "Write(~/.ssh/*)",
       "Edit(~/.ssh/*)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "bypassPermissions"
   },
+  "skipDangerousModePermissionPrompt": true,
   "model": "sonnet",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
