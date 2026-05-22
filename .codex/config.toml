@@ -60,3 +60,11 @@ status_line = ["model-with-reasoning", "current-dir", "context-remaining", "task
 
 [features]
 codex_hooks = true
+
+[hooks.state]
+
+[hooks.state."/home/james/.codex/hooks.json:pre_tool_use:0:0"]
+trusted_hash = "sha256:fc87dbee1cb8a9be4f78ba094c4fa8d5e2fd38cb800854e3717f9b6a52fe2a47"
+
+[hooks.state."/home/james/.codex/hooks.json:post_tool_use:0:0"]
+trusted_hash = "sha256:ac371f260e4b23ba1d1b7a4ad68a44a323a8470b61f38471a47aceac1b7a5a7c"
