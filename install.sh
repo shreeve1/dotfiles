@@ -200,6 +200,7 @@ if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
   link_path ".claude/settings.json.template" ".claude/settings.json.template"
   link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
+  link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
 
   # Commands (kept for any project-local compatibility wrappers)
   link_path ".claude/commands" ".claude/commands"
