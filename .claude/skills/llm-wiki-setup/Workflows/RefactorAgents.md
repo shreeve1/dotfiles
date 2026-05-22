@@ -1,28 +1,40 @@
-# Refactor AGENTS.md Workflow
+# Refactor AGENTS.md / CLAUDE.md Workflow
 
-Use this workflow to add project-local LLM Wiki operating rules to `AGENTS.md` while preserving existing instructions.
+Use this workflow to add project-local LLM Wiki operating rules to the project's agent-instruction files (`AGENTS.md` and/or `CLAUDE.md`) while preserving existing instructions.
+
+## Target Files
+
+Apply this workflow to each of the following that exists at the project root:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+
+If both exist, update both and keep the LLM Wiki section wording consistent between them. If neither exists, create `AGENTS.md` by default; ask before also creating `CLAUDE.md`.
 
 ## Rules
 
-- Read `AGENTS.md` before editing.
-- If `AGENTS.md` does not exist, create it with a concise project agent guide and the LLM Wiki section from `Templates.md`.
-- If it exists, preserve every existing rule unless James explicitly approves removal.
+- Read the target file before editing it.
+- If the target file does not exist and is the chosen default, create it with a concise project agent guide and the LLM Wiki section from `Templates.md`.
+- If the target file exists, preserve every existing rule unless James explicitly approves removal.
 - Prefer a light reorganization over a rewrite.
 - Do not duplicate existing sections.
 - Keep the LLM Wiki section operational, not philosophical.
 
 ## Procedure
 
+Run these steps once per target file (`AGENTS.md`, `CLAUDE.md`):
+
 1. Identify existing sections and project-specific rules.
 2. Determine whether a `LLM Wiki` section already exists.
 3. If absent, insert the section after project overview/editing conventions if present; otherwise append it near the end.
 4. If present, update it to include directories, required files, wiki-first project search, session update, ingest, query, promotion, and lint workflows.
-5. Preserve local style: heading levels, tone, and path formatting. Remap the template's `##` and `###` heading depths to fit the surrounding `AGENTS.md` hierarchy instead of pasting them verbatim when that would break structure.
+5. Preserve local style: heading levels, tone, and path formatting. Remap the template's `##` and `###` heading depths to fit the surrounding file's hierarchy instead of pasting them verbatim when that would break structure.
 6. Verify no existing non-wiki instruction was removed.
+7. If both files were updated, diff the resulting LLM Wiki sections and reconcile any wording drift.
 
 ## Required Content
 
-The final `AGENTS.md` must mention:
+Each updated file (`AGENTS.md` and/or `CLAUDE.md`) must mention:
 
 - `wiki/raw/` is immutable.
 - `wiki/candidates/` is the review gate.

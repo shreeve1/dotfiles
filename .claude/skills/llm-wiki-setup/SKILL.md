@@ -12,7 +12,7 @@ Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable
 | Trigger | Workflow |
 |---------|----------|
 | setup LLM Wiki, create project wiki, initialize wiki | `Workflows/Setup.md` |
-| refactor AGENTS.md for wiki, add wiki instructions | `Workflows/RefactorAgents.md` |
+| refactor AGENTS.md or CLAUDE.md for wiki, add wiki instructions | `Workflows/RefactorAgents.md` |
 | ingest source, process raw document | `Workflows/Ingest.md` |
 | ask/query wiki, save answer to wiki | `Workflows/Query.md` |
 | lint wiki, health-check knowledge base | `Workflows/Lint.md` |
@@ -26,7 +26,7 @@ Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable
 - Claim provenance: required for factual claims as a skill extension
 - Routing file: `wiki/ROUTING.md` as a skill extension
 - Search tooling: document optional local search; do not install without explicit approval
-- `AGENTS.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules
+- `AGENTS.md` and `CLAUDE.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules to whichever exist; if neither exists, default to creating `AGENTS.md`
 - Post-setup ingestion handoff: perform the first approved ingest when sources are named, otherwise suggest a prioritized ingest shortlist
 
 ## Required Interview
@@ -43,8 +43,9 @@ Use the defaults above when James says to proceed without more customization.
 
 ## Execution Rules
 
-- Read the target project's existing `AGENTS.md` before modifying it.
-- Never delete existing `AGENTS.md` rules; preserve and reorganize only when it improves clarity.
+- Read the target project's existing `AGENTS.md` and `CLAUDE.md` before modifying them.
+- Never delete existing `AGENTS.md` or `CLAUDE.md` rules; preserve and reorganize only when it improves clarity.
+- If both `AGENTS.md` and `CLAUDE.md` exist, update both with the LLM Wiki section; keep wording consistent across the two files.
 - Treat `wiki/raw/` as immutable source-of-truth input.
 - Generated wiki pages must cite raw sources or existing wiki pages.
 - New pages and risky updates go through `wiki/candidates/` first.

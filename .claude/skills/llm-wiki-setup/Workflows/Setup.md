@@ -16,7 +16,7 @@ Ask only for missing information. Defaults are:
 - Claims: enabled via `wiki/CLAIMS.md` as a skill extension
 - Routing: enabled via `wiki/ROUTING.md` as a skill extension
 - Optional search tooling: document only
-- `AGENTS.md`: preserve existing rules, refactor lightly, add LLM Wiki section
+- `AGENTS.md` and `CLAUDE.md`: preserve existing rules in whichever files exist, refactor lightly, add LLM Wiki section
 
 Required questions when not already answered:
 
@@ -31,6 +31,7 @@ Required questions when not already answered:
 Before editing, read:
 
 - Existing `AGENTS.md` if present.
+- Existing `CLAUDE.md` if present.
 - Existing `wiki/` if present.
 - Project README or equivalent top-level docs if present.
 
@@ -80,9 +81,9 @@ Ask how raw sources should be handled in git:
 
 Do not edit `.gitignore` without explicit confirmation of the raw-source policy.
 
-## 6. Refactor AGENTS.md
+## 6. Refactor AGENTS.md and CLAUDE.md
 
-Run `Workflows/RefactorAgents.md`.
+Run `Workflows/RefactorAgents.md` against each of `AGENTS.md` and `CLAUDE.md` that exists at the project root. If neither exists, create `AGENTS.md` by default; ask before also creating `CLAUDE.md`.
 
 ## 7. Verify
 
@@ -91,7 +92,7 @@ Verify with exact probes:
 - `wiki/` directory exists.
 - All required subdirectories exist.
 - All required core files exist.
-- `AGENTS.md` contains an `LLM Wiki` section.
+- Each of `AGENTS.md` and `CLAUDE.md` that exists contains an `LLM Wiki` section.
 - `wiki/log.md` contains a setup entry.
 - Existing unrelated `wiki/` content was not overwritten.
 
