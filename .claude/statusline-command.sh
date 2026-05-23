@@ -8,7 +8,6 @@ input=$(cat)
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 remaining_pct=$(echo "$input" | jq -r '.context_window.remaining_percentage // empty')
 ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // empty')
-input_tokens=$(echo "$input" | jq -r '.context_window.current_usage.input_tokens // empty')
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // empty')
 
 # Shorten cwd: replace $HOME with ~, truncate to last 2 path segments if long
@@ -21,7 +20,7 @@ if [ "$seg_count" -gt 2 ]; then
 fi
 
 # If no usage data yet, show just cwd
-if [ -z "$used_pct" ] || [ -z "$input_tokens" ]; then
+if [ -z "$used_pct" ] || [ -z "$ctx_size" ]; then
   printf "%s" "$cwd"
   exit 0
 fi
@@ -30,21 +29,27 @@ fi
 used_int=$(printf "%.0f" "$used_pct")
 remaining_int=$(printf "%.0f" "$remaining_pct")
 
-# Format token counts (K suffix)
+# Derive used tokens from percentage — current_usage.input_tokens is only the
+# latest turn's input, not the cumulative context size.
+used_tokens=$(echo "($ctx_size * $used_pct + 50) / 100" | bc)
+
+# Format token counts (K / M suffix)
 fmt_tokens() {
   local n="$1"
-  if [ "$n" -ge 1000 ]; then
+  if [ "$n" -ge 1000000 ]; then
+    printf "%.1fM" "$(echo "scale=1; $n / 1000000" | bc)"
+  elif [ "$n" -ge 1000 ]; then
     printf "%.1fK" "$(echo "scale=1; $n / 1000" | bc)"
   else
     printf "%d" "$n"
   fi
 }
-used_fmt=$(fmt_tokens "$input_tokens")
+used_fmt=$(fmt_tokens "$used_tokens")
 ctx_fmt=$(fmt_tokens "$ctx_size")
 
-# Build progress bar (10 chars wide using block chars)
+# Build progress bar (10 chars wide using block chars) — round instead of floor
 bar_width=10
-filled=$(echo "$used_pct * $bar_width / 100" | bc)
+filled=$(echo "($used_pct * $bar_width + 50) / 100" | bc)
 [ "$filled" -gt "$bar_width" ] && filled=$bar_width
 empty=$(( bar_width - filled ))
 bar=""
