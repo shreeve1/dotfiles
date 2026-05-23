@@ -129,9 +129,9 @@ tags: []
 ---
 ```
 
-## AGENTS.md Section
+## Agent Instructions Section
 
-Adapt heading levels to the target project's existing `AGENTS.md` structure. The `##` and `###` headings below are defaults, not mandatory depths.
+Adapt heading levels to the target project's existing `CLAUDE.md` or `AGENTS.md` structure. The `##` and `###` headings below are defaults, not mandatory depths.
 
 ```markdown
 ## LLM Wiki

@@ -1,18 +1,18 @@
 ---
 name: llm-wiki-setup
-description: LLM Wiki project setup and maintenance. USE WHEN set up LLM wiki, initialize project knowledge base, compile project knowledge, ingest wiki source, query wiki memory, lint wiki, promote candidate page, or refactor AGENTS.md with wiki workflows.
+description: LLM Wiki project setup and maintenance. USE WHEN set up LLM wiki, initialize project knowledge base, compile project knowledge, ingest wiki source, query wiki memory, lint wiki, promote candidate page, or refactor CLAUDE.md with wiki workflows.
 ---
 
 # LLM Wiki Setup
 
-Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable raw sources, LLM-maintained Markdown wiki, persistent index/log files, project `AGENTS.md` workflow integration, plus default implementation extensions for routing, claim provenance, and candidate review gates.
+Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable raw sources, LLM-maintained Markdown wiki, persistent index/log files, project `CLAUDE.md` workflow integration, plus default implementation extensions for routing, claim provenance, and candidate review gates.
 
 ## Workflow Routing
 
 | Trigger | Workflow |
 |---------|----------|
 | setup LLM Wiki, create project wiki, initialize wiki | `Workflows/Setup.md` |
-| refactor AGENTS.md or CLAUDE.md for wiki, add wiki instructions | `Workflows/RefactorAgents.md` |
+| refactor CLAUDE.md or AGENTS.md for wiki, add wiki instructions | `Workflows/RefactorAgents.md` |
 | ingest source, process raw document | `Workflows/Ingest.md` |
 | ask/query wiki, save answer to wiki | `Workflows/Query.md` |
 | lint wiki, health-check knowledge base | `Workflows/Lint.md` |
@@ -26,7 +26,7 @@ Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable
 - Claim provenance: required for factual claims as a skill extension
 - Routing file: `wiki/ROUTING.md` as a skill extension
 - Search tooling: document optional local search; do not install without explicit approval
-- `AGENTS.md` and `CLAUDE.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules to whichever exist; if neither exists, default to creating `AGENTS.md`
+- `CLAUDE.md` and `AGENTS.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules to whichever exist; if neither exists, default to creating `CLAUDE.md`
 - Post-setup ingestion handoff: perform the first approved ingest when sources are named, otherwise suggest a prioritized ingest shortlist
 
 ## Required Interview
@@ -43,9 +43,9 @@ Use the defaults above when James says to proceed without more customization.
 
 ## Execution Rules
 
-- Read the target project's existing `AGENTS.md` and `CLAUDE.md` before modifying them.
+- Read the target project's existing `CLAUDE.md` and `AGENTS.md` before modifying them.
 - Never delete existing `AGENTS.md` or `CLAUDE.md` rules; preserve and reorganize only when it improves clarity.
-- If both `AGENTS.md` and `CLAUDE.md` exist, update both with the LLM Wiki section; keep wording consistent across the two files.
+- If both `CLAUDE.md` and `AGENTS.md` exist, update both with the LLM Wiki section; keep wording consistent across the two files. Do not create a new `AGENTS.md` when `CLAUDE.md` exists.
 - Treat `wiki/raw/` as immutable source-of-truth input.
 - Generated wiki pages must cite raw sources or existing wiki pages.
 - New pages and risky updates go through `wiki/candidates/` first.
@@ -59,4 +59,4 @@ Use the defaults above when James says to proceed without more customization.
 ## Context Files
 
 - Architecture and file contracts: `Architecture.md`
-- Page and AGENTS.md templates: `Templates.md`
+- Page and agent-instruction templates: `Templates.md`

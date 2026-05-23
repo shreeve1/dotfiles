@@ -133,10 +133,10 @@ link_path ".config/zellij" ".config/zellij"
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)
-#   - AGENTS.md              (symlink → ~/.claude/CLAUDE.md, canonical guidance)
 #   - plugins/               (tokenjuice, caveman, etc.)
-#   - commands/              (OpenCode-only slash command wrappers)
-# Canonical shared skills now live under ~/.claude/skills/ (linked below).
+#   - archive/               (retired OpenCode commands/agents/skills)
+# OpenCode loads canonical guidance from ~/.claude/CLAUDE.md via instructions[].
+# Canonical shared skills live under ~/.claude/skills/ (linked below).
 # OpenCode auto-discovers them unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1.
 link_path ".config/opencode" ".config/opencode"
 
@@ -193,8 +193,8 @@ if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules
 fi
 
 # ─── Claude Code ───────────────────────────────────────────
-# Optional: skip this whole block on machines that do not use Claude Code.
-# Set INSTALL_CLAUDE_CODE=0 to skip. OpenCode does not depend on these paths.
+# Optional: skip this whole block only when ~/.claude is managed separately.
+# OpenCode also reads ~/.claude/CLAUDE.md and ~/.claude/skills through this setup.
 if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   # Core files
   link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
@@ -202,7 +202,7 @@ if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
   link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
 
-  # Commands (kept for any project-local compatibility wrappers)
+  # Canonical Claude Code slash commands.
   link_path ".claude/commands" ".claude/commands"
 
   # Canonical shared skills — read by Claude Code natively and by OpenCode
@@ -247,5 +247,5 @@ done
 #        # 401 with "Missing API key" means reachable; configure auth as needed
 #
 #   b. Plugin registration:
-#        opencode debug config | grep caveman
-#        # Should show the caveman plugin if enabled.
+#        node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); console.log(c.plugin.includes('./plugins/caveman/plugin.js'))"
+#        # Should print true if the caveman plugin is enabled.

@@ -106,7 +106,7 @@ timestamp  commit  mutation_id  score_avg  passed  probe_scores  cost  status  d
 - `Adapters/temporal.yaml` — Temporal workflows + schedules via `temporal` CLI
 - `Adapters/generic-cli.yaml` — any system where you can write a shell command that returns a score
 
-`Adapters/` is a skill-local convention introduced here; the OpenCode skill system does not standardize it. Future skills may or may not use the same layout.
+`Adapters/` is a skill-local convention introduced here; host skill systems do not standardize it. Future skills may or may not use the same layout.
 
 ## References
 

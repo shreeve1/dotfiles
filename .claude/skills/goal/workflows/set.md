@@ -1,6 +1,6 @@
 # Workflow: set
 
-Interview the user to produce a complete `GOAL.md` contract, then write it to `.opencode/state/goals/<name>/`.
+Interview the user to produce a complete `GOAL.md` contract, then write it to `.claude/state/goals/<name>/`.
 
 ## 1. Precheck and pick a name
 
@@ -9,8 +9,8 @@ Interview the user to produce a complete `GOAL.md` contract, then write it to `.
 Before creating a new goal, list any existing active goals:
 
 ```bash
-mkdir -p .opencode/state/goals
-for d in .opencode/state/goals/*/; do
+mkdir -p .claude/state/goals
+for d in .claude/state/goals/*/; do
   [ -d "$d" ] || continue
   [ "$(basename "$d")" = "_archive" ] && continue
   status=$(grep -m1 '^\*\*Status:\*\*' "$d/GOAL.md" 2>/dev/null | sed 's/.*Status:\*\* //;s/ .*//')
@@ -34,7 +34,7 @@ Ask the user for a short slug for the goal (e.g. `expo-migration`, `eval-pass-ra
 GOAL_NAME="<slug>"
 # Validate slug
 echo "$GOAL_NAME" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' || { echo "invalid slug"; exit 1; }
-GOAL_DIR=".opencode/state/goals/$GOAL_NAME"
+GOAL_DIR=".claude/state/goals/$GOAL_NAME"
 mkdir -p "$GOAL_DIR"
 ```
 
@@ -152,9 +152,9 @@ If the user opted in to the baseline run in §3a:
 
 ```bash
 if [ -f .gitignore ]; then
-  grep -q '^\.opencode/state/' .gitignore || echo '.opencode/state/' >> .gitignore
+  grep -q '^\.claude/state/' .gitignore || echo '.claude/state/' >> .gitignore
 else
-  echo '.opencode/state/' > .gitignore
+  echo '.claude/state/' > .gitignore
 fi
 ```
 
@@ -166,8 +166,8 @@ Show the user the final `GOAL.md`. Ask whether to start working now (run **work*
 
 ```
 Goal set: <name>
-Contract: .opencode/state/goals/<name>/GOAL.md
-Progress: .opencode/state/goals/<name>/PROGRESS.md
+Contract: .claude/state/goals/<name>/GOAL.md
+Progress: .claude/state/goals/<name>/PROGRESS.md
 Stopping condition: <one-line>
 Validation: <command>
 

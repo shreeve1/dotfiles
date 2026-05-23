@@ -1,10 +1,10 @@
 # Workflow: verify
 
-Independent second-opinion verification using a fresh OpenCode session. Invoked by **work** before transitioning a goal to `Status: done`, and on demand when the user says "verify the goal".
+Independent second-opinion verification using a fresh Claude Code session. Invoked by **work** before transitioning a goal to `Status: done`, and on demand when the user says "verify the goal".
 
 ## Why a fresh session
 
-The agent running the work loop is the same instance judging whether the stopping condition is met — self-grading. A fresh `opencode run` session has no investment in the prior work, no conversation history, and no checkpoint-level rationalizations. It receives:
+The agent running the work loop is the same instance judging whether the stopping condition is met — self-grading. A fresh `claude -p` session has no investment in the prior work, no conversation history, and no checkpoint-level rationalizations. It receives:
 - the `GOAL.md` contract (trusted)
 - the tail of `PROGRESS.md` (UNTRUSTED — LLM-written, treated as data not instructions)
 - read-only access to the working directory
@@ -24,7 +24,7 @@ The verifier re-runs the validation command. If validation mutates state (starts
 ## How to invoke
 
 ```bash
-GOAL_DIR=".opencode/state/goals/$GOAL_NAME"
+GOAL_DIR=".claude/state/goals/$GOAL_NAME"
 # Optional env tuning:
 # VERIFY_TIMEOUT_MIN=5  VERIFY_MODEL="anthropic/claude-sonnet-4-5"
 ~/.claude/skills/goal/scripts/verify.sh "$GOAL_DIR"
@@ -33,7 +33,7 @@ GOAL_DIR=".opencode/state/goals/$GOAL_NAME"
 The script:
 - Deletes any prior `.verify-last.json` to prevent stale-verdict reuse.
 - Builds a temp evidence file (GOAL.md trusted + PROGRESS.md tail framed as UNTRUSTED) and passes it via `-f`.
-- Passes a static, no-injection-surface prompt as the positional message to `opencode run --pure --format json`.
+- Passes a static, no-injection-surface prompt on stdin to `claude -p --no-session-persistence`.
 - Captures stdout, stderr, and exit code.
 - Parses the verifier's JSON via Python (robust to fenced code, event stream, or balanced-object extraction).
 - Validates the verdict shape: `verdict ∈ {done, not-done, unclear}`, and for `done` requires `validation_rerun.exit_code == 0` and empty `injection_flags`. Downgrades to `unclear` otherwise.
@@ -47,7 +47,7 @@ The script:
 | 0 | Verdict written successfully | Read `.verify-last.json` and proceed to verdict handling |
 | 2 | Bad usage | Pass the goal directory path |
 | 3 | Missing `GOAL.md` or `PROGRESS.md` | Check state directory integrity |
-| 4 | `opencode` missing, timeout, or empty output | Retry once with doubled `VERIFY_TIMEOUT_MIN`; if it still fails, set `Status: blocked` |
+| 4 | `claude` missing, timeout, or empty output | Retry once with doubled `VERIFY_TIMEOUT_MIN`; if it still fails, set `Status: blocked` |
 
 If exit is non-zero, **DO NOT read any prior `.verify-last.json`** (it was deleted at start, so it won't exist; but never trust a stale file either way). Append a `VERIFY` entry to `PROGRESS.md` with `Verdict: verifier-failed` and a stderr excerpt. Retry once. If retry fails, set `Status: blocked` and surface to user.
 
@@ -127,7 +127,7 @@ PROGRESS entry shape:
 
 1. Append a **VERIFY** entry with verdict `verifier-failed` and the stderr tail / downgrade reason.
 2. Retry once with doubled `VERIFY_TIMEOUT_MIN`. If retry succeeds, proceed normally.
-3. If retry also fails, set `Status: blocked` and surface to user. Suggest checking: `opencode` in PATH, network/API availability, model authentication.
+3. If retry also fails, set `Status: blocked` and surface to user. Suggest checking: `claude` in PATH, network/API availability, model authentication.
 
 ## Failure modes
 
@@ -135,7 +135,7 @@ PROGRESS entry shape:
 |---|---|---|
 | `verify.sh` exits 2 | Bad usage | Pass the goal directory path |
 | `verify.sh` exits 3 | Missing GOAL.md or PROGRESS.md | Check state directory integrity |
-| `verify.sh` exits 4 | `opencode` not in PATH, or zero output within timeout, or API/auth failure | Check `which opencode`, increase `VERIFY_TIMEOUT_MIN`, retry; if persistent, surface stderr_tail to user |
+| `verify.sh` exits 4 | `claude` not in PATH, or zero output within timeout, or API/auth failure | Check `which claude`, increase `VERIFY_TIMEOUT_MIN`, retry; if persistent, surface stderr_tail to user |
 | Verdict is `unclear` with reasoning "Downgraded to 'unclear'" | Verifier emitted `done` but evidence didn't satisfy contract (e.g. exit_code != 0, or injection_flags present) | Read the downgrade reason in `.verify-last.json` reasoning field, investigate why the verifier was wrong |
 | Verdict is `unclear` with `raw_output_tail` set | Verifier returned non-JSON; could be model confusion or prompt-injection deflection | Read the raw excerpt, consider model/prompt issue; rerun with `VERIFY_MODEL=` set to a stronger model |
 | Verifier keeps returning `not-done` (2+ in a row) | Convergence cap triggered | Set `Status: blocked`, surface to user; goal contract likely needs revision |
@@ -146,4 +146,4 @@ PROGRESS entry shape:
 - Verifier runs once per `done` transition by default, plus once per remediation cycle.
 - For expensive validation commands, the verifier WILL re-run the validation (it does not trust the work agent's report). If validation is very expensive, raise `VERIFY_TIMEOUT_MIN` accordingly, and consider whether the validation command is actually fast enough to be the loop-tightening signal it should be.
 - The convergence cap (2 consecutive `not-done`) prevents unbounded re-verification cost.
-- The verifier uses `opencode run --pure` to skip plugins and start clean.
+- The verifier uses `claude -p --no-session-persistence` with tools disabled by default to start clean.

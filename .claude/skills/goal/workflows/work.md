@@ -5,7 +5,7 @@ Execute the autonomous loop against an active goal.
 ## 1. Load state
 
 ```bash
-ls .opencode/state/goals/
+ls .claude/state/goals/
 ```
 
 Determine which goal to work on:
@@ -66,7 +66,7 @@ Two special entry types use a different shape (see [../templates/PROGRESS.md](..
 
 Evaluate against the stopping condition in `GOAL.md`:
 
-- **Stopping condition appears met** → DO NOT set `Status: done` directly. Run the **verify** workflow ([verify.md](verify.md)). The verifier spawns a fresh OpenCode session, re-runs validation independently, and returns a structured verdict in `<goal_dir>/.verify-last.json`. Handle the outcome in this order:
+- **Stopping condition appears met** → DO NOT set `Status: done` directly. Run the **verify** workflow ([verify.md](verify.md)). The verifier spawns a fresh Claude Code session, re-runs validation independently, and returns a structured verdict in `<goal_dir>/.verify-last.json`. Handle the outcome in this order:
   1. **Check the script's exit code first.** If `scripts/verify.sh` exited non-zero (2/3/4), the verifier itself failed — DO NOT read any prior `.verify-last.json`. Append a `VERIFY` entry with `Verdict: verifier-failed` and the script's stderr. Retry **once** with a doubled `VERIFY_TIMEOUT_MIN`. If the retry also fails, set `Status: blocked` and surface to user.
   2. **Validate the verdict file.** If the script exited 0, read `.verify-last.json`. Require: `goal_hash` matches the current sha256 of `GOAL.md`, `timestamp` is newer than the most recent attempt entry in `PROGRESS.md`, and `verdict` is one of `done | not-done | unclear`. If any check fails, treat as `verifier-failed` per step 1.
   3. **Act on the verdict** (always: write the VERIFY entry to `PROGRESS.md` BEFORE changing `Status:` — preserve the audit trail if a crash interrupts the status update):

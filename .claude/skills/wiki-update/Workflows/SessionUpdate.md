@@ -15,6 +15,7 @@ Read the project wiki contract before writing:
 - `wiki/ROUTING.md`
 - `wiki/CLAIMS.md`
 - `wiki/log.md`
+- Project `CLAUDE.md` if present
 - Project `AGENTS.md` if present
 
 If the core files are missing, stop and recommend `/llm-wiki-setup`. Do not create an ad hoc wiki from this workflow.

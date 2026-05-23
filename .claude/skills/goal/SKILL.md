@@ -7,7 +7,7 @@ description: Set a durable objective the agent works toward across many turns, w
 
 Run a long-running goal: one objective, one stopping condition, validated by a concrete command, with a checkpoint-based progress log. The agent keeps working across turns until the stopping condition is met, the agent is blocked, or the user pauses.
 
-State lives under `.opencode/state/goals/<name>/`:
+State lives under `.claude/state/goals/<name>/`:
 - `GOAL.md` — the contract (objective, stopping condition, out-of-scope, validation command, status)
 - `PROGRESS.md` — checkpoint log (append-only)
 
@@ -81,10 +81,10 @@ The agent should keep going on its own. It surfaces a status to the user only at
 
 ## Independent verification
 
-The agent running the loop is the same instance judging whether the stopping condition is met — self-grading. To break that loop, `goal` spawns a **fresh OpenCode session** as an independent verifier before any transition to `Status: done`.
+The agent running the loop is the same instance judging whether the stopping condition is met — self-grading. To break that loop, `goal` spawns a **fresh Claude Code session** as an independent verifier before any transition to `Status: done`.
 
 The verifier:
-- Runs in a clean context with `opencode run --pure` — no prior conversation, no checkpoint-level rationalizations.
+- Runs in a clean context with `claude -p --no-session-persistence` — no prior conversation, no checkpoint-level rationalizations.
 - Receives `GOAL.md` (trusted) plus the tail of `PROGRESS.md` (UNTRUSTED — labeled and framed as data, not instructions, to defend against prompt injection from a misbehaving work agent).
 - Re-runs the validation command itself (does not trust the work agent's report). The validation command MUST be read-only / idempotent for the verifier to be used.
 - Returns a structured verdict: `done`, `not-done`, or `unclear`, with reasoning, evidence, validation rerun result, and `injection_flags`.
@@ -135,9 +135,9 @@ GOAL_NAME="<slug>"
 # Allow only lowercase-kebab-case slug: a-z, 0-9, -; no leading/trailing/double dashes; no slashes or dots.
 echo "$GOAL_NAME" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' || { echo "ERROR: invalid slug '$GOAL_NAME'"; exit 1; }
 
-GOAL_DIR=".opencode/state/goals/$GOAL_NAME"
+GOAL_DIR=".claude/state/goals/$GOAL_NAME"
 # Resolve and confirm the directory is a direct child of the goals root.
-PARENT="$(cd .opencode/state/goals 2>/dev/null && pwd)"
+PARENT="$(cd .claude/state/goals 2>/dev/null && pwd)"
 RESOLVED="$(cd "$GOAL_DIR" 2>/dev/null && pwd)"
 [ -z "$PARENT" ] || [ -z "$RESOLVED" ] && { echo "ERROR: cannot resolve paths"; exit 1; }
 [ "$(dirname "$RESOLVED")" = "$PARENT" ] || { echo "ERROR: $GOAL_DIR is not a direct child of $PARENT"; exit 1; }
@@ -156,8 +156,8 @@ Archive preserves goal state for reference instead of deleting. Use this for com
 ```bash
 GOAL_NAME="<slug>"
 # Same slug validation as clear (above).
-mkdir -p .opencode/state/goals/_archive
-mv -- ".opencode/state/goals/$GOAL_NAME" ".opencode/state/goals/_archive/$GOAL_NAME"
+mkdir -p .claude/state/goals/_archive
+mv -- ".claude/state/goals/$GOAL_NAME" ".claude/state/goals/_archive/$GOAL_NAME"
 ```
 
 Archived goals are excluded from `status` and from active-goal counts. They are not loaded by **work**.
@@ -167,7 +167,7 @@ Archived goals are excluded from `status` and from active-goal counts. They are 
 ## Locating the active goal
 
 ```bash
-ls .opencode/state/goals/ 2>/dev/null | grep -v '^_archive$'
+ls .claude/state/goals/ 2>/dev/null | grep -v '^_archive$'
 ```
 
 If multiple goals exist, the active one is whichever has `Status: active` in its `GOAL.md`. **By default, only one goal may be active at a time.** The `set` workflow precheck (set.md §1) blocks creating a new active goal if one already exists — the user must pause, finish, abandon the existing one, or explicitly opt in to parallel active goals.

@@ -1,15 +1,15 @@
-# Refactor AGENTS.md / CLAUDE.md Workflow
+# Refactor CLAUDE.md / AGENTS.md Workflow
 
-Use this workflow to add project-local LLM Wiki operating rules to the project's agent-instruction files (`AGENTS.md` and/or `CLAUDE.md`) while preserving existing instructions.
+Use this workflow to add project-local LLM Wiki operating rules to the project's agent-instruction files (`CLAUDE.md` and/or `AGENTS.md`) while preserving existing instructions.
 
 ## Target Files
 
 Apply this workflow to each of the following that exists at the project root:
 
-- `AGENTS.md`
 - `CLAUDE.md`
+- `AGENTS.md`
 
-If both exist, update both and keep the LLM Wiki section wording consistent between them. If neither exists, create `AGENTS.md` by default; ask before also creating `CLAUDE.md`.
+If both exist, update both and keep the LLM Wiki section wording consistent between them. If neither exists, create `CLAUDE.md` by default; ask before also creating `AGENTS.md`.
 
 ## Rules
 
@@ -22,7 +22,7 @@ If both exist, update both and keep the LLM Wiki section wording consistent betw
 
 ## Procedure
 
-Run these steps once per target file (`AGENTS.md`, `CLAUDE.md`):
+Run these steps once per target file (`CLAUDE.md`, `AGENTS.md`):
 
 1. Identify existing sections and project-specific rules.
 2. Determine whether a `LLM Wiki` section already exists.
@@ -34,7 +34,7 @@ Run these steps once per target file (`AGENTS.md`, `CLAUDE.md`):
 
 ## Required Content
 
-Each updated file (`AGENTS.md` and/or `CLAUDE.md`) must mention:
+Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention:
 
 - `wiki/raw/` is immutable.
 - `wiki/candidates/` is the review gate.

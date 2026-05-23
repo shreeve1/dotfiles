@@ -1,6 +1,6 @@
 ---
 name: Review
-description: Independent code review — gathers context, runs a fresh OpenCode reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review` skill.
+description: Independent code review — gathers context, runs a fresh Claude Code reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review` skill.
 ---
 
 ## Routing
@@ -30,7 +30,7 @@ There is no longer a separate Development/Review workflow. The Development pack'
 User: "Review src/services/user.ts"
 -> Loads dev-review skill
 -> Target = file path
--> Fresh opencode session reviews; findings discussed interactively
+-> Fresh Claude Code session reviews; findings discussed interactively
 ```
 
 **Example 2: Review the current plan for gaps**
@@ -38,7 +38,7 @@ User: "Review src/services/user.ts"
 User: "Review the plan for gaps"
 -> Loads dev-review skill
 -> Target = plan (or context)
--> Fresh opencode session reviews; findings discussed interactively
+-> Fresh Claude Code session reviews; findings discussed interactively
 ```
 
 **Example 3: Review uncommitted changes**
@@ -46,5 +46,5 @@ User: "Review the plan for gaps"
 User: "Review the build"
 -> Loads dev-review skill
 -> Target = build (git diff)
--> Fresh opencode session reviews; findings discussed interactively
+-> Fresh Claude Code session reviews; findings discussed interactively
 ```

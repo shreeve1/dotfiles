@@ -16,7 +16,7 @@ Ask only for missing information. Defaults are:
 - Claims: enabled via `wiki/CLAIMS.md` as a skill extension
 - Routing: enabled via `wiki/ROUTING.md` as a skill extension
 - Optional search tooling: document only
-- `AGENTS.md` and `CLAUDE.md`: preserve existing rules in whichever files exist, refactor lightly, add LLM Wiki section
+- `CLAUDE.md` and `AGENTS.md`: preserve existing rules in whichever files exist, refactor lightly, add LLM Wiki section
 
 Required questions when not already answered:
 
@@ -30,8 +30,8 @@ Required questions when not already answered:
 
 Before editing, read:
 
-- Existing `AGENTS.md` if present.
 - Existing `CLAUDE.md` if present.
+- Existing `AGENTS.md` if present.
 - Existing `wiki/` if present.
 - Project README or equivalent top-level docs if present.
 
@@ -81,9 +81,9 @@ Ask how raw sources should be handled in git:
 
 Do not edit `.gitignore` without explicit confirmation of the raw-source policy.
 
-## 6. Refactor AGENTS.md and CLAUDE.md
+## 6. Refactor CLAUDE.md and AGENTS.md
 
-Run `Workflows/RefactorAgents.md` against each of `AGENTS.md` and `CLAUDE.md` that exists at the project root. If neither exists, create `AGENTS.md` by default; ask before also creating `CLAUDE.md`.
+Run `Workflows/RefactorAgents.md` against each of `CLAUDE.md` and `AGENTS.md` that exists at the project root. If neither exists, create `CLAUDE.md` by default; ask before also creating or updating `AGENTS.md`.
 
 ## 7. Verify
 
@@ -92,7 +92,7 @@ Verify with exact probes:
 - `wiki/` directory exists.
 - All required subdirectories exist.
 - All required core files exist.
-- Each of `AGENTS.md` and `CLAUDE.md` that exists contains an `LLM Wiki` section.
+- Each of `CLAUDE.md` and `AGENTS.md` that exists contains an `LLM Wiki` section.
 - `wiki/log.md` contains a setup entry.
 - Existing unrelated `wiki/` content was not overwritten.
 
@@ -104,7 +104,7 @@ If James named initial sources and they are available under `wiki/raw/`, run `Wo
 
 If James named initial sources but they are not yet under `wiki/raw/`, report the exact files or source material needed and where they should be placed before ingest.
 
-If no initial sources were named, inspect the project README, existing `AGENTS.md`, and obvious project docs read during setup. Suggest a prioritized shortlist of 3-5 high-value ingest sources with why each matters. Include source paths when known.
+If no initial sources were named, inspect the project README, existing `CLAUDE.md`, existing `AGENTS.md`, and obvious project docs read during setup. Suggest a prioritized shortlist of 3-5 high-value ingest sources with why each matters. Include source paths when known.
 
 Do not auto-ingest the whole repository. Prefer source documents and stable project guides before code files. Ask before ingesting large, binary, generated, private, or ambiguous material.
 

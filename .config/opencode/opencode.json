@@ -1,5 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "~/.claude/CLAUDE.md"
+  ],
   "small_model": "cliproxy/claude-haiku-4-5-20251001",
   "agent": {
     "build": {

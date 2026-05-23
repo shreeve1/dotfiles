@@ -43,7 +43,7 @@ Wiki pages:
 
 Schema and operating rules:
 
-- Live in project `AGENTS.md` under an `LLM Wiki` section.
+- Live in project `CLAUDE.md` under an `LLM Wiki` section; mirror into `AGENTS.md` only if that file already exists.
 - Define ingest, query, lint, and promotion workflows for future agents.
 - Must be kept short enough to remain useful in every session.
 
