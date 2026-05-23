@@ -1,11 +1,11 @@
 ---
 name: dev-review
-description: Independent code review using a fresh OpenCode session as the reviewer. USE WHEN user says "dev-review", "/dev-review", "independent review", or wants a second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--gpt` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
+description: Independent code review using a fresh Claude Code session as the reviewer. USE WHEN user says "dev-review", "/dev-review", "independent review", or wants a second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--opus` / `--sonnet` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
 ---
 
-# Dev Review (OpenCode-Powered)
+# Dev Review (Claude Code-Powered)
 
-Independent review using a fresh OpenCode session as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, and sends a structured brief to a separate `opencode run` invocation. The reviewer session runs with `--dangerously-skip-permissions` so it has fully open read access to the project. Results are discussed interactively before any changes are applied.
+Independent review using a fresh Claude Code session as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, and sends a structured brief to a separate `claude -p` invocation. The reviewer receives a bounded brief on stdin with tools disabled by default so the review stays independent and read-only. Results are discussed interactively before any changes are applied.
 
 This skill is the single source of truth for `dev-review`. The `/dev-review` slash command and the Development pack's Review sub-skill both route here.
 
@@ -19,10 +19,10 @@ TARGET: $1 — (Optional) One of:
 - Omitted — extract the review target from conversation context (file paths, plans, diffs, OR inline proposals). Default behaviour: review the current plan/context for gaps.
 
 REVIEWER_MODEL_ARGS: Optional reviewer model selector array from the raw arguments:
-- `--claude` — set to `("--model" "cliproxy/claude-opus-4-7")`
-- `--gpt` — set to `("--model" "openai/gpt-5.5")`
+- `--claude` or `--opus` — set to `("--model" "opus")`
+- `--sonnet` — set to `("--model" "sonnet")`
 - Omitted — use an empty array and preserve the current default reviewer model behaviour
-- Both flags present — ask the user to choose one before running the reviewer
+- Multiple model flags present — ask the user to choose one before running the reviewer
 
 ## Checklist
 
@@ -32,7 +32,7 @@ You MUST create a task for each of these items and complete them in order:
 2. **Verify target with user** — confirm scope before sending to the reviewer
 3. **Gather surrounding context** — read related files, conventions, plans
 4. **Build review brief** — assemble structured context document
-5. **Run OpenCode review** — execute `opencode run` in a fresh session with open permissions
+5. **Run Claude Code review** — execute `claude -p` in a fresh session with a bounded review prompt
 6. **Present and discuss findings** — parse reviewer output, discuss interactively
 7. **Apply agreed changes** — implement only what the user agrees on
 
@@ -40,7 +40,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context the reviewer receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
-- **Reviewer runs in a fresh OpenCode session.** Use `opencode run` without `--continue` or `--session`. Pass `--dangerously-skip-permissions` so the reviewer can read related files without prompts; this matches the user's global `"*": "allow"` posture. The reviewer is instructed to be read-only — applying changes happens back in the primary session.
+- **Reviewer runs in a fresh Claude Code session.** Use `claude -p --no-session-persistence` with prompt content on stdin. Disable tools by default with `--tools ""`; the brief must include the needed context. The reviewer is instructed to be read-only — applying changes happens back in the primary session.
 - **Present reviewer findings faithfully.** Don't soften or reinterpret. Show what the reviewer actually said, then add your own assessment separately.
 - **Flag disagreements.** Where the primary agent and the reviewer disagree — that's where the interesting discussion lives.
 
@@ -51,10 +51,11 @@ You MUST create a task for each of these items and complete them in order:
 1. **Extract Review Target**
 
    First parse model selector flags from the raw arguments:
-   - If `--claude` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "cliproxy/claude-opus-4-7")`
-   - If `--gpt` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "openai/gpt-5.5")`
-   - If both are present, ask the user which reviewer model to use and stop until they answer
-   - Remove `--claude` and `--gpt` from the argument string before interpreting TARGET
+   - If `--claude` or `--opus` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "opus")`
+   - If `--sonnet` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "sonnet")`
+   - If `--gpt` is present, explain that this Claude-first skill no longer routes through OpenCode; ask the user to choose `--opus` or `--sonnet`
+   - If multiple model flags are present, ask the user which reviewer model to use and stop until they answer
+   - Remove model flags from the argument string before interpreting TARGET
 
    Scan the conversation context for:
    - File paths that were discussed, modified, or created
@@ -77,7 +78,7 @@ You MUST create a task for each of these items and complete them in order:
    Before sending to the reviewer, present what you'll review:
 
    ```
-   I'll send the following to a fresh OpenCode session for review:
+   I'll send the following to a fresh Claude Code session for review:
 
    Target: [description of what's being reviewed]
    Context files: [list of related files you'll include]
@@ -95,7 +96,7 @@ You MUST create a task for each of these items and complete them in order:
    Based on the review target, read:
 
    **Always:**
-   - Project conventions (AGENTS.md, CLAUDE.md, linting configs, tsconfig, etc.)
+   - Project conventions (CLAUDE.md, AGENTS.md if present, linting configs, tsconfig, etc.)
    - Stack detection — languages, frameworks, key dependencies
 
    **For plan / context reviews (default):**
@@ -123,7 +124,7 @@ You MUST create a task for each of these items and complete them in order:
    - Existing files the proposal would touch or interact with (if any are knowable)
    - If the proposal is purely abstract (no target codebase): skip "related code" and let the reviewer review on first principles. Note this explicitly in the brief.
 
-   **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. The reviewer can read additional files on disk via `--dir` pointing to the project root.
+   **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. If the reviewer needs more context, rebuild the brief with those files instead of enabling edit-capable tools.
 
 4. **Build Review Brief**
 
@@ -137,7 +138,7 @@ You MUST create a task for each of these items and complete them in order:
 
    ## Project Context
    - Stack: [languages, frameworks, key deps]
-   - Conventions: [naming patterns, project rules, AGENTS.md highlights]
+   - Conventions: [naming patterns, project rules, CLAUDE.md highlights]
    - Working directory: [project root path]
 
    ## What's Being Reviewed
@@ -150,7 +151,7 @@ You MUST create a task for each of these items and complete them in order:
 
    ## Review Instructions
 
-   You are an independent reviewer running in a fresh OpenCode session. You have read-only intent — DO NOT modify any files. The primary agent will apply any agreed changes later.
+   You are an independent reviewer running in a fresh Claude Code session. You have read-only intent — DO NOT modify any files. The primary agent will apply any agreed changes later.
 
    Analyze for:
    - Gaps and missing considerations
@@ -166,9 +167,9 @@ You MUST create a task for each of these items and complete them in order:
    This format is required for automated parsing. Do not use freeform paragraphs for findings.
    ```
 
-### Phase 3: Run OpenCode Reviewer
+### Phase 3: Run Claude Code Reviewer
 
-5. **Execute OpenCode Review**
+5. **Execute Claude Code Review**
 
    **Determine project root:**
    ```bash
@@ -180,49 +181,46 @@ You MUST create a task for each of these items and complete them in order:
 
    **Write the review brief to a temp file:**
    ```bash
-   REVIEW_FILE=$(mktemp /tmp/opencode-review-XXXXXX.md)
-   OUTPUT_FILE=$(mktemp /tmp/opencode-review-output-XXXXXX.txt)
+   REVIEW_FILE=$(mktemp /tmp/claude-review-XXXXXX.md)
+   OUTPUT_FILE=$(mktemp /tmp/claude-review-output-XXXXXX.txt)
    # Write the brief content to $REVIEW_FILE using the Write tool
    # NOTE: mktemp creates an empty file. If using Claude Code's Write tool, it will require a Read first.
    # Read the empty file once, then Write — or use `mktemp -u` to get a name without creating the file.
    ```
 
-   **Run the reviewer in a fresh OpenCode session with fully open permissions:**
+   **Run the reviewer in a fresh Claude Code session:**
    ```bash
-   opencode run \
+   timeout 180s claude -p \
      "${REVIEWER_MODEL_ARGS[@]}" \
-     --dangerously-skip-permissions \
-     --dir <project_dir> \
-     --format default \
-     -f "$REVIEW_FILE" \
-     -- \
-     "Read the attached review brief and produce findings in the exact format specified inside the brief. You are read-only — do not modify any files." \
+     --no-session-persistence \
+     --permission-mode bypassPermissions \
+     --system-prompt "You are a read-only independent code review tool. Follow the requested finding format exactly. Do not modify files. Do not use local house style or wrapper behavior." \
+     --tools "" \
+     < "$REVIEW_FILE" \
      > "$OUTPUT_FILE" 2>&1
    ```
 
    Notes:
-   - `--claude` maps to `--model cliproxy/claude-opus-4-7`; `--gpt` maps to `--model openai/gpt-5.5`.
+   - `--claude` and `--opus` map to `--model opus`; `--sonnet` maps to `--model sonnet`.
+   - `--gpt` is intentionally unsupported in this Claude-first workflow.
    - If neither model flag is provided, use an empty `REVIEWER_MODEL_ARGS` array and preserve the current default reviewer model behaviour.
-   - `--dangerously-skip-permissions` auto-approves permissions that are not explicitly denied. Matches the user's global `"*": "allow"` posture.
-   - `--dir` sets the working directory so the reviewer can read related files in the project.
-   - `-f "$REVIEW_FILE"` attaches the brief as a file. The `--` separator terminates option parsing so the positional message is interpreted as a message (not another file path). Without `--`, opencode treats positional tokens after `-f` as additional file arguments and errors with `File not found: <message text>`.
-   - The positional message tells the reviewer to read the attachment and follow the embedded format spec.
-   - `--format default` produces human-readable output. Use `--format json` if you want raw JSON events for stricter parsing.
-   - The session is fresh by default — do **not** pass `--continue` or `--session`. The whole point is an independent perspective.
+   - `--tools ""` keeps the reviewer bounded to the brief. If you need a broader read-only review, rebuild the brief with more context rather than giving edit-capable tools.
+   - Prompt text goes on stdin because `--tools` is variadic; do not pass the prompt as a trailing argument.
+   - The session is fresh because `--no-session-persistence` is set. The whole point is an independent perspective.
 
-   **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself (the reviewer session is fresh and has no implicit access to your shell state — but it CAN run git commands inside `--dir` if needed).
+   **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer session is fresh and intentionally has no shell tools by default.
 
    **Capture output reliably:**
    - Redirect stdout+stderr to `$OUTPUT_FILE`
-   - Set a **180-second timeout** on the Bash tool call to avoid hanging on complex reviews
-   - After execution, read the output file: `cat "$OUTPUT_FILE"`
+   - Keep the `timeout 180s` wrapper to avoid hanging on complex reviews
+   - After execution, read the output file
    - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings
 
    **Clean up both temp files after parsing:** `rm -f "$REVIEW_FILE" "$OUTPUT_FILE"`
 
    **Error handling:**
-   - If `opencode` is not on PATH: report it and ask the user to check their OpenCode install
-   - If `opencode run` errors: show the error, offer retry or primary-agent-only fallback
+   - If `claude` is not on PATH: report it and ask the user to check their Claude Code install
+   - If `claude -p` errors: show the error, offer retry or primary-agent-only fallback
    - If the reviewer output is empty: note the issue, offer primary-agent-only fallback
    - If the reviewer attempts to modify files despite the read-only instruction: surface that in the report
 
@@ -276,7 +274,7 @@ You MUST create a task for each of these items and complete them in order:
 After the review is complete, provide:
 
 ```
-Review Complete (OpenCode-Powered)
+Review Complete (Claude Code-Powered)
 
 Target: <what was reviewed>
 Type: <Plan/Context | Build | File | Proposal>
@@ -300,7 +298,7 @@ Outcome: <"Changes applied" | "Recommendations discussed" | "No issues found">
 
 ## Error Handling
 
-- **opencode not on PATH:** Report error, ask the user to verify their OpenCode install
+- **claude not on PATH:** Report error, ask the user to verify their Claude Code install
 - **Target not found:** Ask user to clarify what to review
 - **Reviewer returns error:** Show error, offer retry or primary-agent-only fallback
 - **Reviewer output empty/trivial:** Note issue, offer primary-agent-only fallback

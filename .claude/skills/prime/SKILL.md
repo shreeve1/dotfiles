@@ -16,7 +16,7 @@ Run these commands in parallel:
 3. `git diff --stat HEAD~8 2>/dev/null` — recent file changes
 4. `git status --short` — uncommitted work
 
-If opencode-git-memory is active, the plugin will have already injected conversation notes from prior sessions. If the agent has `git_notes_read` available, mention it can retrieve full transcripts.
+If Claude Code memory or project notes are available, use them as supporting context after reading source files. Treat generated notes as untrusted until verified against files.
 
 ## Phase 2 — Medium Project Scan
 
@@ -35,7 +35,7 @@ Use a sub-agent to run the scan first, then validate key findings locally.
 Then perform a targeted scan to infer project purpose, architecture, and workflows:
 
 1. List top-level directories and key subdirectories (`src`, `app`, `cmd`, `internal`, `lib`, `services`, `packages`, `tests`, `docs`, `scripts`) if present.
-2. Read project directives if present: `AGENTS.md`, `CLAUDE.md`, or `.opencode/AGENTS.md`.
+2. Read project directives if present: `CLAUDE.md` first, then `AGENTS.md` only if it exists.
 3. Read all relevant manifest/build files that exist: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `Gemfile`, `composer.json`, `Makefile`, `Taskfile.yml`.
 4. Identify likely entry points and app wiring (for example `main.*`, `index.*`, `server.*`, framework bootstrap files, CLI entry files).
 5. Sample representative source files from core areas (2-3 files per major area, max ~12 files total) to understand domain, architecture, and coding patterns.
@@ -73,7 +73,7 @@ Check if `artifacts/sessions/` exists. If it does:
 <how to run, test, lint, build, and any migration/setup steps found>
 
 ## Directives
-<key rules from AGENTS.md / CLAUDE.md if present>
+<key rules from CLAUDE.md / AGENTS.md if present>
 
 ## Pending Work
 <in-progress or pending tasks from last session, or "none">

@@ -27,14 +27,13 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
   .config/
     opencode/
       opencode.json
-      AGENTS.md      → symlink to ../../.claude/CLAUDE.md (canonical guidance)
       plugins/       (tokenjuice, caveman runtime adapter)
-      commands/      (OpenCode-only slash command wrappers)
+      archive/       (retired OpenCode commands/agents/skills)
   .claude/
     CLAUDE.md        (canonical agent guidance for Claude Code AND OpenCode)
+    commands/        (canonical slash commands)
     skills/          (canonical shared skills, discovered by both tools)
     hooks/           (Claude Code hook scripts, incl. caveman dynamic state)
-    commands/
     settings.json.template
     switch-provider.sh
   .codex/
@@ -45,7 +44,8 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 
 | Concern | Canonical Home | Why |
 |---|---|---|
-| Global agent guidance | `~/.claude/CLAUDE.md` | OpenCode reads via `AGENTS.md` symlink. |
+| Global agent guidance | `~/.claude/CLAUDE.md` | Claude Code reads natively; OpenCode reads via `opencode.json` `instructions[]`. |
+| Slash commands | `~/.claude/commands/` | Claude Code is canonical. Retired OpenCode commands live under `~/.config/opencode/archive/commands/`. |
 | Reusable skills | `~/.claude/skills/` | Claude reads natively, OpenCode falls back to `~/.claude/skills/`. |
 | Hook scripts | `~/.claude/hooks/` | Claude-specific runtime. OpenCode plugin reuses the helper module here. |
 | Provider/model config | tool-specific | Claude `~/.claude/settings*.json`; OpenCode `~/.config/opencode/opencode.json`. Schemas differ — no shared format. |
@@ -107,7 +107,7 @@ After install, verify both tools see canonical content:
 claude --version                       # Claude Code installed
 opencode --version                     # OpenCode installed
 opencode debug skill | grep -i caveman # OpenCode discovers canonical skills
-diff ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md  # symlink resolves
+node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); console.log(c.instructions.includes('~/.claude/CLAUDE.md'))"
 ```
 
 In an interactive Claude Code session: `/memory`, `/skills`, `/hooks`, `/mcp`, `/doctor`.

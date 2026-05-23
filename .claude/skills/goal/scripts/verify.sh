@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# verify.sh — spawn a fresh OpenCode session to independently judge whether a goal is met.
+# verify.sh — spawn a fresh Claude Code session to independently judge whether a goal is met.
 #
 # Usage: scripts/verify.sh <goal_dir>
-#   goal_dir: path to the goal state directory (e.g. .opencode/state/goals/expo-migration)
+#   goal_dir: path to the goal state directory (e.g. .claude/state/goals/expo-migration)
 #
 # Output: writes verdict to <goal_dir>/.verify-last.json with shape:
 #   { "verdict": "done" | "not-done" | "unclear",
@@ -15,13 +15,13 @@
 #     "goal_hash": "<sha256 of GOAL.md at verify time>",
 #     "validation_hash": "<sha256 of validation command string parsed from GOAL.md>",
 #     "verifier_exit": <int>,
-#     "verifier_stderr_tail": "<last lines of opencode stderr if any>" }
+#     "verifier_stderr_tail": "<last lines of claude stderr if any>" }
 #
 # Exit codes:
 #   0  — verdict written successfully (regardless of done/not-done/unclear)
 #   2  — usage error
 #   3  — missing files (GOAL.md or PROGRESS.md)
-#   4  — opencode invocation failed (binary missing, timeout, empty output)
+#   4  — claude invocation failed (binary missing, timeout, empty output)
 #
 # Trust model: the verdict file is also a binding artifact. The work agent
 # MUST NOT set Status: done unless `verdict == "done"` AND `goal_hash` matches
@@ -45,8 +45,8 @@ if [ ! -f "$GOAL_FILE" ] || [ ! -f "$PROGRESS_FILE" ]; then
   exit 3
 fi
 
-if ! command -v opencode >/dev/null 2>&1; then
-  echo "opencode binary not found in PATH" >&2
+if ! command -v claude >/dev/null 2>&1; then
+  echo "claude binary not found in PATH" >&2
   exit 4
 fi
 
@@ -70,9 +70,10 @@ VALIDATION_HASH=$(printf '%s' "$VALIDATION_CMD" | sha256sum | awk '{print $1}')
 # Build prompt and progress as separate files. Progress is untrusted evidence (C3).
 TMP_PROMPT=$(mktemp /tmp/goal-verify-prompt-XXXXXX.txt)
 TMP_EVIDENCE=$(mktemp /tmp/goal-verify-evidence-XXXXXX.md)
+TMP_INPUT=$(mktemp /tmp/goal-verify-input-XXXXXX.txt)
 TMP_STDOUT=$(mktemp /tmp/goal-verify-out-XXXXXX.txt)
 TMP_STDERR=$(mktemp /tmp/goal-verify-err-XXXXXX.txt)
-trap 'rm -f -- "$TMP_PROMPT" "$TMP_EVIDENCE" "$TMP_STDOUT" "$TMP_STDERR"' EXIT
+trap 'rm -f -- "$TMP_PROMPT" "$TMP_EVIDENCE" "$TMP_INPUT" "$TMP_STDOUT" "$TMP_STDERR"' EXIT
 
 # Evidence file: PROGRESS tail is UNTRUSTED. Frame it so the verifier knows.
 {
@@ -125,17 +126,30 @@ Constraints:
 - If validation_rerun cannot run (mutating, missing dependency, timeout): verdict is "unclear" and reasoning explains why.
 PROMPT
 
-CMD=(opencode run --pure --format json -f "$TMP_EVIDENCE")
+{
+  cat -- "$TMP_PROMPT"
+  echo ""
+  echo "## Attached evidence"
+  echo ""
+  cat -- "$TMP_EVIDENCE"
+} > "$TMP_INPUT"
+
+CMD=(
+  claude -p
+  --no-session-persistence
+  --permission-mode bypassPermissions
+  --system-prompt "You are an independent verification tool. Output only JSON. Do not modify files. Do not use local house style or wrapper behavior."
+  --tools ""
+)
 [ -n "$MODEL" ] && CMD+=(--model "$MODEL")
 
-# Pass prompt as positional message (C1). Capture stderr (W5). Use --kill-after (W5).
-PROMPT_TEXT=$(cat -- "$TMP_PROMPT")
-timeout --kill-after=10s "${TIMEOUT_MIN}m" "${CMD[@]}" "$PROMPT_TEXT" > "$TMP_STDOUT" 2> "$TMP_STDERR"
+# Pass prompt and evidence on stdin (C1). Capture stderr (W5). Use --kill-after (W5).
+timeout --kill-after=10s "${TIMEOUT_MIN}m" "${CMD[@]}" < "$TMP_INPUT" > "$TMP_STDOUT" 2> "$TMP_STDERR"
 VERIFIER_EXIT=$?
 
 if [ ! -s "$TMP_STDOUT" ]; then
   STDERR_TAIL=$(tail -c 1000 -- "$TMP_STDERR" 2>/dev/null || true)
-  echo "opencode produced no output (exit=$VERIFIER_EXIT, timeout=${TIMEOUT_MIN}m)" >&2
+  echo "claude produced no output (exit=$VERIFIER_EXIT, timeout=${TIMEOUT_MIN}m)" >&2
   echo "stderr tail: $STDERR_TAIL" >&2
   exit 4
 fi
@@ -191,12 +205,11 @@ def base_record(verdict, reasoning, missing, validation_rerun=None, extra=None):
     return rec
 
 # Try multiple JSON extraction strategies, in order:
-# 1. The OpenCode JSON event stream — final assistant message text.
+# 1. JSON event streams — final assistant message text.
 # 2. A fenced ```json ... ``` block in raw output.
 # 3. raw_decode walking the string for the first balanced JSON object.
 def try_event_stream(text):
-    # OpenCode --format json emits NDJSON-ish events. The final assistant text
-    # is typically inside one of them. We look for any event whose value
+    # Some CLIs emit NDJSON-ish events. We look for any event whose value
     # contains a JSON object with a "verdict" field.
     candidates = []
     for line in text.splitlines():

@@ -17,7 +17,7 @@ Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in 
 
 ## Execution modes
 
-Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next issue. Reviewer pass within this skill is performed by spawning a fresh `opencode run` via bash so the review context is genuinely separate.
+Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next issue. Reviewer pass within this skill is performed by spawning a fresh `claude -p` via bash so the review context is genuinely separate.
 
 ## Pre-flight Checks
 
@@ -106,7 +106,12 @@ For the selected issue:
 3. **Spawn a fresh review session via bash** — the reviewer must NOT inherit the implementer's context:
 
    ```bash
-   opencode run --agent quick-review-codex "$(cat <<'EOF'
+   claude -p \
+     --no-session-persistence \
+     --permission-mode bypassPermissions \
+     --system-prompt "You are a read-only issue reviewer. Do not modify files. Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion." \
+     --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *),Bash(git rev-parse *),Bash(git show *)" \
+     <<'EOF'
    Review issue #<ID> in .kanban/issues/.
    Read the issue file, then run `git diff HEAD~1` and read every changed file.
    Verify:
@@ -117,8 +122,7 @@ For the selected issue:
    5. Scope matches the issue — no scope creep.
 
    Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion.
-   EOF
-   )"
+EOF
    ```
 
    The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session.
