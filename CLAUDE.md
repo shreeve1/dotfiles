@@ -11,8 +11,10 @@ commands).
 
 ## Canonical surfaces
 
-- Global agent guidance: `.claude/CLAUDE.md` (also reachable as
-  `.config/opencode/AGENTS.md` via symlink).
+- Global agent guidance: `.claude/CLAUDE.md` (loaded by OpenCode via
+  `.config/opencode/opencode.json` `instructions[]`).
+- Slash commands: `.claude/commands/` (canonical Claude Code commands; retired
+  OpenCode commands live under `.config/opencode/archive/commands/`).
 - Shared skills: `.claude/skills/<name>/SKILL.md` (read by Claude Code natively,
   by OpenCode via `~/.claude/skills` fallback).
 - Hooks: `.claude/hooks/` (Claude Code hook scripts; the OpenCode caveman
@@ -34,8 +36,8 @@ commands).
 
 ## Editing rules
 
-- `.claude/CLAUDE.md` is the canonical global guidance. Edit it through
-  `.claude/CLAUDE.md` directly; `.config/opencode/AGENTS.md` is a symlink.
+- `.claude/CLAUDE.md` is the canonical global guidance. Edit it directly;
+  don't recreate `.config/opencode/AGENTS.md`.
 - `.claude/settings-*.json` are gitignored (provider-specific, machine-local).
   The tracked seed is `.claude/settings.json.template`.
 - Plans under `plans/` are gitignored (machine-local scratch).

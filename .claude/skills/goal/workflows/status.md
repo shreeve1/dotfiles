@@ -5,12 +5,12 @@ Report the state of one or all goals without doing any work.
 ## 1. List goals
 
 ```bash
-ls .opencode/state/goals/ 2>/dev/null | grep -v '^_archive$'
+ls .claude/state/goals/ 2>/dev/null | grep -v '^_archive$'
 ```
 
 If empty → tell the user: no goals set. Offer to **set** one.
 
-If the user explicitly asks for archived goals, also list `.opencode/state/goals/_archive/`.
+If the user explicitly asks for archived goals, also list `.claude/state/goals/_archive/`.
 
 ## 2. Read each goal
 

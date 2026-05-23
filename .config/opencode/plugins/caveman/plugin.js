@@ -11,10 +11,10 @@
 //   ├── plugin.js              ← this file
 //   └── caveman-config.js      ← copied sibling of src/hooks/caveman-config.js
 //
-// Always-on caveman ruleset is provided separately via
-// ~/.config/opencode/AGENTS.md (Tier-3 base) so this plugin only handles
-// dynamic state — flag writes, slash-command parsing, natural-language
-// activation, and per-prompt reinforcement. opencode's `session.created`
+// Always-on caveman ruleset is provided by ~/.claude/CLAUDE.md, loaded by
+// opencode via opencode.json instructions[]. This plugin only handles dynamic
+// state — flag writes, slash-command parsing, natural-language activation,
+// and per-prompt reinforcement. opencode's `session.created`
 // payload doesn't expose a documented system-prompt-injection return, so we
 // don't try to emit ruleset content here.
 
