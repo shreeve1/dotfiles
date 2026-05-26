@@ -292,6 +292,9 @@ alias tml='tmux ls'
 alias tms='tmux new -s'
 alias tmk='tmux kill-session -t'
 
+# Ralph loop - background tmux session running /ralph until all issues done
+alias tralph='~/.claude/skills/ralph/ralph-loop.sh'
+
 alias op='opencode'
 
 # Machine-local secrets (not tracked in dotfiles)
