@@ -301,6 +301,33 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
+  # Per-iteration dirty-tree recovery.
+  # If the previous iteration left uncommitted WIP (skill bug or crash),
+  # the next /ralph invocation will hit its own pre-flight and bail forever.
+  # Auto-commit WIP under a wip(ralph) message so the loop can keep moving.
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    if [[ -n "$(git status --porcelain)" ]]; then
+      echo "" | tee -a "$LOG_FILE"
+      echo "⚠️  Worktree dirty at start of iteration $ITERATION — previous iter left WIP" | tee -a "$LOG_FILE"
+      git status --short | tee -a "$LOG_FILE"
+      if [[ "$FORCE_MODE" == "true" ]]; then
+        echo "🔧 Auto-committing WIP (force mode)" | tee -a "$LOG_FILE"
+        git add -A
+        git commit -m "wip(ralph): auto-commit unfinished WIP from iter $((ITERATION - 1))" >> "$LOG_FILE" 2>&1 || true
+      else
+        echo "Auto-commit WIP and continue? (Y/n)" >&2
+        read -r response
+        if [[ ! "$response" =~ ^[Nn]$ ]]; then
+          git add -A
+          git commit -m "wip(ralph): auto-commit unfinished WIP from iter $((ITERATION - 1))" >> "$LOG_FILE" 2>&1 || true
+        else
+          echo "Aborted. Resolve manually." | tee -a "$LOG_FILE"
+          break
+        fi
+      fi
+    fi
+  fi
+
   # Run /ralph and capture output (CLI-specific invocation)
   RALPH_OUTPUT=$(mktemp)
   case "$CLI" in
