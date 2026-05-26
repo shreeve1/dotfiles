@@ -93,7 +93,14 @@ For the selected issue:
 5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc).
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
-8. **Commit** — if the project uses git, commit with message: `feat(#ID): brief description`.
+8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, the worktree MUST be clean. Run:
+   ```bash
+   git add -A && git commit -m "feat(#ID): brief description"
+   git status --porcelain  # MUST be empty
+   ```
+   If `git status --porcelain` is non-empty after this step, STOP and fix. Do not proceed to review with an unclean tree — the next `/ralph` invocation will bail on the dirty-worktree pre-flight check and the loop will spin forever.
+
+   This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight.
 
 ### 4. Review in a fresh session (MANDATORY, NOT OPTIONAL)
 
