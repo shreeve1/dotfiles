@@ -1,8 +1,58 @@
 #!/bin/bash
 # Ralph Loop - Background tmux session that runs /ralph until no issues remain
-# Usage: ralph-loop.sh [claude|opencode] [tmux-session-name]
+# Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]
+#
+# OPTIONS:
+#   --force              Skip interactive prompts (git dirty check, stale lock recovery)
+#   --continue-on-error  If Ralph fails, reset issue to pending and continue
+#   --sleep-interval N   Sleep N seconds between iterations (default: 3)
+#
+# ARGUMENTS:
+#   CLI                  claude|opencode|auto (default: auto)
+#   SESSION_NAME         tmux session name (default: ralph-loop)
 
 set -euo pipefail
+
+# Parse options
+FORCE_MODE=false
+CONTINUE_ON_ERROR=false
+SLEEP_INTERVAL=3
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force)
+      FORCE_MODE=true
+      shift
+      ;;
+    --continue-on-error)
+      CONTINUE_ON_ERROR=true
+      shift
+      ;;
+    --sleep-interval)
+      SLEEP_INTERVAL="${2:-3}"
+      shift 2
+      ;;
+    --help)
+      echo "Ralph Loop - Background tmux session that runs /ralph until no issues remain"
+      echo ""
+      echo "Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]"
+      echo ""
+      echo "OPTIONS:"
+      echo "  --force              Skip interactive prompts"
+      echo "  --continue-on-error  Reset issue to pending on failure and continue"
+      echo "  --sleep-interval N   Sleep N seconds between iterations (default: 3)"
+      echo "  --help               Show this help"
+      echo ""
+      echo "ARGUMENTS:"
+      echo "  CLI                  claude|opencode|auto (default: auto)"
+      echo "  SESSION_NAME         tmux session name (default: ralph-loop)"
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 # Detect which CLI to use
 CLI="${1:-auto}"
@@ -75,11 +125,15 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
     echo "" >&2
     git status --short >&2
     echo "" >&2
-    echo "Ralph may fail if the worktree is dirty. Continue? (y/N)" >&2
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-      echo "Aborted. Commit or stash changes first." >&2
-      exit 1
+    if [[ "$FORCE_MODE" == "false" ]]; then
+      echo "Ralph may fail if the worktree is dirty. Continue? (y/N)" >&2
+      read -r response
+      if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Aborted. Commit or stash changes first." >&2
+        exit 1
+      fi
+    else
+      echo "⚡ Force mode: continuing anyway" >&2
     fi
   fi
 fi
@@ -91,16 +145,37 @@ if [[ -n "$STALE_ISSUES" ]]; then
   echo "" >&2
   echo "$STALE_ISSUES" >&2
   echo "" >&2
-  echo "These may be from a previous crashed loop. Reset to 'pending'? (y/N)" >&2
-  read -r response
-  if [[ "$response" =~ ^[Yy]$ ]]; then
+
+  # Decide whether to reset based on force mode
+  SHOULD_RESET=false
+  if [[ "$FORCE_MODE" == "true" ]]; then
+    echo "⚡ Force mode: auto-resetting stale locks" >&2
+    SHOULD_RESET=true
+  else
+    echo "These may be from a previous crashed loop. Reset to 'pending'? (y/N)" >&2
+    read -r response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+      SHOULD_RESET=true
+    fi
+  fi
+
+  if [[ "$SHOULD_RESET" == "true" ]]; then
+    # Backup before reset
+    BACKUP_DIR=".kanban/backups/stale-locks-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+
     while IFS= read -r issue_file; do
       if [[ -n "$issue_file" ]]; then
+        # Backup original
+        cp "$issue_file" "$BACKUP_DIR/$(basename "$issue_file")"
+
         # Reset status to pending
         sed -i 's/^status: \(in-progress\|review\)$/status: pending/' "$issue_file"
         echo "  ✓ Reset $(basename "$issue_file")" >&2
       fi
     done <<< "$STALE_ISSUES"
+
+    echo "  💾 Backup saved to: $BACKUP_DIR" >&2
   else
     echo "Continuing with existing state..." >&2
   fi
@@ -119,6 +194,8 @@ set -euo pipefail
 CLI="$1"
 PROJECT_DIR="$2"
 SESSION_NAME="$3"
+CONTINUE_ON_ERROR="$4"
+SLEEP_INTERVAL="$5"
 LOG_FILE="$PROJECT_DIR/.kanban/ralph-loop.log"
 
 cd "$PROJECT_DIR"
@@ -128,12 +205,15 @@ echo "Ralph Loop started at $(date)" | tee -a "$LOG_FILE"
 echo "CLI: $CLI" | tee -a "$LOG_FILE"
 echo "Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
 echo "Session: $SESSION_NAME" | tee -a "$LOG_FILE"
+echo "Continue on error: $CONTINUE_ON_ERROR" | tee -a "$LOG_FILE"
+echo "Sleep interval: ${SLEEP_INTERVAL}s" | tee -a "$LOG_FILE"
 echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 ITERATION=0
 MAX_ITERATIONS=1000  # Safety limit
 CONSECUTIVE_NO_WORK=0
+ISSUES_COMPLETED=0
 
 while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   ITERATION=$((ITERATION + 1))
@@ -142,6 +222,12 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   echo "─────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
   echo "Iteration $ITERATION - $(date)" | tee -a "$LOG_FILE"
   echo "─────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
+
+  # Count total issues and statuses for progress stats
+  TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l)
+  DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l)
+  PENDING_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l)
+  BLOCKED_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: blocked$" {} \; 2>/dev/null | wc -l)
 
   # Count unblocked pending issues BEFORE running ralph
   # An issue is unblocked if:
@@ -180,7 +266,11 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     fi
   done
 
+  # Progress stats
+  echo "" | tee -a "$LOG_FILE"
+  echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
   echo "📋 $UNBLOCKED_COUNT unblocked pending issue(s) before this iteration" | tee -a "$LOG_FILE"
+  echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
 
   if [[ $UNBLOCKED_COUNT -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
@@ -205,6 +295,13 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     LAST_EXIT_CODE=$?
   fi
 
+  # Better output parsing - extract completed issue ID
+  COMPLETED_ISSUE=$(grep -oP 'Done: #\K[0-9]+' "$RALPH_OUTPUT" 2>/dev/null || echo "")
+  if [[ -n "$COMPLETED_ISSUE" ]]; then
+    ISSUES_COMPLETED=$((ISSUES_COMPLETED + 1))
+    echo "✅ Confirmed completion: issue #$COMPLETED_ISSUE" | tee -a "$LOG_FILE"
+  fi
+
   # Check if ralph reported "no eligible issues" in its output
   if grep -q "no eligible issues\|No more eligible issues\|no unblocked issues" "$RALPH_OUTPUT" 2>/dev/null; then
     echo "" | tee -a "$LOG_FILE"
@@ -218,12 +315,35 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   # Check if ralph completed successfully
   if [[ $LAST_EXIT_CODE -ne 0 ]]; then
     echo "⚠️  Ralph exited with code $LAST_EXIT_CODE" | tee -a "$LOG_FILE"
-    echo "Stopping loop" | tee -a "$LOG_FILE"
-    break
+
+    if [[ "$CONTINUE_ON_ERROR" == "true" ]]; then
+      echo "⚡ Continue-on-error mode: resetting failed issue to pending" | tee -a "$LOG_FILE"
+
+      # Find the issue that was in-progress or review and reset it
+      FAILED_ISSUE=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | head -1)
+      if [[ -n "$FAILED_ISSUE" ]]; then
+        # Backup before reset
+        BACKUP_DIR=".kanban/backups/error-recovery-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$BACKUP_DIR"
+        cp "$FAILED_ISSUE" "$BACKUP_DIR/$(basename "$FAILED_ISSUE")"
+
+        # Reset to pending
+        sed -i 's/^status: \(in-progress\|review\)$/status: pending/' "$FAILED_ISSUE"
+        echo "  ✓ Reset $(basename "$FAILED_ISSUE") to pending" | tee -a "$LOG_FILE"
+        echo "  💾 Backup saved to: $BACKUP_DIR" | tee -a "$LOG_FILE"
+      fi
+
+      # Continue to next iteration
+      sleep "$SLEEP_INTERVAL"
+      continue
+    else
+      echo "Stopping loop" | tee -a "$LOG_FILE"
+      break
+    fi
   fi
 
   # Brief pause between iterations
-  sleep 3
+  sleep "$SLEEP_INTERVAL"
 done
 
 if [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
@@ -236,6 +356,7 @@ echo "" | tee -a "$LOG_FILE"
 echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 echo "Ralph Loop finished at $(date)" | tee -a "$LOG_FILE"
 echo "Total iterations: $ITERATION" | tee -a "$LOG_FILE"
+echo "Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
 echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 
 # Keep session alive for inspection
@@ -248,9 +369,15 @@ chmod +x "$LOOP_SCRIPT"
 
 # Start tmux session with the loop script
 PROJECT_DIR="$(pwd)"
-tmux new-session -d -s "$SESSION_NAME" "bash '$LOOP_SCRIPT' '$CLI' '$PROJECT_DIR' '$SESSION_NAME'"
+tmux new-session -d -s "$SESSION_NAME" "bash '$LOOP_SCRIPT' '$CLI' '$PROJECT_DIR' '$SESSION_NAME' '$CONTINUE_ON_ERROR' '$SLEEP_INTERVAL'"
 
 echo "✅ Ralph loop started in tmux session '$SESSION_NAME'"
+echo ""
+echo "Configuration:"
+echo "  CLI: $CLI"
+echo "  Force mode: $FORCE_MODE"
+echo "  Continue on error: $CONTINUE_ON_ERROR"
+echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo ""
 echo "Monitor:"
 echo "  tmux attach -t $SESSION_NAME        # Attach to session"
