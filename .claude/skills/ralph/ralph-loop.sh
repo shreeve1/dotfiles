@@ -76,12 +76,23 @@ if ! command -v "$CLI" &>/dev/null; then
   exit 1
 fi
 
-# Validate /ralph skill exists
-if ! $CLI /help 2>/dev/null | grep -q "ralph"; then
-  echo "⚠️  Warning: /ralph skill may not be installed for $CLI" >&2
-  echo "   Continuing anyway, but the loop may fail..." >&2
-  sleep 2
-fi
+# Validate /ralph skill exists (CLI-specific)
+case "$CLI" in
+  claude)
+    if ! $CLI /help 2>/dev/null | grep -q "ralph"; then
+      echo "⚠️  Warning: /ralph skill may not be installed for claude" >&2
+      echo "   Continuing anyway, but the loop may fail..." >&2
+      sleep 2
+    fi
+    ;;
+  opencode)
+    if ! opencode debug skill 2>/dev/null | grep -q "ralph"; then
+      echo "⚠️  Warning: /ralph skill may not be installed for opencode" >&2
+      echo "   Continuing anyway, but the loop may fail..." >&2
+      sleep 2
+    fi
+    ;;
+esac
 
 # Check if session already exists
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
@@ -196,7 +207,10 @@ PROJECT_DIR="$2"
 SESSION_NAME="$3"
 CONTINUE_ON_ERROR="$4"
 SLEEP_INTERVAL="$5"
-LOG_FILE="$PROJECT_DIR/.kanban/ralph-loop.log"
+# Log lives outside PROJECT_DIR so ralph sees a clean worktree.
+# Avoids catch-22 where the loop's own log makes git status dirty.
+LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
+mkdir -p "$HOME/.cache"
 
 cd "$PROJECT_DIR"
 
@@ -287,9 +301,22 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
-  # Run /ralph and capture output
+  # Run /ralph and capture output (CLI-specific invocation)
   RALPH_OUTPUT=$(mktemp)
-  if $CLI /ralph --no-session-persistence --permission-mode bypassPermissions 2>&1 | tee -a "$LOG_FILE" | tee "$RALPH_OUTPUT"; then
+  case "$CLI" in
+    claude)
+      RALPH_CMD=("$CLI" /ralph --no-session-persistence --permission-mode bypassPermissions)
+      ;;
+    opencode)
+      # opencode auto-triggers skills via description matching;
+      # send /ralph as message text to invoke the ralph skill/command
+      RALPH_CMD=("$CLI" run --dangerously-skip-permissions "/ralph")
+      ;;
+    *)
+      RALPH_CMD=("$CLI" /ralph)
+      ;;
+  esac
+  if "${RALPH_CMD[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$RALPH_OUTPUT"; then
     LAST_EXIT_CODE=0
   else
     LAST_EXIT_CODE=$?
@@ -381,7 +408,7 @@ echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo ""
 echo "Monitor:"
 echo "  tmux attach -t $SESSION_NAME        # Attach to session"
-echo "  tail -f .kanban/ralph-loop.log      # Follow the log"
+echo "  tail -f \$HOME/.cache/ralph-loop-$SESSION_NAME.log  # Follow the log"
 echo ""
 echo "Stop:"
 echo "  tmux kill-session -t $SESSION_NAME  # Kill the session"
