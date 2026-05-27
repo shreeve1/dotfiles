@@ -8,7 +8,7 @@
 #   --sleep-interval N   Sleep N seconds between iterations (default: 3)
 #
 # ARGUMENTS:
-#   CLI                  claude|opencode|auto (default: auto)
+#   CLI                  claude|opencode|pi|auto (default: auto)
 #   SESSION_NAME         tmux session name (default: ralph-loop)
 
 set -euo pipefail
@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --help               Show this help"
       echo ""
       echo "ARGUMENTS:"
-      echo "  CLI                  claude|opencode|auto (default: auto)"
+      echo "  CLI                  claude|opencode|pi|auto (default: auto)"
       echo "  SESSION_NAME         tmux session name (default: ralph-loop)"
       exit 0
       ;;
@@ -62,10 +62,12 @@ SESSION_NAME="${2:-ralph-loop}"
 if [[ "$CLI" == "auto" ]]; then
   if command -v claude &>/dev/null; then
     CLI="claude"
+  elif command -v pi &>/dev/null; then
+    CLI="pi"
   elif command -v opencode &>/dev/null; then
     CLI="opencode"
   else
-    echo "❌ Error: Neither 'claude' nor 'opencode' found in PATH" >&2
+    echo "❌ Error: None of 'claude', 'pi', or 'opencode' found in PATH" >&2
     exit 1
   fi
 fi
@@ -88,6 +90,13 @@ case "$CLI" in
   opencode)
     if ! opencode debug skill 2>/dev/null | grep -q "ralph"; then
       echo "⚠️  Warning: /ralph skill may not be installed for opencode" >&2
+      echo "   Continuing anyway, but the loop may fail..." >&2
+      sleep 2
+    fi
+    ;;
+  pi)
+    if [[ ! -f "$HOME/.claude/skills/ralph/SKILL.md" ]]; then
+      echo "⚠️  Warning: Ralph skill not found at $HOME/.claude/skills/ralph/SKILL.md" >&2
       echo "   Continuing anyway, but the loop may fail..." >&2
       sleep 2
     fi
@@ -142,46 +151,14 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # Check for stale locks (issues stuck in in-progress or review)
-STALE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
-if [[ -n "$STALE_ISSUES" ]]; then
-  echo "⚠️  Warning: Found issues in 'in-progress' or 'review' state" >&2
+ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
+if [[ -n "$ACTIVE_ISSUES" ]]; then
+  echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
   echo "" >&2
-  echo "$STALE_ISSUES" >&2
+  echo "$ACTIVE_ISSUES" >&2
   echo "" >&2
-
-  # Decide whether to reset based on force mode
-  SHOULD_RESET=false
-  if [[ "$FORCE_MODE" == "true" ]]; then
-    echo "⚡ Force mode: auto-resetting stale locks" >&2
-    SHOULD_RESET=true
-  else
-    echo "These may be from a previous crashed loop. Reset to 'pending'? (y/N)" >&2
-    read -r response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-      SHOULD_RESET=true
-    fi
-  fi
-
-  if [[ "$SHOULD_RESET" == "true" ]]; then
-    # Backup before reset
-    BACKUP_DIR=".kanban/backups/stale-locks-$(date +%Y%m%d-%H%M%S)"
-    mkdir -p "$BACKUP_DIR"
-
-    while IFS= read -r issue_file; do
-      if [[ -n "$issue_file" ]]; then
-        # Backup original
-        cp "$issue_file" "$BACKUP_DIR/$(basename "$issue_file")"
-
-        # Reset status to pending
-        sed -i 's/^status: \(in-progress\|review\)$/status: pending/' "$issue_file"
-        echo "  ✓ Reset $(basename "$issue_file")" >&2
-      fi
-    done <<< "$STALE_ISSUES"
-
-    echo "  💾 Backup saved to: $BACKUP_DIR" >&2
-  else
-    echo "Continuing with existing state..." >&2
-  fi
+  echo "Ralph will resume the active issue instead of resetting it to pending." >&2
+  echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
 fi
 
 # Create the loop script that will run inside tmux
@@ -206,6 +183,34 @@ mkdir -p "$HOME/.cache"
 
 cd "$PROJECT_DIR"
 
+cleanup_ephemeral_artifacts() {
+  local removed=false
+  local paths=(
+    ".playwright-sessions"
+    "test-results"
+    "playwright-report"
+    ".pytest_cache"
+    ".ruff_cache"
+    ".mypy_cache"
+    "htmlcov"
+  )
+
+  for path in "${paths[@]}"; do
+    [[ -e "$path" ]] || continue
+    # Delete only generated artifacts with no tracked files underneath.
+    if git rev-parse --git-dir >/dev/null 2>&1 && [[ -z "$(git ls-files -- "$path")" ]]; then
+      rm -rf -- "$path"
+      echo "🧹 Removed untracked ephemeral artifact: $path" | tee -a "$LOG_FILE"
+      removed=true
+    fi
+  done
+
+  if [[ "$removed" == "true" ]]; then
+    return 0
+  fi
+  return 1
+}
+
 echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
 echo "Ralph Loop started at $(date)" | tee -a "$LOG_FILE"
 echo "CLI: $CLI" | tee -a "$LOG_FILE"
@@ -229,11 +234,20 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   echo "Iteration $ITERATION - $(date)" | tee -a "$LOG_FILE"
   echo "─────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
 
+  # Clean known generated junk before deciding whether work is available.
+  # Otherwise an interrupted run can leave only .playwright-sessions/ and
+  # make /ralph stop before it gets a chance to resume the active issue.
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    cleanup_ephemeral_artifacts || true
+  fi
+
   # Count total issues and statuses for progress stats
   TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l)
   DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l)
   PENDING_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l)
   BLOCKED_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: blocked$" {} \; 2>/dev/null | wc -l)
+  ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
+  ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l)
 
   # Count unblocked pending issues BEFORE running ralph
   # An issue is unblocked if:
@@ -274,13 +288,17 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   # Progress stats
   echo "" | tee -a "$LOG_FILE"
-  echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
+  echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
   echo "📋 $UNBLOCKED_COUNT unblocked pending issue(s) before this iteration" | tee -a "$LOG_FILE"
+  if [[ $ACTIVE_COUNT -gt 0 ]]; then
+    echo "🔁 $ACTIVE_COUNT active issue(s) will be resumed before scanning new pending work" | tee -a "$LOG_FILE"
+    printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | tee -a "$LOG_FILE"
+  fi
   echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
 
-  if [[ $UNBLOCKED_COUNT -eq 0 ]]; then
+  if [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
-    echo "✅ No unblocked pending issues found" | tee -a "$LOG_FILE"
+    echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
 
     # Check if there are blocked issues
     BLOCKED_COUNT=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l)
@@ -298,6 +316,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   # of auto-committing unrelated WIP.
   PRE_RALPH_STATUS=""
   if git rev-parse --git-dir >/dev/null 2>&1; then
+    cleanup_ephemeral_artifacts || true
     PRE_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
     if [[ -n "$PRE_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
@@ -317,6 +336,12 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       # send /ralph as message text to invoke the ralph skill/command
       RALPH_CMD=("$CLI" run --dangerously-skip-permissions "/ralph")
       ;;
+    pi)
+      # Pi print mode is the equivalent of opencode run: one fresh,
+      # non-interactive turn, then exit. Load the Ralph skill explicitly
+      # because this skill lives under ~/.claude rather than ~/.pi.
+      RALPH_CMD=("$CLI" --no-session --skill "$HOME/.claude/skills/ralph" -p "/skill:ralph")
+      ;;
     *)
       RALPH_CMD=("$CLI" /ralph)
       ;;
@@ -328,6 +353,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   fi
 
   if git rev-parse --git-dir >/dev/null 2>&1; then
+    cleanup_ephemeral_artifacts || true
     POST_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
     if [[ $LAST_EXIT_CODE -eq 0 && "$POST_RALPH_STATUS" != "$PRE_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
