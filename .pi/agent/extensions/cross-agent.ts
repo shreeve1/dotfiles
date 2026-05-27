@@ -203,19 +203,19 @@ function expandClaudeImport(
 
   if (depth >= MAX_CLAUDE_IMPORT_DEPTH) {
     imports.push({ spec, path, status: "max-depth", chars: 0 });
-    return `${indent}[Claude import skipped: ${spec} (max depth)]`;
+    return "";
   }
   if (!real) {
     imports.push({ spec, path, status: "missing", chars: 0 });
-    return `${indent}[Claude import skipped: ${spec} (missing)]`;
+    return "";
   }
   if (stack.has(real)) {
     imports.push({ spec, path, status: "cycle", chars: 0 });
-    return `${indent}[Claude import skipped: ${spec} (cycle)]`;
+    return "";
   }
   if (!isFile(path)) {
     imports.push({ spec, path, status: "not-file", chars: 0 });
-    return `${indent}[Claude import skipped: ${spec} (not file)]`;
+    return "";
   }
 
   let imported: string;
@@ -223,7 +223,7 @@ function expandClaudeImport(
     imported = readFileSync(path, "utf-8");
   } catch {
     imports.push({ spec, path, status: "read-error", chars: 0 });
-    return `${indent}[Claude import skipped: ${spec} (read error)]`;
+    return "";
   }
 
   imports.push({ spec, path, status: "loaded", chars: imported.length });
@@ -522,7 +522,6 @@ function formatSourceReport(
   home: string,
   cwd: string,
   groups: SourceGroup[],
-  warnings: ScanWarning[],
 ): string {
   const guidance = loadClaudeGuidance(home, cwd);
   const skillPaths = collectClaudeSkillPaths(home, cwd);
@@ -534,9 +533,8 @@ function formatSourceReport(
   } else {
     for (const file of guidance) {
       lines.push(`- ${file.label} (${file.content.length} chars)`);
-      for (const imp of file.imports) {
-        const suffix = imp.status === "loaded" ? `${imp.chars} chars` : imp.status;
-        lines.push(`  import @${imp.spec}: ${suffix}`);
+      for (const imp of file.imports.filter((imp) => imp.status === "loaded")) {
+        lines.push(`  import @${imp.spec}: ${imp.chars} chars`);
       }
     }
   }
@@ -559,16 +557,6 @@ function formatSourceReport(
     }
   }
 
-  lines.push("", "Warnings:");
-  if (warnings.length === 0) {
-    lines.push("- none");
-  } else {
-    for (const warning of warnings) {
-      lines.push(
-        `- ${warning.area}: ${warning.path}: ${warning.message}`,
-      );
-    }
-  }
 
   return lines.join("\n");
 }
@@ -623,16 +611,20 @@ export default function (pi: ExtensionAPI) {
     });
   }
 
-  pi.on("resources_discover", (event) => ({
-    skillPaths: collectClaudeSkillPaths(home, event.cwd),
-  }));
+  pi.on("resources_discover", (event) => {
+    try {
+      return { skillPaths: collectClaudeSkillPaths(home, event.cwd) };
+    } catch {
+      return { skillPaths: [] };
+    }
+  });
 
   // Register commands + agent bridges once — never re-registered on /new
   const seenCmds = new Set<string>();
   pi.registerCommand("claude-sources", {
     description: "Show Claude files loaded by cross-agent",
     handler: async (_args, ctx) => {
-      ctx.ui.notify(formatSourceReport(home, ctx.cwd, groups, scanWarnings), "info");
+      ctx.ui.notify(formatSourceReport(home, ctx.cwd, groups), "info");
     },
   });
   seenCmds.add("claude-sources");
@@ -667,12 +659,16 @@ export default function (pi: ExtensionAPI) {
   // ── Claude guidance injection (global first, then project) ───────────────
 
   pi.on("before_agent_start", async (event, ctx) => {
-    const guidance = loadClaudeGuidance(home, ctx.cwd);
-    if (guidance.length === 0) return;
+    try {
+      const guidance = loadClaudeGuidance(home, ctx.cwd);
+      if (guidance.length === 0) return;
 
-    return {
-      systemPrompt: `${event.systemPrompt}\n\n## Claude Guidance\n\n${formatClaudeGuidance(guidance)}`,
-    };
+      return {
+        systemPrompt: `${event.systemPrompt}\n\n## Claude Guidance\n\n${formatClaudeGuidance(guidance)}`,
+      };
+    } catch {
+      return;
+    }
   });
 
 }
