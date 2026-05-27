@@ -10,10 +10,10 @@
                 │into epics │    │ loop (3 rounds)  │    └──────────┘
                 └──────────┘    └──────────────────┘
 Auxiliary (available at any stage):
-┌──────────────┐  ┌────────────────┐  ┌─────────────┐  ┌──────────┐
-│ /dev-review  │  │ /dev-investigate│  │ /dev-stories │  │ /dev-team│
-│  Code review │  │  Bug diagnosis │  │  UI stories  │  │ Auto pipe│
-└──────────────┘  └────────────────┘  └─────────────┘  └──────────┘
+┌──────────────────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌───────────┐
+│ /skill:dev-review-claude │  │ /dev-investigate │  │ /dev-stories │  │ /dev-team │
+│       Code review        │  │  Bug diagnosis   │  │  UI stories  │  │ Auto pipe │
+└──────────────────────────┘  └──────────────────┘  └──────────────┘  └───────────┘
 ```
 
 ## When to Use Each Stage
@@ -26,7 +26,7 @@ Auxiliary (available at any stage):
 | **Shard** | Plan too large for one session | Plan file | `specs/<plan-name>/shard-*.md` |
 | **Build** | Ready to write code | Plan file | Implemented code + verification |
 | **Test** | After building, before merge | Plan file or test path | Test results + coverage |
-| **Review** | Any time you want a critical review | File, directory, or topic | Findings + recommendations |
+| **Review** | Any time you want a critical review | File, directory, or topic | Findings + recommendations via `/skill:dev-review-claude` |
 | **Investigate** | Bug or unexpected behavior | Problem description | Root cause diagnosis + fix tests |
 | **Stories** | UI features need browser testing | Plan file | `specs/<plan>-stories.md` |
 | **Team** | Want walk-away automation | Request description | Full pipeline auto-execution |
