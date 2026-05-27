@@ -23,17 +23,19 @@ Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue pe
 
 Before starting ANY implementation:
 
-### 1. Dirty worktree check
+### 1. Dirty worktree baseline
 
 ```bash
 git status --porcelain
 ```
 
 If there are uncommitted changes:
-- **STOP.** Do not start implementing.
-- Report the dirty files to the user.
-- Ask the user to commit or stash before running `/ralph`.
-- Exception: changes made by a previous `/ralph` run that were committed as part of that issue.
+- **Do not stop.** Ralph supports running with a pre-existing dirty worktree.
+- Treat current `git status --porcelain` output as the **baseline dirty state**.
+- Report the baseline dirty files briefly so the user knows they are being ignored.
+- Do **not** stage, commit, stash, revert, or modify baseline dirty files unless the current issue explicitly requires touching them.
+- At every commit gate, stage only files changed for the current issue. Never use `git add -A` or `git add .` while a baseline dirty state exists.
+- After each Ralph commit, verify the worktree returned to the same baseline dirty state. If new uncommitted changes remain beyond baseline, stop and fix before continuing.
 
 ### 2. Stale lock recovery
 
@@ -93,14 +95,16 @@ For the selected issue:
 5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc).
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
-8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, the worktree MUST be clean. Run:
+8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:
    ```bash
-   git add -A && git commit -m "feat(#ID): brief description"
-   git status --porcelain  # MUST be empty
+   git status --porcelain                 # compare against baseline dirty state
+   git add <issue-file-1> <issue-file-2>  # stage only files changed for this issue
+   git commit -m "feat(#ID): brief description"
+   git status --porcelain                 # MUST match the baseline dirty state
    ```
-   If `git status --porcelain` is non-empty after this step, STOP and fix. Do not proceed to review with an unclean tree — the next `/ralph` invocation will bail on the dirty-worktree pre-flight check and the loop will spin forever.
+   If `git status --porcelain` shows new uncommitted changes beyond the baseline dirty state after this step, STOP and fix. Do not proceed to review with uncommitted issue work.
 
-   This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight.
+   This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. Never use `git add -A` or `git add .` here unless the baseline dirty state is empty and every changed file belongs to this issue.
 
 ### 4. Review in a fresh session (MANDATORY, NOT OPTIONAL)
 
@@ -109,7 +113,7 @@ For the selected issue:
 **Review procedure:**
 
 1. **Set status to review** — update the issue file to `status: review`.
-2. **Commit that status change** — `git add .kanban/ && git commit -m "review(#ID): brief description"`
+2. **Commit that status change** — stage only the current issue file (and `.kanban/progress.md` if touched), then `git commit -m "review(#ID): brief description"`. Do not stage unrelated baseline dirty files.
 3. **Spawn a fresh review session via bash** — the reviewer must NOT inherit the implementer's context:
 
    ```bash
@@ -125,7 +129,7 @@ For the selected issue:
    1. Every acceptance criterion checkbox is objectively satisfied.
    2. The verification command from the issue's ## Verification section passes (exit code 0).
    3. Lint and typecheck pass.
-   4. No unrelated changes leaked into the diff.
+   4. No unrelated changes leaked into the committed diff (`git diff HEAD~1`), ignoring any pre-existing dirty worktree files outside the reviewed commit.
    5. Scope matches the issue — no scope creep.
 
    Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion.

@@ -3,7 +3,7 @@
 # Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]
 #
 # OPTIONS:
-#   --force              Skip interactive prompts (git dirty check, stale lock recovery)
+#   --force              Skip interactive prompts (stale lock recovery only; dirty worktrees are allowed)
 #   --continue-on-error  If Ralph fails, reset issue to pending and continue
 #   --sleep-interval N   Sleep N seconds between iterations (default: 3)
 #
@@ -38,7 +38,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]"
       echo ""
       echo "OPTIONS:"
-      echo "  --force              Skip interactive prompts"
+      echo "  --force              Skip interactive prompts for stale lock recovery"
       echo "  --continue-on-error  Reset issue to pending on failure and continue"
       echo "  --sleep-interval N   Sleep N seconds between iterations (default: 3)"
       echo "  --help               Show this help"
@@ -129,23 +129,15 @@ if [[ ! -f .kanban/progress.md ]]; then
   echo "" >> .kanban/progress.md
 fi
 
-# Check git status - warn if dirty
+# Dirty worktrees are allowed. Warn and continue; /ralph treats current
+# status as the baseline dirty state and must not stage unrelated files.
 if git rev-parse --git-dir >/dev/null 2>&1; then
   if [[ -n "$(git status --porcelain)" ]]; then
-    echo "⚠️  Warning: Working directory has uncommitted changes" >&2
+    echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
+    echo "   Ralph will ignore these as baseline dirt and stage only issue files." >&2
     echo "" >&2
     git status --short >&2
     echo "" >&2
-    if [[ "$FORCE_MODE" == "false" ]]; then
-      echo "Ralph may fail if the worktree is dirty. Continue? (y/N)" >&2
-      read -r response
-      if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        echo "Aborted. Commit or stash changes first." >&2
-        exit 1
-      fi
-    else
-      echo "⚡ Force mode: continuing anyway" >&2
-    fi
   fi
 fi
 
@@ -301,30 +293,16 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
-  # Per-iteration dirty-tree recovery.
-  # If the previous iteration left uncommitted WIP (skill bug or crash),
-  # the next /ralph invocation will hit its own pre-flight and bail forever.
-  # Auto-commit WIP under a wip(ralph) message so the loop can keep moving.
+  # Dirty worktrees are allowed. Capture the current status as baseline so
+  # successful /ralph invocations must return to the same dirty state instead
+  # of auto-committing unrelated WIP.
+  PRE_RALPH_STATUS=""
   if git rev-parse --git-dir >/dev/null 2>&1; then
-    if [[ -n "$(git status --porcelain)" ]]; then
+    PRE_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
+    if [[ -n "$PRE_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
-      echo "⚠️  Worktree dirty at start of iteration $ITERATION — previous iter left WIP" | tee -a "$LOG_FILE"
+      echo "⚠️  Baseline dirty worktree at start of iteration $ITERATION (ignored)" | tee -a "$LOG_FILE"
       git status --short | tee -a "$LOG_FILE"
-      if [[ "$FORCE_MODE" == "true" ]]; then
-        echo "🔧 Auto-committing WIP (force mode)" | tee -a "$LOG_FILE"
-        git add -A
-        git commit -m "wip(ralph): auto-commit unfinished WIP from iter $((ITERATION - 1))" >> "$LOG_FILE" 2>&1 || true
-      else
-        echo "Auto-commit WIP and continue? (Y/n)" >&2
-        read -r response
-        if [[ ! "$response" =~ ^[Nn]$ ]]; then
-          git add -A
-          git commit -m "wip(ralph): auto-commit unfinished WIP from iter $((ITERATION - 1))" >> "$LOG_FILE" 2>&1 || true
-        else
-          echo "Aborted. Resolve manually." | tee -a "$LOG_FILE"
-          break
-        fi
-      fi
     fi
   fi
 
@@ -347,6 +325,17 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     LAST_EXIT_CODE=0
   else
     LAST_EXIT_CODE=$?
+  fi
+
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    POST_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
+    if [[ $LAST_EXIT_CODE -eq 0 && "$POST_RALPH_STATUS" != "$PRE_RALPH_STATUS" ]]; then
+      echo "" | tee -a "$LOG_FILE"
+      echo "⚠️  /ralph left uncommitted changes beyond the baseline dirty state" | tee -a "$LOG_FILE"
+      echo "   Stopping so unrelated work is not accidentally mixed into the next issue." | tee -a "$LOG_FILE"
+      git status --short | tee -a "$LOG_FILE"
+      LAST_EXIT_CODE=1
+    fi
   fi
 
   # Better output parsing - extract completed issue ID
