@@ -31,7 +31,7 @@ Personal [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agen
 
 ```bash
 # Install Pi globally
-npm install -g @mariozechner/pi-coding-agent
+npm install -g @earendil-works/pi-coding-agent
 
 # Clone this config
 git clone https://github.com/shreeve1/pi-config.git ~/.pi

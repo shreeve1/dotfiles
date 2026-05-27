@@ -4,11 +4,11 @@
   "private": true,
   "description": "Pi agent configuration with extension dependencies",
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.75.5",
+    "@earendil-works/pi-coding-agent": "^0.75.5",
+    "@earendil-works/pi-tui": "^0.75.5",
     "@juicesharp/rpiv-advisor": "1.13.0",
     "@juicesharp/rpiv-config": "1.13.0",
-    "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.73.1",
-    "@mariozechner/pi-tui": "^0.73.1",
     "@sinclair/typebox": "^0.34.0",
     "puppeteer": "^24.40.0",
     "typebox": "1.1.38"

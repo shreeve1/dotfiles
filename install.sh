@@ -138,9 +138,16 @@ install_npm_deps_if_needed() {
     return 0
   fi
 
+  # Skip reinstall when node_modules exists AND is at least as new as package.json.
+  # If package.json was edited after node_modules (e.g. deps swapped after a git
+  # pull), fall through to reinstall so peers resolve. Override with
+  # INSTALL_PI_NPM=always (force) or INSTALL_PI_NPM=0 (never; handled by caller).
   if [ -d "$dir/node_modules" ] && [ "${INSTALL_PI_NPM:-1}" != "always" ]; then
-    printf 'ok: %s/node_modules present\n' "$label"
-    return 0
+    if [ ! "$dir/package.json" -nt "$dir/node_modules" ]; then
+      printf 'ok: %s/node_modules present\n' "$label"
+      return 0
+    fi
+    printf 'refresh: %s package.json newer than node_modules\n' "$label"
   fi
 
   if ! command -v npm >/dev/null 2>&1; then
@@ -153,20 +160,35 @@ install_npm_deps_if_needed() {
   fi
 
   local cmd=(npm install "$@")
+  local used_ci=0
   if [ -f "$dir/package-lock.json" ]; then
     cmd=(npm ci "$@")
+    used_ci=1
   fi
 
   printf 'install: %s dependencies (%s)\n' "$label" "${cmd[*]}"
   if (cd "$dir" && "${cmd[@]}"); then
     printf 'ok: %s dependencies installed\n' "$label"
-  else
-    printf 'warn: failed to install %s dependencies; run: cd %s && npm install' "$label" "$label"
-    if [ "$#" -gt 0 ]; then
-      printf ' %s' "$@"
-    fi
-    printf '\n'
+    return 0
   fi
+
+  # npm ci fails when the lockfile is out of sync with package.json (common after
+  # a dotfiles pull that swapped deps). Drop the stale lockfile and retry with
+  # `npm install` so the next sync regenerates a fresh lockfile.
+  if [ "$used_ci" = "1" ]; then
+    printf 'retry: %s — npm ci failed, removing stale lockfile and running npm install\n' "$label"
+    rm -f "$dir/package-lock.json"
+    if (cd "$dir" && npm install "$@"); then
+      printf 'ok: %s dependencies installed (lockfile regenerated)\n' "$label"
+      return 0
+    fi
+  fi
+
+  printf 'warn: failed to install %s dependencies; run: cd %s && npm install' "$label" "$label"
+  if [ "$#" -gt 0 ]; then
+    printf ' %s' "$@"
+  fi
+  printf '\n'
 }
 
 link_path ".zshrc" ".zshrc"
@@ -201,19 +223,45 @@ link_path ".pi/README.md" ".pi/README.md"
 # INSTALL_PI_NPM=always to refresh existing node_modules after dependency changes.
 #
 # Provider auth remains machine-local in ~/.pi/agent/auth.json.
+# Pi was renamed from @mariozechner/pi-coding-agent to @earendil-works/pi-coding-agent
+# upstream. Extensions vendored in .pi/agent/extensions/ now peer-depend on
+# @earendil-works/*. If the legacy package is still installed globally, warn so the
+# user can swap it (mariozechner is stuck at 0.67/0.73; earendil-works is current).
 if command -v pi >/dev/null 2>&1; then
+  pi_global_pkg=""
+  if command -v npm >/dev/null 2>&1; then
+    pi_global_pkg="$(npm ls -g --depth=0 2>/dev/null | grep -oE '@(mariozechner|earendil-works)/pi-coding-agent' | head -n 1 || true)"
+  fi
   printf 'ok: pi CLI available: '
   pi --version 2>&1 | head -n 1 || true
+  if [ "$pi_global_pkg" = "@mariozechner/pi-coding-agent" ]; then
+    printf 'warn: global pi is legacy @mariozechner/pi-coding-agent. Extensions need @earendil-works/*.\n'
+    printf '      swap with: npm uninstall -g @mariozechner/pi-coding-agent && npm install -g @earendil-works/pi-coding-agent\n'
+  fi
+  # Detect a stale /usr/bin/pi symlink left over from a prior root-level install of
+  # @mariozechner/pi-coding-agent. It can shadow the new user-prefix install on
+  # $PATH and silently route `pi` to the wrong binary (or a dangling symlink).
+  pi_resolved="$(command -v pi 2>/dev/null || true)"
+  if [ -L "/usr/bin/pi" ] && [ "$pi_resolved" = "/usr/bin/pi" ]; then
+    pi_link_target="$(readlink /usr/bin/pi || true)"
+    case "$pi_link_target" in
+      *@mariozechner/pi-coding-agent*)
+        printf 'warn: /usr/bin/pi is a legacy root-installed symlink (-> %s)\n' "$pi_link_target"
+        printf '      remove with: sudo npm uninstall -g @mariozechner/pi-coding-agent && sudo rm -f /usr/bin/pi\n'
+        printf '      or replace:  sudo npm install -g @earendil-works/pi-coding-agent\n'
+        ;;
+    esac
+  fi
 elif [ "${INSTALL_PI_CLI:-0}" = "1" ] && command -v npm >/dev/null 2>&1; then
   printf 'install: pi CLI via npm -g\n'
-  if npm install -g @mariozechner/pi-coding-agent; then
+  if npm install -g @earendil-works/pi-coding-agent; then
     printf 'ok: pi CLI installed\n'
   else
-    printf 'warn: failed to install pi CLI; run: npm install -g @mariozechner/pi-coding-agent\n'
+    printf 'warn: failed to install pi CLI; run: npm install -g @earendil-works/pi-coding-agent\n'
   fi
 else
   printf 'warn: pi CLI not found; PiPerspective reviews will fail until installed\n'
-  printf '      install example: npm install -g @mariozechner/pi-coding-agent\n'
+  printf '      install example: npm install -g @earendil-works/pi-coding-agent\n'
   printf '      or run installer with: INSTALL_PI_CLI=1 bash install.sh\n'
 fi
 
