@@ -19,6 +19,22 @@ Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in 
 
 Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next issue. Reviewer pass within this skill is performed by spawning a fresh `claude -p` via bash so the review context is genuinely separate.
 
+`ralph-loop.sh` can drive Ralph with `claude`, `opencode`, or `pi`:
+
+```bash
+tralph claude
+tralph opencode
+tralph pi
+```
+
+For Pi, the wrapper runs a fresh non-interactive turn equivalent to opencode's run mode:
+
+```bash
+pi --no-session --skill "$HOME/.claude/skills/ralph" -p "/skill:ralph"
+```
+
+The explicit `--skill` is required because this Ralph skill lives under `~/.claude/skills/ralph`, not Pi's normal skill directory.
+
 ## Pre-flight Checks
 
 Before starting ANY implementation:
@@ -35,7 +51,26 @@ If there are uncommitted changes:
 - Report the baseline dirty files briefly so the user knows they are being ignored.
 - Do **not** stage, commit, stash, revert, or modify baseline dirty files unless the current issue explicitly requires touching them.
 - At every commit gate, stage only files changed for the current issue. Never use `git add -A` or `git add .` while a baseline dirty state exists.
-- After each Ralph commit, verify the worktree returned to the same baseline dirty state. If new uncommitted changes remain beyond baseline, stop and fix before continuing.
+- After each Ralph commit, clean known ephemeral artifacts (below), then verify the worktree returned to the same baseline dirty state. If new uncommitted changes remain beyond baseline, stop and fix before continuing.
+
+### 1a. Ephemeral artifact cleanup
+
+Ralph may delete these untracked generated artifacts without asking because they are tool/session caches, not source:
+
+- `.playwright-sessions/`
+- `test-results/`
+- `playwright-report/`
+- `.pytest_cache/`
+- `.ruff_cache/`
+- `.mypy_cache/`
+- `htmlcov/`
+
+Rules:
+- Delete only if untracked (`git ls-files -- <path>` returns nothing).
+- Never delete tracked files or directories containing tracked files.
+- Log what was removed.
+- If the only new dirty state beyond baseline is one of these artifacts, clean it and continue to review/done.
+- If unknown untracked files appear, stop and ask.
 
 ### 2. Stale lock recovery
 
@@ -46,6 +81,20 @@ Reset to pending? [Y/n]
 ```
 
 If the user confirms (or if running unattended), reset to `status: pending` and log the recovery in progress.md.
+
+### 2a. Active issue resume
+
+Before scanning for new pending issues, check for issues with `status: in-progress` or `status: review`.
+
+If exactly one active issue exists:
+- Treat it as an interrupted prior Ralph run and resume it instead of declaring `0 ready`.
+- If `status: review`, run the mandatory fresh review and then mark done/blocked from the review result.
+- If `status: in-progress`, inspect the issue, recent commits, and `git status`:
+  - If implementation is already committed and no issue-created uncommitted files remain, move to `review` and run the fresh review.
+  - If issue-created uncommitted files remain, continue implementation/verification from there.
+  - If state is ambiguous, stop and ask.
+
+If multiple active issues exist, stop and ask which one to resume. Do not reset active issues to pending unless explicitly requested or stale-lock recovery confirms reset.
 
 ### 3. Board validation
 
@@ -61,7 +110,7 @@ If validation fails, report errors and stop. Do not implement on a broken board.
 
 ### 1. Scan the board
 
-Read all `.kanban/issues/*.md` files. Find issues where:
+Read all `.kanban/issues/*.md` files. First resume any active `in-progress` or `review` issue per **Active issue resume** above. If there is no active issue, find issues where:
 - `status: pending`
 - All `blocked_by` IDs have `status: done` (or are archived)
 - All children are `done` (if this is a parent)
@@ -102,7 +151,7 @@ For the selected issue:
    git commit -m "feat(#ID): brief description"
    git status --porcelain                 # MUST match the baseline dirty state
    ```
-   If `git status --porcelain` shows new uncommitted changes beyond the baseline dirty state after this step, STOP and fix. Do not proceed to review with uncommitted issue work.
+   If `git status --porcelain` shows new uncommitted changes beyond the baseline dirty state after this step, first clean allowed ephemeral artifacts. If anything else remains, STOP and fix. Do not proceed to review with uncommitted issue work.
 
    This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. Never use `git add -A` or `git add .` here unless the baseline dirty state is empty and every changed file belongs to this issue.
 
