@@ -26,6 +26,23 @@ commands).
 - `node` must be on `$PATH` — the caveman SessionStart and UserPromptSubmit
   hooks are Node scripts (`.claude/hooks/caveman-*.cjs`). Hooks fail silently
   without it.
+- Pi `ask_user_question` is a synced vendored extension at
+  `.pi/agent/extensions/rpiv-ask-user-question`. On another system, run
+  `bash install.sh` from the repo root, or `INSTALL_PI_NPM=always bash install.sh`
+  if `~/.pi/agent/node_modules` already exists but extension deps are stale. Do
+  not use `pi install npm:@juicesharp/rpiv-ask-user-question`; use the repo copy.
+- Pi `rpiv-advisor` is also a synced vendored extension at
+  `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
+  `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
+  stale. Do not use `pi install npm:@juicesharp/rpiv-advisor`; use the repo copy.
+- Pi `rpiv-web-tools` is a synced vendored extension at
+  `.pi/agent/extensions/rpiv-web-tools` and registered in `.pi/agent/settings.json`
+  as `extensions/rpiv-web-tools`. Install/repair it with `bash install.sh`, or
+  `INSTALL_PI_NPM=always bash install.sh` if deps are stale. Do not use
+  `pi install npm:@juicesharp/rpiv-web-tools`; use the repo copy. Keep
+  `.pi/agent/settings.json` excluding `-extensions/web-fetch/index.ts`, or Pi will
+  load the legacy web-fetch extension and conflict on `web_search` / `web_fetch`.
+  After install, restart Pi and run `/web-search-config`.
 - `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` and `OPENCODE_DISABLE_CLAUDE_CODE` must
   be **unset**, or OpenCode won't see canonical skills under `~/.claude/skills/`.
 - OpenCode silently filters skills with invalid frontmatter. If a new skill
