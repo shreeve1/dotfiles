@@ -5,7 +5,7 @@
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "skills": [],
-  "theme": "ember",
+  "theme": "catppuccin-mocha",
   "hideThinkingBlock": false,
   "transport": "sse",
   "packages": [
