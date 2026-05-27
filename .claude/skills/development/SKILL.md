@@ -31,7 +31,7 @@ Complete software development pipeline: idea → PRD → plan → validate → b
 **Minimum viable flow:** `/dev-plan` → `/dev-build` → `/dev-test`
 
 **Auxiliary commands** (available at any stage):
-`/dev-review` · `/dev-investigate` · `/dev-stories` · `/dev-team`
+`/skill:dev-review-claude` · `/dev-investigate` · `/dev-stories` · `/dev-team`
 
 **Full pipeline documentation:** `PipelineReference.md`
 

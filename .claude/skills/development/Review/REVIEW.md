@@ -1,15 +1,15 @@
 ---
 name: Review
-description: Independent code review — gathers context, runs a fresh Claude Code reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review` skill.
+description: Independent code review — gathers context, runs a fresh Claude Code reviewer session, discusses findings before applying changes. Routes all review requests to the canonical `dev-review-claude` skill.
 ---
 
 ## Routing
 
 All review requests — file, directory, plan, build, proposal, session context — route to the canonical skill:
 
-`~/.claude/skills/dev-review/SKILL.md`
+`~/.claude/skills/dev-review-claude/SKILL.md`
 
-There is no longer a separate Development/Review workflow. The Development pack's Review entry point exists only to keep pipeline routing consistent; the actual review logic lives in `dev-review`.
+There is no longer a separate Development/Review workflow. The Development pack's Review entry point exists only to keep pipeline routing consistent; the actual review logic lives in `dev-review-claude`.
 
 ## Pipeline Position
 
@@ -28,7 +28,7 @@ There is no longer a separate Development/Review workflow. The Development pack'
 **Example 1: Review a specific file**
 ```
 User: "Review src/services/user.ts"
--> Loads dev-review skill
+-> Loads dev-review-claude skill
 -> Target = file path
 -> Fresh Claude Code session reviews; findings discussed interactively
 ```
@@ -36,7 +36,7 @@ User: "Review src/services/user.ts"
 **Example 2: Review the current plan for gaps**
 ```
 User: "Review the plan for gaps"
--> Loads dev-review skill
+-> Loads dev-review-claude skill
 -> Target = plan (or context)
 -> Fresh Claude Code session reviews; findings discussed interactively
 ```
@@ -44,7 +44,7 @@ User: "Review the plan for gaps"
 **Example 3: Review uncommitted changes**
 ```
 User: "Review the build"
--> Loads dev-review skill
+-> Loads dev-review-claude skill
 -> Target = build (git diff)
 -> Fresh Claude Code session reviews; findings discussed interactively
 ```
