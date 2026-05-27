@@ -26,6 +26,13 @@ commands).
 - `node` must be on `$PATH` — the caveman SessionStart and UserPromptSubmit
   hooks are Node scripts (`.claude/hooks/caveman-*.cjs`). Hooks fail silently
   without it.
+- Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
+  `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
+  peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
+  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}`. Install globally with
+  `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
+  symlink remains from a prior root-level install of the old package, it can
+  shadow the new user-prefix binary — `install.sh` detects and reports this.
 - Pi `ask_user_question` is a synced vendored extension at
   `.pi/agent/extensions/rpiv-ask-user-question`. On another system, run
   `bash install.sh` from the repo root, or `INSTALL_PI_NPM=always bash install.sh`
