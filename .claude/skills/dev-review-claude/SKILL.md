@@ -1,13 +1,15 @@
 ---
-name: dev-review
-description: Independent code review using a fresh Claude Code session as the reviewer. USE WHEN user says "dev-review", "/dev-review", "independent review", or wants a second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--opus` / `--sonnet` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
+name: dev-review-claude
+description: Independent code review using a fresh interactive Claude Code session as the reviewer. USE WHEN user says "dev-review-claude", "/skill:dev-review-claude", "independent Claude review", or wants a Claude-powered second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--opus` / `--sonnet` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
 ---
 
-# Dev Review (Claude Code-Powered)
+# Dev Review Claude (Interactive Claude Code via tmux)
 
-Independent review using a fresh Claude Code session as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, and sends a structured brief to a separate `claude -p` invocation. The reviewer receives a bounded brief on stdin with tools disabled by default so the review stays independent and read-only. Results are discussed interactively before any changes are applied.
+Independent review using a fresh interactive Claude Code session as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, writes a structured brief, and sends it to a separate Claude Code process running in a private tmux session.
 
-This skill is the single source of truth for `dev-review`. The `/dev-review` slash command and the Development pack's Review sub-skill both route here.
+The reviewer runs with bypass permissions and normal tool access so read/search/shell work does not stall on prompts. The reviewer is instructed to stay read-only; the primary agent verifies the working tree after the review and surfaces any unexpected modifications before applying agreed changes.
+
+This skill is the single source of truth for `dev-review-claude`. The `/skill:dev-review-claude` invocation and the Development pack's Review sub-skill both route here.
 
 ## Variables
 
@@ -32,7 +34,7 @@ You MUST create a task for each of these items and complete them in order:
 2. **Verify target with user** — confirm scope before sending to the reviewer
 3. **Gather surrounding context** — read related files, conventions, plans
 4. **Build review brief** — assemble structured context document
-5. **Run Claude Code review** — execute `claude -p` in a fresh session with a bounded review prompt
+5. **Run Claude Code review** — execute interactive `claude` in a fresh tmux session with the bounded review brief pasted into the session
 6. **Present and discuss findings** — parse reviewer output, discuss interactively
 7. **Apply agreed changes** — implement only what the user agrees on
 
@@ -40,7 +42,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context the reviewer receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
-- **Reviewer runs in a fresh Claude Code session.** Use `claude -p --no-session-persistence` with prompt content on stdin. Disable tools by default with `--tools ""`; the brief must include the needed context. The reviewer is instructed to be read-only — applying changes happens back in the primary session.
+- **Reviewer runs in a fresh Claude Code session.** Use an interactive `claude` process inside a private tmux session. Do not use non-interactive print mode. Run with bypass permissions and default tool access so read/search/shell inspection does not stall on prompts. The reviewer is instructed to be read-only — applying changes happens back in the primary session.
 - **Present reviewer findings faithfully.** Don't soften or reinterpret. Show what the reviewer actually said, then add your own assessment separately.
 - **Flag disagreements.** Where the primary agent and the reviewer disagree — that's where the interesting discussion lives.
 
@@ -179,50 +181,101 @@ You MUST create a task for each of these items and complete them in order:
    - If the target is NOT inside a git repo: use its parent directory. Only `plan`, `proposal`, and `file` reviews work outside repos — **reject `build` reviews for non-git targets** and fall back to file review instead.
    - The project root should be derived from the review target's location, not `pwd`.
 
-   **Write the review brief to a temp file:**
+   **Write the review brief and prompt to temp files:**
    ```bash
    REVIEW_FILE=$(mktemp /tmp/claude-review-XXXXXX.md)
+   PROMPT_FILE=$(mktemp /tmp/claude-review-prompt-XXXXXX.md)
    OUTPUT_FILE=$(mktemp /tmp/claude-review-output-XXXXXX.txt)
-   # Write the brief content to $REVIEW_FILE using the Write tool
-   # NOTE: mktemp creates an empty file. If using Claude Code's Write tool, it will require a Read first.
-   # Read the empty file once, then Write — or use `mktemp -u` to get a name without creating the file.
+   BASE_STATUS_FILE=$(mktemp /tmp/claude-review-status-before-XXXXXX.txt)
+   AFTER_STATUS_FILE=$(mktemp /tmp/claude-review-status-after-XXXXXX.txt)
+   DONE_NONCE="$(date +%s)_$RANDOM"
+   DONE_MARKER="DEV_REVIEW_DONE_$DONE_NONCE"
+   trap 'rm -f "$REVIEW_FILE" "$PROMPT_FILE" "$OUTPUT_FILE" "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"' EXIT
+   # Write the brief content to $REVIEW_FILE using the Write tool.
+   # Then wrap it in $PROMPT_FILE with submit instructions and the completion marker.
    ```
 
-   **Run the reviewer in a fresh Claude Code session:**
+   **Run the reviewer in a fresh interactive tmux session:**
    ```bash
-   timeout 180s claude -p \
-     "${REVIEWER_MODEL_ARGS[@]}" \
-     --no-session-persistence \
-     --permission-mode bypassPermissions \
-     --system-prompt "You are a read-only independent code review tool. Follow the requested finding format exactly. Do not modify files. Do not use local house style or wrapper behavior." \
-     --tools "" \
-     < "$REVIEW_FILE" \
-     > "$OUTPUT_FILE" 2>&1
+   SOCKET_DIR="${CLAUDE_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/claude-tmux-sockets}"
+   mkdir -p "$SOCKET_DIR"
+   SOCKET="$SOCKET_DIR/claude.sock"
+   SESSION="dev-review-claude-$(date +%s)"
+
+   git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
+
+   tmux -S "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT_ROOT" -n review
+   tmux -S "$SOCKET" send-keys -t "$SESSION":0.0 -- \
+     "claude ${REVIEWER_MODEL_ARGS[*]} --permission-mode bypassPermissions --disallowedTools 'Edit,Write,MultiEdit,NotebookEdit' --append-system-prompt 'You are a read-only independent code review tool. Follow the requested finding format exactly. Do not modify files. Do not use local house style or wrapper behavior.'" Enter
+   ```
+
+   Immediately print monitor commands for the user:
+   ```bash
+   tmux -S "$SOCKET" attach -t "$SESSION"
+   tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S -200
+   ```
+
+   **Wait for Claude Code to be ready before pasting:**
+   - Poll `tmux capture-pane` until the Claude prompt/input UI is visible, or until a short timeout (default: 30 seconds).
+   - If Claude does not become ready, capture the pane, print the attach command, and ask whether to continue waiting, attach manually, or abort.
+   - Do not paste the review brief while the pane is still at a shell prompt or startup screen.
+
+   **Send the brief without shell-quoting risk:**
+   ```bash
+   {
+     printf 'Review the following brief. You may inspect the repository with tools, but you must not modify files. Format findings exactly as requested. When complete, print DEV_REVIEW_DONE_ followed immediately by this nonce on its own line: %s\n\n' "$DONE_NONCE"
+     cat "$REVIEW_FILE"
+   } > "$PROMPT_FILE"
+
+   tmux -S "$SOCKET" load-buffer -b dev-review-claude "$PROMPT_FILE"
+   tmux -S "$SOCKET" paste-buffer -b dev-review-claude -t "$SESSION":0.0
+   tmux -S "$SOCKET" send-keys -t "$SESSION":0.0 Enter
    ```
 
    Notes:
    - `--claude` and `--opus` map to `--model opus`; `--sonnet` maps to `--model sonnet`.
    - `--gpt` is intentionally unsupported in this Claude-first workflow.
    - If neither model flag is provided, use an empty `REVIEWER_MODEL_ARGS` array and preserve the current default reviewer model behaviour.
-   - `--tools ""` keeps the reviewer bounded to the brief. If you need a broader read-only review, rebuild the brief with more context rather than giving edit-capable tools.
-   - Prompt text goes on stdin because `--tools` is variadic; do not pass the prompt as a trailing argument.
-   - The session is fresh because `--no-session-persistence` is set. The whole point is an independent perspective.
+   - Do not pass print-mode flags; this workflow intentionally uses interactive Claude Code through tmux.
+   - Do not pass `--tools ""`; this workflow intentionally allows default tools so repository reads/searches do not stall.
+   - Disallow direct edit tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) while keeping read/search/shell tools available.
+   - The reviewer has bypass permissions. Treat this as trusted local automation only. Bash can still modify files, so the primary agent must compare working-tree status before and after the review.
 
-   **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer session is fresh and intentionally has no shell tools by default.
+   **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files, but the diff remains the authoritative review target.
 
    **Capture output reliably:**
-   - Redirect stdout+stderr to `$OUTPUT_FILE`
-   - Keep the `timeout 180s` wrapper to avoid hanging on complex reviews
-   - After execution, read the output file
-   - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings
+   - Poll the pane until the unique `$DONE_MARKER` appears, or until a timeout (default: 10 minutes). The pasted prompt includes only the nonce, not the full marker, so the full marker should appear only in the reviewer response.
+   - On success, capture the pane to `$OUTPUT_FILE`:
+     ```bash
+     tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S -5000 > "$OUTPUT_FILE"
+     ```
+   - If the timeout fires, capture the pane, leave the tmux session running, print the attach command, and ask whether to continue waiting, attach manually, or abort.
+   - After successful capture, kill the tmux session unless the user asks to keep it:
+     ```bash
+     tmux -S "$SOCKET" kill-session -t "$SESSION"
+     ```
+   - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
 
-   **Clean up both temp files after parsing:** `rm -f "$REVIEW_FILE" "$OUTPUT_FILE"`
+   **Verify read-only behavior:**
+   - After the reviewer completes, compare project status against the pre-review baseline:
+     ```bash
+     git -C "$PROJECT_ROOT" status --short > "$AFTER_STATUS_FILE" 2>/dev/null || true
+     if ! cmp -s "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"; then
+       diff -u "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE" || true
+       # Stop and ask the user before presenting findings or applying anything.
+     fi
+     ```
+   - This comparison is required even for build reviews, because the tree may already have intentional changes before review starts.
+   - If files changed unexpectedly, stop and surface the changed paths before presenting findings.
+   - Do not apply or revert reviewer changes without explicit user confirmation.
+
+   **Clean up temp files after parsing:** the `trap` above removes `$REVIEW_FILE`, `$PROMPT_FILE`, `$OUTPUT_FILE`, `$BASE_STATUS_FILE`, and `$AFTER_STATUS_FILE`. Do not trap-kill the tmux session, because timeout/debug flows may need the session left open.
 
    **Error handling:**
-   - If `claude` is not on PATH: report it and ask the user to check their Claude Code install
-   - If `claude -p` errors: show the error, offer retry or primary-agent-only fallback
-   - If the reviewer output is empty: note the issue, offer primary-agent-only fallback
-   - If the reviewer attempts to modify files despite the read-only instruction: surface that in the report
+   - If `claude` is not on PATH: report it and ask the user to check their Claude Code install.
+   - If `tmux` is not on PATH: report it and offer a manual reviewer handoff using the generated prompt file.
+   - If the reviewer output is empty: note the issue, offer to re-open the tmux session or use primary-agent-only fallback.
+   - If the reviewer attempts to modify files despite the read-only instruction: surface that in the report.
 
 ### Phase 4: Present and Discuss
 
@@ -274,7 +327,7 @@ You MUST create a task for each of these items and complete them in order:
 After the review is complete, provide:
 
 ```
-Review Complete (Claude Code-Powered)
+Review Complete (Dev Review Claude via tmux)
 
 Target: <what was reviewed>
 Type: <Plan/Context | Build | File | Proposal>
