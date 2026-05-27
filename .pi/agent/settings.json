@@ -1,17 +1,29 @@
 {
-  "lastChangelogVersion": "0.74.0",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
+  "lastChangelogVersion": "0.75.5",
+  "defaultProvider": "zai",
+  "defaultModel": "glm-5.1",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "skills": [],
-  "theme": "ember",
+  "theme": "catppuccin-mocha",
   "hideThinkingBlock": false,
   "transport": "sse",
   "packages": [
-    "npm:lsp-pi"
+    "npm:lsp-pi",
+    "extensions/pi-lens",
+    "extensions/@tintinweb/pi-subagents",
+    "extensions/rpiv-advisor",
+    "extensions/rpiv-ask-user-question",
+    "extensions/rpiv-todo",
+    "extensions/@juicesharp/rpiv-i18n",
+    "extensions/rpiv-web-tools",
+    "extensions/@juicesharp/rpiv-args",
+    "extensions/rpiv-pi"
   ],
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
-  "extensions": []
+  "extensions": [
+    "-extensions/rpiv-pi/extensions",
+    "-extensions/web-fetch/index.ts"
+  ]
 }
