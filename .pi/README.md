@@ -52,6 +52,120 @@ Create `~/.pi/agent/auth.json` with your API keys:
 
 Only add providers you use. For custom providers (Ollama, OpenRouter, etc.), add them to `~/.pi/agent/models.json`.
 
+### Synced extension: ask_user_question
+
+`rpiv-ask-user-question` is vendored in this repo at `~/.pi/agent/extensions/rpiv-ask-user-question` and registered in `~/.pi/agent/settings.json` as `extensions/rpiv-ask-user-question`. Do not install it with `pi install npm:@juicesharp/rpiv-ask-user-question` on synced machines; that creates machine-local files under `~/.pi/agent/npm/` instead of using the repo copy.
+
+On another system, install it through the dotfiles installer:
+
+```bash
+cd ~/dotfiles
+bash install.sh
+```
+
+If `~/.pi/agent` is already linked and only dependencies are missing or stale:
+
+```bash
+cd ~/dotfiles
+INSTALL_PI_NPM=always bash install.sh
+```
+
+Manual fallback:
+
+```bash
+cd ~/.pi/agent && npm install
+cd ~/.pi/agent/extensions/rpiv-ask-user-question && npm install --omit=dev --omit=peer
+pi list | grep rpiv-ask-user-question
+```
+
+Restart Pi after install. Expected tool: `ask_user_question`.
+
+### Synced extension: pi-lens
+
+`pi-lens` is vendored in this repo at `~/.pi/agent/extensions/pi-lens` and registered in `~/.pi/agent/settings.json` as `extensions/pi-lens`. Do not install it with `pi install npm:pi-lens` on synced machines; that creates machine-local files instead of using the repo copy.
+
+On another system, install it through the dotfiles installer:
+
+```bash
+cd ~/dotfiles
+bash install.sh
+```
+
+If `~/.pi/agent` is already linked and only dependencies or tree-sitter grammars are missing or stale:
+
+```bash
+cd ~/dotfiles
+INSTALL_PI_NPM=always bash install.sh
+```
+
+Manual fallback:
+
+```bash
+cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
+pi list | grep pi-lens
+pi --help | grep lens
+```
+
+Restart Pi after install. Expected flags include `--no-lens` and `--no-lsp`; expected commands include `/lens-toggle`, `/lens-booboo`, and `/lens-health`.
+
+### Synced extension: rpiv-advisor
+
+`rpiv-advisor` is vendored in this repo at `~/.pi/agent/extensions/rpiv-advisor` and registered in `~/.pi/agent/settings.json` as `extensions/rpiv-advisor`. Do not install it with `pi install npm:@juicesharp/rpiv-advisor` on synced machines; that creates machine-local files instead of using the repo copy.
+
+On another system, install it through the dotfiles installer:
+
+```bash
+cd ~/dotfiles
+bash install.sh
+```
+
+If `~/.pi/agent` is already linked and only dependencies are missing or stale:
+
+```bash
+cd ~/dotfiles
+INSTALL_PI_NPM=always bash install.sh
+```
+
+Manual fallback:
+
+```bash
+cd ~/.pi/agent && npm install
+cd ~/.pi/agent/extensions/rpiv-advisor && npm install --omit=dev --omit=peer
+pi list | grep rpiv-advisor
+```
+
+Restart Pi after install, then run `/advisor` to choose a reviewer model. Expected command: `/advisor`; expected tool after choosing a model: `advisor`.
+
+### Synced extension: rpiv-web-tools
+
+`rpiv-web-tools` is vendored in this repo at `~/.pi/agent/extensions/rpiv-web-tools` and registered in `~/.pi/agent/settings.json` as `extensions/rpiv-web-tools`. Do not install it with `pi install npm:@juicesharp/rpiv-web-tools` on synced machines; that creates machine-local files instead of using the repo copy.
+
+This repo intentionally disables the older `~/.pi/agent/extensions/web-fetch/index.ts` extension in `~/.pi/agent/settings.json` with `-extensions/web-fetch/index.ts`. Keep that exclusion, or Pi will load both extensions and report duplicate `web_search` / `web_fetch` tools.
+
+On another system, install it through the dotfiles installer:
+
+```bash
+cd ~/dotfiles
+bash install.sh
+```
+
+If `~/.pi/agent` is already linked and only dependencies are missing or stale:
+
+```bash
+cd ~/dotfiles
+INSTALL_PI_NPM=always bash install.sh
+```
+
+Manual fallback:
+
+```bash
+cd ~/.pi/agent && npm install
+cd ~/.pi/agent/extensions/rpiv-web-tools && npm install --omit=dev --omit=peer
+pi list | grep rpiv-web-tools
+```
+
+Restart Pi after install, then run `/web-search-config` to choose a provider and configure API keys. Expected tools: `web_search`, `web_fetch`; expected command: `/web-search-config`.
+
 ---
 
 ## Agent Teams
