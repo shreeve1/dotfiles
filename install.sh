@@ -119,6 +119,56 @@ seed_path() {
   printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
 }
 
+display_path() {
+  local p="$1"
+  case "$p" in
+    "$HOME") printf '~' ;;
+    "$HOME"/*) printf '~/%s' "${p#"$HOME"/}" ;;
+    *) printf '%s' "$p" ;;
+  esac
+}
+
+install_npm_deps_if_needed() {
+  local dir="$1"
+  shift || true
+  local label
+  label="$(display_path "$dir")"
+
+  if [ ! -f "$dir/package.json" ]; then
+    return 0
+  fi
+
+  if [ -d "$dir/node_modules" ] && [ "${INSTALL_PI_NPM:-1}" != "always" ]; then
+    printf 'ok: %s/node_modules present\n' "$label"
+    return 0
+  fi
+
+  if ! command -v npm >/dev/null 2>&1; then
+    printf 'warn: npm not found; run later: cd %s && npm install' "$label"
+    if [ "$#" -gt 0 ]; then
+      printf ' %s' "$@"
+    fi
+    printf '\n'
+    return 0
+  fi
+
+  local cmd=(npm install "$@")
+  if [ -f "$dir/package-lock.json" ]; then
+    cmd=(npm ci "$@")
+  fi
+
+  printf 'install: %s dependencies (%s)\n' "$label" "${cmd[*]}"
+  if (cd "$dir" && "${cmd[@]}"); then
+    printf 'ok: %s dependencies installed\n' "$label"
+  else
+    printf 'warn: failed to install %s dependencies; run: cd %s && npm install' "$label" "$label"
+    if [ "$#" -gt 0 ]; then
+      printf ' %s' "$@"
+    fi
+    printf '\n'
+  fi
+}
+
 link_path ".zshrc" ".zshrc"
 
 # ─── XDG config ────────────────────────────────────────────
@@ -145,19 +195,80 @@ link_path ".pi/agent" ".pi/agent"
 link_path ".pi/agent-sessions" ".pi/agent-sessions"
 link_path ".pi/README.md" ".pi/README.md"
 
-# PiPerspective uses the external `pi` CLI as a second-mind reviewer from
-# OpenCode. Dotfiles can link config, but package installs and provider auth
-# are machine-local, so only warn here. See README.md "PiPerspective setup".
+# Pi uses ~/.pi/agent/package.json for extension/runtime dependencies. On fresh
+# machines, install deps for ~/.pi/agent and any extension package with its own
+# package.json. Set INSTALL_PI_NPM=0 to skip network installs, or
+# INSTALL_PI_NPM=always to refresh existing node_modules after dependency changes.
+#
+# Provider auth remains machine-local in ~/.pi/agent/auth.json.
 if command -v pi >/dev/null 2>&1; then
   printf 'ok: pi CLI available: '
   pi --version 2>&1 | head -n 1 || true
+elif [ "${INSTALL_PI_CLI:-0}" = "1" ] && command -v npm >/dev/null 2>&1; then
+  printf 'install: pi CLI via npm -g\n'
+  if npm install -g @mariozechner/pi-coding-agent; then
+    printf 'ok: pi CLI installed\n'
+  else
+    printf 'warn: failed to install pi CLI; run: npm install -g @mariozechner/pi-coding-agent\n'
+  fi
 else
   printf 'warn: pi CLI not found; PiPerspective reviews will fail until installed\n'
   printf '      install example: npm install -g @mariozechner/pi-coding-agent\n'
+  printf '      or run installer with: INSTALL_PI_CLI=1 bash install.sh\n'
 fi
 
 if ! command -v bun >/dev/null 2>&1; then
   printf 'warn: bun not found; PiPerspective Tools/*.ts and OpenCode helpers require bun\n'
+fi
+
+if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
+  install_npm_deps_if_needed "$HOME/.pi/agent"
+
+  # rpiv-todo is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:@juicesharp/rpiv-todo`. Its package imports Pi SDK packages
+  # as runtime peers, so install its extension-local deps without --omit=peer.
+  # Fresh-system / AI-session repair command:
+  #   cd ~/.pi/agent/extensions/rpiv-todo && npm install --omit=dev
+  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-todo" --omit=dev
+
+  # rpiv-pi is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:@juicesharp/rpiv-pi`. Its core imports Pi SDK packages as
+  # runtime peers, so install its extension-local deps without --omit=peer.
+  # Fresh-system / AI-session repair command:
+  #   cd ~/.pi/agent/extensions/rpiv-pi && npm install --omit=dev
+  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-pi" --omit=dev
+
+  # pi-lens is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:pi-lens`. Its postinstall downloads tree-sitter grammars.
+  # Fresh-system / AI-session repair command:
+  #   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
+
+  # rpiv-advisor is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:@juicesharp/rpiv-advisor`. It is registered in
+  # ~/.pi/agent/settings.json as extensions/rpiv-advisor. Fresh-system /
+  # AI-session repair command:
+  #   cd ~/.pi/agent && npm install
+  #   cd ~/.pi/agent/extensions/rpiv-advisor && npm install --omit=dev --omit=peer
+
+  # rpiv-web-tools is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:@juicesharp/rpiv-web-tools`. It is registered in
+  # ~/.pi/agent/settings.json as extensions/rpiv-web-tools. The same settings
+  # file disables the older web-fetch extension with -extensions/web-fetch/index.ts
+  # to avoid duplicate web_search/web_fetch tools. Fresh-system / AI-session repair:
+  #   cd ~/.pi/agent && npm install
+  #   cd ~/.pi/agent/extensions/rpiv-web-tools && npm install --omit=dev --omit=peer
+  #   restart Pi, then run /web-search-config
+
+  for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
+    [ -f "$package_json" ] || continue
+    case "$(dirname "$package_json")" in
+      "$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
+      "$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
+    esac
+    install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
+  done
+else
+  printf 'skip: Pi npm dependencies (INSTALL_PI_NPM=0)\n'
 fi
 
 # ─── Neovim ────────────────────────────────────────────────
@@ -186,10 +297,6 @@ done
 
 if ! command -v make >/dev/null 2>&1; then
   printf 'warn: make not found; telescope-fzf-native build will be skipped\n'
-fi
-
-if [ -f "$HOME/.pi/agent/package.json" ] && [ ! -d "$HOME/.pi/agent/node_modules" ]; then
-  printf 'warn: ~/.pi/agent/node_modules missing; run: cd ~/.pi/agent && npm install\n'
 fi
 
 # ─── Claude Code ───────────────────────────────────────────

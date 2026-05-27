@@ -1,6 +1,6 @@
 ---
 name: autoagent
-description: Score-driven hill-climb loop for stress-testing and auto-improving any CLI-driven system (agent harness, Temporal workflow, cron job, scraper, CI pipeline). Adapter contract: SUT, Mutator, Probe, Verifier, Runner. USE WHEN autoagent, stress test, hill climb, program.md, harness engineering, Temporal workflow testing, cron experiment, score-driven loop, autonomous system improvement. NOT for LLM eval suites (use Evals).
+description: "Score-driven hill-climb loop for stress-testing and auto-improving any CLI-driven system (agent harness, Temporal workflow, cron job, scraper, CI pipeline). Adapter contract: SUT, Mutator, Probe, Verifier, Runner. USE WHEN autoagent, stress test, hill climb, program.md, harness engineering, Temporal workflow testing, cron experiment, score-driven loop, autonomous system improvement. NOT for LLM eval suites (use Evals)."
 ---
 
 # autoagent
