@@ -1,0 +1,15 @@
+{
+  "format": {
+    "enabled": true,
+    "mode": "immediate"
+  },
+  "actionableWarnings": {
+    "enabled": true,
+    "includeLspCodeActions": true,
+    "deltaOnly": true,
+    "autoFix": {
+      "enabled": true,
+      "maxFixes": 15
+    }
+  }
+}
