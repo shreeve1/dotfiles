@@ -29,6 +29,7 @@ bin/
 .pi/agent/npm/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
+.pi/agent-sessions/
 
 # Pi agent — machine-local generated experiments and external links
 .pi/agent/**/experiments/
