@@ -5,7 +5,7 @@ description: Run the Ralph implementation loop. Picks up the next unblocked issu
 
 # Ralph Loop
 
-Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in a fresh session. Then review it in a separate fresh session. Then stop. The user (or `ralph-loop.sh`) re-invokes `/ralph` for the next issue.
+Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in a fresh agent session. Then review it in a separate fresh agent session. Then stop. The user (or `ralph-loop.sh`) invokes Ralph again for the next issue.
 
 ## Philosophy
 
@@ -17,23 +17,46 @@ Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in 
 
 ## Execution modes
 
-Run Ralph interactively with `/ralph`. This skill processes exactly ONE issue per invocation, then stops. User runs `/ralph` again for the next issue. Reviewer pass within this skill is performed by spawning a fresh `claude -p` via bash so the review context is genuinely separate.
+Run Ralph interactively by invoking this skill in an agent session. This skill processes exactly ONE issue per invocation, then stops. User runs Ralph again for the next issue.
 
-`ralph-loop.sh` can drive Ralph with `claude`, `opencode`, or `pi`:
+`ralph-loop.sh` can drive Ralph repeatedly with either:
 
-```bash
-tralph claude
-tralph opencode
-tralph pi
-```
+- `tmux` — generic interactive agent controlled with `tmux send-keys` (default, normal tmux server)
+- `pi` — fresh non-interactive Pi turn per issue
 
-For Pi, the wrapper runs a fresh non-interactive turn equivalent to opencode's run mode:
+Useful runner examples:
 
 ```bash
-pi --no-session --skill "$HOME/.claude/skills/ralph" -p "/skill:ralph"
+tralph                                      # normal tmux, default Pi agent (openai-codex/gpt-5.5)
+tralph --private-tmux                       # isolated Ralph tmux socket
+tralph --agent-cmd 'pi --model openai-codex/gpt-5.5' tmux
+tralph pi                                   # Pi non-interactive adapter
 ```
 
-The explicit `--skill` is required because this Ralph skill lives under `~/.claude/skills/ralph`, not Pi's normal skill directory.
+`--agent-cmd` is intentionally a shell command line. Quote paths with spaces yourself.
+
+The loop runner is only an adapter. Ralph's durable contract is the board protocol, commit gates, fresh review session, and sentinel output below.
+
+## Sentinel output contract
+
+When Ralph finishes an invocation, print exactly one final sentinel line:
+
+```text
+RALPH_RESULT: DONE #<id>
+RALPH_RESULT: NO_WORK
+RALPH_RESULT: BLOCKED #<id>
+RALPH_RESULT: FAIL #<id>
+```
+
+Reviewer sessions print exactly one review sentinel line:
+
+```text
+RALPH_REVIEW: PASS
+RALPH_REVIEW: PASS_WITH_NOTES
+RALPH_REVIEW: FAIL
+```
+
+Human-readable notes may appear before the sentinel. `ralph-loop.sh` parses the sentinel instead of natural language.
 
 ## Pre-flight Checks
 
@@ -163,15 +186,11 @@ For the selected issue:
 
 1. **Set status to review** — update the issue file to `status: review`.
 2. **Commit that status change** — stage only the current issue file (and `.kanban/progress.md` if touched), then `git commit -m "review(#ID): brief description"`. Do not stage unrelated baseline dirty files.
-3. **Spawn a fresh review session via bash** — the reviewer must NOT inherit the implementer's context:
+3. **Spawn a fresh review agent session** — the reviewer must NOT inherit the implementer's context. Give the reviewer this contract:
 
-   ```bash
-   claude -p \
-     --no-session-persistence \
-     --permission-mode bypassPermissions \
-     --system-prompt "You are a read-only issue reviewer. Do not modify files. Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion." \
-     --tools "Read,Grep,Glob,Bash(git status *),Bash(git diff *),Bash(git rev-parse *),Bash(git show *)" \
-     <<'EOF'
+   ```text
+   You are a read-only issue reviewer. Do not modify files.
+
    Review issue #<ID> in .kanban/issues/.
    Read the issue file, then run `git diff HEAD~1` and read every changed file.
    Verify:
@@ -181,16 +200,32 @@ For the selected issue:
    4. No unrelated changes leaked into the committed diff (`git diff HEAD~1`), ignoring any pre-existing dirty worktree files outside the reviewed commit.
    5. Scope matches the issue — no scope creep.
 
-   Output PASS / PASS WITH NOTES / FAIL with reasoning per criterion.
-EOF
+   Output reasoning per criterion, then exactly one final line:
+   RALPH_REVIEW: PASS
+   RALPH_REVIEW: PASS_WITH_NOTES
+   RALPH_REVIEW: FAIL
    ```
 
-   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session.
+   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain` before and after review and fail if the reviewer changed files.
+
+   Concrete spawn examples:
+
+   ```bash
+   # Pi non-interactive reviewer
+   pi --no-session --model openai-codex/gpt-5.5 -p "$(cat reviewer-prompt.txt)"
+
+   # Generic interactive reviewer
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --model openai-codex/gpt-5.5"
+   tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
+   tmux send-keys -t ralph-review-<ID>:0.0 Enter
+   ```
+
+   Use whichever local agent CLI is available. The required invariant is fresh context plus the `RALPH_REVIEW` sentinel.
 
 **Review outcomes:**
 - PASS → `status: done`, check all boxes, write progress
 - PASS WITH NOTES → `status: done`, but log notes for future reference
-- FAIL → `status: blocked`, add `## Blocker` section explaining what failed. Do NOT retry in this session; the user re-runs `/ralph` after addressing the blocker.
+- FAIL → `status: blocked`, add `## Blocker` section explaining what failed. Do NOT retry in this session; the user invokes Ralph again after addressing the blocker.
 
 ### 5. Mark done + write progress
 
@@ -227,10 +262,10 @@ After completing an issue, report:
 Done: #2 Auth API endpoint
 Files changed: src/auth/api.ts, src/auth/schema.ts, tests/auth.test.ts
 Progress logged to .kanban/progress.md
-Next eligible: #4 (run /ralph again to pick it up)
+Next eligible: #4 (invoke Ralph again to pick it up)
 ```
 
-Then exit. Do NOT continue to the next issue in the same session — fresh context per issue is the whole point. The user (or `ralph-loop.sh`) re-invokes `/ralph` for #4.
+Then print `RALPH_RESULT: DONE #<id>` and exit. Do NOT continue to the next issue in the same session — fresh context per issue is the whole point. The user (or `ralph-loop.sh`) invokes Ralph again for #4.
 
 ## Interruption Recovery
 
@@ -239,7 +274,7 @@ If the session is interrupted (crash, timeout, user cancel):
 1. Check for `status: in-progress` or `status: review` issues
 2. These are the issues that were being worked on
 3. Do NOT assume they are done
-4. On next `/ralph` run, the stale lock check will detect them and offer to reset
+4. On next Ralph run, the stale lock check will detect them and offer to reset
 5. Check git status for uncommitted partial work — offer to stash or discard
 
 ## When to stop
@@ -271,7 +306,7 @@ Immediately stop and escalate if:
 ## Full workflow context
 
 ```
-/grill-me → /to-prd → /to-issues → /kanban (board view) → /ralph (per-issue fresh-session loop)
+/grill-me → /to-prd → /to-issues → /kanban (board view) → Ralph (per-issue fresh-session loop)
 ```
 
-`/to-issues` guarantees every slice is independently buildable and has an automated verification command. `/ralph` (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.
+`/to-issues` guarantees every slice is independently buildable and has an automated verification command. Ralph (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.

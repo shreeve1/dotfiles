@@ -1,187 +1,309 @@
 #!/bin/bash
-# Ralph Loop - Background tmux session that runs /ralph until no issues remain
-# Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]
+# Ralph Loop - Background tmux driver that runs Ralph until no issues remain
+# Usage: ralph-loop.sh [OPTIONS] [ADAPTER] [SESSION_NAME]
 #
 # OPTIONS:
-#   --force              Skip interactive prompts (stale lock recovery only; dirty worktrees are allowed)
-#   --continue-on-error  If Ralph fails, reset issue to pending and continue
-#   --sleep-interval N   Sleep N seconds between iterations (default: 3)
+#   --force               Skip interactive warnings (active issues, dirty worktree)
+#   --continue-on-error   If Ralph fails, reset issue to pending and continue
+#   --sleep-interval N    Sleep N seconds between iterations (default: 3)
+#   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
+#   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
+#   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with openai-codex/gpt-5.5)
+#   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+#   --socket PATH         Private tmux socket path (implies --private-tmux)
+#   --private-tmux        Use Ralph's private tmux socket instead of default tmux
+#   --normal-tmux         Use the default tmux server (default)
 #
 # ARGUMENTS:
-#   CLI                  claude|opencode|pi|auto (default: auto)
-#   SESSION_NAME         tmux session name (default: ralph-loop)
+#   ADAPTER               tmux|pi (default: tmux)
+#   SESSION_NAME          tmux driver session name (default: ralph-loop)
 
 set -euo pipefail
 
-# Parse options
 FORCE_MODE=false
 CONTINUE_ON_ERROR=false
 SLEEP_INTERVAL=3
+READY_DELAY=1
+READY_TIMEOUT=60
+ITERATION_TIMEOUT=3600
+AGENT_CMD="${RALPH_AGENT_CMD:-}"
+AGENT_CMD_EXPLICIT=false
+RALPH_MODEL="${RALPH_MODEL:-openai-codex/gpt-5.5}"
+AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
+SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
+TMUX_SOCKET="${RALPH_TMUX_SOCKET:-$SOCKET_DIR/ralph.sock}"
+USE_NORMAL_TMUX="${RALPH_USE_NORMAL_TMUX:-true}"
+
+usage() {
+	cat <<EOF
+Ralph Loop - Background tmux driver that runs Ralph until no issues remain
+
+Usage: ralph-loop.sh [OPTIONS] [ADAPTER] [SESSION_NAME]
+
+OPTIONS:
+  --force               Skip interactive warnings (active issues, dirty worktree)
+  --continue-on-error   Reset issue to pending on failure and continue
+  --sleep-interval N    Sleep N seconds between iterations (default: 3)
+  --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
+  --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
+  --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+  --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with openai-codex/gpt-5.5)
+  --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+  --socket PATH         Private tmux socket path (implies --private-tmux)
+  --private-tmux        Use Ralph's private tmux socket instead of default tmux
+  --normal-tmux         Use the default tmux server (default)
+  --help                Show this help
+
+ARGUMENTS:
+  ADAPTER               tmux|pi (default: tmux)
+  SESSION_NAME          tmux driver session name (default: ralph-loop)
+
+Sentinel contract:
+  RALPH_RESULT: DONE #<id>
+  RALPH_RESULT: NO_WORK
+  RALPH_RESULT: BLOCKED #<id>
+  RALPH_RESULT: FAIL #<id>
+EOF
+}
 
 while [[ $# -gt 0 ]]; do
-  case $1 in
-    --force)
-      FORCE_MODE=true
-      shift
-      ;;
-    --continue-on-error)
-      CONTINUE_ON_ERROR=true
-      shift
-      ;;
-    --sleep-interval)
-      SLEEP_INTERVAL="${2:-3}"
-      shift 2
-      ;;
-    --help)
-      echo "Ralph Loop - Background tmux session that runs /ralph until no issues remain"
-      echo ""
-      echo "Usage: ralph-loop.sh [OPTIONS] [CLI] [SESSION_NAME]"
-      echo ""
-      echo "OPTIONS:"
-      echo "  --force              Skip interactive prompts for stale lock recovery"
-      echo "  --continue-on-error  Reset issue to pending on failure and continue"
-      echo "  --sleep-interval N   Sleep N seconds between iterations (default: 3)"
-      echo "  --help               Show this help"
-      echo ""
-      echo "ARGUMENTS:"
-      echo "  CLI                  claude|opencode|pi|auto (default: auto)"
-      echo "  SESSION_NAME         tmux session name (default: ralph-loop)"
-      exit 0
-      ;;
-    *)
-      break
-      ;;
-  esac
+	case $1 in
+	--force)
+		FORCE_MODE=true
+		shift
+		;;
+	--continue-on-error)
+		CONTINUE_ON_ERROR=true
+		shift
+		;;
+	--sleep-interval)
+		SLEEP_INTERVAL="${2:-3}"
+		shift 2
+		;;
+	--ready-delay)
+		READY_DELAY="${2:-1}"
+		shift 2
+		;;
+	--ready-timeout)
+		READY_TIMEOUT="${2:-30}"
+		shift 2
+		;;
+	--iteration-timeout)
+		ITERATION_TIMEOUT="${2:-3600}"
+		shift 2
+		;;
+	--agent-cmd)
+		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+			echo "❌ Error: --agent-cmd requires a command" >&2
+			exit 1
+		fi
+		AGENT_CMD="$2"
+		AGENT_CMD_EXPLICIT=true
+		shift 2
+		;;
+	--agent-prompt)
+		AGENT_PROMPT="${2:-}"
+		shift 2
+		;;
+	--socket)
+		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+			echo "❌ Error: --socket requires a path" >&2
+			exit 1
+		fi
+		TMUX_SOCKET="$2"
+		USE_NORMAL_TMUX=false
+		shift 2
+		;;
+	--private-tmux)
+		USE_NORMAL_TMUX=false
+		shift
+		;;
+	--normal-tmux)
+		USE_NORMAL_TMUX=true
+		shift
+		;;
+	--help)
+		usage
+		exit 0
+		;;
+	*)
+		break
+		;;
+	esac
 done
 
-# Detect which CLI to use
-CLI="${1:-auto}"
-SESSION_NAME="${2:-ralph-loop}"
-
-# Auto-detect if not specified
-if [[ "$CLI" == "auto" ]]; then
-  if command -v claude &>/dev/null; then
-    CLI="claude"
-  elif command -v pi &>/dev/null; then
-    CLI="pi"
-  elif command -v opencode &>/dev/null; then
-    CLI="opencode"
-  else
-    echo "❌ Error: None of 'claude', 'pi', or 'opencode' found in PATH" >&2
-    exit 1
-  fi
-fi
-
-# Validate CLI is available
-if ! command -v "$CLI" &>/dev/null; then
-  echo "❌ Error: '$CLI' not found in PATH" >&2
-  exit 1
-fi
-
-# Validate /ralph skill exists (CLI-specific)
-case "$CLI" in
-  claude)
-    if ! $CLI /help 2>/dev/null | grep -q "ralph"; then
-      echo "⚠️  Warning: /ralph skill may not be installed for claude" >&2
-      echo "   Continuing anyway, but the loop may fail..." >&2
-      sleep 2
-    fi
-    ;;
-  opencode)
-    if ! opencode debug skill 2>/dev/null | grep -q "ralph"; then
-      echo "⚠️  Warning: /ralph skill may not be installed for opencode" >&2
-      echo "   Continuing anyway, but the loop may fail..." >&2
-      sleep 2
-    fi
-    ;;
-  pi)
-    if [[ ! -f "$HOME/.claude/skills/ralph/SKILL.md" ]]; then
-      echo "⚠️  Warning: Ralph skill not found at $HOME/.claude/skills/ralph/SKILL.md" >&2
-      echo "   Continuing anyway, but the loop may fail..." >&2
-      sleep 2
-    fi
-    ;;
+case "${USE_NORMAL_TMUX,,}" in
+true | 1 | yes | y | on) USE_NORMAL_TMUX=true ;;
+*) USE_NORMAL_TMUX=false ;;
 esac
 
-# Check if session already exists
-if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-  echo "⚠️  Tmux session '$SESSION_NAME' already exists"
-  echo ""
-  echo "Options:"
-  echo "  1. Attach to existing session:  tmux attach -t $SESSION_NAME"
-  echo "  2. Kill and restart:            tmux kill-session -t $SESSION_NAME && $0 $CLI $SESSION_NAME"
-  echo "  3. Use different name:          $0 $CLI <different-name>"
-  exit 1
+ADAPTER="${1:-tmux}"
+SESSION_NAME="${2:-ralph-loop}"
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ "$SESSION_NAME" =~ [.:] ]]; then
+	echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
+	exit 1
 fi
 
-# Ensure we're in a git repo with .kanban/
-if [[ ! -d .kanban ]]; then
-  echo "❌ Error: No .kanban/ directory found in current directory" >&2
-  echo "   Run this from a project with a kanban board" >&2
-  exit 1
+if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
+	printf -v skill_dir_q '%q' "$SKILL_DIR"
+	printf -v model_q '%q' "$RALPH_MODEL"
+	AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
 fi
 
-# Check for .kanban/issues/ directory
-if [[ ! -d .kanban/issues ]]; then
-  echo "❌ Error: No .kanban/issues/ directory found" >&2
-  echo "   The kanban board structure is incomplete" >&2
-  exit 1
+case "$ADAPTER" in
+pi | tmux)
+	;;
+*)
+	echo "❌ Error: unsupported adapter '$ADAPTER' (expected pi or tmux)" >&2
+	exit 1
+	;;
+esac
+
+if ! command -v tmux >/dev/null 2>&1; then
+	echo "❌ Error: tmux not found in PATH" >&2
+	exit 1
 fi
 
-# Check for .kanban/progress.md (create if missing)
-if [[ ! -f .kanban/progress.md ]]; then
-  echo "⚠️  Warning: .kanban/progress.md not found, creating empty file" >&2
-  mkdir -p .kanban
-  echo "# Ralph Progress Log" > .kanban/progress.md
-  echo "" >> .kanban/progress.md
-  echo "This file tracks implementation notes across Ralph iterations." >> .kanban/progress.md
-  echo "" >> .kanban/progress.md
+if [[ "$ADAPTER" == "pi" ]] && ! command -v pi >/dev/null 2>&1; then
+	echo "❌ Error: pi not found in PATH" >&2
+	exit 1
 fi
 
-# Dirty worktrees are allowed. Warn and continue; /ralph treats current
-# status as the baseline dirty state and must not stage unrelated files.
-if git rev-parse --git-dir >/dev/null 2>&1; then
-  if [[ -n "$(git status --porcelain)" ]]; then
-    echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
-    echo "   Ralph will ignore these as baseline dirt and stage only issue files." >&2
-    echo "" >&2
-    git status --short >&2
-    echo "" >&2
-  fi
+if [[ "$ADAPTER" == "tmux" && -z "$AGENT_CMD" ]]; then
+	echo "❌ Error: --agent-cmd or RALPH_AGENT_CMD is required for tmux adapter" >&2
+	exit 1
 fi
 
-# Check for stale locks (issues stuck in in-progress or review)
-ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
-if [[ -n "$ACTIVE_ISSUES" ]]; then
-  echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
-  echo "" >&2
-  echo "$ACTIVE_ISSUES" >&2
-  echo "" >&2
-  echo "Ralph will resume the active issue instead of resetting it to pending." >&2
-  echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
+tmux_cmd() {
+	if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+		tmux "$@"
+	else
+		tmux -S "$TMUX_SOCKET" "$@"
+	fi
+}
+
+tmux_display() {
+	if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+		echo "tmux"
+	else
+		echo "tmux -S '$TMUX_SOCKET'"
+	fi
+}
+
+TMUX_DISPLAY="$(tmux_display)"
+if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+	RESTART_CMD="$0 --normal-tmux $ADAPTER $SESSION_NAME"
+else
+	RESTART_CMD="$0 $ADAPTER $SESSION_NAME"
 fi
 
-# Create the loop script that will run inside tmux
-# Important: We create a persistent script file instead of mktemp
-# because mktemp would be deleted before tmux can execute it
-LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
+if [[ "$USE_NORMAL_TMUX" != "true" ]]; then
+	mkdir -p "$(dirname "$TMUX_SOCKET")"
+fi
 mkdir -p "$HOME/.cache"
 
-cat > "$LOOP_SCRIPT" <<'LOOP_EOF'
+if tmux_cmd has-session -t "$SESSION_NAME" 2>/dev/null; then
+	echo "⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY"
+	echo ""
+	echo "Options:"
+	echo "  1. Attach to existing session:  $TMUX_DISPLAY attach -t '$SESSION_NAME'"
+	echo "  2. Kill and restart:            $TMUX_DISPLAY kill-session -t '$SESSION_NAME' && $RESTART_CMD"
+	echo "  3. Use different name:          $0 $ADAPTER <different-name>"
+	exit 1
+fi
+
+if [[ ! -d .kanban ]]; then
+	echo "❌ Error: No .kanban/ directory found in current directory" >&2
+	echo "   Run this from a project with a kanban board" >&2
+	exit 1
+fi
+
+if [[ ! -d .kanban/issues ]]; then
+	echo "❌ Error: No .kanban/issues/ directory found" >&2
+	echo "   The kanban board structure is incomplete" >&2
+	exit 1
+fi
+
+if [[ ! -f .kanban/progress.md ]]; then
+	echo "⚠️  Warning: .kanban/progress.md not found, creating empty file" >&2
+	mkdir -p .kanban
+	{
+		echo "# Ralph Progress Log"
+		echo ""
+		echo "This file tracks implementation notes across Ralph iterations."
+		echo ""
+	} >.kanban/progress.md
+fi
+
+if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain)" ]]; then
+	echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
+	echo "   Ralph will ignore these as baseline dirt and stage only issue files." >&2
+	echo "" >&2
+	git status --short >&2
+	echo "" >&2
+fi
+
+ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
+if [[ -n "$ACTIVE_ISSUES" && "$FORCE_MODE" != "true" ]]; then
+	echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
+	echo "" >&2
+	echo "$ACTIVE_ISSUES" >&2
+	echo "" >&2
+	echo "Ralph will resume the active issue instead of resetting it to pending." >&2
+	echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
+fi
+
+LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
+
+SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. Print exactly one final sentinel line.
+Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
+The final line must start with RALPH_RESULT followed by colon and one space.'
+
+cat >"$LOOP_SCRIPT" <<'LOOP_EOF'
 #!/bin/bash
 set -euo pipefail
 
-CLI="$1"
+ADAPTER="$1"
 PROJECT_DIR="$2"
 SESSION_NAME="$3"
 CONTINUE_ON_ERROR="$4"
 SLEEP_INTERVAL="$5"
-# Log lives outside PROJECT_DIR so ralph sees a clean worktree.
-# Avoids catch-22 where the loop's own log makes git status dirty.
+READY_DELAY="$6"
+ITERATION_TIMEOUT="$7"
+READY_TIMEOUT="$8"
+AGENT_CMD="$9"
+AGENT_PROMPT="${10}"
+SKILL_DIR="${11}"
+TMUX_SOCKET="${12}"
+USE_NORMAL_TMUX="${13}"
+SHARED_PROMPT_REMINDER="${14}"
+RALPH_MODEL="${15}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
-mkdir -p "$HOME/.cache"
 
+mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
+: > "$LOG_FILE"
+
+tmux_cmd() {
+  if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+    tmux "$@"
+  else
+    tmux -S "$TMUX_SOCKET" "$@"
+  fi
+}
+
+tmux_display() {
+  if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+    echo "tmux"
+  else
+    echo "tmux -S '$TMUX_SOCKET'"
+  fi
+}
+
+TMUX_DISPLAY="$(tmux_display)"
 
 cleanup_ephemeral_artifacts() {
   local removed=false
@@ -197,7 +319,6 @@ cleanup_ephemeral_artifacts() {
 
   for path in "${paths[@]}"; do
     [[ -e "$path" ]] || continue
-    # Delete only generated artifacts with no tracked files underneath.
     if git rev-parse --git-dir >/dev/null 2>&1 && [[ -z "$(git ls-files -- "$path")" ]]; then
       rm -rf -- "$path"
       echo "🧹 Removed untracked ephemeral artifact: $path" | tee -a "$LOG_FILE"
@@ -205,25 +326,223 @@ cleanup_ephemeral_artifacts() {
     fi
   done
 
-  if [[ "$removed" == "true" ]]; then
-    return 0
-  fi
-  return 1
+  [[ "$removed" == "true" ]]
 }
 
-echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
-echo "Ralph Loop started at $(date)" | tee -a "$LOG_FILE"
-echo "CLI: $CLI" | tee -a "$LOG_FILE"
-echo "Project: $PROJECT_DIR" | tee -a "$LOG_FILE"
-echo "Session: $SESSION_NAME" | tee -a "$LOG_FILE"
-echo "Continue on error: $CONTINUE_ON_ERROR" | tee -a "$LOG_FILE"
-echo "Sleep interval: ${SLEEP_INTERVAL}s" | tee -a "$LOG_FILE"
-echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
-echo "" | tee -a "$LOG_FILE"
+count_unblocked_pending() {
+  local count=0
+  local issue_file blocked_by is_blocked blocker_id blocker_file
+
+  for issue_file in .kanban/issues/*.md; do
+    [[ -f "$issue_file" ]] || continue
+    grep -q "^status: pending$" "$issue_file" || continue
+
+    blocked_by=$(grep "^blocked_by:" "$issue_file" | sed 's/blocked_by://;s/\[//;s/\]//;s/,/ /g' || echo "")
+    is_blocked=false
+
+    if [[ -n "$blocked_by" ]]; then
+      for blocker_id in $blocked_by; do
+        blocker_file=$(grep -l "^id: $blocker_id$" .kanban/issues/*.md 2>/dev/null || echo "")
+        [[ -n "$blocker_file" ]] || continue
+        if ! grep -q "^status: done$" "$blocker_file"; then
+          is_blocked=true
+          break
+        fi
+      done
+    fi
+
+    if [[ "$is_blocked" == "false" ]]; then
+      count=$((count + 1))
+    fi
+  done
+
+  echo "$count"
+}
+
+extract_completed_issue() {
+  local file="$1"
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: DONE #\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$file" | tail -1
+}
+
+has_no_work_result() {
+  local file="$1"
+  grep -q '^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
+}
+
+has_success_result() {
+  local file="$1"
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: DONE #[0-9]+[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
+}
+
+has_failure_result() {
+  local file="$1"
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9]+)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+}
+
+run_pi_adapter() {
+  local output_file="$1"
+  local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"
+  local cmd=(pi --no-session --model "$RALPH_MODEL" --skill "$SKILL_DIR" -p "$full_prompt")
+  local rc=0
+  "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
+
+  if [[ $rc -eq 0 ]] && has_failure_result "$output_file"; then
+    echo "⚠️  Pi exited 0 but RALPH_RESULT sentinel indicates failure" | tee -a "$LOG_FILE"
+    return 1
+  fi
+  return $rc
+}
+
+wait_for_agent_ready() {
+  local target="$1"
+  local start now pane
+  start=$(date +%s)
+
+  while true; do
+    now=$(date +%s)
+    if (( now - start >= READY_TIMEOUT )); then
+      echo "⚠️  Agent prompt not detected after ${READY_TIMEOUT}s; sending prompt anyway" | tee -a "$LOG_FILE"
+      return 1
+    fi
+
+    pane=$(tmux_cmd capture-pane -p -J -t "$target" -S -120 2>/dev/null || true)
+    if printf '%s\n' "$pane" | grep -Eq '(^|[[:space:]])(❯|>|›)[[:space:]]|INSERT|bypass permissions on|What can I help|How can I help|LSP Inactive|[0-9]+(\.[0-9]+)?% used|0\.0%/'; then
+      return 0
+    fi
+
+    sleep 1
+  done
+}
+
+read_result_file() {
+  local result_file="$1"
+  local output_file="$2"
+  [[ -s "$result_file" ]] || return 1
+  tr -d '\r' < "$result_file" > "$output_file"
+  rm -f "$result_file"
+  return 0
+}
+
+run_tmux_adapter() {
+  local output_file="$1"
+  local iteration="$2"
+  local agent_session="ralph-${SESSION_NAME}-${iteration}"
+  local target="$agent_session:0.0"
+  local project_q pane now start prompt prompt_line result_file
+
+  printf -v project_q '%q' "$PROJECT_DIR"
+  result_file="$HOME/.cache/ralph-result-${SESSION_NAME}-${iteration}.txt"
+  rm -f "$result_file"
+
+  if tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
+    tmux_cmd kill-session -t "$agent_session"
+  fi
+
+  echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec $AGENT_CMD"
+  tmux_cmd set-option -t "$agent_session" history-limit 50000
+  sleep "$READY_DELAY"
+  wait_for_agent_ready "$target" || true
+
+  prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
+  prompt_line=$(printf '%s' "$prompt" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')
+
+  echo "⌨️  Sending Ralph prompt to $agent_session" | tee -a "$LOG_FILE"
+  tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
+  tmux_cmd send-keys -t "$target" Enter
+
+  echo "📺 Monitor agent: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
+
+  start=$(date +%s)
+  while true; do
+    now=$(date +%s)
+    if (( now - start > ITERATION_TIMEOUT )); then
+      echo "⚠️  Timed out waiting for Ralph sentinel after ${ITERATION_TIMEOUT}s" | tee -a "$LOG_FILE"
+      tmux_cmd capture-pane -p -J -t "$target" -S -50000 > "$output_file" 2>/dev/null || true
+      cat "$output_file" >> "$LOG_FILE"
+      echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
+      return 1
+    fi
+
+    if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
+      echo "⚠️  Interactive agent session exited before printing a sentinel" | tee -a "$LOG_FILE"
+      return 1
+    fi
+
+    if read_result_file "$result_file" "$output_file"; then
+      cat "$output_file" >> "$LOG_FILE"
+      if has_success_result "$output_file"; then
+        tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+        return 0
+      fi
+      if has_failure_result "$output_file"; then
+        echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
+        return 1
+      fi
+    fi
+
+    pane=$(tmux_cmd capture-pane -p -J -t "$target" -S -50000 2>/dev/null || true)
+    printf '%s\n' "$pane" > "$output_file"
+
+    if has_success_result "$output_file"; then
+      cat "$output_file" >> "$LOG_FILE"
+      tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+      return 0
+    fi
+
+    if has_failure_result "$output_file"; then
+      cat "$output_file" >> "$LOG_FILE"
+      echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
+      return 1
+    fi
+
+    sleep "$SLEEP_INTERVAL"
+  done
+}
+
+reset_active_issues_to_pending() {
+  local active_count failed_issue backup_dir
+  active_count=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$active_count" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ "$active_count" -gt 1 ]]; then
+    echo "⚠️  Continue-on-error found $active_count active issues; not resetting automatically." | tee -a "$LOG_FILE"
+    find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  failed_issue=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | head -1)
+  backup_dir=".kanban/backups/error-recovery-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$backup_dir"
+  cp "$failed_issue" "$backup_dir/$(basename "$failed_issue")"
+  perl -0pi -e 's/^status: (in-progress|review)$/status: pending/m' "$failed_issue"
+  echo "  ✓ Reset $(basename "$failed_issue") to pending" | tee -a "$LOG_FILE"
+  echo "  💾 Backup saved to: $backup_dir" | tee -a "$LOG_FILE"
+}
+
+{
+  echo "═══════════════════════════════════════════════════════════"
+  echo "Ralph Loop started at $(date)"
+  echo "Adapter: $ADAPTER"
+  echo "Project: $PROJECT_DIR"
+  echo "Session: $SESSION_NAME"
+  echo "Continue on error: $CONTINUE_ON_ERROR"
+  echo "Sleep interval: ${SLEEP_INTERVAL}s"
+  echo "Ready delay: ${READY_DELAY}s"
+  echo "Ready timeout: ${READY_TIMEOUT}s"
+  echo "Iteration timeout: ${ITERATION_TIMEOUT}s"
+  echo "Tmux: $TMUX_DISPLAY"
+  echo "Model: $RALPH_MODEL"
+  if [[ "$ADAPTER" == "tmux" ]]; then
+    echo "Agent command: $AGENT_CMD"
+  fi
+  echo "═══════════════════════════════════════════════════════════"
+  echo ""
+} | tee -a "$LOG_FILE"
 
 ITERATION=0
-MAX_ITERATIONS=1000  # Safety limit
-CONSECUTIVE_NO_WORK=0
+MAX_ITERATIONS=1000
 ISSUES_COMPLETED=0
 
 while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
@@ -234,86 +553,33 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   echo "Iteration $ITERATION - $(date)" | tee -a "$LOG_FILE"
   echo "─────────────────────────────────────────────────────────" | tee -a "$LOG_FILE"
 
-  # Clean known generated junk before deciding whether work is available.
-  # Otherwise an interrupted run can leave only .playwright-sessions/ and
-  # make /ralph stop before it gets a chance to resume the active issue.
   if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
   fi
 
-  # Count total issues and statuses for progress stats
-  TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l)
-  DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l)
-  PENDING_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l)
-  BLOCKED_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: blocked$" {} \; 2>/dev/null | wc -l)
+  TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+  DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l | tr -d ' ')
+  PENDING_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l | tr -d ' ')
+  BLOCKED_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: blocked$" {} \; 2>/dev/null | wc -l | tr -d ' ')
   ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
-  ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l)
+  ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l | tr -d ' ')
+  UNBLOCKED_COUNT=$(count_unblocked_pending)
 
-  # Count unblocked pending issues BEFORE running ralph
-  # An issue is unblocked if:
-  # 1. status: pending
-  # 2. All blocked_by IDs reference done issues (or no blocked_by)
-  UNBLOCKED_COUNT=0
-  for issue_file in .kanban/issues/*.md; do
-    [[ -f "$issue_file" ]] || continue
-
-    # Check if pending
-    if ! grep -q "^status: pending$" "$issue_file"; then
-      continue
-    fi
-
-    # Check if blocked
-    BLOCKED_BY=$(grep "^blocked_by:" "$issue_file" | sed 's/blocked_by://;s/\[//;s/\]//;s/,/ /g' || echo "")
-    IS_BLOCKED=false
-
-    if [[ -n "$BLOCKED_BY" ]]; then
-      for blocker_id in $BLOCKED_BY; do
-        # Find the blocker issue and check its status
-        BLOCKER_FILE=$(grep -l "^id: $blocker_id$" .kanban/issues/*.md 2>/dev/null || echo "")
-        if [[ -z "$BLOCKER_FILE" ]]; then
-          # Blocker doesn't exist, treat as unblocked
-          continue
-        fi
-        if ! grep -q "^status: done$" "$BLOCKER_FILE"; then
-          IS_BLOCKED=true
-          break
-        fi
-      done
-    fi
-
-    if [[ "$IS_BLOCKED" == "false" ]]; then
-      UNBLOCKED_COUNT=$((UNBLOCKED_COUNT + 1))
-    fi
-  done
-
-  # Progress stats
   echo "" | tee -a "$LOG_FILE"
   echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
-  echo "📋 $UNBLOCKED_COUNT unblocked pending issue(s) before this iteration" | tee -a "$LOG_FILE"
+  echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
   if [[ $ACTIVE_COUNT -gt 0 ]]; then
     echo "🔁 $ACTIVE_COUNT active issue(s) will be resumed before scanning new pending work" | tee -a "$LOG_FILE"
     printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | tee -a "$LOG_FILE"
   fi
-  echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
 
   if [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
     echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
-
-    # Check if there are blocked issues
-    BLOCKED_COUNT=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l)
-    if [[ $BLOCKED_COUNT -gt 0 ]]; then
-      echo "⚠️  However, $BLOCKED_COUNT issue(s) are still pending (but blocked)" | tee -a "$LOG_FILE"
-      echo "   These issues are waiting on dependencies to complete" | tee -a "$LOG_FILE"
-    fi
-
     echo "Ralph loop complete!" | tee -a "$LOG_FILE"
     break
   fi
 
-  # Dirty worktrees are allowed. Capture the current status as baseline so
-  # successful /ralph invocations must return to the same dirty state instead
-  # of auto-committing unrelated WIP.
   PRE_RALPH_STATUS=""
   if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
@@ -325,54 +591,42 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     fi
   fi
 
-  # Run /ralph and capture output (CLI-specific invocation)
   RALPH_OUTPUT=$(mktemp)
-  case "$CLI" in
-    claude)
-      RALPH_CMD=("$CLI" /ralph --no-session-persistence --permission-mode bypassPermissions)
-      ;;
-    opencode)
-      # opencode auto-triggers skills via description matching;
-      # send /ralph as message text to invoke the ralph skill/command
-      RALPH_CMD=("$CLI" run --dangerously-skip-permissions "/ralph")
-      ;;
+  LAST_EXIT_CODE=0
+  case "$ADAPTER" in
     pi)
-      # Pi print mode is the equivalent of opencode run: one fresh,
-      # non-interactive turn, then exit. Load the Ralph skill explicitly
-      # because this skill lives under ~/.claude rather than ~/.pi.
-      RALPH_CMD=("$CLI" --no-session --skill "$HOME/.claude/skills/ralph" -p "/skill:ralph")
+      echo "▶ Starting Pi non-interactive Ralph turn" | tee -a "$LOG_FILE"
+      run_pi_adapter "$RALPH_OUTPUT" || LAST_EXIT_CODE=$?
       ;;
-    *)
-      RALPH_CMD=("$CLI" /ralph)
+    tmux)
+      run_tmux_adapter "$RALPH_OUTPUT" "$ITERATION" || LAST_EXIT_CODE=$?
       ;;
   esac
-  if "${RALPH_CMD[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$RALPH_OUTPUT"; then
-    LAST_EXIT_CODE=0
-  else
-    LAST_EXIT_CODE=$?
+
+  NO_WORK=false
+  if has_no_work_result "$RALPH_OUTPUT"; then
+    NO_WORK=true
   fi
 
-  if git rev-parse --git-dir >/dev/null 2>&1; then
+  if [[ "$NO_WORK" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
     POST_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
     if [[ $LAST_EXIT_CODE -eq 0 && "$POST_RALPH_STATUS" != "$PRE_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
-      echo "⚠️  /ralph left uncommitted changes beyond the baseline dirty state" | tee -a "$LOG_FILE"
+      echo "⚠️  Ralph left uncommitted changes beyond the baseline dirty state" | tee -a "$LOG_FILE"
       echo "   Stopping so unrelated work is not accidentally mixed into the next issue." | tee -a "$LOG_FILE"
       git status --short | tee -a "$LOG_FILE"
       LAST_EXIT_CODE=1
     fi
   fi
 
-  # Better output parsing - extract completed issue ID
-  COMPLETED_ISSUE=$(grep -oP 'Done: #\K[0-9]+' "$RALPH_OUTPUT" 2>/dev/null || echo "")
+  COMPLETED_ISSUE=$(extract_completed_issue "$RALPH_OUTPUT")
   if [[ -n "$COMPLETED_ISSUE" ]]; then
     ISSUES_COMPLETED=$((ISSUES_COMPLETED + 1))
     echo "✅ Confirmed completion: issue #$COMPLETED_ISSUE" | tee -a "$LOG_FILE"
   fi
 
-  # Check if ralph reported "no eligible issues" in its output
-  if grep -q "no eligible issues\|No more eligible issues\|no unblocked issues" "$RALPH_OUTPUT" 2>/dev/null; then
+  if [[ "$NO_WORK" == "true" ]]; then
     echo "" | tee -a "$LOG_FILE"
     echo "✅ Ralph reports no eligible issues" | tee -a "$LOG_FILE"
     rm -f "$RALPH_OUTPUT"
@@ -381,37 +635,20 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   rm -f "$RALPH_OUTPUT"
 
-  # Check if ralph completed successfully
   if [[ $LAST_EXIT_CODE -ne 0 ]]; then
     echo "⚠️  Ralph exited with code $LAST_EXIT_CODE" | tee -a "$LOG_FILE"
 
     if [[ "$CONTINUE_ON_ERROR" == "true" ]]; then
       echo "⚡ Continue-on-error mode: resetting failed issue to pending" | tee -a "$LOG_FILE"
-
-      # Find the issue that was in-progress or review and reset it
-      FAILED_ISSUE=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | head -1)
-      if [[ -n "$FAILED_ISSUE" ]]; then
-        # Backup before reset
-        BACKUP_DIR=".kanban/backups/error-recovery-$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$BACKUP_DIR"
-        cp "$FAILED_ISSUE" "$BACKUP_DIR/$(basename "$FAILED_ISSUE")"
-
-        # Reset to pending
-        sed -i 's/^status: \(in-progress\|review\)$/status: pending/' "$FAILED_ISSUE"
-        echo "  ✓ Reset $(basename "$FAILED_ISSUE") to pending" | tee -a "$LOG_FILE"
-        echo "  💾 Backup saved to: $BACKUP_DIR" | tee -a "$LOG_FILE"
-      fi
-
-      # Continue to next iteration
+      reset_active_issues_to_pending || break
       sleep "$SLEEP_INTERVAL"
       continue
-    else
-      echo "Stopping loop" | tee -a "$LOG_FILE"
-      break
     fi
+
+    echo "Stopping loop" | tee -a "$LOG_FILE"
+    break
   fi
 
-  # Brief pause between iterations
   sleep "$SLEEP_INTERVAL"
 done
 
@@ -421,39 +658,66 @@ if [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
   echo "Stopping for safety" | tee -a "$LOG_FILE"
 fi
 
-echo "" | tee -a "$LOG_FILE"
-echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
-echo "Ralph Loop finished at $(date)" | tee -a "$LOG_FILE"
-echo "Total iterations: $ITERATION" | tee -a "$LOG_FILE"
-echo "Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
-echo "═══════════════════════════════════════════════════════════" | tee -a "$LOG_FILE"
+{
+  echo ""
+  echo "═══════════════════════════════════════════════════════════"
+  echo "Ralph Loop finished at $(date)"
+  echo "Total iterations: $ITERATION"
+  echo "Issues completed this session: $ISSUES_COMPLETED"
+  echo "═══════════════════════════════════════════════════════════"
+  leftover_sessions=$(tmux_cmd list-sessions -F '#{session_name}' 2>/dev/null | grep "^ralph-${SESSION_NAME}-" || true)
+  if [[ -n "$leftover_sessions" ]]; then
+    echo ""
+    echo "Leftover worker sessions for inspection:"
+    printf '%s\n' "$leftover_sessions"
+  fi
+  echo ""
+  echo "Session will remain open. Press Ctrl+D to exit or run: $TMUX_DISPLAY kill-session -t '$SESSION_NAME'"
+} | tee -a "$LOG_FILE"
 
-# Keep session alive for inspection
-echo ""
-echo "Session will remain open. Press Ctrl+D to exit or run: tmux kill-session -t $SESSION_NAME"
 exec bash
 LOOP_EOF
 
 chmod +x "$LOOP_SCRIPT"
 
-# Start tmux session with the loop script
 PROJECT_DIR="$(pwd)"
-tmux new-session -d -s "$SESSION_NAME" "bash '$LOOP_SCRIPT' '$CLI' '$PROJECT_DIR' '$SESSION_NAME' '$CONTINUE_ON_ERROR' '$SLEEP_INTERVAL'"
+
+# Every INNER_ARGS element must be printf %q-escaped before joining into the tmux shell command.
+INNER_ARGS=()
+for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
+	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
+	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
+	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL"; do
+	printf -v arg_q '%q' "$arg"
+	INNER_ARGS+=("$arg_q")
+done
+
+printf -v loop_script_q '%q' "$LOOP_SCRIPT"
+tmux_cmd new-session -d -s "$SESSION_NAME" \
+	"bash $loop_script_q ${INNER_ARGS[*]}"
 
 echo "✅ Ralph loop started in tmux session '$SESSION_NAME'"
 echo ""
 echo "Configuration:"
-echo "  CLI: $CLI"
+echo "  Adapter: $ADAPTER"
 echo "  Force mode: $FORCE_MODE"
 echo "  Continue on error: $CONTINUE_ON_ERROR"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
+echo "  Ready delay: ${READY_DELAY}s"
+echo "  Ready timeout: ${READY_TIMEOUT}s"
+echo "  Iteration timeout: ${ITERATION_TIMEOUT}s"
+echo "  Tmux: $TMUX_DISPLAY"
+echo "  Model: $RALPH_MODEL"
+if [[ "$ADAPTER" == "tmux" ]]; then
+	echo "  Agent command: $AGENT_CMD"
+fi
 echo ""
 echo "Monitor:"
-echo "  tmux attach -t $SESSION_NAME        # Attach to session"
-echo "  tail -f \$HOME/.cache/ralph-loop-$SESSION_NAME.log  # Follow the log"
+echo "  $TMUX_DISPLAY attach -t '$SESSION_NAME'"
+echo "  tail -f \$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 echo ""
 echo "Stop:"
-echo "  tmux kill-session -t $SESSION_NAME  # Kill the session"
+echo "  $TMUX_DISPLAY kill-session -t '$SESSION_NAME'"
 echo ""
 echo "The loop will run until all unblocked pending issues are done."
 echo ""
