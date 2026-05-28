@@ -11,6 +11,7 @@
 #   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with openai-codex/gpt-5.5)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+#   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
 #   --private-tmux        Use Ralph's private tmux socket instead of default tmux
 #   --normal-tmux         Use the default tmux server (default)
@@ -31,6 +32,7 @@ AGENT_CMD="${RALPH_AGENT_CMD:-}"
 AGENT_CMD_EXPLICIT=false
 RALPH_MODEL="${RALPH_MODEL:-openai-codex/gpt-5.5}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
+CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
 TMUX_SOCKET="${RALPH_TMUX_SOCKET:-$SOCKET_DIR/ralph.sock}"
 USE_NORMAL_TMUX="${RALPH_USE_NORMAL_TMUX:-true}"
@@ -50,6 +52,7 @@ OPTIONS:
   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
   --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with openai-codex/gpt-5.5)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+  --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
   --socket PATH         Private tmux socket path (implies --private-tmux)
   --private-tmux        Use Ralph's private tmux socket instead of default tmux
   --normal-tmux         Use the default tmux server (default)
@@ -86,7 +89,7 @@ while [[ $# -gt 0 ]]; do
 		shift 2
 		;;
 	--ready-timeout)
-		READY_TIMEOUT="${2:-30}"
+		READY_TIMEOUT="${2:-60}"
 		shift 2
 		;;
 	--iteration-timeout)
@@ -105,6 +108,10 @@ while [[ $# -gt 0 ]]; do
 	--agent-prompt)
 		AGENT_PROMPT="${2:-}"
 		shift 2
+		;;
+	--no-checkpoint-dirty)
+		CHECKPOINT_DIRTY=false
+		shift
 		;;
 	--socket)
 		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
@@ -240,7 +247,7 @@ fi
 
 if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain)" ]]; then
 	echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
-	echo "   Ralph will ignore these as baseline dirt and stage only issue files." >&2
+	echo "   Ralph will auto-commit all non-ignored changes before launching each worker." >&2
 	echo "" >&2
 	git status --short >&2
 	echo "" >&2
@@ -258,7 +265,7 @@ fi
 
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
-SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. Print exactly one final sentinel line.
+SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. If git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 
@@ -281,6 +288,7 @@ TMUX_SOCKET="${12}"
 USE_NORMAL_TMUX="${13}"
 SHARED_PROMPT_REMINDER="${14}"
 RALPH_MODEL="${15}"
+CHECKPOINT_DIRTY="${16}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 
 mkdir -p "$HOME/.cache"
@@ -315,6 +323,7 @@ cleanup_ephemeral_artifacts() {
     ".ruff_cache"
     ".mypy_cache"
     "htmlcov"
+    ".pi-lens"
   )
 
   for path in "${paths[@]}"; do
@@ -419,8 +428,43 @@ read_result_file() {
   local output_file="$2"
   [[ -s "$result_file" ]] || return 1
   tr -d '\r' < "$result_file" > "$output_file"
-  rm -f "$result_file"
   return 0
+}
+
+pane_has_prompt_activity() {
+  local target="$1"
+  local prompt_probe="$2"
+  local pane
+  pane=$(tmux_cmd capture-pane -p -J -t "$target" -S -160 2>/dev/null || true)
+  if [[ -n "$prompt_probe" ]] && printf '%s\n' "$pane" | grep -Fq -- "$prompt_probe"; then
+    return 0
+  fi
+  printf '%s\n' "$pane" | grep -Eq 'Working|Executing|Checking|Reading|Inspecting|Searching|todo|read |bash |ast_grep|\$ '
+}
+
+send_agent_prompt() {
+  local target="$1"
+  local prompt_line="$2"
+  local prompt_probe
+  prompt_probe=$(printf '%.80s' "$prompt_line")
+
+  tmux_cmd send-keys -t "$target" C-u
+  sleep 1
+  tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
+  sleep 1
+  tmux_cmd send-keys -t "$target" C-m
+  sleep 3
+
+  if pane_has_prompt_activity "$target" "$prompt_probe"; then
+    return 0
+  fi
+
+  echo "⚠️  Prompt submit not observed; retrying once" | tee -a "$LOG_FILE"
+  tmux_cmd send-keys -t "$target" C-u
+  sleep 1
+  tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
+  sleep 1
+  tmux_cmd send-keys -t "$target" C-m
 }
 
 run_tmux_adapter() {
@@ -440,17 +484,20 @@ run_tmux_adapter() {
 
   echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
   tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec $AGENT_CMD"
-  tmux_cmd set-option -t "$agent_session" history-limit 50000
+  tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
+  if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
+    echo "⚠️  Interactive agent session exited during startup" | tee -a "$LOG_FILE"
+    return 1
+  fi
   wait_for_agent_ready "$target" || true
+  sleep "$READY_DELAY"
 
   prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
   prompt_line=$(printf '%s' "$prompt" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')
 
   echo "⌨️  Sending Ralph prompt to $agent_session" | tee -a "$LOG_FILE"
-  tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
-  sleep 1
-  tmux_cmd send-keys -t "$target" C-m
+  send_agent_prompt "$target" "$prompt_line"
 
   echo "📺 Monitor agent: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
 
@@ -473,10 +520,12 @@ run_tmux_adapter() {
     if read_result_file "$result_file" "$output_file"; then
       cat "$output_file" >> "$LOG_FILE"
       if has_success_result "$output_file"; then
+        rm -f "$result_file"
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
         return 0
       fi
       if has_failure_result "$output_file"; then
+        rm -f "$result_file"
         echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
         return 1
       fi
@@ -499,6 +548,44 @@ run_tmux_adapter() {
 
     sleep "$SLEEP_INTERVAL"
   done
+}
+
+checkpoint_dirty_worktree() {
+  local status message
+
+  [[ "$CHECKPOINT_DIRTY" == "true" ]] || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  cleanup_ephemeral_artifacts || true
+  status=$(git status --porcelain | LC_ALL=C sort || true)
+  [[ -n "$status" ]] || return 0
+
+  echo "" | tee -a "$LOG_FILE"
+  echo "💾 Checkpointing dirty worktree before launching worker" | tee -a "$LOG_FILE"
+  git status --short | tee -a "$LOG_FILE"
+
+  git add -A
+  if git diff --cached --quiet; then
+    echo "⚠️  Dirty worktree had nothing stageable; refusing to launch worker" | tee -a "$LOG_FILE"
+    git status --short | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  message="chore(ralph): checkpoint worktree before worker"
+  if ! git commit -m "$message" 2>&1 | tee -a "$LOG_FILE"; then
+    echo "⚠️  Failed to create pre-worker checkpoint commit" | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  cleanup_ephemeral_artifacts || true
+  status=$(git status --porcelain | LC_ALL=C sort || true)
+  if [[ -n "$status" ]]; then
+    echo "⚠️  Worktree still dirty after checkpoint commit; refusing to launch worker" | tee -a "$LOG_FILE"
+    git status --short | tee -a "$LOG_FILE"
+    return 1
+  fi
+
+  echo "✅ Worktree clean before worker" | tee -a "$LOG_FILE"
 }
 
 reset_active_issues_to_pending() {
@@ -535,6 +622,7 @@ reset_active_issues_to_pending() {
   echo "Iteration timeout: ${ITERATION_TIMEOUT}s"
   echo "Tmux: $TMUX_DISPLAY"
   echo "Model: $RALPH_MODEL"
+  echo "Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
   if [[ "$ADAPTER" == "tmux" ]]; then
     echo "Agent command: $AGENT_CMD"
   fi
@@ -581,15 +669,9 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
-  PRE_RALPH_STATUS=""
-  if git rev-parse --git-dir >/dev/null 2>&1; then
-    cleanup_ephemeral_artifacts || true
-    PRE_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
-    if [[ -n "$PRE_RALPH_STATUS" ]]; then
-      echo "" | tee -a "$LOG_FILE"
-      echo "⚠️  Baseline dirty worktree at start of iteration $ITERATION (ignored)" | tee -a "$LOG_FILE"
-      git status --short | tee -a "$LOG_FILE"
-    fi
+  if ! checkpoint_dirty_worktree; then
+    echo "Stopping loop" | tee -a "$LOG_FILE"
+    break
   fi
 
   RALPH_OUTPUT=$(mktemp)
@@ -609,13 +691,13 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     NO_WORK=true
   fi
 
-  if [[ "$NO_WORK" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+  if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
     POST_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
-    if [[ $LAST_EXIT_CODE -eq 0 && "$POST_RALPH_STATUS" != "$PRE_RALPH_STATUS" ]]; then
+    if [[ $LAST_EXIT_CODE -eq 0 && -n "$POST_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
-      echo "⚠️  Ralph left uncommitted changes beyond the baseline dirty state" | tee -a "$LOG_FILE"
-      echo "   Stopping so unrelated work is not accidentally mixed into the next issue." | tee -a "$LOG_FILE"
+      echo "⚠️  Ralph left the worktree dirty after the worker finished" | tee -a "$LOG_FILE"
+      echo "   Stopping so the next worker does not start from mixed state." | tee -a "$LOG_FILE"
       git status --short | tee -a "$LOG_FILE"
       LAST_EXIT_CODE=1
     fi
@@ -627,7 +709,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     echo "✅ Confirmed completion: issue #$COMPLETED_ISSUE" | tee -a "$LOG_FILE"
   fi
 
-  if [[ "$NO_WORK" == "true" ]]; then
+  if [[ "$NO_WORK" == "true" && $LAST_EXIT_CODE -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
     echo "✅ Ralph reports no eligible issues" | tee -a "$LOG_FILE"
     rm -f "$RALPH_OUTPUT"
@@ -688,7 +770,7 @@ INNER_ARGS=()
 for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
-	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL"; do
+	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
@@ -709,6 +791,7 @@ echo "  Ready timeout: ${READY_TIMEOUT}s"
 echo "  Iteration timeout: ${ITERATION_TIMEOUT}s"
 echo "  Tmux: $TMUX_DISPLAY"
 echo "  Model: $RALPH_MODEL"
+echo "  Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
 if [[ "$ADAPTER" == "tmux" ]]; then
 	echo "  Agent command: $AGENT_CMD"
 fi
