@@ -449,7 +449,8 @@ run_tmux_adapter() {
 
   echo "⌨️  Sending Ralph prompt to $agent_session" | tee -a "$LOG_FILE"
   tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
-  tmux_cmd send-keys -t "$target" Enter
+  sleep 1
+  tmux_cmd send-keys -t "$target" C-m
 
   echo "📺 Monitor agent: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
 
