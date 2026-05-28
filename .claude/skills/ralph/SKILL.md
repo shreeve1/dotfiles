@@ -62,19 +62,24 @@ Human-readable notes may appear before the sentinel. `ralph-loop.sh` parses the 
 
 Before starting ANY implementation:
 
-### 1. Dirty worktree baseline
+### 1. Pre-worker clean checkpoint
 
 ```bash
 git status --porcelain
 ```
 
-If there are uncommitted changes:
-- **Do not stop.** Ralph supports running with a pre-existing dirty worktree.
-- Treat current `git status --porcelain` output as the **baseline dirty state**.
-- Report the baseline dirty files briefly so the user knows they are being ignored.
-- Do **not** stage, commit, stash, revert, or modify baseline dirty files unless the current issue explicitly requires touching them.
-- At every commit gate, stage only files changed for the current issue. Never use `git add -A` or `git add .` while a baseline dirty state exists.
-- After each Ralph commit, clean known ephemeral artifacts (below), then verify the worktree returned to the same baseline dirty state. If new uncommitted changes remain beyond baseline, stop and fix before continuing.
+Before launching any worker, `ralph-loop.sh` must start from a clean git worktree.
+
+Loop-level behavior when there are uncommitted non-ignored changes:
+- **Auto-commit all of them before implementation starts.** This includes tracked edits, deletions, and untracked non-ignored files, after cleaning known ephemeral artifacts.
+- Run `git add -A` and commit with a checkpoint message such as `chore(ralph): checkpoint worktree before worker`.
+- Verify `git status --porcelain` is empty after the checkpoint commit.
+- If the checkpoint commit fails or the worktree remains dirty, stop before launching the worker.
+- Ignored files may remain; they are outside the git worktree cleanliness gate.
+
+Worker-level behavior after launch:
+- Do **not** create another pre-worker checkpoint commit. The loop already did that before launching the worker.
+- If `git status --porcelain` is dirty before implementation, clean known ephemeral artifacts and stop with `RALPH_RESULT: FAIL #<id>` if anything remains.
 
 ### 1a. Ephemeral artifact cleanup
 
@@ -87,13 +92,14 @@ Ralph may delete these untracked generated artifacts without asking because they
 - `.ruff_cache/`
 - `.mypy_cache/`
 - `htmlcov/`
+- `.pi-lens/`
 
 Rules:
 - Delete only if untracked (`git ls-files -- <path>` returns nothing).
 - Never delete tracked files or directories containing tracked files.
 - Log what was removed.
-- If the only new dirty state beyond baseline is one of these artifacts, clean it and continue to review/done.
-- If unknown untracked files appear, stop and ask.
+- If one of these artifacts appears before a checkpoint or after a worker, clean it and continue.
+- If unknown untracked non-ignored files appear before a worker, include them in the checkpoint commit.
 
 ### 2. Stale lock recovery
 
@@ -113,8 +119,8 @@ If exactly one active issue exists:
 - Treat it as an interrupted prior Ralph run and resume it instead of declaring `0 ready`.
 - If `status: review`, run the mandatory fresh review and then mark done/blocked from the review result.
 - If `status: in-progress`, inspect the issue, recent commits, and `git status`:
-  - If implementation is already committed and no issue-created uncommitted files remain, move to `review` and run the fresh review.
-  - If issue-created uncommitted files remain, continue implementation/verification from there.
+  - If implementation is already committed and the worktree is clean, move to `review` and run the fresh review.
+  - If issue-created uncommitted files remain, the pre-worker checkpoint has already captured them; inspect recent commits and continue implementation/verification from there.
   - If state is ambiguous, stop and ask.
 
 If multiple active issues exist, stop and ask which one to resume. Do not reset active issues to pending unless explicitly requested or stale-lock recovery confirms reset.
@@ -169,14 +175,14 @@ For the selected issue:
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:
    ```bash
-   git status --porcelain                 # compare against baseline dirty state
+   git status --porcelain                 # should show only current issue changes
    git add <issue-file-1> <issue-file-2>  # stage only files changed for this issue
    git commit -m "feat(#ID): brief description"
-   git status --porcelain                 # MUST match the baseline dirty state
+   git status --porcelain                 # MUST be empty after cleanup
    ```
-   If `git status --porcelain` shows new uncommitted changes beyond the baseline dirty state after this step, first clean allowed ephemeral artifacts. If anything else remains, STOP and fix. Do not proceed to review with uncommitted issue work.
+   If `git status --porcelain` shows new uncommitted changes after this step, first clean allowed ephemeral artifacts. If anything else remains, commit or fix it before review. Do not proceed to review with uncommitted issue work.
 
-   This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. Never use `git add -A` or `git add .` here unless the baseline dirty state is empty and every changed file belongs to this issue.
+   This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. During normal issue commits, stage only files changed for the current issue; the loop-level pre-worker checkpoint is the only place that stages all dirty work.
 
 ### 4. Review in a fresh session (MANDATORY, NOT OPTIONAL)
 
@@ -185,7 +191,7 @@ For the selected issue:
 **Review procedure:**
 
 1. **Set status to review** — update the issue file to `status: review`.
-2. **Commit that status change** — stage only the current issue file (and `.kanban/progress.md` if touched), then `git commit -m "review(#ID): brief description"`. Do not stage unrelated baseline dirty files.
+2. **Commit that status change** — stage only the current issue file (and `.kanban/progress.md` if touched), then `git commit -m "review(#ID): brief description"`. The worktree should already be clean except for current issue changes.
 3. **Spawn a fresh review agent session** — the reviewer must NOT inherit the implementer's context. Give the reviewer this contract:
 
    ```text
@@ -197,7 +203,7 @@ For the selected issue:
    1. Every acceptance criterion checkbox is objectively satisfied.
    2. The verification command from the issue's ## Verification section passes (exit code 0).
    3. Lint and typecheck pass.
-   4. No unrelated changes leaked into the committed diff (`git diff HEAD~1`), ignoring any pre-existing dirty worktree files outside the reviewed commit.
+   4. No unrelated changes leaked into the committed diff (`git diff HEAD~1`); the pre-worker checkpoint should have made the starting tree clean.
    5. Scope matches the issue — no scope creep.
 
    Output reasoning per criterion, then exactly one final line:
