@@ -29,6 +29,7 @@ Common failure modes:
 2. **Key exchange failure** - both sides connected to relay, no mutual tunnel
 3. **Relay unavailable** - P2P fails + no fallback relay path
 4. **Firewall blocking** - STUN/TURN ports blocked (UDP 3478/3479)
+5. **Policy/group network-map exclusion** - peer is online, but target peer is absent from `netbird status --detail` because groups, policies, or subnet resources do not permit visibility
 
 ---
 
@@ -69,6 +70,9 @@ Create a comparison table:
 - "Connecting" with no handshake = key exchange failed
 - Last handshake >5min ago = stale connection
 - 0/2 relays available = relay unreachable
+- Target peer missing entirely from `netbird status --detail` = likely policy/group network-map exclusion, not P2P/TURN
+
+**Network-map rule:** compare both sides. If aidev sees Mac and n8n, but n8n does not see Mac, inspect groups/policies before restarting peers or coturn.
 
 ### Phase 3: Peer-Specific Checks
 
@@ -82,6 +86,54 @@ Check:
 - **ICE candidates**: Should show local/remote endpoints for P2P
 - **Relay server address**: Must match server config (rels://netbird.testytech.net:443)
 - **Last WireGuard handshake**: If never or >10min, tunnel is dead
+- **Missing target peer**: If the target block is absent, check policies/groups/resources next
+
+### Phase 3.5: Policy and Network Map Checks
+
+Use this when a peer is online but the target peer is missing from `netbird status --detail`, or when access should be one-way/non-transitive.
+
+Read-only DB inspection from aidev:
+```bash
+cd ~/netbird
+docker cp netbird-server:/var/lib/netbird/store.db /tmp/nb.db
+sqlite3 -header -column /tmp/nb.db <<'SQL'
+SELECT id, name, dns_label, ip, meta_go_os, peer_status_connected
+FROM peers
+ORDER BY name;
+
+SELECT g.name AS group_name, p.name AS peer_name, p.dns_label, p.ip
+FROM group_peers gp
+JOIN groups g ON gp.group_id = g.id
+JOIN peers p ON gp.peer_id = p.id
+ORDER BY g.name, p.name;
+
+SELECT id, name, resources
+FROM groups
+ORDER BY name;
+
+SELECT p.name AS policy, p.enabled AS policy_enabled,
+       pr.name AS rule, pr.enabled, pr.bidirectional,
+       pr.protocol, pr.ports, pr.sources, pr.destinations,
+       pr.destination_resource
+FROM policies p
+JOIN policy_rules pr ON p.id = pr.policy_id
+ORDER BY p.name;
+
+SELECT name, prefix, enabled
+FROM network_resources;
+SQL
+```
+
+Interpretation:
+- Client/mobile devices should be access consumers, not routing peers.
+- Server/router peers should not automatically receive LAN subnet access.
+- Subnet resource on `All` grants LAN route visibility too broadly.
+- For mobile-to-server access without server-to-LAN access, use separate groups:
+  - `Mobile`: phones/laptops
+  - `Remote Servers`: n8n or remote services
+  - LAN subnet resource assigned only to `Mobile`
+  - Policy `Mobile -> Remote Servers`, all ports if desired, non-bidirectional
+  - Policy/resource `Mobile -> Home LAN`, non-bidirectional
 
 ### Phase 4: Resolution Steps
 
@@ -174,6 +226,23 @@ curl http://<peer-netbird-ip>:<service-port>
 1. Check NetBird keepalive settings (should be default 25s)
 2. Look for network/firewall dropping idle UDP
 3. Check if relay has aggressive timeout (coturn `max-allocate-lifetime`)
+
+### Scenario 5: Mobile cannot reach n8n, but both peers are online
+
+**Root cause:** Policy/group network-map exclusion. Example: Mac and n8n were both in `Routing Peers`, but policies only allowed `Users ↔ Routing Peers`; no `Routing Peers ↔ Routing Peers` policy existed, so n8n did not see Mac.
+
+**Fix model:**
+1. Create/use `Mobile` group for Android + Mac.
+2. Create/use `Remote Servers` group for n8n.
+3. Remove mobile clients from router/server groups.
+4. Assign home LAN subnet resource only to `Mobile`, not `All`.
+5. Add `Mobile -> Remote Servers` policy, all ports if requested, non-bidirectional.
+6. Add/enable `Mobile -> Home LAN` subnet policy/resource, non-bidirectional.
+
+**Verification:**
+- On Mac: `netbird status --detail` should list `n8n.netbird.selfhosted`.
+- On n8n: `netbird status --detail` may not list Mobile when policy is one-way; that is expected.
+- From Mac: `ping <n8n-netbird-ip>` and test service ports.
 
 ---
 
