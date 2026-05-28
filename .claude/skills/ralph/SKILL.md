@@ -70,16 +70,17 @@ git status --porcelain
 
 Before launching any worker, `ralph-loop.sh` must start from a clean git worktree.
 
-Loop-level behavior when there are uncommitted non-ignored changes:
+Loop-level behavior when there are uncommitted non-ignored changes outside `.pi-lens/`:
 - **Auto-commit all of them before implementation starts.** This includes tracked edits, deletions, and untracked non-ignored files, after cleaning known ephemeral artifacts.
-- Run `git add -A` and commit with a checkpoint message such as `chore(ralph): checkpoint worktree before worker`.
-- Verify `git status --porcelain` is empty after the checkpoint commit.
-- If the checkpoint commit fails or the worktree remains dirty, stop before launching the worker.
-- Ignored files may remain; they are outside the git worktree cleanliness gate.
+- Run `git add -A -- . ':(exclude).pi-lens'` and commit with a checkpoint message such as `chore(ralph): checkpoint worktree before worker`.
+- Verify `git status --porcelain -- . ':(exclude).pi-lens'` is empty after the checkpoint commit.
+- If the checkpoint commit fails or the filtered worktree remains dirty, stop before launching the worker.
+- Ignored files and `.pi-lens/` may remain; they are outside the git worktree cleanliness gate.
 
 Worker-level behavior after launch:
 - Do **not** create another pre-worker checkpoint commit. The loop already did that before launching the worker.
-- If `git status --porcelain` is dirty before implementation, clean known ephemeral artifacts and stop with `RALPH_RESULT: FAIL #<id>` if anything remains.
+- Ignore `.pi-lens/` entirely. Use `git status --porcelain -- . ':(exclude).pi-lens'` for cleanliness checks.
+- If filtered `git status` is dirty before implementation, clean known ephemeral artifacts and stop with `RALPH_RESULT: FAIL #<id>` if anything remains.
 
 ### 1a. Ephemeral artifact cleanup
 
@@ -92,14 +93,14 @@ Ralph may delete these untracked generated artifacts without asking because they
 - `.ruff_cache/`
 - `.mypy_cache/`
 - `htmlcov/`
-- `.pi-lens/`
 
 Rules:
 - Delete only if untracked (`git ls-files -- <path>` returns nothing).
 - Never delete tracked files or directories containing tracked files.
 - Log what was removed.
 - If one of these artifacts appears before a checkpoint or after a worker, clean it and continue.
-- If unknown untracked non-ignored files appear before a worker, include them in the checkpoint commit.
+- Ignore `.pi-lens/` entirely, whether tracked, untracked, or dirty.
+- If unknown untracked non-ignored files outside `.pi-lens/` appear before a worker, include them in the checkpoint commit.
 
 ### 2. Stale lock recovery
 
@@ -175,12 +176,12 @@ For the selected issue:
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:
    ```bash
-   git status --porcelain                 # should show only current issue changes
-   git add <issue-file-1> <issue-file-2>  # stage only files changed for this issue
+   git status --porcelain -- . ':(exclude).pi-lens'  # should show only current issue changes
+   git add <issue-file-1> <issue-file-2>             # stage only files changed for this issue
    git commit -m "feat(#ID): brief description"
-   git status --porcelain                 # MUST be empty after cleanup
+   git status --porcelain -- . ':(exclude).pi-lens'  # MUST be empty after cleanup
    ```
-   If `git status --porcelain` shows new uncommitted changes after this step, first clean allowed ephemeral artifacts. If anything else remains, commit or fix it before review. Do not proceed to review with uncommitted issue work.
+   If filtered `git status` shows new uncommitted changes after this step, first clean allowed ephemeral artifacts. If anything else remains, commit or fix it before review. Do not proceed to review with uncommitted issue work.
 
    This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. During normal issue commits, stage only files changed for the current issue; the loop-level pre-worker checkpoint is the only place that stages all dirty work.
 
@@ -212,7 +213,7 @@ For the selected issue:
    RALPH_REVIEW: FAIL
    ```
 
-   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain` before and after review and fail if the reviewer changed files.
+   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain -- . ':(exclude).pi-lens'` before and after review and fail if the reviewer changed files outside `.pi-lens/`.
 
    Concrete spawn examples:
 
