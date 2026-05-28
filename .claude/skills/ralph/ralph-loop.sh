@@ -245,11 +245,11 @@ if [[ ! -f .kanban/progress.md ]]; then
 	} >.kanban/progress.md
 fi
 
-if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain)" ]]; then
+if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain -- . ':(exclude).pi-lens')" ]]; then
 	echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
-	echo "   Ralph will auto-commit all non-ignored changes before launching each worker." >&2
+	echo "   Ralph will auto-commit all non-ignored changes except .pi-lens before launching each worker." >&2
 	echo "" >&2
-	git status --short >&2
+	git status --short -- . ':(exclude).pi-lens' >&2
 	echo "" >&2
 fi
 
@@ -265,7 +265,7 @@ fi
 
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
-SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. If git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Print exactly one final sentinel line.
+SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 
@@ -323,7 +323,6 @@ cleanup_ephemeral_artifacts() {
     ".ruff_cache"
     ".mypy_cache"
     "htmlcov"
-    ".pi-lens"
   )
 
   for path in "${paths[@]}"; do
@@ -336,6 +335,14 @@ cleanup_ephemeral_artifacts() {
   done
 
   [[ "$removed" == "true" ]]
+}
+
+git_status_ignoring_pi_lens() {
+  git status --porcelain -- . ':(exclude).pi-lens' | LC_ALL=C sort || true
+}
+
+git_status_short_ignoring_pi_lens() {
+  git status --short -- . ':(exclude).pi-lens' || true
 }
 
 count_unblocked_pending() {
@@ -557,17 +564,17 @@ checkpoint_dirty_worktree() {
   git rev-parse --git-dir >/dev/null 2>&1 || return 0
 
   cleanup_ephemeral_artifacts || true
-  status=$(git status --porcelain | LC_ALL=C sort || true)
+  status=$(git_status_ignoring_pi_lens)
   [[ -n "$status" ]] || return 0
 
   echo "" | tee -a "$LOG_FILE"
   echo "💾 Checkpointing dirty worktree before launching worker" | tee -a "$LOG_FILE"
-  git status --short | tee -a "$LOG_FILE"
+  git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
 
-  git add -A
+  git add -A -- . ':(exclude).pi-lens'
   if git diff --cached --quiet; then
     echo "⚠️  Dirty worktree had nothing stageable; refusing to launch worker" | tee -a "$LOG_FILE"
-    git status --short | tee -a "$LOG_FILE"
+    git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
     return 1
   fi
 
@@ -578,10 +585,10 @@ checkpoint_dirty_worktree() {
   fi
 
   cleanup_ephemeral_artifacts || true
-  status=$(git status --porcelain | LC_ALL=C sort || true)
+  status=$(git_status_ignoring_pi_lens)
   if [[ -n "$status" ]]; then
     echo "⚠️  Worktree still dirty after checkpoint commit; refusing to launch worker" | tee -a "$LOG_FILE"
-    git status --short | tee -a "$LOG_FILE"
+    git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
     return 1
   fi
 
@@ -693,12 +700,12 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
-    POST_RALPH_STATUS=$(git status --porcelain | LC_ALL=C sort || true)
+    POST_RALPH_STATUS=$(git_status_ignoring_pi_lens)
     if [[ $LAST_EXIT_CODE -eq 0 && -n "$POST_RALPH_STATUS" ]]; then
       echo "" | tee -a "$LOG_FILE"
       echo "⚠️  Ralph left the worktree dirty after the worker finished" | tee -a "$LOG_FILE"
       echo "   Stopping so the next worker does not start from mixed state." | tee -a "$LOG_FILE"
-      git status --short | tee -a "$LOG_FILE"
+      git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
       LAST_EXIT_CODE=1
     fi
   fi
