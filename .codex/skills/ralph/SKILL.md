@@ -161,7 +161,7 @@ Never auto-implement issues matching these patterns, even if an issue is marked 
 - Major or minor dependency version upgrades
 - Production configuration changes
 
-This list intentionally matches `$to-issues`' HITL safety policy. If one list changes, update the other in the same change. `$ralph` is the final enforcement source and must block unsafe work even when the producer misclassified it as AFK.
+`$ralph` is the final enforcement source and must block unsafe work even when the producer misclassified it as AFK.
 
 If an eligible-looking AFK issue matches this policy, do not implement it. Set `status: blocked`, add a `## Blocker` section explaining that the issue requires human review, append a progress note, and report it.
 
