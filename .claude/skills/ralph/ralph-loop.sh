@@ -11,6 +11,8 @@
 #   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with openai-codex/gpt-5.5)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+#   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
+#   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
 #   --private-tmux        Use Ralph's private tmux socket instead of default tmux
@@ -30,6 +32,12 @@ READY_TIMEOUT=60
 ITERATION_TIMEOUT=3600
 AGENT_CMD="${RALPH_AGENT_CMD:-}"
 AGENT_CMD_EXPLICIT=false
+AGENT_PROMPT_EXPLICIT=false
+REVIEW_LOOP=false
+SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
+REVIEW_BASE_SHA=""
+BASE_REMINDER=""
+LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-openai-codex/gpt-5.5}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
@@ -52,6 +60,9 @@ OPTIONS:
   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
   --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with openai-codex/gpt-5.5)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
+  --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
+  --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
+  --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
   --socket PATH         Private tmux socket path (implies --private-tmux)
   --private-tmux        Use Ralph's private tmux socket instead of default tmux
@@ -107,6 +118,23 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--agent-prompt)
 		AGENT_PROMPT="${2:-}"
+		AGENT_PROMPT_EXPLICIT=true
+		shift 2
+		;;
+	--review-loop)
+		REVIEW_LOOP=true
+		shift
+		;;
+	--skip-blocked)
+		SKIP_BLOCKED=true
+		shift
+		;;
+	--lsp-check-cmd)
+		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+			echo "❌ Error: --lsp-check-cmd requires a command" >&2
+			exit 1
+		fi
+		LSP_CHECK_CMD="$2"
 		shift 2
 		;;
 	--no-checkpoint-dirty)
@@ -144,6 +172,12 @@ case "${USE_NORMAL_TMUX,,}" in
 true | 1 | yes | y | on) USE_NORMAL_TMUX=true ;;
 *) USE_NORMAL_TMUX=false ;;
 esac
+
+if [[ "$REVIEW_LOOP" == "true" && -z "${RALPH_AGENT_PROMPT:-}" && "$AGENT_PROMPT_EXPLICIT" != "true" ]]; then
+	AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after one issue. Print the required RALPH_RESULT sentinel."
+elif [[ "$REVIEW_LOOP" == "true" && -n "${RALPH_AGENT_PROMPT:-}" && "$AGENT_PROMPT_EXPLICIT" != "true" ]]; then
+	echo "⚠️  RALPH_AGENT_PROMPT is set; appending review-loop framing via shared prompt reminder." >&2
+fi
 
 ADAPTER="${1:-tmux}"
 SESSION_NAME="${2:-ralph-loop}"
@@ -259,15 +293,25 @@ if [[ -n "$ACTIVE_ISSUES" && "$FORCE_MODE" != "true" ]]; then
 	echo "" >&2
 	echo "$ACTIVE_ISSUES" >&2
 	echo "" >&2
-	echo "Ralph will resume the active issue instead of resetting it to pending." >&2
-	echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
+	if [[ "$REVIEW_LOOP" == "true" ]]; then
+		echo "Ralph review-loop will process these active issues per the Actionable Review Loop." >&2
+	else
+		echo "Ralph will resume the active issue instead of resetting it to pending." >&2
+		echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
+	fi
 fi
 
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
-SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Print exactly one final sentinel line.
+if [[ "$REVIEW_LOOP" == "true" ]]; then
+	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
+The final line must start with RALPH_RESULT followed by colon and one space.'
+else
+	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
+fi
 
 cat >"$LOOP_SCRIPT" <<'LOOP_EOF'
 #!/bin/bash
@@ -289,6 +333,8 @@ USE_NORMAL_TMUX="${13}"
 SHARED_PROMPT_REMINDER="${14}"
 RALPH_MODEL="${15}"
 CHECKPOINT_DIRTY="${16}"
+REVIEW_LOOP="${17}"
+LSP_CHECK_CMD="${18}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 
 mkdir -p "$HOME/.cache"
@@ -345,6 +391,91 @@ git_status_short_ignoring_pi_lens() {
   git status --short -- . ':(exclude).pi-lens' || true
 }
 
+normalize_issue_id() {
+  local id="${1#\#}"
+  id=$(printf '%s' "$id" | sed 's/^0*//;s/^$/0/')
+  printf '%s' "$id"
+}
+
+issue_id_for_file() {
+  sed -n 's/^id:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
+}
+
+issue_status_for_file() {
+  sed -n 's/^status:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
+}
+
+issue_priority_for_file() {
+  local priority
+  priority=$(sed -n 's/^priority:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs)
+  [[ "$priority" =~ ^[0-9]+$ ]] || priority=999
+  printf '%s' "$priority"
+}
+
+has_valid_action_reviewed() {
+  grep -Eq '^action_reviewed:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$' "$1"
+}
+
+review_issue_attempted() {
+  local id
+  id=$(normalize_issue_id "$1")
+  [[ " $ATTEMPTED_REVIEW_ISSUES " == *" $id "* ]]
+}
+
+count_actionable_review_targets() {
+  local count=0
+  local issue_file status id
+
+  for issue_file in .kanban/issues/*.md; do
+    [[ -f "$issue_file" ]] || continue
+    status=$(issue_status_for_file "$issue_file")
+    id=$(issue_id_for_file "$issue_file")
+    [[ -n "$id" ]] || continue
+    review_issue_attempted "$id" && continue
+    case "$status" in
+      blocked | review | in-progress)
+        count=$((count + 1))
+        ;;
+      done)
+        if ! has_valid_action_reviewed "$issue_file"; then
+          count=$((count + 1))
+        fi
+        ;;
+    esac
+  done
+
+  echo "$count"
+}
+
+select_actionable_review_target() {
+  local wanted issue_file status id priority candidate
+
+  for wanted in blocked review in-progress done; do
+    candidate=$(
+      for issue_file in .kanban/issues/*.md; do
+        [[ -f "$issue_file" ]] || continue
+        status=$(issue_status_for_file "$issue_file")
+        [[ "$status" == "$wanted" ]] || continue
+        id=$(issue_id_for_file "$issue_file")
+        [[ -n "$id" ]] || continue
+        review_issue_attempted "$id" && continue
+        if [[ "$status" == "done" ]] && has_valid_action_reviewed "$issue_file"; then
+          continue
+        fi
+        priority=$(issue_priority_for_file "$issue_file")
+        printf '%06d %012d %s
+' "$priority" "$(normalize_issue_id "$id")" "$issue_file"
+      done | sort -k1,1n -k2,2n | head -1 | cut -d' ' -f3-
+    )
+    if [[ -n "$candidate" ]]; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 count_unblocked_pending() {
   local count=0
   local issue_file blocked_by is_blocked blocker_id blocker_file
@@ -395,16 +526,45 @@ has_failure_result() {
   grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9]+)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
+has_blocked_result() {
+  local file="$1"
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+}
+
+has_hard_fail_result() {
+  local file="$1"
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+}
+
+# A BLOCKED sentinel is non-fatal (skip the issue, keep looping) when running
+# the review loop or when --skip-blocked is set, as long as there is no FAIL.
+blocked_is_skippable() {
+  local file="$1"
+  has_blocked_result "$file" || return 1
+  has_hard_fail_result "$file" && return 1
+  [[ "$REVIEW_LOOP" == "true" || "$SKIP_BLOCKED" == "true" ]]
+}
+
+extract_result_issue() {
+  local file="$1"
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\([0-9][0-9]*\)[[:space:]]*$/\2/p' "$file" | tail -1
+}
+
 run_pi_adapter() {
   local output_file="$1"
-  local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"
+  local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"
   local cmd=(pi --no-session --model "$RALPH_MODEL" --skill "$SKILL_DIR" -p "$full_prompt")
   local rc=0
   "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
 
-  if [[ $rc -eq 0 ]] && has_failure_result "$output_file"; then
-    echo "⚠️  Pi exited 0 but RALPH_RESULT sentinel indicates failure" | tee -a "$LOG_FILE"
-    return 1
+  if [[ $rc -eq 0 ]]; then
+    if blocked_is_skippable "$output_file"; then
+      return 0
+    fi
+    if has_failure_result "$output_file"; then
+      echo "⚠️  Pi exited 0 but RALPH_RESULT sentinel indicates failure" | tee -a "$LOG_FILE"
+      return 1
+    fi
   fi
   return $rc
 }
@@ -500,7 +660,7 @@ run_tmux_adapter() {
   wait_for_agent_ready "$target" || true
   sleep "$READY_DELAY"
 
-  prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
+  prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
   prompt_line=$(printf '%s' "$prompt" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')
 
   echo "⌨️  Sending Ralph prompt to $agent_session" | tee -a "$LOG_FILE"
@@ -531,6 +691,11 @@ run_tmux_adapter() {
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
         return 0
       fi
+      if blocked_is_skippable "$output_file"; then
+        rm -f "$result_file"
+        tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+        return 0
+      fi
       if has_failure_result "$output_file"; then
         rm -f "$result_file"
         echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
@@ -547,6 +712,12 @@ run_tmux_adapter() {
       return 0
     fi
 
+    if blocked_is_skippable "$output_file"; then
+      cat "$output_file" >> "$LOG_FILE"
+      tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+      return 0
+    fi
+
     if has_failure_result "$output_file"; then
       cat "$output_file" >> "$LOG_FILE"
       echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
@@ -555,6 +726,15 @@ run_tmux_adapter() {
 
     sleep "$SLEEP_INTERVAL"
   done
+}
+
+run_lsp_check_gate() {
+  [[ -n "$LSP_CHECK_CMD" ]] || return 0
+  echo "▶ Running critical LSP gate: $LSP_CHECK_CMD" | tee -a "$LOG_FILE"
+  if ! bash -lc "$LSP_CHECK_CMD" 2>&1 | tee -a "$LOG_FILE"; then
+    echo "⚠️  Critical LSP gate failed" | tee -a "$LOG_FILE"
+    return 1
+  fi
 }
 
 checkpoint_dirty_worktree() {
@@ -623,6 +803,7 @@ reset_active_issues_to_pending() {
   echo "Project: $PROJECT_DIR"
   echo "Session: $SESSION_NAME"
   echo "Continue on error: $CONTINUE_ON_ERROR"
+  echo "Review loop: $REVIEW_LOOP"
   echo "Sleep interval: ${SLEEP_INTERVAL}s"
   echo "Ready delay: ${READY_DELAY}s"
   echo "Ready timeout: ${READY_TIMEOUT}s"
@@ -630,6 +811,9 @@ reset_active_issues_to_pending() {
   echo "Tmux: $TMUX_DISPLAY"
   echo "Model: $RALPH_MODEL"
   echo "Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
+  if [[ -n "$LSP_CHECK_CMD" ]]; then
+    echo "LSP check command: $LSP_CHECK_CMD"
+  fi
   if [[ "$ADAPTER" == "tmux" ]]; then
     echo "Agent command: $AGENT_CMD"
   fi
@@ -640,6 +824,8 @@ reset_active_issues_to_pending() {
 ITERATION=0
 MAX_ITERATIONS=1000
 ISSUES_COMPLETED=0
+REVIEW_TARGETS_PROCESSED=0
+ATTEMPTED_REVIEW_ISSUES=""
 
 while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   ITERATION=$((ITERATION + 1))
@@ -660,25 +846,72 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
   ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l | tr -d ' ')
   UNBLOCKED_COUNT=$(count_unblocked_pending)
+  REVIEW_READY_COUNT=$(count_actionable_review_targets)
 
   echo "" | tee -a "$LOG_FILE"
-  echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $REVIEW_READY_COUNT review targets" | tee -a "$LOG_FILE"
+  else
+    echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
+  fi
   echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
   if [[ $ACTIVE_COUNT -gt 0 ]]; then
-    echo "🔁 $ACTIVE_COUNT active issue(s) will be resumed before scanning new pending work" | tee -a "$LOG_FILE"
+    if [[ "$REVIEW_LOOP" == "true" ]]; then
+      echo "🔁 $ACTIVE_COUNT active issue(s) are review-loop targets" | tee -a "$LOG_FILE"
+    else
+      echo "🔁 $ACTIVE_COUNT active issue(s) will be resumed before scanning new pending work" | tee -a "$LOG_FILE"
+    fi
     printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | tee -a "$LOG_FILE"
   fi
 
-  if [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    if [[ $REVIEW_READY_COUNT -eq 0 ]]; then
+      echo "" | tee -a "$LOG_FILE"
+      echo "✅ No actionable review targets found" | tee -a "$LOG_FILE"
+      echo "Ralph review loop complete!" | tee -a "$LOG_FILE"
+      break
+    fi
+  elif [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
     echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
     echo "Ralph loop complete!" | tee -a "$LOG_FILE"
     break
   fi
 
+  CURRENT_REVIEW_TARGET=""
+  CURRENT_REVIEW_TARGET_ID=""
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    CURRENT_REVIEW_TARGET=$(select_actionable_review_target || true)
+    if [[ -z "$CURRENT_REVIEW_TARGET" ]]; then
+      echo "" | tee -a "$LOG_FILE"
+      echo "✅ No actionable review targets found" | tee -a "$LOG_FILE"
+      echo "Ralph review loop complete!" | tee -a "$LOG_FILE"
+      break
+    fi
+    CURRENT_REVIEW_TARGET_ID=$(issue_id_for_file "$CURRENT_REVIEW_TARGET")
+    echo "🎯 Review target: $CURRENT_REVIEW_TARGET" | tee -a "$LOG_FILE"
+  fi
+
   if ! checkpoint_dirty_worktree; then
     echo "Stopping loop" | tee -a "$LOG_FILE"
     break
+  fi
+
+  # Record the clean HEAD before the worker implements. The fresh reviewer must
+  # diff this base against HEAD, not HEAD~1: the worker adds a status:review
+  # commit on top of its implementation commit(s), so HEAD~1 would show only the
+  # status flip and hide the actual code under review.
+  REVIEW_BASE_SHA=""
+  BASE_REMINDER=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    REVIEW_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [[ -n "$REVIEW_BASE_SHA" ]]; then
+      BASE_REMINDER=$'\n'"Implementation base commit (HEAD before this worker started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1' — the status:review commit sits on top of the implementation, so HEAD~1 would show only the status flip."
+    fi
+  fi
+
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $CURRENT_REVIEW_TARGET (issue #$CURRENT_REVIEW_TARGET_ID). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
   fi
 
   RALPH_OUTPUT=$(mktemp)
@@ -692,6 +925,15 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       run_tmux_adapter "$RALPH_OUTPUT" "$ITERATION" || LAST_EXIT_CODE=$?
       ;;
   esac
+
+  if [[ $LAST_EXIT_CODE -eq 0 ]]; then
+    run_lsp_check_gate || LAST_EXIT_CODE=1
+  fi
+
+  if [[ $LAST_EXIT_CODE -eq 0 ]] && blocked_is_skippable "$RALPH_OUTPUT"; then
+    SKIPPED_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
+    echo "⏭️  Issue #${SKIPPED_ISSUE:-?} BLOCKED — skipping and continuing to the next eligible issue" | tee -a "$LOG_FILE"
+  fi
 
   NO_WORK=false
   if has_no_work_result "$RALPH_OUTPUT"; then
@@ -708,6 +950,17 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
       LAST_EXIT_CODE=1
     fi
+  fi
+
+  if [[ "$REVIEW_LOOP" == "true" && -n "$CURRENT_REVIEW_TARGET_ID" ]]; then
+    RESULT_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
+    if [[ -n "$RESULT_ISSUE" ]]; then
+      ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$RESULT_ISSUE")"
+    else
+      ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$CURRENT_REVIEW_TARGET_ID")"
+    fi
+    REVIEW_TARGETS_PROCESSED=$((REVIEW_TARGETS_PROCESSED + 1))
+    echo "✅ Review target processed this session: $REVIEW_TARGETS_PROCESSED" | tee -a "$LOG_FILE"
   fi
 
   COMPLETED_ISSUE=$(extract_completed_issue "$RALPH_OUTPUT")
@@ -754,6 +1007,9 @@ fi
   echo "Ralph Loop finished at $(date)"
   echo "Total iterations: $ITERATION"
   echo "Issues completed this session: $ISSUES_COMPLETED"
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    echo "Review targets processed this session: $REVIEW_TARGETS_PROCESSED"
+  fi
   echo "═══════════════════════════════════════════════════════════"
   leftover_sessions=$(tmux_cmd list-sessions -F '#{session_name}' 2>/dev/null | grep "^ralph-${SESSION_NAME}-" || true)
   if [[ -n "$leftover_sessions" ]]; then
@@ -777,7 +1033,7 @@ INNER_ARGS=()
 for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
-	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY"; do
+	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
@@ -792,6 +1048,7 @@ echo "Configuration:"
 echo "  Adapter: $ADAPTER"
 echo "  Force mode: $FORCE_MODE"
 echo "  Continue on error: $CONTINUE_ON_ERROR"
+echo "  Review loop: $REVIEW_LOOP"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo "  Ready delay: ${READY_DELAY}s"
 echo "  Ready timeout: ${READY_TIMEOUT}s"
@@ -799,6 +1056,9 @@ echo "  Iteration timeout: ${ITERATION_TIMEOUT}s"
 echo "  Tmux: $TMUX_DISPLAY"
 echo "  Model: $RALPH_MODEL"
 echo "  Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
+if [[ -n "$LSP_CHECK_CMD" ]]; then
+	echo "  LSP check command: $LSP_CHECK_CMD"
+fi
 if [[ "$ADAPTER" == "tmux" ]]; then
 	echo "  Agent command: $AGENT_CMD"
 fi
@@ -810,6 +1070,6 @@ echo ""
 echo "Stop:"
 echo "  $TMUX_DISPLAY kill-session -t '$SESSION_NAME'"
 echo ""
-echo "The loop will run until all unblocked pending issues are done."
+echo "The loop will run until no eligible work remains."
 echo ""
 echo "Loop script: $LOOP_SCRIPT"

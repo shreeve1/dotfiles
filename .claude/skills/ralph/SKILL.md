@@ -10,7 +10,7 @@ Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in 
 ## Philosophy
 
 - **One issue per invocation** — bounded scope, fresh context every time. No batching.
-- **Fresh session for implement, fresh session for review** — the implementer and the reviewer must not share a context window. A fresh reviewer catches what the implementer rationalized away.
+- **Fresh session for implement, fresh session for review** — the implementer and the reviewer must not share a context window in the normal implementation flow. `--review-loop` is an explicit repair/audit mode where one fresh worker may both review and fix a selected issue.
 - **Every issue is buildable** — `/to-issues` already guaranteed each slice is verifiable by an automated check. Ralph just executes.
 - **Vertical slice or nothing** — implement the whole tracer bullet; do not stop at one layer.
 - **Memento approach** — clear beats compacting. `.kanban/progress.md` carries architectural continuity between sessions.
@@ -28,6 +28,8 @@ Useful runner examples:
 
 ```bash
 tralph                                      # normal tmux, default Pi agent (openai-codex/gpt-5.5)
+tralph --review-loop                        # actionable audit/unblock pass over existing issues
+tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
 tralph --agent-cmd 'pi --model openai-codex/gpt-5.5' tmux
 tralph pi                                   # Pi non-interactive adapter
@@ -35,7 +37,7 @@ tralph pi                                   # Pi non-interactive adapter
 
 `--agent-cmd` is intentionally a shell command line. Quote paths with spaces yourself.
 
-The loop runner is only an adapter. Ralph's durable contract is the board protocol, commit gates, fresh review session, and sentinel output below.
+The loop runner is only an adapter. Ralph's durable contract is the board protocol, commit gates, fresh review session, actionable review loop, and sentinel output below.
 
 ## Sentinel output contract
 
@@ -104,9 +106,9 @@ Rules:
 
 ### 2. Stale lock recovery
 
-Check for issues with `status: in-progress` where `updated` is older than 30 minutes:
+Check for issues with `status: in-progress` where `updated` is older than the loop's per-issue iteration timeout (`--iteration-timeout`, default 3600s / 60 min). Do not use a shorter threshold than the iteration timeout, or a legitimately long-running worker will be treated as a stale lock and reset mid-flight.
 ```
-Stale lock detected: #2 Auth API (in-progress for 45 min)
+Stale lock detected: #2 Auth API (in-progress for 75 min, past the 60 min timeout)
 Reset to pending? [Y/n]
 ```
 
@@ -133,8 +135,31 @@ Run a quick validation:
 - No cycles in the dependency graph
 - Required fields present
 - Each issue has a `## Verification` section with a concrete command
+- The verification command uses the project's canonical runner, not a bare one off `$PATH`. If a command invokes a bare known runner (`pytest`, `jest`, `go test`, `npm test`, …) while the repo ships a wrapper (e.g. `scripts/pytest`, a venv binary, a `Makefile`/`justfile` target), warn — a bare runner that hits a system interpreter missing project deps will false-fail review and block working code.
 
-If validation fails, report errors and stop. Do not implement on a broken board.
+If validation fails, report errors and stop. Do not implement on a broken board. A bare-runner warning is non-fatal: prefer fixing the issue's `## Verification` to the repo-correct invocation before implementing.
+
+## Actionable Review Loop
+
+`ralph-loop.sh --review-loop` runs an action-taking reviewer/unblocker. It is not read-only. It processes exactly one issue per invocation, then prints a `RALPH_RESULT` sentinel.
+
+Selection order:
+1. `blocked` — attempt to fix the blocker, verify, commit, and move through review to `done` if fixed. If still blocked, update `## Blocker`, commit blocker notes, and print `RALPH_RESULT: BLOCKED #<id>`.
+2. `review` — run the review, fix any gaps found, verify, commit, and mark `done`; if not fixable, mark `blocked` with notes.
+3. `in-progress` — finish or repair the implementation, verify, commit, then review.
+4. `done` without valid `action_reviewed: YYYY-MM-DD` frontmatter — audit completed work. If correct, add `action_reviewed: <today>`, commit the issue metadata, and print `RALPH_RESULT: DONE #<id>`. If gaps are found, fix them, verify, commit, keep/mark `done`, add `action_reviewed: <today>`, and print `RALPH_RESULT: DONE #<id>`. If gaps cannot be fixed, mark `blocked` and print `RALPH_RESULT: BLOCKED #<id>`.
+
+Actionable review rules:
+- You may edit code, tests, issue files, and progress notes when review finds gaps or blockers.
+- Do not create another pre-worker checkpoint commit; the loop already handled that.
+- Ignore `.pi-lens/` entirely for cleanliness gates.
+- Use `git status --porcelain -- . ':(exclude).pi-lens'` for before/after status checks.
+- Stage only files related to the issue/review fix, except loop-level checkpoint commits.
+- Run the issue verification command after fixes. If auditing `done`, rerun verification before adding `action_reviewed: YYYY-MM-DD`.
+- Check critical LSP diagnostics for files touched by the issue. Fix real type/call/signature/import errors before DONE/PASS; document environment-only missing-import noise if it is outside the issue's control. If `--lsp-check-cmd` / `RALPH_LSP_CHECK_CMD` is configured, that command must pass after the worker.
+- Record what was checked/fixed in `.kanban/progress.md`.
+
+If no blocked, review, in-progress, or unreviewed done issue exists, print `RALPH_RESULT: NO_WORK`. `RALPH_RESULT: BLOCKED #<id>` is valid review-loop progress for a target that remains blocked after an attempted fix; the loop will not retry the same issue again in that run.
 
 ## Process
 
@@ -173,7 +198,7 @@ For the selected issue:
 4. **Explore** the relevant code — understand current state.
 5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc).
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
-7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them.
+7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them. Check critical LSP diagnostics for touched files and fix real type/call/signature/import errors before proceeding; only environment-only missing-import noise may be documented instead of fixed.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:
    ```bash
    git status --porcelain -- . ':(exclude).pi-lens'  # should show only current issue changes
@@ -199,13 +224,23 @@ For the selected issue:
    You are a read-only issue reviewer. Do not modify files.
 
    Review issue #<ID> in .kanban/issues/.
-   Read the issue file, then run `git diff HEAD~1` and read every changed file.
+   Read the issue file, then diff the IMPLEMENTATION against the base commit and read every changed file.
+
+   Determine the diff base (do NOT use `git diff HEAD~1` — the status:review commit sits on top of the implementation, so HEAD~1 shows only the status flip):
+   - If the loop provided an "Implementation base commit" SHA, use it: `git diff <BASE_SHA> HEAD`.
+   - Otherwise compute it from the issue's own commits:
+     ```bash
+     FIRST=$(git log -F --grep="(#<ID>)" --reverse --format=%H | head -1)
+     git diff "${FIRST}^" HEAD
+     ```
+
    Verify:
    1. Every acceptance criterion checkbox is objectively satisfied.
-   2. The verification command from the issue's ## Verification section passes (exit code 0).
+   2. The verification command from the issue's ## Verification section passes (exit code 0). If it fails only because a bare runner resolved the wrong interpreter (e.g. `ModuleNotFoundError` from a system Python that lacks project deps), that is an environment/command defect, not a code defect: report it as a verification-command fix, do not FAIL the implementation on it.
    3. Lint and typecheck pass.
-   4. No unrelated changes leaked into the committed diff (`git diff HEAD~1`); the pre-worker checkpoint should have made the starting tree clean.
-   5. Scope matches the issue — no scope creep.
+   4. Critical LSP diagnostics in touched files are fixed, especially type/call/signature/import errors. Environment-only missing-import noise must be explicitly identified, not silently ignored.
+   5. No unrelated changes leaked into the implementation diff (the pre-worker checkpoint should have made the starting tree clean).
+   6. Scope matches the issue — no scope creep.
 
    Output reasoning per criterion, then exactly one final line:
    RALPH_REVIEW: PASS
@@ -213,7 +248,7 @@ For the selected issue:
    RALPH_REVIEW: FAIL
    ```
 
-   The reviewer reads `.kanban/issues/<file>`, runs `git diff HEAD~1`, re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain -- . ':(exclude).pi-lens'` before and after review and fail if the reviewer changed files outside `.pi-lens/`.
+   The reviewer reads `.kanban/issues/<file>`, diffs the implementation against the base commit (per the diff-base rules above, not `HEAD~1`), re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain -- . ':(exclude).pi-lens'` before and after review and fail if the reviewer changed files outside `.pi-lens/`.
 
    Concrete spawn examples:
 
@@ -260,6 +295,10 @@ Key additions to progress notes beyond what changed:
 - **Notes for next iteration** — things the next implementer needs to know
 
 Progress notes are the continuity mechanism between context windows. This is how architectural decisions survive the Memento approach.
+
+**Keep `progress.md` bounded.** Every fresh session reads the whole file, so it must not grow without limit. Structure it as two parts:
+- A stable `# Conventions & Decisions` section at the top — the durable, still-true conventions and architectural decisions, deduplicated. Promote anything from a per-issue note that later issues must keep honoring into this section, and drop it from the chronological log.
+- A `# Iteration Log` section below — the chronological per-issue entries. When the log gets long (rough guide: more than ~30 entries or the file is uncomfortably large to read in one pass), summarize the oldest entries into one-line digests and move the full text to `.kanban/archive/progress-archive.md`. The durable facts already live in the Conventions section, so the log can be trimmed safely.
 
 ### 6. Stop. One issue per invocation.
 
