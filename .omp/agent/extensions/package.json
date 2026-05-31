@@ -1,0 +1,9 @@
+{
+  "name": "omp-vendored-extensions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared runtime deps for vendored omp extensions (resolved via upward node_modules lookup). Peer deps for the @oh-my-pi/@earendil-works/@mariozechner pi-* scopes are provided by the omp runtime.",
+  "dependencies": {
+    "typebox": "1.1.38"
+  }
+}

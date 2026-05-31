@@ -106,6 +106,16 @@ bin/
 .codex/memories/
 .codex/skills/.system/
 
+# oh-my-pi (omp) — sync only config + vendored extensions; rest is runtime/machine-local
+.omp/*
+!.omp/agent/
+.omp/agent/*
+!.omp/agent/config.yml
+!.omp/agent/models.yml
+!.omp/agent/extensions/
+# Vendored extension deps are installed per-machine by install.sh
+.omp/agent/extensions/**/node_modules/
+
 # Backup / temp files
 *.bak
 *.bak-*
