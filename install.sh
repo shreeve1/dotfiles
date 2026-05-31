@@ -385,6 +385,41 @@ for skill_dir in "$DOTFILES_DIR"/.codex/skills/*; do
   link_path ".codex/skills/$skill_name" ".codex/skills/$skill_name"
 done
 
+# ─── oh-my-pi (omp) ────────────────────────────────────────
+# Only portable config is synced. Runtime churn stays machine-local:
+# ~/.omp/agent/*.db*, sessions/, terminal-sessions/, logs/, and
+# gpu_cache.json (caches the local machine's GPU). The model roles in config.yml
+# point at omp built-in providers (zai, openai-codex), which only need their API
+# keys present (machine-local secrets) — NOT models.yml. models.yml is optional
+# and links only if present (used to declare additional *custom* providers).
+# Note: config.yml also carries omp-managed keys (lastChangelogVersion,
+# setupVersion) that omp rewrites on update — expect occasional churn in diffs.
+link_path ".omp/agent/config.yml" ".omp/agent/config.yml"
+link_path ".omp/agent/models.yml" ".omp/agent/models.yml"
+
+# Vendored rpiv extensions (+ @tintinweb/pi-subagents) are synced via dotfiles
+# and discovered natively from ~/.omp/agent/extensions. omp aliases the legacy
+# @earendil-works / @mariozechner scopes to its bundled packages, so the
+# extensions' pi-* peer deps are satisfied by the omp runtime. Real deps are
+# installed per-machine below: each extension's own deps (e.g.
+# @juicesharp/rpiv-config), plus the shared unscoped `typebox` declared in
+# extensions/package.json (resolved by sibling extensions via upward lookup).
+link_path ".omp/agent/extensions" ".omp/agent/extensions"
+
+if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
+  # Shared deps at the extensions root (e.g. the unscoped `typebox`, a real dep
+  # of @juicesharp/rpiv-config) — installed without --omit=peer since they are
+  # real deps here, not pi-* peers. Sibling extensions resolve these via upward
+  # node_modules lookup. The per-extension loop below does NOT cover this root
+  # package.json (its globs require a subdirectory), so install it explicitly.
+  install_npm_deps_if_needed "$HOME/.omp/agent/extensions" --omit=dev
+
+  for package_json in "$HOME"/.omp/agent/extensions/*/package.json "$HOME"/.omp/agent/extensions/@*/*/package.json; do
+    [ -f "$package_json" ] || continue
+    install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
+  done
+fi
+
 # Note: settings.json is NOT symlinked — it contains secrets.
 # Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
 # Then fill in your API keys and machine-specific values.
