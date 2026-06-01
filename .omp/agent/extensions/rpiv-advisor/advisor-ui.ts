@@ -7,7 +7,7 @@
  */
 
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
-import { DynamicBorder, type ExtensionContext, type Theme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, type ExtensionContext, getSelectListTheme, type Theme } from "@earendil-works/pi-coding-agent";
 import { Container, type SelectItem, SelectList, Spacer, Text } from "@earendil-works/pi-tui";
 
 const MAX_VISIBLE_ROWS = 10;
@@ -31,6 +31,7 @@ const EFFORT_HEADER_PROSE =
 
 function selectListTheme(theme: Theme) {
 	return {
+		...getSelectListTheme(),
 		selectedPrefix: (t: string) => theme.bg("selectedBg", theme.fg("accent", t)),
 		selectedText: (t: string) => theme.bg("selectedBg", theme.bold(t)),
 		description: (t: string) => theme.fg("muted", t),
