@@ -16,3 +16,8 @@ extensions:
   []
 tools: 
   discoveryMode: all
+read: 
+  defaultLimit: 200
+search: 
+  contextBefore: 0
+  contextAfter: 1
