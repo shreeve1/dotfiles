@@ -2,11 +2,11 @@ lastChangelogVersion: 15.7.3
 symbolPreset: nerd
 setupVersion: 1
 theme: 
-  {}
+  dark: dark-sakura
 inspect_image: 
   enabled: true
 modelRoles: 
-  default: zai/glm-5.1
+  default: openai-codex/gpt-5.5
   plan: openai-codex/gpt-5.5
   slow: openai-codex/gpt-5.4
   smol: zai/glm-4.7-flash
