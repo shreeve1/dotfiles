@@ -202,6 +202,9 @@ link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
 
+# ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
+link_path "bin/rpiv-run" ".local/bin/rpiv-run"
+
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)
