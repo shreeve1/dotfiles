@@ -1,59 +1,91 @@
 #!/usr/bin/env bash
 # rpiv-run — drive the RPIV skill pipeline unattended on a fresh branch.
 #
-# Each step runs in a FRESH interactive `claude` session inside a private tmux
-# socket (NOT `claude -p` — print mode is being retired, and the SDK cannot
-# invoke a skill by name). Slash commands work in interactive mode, so each step
+# Each step runs in a FRESH interactive session of the selected engine
+# (--engine claude|pi, default claude) inside a private tmux socket. NOT print
+# mode (`claude -p` / `pi -p`) — print mode is being retired, and the SDK cannot
+# invoke a skill by name. Slash commands work in interactive mode, so each step
 # triggers its exact skill. Context is fresh per step; handoff is via on-disk
 # artifacts under .rpiv/artifacts/<type>/. No quality gates; commits always.
+# Both engines' rpiv skills write the same artifact dir names (research, designs,
+# plans), so the on-disk handoff is engine-independent.
+#
+# Note: pi steps run slower than claude (the rpiv-advisor extension adds
+# deliberation/cleanup rounds), so keep the default timeouts for pi — do not
+# shrink RPIV_STEP_TIMEOUT or steps can time out before printing the marker.
 #
 # Prereq: run /discover interactively first to produce an FRD under
-# .rpiv/artifacts/discover/. The host must already be onboarded for Claude Code
-# (logged in + directory trusted) — readiness detection waits for the input UI,
-# not for theme/trust/login prompts.
+# .rpiv/artifacts/discover/. The host must already be onboarded for the chosen
+# engine (logged in + directory trusted) — readiness detection waits for the
+# input UI, not for theme/trust/login prompts.
 #
 # Engine mirrors .claude/skills/dev-review-claude (tmux send-keys + nonce marker).
 
 set -euo pipefail
 
 # --- config (override via env or flags) ---
-MODEL="${RPIV_MODEL:-}"                       # e.g. opus, sonnet; empty = default
-ASSUME_YES="${RPIV_YES:-}"                    # non-empty to skip kickoff confirm
+ENGINE="${RPIV_ENGINE:-claude}"               # claude | pi
+MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = default
+                                               #   claude: opus, sonnet
+                                               #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
+PROVIDER="${RPIV_PROVIDER:-}"                  # pi only; empty = pi default provider
+ASSUME_YES="${RPIV_YES:-}"                     # non-empty to skip kickoff confirm
 BRANCH_PREFIX="${RPIV_BRANCH_PREFIX:-rpiv}"
 STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-2400}"          # seconds per step (40m)
 IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-7200}" # seconds for implement (2h)
-READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for claude TUI
-# Idle-UI marker. Default matches the interactive footer; bypassPermissions
-# always shows "bypass permissions on". Override if the TUI footer changes.
-READY_PATTERN="${RPIV_READY_PATTERN:-bypass permissions on|shift\+tab to cycle}"
+READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for engine TUI
+# Idle-UI marker; engine-specific default is set after flag parsing (see below).
+# claude: bypassPermissions always shows "bypass permissions on".
+# pi: the footer context meter "<n>%/<n>k" only renders once the TUI is live.
+# Override via RPIV_READY_PATTERN if a TUI footer changes.
+READY_PATTERN="${RPIV_READY_PATTERN:-}"
 
 usage() {
   cat <<'EOF'
-usage: rpiv-run [-y|--yes] [--model M]
+usage: rpiv-run [-y|--yes] [--engine claude|pi] [--model M] [--provider P]
 
 Run /discover interactively first. Then rpiv-run drives
 research -> design -> plan -> implement -> validate -> code-review -> commit
-in fresh interactive claude sessions (via tmux), unattended, on a fresh branch.
+in fresh interactive engine sessions (via tmux), unattended, on a fresh branch.
+
+--engine selects the agent CLI (default claude). --provider applies to pi only.
+--model is engine-specific: claude takes opus/sonnet; pi takes a provider/id
+pattern (e.g. anthropic/claude-opus-4).
 
 Without -y/RPIV_YES the kickoff requires a TTY to confirm; for unattended/cron
 runs you MUST pass -y or set RPIV_YES=1.
 
-env: RPIV_MODEL RPIV_YES RPIV_BRANCH_PREFIX RPIV_STEP_TIMEOUT
-     RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
+env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_YES RPIV_BRANCH_PREFIX
+     RPIV_STEP_TIMEOUT RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
 EOF
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    -y|--yes)  ASSUME_YES=1 ;;
-    --model)   MODEL="$2"; shift ;;
-    -h|--help) usage; exit 0 ;;
+    -y|--yes)   ASSUME_YES=1 ;;
+    --engine)   ENGINE="$2"; shift ;;
+    --model)    MODEL="$2"; shift ;;
+    --provider) PROVIDER="$2"; shift ;;
+    -h|--help)  usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
 
-command -v claude >/dev/null 2>&1 || { echo "error: claude CLI not on PATH" >&2; exit 1; }
+case "$ENGINE" in
+  claude|pi) ;;
+  *) echo "error: --engine must be 'claude' or 'pi' (got: $ENGINE)" >&2; exit 2 ;;
+esac
+
+# Engine-specific idle-UI readiness marker (unless overridden via RPIV_READY_PATTERN).
+if [ -z "$READY_PATTERN" ]; then
+  case "$ENGINE" in
+    claude) READY_PATTERN='bypass permissions on|shift\+tab to cycle' ;;
+    pi)     READY_PATTERN='[0-9]+%/[0-9]+k' ;;
+  esac
+fi
+
+command -v "$ENGINE" >/dev/null 2>&1 || { echo "error: $ENGINE CLI not on PATH" >&2; exit 1; }
 command -v tmux   >/dev/null 2>&1 || { echo "error: tmux not on PATH" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repo" >&2; exit 1; }
 
@@ -104,15 +136,18 @@ cleanup() {
 }
 trap cleanup EXIT
 
+PROVIDER_NOTE=""
+[ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
+
 cat <<EOF
 
 RPIV pipeline kickoff
   FRD:      $FRD
   branch:   $BRANCH (fresh, from $ORIG_REF)
-  model:    ${MODEL:-<claude default>}
-  engine:   interactive claude via tmux (fresh session per step)
+  engine:   interactive $ENGINE via tmux (fresh session per step)
+  model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
-  mode:     unattended | bypassPermissions | auto-accept defaults | commit always
+  mode:     unattended | auto-accept defaults | commit always
   timeout:  ${STEP_TIMEOUT}s/step, ${IMPLEMENT_TIMEOUT}s for implement
   logs:     $LOGDIR/
 
@@ -160,22 +195,44 @@ run_skill() {
   tmux -S "$SOCKET" set-option -g history-limit 100000 \; \
        new-session -d -s "$session" -c "$PWD" -n "$name"
 
-  local cmd="claude --permission-mode bypassPermissions"
-  [ -n "$MODEL" ] && cmd="$cmd --model $MODEL"
+  # Build the engine launch command. claude uses bypassPermissions to suppress
+  # per-tool prompts; pi has no permission system (omit). The autonomy +
+  # nonce-marker system prompt is identical for both engines.
+  local cmd
+  if [ "$ENGINE" = pi ]; then
+    cmd="pi"
+    [ -n "$PROVIDER" ] && cmd="$cmd --provider $PROVIDER"
+    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+  else
+    cmd="claude --permission-mode bypassPermissions"
+    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+  fi
   cmd="$cmd --append-system-prompt '$sys_q'"
   tmux -S "$SOCKET" send-keys -t "$session":0.0 -- "$cmd" Enter
 
-  # Wait for the claude input UI before pasting.
-  local i ready=
+  # Wait for the engine input UI before pasting. claude shows the readiness
+  # footer only once the input is interactive, so a single pattern match is
+  # enough. pi paints its footer context meter *before* the startup banners
+  # (skill-conflict / update notices) finish streaming, so a bare match fires
+  # early and the first paste lands in a not-yet-interactive box and is dropped.
+  # For pi, additionally require the pane to settle (two consecutive identical
+  # captures) so startup output has stopped before we paste.
+  local i ready= prev= stable=0 pane=
   for ((i=0; i<READY_TIMEOUT; i++)); do
-    if tmux -S "$SOCKET" capture-pane -p -t "$session":0.0 2>/dev/null | grep -qiE "$READY_PATTERN"; then
-      ready=1; break
+    pane="$(tmux -S "$SOCKET" capture-pane -p -t "$session":0.0 2>/dev/null || true)"
+    if printf '%s' "$pane" | grep -qiE "$READY_PATTERN"; then
+      if [ "$ENGINE" = pi ]; then
+        if [ "$pane" = "$prev" ]; then stable=$((stable+1)); else stable=0; fi
+        [ "$stable" -ge 2 ] && { ready=1; break; }
+      else
+        ready=1; break
+      fi
     fi
-    sleep 1
+    prev="$pane"; sleep 1
   done
   if [ -z "$ready" ]; then
     tmux -S "$SOCKET" capture-pane -p -t "$session":0.0 > "$log" 2>/dev/null || true
-    echo "error: claude TUI not ready after ${READY_TIMEOUT}s (step $name). Pane saved to $log." >&2
+    echo "error: $ENGINE TUI not ready after ${READY_TIMEOUT}s (step $name). Pane saved to $log." >&2
     rm -f "$msgfile"; return 1
   fi
 
