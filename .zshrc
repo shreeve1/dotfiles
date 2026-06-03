@@ -318,3 +318,4 @@ export PATH="$HOME/.opencode/bin:$PATH"
 
 # Auto-Warpify
 [[ "$-" == *i* ]] && printf 'P$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "Linux" }}�' 
+export PATH="$PATH:/home/james/.temporalio/bin"

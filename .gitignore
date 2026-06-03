@@ -127,3 +127,9 @@ bin/
 .DS_Store
 .claude.bak/
 .config/opencode-pre-reset-*/
+
+# Personal (non-dotfiles) content — not synced
+/personal/
+
+# Pi-lens runtime state/cache (nested per-machine install)
+.pi/agent/.pi-lens/
