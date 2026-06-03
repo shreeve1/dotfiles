@@ -171,6 +171,8 @@ You MUST create a task for each of these items and complete them in order:
 
 ### Phase 3: Run Claude Code Reviewer
 
+> Canonical tmux reviewer engine. The planned `/dev-plan --loop` reuses this engine inline — keep the two in sync if either changes.
+
 5. **Execute Claude Code Review**
 
    **Determine project root:**
@@ -204,7 +206,11 @@ You MUST create a task for each of these items and complete them in order:
 
    git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
 
-   tmux -S "$SOCKET" new-session -d -s "$SESSION" -c "$PROJECT_ROOT" -n review
+   # Raise history-limit and create the session in ONE invocation so the pane inherits
+   # the larger scrollback (avoids truncating long reviews). On a fresh socket the server
+   # starts for this command chain; a separate `set-option -g` first would error (no
+   # server yet) and a `set-option` after new-session won't resize the existing pane.
+   tmux -S "$SOCKET" set-option -g history-limit 50000 \; new-session -d -s "$SESSION" -c "$PROJECT_ROOT" -n review
    tmux -S "$SOCKET" send-keys -t "$SESSION":0.0 -- \
      "claude ${REVIEWER_MODEL_ARGS[*]} --permission-mode bypassPermissions --disallowedTools 'Edit,Write,MultiEdit,NotebookEdit' --append-system-prompt 'You are a read-only independent code review tool. Follow the requested finding format exactly. Do not modify files. Do not use local house style or wrapper behavior.'" Enter
    ```
@@ -247,7 +253,7 @@ You MUST create a task for each of these items and complete them in order:
    - Poll the pane until the unique `$DONE_MARKER` appears, or until a timeout (default: 10 minutes). The pasted prompt includes only the nonce, not the full marker, so the full marker should appear only in the reviewer response.
    - On success, capture the pane to `$OUTPUT_FILE`:
      ```bash
-     tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S -5000 > "$OUTPUT_FILE"
+     tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S - > "$OUTPUT_FILE"   # -S - captures full history (history-limit raised at session start)
      ```
    - If the timeout fires, capture the pane, leave the tmux session running, print the attach command, and ask whether to continue waiting, attach manually, or abort.
    - After successful capture, kill the tmux session unless the user asks to keep it:
