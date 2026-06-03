@@ -13,6 +13,20 @@ Create a detailed implementation plan based on the user's requirements. Analyze 
 - `PLAN_OUTPUT_DIRECTORY` — `plans/`
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
+- `LOOP_ENABLED` — default `false`; set `true` with `--loop`
+- `REVIEWER` — `pi` (default) or `claude`; set with `--reviewer <name>`
+- `MAX_ROUNDS` — default `3`; override with `--rounds N`
+- `REVIEWER_MODEL` — optional model override passed to the reviewer backend with `--reviewer-model <m>`
+
+## Invocation
+
+| Form | Behavior |
+|------|----------|
+| `/dev-plan <prompt>` | Single-pass plan (default — no audit loop) |
+| `/dev-plan <prompt> --loop` | Draft, then run up to `MAX_ROUNDS` reviewer-audit rounds (reviewer = `pi` by default), exit early when no Critical findings remain |
+| `/dev-plan <prompt> --loop --reviewer claude` | Same loop, but use the Claude backend (tmux) as the auditor |
+| `/dev-plan <prompt> --loop --rounds N` | Override max rounds |
+| `/dev-plan <prompt> --loop --reviewer-model <m>` | Pass a model override to the reviewer backend |
 
 ## Pre-flight
 
@@ -21,9 +35,22 @@ Ensure `plans/` directory exists. If not, create it:
 mkdir -p plans/
 ```
 
+## Flag Parsing
+
+Parse flags from the invocation before anything else, then strip them from `USER_PROMPT`:
+
+| Flag | Effect |
+|------|--------|
+| `--loop` | Set `LOOP_ENABLED=true` (enables Phase 9) |
+| `--reviewer <pi\|claude>` | Set `REVIEWER` (default `pi`). Only `pi` and `claude` are valid — reject anything else |
+| `--rounds N` | Set `MAX_ROUNDS` to integer N (default 3) |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for the chosen backend |
+
+If `--reviewer` is given without `--loop`, treat it as implying `--loop`. If `LOOP_ENABLED` is false, Phase 9 is skipped entirely and behavior is identical to the prior single-pass skill.
+
 ## Workflow Overview
 
-Work through these 10 phases in order:
+Work through these phases in order:
 
 1. **Parse Requirements** — analyze USER_PROMPT to understand core problem and desired outcome
 2. **Discover Source Document** — run Source Document Discovery if USER_PROMPT is free text
@@ -33,8 +60,9 @@ Work through these 10 phases in order:
 6. **Document Plan** — write comprehensive markdown document following Plan Format
 7. **Generate filename** — create descriptive kebab-case filename
 8. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
-9. **Validate** — verify plan completeness and coherence
-10. **Report** — present completed plan summary
+9. **Reviewer Audit Loop** — *only when `--loop`*: independent reviewer audits the plan, you revise, repeat up to `MAX_ROUNDS`
+10. **Validate** — verify plan completeness and coherence
+11. **Report** — present completed plan summary (with loop outcome if the loop ran)
 
 ## Phase Details
 
@@ -105,18 +133,138 @@ Write the complete plan to `plans/<filename>.md`. Ensure:
 - Code examples or pseudo-code included where appropriate
 - All edge cases and error handling addressed
 
-### Phase 9: Validate
+### Phase 9: Reviewer Audit Loop (only when `--loop`)
 
-Verify the plan:
+If `LOOP_ENABLED` is false, **skip this entire phase** — go straight to Validate. Behavior is then identical to the single-pass skill.
+
+The Phase 8 draft is **round 0**. Run rounds 1..`MAX_ROUNDS`: an independent reviewer audits the on-disk plan against the codebase and emits severity-tagged findings; you revise the plan; repeat. Exit early when no Critical findings remain.
+
+Each round re-reads the revised plan from `plans/<feature>.md`, so **rounds are stateless** — no reviewer session continuity is needed. Reuse the reviewer *engine* inline (the mechanics below). Do **not** invoke the `/dev-review-pi` or `/dev-review-claude` skills — their interactive scope-verify / present / discuss steps would stall an automated loop.
+
+Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
+
+#### 9.0 Initialize state
+
+Write `plans/.<feature>.state.yml` (schema in **State YAML Schema** below) with `current_round: 0`, `status: running`, `reviewer: <REVIEWER>`, empty `rounds: []`.
+
+#### 9.1 Build the round prompt
+
+Write the prompt to a temp file (`PROMPT_FILE=$(mktemp /tmp/devplan-prompt-XXXXXX.md)`).
+
+**Round 1 (Challenge):**
+```
+Adversarially review the implementation plan at plans/<feature>.md for execution
+risk. You have full read access to this repository — verify file paths, patterns,
+dependencies, and feasibility against the actual code. Look for: missing edge
+cases, infeasible approaches, conflicts with existing patterns, missing
+dependencies, hidden assumptions, misunderstood requirements, gaps in test
+strategy, and duplication with existing files.
+
+Output every finding with a severity tag in this exact format:
+
+[CRITICAL] <one-line summary>
+  Detail: <evidence and reasoning>
+  Suggested fix: <concrete recommendation>
+[WARNING] <one-line summary>
+  Detail: <evidence and reasoning>
+  Suggested fix: <concrete recommendation>
+[NOTE] <one-line summary>
+  Detail: <evidence and reasoning>
+
+Severity: CRITICAL = will cause execution failure or wrong behavior;
+WARNING = significant risk/gap, can proceed with mitigation; NOTE = minor.
+Do not invent problems. Do not be sycophantic. Be precise. Do NOT modify any
+files — review only. After all findings, on a final line print exactly:
+END_OF_FINDINGS
+```
+
+**Rounds 2+ (Re-review):** same format, but open with: `The plan at plans/<feature>.md was revised after a prior audit. Re-read it end-to-end and re-review against the codebase. For each prior issue, verify the revision genuinely addresses it rather than rewording it; then flag any NEW issues the revision introduced.` End with the same `END_OF_FINDINGS` sentinel instruction.
+
+#### 9.2 Run the reviewer — `pi` backend (default)
+
+`pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Background it and poll the output file** — do not wrap in a blocking `timeout 600s` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
+
+```bash
+OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
+PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
+( cd "$REPO_ROOT" && pi --print "${PI_MODEL_ARGS[@]}" \
+    --append-system-prompt "You are an independent plan auditor. Review only; do not modify files." \
+    "@$PROMPT_FILE" > "$OUTPUT_FILE" 2>&1 )
+```
+
+Launch this with the Bash tool's `run_in_background`. Then **poll**: read `$OUTPUT_FILE` on an interval and stop when it contains `END_OF_FINDINGS` (round complete) or the process exits. Surface a one-line progress note to the user each poll. Do not block on a fixed long sleep.
+
+#### 9.2-alt Run the reviewer — `claude` backend
+
+Interactive `claude` in a detached **tmux** session with `--permission-mode bypassPermissions` (so read/search/shell inspection doesn't stall on prompts), driven by **send-keys**, completion detected by **polling `capture-pane`** for the sentinel.
+
+```bash
+OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
+SESSION="devplan-review-$$-r${ROUND}"
+CL_MODEL_ARGS=""; [ -n "$REVIEWER_MODEL" ] && CL_MODEL_ARGS="--model $REVIEWER_MODEL"
+tmux new-session -d -s "$SESSION" -x 220 -y 50
+tmux send-keys -t "$SESSION" "cd $REPO_ROOT && claude --permission-mode bypassPermissions $CL_MODEL_ARGS" Enter
+# wait for the prompt to be ready, then point claude at the prompt file (avoids multi-line paste issues):
+tmux send-keys -t "$SESSION" "Read the file $PROMPT_FILE and do exactly what it says." Enter
+```
+
+Then **poll** `tmux capture-pane -t "$SESSION" -p -S -` on an interval until the captured text contains `END_OF_FINDINGS`. On each poll, surface a one-line progress note. When the sentinel appears, write the captured pane to `$OUTPUT_FILE`, then `tmux kill-session -t "$SESSION"`. If the session dies or the poll budget is exhausted without the sentinel, treat as a reviewer failure (see 9.8).
+
+#### 9.3 Parse findings
+
+From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/`[NOTE]`), capturing verbatim text. Compute `critical_count`, `warning_count`, `note_count`. The `END_OF_FINDINGS` sentinel marks clean end-of-output; if it's missing, the output was truncated — record that and treat as a reviewer failure (9.8).
+
+#### 9.4 Append round to state
+
+Bump `current_round: <N>`, then append the round entry (verbatim findings + counts) per the schema. `current_round` now reflects the round whose findings were just parsed.
+
+#### 9.5 Check exit criteria
+
+If `current_round >= 1` AND `critical_count == 0` AND every Warning from prior rounds is resolved or was explicitly dismissed with recorded reasoning:
+- `status: converged`, `exit_reason: "No critical findings, prior warnings addressed"` → exit loop, go to Validate.
+
+(Round 1 always proceeds to at least one revision before it can exit — exit is evaluated *after* 9.6 for round 1.)
+
+#### 9.6 Revise plan
+
+Read the findings. Revise `plans/<feature>.md`:
+- Address each `[CRITICAL]` by changing the plan.
+- Address each `[WARNING]` by changing the plan OR adding a Note explaining why it's acceptable.
+- Address `[NOTE]` only if cheap.
+
+**Preserve the Plan Format exactly** — section structure, `[N.M]` task IDs, `[T.N.M]` test IDs (downstream `/dev-build` and `/dev-test` depend on them). Record a one-line `revision_summary` in the round entry.
+
+#### 9.7 Hard stop / loop back
+
+If `current_round >= MAX_ROUNDS`: `status: hard_stopped`, `exit_reason: "Reached MAX_ROUNDS=<N>"` → exit loop, go to Validate. Otherwise loop back to 9.1 for the next round.
+
+#### 9.8 Reviewer unavailable / failure
+
+Detect before round 1 and on any round failure:
+- **Backend binary missing** (`which pi` / `which claude` empty), or **reviewer exits non-zero**, or **no sentinel / empty output / poll budget exhausted**.
+
+In any of these: set `status: reviewer_unavailable`, record `exit_reason` with the cause, **keep the plan as-is**, and proceed to Validate. Do NOT fail the whole skill — an unaudited plan is still useful. Surface the failure in the Phase 11 report. (Phase 10 validation is the deterministic safety net when the loop couldn't run.)
+
+### Phase 10: Validate
+
+**Structural checks:**
 - All required sections present
 - Tasks are actionable and have stable [N.M] ID prefixes
 - Traceability map correctly links #req-* tags to task IDs
 - No missing dependencies between tasks
 - Testing strategy is clear and complete
 
-### Phase 10: Report
+**Deterministic preflights** (mechanical, run independently of the audit loop — these catch concrete file/tool reality even when the reviewer missed it, and are the *primary* safety net when Phase 9 ran with `status: reviewer_unavailable` or didn't run at all):
+- **Validation Commands:** for each command in the plan's `## Validation Commands` section, parse out file paths and tool names. Verify referenced files exist on disk and tools are present (`which <tool>`). Anything missing → **Critical**.
+- **Edit-target existence:** for each path the plan claims to modify (under `## Relevant Files` and inline in tasks), verify the file exists OR is explicitly listed under `### New Files`. A claimed-to-modify file that doesn't exist and isn't a new file → **Critical**.
+- **Test paths:** if the plan references `tests/unit/`, `tests/integration/`, or `tests/e2e/`, verify those directories exist or are listed as new. Missing test infrastructure → **Warning**.
+- **Prerequisite tools:** if the plan adds dependencies via `uv add`, `pnpm add`, etc., verify the package manager is installed. Missing → **Critical**.
 
-Present the completed plan summary and remind user to run `/dev-build` when ready.
+If any preflight fails, surface the failures in the Phase 11 report. Treat Critical-level preflight failures as blocking — flag them for human review the same way as an unresolved loop. If the loop ran, record preflight failures under a `phase_10_findings` block in the state YAML.
+
+### Phase 11: Report
+
+Present the completed plan summary and remind user to run `/dev-build` when ready. If the loop ran (or was attempted), include the loop outcome — see the Report section below.
 
 ## Instructions
 
@@ -279,4 +427,43 @@ Key Components:
 
 Next Steps:
 Run `/dev-build plans/<filename>.md` when ready to implement.
+```
+
+If the audit loop ran (`--loop`), append a Loop Outcome block:
+
+```
+Audit Loop (reviewer: <pi|claude>)
+- Rounds run: <N>/<MAX_ROUNDS>
+- Exit reason: <converged | hard_stopped | reviewer_unavailable — detail>
+- Final findings: <critical> critical / <warning> warning / <note> note
+- State: plans/.<filename>.state.yml
+```
+
+If `status: reviewer_unavailable`, say so plainly — the plan is unaudited and Phase 10 validation was the only safety net.
+
+## State YAML Schema
+
+`plans/.<feature>.state.yml` — the loop's working memory and audit trail. Findings are stored **verbatim** so the trail can be reconstructed later.
+
+```yaml
+plan_file: plans/<feature>.md
+prompt: "<original USER_PROMPT, flags stripped>"
+reviewer: pi              # pi | claude
+reviewer_model: null      # set when --reviewer-model given
+max_rounds: 3
+current_round: 2
+status: running           # running | converged | hard_stopped | reviewer_unavailable
+exit_reason: null         # filled when status != running
+rounds:
+  - round: 1
+    findings:
+      critical: ["[CRITICAL] <verbatim>"]
+      warning:  ["[WARNING] <verbatim>"]
+      note:     ["[NOTE] <verbatim>"]
+    counts: { critical: 2, warning: 5, note: 3 }
+    revision_summary: "<one line of what Claude changed>"
+  - round: 2
+    findings: { critical: [], warning: ["[WARNING] <verbatim>"], note: [] }
+    counts: { critical: 0, warning: 1, note: 2 }
+    revision_summary: "..."
 ```
