@@ -423,14 +423,14 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   done
 fi
 
-# Note: settings.json is NOT symlinked — it contains secrets.
-# Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
-# Then fill in your API keys and machine-specific values.
+# Note: live settings.json files are NOT tracked — they may contain secrets or
+# machine-specific values. Copy templates on a new device, then edit locally.
 #
 # On a fresh machine, the full setup sequence is:
 #   1. git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh
 #   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
-#   3. Edit settings.json with your API keys and machine-specific values
+#   3. cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
+#   4. Edit live settings with API keys and machine-specific values
 #
 # ─── Opencode post-install verification ────────────────────
 # After install.sh runs, verify opencode:

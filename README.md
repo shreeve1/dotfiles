@@ -36,6 +36,9 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
     hooks/           (Claude Code hook scripts, incl. caveman dynamic state)
     settings.json.template
     switch-provider.sh
+  .pi/
+    agent/
+      settings.json.template
   .codex/
   install.sh
 ```
@@ -57,7 +60,8 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 2. Install local runtime prerequisites you want on this machine.
 3. Run installer.
 4. Seed Claude settings: `cp ~/.claude/settings.json.template ~/.claude/settings.json` then fill in API keys.
-5. (Optional) Register Claude MCP servers per-machine:
+5. Seed Pi settings: `cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json` then edit provider/model per machine if needed.
+6. (Optional) Register Claude MCP servers per-machine:
 
    ```bash
    claude mcp add --scope user caveman-shrink -- npx -y caveman-shrink
