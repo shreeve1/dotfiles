@@ -247,12 +247,17 @@ run_skill() {
 
   # Poll for the done marker on its own line (anchored to start-of-line after
   # optional whitespace) so a mid-stream mention of the token cannot fire early.
-  local done=
+  # Side effect: every ~5s dump the current capture to the step log so the log
+  # exists *during* the step (live view via `watch -n5 cat "$log"` or
+  # `tail -f "$log"`), not only at completion — this removes the "no log =
+  # stuck" ambiguity. capture-pane is read-only and cannot corrupt the pane.
+  local done= snap=
   for ((i=0; i<timeout; i++)); do
-    if tmux -S "$SOCKET" capture-pane -p -J -S - -t "$session":0.0 2>/dev/null \
-         | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
+    snap="$(tmux -S "$SOCKET" capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
+    if printf '%s\n' "$snap" | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
       done=1; break
     fi
+    (( i % 5 == 0 )) && printf '%s\n' "$snap" > "$log"
     sleep 1
   done
 
