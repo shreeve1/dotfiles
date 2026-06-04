@@ -127,6 +127,7 @@ grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
   || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
 
 ORIG_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+printf '%s\n' "$ORIG_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge to read back
 BRANCH_CREATED=
 CUR_SESSION=""
 cleanup() {
