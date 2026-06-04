@@ -10,6 +10,10 @@
 # Both engines' rpiv skills write the same artifact dir names (research, designs,
 # plans), so the on-disk handoff is engine-independent.
 #
+# Between generative steps a gap-sweep runs (/gap-sweep skill): a fresh session
+# sweeps the just-produced artifact for CRITICAL gaps only, fixes them in place,
+# and continues. This is NOT a gate — it never blocks, it improves and moves on.
+#
 # Note: pi steps run slower than claude (the rpiv-advisor extension adds
 # deliberation/cleanup rounds), so keep the default timeouts for pi — do not
 # shrink RPIV_STEP_TIMEOUT or steps can time out before printing the marker.
@@ -148,6 +152,7 @@ RPIV pipeline kickoff
   engine:   interactive $ENGINE via tmux (fresh session per step)
   model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
+            (+ gap-sweep after FRD/research/design/plan/implement)
   mode:     unattended | auto-accept defaults | commit always
   timeout:  ${STEP_TIMEOUT}s/step, ${IMPLEMENT_TIMEOUT}s for implement
   logs:     $LOGDIR/
@@ -278,16 +283,28 @@ require_artifact() {
   [ -n "$path" ] || { echo "error: $type produced no artifact this run; halting." >&2; exit 1; }
 }
 
+# Between each generative step, gap-sweep the artifact it produced: a fresh
+# session sweeps for CRITICAL gaps only, fixes them in place, and continues.
+# Not a quality gate — it never blocks; it improves the artifact and moves on.
+# Sweeps target the explicit path captured below (in-place edits keep the path
+# stable). validate/code-review are themselves review steps, so no sweep there.
+run_skill sweep-frd "/gap-sweep $FRD frd" || exit 1
+
 run_skill research "/research $FRD" || exit 1
 RESEARCH="$(newest_since .rpiv/artifacts/research)"; require_artifact "$RESEARCH" research
+run_skill sweep-research "/gap-sweep $RESEARCH research" || exit 1
 
 run_skill design "/design $RESEARCH" || exit 1
 DESIGN="$(newest_since .rpiv/artifacts/designs)"; require_artifact "$DESIGN" design
+run_skill sweep-design "/gap-sweep $DESIGN design" || exit 1
 
 run_skill plan "/plan $DESIGN" || exit 1
 PLAN="$(newest_since .rpiv/artifacts/plans)"; require_artifact "$PLAN" plan
+run_skill sweep-plan "/gap-sweep $PLAN plan" || exit 1
 
 run_skill implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1
+run_skill sweep-code "/gap-sweep working code" "$IMPLEMENT_TIMEOUT" || exit 1
+
 run_skill validate "/validate $PLAN" || exit 1
 run_skill code-review "/code-review working" || exit 1
 run_skill commit "/commit commit all changes on the current branch with a clear message; do NOT push and do NOT open a PR" || exit 1
