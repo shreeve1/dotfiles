@@ -92,3 +92,17 @@ Append entries with this format:
 - Inputs: `.pai/PAI/DOCUMENTATIONINDEX.md`, `.pai/PAI/CLI.md`, `.pai/PAI/SYSTEM_USER_EXTENDABILITY.md`, `wiki/raw/pai-documentation-index.md`, `wiki/raw/pai-cli.md`, `wiki/raw/pai-system-user-extendability.md`
 - Outputs: `wiki/raw/pai-documentation-index.md`, `wiki/raw/pai-cli.md`, `wiki/raw/pai-system-user-extendability.md`, `wiki/candidates/source-pai-documentation-index.md`, `wiki/candidates/source-pai-cli.md`, `wiki/candidates/source-pai-system-user-extendability.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
 - Notes: Ingested documentation index, CLI, and SYSTEM/USER extendability references as immutable raw snapshots, created three candidate source summaries, added an Extensibility And Customization routing section, recorded claims C-0094 through C-0105, and substituted this batch after `HowToAskQuestions.md` and `Principles.md` were not found under `.pai/PAI/`.
+
+## 2026-06-04 session-update | RPIV pipeline driver and companion skills
+
+- Actor: Claude Code
+- Inputs: current session on the `rpiv-run` pipeline; `bin/rpiv-run`, `.claude/skills/rpiv-monitor/SKILL.md`, `.claude/skills/gap-sweep/SKILL.md`, `.claude/skills/rpiv-merge/SKILL.md`; commits `bfaafaa`, `794a79c`, `edcd3c5`
+- Outputs: `wiki/raw/sessions/2026-06-04-rpiv-pipeline-skills.md`, `wiki/candidates/analysis-session-rpiv-pipeline.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Captured the RPIV pipeline architecture (pi-default engine, fresh `rpiv/<TS>` branch not a worktree, file-based cross-engine handoff, `.rpiv/run/<TS>/.base` base-ref persistence) and the three companion skills as a curated raw session note plus one candidate analysis page; added a new non-authoritative "RPIV Pipeline Automation" routing section; recorded claims C-0106 through C-0115 (C-0115 marked medium confidence as not yet exercised end-to-end). Excluded the downstream cleon-ui-pi feature merge and pm2 restart as non-durable.
+
+## 2026-06-04 promote | RPIV Pipeline Driver And Companion Skills
+
+- Actor: Claude Code
+- Inputs: `wiki/candidates/analysis-session-rpiv-pipeline.md` (candidate from this session's session-update)
+- Outputs: `wiki/analyses/rpiv-pipeline.md` (promoted), `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
+- Notes: Promoted the RPIV pipeline analysis candidate into `wiki/analyses/` (status: promoted). Moved the index row from the candidate review queue to the Analyses section, marked the RPIV Pipeline Automation route as promoted/authoritative, and repointed claims C-0106 through C-0115 to the promoted page path. Candidate file removed after the target was verified. The 23 older 2026-05-16 PAI/dotfiles source-summary candidates were intentionally left as candidates per James's scope choice.
