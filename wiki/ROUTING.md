@@ -42,6 +42,11 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Pages: `wiki/candidates/source-dotfiles-readme.md` (candidate, non-authoritative), `wiki/candidates/source-dotfiles-agents.md` (candidate, non-authoritative), `wiki/candidates/source-opencode-agents.md` (candidate, non-authoritative), `wiki/candidates/source-pai-readme.md` (candidate, non-authoritative), `wiki/candidates/source-pai-ai-steering-rules.md` (candidate, non-authoritative), `wiki/candidates/source-pai-algorithm-v6.4.0.md` (candidate, non-authoritative), `wiki/candidates/source-pai-system-architecture.md` (candidate, non-authoritative), `wiki/candidates/source-pai-memory-system.md` (candidate, non-authoritative), `wiki/candidates/source-opencode-subagents.md` (candidate, non-authoritative), `wiki/candidates/source-pai-skill-system.md` (candidate, non-authoritative), `wiki/candidates/source-pai-hook-system.md` (candidate, non-authoritative), `wiki/candidates/source-pai-agent-system.md` (candidate, non-authoritative), `wiki/candidates/source-pai-context-routing.md` (candidate, non-authoritative), `wiki/candidates/source-pai-delegation-system.md` (candidate, non-authoritative), `wiki/candidates/source-pai-cli-first-architecture.md` (candidate, non-authoritative), `wiki/candidates/source-pai-tools.md` (candidate, non-authoritative), `wiki/candidates/source-pai-notification-system.md` (candidate, non-authoritative), `wiki/candidates/source-pai-prd-format.md` (candidate, non-authoritative), `wiki/candidates/source-pai-actions.md` (candidate, non-authoritative), `wiki/candidates/source-pai-pipelines.md` (candidate, non-authoritative), `wiki/candidates/source-pai-flows.md` (candidate, non-authoritative), `wiki/candidates/source-pai-documentation-index.md` (candidate, non-authoritative), `wiki/candidates/source-pai-cli.md` (candidate, non-authoritative), `wiki/candidates/source-pai-system-user-extendability.md` (candidate, non-authoritative)
 - Keywords: architecture decisions, policy, git policy, approvals, citations
 
+## RPIV Pipeline Automation
+
+- Pages: `wiki/analyses/rpiv-pipeline.md` (promoted)
+- Keywords: rpiv-run, rpiv-monitor, gap-sweep, rpiv-merge, pipeline driver, tmux engine, pi, fresh branch, FRD handoff, .rpiv/artifacts, .rpiv/run, base ref
+
 ## Research
 
 - Pages:
