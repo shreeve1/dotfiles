@@ -2,7 +2,7 @@
 # rpiv-run — drive the RPIV skill pipeline unattended on a fresh branch.
 #
 # Each step runs in a FRESH interactive session of the selected engine
-# (--engine claude|pi, default claude) inside a private tmux socket. NOT print
+# (--engine claude|pi, default pi) inside a private tmux socket. NOT print
 # mode (`claude -p` / `pi -p`) — print mode is being retired, and the SDK cannot
 # invoke a skill by name. Slash commands work in interactive mode, so each step
 # triggers its exact skill. Context is fresh per step; handoff is via on-disk
@@ -24,7 +24,7 @@
 set -euo pipefail
 
 # --- config (override via env or flags) ---
-ENGINE="${RPIV_ENGINE:-claude}"               # claude | pi
+ENGINE="${RPIV_ENGINE:-pi}"                   # claude | pi
 MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = default
                                                #   claude: opus, sonnet
                                                #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
@@ -48,7 +48,8 @@ Run /discover interactively first. Then rpiv-run drives
 research -> design -> plan -> implement -> validate -> code-review -> commit
 in fresh interactive engine sessions (via tmux), unattended, on a fresh branch.
 
---engine selects the agent CLI (default claude). --provider applies to pi only.
+--engine selects the agent CLI (default pi; pass --engine claude for Claude).
+--provider applies to pi only.
 --model is engine-specific: claude takes opus/sonnet; pi takes a provider/id
 pattern (e.g. anthropic/claude-opus-4).
 
