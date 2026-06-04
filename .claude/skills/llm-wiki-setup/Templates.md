@@ -20,7 +20,7 @@ This directory is an LLM-maintained knowledge base for the project.
 - Ingest: add source to `raw/`, summarize, discuss key takeaways when needed, extract claims, create candidates, update candidate index/routing/claims, and log.
 - Session update: use `/wiki-update` to capture durable decisions, verified facts, and follow-ups from a session into raw session notes, candidates, claims, routing, index, and log.
 - Query: read `index.md`, optionally use `ROUTING.md` to narrow scope, then read relevant promoted pages; cite sources.
-- Lint: check broken links, orphan pages, stale claims, duplicates, missing concept pages, data gaps, and contradictions.
+- Lint: check broken links, orphan pages, stale claims, claim content drift against cited sources, duplicates, missing concept pages, data gaps, and contradictions.
 - Promote: move candidate to final location, update index/routing/claims/log.
 - Discard: remove stale candidate index rows, candidate routes, and candidate claim references, then log the discard.
 ```
@@ -203,5 +203,5 @@ When a candidate is rejected, remove its candidate index row, candidate-only rou
 
 ### Lint Workflow
 
-Check broken wikilinks, orphan pages, duplicate concepts, uncited claims, stale claims, contradictions, missing concept pages, data gaps, stale candidate references, and missing index/routing entries. Report findings before making broad changes.
+Check broken wikilinks, orphan pages, duplicate concepts, uncited claims, stale claims, claim content drift against cited sources, contradictions, missing concept pages, data gaps, stale candidate references, and missing index/routing entries. Report findings before making broad changes.
 ```
