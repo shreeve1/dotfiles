@@ -29,11 +29,45 @@ Useful runner examples:
 ```bash
 tralph                                      # normal tmux, default Pi agent (openai-codex/gpt-5.5)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
+tralph --no-auto-review-blocked             # disable inline auto-repair; a BLOCKED issue stops the loop
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
 tralph --agent-cmd 'pi --model openai-codex/gpt-5.5' tmux
 tralph pi                                   # Pi non-interactive adapter
 ```
+
+### Inline auto-review on block (default)
+
+By default (`AUTO_REVIEW_BLOCKED=true`), when an implement worker returns
+`RALPH_RESULT: BLOCKED #<id>`, `ralph-loop.sh` does **not** stop. It spawns a
+fresh actionable-review/repair worker (the same protocol `--review-loop` uses)
+against that exact issue, then continues the implement loop:
+
+- repair succeeds → issue goes `done`, the loop keeps implementing (and any
+  downstream issues it just unblocked become eligible);
+- repair cannot fix it → the issue stays `blocked` (parked) and the loop moves
+  on to the next eligible pending issue.
+
+This makes a single `tralph` run self-healing instead of requiring the manual
+`tralph` → block → `tralph --review-loop` → `tralph` ping-pong. Opt out with
+`--no-auto-review-blocked` (BLOCKED becomes fatal again) or
+`RALPH_AUTO_REVIEW_BLOCKED=false`. `--skip-blocked` still means *park without
+repairing*, and in `--review-loop` mode the flag is a no-op (it is already a
+repair loop).
+
+It also drains **pre-existing** `blocked` issues: once a run has no fresh
+pending or active work left, the loop repairs already-`blocked` issues one at a
+time (lowest priority, then id) via the same repair worker, then re-scans — a
+repaired blocker may unblock downstream pending work the loop then implements.
+Each blocked issue is attempted at most once per run; if it still can't be
+fixed it stays `blocked` (parked) and the run completes. So a plain `tralph`
+now covers what previously required a separate `--review-loop` pass. A blocked
+issue is never re-selected by the implement scan (it is no longer `pending`),
+and the per-run attempt set prevents repair/implement cycling.
+
+On startup the driver also kills any orphaned `ralph-<session>-*` worker tmux
+sessions left behind by a previously killed driver, so you never have to
+`tmux kill-session` by hand before re-running.
 
 `--agent-cmd` is intentionally a shell command line. Quote paths with spaces yourself.
 

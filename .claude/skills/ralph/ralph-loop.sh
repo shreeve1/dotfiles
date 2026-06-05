@@ -12,6 +12,8 @@
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with openai-codex/gpt-5.5)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
+#   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
+#   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -35,6 +37,7 @@ AGENT_CMD_EXPLICIT=false
 AGENT_PROMPT_EXPLICIT=false
 REVIEW_LOOP=false
 SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
+AUTO_REVIEW_BLOCKED="${RALPH_AUTO_REVIEW_BLOCKED:-true}"
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
@@ -62,6 +65,8 @@ OPTIONS:
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
+  --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
+  --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -127,6 +132,14 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--skip-blocked)
 		SKIP_BLOCKED=true
+		shift
+		;;
+	--auto-review-blocked)
+		AUTO_REVIEW_BLOCKED=true
+		shift
+		;;
+	--no-auto-review-blocked)
+		AUTO_REVIEW_BLOCKED=false
 		shift
 		;;
 	--lsp-check-cmd)
@@ -335,11 +348,18 @@ RALPH_MODEL="${15}"
 CHECKPOINT_DIRTY="${16}"
 REVIEW_LOOP="${17}"
 LSP_CHECK_CMD="${18}"
+AUTO_REVIEW_BLOCKED="${19}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 
 mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
 : > "$LOG_FILE"
+
+# Prompt framing used when an inline auto-review/repair worker is spawned for a
+# blocked issue. Mirrors the review-loop reminder built by the outer script.
+REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
+The final line must start with RALPH_RESULT followed by colon and one space.'
 
 tmux_cmd() {
   if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
@@ -476,6 +496,29 @@ select_actionable_review_target() {
   return 1
 }
 
+# Default-mode blocked drain: pick the next blocked issue not yet attempted this
+# run (lowest priority, then lowest id). Returns the issue file path, or 1 if
+# none remain. Used by the implement loop to repair blocked issues once there is
+# no fresh pending/active work, so a single `tralph` run is self-healing without
+# a separate `--review-loop` pass.
+select_next_blocked_target() {
+  local issue_file status id priority candidate
+  candidate=$(
+    for issue_file in .kanban/issues/*.md; do
+      [[ -f "$issue_file" ]] || continue
+      status=$(issue_status_for_file "$issue_file")
+      [[ "$status" == "blocked" ]] || continue
+      id=$(issue_id_for_file "$issue_file")
+      [[ -n "$id" ]] || continue
+      review_issue_attempted "$id" && continue
+      priority=$(issue_priority_for_file "$issue_file")
+      printf '%06d %012d %s\n' "$priority" "$(normalize_issue_id "$id")" "$issue_file"
+    done | sort -k1,1n -k2,2n | head -1 | cut -d' ' -f3-
+  )
+  [[ -n "$candidate" ]] || return 1
+  printf '%s' "$candidate"
+}
+
 count_unblocked_pending() {
   local count=0
   local issue_file blocked_by is_blocked blocker_id blocker_file
@@ -536,13 +579,15 @@ has_hard_fail_result() {
   grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
-# A BLOCKED sentinel is non-fatal (skip the issue, keep looping) when running
-# the review loop or when --skip-blocked is set, as long as there is no FAIL.
+# A BLOCKED sentinel is non-fatal (keep looping instead of stopping) when running
+# the review loop, when --skip-blocked is set, or when auto-review-blocked is on
+# (in which case the main loop will spawn an inline repair worker first), as long
+# as there is no FAIL.
 blocked_is_skippable() {
   local file="$1"
   has_blocked_result "$file" || return 1
   has_hard_fail_result "$file" && return 1
-  [[ "$REVIEW_LOOP" == "true" || "$SKIP_BLOCKED" == "true" ]]
+  [[ "$REVIEW_LOOP" == "true" || "$SKIP_BLOCKED" == "true" || "$AUTO_REVIEW_BLOCKED" == "true" ]]
 }
 
 extract_result_issue() {
@@ -775,6 +820,73 @@ checkpoint_dirty_worktree() {
   echo "✅ Worktree clean before worker" | tee -a "$LOG_FILE"
 }
 
+# Spawn a fresh actionable-review/repair worker against a single blocked issue,
+# then return so the implement loop can continue. Never fatal: if the repair
+# worker cannot fix the issue it stays blocked (parked) and the loop moves on.
+run_inline_review() {
+  local target_id target_file review_out rc
+  target_id=$(normalize_issue_id "${1:-}")
+  if [[ -z "${1:-}" ]]; then
+    echo "⚠️  Inline auto-review: no issue id in BLOCKED sentinel; leaving blocked" | tee -a "$LOG_FILE"
+    return 0
+  fi
+  target_file=$(grep -l "^id: ${target_id}$" .kanban/issues/*.md 2>/dev/null | head -1 || true)
+  if [[ -z "$target_file" ]]; then
+    echo "⚠️  Inline auto-review: issue #$target_id not found; leaving blocked" | tee -a "$LOG_FILE"
+    return 0
+  fi
+
+  echo "" | tee -a "$LOG_FILE"
+  echo "🩹 Inline auto-review: attempting repair of blocked issue #$target_id" | tee -a "$LOG_FILE"
+
+  if ! checkpoint_dirty_worktree; then
+    echo "⚠️  Inline auto-review: worktree not clean; skipping repair of #$target_id" | tee -a "$LOG_FILE"
+    return 0
+  fi
+
+  local saved_prompt="$AGENT_PROMPT"
+  local saved_reminder="$SHARED_PROMPT_REMINDER"
+  local saved_base="$REVIEW_BASE_SHA"
+  local saved_base_reminder="$BASE_REMINDER"
+
+  REVIEW_BASE_SHA=""
+  BASE_REMINDER=""
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    REVIEW_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [[ -n "$REVIEW_BASE_SHA" ]]; then
+      BASE_REMINDER=$'\n'"Implementation base commit (HEAD before this worker started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1'."
+    fi
+  fi
+
+  SHARED_PROMPT_REMINDER="$REVIEW_PROMPT_REMINDER"
+  AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $target_file (issue #$target_id). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
+
+  review_out=$(mktemp)
+  rc=0
+  case "$ADAPTER" in
+    pi)
+      run_pi_adapter "$review_out" || rc=$?
+      ;;
+    tmux)
+      run_tmux_adapter "$review_out" "${ITERATION}r" || rc=$?
+      ;;
+  esac
+
+  if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
+    echo "✅ Inline auto-review repaired issue #$target_id" | tee -a "$LOG_FILE"
+  else
+    echo "↪️  Inline auto-review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
+  fi
+
+  rm -f "$review_out"
+
+  AGENT_PROMPT="$saved_prompt"
+  SHARED_PROMPT_REMINDER="$saved_reminder"
+  REVIEW_BASE_SHA="$saved_base"
+  BASE_REMINDER="$saved_base_reminder"
+  return 0
+}
+
 reset_active_issues_to_pending() {
   local active_count failed_issue backup_dir
   active_count=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | wc -l | tr -d ' ')
@@ -804,6 +916,7 @@ reset_active_issues_to_pending() {
   echo "Session: $SESSION_NAME"
   echo "Continue on error: $CONTINUE_ON_ERROR"
   echo "Review loop: $REVIEW_LOOP"
+  echo "Auto-review blocked: $AUTO_REVIEW_BLOCKED"
   echo "Sleep interval: ${SLEEP_INTERVAL}s"
   echo "Ready delay: ${READY_DELAY}s"
   echo "Ready timeout: ${READY_TIMEOUT}s"
@@ -820,6 +933,19 @@ reset_active_issues_to_pending() {
   echo "═══════════════════════════════════════════════════════════"
   echo ""
 } | tee -a "$LOG_FILE"
+
+# Clean up orphaned worker sessions from a previous driver run so the user never
+# has to kill them by hand. The outer script already refused to start if a live
+# driver session for this SESSION_NAME exists, so any ralph-<SESSION_NAME>-*
+# sessions here are leftovers from a driver that died/was killed.
+orphaned_workers=$(tmux_cmd list-sessions -F '#{session_name}' 2>/dev/null | grep "^ralph-${SESSION_NAME}-" || true)
+if [[ -n "$orphaned_workers" ]]; then
+  echo "🧹 Killing orphaned worker sessions from a previous run:" | tee -a "$LOG_FILE"
+  printf '%s\n' "$orphaned_workers" | tee -a "$LOG_FILE"
+  printf '%s\n' "$orphaned_workers" | while read -r orphan; do
+    [[ -n "$orphan" ]] && tmux_cmd kill-session -t "$orphan" 2>/dev/null || true
+  done
+fi
 
 ITERATION=0
 MAX_ITERATIONS=1000
@@ -872,6 +998,22 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       break
     fi
   elif [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
+    # No fresh pending/active work. Before declaring done, drain blocked issues
+    # via the actionable-review/repair worker so a single `tralph` run is
+    # self-healing without a separate `--review-loop` pass. A repaired blocker
+    # may unblock downstream pending work, which the next scan will pick up.
+    if [[ "$AUTO_REVIEW_BLOCKED" == "true" ]]; then
+      DRAIN_TARGET=$(select_next_blocked_target || true)
+      if [[ -n "$DRAIN_TARGET" ]]; then
+        DRAIN_ID=$(issue_id_for_file "$DRAIN_TARGET")
+        echo "" | tee -a "$LOG_FILE"
+        echo "🛠️  No pending work left; draining blocked issue #$DRAIN_ID via auto-review/repair" | tee -a "$LOG_FILE"
+        ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$DRAIN_ID")"
+        run_inline_review "$DRAIN_ID"
+        sleep "$SLEEP_INTERVAL"
+        continue
+      fi
+    fi
     echo "" | tee -a "$LOG_FILE"
     echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
     echo "Ralph loop complete!" | tee -a "$LOG_FILE"
@@ -931,8 +1073,16 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   fi
 
   if [[ $LAST_EXIT_CODE -eq 0 ]] && blocked_is_skippable "$RALPH_OUTPUT"; then
-    SKIPPED_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
-    echo "⏭️  Issue #${SKIPPED_ISSUE:-?} BLOCKED — skipping and continuing to the next eligible issue" | tee -a "$LOG_FILE"
+    BLOCKED_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
+    if [[ "$AUTO_REVIEW_BLOCKED" == "true" && "$REVIEW_LOOP" != "true" && "$SKIP_BLOCKED" != "true" ]]; then
+      echo "🛠️  Issue #${BLOCKED_ISSUE:-?} BLOCKED — running inline auto-review/repair before continuing" | tee -a "$LOG_FILE"
+      if [[ -n "${BLOCKED_ISSUE:-}" ]]; then
+        ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$BLOCKED_ISSUE")"
+      fi
+      run_inline_review "${BLOCKED_ISSUE:-}"
+    else
+      echo "⏭️  Issue #${BLOCKED_ISSUE:-?} BLOCKED — skipping and continuing to the next eligible issue" | tee -a "$LOG_FILE"
+    fi
   fi
 
   NO_WORK=false
@@ -1033,7 +1183,8 @@ INNER_ARGS=()
 for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
-	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD"; do
+	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
+	"$AUTO_REVIEW_BLOCKED"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
@@ -1049,6 +1200,7 @@ echo "  Adapter: $ADAPTER"
 echo "  Force mode: $FORCE_MODE"
 echo "  Continue on error: $CONTINUE_ON_ERROR"
 echo "  Review loop: $REVIEW_LOOP"
+echo "  Auto-review blocked: $AUTO_REVIEW_BLOCKED"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo "  Ready delay: ${READY_DELAY}s"
 echo "  Ready timeout: ${READY_TIMEOUT}s"
