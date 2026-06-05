@@ -31,7 +31,7 @@ bin/
 .pi/agent/bin/
 .pi/agent/node_modules/
 .pi/agent/**/node_modules/
-.pi/agent/npm/
+.pi/agent/npm/node_modules/
 .pi/agent/sessions/
 .pi/agent/*-sessions*.json
 .pi/agent-sessions/
