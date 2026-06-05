@@ -7,7 +7,7 @@ updated: 2026-06-04
 promoted: 2026-06-04
 sources:
   - wiki/raw/sessions/2026-06-04-rpiv-pipeline-skills.md
-  - bin/rpiv-run
+  - bin/rralph
   - .claude/skills/rpiv-monitor/SKILL.md
   - .claude/skills/gap-sweep/SKILL.md
   - .claude/skills/rpiv-merge/SKILL.md
@@ -25,9 +25,9 @@ tags:
 
 ## Summary
 
-`rpiv-run` (`bin/rpiv-run`, symlinked to `~/.local/bin`) is a bash driver that
+`rralph` (`bin/rralph`, symlinked to `~/.local/bin`) is a bash driver that
 runs the RPIV skill chain unattended. Each step executes in a fresh interactive
-engine TUI (pi by default, Claude opt-in) on a private tmux socket, driven by
+engine TUI (pi by default, Claude opt-in) on the default tmux server, driven by
 send-keys plus a nonce done-marker. Steps hand off through on-disk artifacts in
 `.rpiv/artifacts/<type>/`, never shared context. Three companion skills support
 the lifecycle: `rpiv-monitor` (diagnose a running run, read-only),
@@ -73,7 +73,7 @@ fixes-and-continues rather than gating.
 ## Cross-Engine Handoff
 
 Because handoff is file-based, a discover session run in interactive Claude can
-feed a pi-driven `rpiv-run` pipeline: the producing engine is irrelevant as long
+feed a pi-driven `rralph` pipeline: the producing engine is irrelevant as long
 as it is the same repo/cwd and pi is onboarded (logged in, directory trusted)
 there.
 

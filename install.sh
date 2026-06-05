@@ -203,7 +203,7 @@ link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
 
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
-link_path "bin/rpiv-run" ".local/bin/rpiv-run"
+link_path "bin/rralph" ".local/bin/rralph"
 
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:

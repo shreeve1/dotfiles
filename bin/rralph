@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# rpiv-run — drive the RPIV skill pipeline unattended on a fresh branch.
+# rralph — drive the RPIV skill pipeline unattended on a fresh branch.
+#
+# Fire-and-forget: invoking rralph validates, then re-execs itself inside a
+# DETACHED tmux session (RPIV_DETACHED=1) and returns the terminal immediately.
+# No confirmation prompt — the background driver runs the whole pipeline. The
+# driver and its per-step sessions live on the DEFAULT tmux server (like tralph),
+# so a plain `tmux ls` / `tmux attach -t rpivdriver-<TS>` finds them. Watch with
+# the printed `tmux attach` / `tail -f` commands; stop it with
+# `tmux kill-session -t rpivdriver-<TS>`.
 #
 # Each step runs in a FRESH interactive session of the selected engine
-# (--engine claude|pi, default pi) inside a private tmux socket. NOT print
+# (--engine claude|pi, default pi) on the default tmux server. NOT print
 # mode (`claude -p` / `pi -p`) — print mode is being retired, and the SDK cannot
 # invoke a skill by name. Slash commands work in interactive mode, so each step
 # triggers its exact skill. Context is fresh per step; handoff is via on-disk
@@ -33,7 +41,6 @@ MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = defaul
                                                #   claude: opus, sonnet
                                                #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
 PROVIDER="${RPIV_PROVIDER:-}"                  # pi only; empty = pi default provider
-ASSUME_YES="${RPIV_YES:-}"                     # non-empty to skip kickoff confirm
 BRANCH_PREFIX="${RPIV_BRANCH_PREFIX:-rpiv}"
 STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-2400}"          # seconds per step (40m)
 IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-7200}" # seconds for implement (2h)
@@ -46,28 +53,30 @@ READY_PATTERN="${RPIV_READY_PATTERN:-}"
 
 usage() {
   cat <<'EOF'
-usage: rpiv-run [-y|--yes] [--engine claude|pi] [--model M] [--provider P]
+usage: rralph [--engine claude|pi] [--model M] [--provider P]
 
-Run /discover interactively first. Then rpiv-run drives
+Run /discover interactively first. Then rralph drives
 research -> design -> plan -> implement -> validate -> code-review -> commit
 in fresh interactive engine sessions (via tmux), unattended, on a fresh branch.
+
+Fire-and-forget: there is NO confirmation prompt. rralph re-execs itself into
+a detached tmux session and returns immediately; the printed monitor/stop
+commands let you watch or kill the background driver.
 
 --engine selects the agent CLI (default pi; pass --engine claude for Claude).
 --provider applies to pi only.
 --model is engine-specific: claude takes opus/sonnet; pi takes a provider/id
 pattern (e.g. anthropic/claude-opus-4).
+-y/--yes is accepted for backward compatibility but is a no-op.
 
-Without -y/RPIV_YES the kickoff requires a TTY to confirm; for unattended/cron
-runs you MUST pass -y or set RPIV_YES=1.
-
-env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_YES RPIV_BRANCH_PREFIX
+env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_BRANCH_PREFIX
      RPIV_STEP_TIMEOUT RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
 EOF
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    -y|--yes)   ASSUME_YES=1 ;;
+    -y|--yes)   ;;  # accepted for backward compat; no-op (runs are always unattended)
     --engine)   ENGINE="$2"; shift ;;
     --model)    MODEL="$2"; shift ;;
     --provider) PROVIDER="$2"; shift ;;
@@ -112,40 +121,52 @@ newest_since() {
 FRD="$(newest .rpiv/artifacts/discover || true)"
 [ -n "${FRD:-}" ] || { echo "error: no FRD in .rpiv/artifacts/discover/ — run /discover first" >&2; exit 1; }
 
-TS="$(date +%Y%m%d-%H%M%S)"
+TS="${RPIV_TS:-$(date +%Y%m%d-%H%M%S)}"
 BRANCH="${BRANCH_PREFIX}/${TS}"
 LOGDIR=".rpiv/run/${TS}"
-SOCKET="${TMPDIR:-/tmp}/rpiv-tmux-${TS}.sock"
 STARTMARK="$LOGDIR/.start"
-mkdir -p "$LOGDIR"
-touch "$STARTMARK"
+# Driver session name deliberately omits the `rpiv-<word>-` shape used by the
+# per-step sessions (rpiv-<step>-<epoch>), so rpiv-monitor never mistakes the
+# long-lived driver for a step session on the shared default server.
+DRIVER="rpivdriver-${TS}"
 
-# Keep run logs out of the autonomous /commit sweep (local, per-repo, untracked).
-GITDIR="$(git rev-parse --git-dir)"
-mkdir -p "$GITDIR/info"
-grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
-  || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
+# Absolute path to this script, for the detached re-exec.
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 
-ORIG_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
-printf '%s\n' "$ORIG_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge to read back
-BRANCH_CREATED=
-CUR_SESSION=""
-cleanup() {
-  local rc=$?
-  [ -n "$CUR_SESSION" ] && tmux -S "$SOCKET" kill-session -t "$CUR_SESSION" 2>/dev/null || true
-  tmux -S "$SOCKET" kill-server 2>/dev/null || true
-  if [ "$rc" -ne 0 ] && [ -n "$BRANCH_CREATED" ]; then
-    echo >&2
-    echo "pipeline exited ($rc) on branch $BRANCH — work left for inspection." >&2
-    echo "return to your previous ref with: git checkout $ORIG_REF" >&2
+# ---------------------------------------------------------------------------
+# Foreground pass: validate, lay down the run dir, then re-exec ourselves inside
+# a detached tmux session and hand the terminal straight back (fire-and-forget).
+# The detached driver (RPIV_DETACHED=1) runs the actual pipeline further below.
+# Config crosses into the driver via env; RPIV_TS pins the run id so branch and
+# log dir match between the two passes.
+# ---------------------------------------------------------------------------
+if [ -z "${RPIV_DETACHED:-}" ]; then
+  if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+    echo "error: branch $BRANCH already exists" >&2; exit 1
   fi
-}
-trap cleanup EXIT
+  # The branch is not created until the detached pass, so a second launch in the
+  # same wall-clock second would share TS/BRANCH/run dir. Reject it here:
+  # the run dir is the earliest per-run artifact the foreground pass writes.
+  if [ -e "$LOGDIR" ]; then
+    echo "error: run dir $LOGDIR already exists (concurrent launch in the same second?)" >&2; exit 1
+  fi
 
-PROVIDER_NOTE=""
-[ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
+  mkdir -p "$LOGDIR"
+  touch "$STARTMARK"
 
-cat <<EOF
+  # Keep run logs out of the autonomous /commit sweep (local, per-repo, untracked).
+  GITDIR="$(git rev-parse --git-dir)"
+  mkdir -p "$GITDIR/info"
+  grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
+    || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
+
+  ORIG_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+  printf '%s\n' "$ORIG_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge to read back
+
+  PROVIDER_NOTE=""
+  [ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
+
+  cat <<EOF
 
 RPIV pipeline kickoff
   FRD:      $FRD
@@ -154,24 +175,77 @@ RPIV pipeline kickoff
   model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
             (+ gap-sweep after FRD/research/design/plan/implement)
-  mode:     unattended | auto-accept defaults | commit always
+  mode:     detached | unattended | auto-accept defaults | commit always
   timeout:  ${STEP_TIMEOUT}s/step, ${IMPLEMENT_TIMEOUT}s for implement
   logs:     $LOGDIR/
 
 ----- FRD head -----
 EOF
-sed -n '1,25p' "$FRD"
-echo "--------------------"
+  sed -n '1,25p' "$FRD"
+  echo "--------------------"
 
-if [ -z "${ASSUME_YES:-}" ]; then
-  if [ ! -t 0 ]; then
-    echo "error: no TTY to confirm — pass -y or set RPIV_YES=1 for unattended runs" >&2
-    exit 1
-  fi
-  printf 'Proceed? [y/N] '
-  read -r reply
-  case "$reply" in y|Y|yes|YES) ;; *) echo "aborted."; exit 0 ;; esac
+  # Forward resolved config via env (values are simple tokens; %q keeps them
+  # sh-safe). READY_PATTERN is intentionally NOT forwarded — the driver pass
+  # recomputes it from ENGINE so we never push regex/backslash through sh.
+  reexec="exec env RPIV_DETACHED=1"
+  reexec="$reexec $(printf 'RPIV_TS=%q' "$TS")"
+  reexec="$reexec $(printf 'RPIV_ENGINE=%q' "$ENGINE")"
+  reexec="$reexec $(printf 'RPIV_MODEL=%q' "$MODEL")"
+  reexec="$reexec $(printf 'RPIV_PROVIDER=%q' "$PROVIDER")"
+  reexec="$reexec $(printf 'RPIV_BRANCH_PREFIX=%q' "$BRANCH_PREFIX")"
+  reexec="$reexec $(printf '%q' "$SELF")"
+
+  # Default tmux server (no -S). The driver's own output is mirrored to
+  # driver.log via tee, so its pane needs no extra scrollback — leave the
+  # server's global history-limit untouched (step panes raise it per-session).
+  tmux new-session -d -s "$DRIVER" -c "$PWD" -n driver "$reexec"
+
+  cat <<EOF
+
+launched (fire-and-forget) — pipeline running in the background on the default tmux server.
+  branch:  $BRANCH (created by the driver once it starts)
+  driver:  tmux session '$DRIVER'
+  logs:    $LOGDIR/
+
+monitor:
+  tmux attach -t '$DRIVER'          # watch live; detach with Ctrl-b d
+  tmux ls                             # all sessions (driver + current rpiv-<step>-)
+  tail -f '$LOGDIR'/driver.log        # driver progress
+  tail -f '$LOGDIR'/<step>.log        # individual step output
+
+stop:
+  tmux kill-session -t '$DRIVER'    # stops the driver; it kills the in-flight step on its way out
+EOF
+  exit 0
 fi
+
+# ---------------------------------------------------------------------------
+# Detached driver pass (RPIV_DETACHED=1): runs the real pipeline. Mirror the
+# driver's stdout/stderr into driver.log so progress is captured even when no
+# one is attached to the driver pane.
+# ---------------------------------------------------------------------------
+exec > >(tee -a "$LOGDIR/driver.log") 2>&1
+
+ORIG_REF="$(cat "$LOGDIR/.base" 2>/dev/null || git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+BRANCH_CREATED=
+CUR_SESSION=""
+cleanup() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ -n "$BRANCH_CREATED" ]; then
+    echo >&2
+    echo "pipeline exited ($rc) on branch $BRANCH — work left for inspection." >&2
+    echo "return to your previous ref with: git checkout $ORIG_REF" >&2
+  fi
+  # We are on the shared default tmux server — NEVER kill-server (that would tear
+  # down the user's other sessions, e.g. tralph). Only reap the in-flight step
+  # session; the driver's own session closes when this script exits.
+  [ -n "$CUR_SESSION" ] && tmux kill-session -t "$CUR_SESSION" 2>/dev/null || true
+}
+# `tmux kill-session -t rpivdriver-<TS>` SIGHUPs the driver; on_signal turns that
+# into a normal exit so the EXIT trap runs once and reaps the in-flight step.
+on_signal() { exit 130; }
+trap on_signal INT TERM HUP
+trap cleanup EXIT
 
 git checkout -b "$BRANCH"
 BRANCH_CREATED=1
@@ -199,8 +273,14 @@ run_skill() {
   echo; echo "===== $name ====="
   CUR_SESSION="$session"
 
-  tmux -S "$SOCKET" set-option -g history-limit 100000 \; \
-       new-session -d -s "$session" -c "$PWD" -n "$name"
+  # Step panes need deep scrollback (we capture full pane history into the log).
+  # history-limit only applies to panes created while it is set, so bump the
+  # global, create the session, then restore the prior global in the same tmux
+  # invocation — the new pane keeps 100k, the user's other sessions are untouched.
+  local prev_hist; prev_hist="$(tmux show-options -gv history-limit 2>/dev/null || echo 2000)"
+  tmux set-option -g history-limit 100000 \; \
+       new-session -d -s "$session" -c "$PWD" -n "$name" \; \
+       set-option -g history-limit "$prev_hist"
 
   # Build the engine launch command. claude uses bypassPermissions to suppress
   # per-tool prompts; pi has no permission system (omit). The autonomy +
@@ -215,7 +295,7 @@ run_skill() {
     [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
   fi
   cmd="$cmd --append-system-prompt '$sys_q'"
-  tmux -S "$SOCKET" send-keys -t "$session":0.0 -- "$cmd" Enter
+  tmux send-keys -t "$session":0.0 -- "$cmd" Enter
 
   # Wait for the engine input UI before pasting. claude shows the readiness
   # footer only once the input is interactive, so a single pattern match is
@@ -226,7 +306,7 @@ run_skill() {
   # captures) so startup output has stopped before we paste.
   local i ready= prev= stable=0 pane=
   for ((i=0; i<READY_TIMEOUT; i++)); do
-    pane="$(tmux -S "$SOCKET" capture-pane -p -t "$session":0.0 2>/dev/null || true)"
+    pane="$(tmux capture-pane -p -t "$session":0.0 2>/dev/null || true)"
     if printf '%s' "$pane" | grep -qiE "$READY_PATTERN"; then
       if [ "$ENGINE" = pi ]; then
         if [ "$pane" = "$prev" ]; then stable=$((stable+1)); else stable=0; fi
@@ -238,7 +318,7 @@ run_skill() {
     prev="$pane"; sleep 1
   done
   if [ -z "$ready" ]; then
-    tmux -S "$SOCKET" capture-pane -p -t "$session":0.0 > "$log" 2>/dev/null || true
+    tmux capture-pane -p -t "$session":0.0 > "$log" 2>/dev/null || true
     echo "error: $ENGINE TUI not ready after ${READY_TIMEOUT}s (step $name). Pane saved to $log." >&2
     rm -f "$msgfile"; return 1
   fi
@@ -246,10 +326,10 @@ run_skill() {
   # Paste the bare slash command (no quoting risk). Settle briefly so any
   # slash/path autocomplete popup closes before Enter submits the line.
   printf '%s' "$message" > "$msgfile"
-  tmux -S "$SOCKET" load-buffer -b rpiv "$msgfile"
-  tmux -S "$SOCKET" paste-buffer -b rpiv -t "$session":0.0
+  tmux load-buffer -b rpiv "$msgfile"
+  tmux paste-buffer -b rpiv -t "$session":0.0
   sleep 1
-  tmux -S "$SOCKET" send-keys -t "$session":0.0 Enter
+  tmux send-keys -t "$session":0.0 Enter
 
   # Poll for the done marker on its own line (anchored to start-of-line after
   # optional whitespace) so a mid-stream mention of the token cannot fire early.
@@ -259,7 +339,7 @@ run_skill() {
   # stuck" ambiguity. capture-pane is read-only and cannot corrupt the pane.
   local done= snap=
   for ((i=0; i<timeout; i++)); do
-    snap="$(tmux -S "$SOCKET" capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
+    snap="$(tmux capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
     if printf '%s\n' "$snap" | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
       done=1; break
     fi
@@ -267,8 +347,8 @@ run_skill() {
     sleep 1
   done
 
-  tmux -S "$SOCKET" capture-pane -p -J -S - -t "$session":0.0 > "$log" 2>/dev/null || true
-  tmux -S "$SOCKET" kill-session -t "$session" 2>/dev/null || true
+  tmux capture-pane -p -J -S - -t "$session":0.0 > "$log" 2>/dev/null || true
+  tmux kill-session -t "$session" 2>/dev/null || true
   CUR_SESSION=""
   rm -f "$msgfile"
 

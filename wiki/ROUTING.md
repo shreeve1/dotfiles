@@ -45,7 +45,7 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 ## RPIV Pipeline Automation
 
 - Pages: `wiki/analyses/rpiv-pipeline.md` (promoted)
-- Keywords: rpiv-run, rpiv-monitor, gap-sweep, rpiv-merge, pipeline driver, tmux engine, pi, fresh branch, FRD handoff, .rpiv/artifacts, .rpiv/run, base ref
+- Keywords: rralph, rpiv-monitor, gap-sweep, rpiv-merge, pipeline driver, tmux engine, pi, fresh branch, FRD handoff, .rpiv/artifacts, .rpiv/run, base ref
 
 ## Research
 
