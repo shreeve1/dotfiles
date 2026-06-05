@@ -12,9 +12,9 @@ MEMORY/
 Plans/
 plans/
 
-# Machine-local helper binaries (sync rpiv-run; keep the rest machine-local)
+# Machine-local helper binaries (sync rralph; keep the rest machine-local)
 bin/*
-!bin/rpiv-run
+!bin/rralph
 
 # Machine-local secrets (not synced)
 .env

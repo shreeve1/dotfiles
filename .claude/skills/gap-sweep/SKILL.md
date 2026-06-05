@@ -1,6 +1,6 @@
 ---
 name: gap-sweep
-description: Quick automated critical-gap sweep of one RPIV pipeline artifact (FRD, research, design, plan) or the working-tree code, fixing only critical gaps in place and updating the file. USE WHEN invoked as `/gap-sweep <target> <kind>` by the rpiv-run driver between pipeline steps. Auto-accept, no gate — fix and move on.
+description: Quick automated critical-gap sweep of one RPIV pipeline artifact (FRD, research, design, plan) or the working-tree code, fixing only critical gaps in place and updating the file. USE WHEN invoked as `/gap-sweep <target> <kind>` by the rralph driver between pipeline steps. Auto-accept, no gate — fix and move on.
 ---
 
 # gap-sweep

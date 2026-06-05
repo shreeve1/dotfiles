@@ -1,11 +1,11 @@
 ---
 name: rpiv-merge
-description: Review the branches an rpiv-run pipeline left behind, pick one, inspect its diff, test it, and merge it into the base branch. USE WHEN user says "rpiv-merge", "merge the rpiv work", "merge the worktree the pipeline made", "which rpiv branches are open", or wants to land a finished rpiv-run pipeline branch. Interactive — confirms before the merge.
+description: Review the branches an rralph pipeline left behind, pick one, inspect its diff, test it, and merge it into the base branch. USE WHEN user says "rpiv-merge", "merge the rpiv work", "merge the worktree the pipeline made", "which rpiv branches are open", or wants to land a finished rralph pipeline branch. Interactive — confirms before the merge.
 ---
 
 # rpiv-merge
 
-The post-pipeline landing step. `rpiv-run` finishes each run on a fresh
+The post-pipeline landing step. `rralph` finishes each run on a fresh
 `rpiv/<TS>` branch, committed but **not merged and not pushed** — testing is the
 real checkpoint. This skill walks that last mile: enumerate the candidate
 branches, let the user pick one, review the diff, test it, then merge.
@@ -15,7 +15,7 @@ branches, let the user pick one, review the diff, test it, then merge.
 - a path — `cd` there first (the repo where the pipeline ran).
 - an `rpiv/<TS>` branch name — skip the picker and go straight to that branch.
 
-> **Terminology:** `rpiv-run` creates a **branch** (`git checkout -b rpiv/<TS>`),
+> **Terminology:** `rralph` creates a **branch** (`git checkout -b rpiv/<TS>`),
 > not a git worktree, in the repo's own working directory. The user may call it a
 > "worktree" — they mean the pipeline branch.
 
@@ -154,8 +154,9 @@ Ask whether to:
 
 ## Source of truth
 
-- Driver: `~/dotfiles/bin/rpiv-run` — branch is `${RPIV_BRANCH_PREFIX:-rpiv}/<TS>`,
-  created at `git checkout -b` (~line 175); logs land in `.rpiv/run/<TS>/`.
+- Driver: `~/dotfiles/bin/rralph` — branch is `${RPIV_BRANCH_PREFIX:-rpiv}/<TS>`,
+  created with `git checkout -b` in the detached driver pass; logs land in
+  `.rpiv/run/<TS>/` (the `.base` fork point is written in the foreground pass).
 - Pipeline philosophy: memory `feedback_rpiv_pipeline.md` — commit always, never
   push, testing post-pipeline is the real checkpoint (this skill *is* that
   checkpoint).
