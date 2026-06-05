@@ -1,0 +1,8 @@
+{
+  "name": "pi-extensions",
+  "private": true,
+  "dependencies": {
+    "lsp-pi": "^1.0.5",
+    "vscode-languageserver-protocol": "^3.17.5"
+  }
+}
