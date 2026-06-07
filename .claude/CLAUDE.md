@@ -66,6 +66,21 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## Agent Helper Scripts
+
+Before broad repo inspection, prefer compact helper scripts when present:
+
+- `scripts/ai/context.sh` — one-shot repo context: structure, manifests, git state, errors, large files
+- `scripts/ai/repo_summary.py` — language/tooling/entrypoint summary
+- `scripts/ai/tree_compact.py` — filtered tree without dependency/cache noise
+- `scripts/ai/list_recent_changes.py` — status, recent commits, diff summary
+- `scripts/ai/extract_imports.py` — compact import/dependency scan
+- `scripts/ai/find_large_files.py` — files to avoid reading whole
+- `scripts/ai/summarize_json.py` — compact package/config JSON summary
+- `scripts/ai/scan_errors.py` / `compact_logs.py` — error-focused log views
+
+Use these first to reduce token usage, then read only the specific files needed. Pi uses this Claude setup too, so keep this guidance in `CLAUDE.md` rather than harness-specific config.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
