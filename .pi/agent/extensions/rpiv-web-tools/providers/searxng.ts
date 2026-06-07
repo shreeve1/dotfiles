@@ -1,4 +1,9 @@
-import { assertTextContentType, extractBodyAsText, fetchUrlOrThrow } from "./fetch-helpers.js";
+import {
+	assertTextContentType,
+	extractBodyAsText,
+	fetchUrlOrThrow,
+	truncateErrorBody,
+} from "./fetch-helpers.js";
 import {
 	type FetchResponse,
 	isCancellation,
@@ -50,7 +55,10 @@ interface SearxngRawResponse {
 	results?: SearxngRawResult[];
 }
 
-function normalizeSearxngResults(raw: SearxngRawResponse, maxResults: number): SearchResult[] {
+function normalizeSearxngResults(
+	raw: SearxngRawResponse,
+	maxResults: number,
+): SearchResult[] {
 	return (raw.results ?? []).slice(0, maxResults).map((r) => ({
 		title: r.title ?? "",
 		url: r.url ?? "",
@@ -113,7 +121,11 @@ export class SearxngProvider implements SearchProvider {
 		this.baseUrl = trimmed;
 	}
 
-	async search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse> {
+	async search(
+		query: string,
+		maxResults: number,
+		signal?: AbortSignal,
+	): Promise<SearchResponse> {
 		this.requireBaseUrl();
 		const res = await fetch(this.buildSearchUrl(query), {
 			method: "GET",
@@ -127,7 +139,11 @@ export class SearxngProvider implements SearchProvider {
 
 	// No guard: SearXNG's fetch() wraps the built-in HTTP+htmlToText pipeline
 	// and does not call the SearXNG instance — same contract as Brave/Serper.
-	async fetch(url: string, raw: boolean, signal?: AbortSignal): Promise<FetchResponse> {
+	async fetch(
+		url: string,
+		raw: boolean,
+		signal?: AbortSignal,
+	): Promise<FetchResponse> {
 		const res = await fetchUrlOrThrow(url, signal);
 		const contentType = res.headers.get("content-type") ?? "";
 		assertTextContentType(contentType);
@@ -138,7 +154,9 @@ export class SearxngProvider implements SearchProvider {
 			text,
 			title,
 			contentType: contentType || undefined,
-			contentLength: contentLengthHeader ? Number(contentLengthHeader) : undefined,
+			contentLength: contentLengthHeader
+				? Number(contentLengthHeader)
+				: undefined,
 		};
 	}
 
@@ -170,8 +188,10 @@ export class SearxngProvider implements SearchProvider {
 	}
 
 	private async searchApiError(res: Response): Promise<Error> {
-		const body = await res.text();
-		return new Error(`${this.label} Search API error (${res.status})${hintForSearchStatus(res.status)}: ${body}`);
+		const body = truncateErrorBody(await res.text());
+		return new Error(
+			`${this.label} Search API error (${res.status})${hintForSearchStatus(res.status)}: ${body}`,
+		);
 	}
 }
 
@@ -192,7 +212,10 @@ function maskKey(key: string): string {
 
 // Returns the resolved URL string, or `undefined` if the user cancelled.
 // Empty input keeps the current URL or falls back to SEARXNG_DEFAULT_URL.
-async function promptForBaseUrl(ui: ProviderConfigUi, current: string | undefined): Promise<string | undefined> {
+async function promptForBaseUrl(
+	ui: ProviderConfigUi,
+	current: string | undefined,
+): Promise<string | undefined> {
 	const existing = current?.trim();
 	const input = await ui.input(
 		"SearXNG base URL",
