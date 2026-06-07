@@ -19,9 +19,17 @@ export interface FetchResponse {
 export interface SearchProvider {
 	readonly name: string;
 	readonly label: string;
-	readonly envVar: string;
-	search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse>;
-	fetch(url: string, raw: boolean, signal?: AbortSignal): Promise<FetchResponse>;
+	readonly envVar?: string;
+	search(
+		query: string,
+		maxResults: number,
+		signal?: AbortSignal,
+	): Promise<SearchResponse>;
+	fetch(
+		url: string,
+		raw: boolean,
+		signal?: AbortSignal,
+	): Promise<FetchResponse>;
 }
 
 // ---------------------------------------------------------------------------
@@ -75,5 +83,8 @@ export interface ProviderMeta {
 	envVar?: string;
 	baseUrlEnvVar?: string;
 	defaultBaseUrl?: string;
-	configure?(ui: ProviderConfigUi, current: ProviderConfigCurrent): Promise<ProviderConfigChange | null>;
+	configure?(
+		ui: ProviderConfigUi,
+		current: ProviderConfigCurrent,
+	): Promise<ProviderConfigChange | null>;
 }

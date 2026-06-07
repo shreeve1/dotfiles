@@ -118,6 +118,34 @@ newest_since() {
   printf '%s' "$best"
 }
 
+# Repo default branch (origin/HEAD, else main/master, else current commit).
+resolve_default_branch() {
+  local d
+  d="$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+  if [ -n "$d" ]; then printf '%s' "$d"; return; fi
+  for d in main master; do
+    if git rev-parse --verify --quiet "$d" >/dev/null; then printf '%s' "$d"; return; fi
+  done
+  git rev-parse --short HEAD
+}
+
+# Resolve the ref a new run should fork from. If HEAD is on a prior rralph branch
+# (${BRANCH_PREFIX}/<TS>), unwind its recorded .base chain back to the original
+# non-rralph base so consecutive runs do NOT stack on each other.
+resolve_base() {
+  local ref="$1" guard=0 ts pb
+  while [ "$guard" -lt 10 ]; do
+    case "$ref" in "$BRANCH_PREFIX"/*) ;; *) break ;; esac
+    ts="${ref#"$BRANCH_PREFIX"/}"
+    pb="$(cat ".rpiv/run/$ts/.base" 2>/dev/null || true)"
+    [ -n "$pb" ] || break
+    ref="$pb"; guard=$((guard + 1))
+  done
+  case "$ref" in "$BRANCH_PREFIX"/*) ref="$(resolve_default_branch)" ;; esac
+  git rev-parse --verify --quiet "$ref" >/dev/null || ref="$(resolve_default_branch)"
+  printf '%s' "$ref"
+}
+
 FRD="$(newest .rpiv/artifacts/discover || true)"
 [ -n "${FRD:-}" ] || { echo "error: no FRD in .rpiv/artifacts/discover/ — run /discover first" >&2; exit 1; }
 
@@ -160,8 +188,14 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
   grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
     || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
 
-  ORIG_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
-  printf '%s\n' "$ORIG_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge to read back
+  # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
+  # (default branch) so runs don't stack. Recorded in .base for rpiv-merge and
+  # used as the explicit start point of `git checkout -b` in the detached pass.
+  CUR_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+  BASE_REF="$(resolve_base "$CUR_REF")"
+  [ "$BASE_REF" != "$CUR_REF" ] && \
+    echo "note: HEAD ($CUR_REF) is a prior rralph branch — forking this run from '$BASE_REF' so runs don't stack." >&2
+  printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge + detached checkout
 
   PROVIDER_NOTE=""
   [ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
@@ -170,7 +204,7 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
 
 RPIV pipeline kickoff
   FRD:      $FRD
-  branch:   $BRANCH (fresh, from $ORIG_REF)
+  branch:   $BRANCH (fresh, from $BASE_REF)
   engine:   interactive $ENGINE via tmux (fresh session per step)
   model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
@@ -247,7 +281,9 @@ on_signal() { exit 130; }
 trap on_signal INT TERM HUP
 trap cleanup EXIT
 
-git checkout -b "$BRANCH"
+# Fork explicitly from the resolved base (ORIG_REF, read from .base) rather than
+# whatever HEAD happens to be — keeps runs off each other's branches.
+git checkout -b "$BRANCH" "$ORIG_REF"
 BRANCH_CREATED=1
 
 # run_skill <step-name> <message-to-paste> [timeout-seconds]
@@ -364,6 +400,34 @@ require_artifact() {
   [ -n "$path" ] || { echo "error: $type produced no artifact this run; halting." >&2; exit 1; }
 }
 
+# Final verdict block (lands in driver.log via the tee above). A fire-and-forget
+# run can finish "ok" yet still be needs_changes, so surface the code-review
+# status/severity and validate's follow-up signal instead of burying them.
+run_summary() {
+  local rv st sev
+  echo
+  echo "═══════════════════ run summary ═══════════════════"
+  echo "branch:   $BRANCH   (forked from $ORIG_REF)"
+  rv="$(newest_since .rpiv/artifacts/reviews)"
+  if [ -n "$rv" ]; then
+    st="$(sed -n 's/^status:[[:space:]]*//p' "$rv" | head -1)"
+    sev="$(sed -n 's/^severity:[[:space:]]*//p' "$rv" | head -1)"
+    echo "review:   ${st:-?}   ${sev:-}"
+    echo "          $rv"
+  else
+    echo "review:   no review artifact found — see code-review.log"
+  fi
+  if grep -qiE 'needs_changes|re-run /validate|skip.*/commit' "$LOGDIR/validate.log" 2>/dev/null; then
+    echo "validate: flagged follow-ups — see validate.log"
+  else
+    echo "validate: see validate.log"
+  fi
+  echo
+  echo "next:     review the findings, then \`rpiv-merge\` when satisfied."
+  echo "          rralph is ungated — it commits even when review says needs_changes."
+  echo "═══════════════════════════════════════════════════"
+}
+
 # Between each generative step, gap-sweep the artifact it produced: a fresh
 # session sweeps for CRITICAL gaps only, fixes them in place, and continues.
 # Not a quality gate — it never blocks; it improves the artifact and moves on.
@@ -393,3 +457,4 @@ run_skill commit "/commit commit all changes on the current branch with a clear 
 echo
 echo "done. pipeline complete on branch $BRANCH"
 echo "review: git log --oneline -n 20 ; git show --stat"
+run_summary

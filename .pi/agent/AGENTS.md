@@ -162,3 +162,20 @@ If root has 25+ items or many loose scripts/docs:
 2. Suggest organizing into appropriate directories
 3. Offer to help reorganize
 
+## Parallel Web Search
+
+When the user wants multiple web searches from **different angles** (not just more results for one query), prefer spawning background sub-agents rather than sequential `web_search` calls.
+
+**Why:** Each sub-agent runs in its own isolated context, so searches don't bleed into each other. Results are collected and synthesized after all agents finish.
+
+**How:** Use the `Agent` tool with `run_in_background: true`. Launch one agent per search angle, each with a distinct query. After they complete, use `get_subagent_result` to collect and synthesize.
+
+**Example pattern:**
+- Agent 1: "Search for X from technical perspective"
+- Agent 2: "Search for X from business/cost perspective"
+- Agent 3: "Search for X recent news and updates"
+
+Then collect and synthesize.
+
+**Exception:** For a single query with higher `max_results`, just use one `web_search` call. Reserve sub-agents for genuinely different angles.
+
