@@ -79,7 +79,7 @@ Before broad repo inspection, prefer compact helper scripts when present:
 - `scripts/ai/summarize_json.py` — compact package/config JSON summary
 - `scripts/ai/scan_errors.py` / `compact_logs.py` — error-focused log views
 
-Use these first to reduce token usage, then read only the specific files needed. Pi uses this Claude setup too, so keep this guidance in `CLAUDE.md` rather than harness-specific config.
+Use these first to reduce token usage, then read only the specific files needed. Script output is a map, not source of truth: verify claims by reading targeted files before editing or making project claims. Pi uses this Claude setup too, so keep this guidance in `CLAUDE.md` rather than harness-specific config.
 
 ---
 

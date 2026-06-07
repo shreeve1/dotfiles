@@ -16,7 +16,7 @@ Let the model search the web and read pages. `rpiv-web-tools` adds `web_search` 
 
 - **Seven pluggable providers** - Brave, Tavily, Serper, Exa, Jina, Firecrawl, and self-hosted SearXNG. Pick one as the active backend; switch any time without losing the others' keys.
 - **Per-provider fetch strategy** - Brave, Serper, and SearXNG read the URL directly and strip HTML to text; Tavily/Exa/Jina/Firecrawl use their native extraction endpoints (markdown for Jina/Firecrawl, plain text for Tavily/Exa).
-- **Read any URL** - fetch http/https pages with HTML-to-text extraction, or get the raw response with `raw: true` (honoured by Brave/Serper; extraction providers always return their parsed text).
+- **Read any URL** - fetch http/https pages with HTML-to-text extraction, or get the raw response with `raw: true` (all providers honour it; extraction providers fall back to direct HTTP when raw is requested).
 - **Large-page spillover** - oversized responses truncate inline and spill the full body to a temp file the model can read on demand.
 - **SSRF guard** - refuses loopback, RFC 1918, link-local, and cloud-metadata addresses (`localhost`, `127.0.0.0/8`, `10.0.0.0/8`, `169.254.0.0/16`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`).
 - **Interactive setup** - `/web-search-config` lists providers (active one first, configured ones marked) and writes to `~/.config/rpiv-web-tools/config.json` (chmod 0600); per-provider env vars also work and take precedence over persisted keys.
@@ -34,8 +34,9 @@ Then restart your Pi session.
 - **`web_search`** - query the active provider's search API and return titled snippets.
   1–10 results per call.
 - **`web_fetch`** - fetch an http/https URL through the active provider's content path
-  (raw HTTP+htmlToText for Brave/Serper; native extraction for Tavily/Exa/Jina/Firecrawl),
+  (raw HTTP+htmlToText for Brave/Serper/SearXNG; native extraction for Tavily/Exa/Jina/Firecrawl),
   truncate large responses with a temp-file spill for the full content.
+  Pass `raw: true` to bypass extraction and return the raw response from any provider.
 
 ### Schema - `web_search`
 
@@ -171,9 +172,15 @@ Override the `promptSnippet` / `promptGuidelines` the model sees for each tool b
 
 Each field is independent: omit one and the built-in default is kept. Invalid values (empty string, wrong type, empty array) silently fall back to defaults. Changes take effect on the next Pi session start.
 
-## Security note: `web_fetch` host guard
+## Security notes
 
-`web_fetch` refuses URLs targeting loopback (`localhost`, `127.0.0.0/8`, `::1`), RFC 1918 private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`, including cloud-metadata at `169.254.169.254`), and IPv6 unique-local / link-local (`fc00::/7`, `fe80::/10`). Attempts surface as `Refusing to fetch private/loopback address: <host>`. This blocks the most common SSRF class — direct-literal targeting of internal services or cloud-metadata endpoints — without preventing legitimate public-web fetches.
+### API key storage
+
+API keys are stored **plaintext** in `~/.config/rpiv-web-tools/config.json` (chmod `0600`). This is standard for local CLI tooling — the file is readable only by your user. For shared or untrusted environments, prefer per-provider environment variables (`BRAVE_SEARCH_API_KEY`, etc.) which never hit disk.
+
+### `web_fetch` host guard
+
+`web_fetch` refuses URLs targeting loopback (`localhost`, `127.0.0.0/8`, `::1`), RFC 1918 private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`, including cloud-metadata at `169.254.169.254`), and IPv6 unique-local / link-local (`fc00::/7`, `fe80::/10`). Attempts surface as `Refusing to fetch private/loopback address: <host>`. URL-encoded hostnames are decoded before validation.
 
 The guard is host-literal only; it does NOT resolve DNS or validate redirects. A public hostname that resolves to a private IP, or a public URL that 302-redirects to one, will still reach the target. For untrusted automation environments, layer an egress proxy or firewall on top.
 

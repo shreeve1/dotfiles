@@ -1,4 +1,10 @@
-import type { FetchResponse, SearchProvider, SearchResponse, SearchResult } from "./types.js";
+import { fetchDirectHttp, truncateErrorBody } from "./fetch-helpers.js";
+import type {
+	FetchResponse,
+	SearchProvider,
+	SearchResponse,
+	SearchResult,
+} from "./types.js";
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
 const TAVILY_EXTRACT_API_URL = "https://api.tavily.com/extract";
@@ -46,16 +52,24 @@ export class TavilyProvider implements SearchProvider {
 
 	constructor(private readonly apiKey: string) {}
 
-	async search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse> {
+	async search(
+		query: string,
+		maxResults: number,
+		signal?: AbortSignal,
+	): Promise<SearchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
 		}
 
 		const res = await fetch(TAVILY_API_URL, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.apiKey}`,
+			},
 			body: JSON.stringify({
-				api_key: this.apiKey,
 				query,
 				max_results: maxResults,
 			}),
@@ -63,21 +77,32 @@ export class TavilyProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
-			throw new Error(`${this.label} Search API error (${res.status}): ${text}`);
+			const text = truncateErrorBody(await res.text());
+			throw new Error(
+				`${this.label} Search API error (${res.status}): ${text}`,
+			);
 		}
 
 		const raw = (await res.json()) as TavilyRawResponse;
 		return { query, results: normalizeTavilyResults(raw.results ?? []) };
 	}
 
-	async fetch(url: string, _raw: boolean, signal?: AbortSignal): Promise<FetchResponse> {
+	async fetch(
+		url: string,
+		raw: boolean,
+		signal?: AbortSignal,
+	): Promise<FetchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
 		}
 
-		// Bearer header per current Tavily docs. Existing search() above still
-		// sends `api_key` in body (legacy form Tavily continues to accept).
+		// When raw is true, fall back to direct HTTP fetch (same pipeline as Brave/Serper).
+		if (raw) {
+			return fetchDirectHttp(url, raw, signal);
+		}
+
 		const res = await fetch(TAVILY_EXTRACT_API_URL, {
 			method: "POST",
 			headers: {
@@ -91,7 +116,7 @@ export class TavilyProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
+			const text = truncateErrorBody(await res.text());
 			throw new Error(`${this.label} Fetch API error (${res.status}): ${text}`);
 		}
 
@@ -106,7 +131,9 @@ export class TavilyProvider implements SearchProvider {
 
 		const result = data.results?.[0];
 		if (!result?.raw_content) {
-			throw new Error(`${this.label} Fetch API error: no content returned for ${url}`);
+			throw new Error(
+				`${this.label} Fetch API error: no content returned for ${url}`,
+			);
 		}
 
 		return {

@@ -1,4 +1,10 @@
-import type { FetchResponse, SearchProvider, SearchResponse, SearchResult } from "./types.js";
+import { fetchDirectHttp, truncateErrorBody } from "./fetch-helpers.js";
+import type {
+	FetchResponse,
+	SearchProvider,
+	SearchResponse,
+	SearchResult,
+} from "./types.js";
 
 const FIRECRAWL_API_URL = "https://api.firecrawl.dev/v1";
 export const FIRECRAWL_API_KEY_ENV_VAR = "FIRECRAWL_API_KEY";
@@ -35,7 +41,9 @@ interface FirecrawlScrapeResponse {
 	error?: string;
 }
 
-function normalizeFirecrawlResults(results: FirecrawlSearchResult[]): SearchResult[] {
+function normalizeFirecrawlResults(
+	results: FirecrawlSearchResult[],
+): SearchResult[] {
 	return results.map((r) => ({
 		title: r.title ?? "",
 		url: r.url ?? "",
@@ -50,9 +58,15 @@ export class FirecrawlProvider implements SearchProvider {
 
 	constructor(private readonly apiKey: string) {}
 
-	async search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse> {
+	async search(
+		query: string,
+		maxResults: number,
+		signal?: AbortSignal,
+	): Promise<SearchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
 		}
 
 		const res = await fetch(`${FIRECRAWL_API_URL}/search`, {
@@ -69,17 +83,30 @@ export class FirecrawlProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
-			throw new Error(`${this.label} Search API error (${res.status}): ${text}`);
+			const text = truncateErrorBody(await res.text());
+			throw new Error(
+				`${this.label} Search API error (${res.status}): ${text}`,
+			);
 		}
 
-		const raw = (await res.json()) as FirecrawlSearchResponse;
-		return { query, results: normalizeFirecrawlResults(raw.data ?? []) };
+		const body = (await res.json()) as FirecrawlSearchResponse;
+		return { query, results: normalizeFirecrawlResults(body.data ?? []) };
 	}
 
-	async fetch(url: string, _raw: boolean, signal?: AbortSignal): Promise<FetchResponse> {
+	async fetch(
+		url: string,
+		raw: boolean,
+		signal?: AbortSignal,
+	): Promise<FetchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
+		}
+
+		// When raw is true, fall back to direct HTTP fetch (same pipeline as Brave/Serper).
+		if (raw) {
+			return fetchDirectHttp(url, raw, signal);
 		}
 
 		const res = await fetch(`${FIRECRAWL_API_URL}/scrape`, {
@@ -96,23 +123,27 @@ export class FirecrawlProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
+			const text = truncateErrorBody(await res.text());
 			throw new Error(`${this.label} Fetch API error (${res.status}): ${text}`);
 		}
 
-		const raw = (await res.json()) as FirecrawlScrapeResponse;
+		const body = (await res.json()) as FirecrawlScrapeResponse;
 
-		if (!raw.success) {
-			throw new Error(`${this.label} Fetch API error: ${raw.error ?? "scrape failed"}`);
+		if (!body.success) {
+			throw new Error(
+				`${this.label} Fetch API error: ${body.error ?? "scrape failed"}`,
+			);
 		}
 
-		if (!raw.data?.markdown) {
-			throw new Error(`${this.label} Fetch API error: no content returned for ${url}`);
+		if (!body.data?.markdown) {
+			throw new Error(
+				`${this.label} Fetch API error: no content returned for ${url}`,
+			);
 		}
 
 		return {
-			text: raw.data.markdown,
-			title: raw.data.metadata?.title || undefined,
+			text: body.data.markdown,
+			title: body.data.metadata?.title || undefined,
 			contentType: "text/markdown",
 		};
 	}

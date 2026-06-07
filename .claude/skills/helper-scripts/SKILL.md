@@ -3,7 +3,7 @@ name: helper-scripts
 description: Set up repo-local agent helper scripts that emit compact context for Claude Code/Pi/OpenCode. Use when the user asks to reduce token usage during repo inspection, install AI helper scripts, bootstrap scripts/ai, create repo_summary.py/extract_imports.py/etc., or prepare a local repo for agent work.
 ---
 
-# Repo Agent Tools
+# Helper Scripts
 
 Install small repo-local helper scripts so agents can inspect a project through compact, repeatable summaries instead of repeatedly reading large files.
 
@@ -56,10 +56,10 @@ Rules:
 
 Update target repo `CLAUDE.md`:
 
-- If missing, create it.
+- If missing, create it only when no global helper-script guidance applies.
 - If present, read it first and append only if no equivalent helper-script guidance exists.
-- If a global `~/.claude/CLAUDE.md` already carries the "Agent Helper Scripts" guidance, skip the local copy — global covers it. Only add locally when no global guidance applies.
-- Add this section:
+- If a global `~/.claude/CLAUDE.md` already carries the "Agent Helper Scripts" guidance, skip the local copy — global covers it.
+- When local guidance is needed, add this section:
 
 ```markdown
 ## Agent Helper Scripts

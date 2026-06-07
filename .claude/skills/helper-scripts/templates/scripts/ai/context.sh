@@ -48,6 +48,6 @@ for json in package.json tsconfig.json pyproject.json deno.json biome.json turbo
 	fi
 done
 
-if [ -d logs ] || find . -maxdepth 2 -type f \( -name '*.log' -o -name '*.err' \) | head -1 | grep -q .; then
+if [ -d logs ] || [ -n "$(find . -maxdepth 2 -type f \( -name '*.log' -o -name '*.err' \) -print -quit 2>/dev/null)" ]; then
 	run "Errors" "$PYTHON" "$SCRIPT_DIR/scan_errors.py" --root "$PWD" --limit 80
 fi
