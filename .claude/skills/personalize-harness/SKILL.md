@@ -149,7 +149,7 @@ One question at a time via `AskUserQuestion`. Only offer hooks whose tools are p
 - **Q4** — Block Bash patterns? Free-text list (one pattern per line), or skip.
 - **Q5** — Reinject context on SessionStart=compact? Use the **three-option pattern** below (auto-draft reads `<project>/CLAUDE.md` or README.md).
 - **Q6** — Lint on Edit? Offer only if at least one supported lint tool is detected (`have:eslint` / `have-local:eslint` / `have:ruff`). Lead = "skip (Recommended)".
-- **Q7** — Stop-hook quality checkpoint (`type: prompt`)? Lead = "skip (Recommended)" — costs tokens, low ROI. **Always ask** even when the lead is skip — the user must make this call explicitly. Don't drop the question because the recommendation is skip.
+- **Q7** — Stop-hook quality checkpoint? Lead = "skip (Recommended)" — fires on **every** assistant Stop, injecting the self-review prompt before the model is allowed to stop. Token-heavy on short turns. **Always ask** even when the lead is skip — the user must make this call explicitly. Don't drop the question because the recommendation is skip. If accepted, use the **three-option pattern** below (auto-draft / custom / skip) to gather the prompt body. Implemented as `type: "command"` shell script that emits `{decision:"block",reason:"..."}` JSON; bails on `stop_hook_active` to prevent infinite loops. See `stop-quality-check.sh` template in Step 4.
 
 Walk sequentially. Skip Qs whose hook is already present (record as `existing` for Step 5).
 
@@ -327,30 +327,79 @@ done
 exit 0
 ```
 
+**`stop-quality-check.sh`** — Stop, no matcher. Inferential checkpoint via `decision: block` JSON output. Fires on every Stop; gated by `stop_hook_active` to prevent infinite loops:
+
+```bash
+#!/usr/bin/env bash
+# stop-quality-check — self-review checkpoint before stop.
+# Emits decision:block JSON so the model gets the prompt as next-turn context
+# and must continue (no extra LLM call from Claude Code itself).
+# Bails on stop_hook_active to avoid infinite loops on re-trigger.
+set -u
+
+input=$(cat)
+if printf '%s' "$input" | jq -e '.stop_hook_active // false' >/dev/null 2>&1; then
+  exit 0
+fi
+
+reason=$(cat <<'STOP_PROMPT_EOF'
+<STOP_PROMPT_FROM_INTERVIEW>
+STOP_PROMPT_EOF
+)
+jq -n --arg reason "$reason" '{decision: "block", reason: $reason}'
+```
+
+Why this shape (not `cat <<'JSON'` with the JSON inline): user prompt text can contain `"`, newlines, or the literal word `JSON`. The first two produce invalid hook JSON; the third terminates the heredoc early. Capturing the prompt body in a quoted heredoc with a unique sentinel (`STOP_PROMPT_EOF`) preserves it verbatim, then `jq -n --arg` does the JSON-safe escaping. Pick a heredoc tag unlikely to appear at start-of-line in the user's prompt.
+
+**Default auto-draft for `<STOP_PROMPT_FROM_INTERVIEW>`** (keep to ONE line — fires every stop):
+
+```
+Self-review: every change traces to the request, tests pass, no dead code/debug prints. If yes, stop.
+```
+
 After writing each script: `chmod +x` it.
 
 #### Settings merge (jq)
 
-Idempotent merge — wraps `.hooks[]?.command` collection in an array before `index` so dedup actually fires (a raw stream is never matched by `index`):
+Idempotent merge — wraps `.hooks[]?.command` collection in an array before `index` so dedup actually fires (a raw stream is never matched by `index`).
+
+**Matcherless events** (`Stop`, `Notification`, `SubagentStop`, `PreCompact`) have no matcher concept in Claude Code; the `matcher` field MUST be omitted from those entries (writing `"matcher": ""` is misleading noise). Dispatched by event name:
 
 ```bash
 merge_hook() {
   local file="$1" event="$2" matcher="$3" command="$4"
   local tmp; tmp=$(mktemp)
-  if [ ! -f "$file" ]; then echo '{}' > "$file"; fi
-  jq --arg event "$event" --arg matcher "$matcher" --arg cmd "$command" '
-    .hooks //= {} |
-    .hooks[$event] //= [] |
-    ([ .hooks[$event][] | select(.matcher == $matcher) | .hooks[]?.command ]) as $existing |
-    if ($existing | index($cmd)) then
-      .
-    else
-      .hooks[$event] += [{
-        matcher: $matcher,
-        hooks: [{ type: "command", command: $cmd }]
-      }]
-    end
-  ' "$file" > "$tmp"
+  [ -f "$file" ] || echo '{}' > "$file"
+
+  case "$event" in
+    Stop|Notification|SubagentStop|PreCompact)
+      # Matcherless: omit matcher field; dedup by (event, command).
+      jq --arg event "$event" --arg cmd "$command" '
+        .hooks //= {} |
+        .hooks[$event] //= [] |
+        ([ .hooks[$event][] | .hooks[]?.command ]) as $existing |
+        if ($existing | index($cmd)) then
+          .
+        else
+          .hooks[$event] += [{ hooks: [{ type: "command", command: $cmd }] }]
+        end
+      ' "$file" > "$tmp"
+      ;;
+    *)
+      # Matchered: dedup by (event, matcher, command).
+      jq --arg event "$event" --arg matcher "$matcher" --arg cmd "$command" '
+        .hooks //= {} |
+        .hooks[$event] //= [] |
+        ([ .hooks[$event][] | select(.matcher == $matcher) | .hooks[]?.command ]) as $existing |
+        if ($existing | index($cmd)) then
+          .
+        else
+          .hooks[$event] += [{ matcher: $matcher, hooks: [{ type: "command", command: $cmd }] }]
+        end
+      ' "$file" > "$tmp"
+      ;;
+  esac
+
   if jq -e . "$tmp" >/dev/null 2>&1; then
     mv "$tmp" "$file"
   else
@@ -375,6 +424,7 @@ Command-path conventions:
 | `lint-on-edit.sh` | `PostToolUse` | `Edit\|Write\|MultiEdit` |
 | `reinject-rules.sh` | `SessionStart` | `compact` |
 | `block-bash-pattern.sh` | `PreToolUse` | `Bash` |
+| `stop-quality-check.sh` | `Stop` | _(none — matcherless event)_ |
 
 ### Step 5: Verify
 
@@ -407,6 +457,8 @@ Command-path conventions:
 - **Hooks run in parallel** on the same event — don't write hooks that depend on each other's order.
 - **`$CLAUDE_PROJECT_DIR` for project, `~` for global** (matches Claude Code's path-resolution conventions for hook commands).
 - **Matcher includes `MultiEdit`.** Claude Code uses MultiEdit constantly; omitting it silently skips most multi-line edits.
+- **Matcherless events omit the `matcher` field.** `Stop`, `Notification`, `SubagentStop`, and `PreCompact` have no matcher concept — the merge function dispatches by event name to drop the field, since writing `"matcher": ""` is misleading noise.
+- **Stop hook fires every Stop.** The `decision: block` JSON output injects the self-review prompt as next-turn context every time the model tries to stop. The `stop_hook_active` guard prevents infinite loops, but the first Stop of every reply still pays the cost. Default is skip — enable only when post-edit self-review is worth the per-turn token overhead.
 - **Don't replace existing hooks.** Any prior hooks already wired into `settings.json` must stay intact. The merge appends; never overwrites.
 - **Global = two files.** `dotfiles/.claude/settings.json.template` (committed; new machines) AND live `~/.claude/settings.json` (effective now). Hook scripts go to the dotfiles repo (symlinked live by `install.sh`).
 - **Global symlink check.** Step 1 warns if `~/.claude/hooks` doesn't resolve to `dotfiles/.claude/hooks`. Writes still land in dotfiles; user must run `install.sh` to make them live.
