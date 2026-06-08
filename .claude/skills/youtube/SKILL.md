@@ -282,7 +282,7 @@ obvious to a human reader which gaps remain.}
 
 ### Step 7: Present and Hand Off
 
-Print a short caveman-style summary, then a footer pointing at both artifacts:
+Print a short summary, then a footer pointing at both artifacts:
 
 ```
 Pulled: {title}
@@ -298,7 +298,7 @@ Verdict (web research): {Real / Partially real / Overstated / Fabricated}
 Primary sources unreachable: {N} (see web-research.md → Primary Sources Attempted)
 ```
 
-User-facing summary follows global caveman rules (see `.claude/CLAUDE.md`). The two artifact files themselves are written in normal prose so they read cleanly when opened standalone.
+User-facing summary is terse. The two artifact files themselves are written in normal prose so they read cleanly when opened standalone.
 
 ## Important Notes
 
