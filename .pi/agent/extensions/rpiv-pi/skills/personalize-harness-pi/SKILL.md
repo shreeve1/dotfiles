@@ -1,50 +1,177 @@
 ---
 name: personalize-harness-pi
-description: Generate a project-local Pi personal harness extension from a research Harness Profile artifact. Reads explicit selected/skipped profile entries, writes .pi/extensions/personal-harness.ts, and runs load/dry verification.
-argument-hint: "[.rpiv/artifacts/research/*.md]"
-allowed-tools: Read, Write, Bash(*), Grep, Glob
-disable-model-invocation: true
+description: Analyze a project, research current harness best practices, synthesize a Harness Profile, then generate and verify a project-local Pi personal harness extension at .pi/extensions/personal-harness.ts. Also supports reusing an existing Harness Profile artifact.
+argument-hint: "[--profile-only] [--no-web] [target-path | .rpiv/artifacts/research/*.md]"
+allowed-tools: Agent, Read, Write, Bash(*), Grep, Glob
 shell-timeout: 60
 ---
 
 # Personalize Harness Pi
 
-Generate a project-local Pi extension from a completed harness-profile research artifact. This is Pi-native: no Claude hook JSON, no shell hook settings, no global Pi settings edits from the generator.
+Analyze a project, research current harness best practices, synthesize a Harness Profile, then generate a project-local Pi extension from that profile. This is Pi-native: no Claude hook JSON, no shell hook settings, no global Pi settings edits from the generator.
+
+This skill owns the research phase. Do **not** tell the user to run `/skill:research` as a prerequisite. Reuse an existing Harness Profile artifact only when the user explicitly passes one.
 
 ## Input
 
-`$ARGUMENTS` — path to a completed `.rpiv/artifacts/research/*.md` artifact containing `## Harness Profile`.
+`$ARGUMENTS` — optional flags and target:
+
+- empty — analyze current working directory, research best practices, write profile, generate extension
+- `<target-path>` — analyze that project root, research best practices, write profile, generate extension
+- `.rpiv/artifacts/research/*.md` — reuse an existing artifact containing `## Harness Profile`, then generate extension
+- `--profile-only` — analyze/research and write the Harness Profile artifact, but do not generate extension
+- `--no-web` — skip external web research and rely on local repo/tool evidence only
 
 ## Metadata
 
 ```!
+node "${SKILL_DIR}/../_shared/now.mjs"
+echo
 node "${SKILL_DIR}/../_shared/git-context.mjs"
 echo
 node "${SKILL_DIR}/../_shared/list-recent.mjs" .rpiv/artifacts/research 4
 ```
 
-Use `root:` from metadata as default target repo if the profile omits `target_repo`. Use `author:` only for generated comments if needed.
+- `now.mjs` (line 1) — `<iso>\t<slug>` tab-separated. Use `<slug>` for a newly written profile artifact filename.
+- Use `root:` from metadata as default target repo when `$ARGUMENTS` omits a path.
+- Use `author:` for generated artifact frontmatter.
 
 ## Flow
 
-1. Resolve profile artifact → 2. Read and validate Harness Profile → 3. Build generated extension profile literal → 4. Write `.pi/extensions/personal-harness.ts` → 5. Verify load/dry checks → 6. Report generated path and skipped sensors
+1. Resolve mode and target → 2. Analyze repo → 3. Research best practices → 4. Synthesize/write Harness Profile → 5. Validate Harness Profile → 6. Build generated extension profile literal → 7. Write `.pi/extensions/personal-harness.ts` → 8. Verify load/dry checks → 9. Report generated path and skipped sensors
 
-## Step 1: Resolve profile artifact
+## Step 1: Resolve mode and target
 
-1. If `$ARGUMENTS` contains a path under `.rpiv/artifacts/research/` ending in `.md`, read it fully.
-2. If `$ARGUMENTS` is empty, choose the newest recent research artifact whose filename or topic contains `personalize-harness-pi`.
-3. If no artifact is available, stop with:
+1. Parse flags:
+   - `--profile-only` means stop after Step 4.
+   - `--no-web` means skip external web research in Step 3 and record that skip.
+2. If `$ARGUMENTS` contains a path under `.rpiv/artifacts/research/` ending in `.md`, run in **reuse mode**:
+   - Read the artifact fully.
+   - Confirm frontmatter has `status: complete` or `status: ready`.
+   - Confirm it contains `## Harness Profile`.
+   - Skip Steps 2-4 and proceed to Step 5.
+3. Otherwise run in **facilitator mode**:
+   - Resolve target repo from the remaining path argument, or metadata `root:` if no path was provided.
+   - Target repo must resolve to an absolute directory.
+   - Create `.rpiv/artifacts/research/` if missing before writing the profile artifact.
 
-   ```text
-   No personalize-harness-pi research artifact found. Run /research from the discover artifact first.
-   ```
+## Step 2: Analyze repo
 
-4. Confirm the artifact frontmatter has `status: complete` or `status: ready`.
-5. Confirm the artifact contains `## Harness Profile`.
+Treat the codebase as the primary source of truth. Do not ask the user to run another skill.
 
-## Step 2: Validate Harness Profile
+Run local probes from `<target_repo>`:
 
-Treat the Harness Profile as the source of truth. Do not probe tools or invent commands during generation.
+```bash
+pwd
+git rev-parse --show-toplevel 2>/dev/null || true
+git status --short 2>/dev/null || true
+find . -maxdepth 3 \( -name 'package.json' -o -name 'tsconfig.json' -o -name 'pyproject.toml' -o -name 'go.mod' -o -name 'Cargo.toml' -o -name 'deno.json' -o -name 'biome.json' -o -name 'eslint.config.*' -o -name '.eslintrc*' -o -name 'prettier.config.*' -o -name '.prettierrc*' -o -name 'AGENTS.md' -o -name 'CLAUDE.md' -o -name 'architecture.md' \) -not -path './node_modules/*' -not -path './.git/*' | sort
+find . -maxdepth 4 -path './.rpiv/guidance/*/architecture.md' -o -path './.rpiv/guidance/architecture.md' 2>/dev/null | sort
+for t in jq node npm pnpm yarn bun npx prettier eslint biome ruff black shfmt gofmt rustfmt shellcheck; do command -v "$t" >/dev/null 2>&1 && echo "have:$t=$(command -v "$t")" || echo "miss:$t"; done
+[ -x ./node_modules/.bin/prettier ] && echo "have-local:prettier=./node_modules/.bin/prettier"
+[ -x ./node_modules/.bin/eslint ] && echo "have-local:eslint=./node_modules/.bin/eslint"
+[ -x ./node_modules/.bin/biome ] && echo "have-local:biome=./node_modules/.bin/biome"
+git ls-files '*.ts' '*.tsx' '*.js' '*.mjs' '*.cjs' '*.json' '*.sh' '*.bash' '*.zsh' '*.py' '*.go' '*.rs' '*.md' 2>/dev/null | sed 's/.*\.//' | sort | uniq -c || true
+```
+
+Read relevant manifests/config files found by the probe. If `<target_repo>` differs from the session cwd, read files using absolute paths under `<target_repo>`. For large repos, read only top-level manifests and tool configs first.
+
+Spawn at least one `codebase-analyzer` agent to inspect harness-relevant repo shape. Paste the local probe output into the agent prompt:
+
+```text
+Analyze this repo for a Pi personal harness profile. Use <target_repo> as root; cite files relative to that root. Identify languages, package/tool configs, existing agent guidance locations, likely write/edit file types, and safe syntax/formatter/lint commands. Return selected/skipped/not_detected recommendations with evidence from files and command probes. Do not write files.
+Target repo: <target_repo>
+Probe output:
+<probe output>
+```
+
+If `.pi/`, `.rpiv/guidance/`, or existing extension files exist, spawn `integration-scanner` to map how guidance and Pi extension surfaces are wired.
+
+## Step 3: Research best practices
+
+Unless `--no-web` is set, spawn one `web-search-researcher` agent in parallel with codebase analysis or immediately after probes:
+
+```text
+Research current best practices for lightweight AI-agent edit harnesses in 2026. Focus on syntax gates, formatter posture, lint posture, touched-file guidance, git preflight reminders, and Pi/Claude-style tool middleware safety. For each detected stack from the repo probe (<languages/tools>), recommend concrete commands only when they are standard and safe. Prefer primary docs for Node --check, jq, bash -n, Prettier, ESLint/Biome, Ruff/Black, shfmt/shellcheck, gofmt, rustfmt. Include URLs and note when a check should be blocking vs advisory.
+```
+
+If web search is unavailable or skipped, continue with local evidence and record `web_best_practices: skipped — --no-web set or web search unavailable` in the profile.
+
+## Step 4: Synthesize and write Harness Profile
+
+Merge local probes, analysis agents, and web-best-practice findings into a Harness Profile artifact. The profile is both audit trail and generator input.
+
+Rules:
+
+1. Prefer repo evidence over generic best practices.
+2. Mark a command `selected` only when the tool exists in PATH or repo-local `node_modules/.bin`, and the command is safe for touched-file execution.
+3. Mark unavailable tools `not_detected` with reason.
+4. Mark plausible but intentionally omitted tools `skipped` with reason.
+5. Syntax checks default to `blocking`.
+6. Formatters default to fail-open.
+7. Lint defaults to advisory unless the repo already enforces it cleanly and profile explicitly says `blocking`.
+8. Preserve all selected/skipped/not_detected reasons.
+9. Include write-capable tools that can be gated (`write`, `edit`, `ast_grep_replace` with `apply: true`) and skipped reasons for write-capable tools that do not expose per-file paths.
+
+Write artifact:
+
+```text
+.rpiv/artifacts/research/<slug>_personalize-harness-pi.md
+```
+
+Required artifact shape:
+
+```markdown
+---
+date: <iso>
+author: <author>
+repository: <repo-name>
+topic: "personalize-harness-pi"
+tags: [research, codebase, pi, harness]
+status: complete
+---
+
+# Research: personalize-harness-pi
+
+## Summary
+<repo analysis + best-practice synthesis>
+
+## Local Probe Evidence
+<commands/files/tool detection, with file refs where applicable>
+
+## External Best-Practice Findings
+<web findings or skipped reason>
+
+## Harness Profile
+
+### Profile Metadata
+
+### Detected Languages and Tools
+
+### Syntax Check Commands
+
+### Formatter Commands
+
+### Lint Commands
+
+### Touched-File Guidance Locations
+
+### Prompt Advisories
+
+### Git Preflight Reminders
+
+### Blocking and Advisory Posture
+
+### Smoke-Test Commands
+```
+
+Then continue using this newly written artifact as the Harness Profile source unless `--profile-only` was set.
+
+If `--profile-only` was set, report the artifact path and stop.
+
+## Step 5: Validate Harness Profile
+
+Treat the Harness Profile as the source of truth after Step 4. Do not probe tools or invent commands during generation.
 
 Required profile groups:
 
@@ -76,7 +203,7 @@ Validation rules:
 
 Stop on validation failure with a concise list of missing or contradictory profile fields. Do not continue with guessed defaults.
 
-## Step 3: Build generated extension profile literal
+## Step 6: Build generated extension profile literal
 
 Translate selected/skipped profile entries into this TypeScript object shape. Include skipped reasons so the generated extension and final report stay inspectable.
 
@@ -139,14 +266,15 @@ Command translation rules:
 
 For the current dotfiles profile, generated profile should include JSON, JavaScript, and shell syntax checks; no formatter or lint checks; no guidance files; selected prompt advisories; advisory git reminder; selected load/isolated/syntax/guidance smoke tests; skipped reasons for unavailable formatter/lint/guidance tools.
 
-## Step 4: Write `.pi/extensions/personal-harness.ts`
+## Step 7: Write `.pi/extensions/personal-harness.ts`
 
 1. Create `<target_repo>/.pi/extensions/` if missing.
 2. If `personal-harness.ts` exists and contains `Generated by personalize-harness-pi`, back it up to `personal-harness.ts-bak-<UTC-stamp>` before overwriting.
 3. If `personal-harness.ts` exists and lacks that marker, stop and report that a human-owned extension already exists.
-4. Write this generated extension with `PROFILE` replaced by the complete generated profile literal from Step 3.
+4. Write this generated extension with `PROFILE` replaced by the complete generated profile literal from Step 6.
 
 ```typescript
+// @ts-nocheck
 // Generated by personalize-harness-pi. Edit the Harness Profile artifact first, then regenerate.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -475,7 +603,7 @@ function wrapGuidance(label: string, content: string, trigger: string): string {
 }
 ```
 
-## Step 5: Verify
+## Step 8: Verify
 
 Run these checks from `<target_repo>` after writing the extension:
 
@@ -485,20 +613,27 @@ Run these checks from `<target_repo>` after writing the extension:
    test -f .pi/extensions/personal-harness.ts
    ```
 
-2. Generated marker and default export exist:
+2. Generated marker, type-check suppression, and default export exist:
 
    ```bash
+   grep -q "@ts-nocheck" .pi/extensions/personal-harness.ts
    grep -q "Generated by personalize-harness-pi" .pi/extensions/personal-harness.ts
    grep -q "export default function personalHarness" .pi/extensions/personal-harness.ts
    ```
 
-3. Load smoke when `PROFILE.smokeTests.loadSmoke` is true:
+3. Load smoke when `PROFILE.smokeTests.loadSmoke` is true. Use an offline load-only command so verification proves extension loading without hanging on model execution:
 
    ```bash
-   pi --no-session -e ./.pi/extensions/personal-harness.ts -p "harness load smoke test"
+   PI_OFFLINE=1 pi --no-session -e ./.pi/extensions/personal-harness.ts --list-models haiku >/dev/null
    ```
 
-4. Isolated load smoke when `PROFILE.smokeTests.isolatedLoadSmoke` is true:
+4. Isolated load smoke when `PROFILE.smokeTests.isolatedLoadSmoke` is true. Disable auto-discovered extensions and use offline load-only mode:
+
+   ```bash
+   PI_OFFLINE=1 pi --no-session --no-extensions -e ./.pi/extensions/personal-harness.ts --list-models haiku >/dev/null
+   ```
+
+   Optional prompt smoke may be run after load-only smoke passes, but a prompt timeout is inconclusive unless the output shows an extension import/runtime error:
 
    ```bash
    pi --no-session --no-extensions -e ./.pi/extensions/personal-harness.ts -p "harness load smoke test"
@@ -525,9 +660,11 @@ Run these checks from `<target_repo>` after writing the extension:
    - If profile has no guidance paths, report skipped reason and confirm no-op.
 
 Do not mark generation complete if selected guidance dry checks fail.
-Do not mark generation complete if load smoke fails. Formatter/lint dry checks may be skipped when profile marks tools `not_detected`; report those skipped reasons.
+Do not mark generation complete if offline load-only smoke fails. Formatter/lint dry checks may be skipped when profile marks tools `not_detected`; report those skipped reasons.
 
-## Step 6: Report
+If writing `.pi/extensions/personal-harness.ts` in a non-TypeScript repo triggers LSP diagnostics for Node/Pi type resolution, treat them as non-blocking when both load smokes pass. Do not install `@types/node`, add package manifests, or mutate target repo dependencies just to satisfy generated extension editor diagnostics.
+
+## Step 9: Report
 
 Print:
 
@@ -535,11 +672,13 @@ Print:
 personalize-harness-pi done.
 
 Generated:
+- <profile_artifact_path>
 - <target_repo>/.pi/extensions/personal-harness.ts
 
 Verification:
 - load smoke: pass|fail|skipped
 - isolated load smoke: pass|fail|skipped
+- prompt smoke: pass|fail|timeout|skipped
 - syntax dry checks: pass|fail|skipped
 - guidance dry: pass|fail|skipped
 
@@ -548,13 +687,13 @@ Skipped:
 
 Next:
 - Run /reload inside Pi in <target_repo>.
-- Edit the Harness Profile artifact first, then re-run this skill to regenerate.
+- Edit the Harness Profile artifact first, then re-run this skill to regenerate or pass the artifact path explicitly.
 ```
 
 ## Important Notes
 
-- Generated output is project-local. Do not edit `.pi/agent/settings.json`, `.pi/agent/settings.json.template`, or global package configuration during generation.
-- Do not probe tools or infer commands during generation; research/profile owns detection.
+- Generated output is project-local. Do not edit `.pi/agent/settings.json`, `.pi/agent/settings.json.template`, target package manifests, or global package configuration during generation.
+- Probe tools during facilitator mode only. During generation, do not probe tools or infer commands; the Harness Profile owns detection.
 - Preserve skipped/not-detected reasons in the generated profile literal and final report.
 - Back up only previously generated `personal-harness.ts`; stop before overwriting human-owned files.
 - Syntax checks are blocking by default because they are high signal.
