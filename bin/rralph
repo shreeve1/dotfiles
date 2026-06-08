@@ -42,14 +42,15 @@ MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = defaul
                                                #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
 PROVIDER="${RPIV_PROVIDER:-}"                  # pi only; empty = pi default provider
 BRANCH_PREFIX="${RPIV_BRANCH_PREFIX:-rpiv}"
-STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-2400}"          # seconds per step (40m)
-IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-7200}" # seconds for implement (2h)
+STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-5400}"          # seconds per step (90m)
+IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-10800}" # seconds for implement (3h)
 READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for engine TUI
 # Idle-UI marker; engine-specific default is set after flag parsing (see below).
 # claude: bypassPermissions always shows "bypass permissions on".
 # pi: the footer context meter "<n>%/<n>k" only renders once the TUI is live.
 # Override via RPIV_READY_PATTERN if a TUI footer changes.
 READY_PATTERN="${RPIV_READY_PATTERN:-}"
+FROM_STEP="${RPIV_FROM_STEP:-}"               # resume from this step (research|design|plan|implement|validate|code-review|commit)
 
 usage() {
   cat <<'EOF'
@@ -69,8 +70,16 @@ commands let you watch or kill the background driver.
 pattern (e.g. anthropic/claude-opus-4).
 -y/--yes is accepted for backward compatibility but is a no-op.
 
+--from <step> resumes a partial run: stays on the CURRENT branch (no fresh
+checkout), skips every step before <step>, and runs <step> onwards. Valid
+values: research, design, plan, implement, validate, code-review, commit.
+Upstream artifact for <step> is the newest file in its source directory
+(produced by the prior run); subsequent steps' artifacts are resolved against
+the new run's start marker as usual.
+
 env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_BRANCH_PREFIX
      RPIV_STEP_TIMEOUT RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
+     RPIV_FROM_STEP
 EOF
 }
 
@@ -80,6 +89,7 @@ while [ $# -gt 0 ]; do
     --engine)   ENGINE="$2"; shift ;;
     --model)    MODEL="$2"; shift ;;
     --provider) PROVIDER="$2"; shift ;;
+    --from)     FROM_STEP="$2"; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -89,6 +99,11 @@ done
 case "$ENGINE" in
   claude|pi) ;;
   *) echo "error: --engine must be 'claude' or 'pi' (got: $ENGINE)" >&2; exit 2 ;;
+esac
+
+case "$FROM_STEP" in
+  ""|research|design|plan|implement|validate|code-review|commit) ;;
+  *) echo "error: --from must be one of: research design plan implement validate code-review commit (got: $FROM_STEP)" >&2; exit 2 ;;
 esac
 
 # Engine-specific idle-UI readiness marker (unless overridden via RPIV_READY_PATTERN).
@@ -169,8 +184,14 @@ SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]
 # log dir match between the two passes.
 # ---------------------------------------------------------------------------
 if [ -z "${RPIV_DETACHED:-}" ]; then
-  if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
-    echo "error: branch $BRANCH already exists" >&2; exit 1
+  if [ -n "$FROM_STEP" ]; then
+    # Resume mode: reuse the CURRENT branch, no fresh checkout.
+    BRANCH="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+    [ -n "$BRANCH" ] || { echo "error: --from requires being on a branch (HEAD is detached)" >&2; exit 1; }
+  else
+    if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+      echo "error: branch $BRANCH already exists" >&2; exit 1
+    fi
   fi
   # The branch is not created until the detached pass, so a second launch in the
   # same wall-clock second would share TS/BRANCH/run dir. Reject it here:
@@ -188,23 +209,41 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
   grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
     || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
 
-  # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
-  # (default branch) so runs don't stack. Recorded in .base for rpiv-merge and
-  # used as the explicit start point of `git checkout -b` in the detached pass.
-  CUR_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
-  BASE_REF="$(resolve_base "$CUR_REF")"
-  [ "$BASE_REF" != "$CUR_REF" ] && \
-    echo "note: HEAD ($CUR_REF) is a prior rralph branch — forking this run from '$BASE_REF' so runs don't stack." >&2
-  printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge + detached checkout
+  if [ -n "$FROM_STEP" ]; then
+    # Resume mode: inherit the prior run's fork point so .base keeps naming the
+    # immutable kickoff base, not the moving branch tip. rpiv-merge reads
+    # .base from the ORIGINAL run dir (TS = branch suffix), so mirroring the
+    # value here is mostly for consistency, but it also keeps the contract that
+    # .base is always a stable ref a diff can be taken against.
+    ORIG_TS="${BRANCH#${BRANCH_PREFIX}/}"
+    BASE_REF="$(cat ".rpiv/run/$ORIG_TS/.base" 2>/dev/null || true)"
+    [ -n "$BASE_REF" ] || BASE_REF="$(resolve_base "$BRANCH")"
+    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"
+  else
+    # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
+    # (default branch) so runs don't stack. Recorded in .base for rpiv-merge and
+    # used as the explicit start point of `git checkout -b` in the detached pass.
+    CUR_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+    BASE_REF="$(resolve_base "$CUR_REF")"
+    [ "$BASE_REF" != "$CUR_REF" ] && \
+      echo "note: HEAD ($CUR_REF) is a prior rralph branch — forking this run from '$BASE_REF' so runs don't stack." >&2
+    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge + detached checkout
+  fi
 
   PROVIDER_NOTE=""
   [ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
+
+  if [ -n "$FROM_STEP" ]; then
+    BRANCH_DESC="$BRANCH (resume on current branch, from $FROM_STEP onwards)"
+  else
+    BRANCH_DESC="$BRANCH (fresh, from $BASE_REF)"
+  fi
 
   cat <<EOF
 
 RPIV pipeline kickoff
   FRD:      $FRD
-  branch:   $BRANCH (fresh, from $BASE_REF)
+  branch:   $BRANCH_DESC
   engine:   interactive $ENGINE via tmux (fresh session per step)
   model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
@@ -227,6 +266,8 @@ EOF
   reexec="$reexec $(printf 'RPIV_MODEL=%q' "$MODEL")"
   reexec="$reexec $(printf 'RPIV_PROVIDER=%q' "$PROVIDER")"
   reexec="$reexec $(printf 'RPIV_BRANCH_PREFIX=%q' "$BRANCH_PREFIX")"
+  reexec="$reexec $(printf 'RPIV_FROM_STEP=%q' "$FROM_STEP")"
+  reexec="$reexec $(printf 'RPIV_RESUME_BRANCH=%q' "$BRANCH")"
   reexec="$reexec $(printf '%q' "$SELF")"
 
   # Default tmux server (no -S). The driver's own output is mirrored to
@@ -281,10 +322,48 @@ on_signal() { exit 130; }
 trap on_signal INT TERM HUP
 trap cleanup EXIT
 
-# Fork explicitly from the resolved base (ORIG_REF, read from .base) rather than
-# whatever HEAD happens to be — keeps runs off each other's branches.
-git checkout -b "$BRANCH" "$ORIG_REF"
-BRANCH_CREATED=1
+if [ -n "$FROM_STEP" ]; then
+  # Resume mode: stay on the branch we were called from. No checkout, no branch
+  # creation; cleanup() therefore skips the "work left for inspection" hint since
+  # BRANCH_CREATED stays empty (the branch existed before this run).
+  BRANCH="${RPIV_RESUME_BRANCH:-$BRANCH}"
+  echo "resume: continuing on branch $BRANCH from step '$FROM_STEP'"
+else
+  # Fork explicitly from the resolved base (ORIG_REF, read from .base) rather than
+  # whatever HEAD happens to be — keeps runs off each other's branches.
+  git checkout -b "$BRANCH" "$ORIG_REF"
+  BRANCH_CREATED=1
+fi
+
+# Step gating for --from. REACHED stays empty until we hit FROM_STEP; gate() runs
+# the step only after REACHED is set. artifact_of() picks newest_since when the
+# producing step ran this run, falling back to plain newest when it was skipped
+# (the artifact comes from a prior run).
+REACHED=1
+[ -n "$FROM_STEP" ] && REACHED=
+
+gate() {
+  # gate <step-name> <message> [timeout] — runs the step or skips it.
+  local name="$1"; shift
+  if [ -z "$REACHED" ]; then
+    if [ "$name" = "$FROM_STEP" ]; then
+      REACHED=1
+    else
+      echo "skip: $name (resume from $FROM_STEP)"
+      return 0
+    fi
+  fi
+  run_skill "$name" "$@"
+}
+
+artifact_of() {
+  local dir="$1"
+  if [ -n "$REACHED" ]; then
+    newest_since "$dir"
+  else
+    newest "$dir"
+  fi
+}
 
 # run_skill <step-name> <message-to-paste> [timeout-seconds]
 run_skill() {
@@ -433,26 +512,26 @@ run_summary() {
 # Not a quality gate — it never blocks; it improves the artifact and moves on.
 # Sweeps target the explicit path captured below (in-place edits keep the path
 # stable). validate/code-review are themselves review steps, so no sweep there.
-run_skill sweep-frd "/gap-sweep $FRD frd" || exit 1
+gate sweep-frd "/gap-sweep $FRD frd" || exit 1
 
-run_skill research "/research $FRD" || exit 1
-RESEARCH="$(newest_since .rpiv/artifacts/research)"; require_artifact "$RESEARCH" research
-run_skill sweep-research "/gap-sweep $RESEARCH research" || exit 1
+gate research "/research $FRD" || exit 1
+RESEARCH="$(artifact_of .rpiv/artifacts/research)"; require_artifact "$RESEARCH" research
+gate sweep-research "/gap-sweep $RESEARCH research" || exit 1
 
-run_skill design "/design $RESEARCH" || exit 1
-DESIGN="$(newest_since .rpiv/artifacts/designs)"; require_artifact "$DESIGN" design
-run_skill sweep-design "/gap-sweep $DESIGN design" || exit 1
+gate design "/design $RESEARCH" || exit 1
+DESIGN="$(artifact_of .rpiv/artifacts/designs)"; require_artifact "$DESIGN" design
+gate sweep-design "/gap-sweep $DESIGN design" || exit 1
 
-run_skill plan "/plan $DESIGN" || exit 1
-PLAN="$(newest_since .rpiv/artifacts/plans)"; require_artifact "$PLAN" plan
-run_skill sweep-plan "/gap-sweep $PLAN plan" || exit 1
+gate plan "/plan $DESIGN" || exit 1
+PLAN="$(artifact_of .rpiv/artifacts/plans)"; require_artifact "$PLAN" plan
+gate sweep-plan "/gap-sweep $PLAN plan" || exit 1
 
-run_skill implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1
-run_skill sweep-code "/gap-sweep working code" "$IMPLEMENT_TIMEOUT" || exit 1
+gate implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1
+gate sweep-code "/gap-sweep working code" "$IMPLEMENT_TIMEOUT" || exit 1
 
-run_skill validate "/validate $PLAN" || exit 1
-run_skill code-review "/code-review working" || exit 1
-run_skill commit "/commit commit all changes on the current branch with a clear message; do NOT push and do NOT open a PR" || exit 1
+gate validate "/validate $PLAN" || exit 1
+gate code-review "/code-review working" || exit 1
+gate commit "/commit commit all changes on the current branch with a clear message; do NOT push and do NOT open a PR" || exit 1
 
 echo
 echo "done. pipeline complete on branch $BRANCH"

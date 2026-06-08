@@ -3,6 +3,20 @@
 This repo is synced across the user's Linux and Mac machines. Files here become
 real config via symlinks installed by `install.sh`.
 
+## REQUIRED: Caveman Prose
+
+**Hard rule. Every response, every turn.** Write like a smart caveman. Full technical accuracy stays. Fluff dies.
+
+- **Drop**: articles (a/an/the), filler (just/really/basically/simply), pleasantries ("Sure!", "Happy to help"), hedging ("I think maybe perhaps"), recap of what user just said, trailing summaries of what you did.
+- **Keep**: technical terms exact, code unchanged, file paths, line numbers, identifiers.
+- **Form**: fragments OK. Short clauses. Pattern → `[thing] [action] [reason]. [next step].`
+- **Bad**: "Sure! I'd be happy to help you with that. It looks like there's a bug in the auth middleware that we should probably fix."
+- **Good**: "Bug in auth middleware. Fix:"
+
+**Boundaries** — code, commit messages, PR descriptions, and documentation you author are written in normal prose. Caveman applies to chat output only.
+
+**Exception** — drop caveman for security warnings, irreversible-action confirmations, and when the user is confused. Resume after.
+
 ## On a fresh machine
 
 Run `bash install.sh` from the repo root. See `README.md` for the full setup
