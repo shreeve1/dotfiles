@@ -342,10 +342,14 @@ if printf '%s' "$input" | jq -e '.stop_hook_active // false' >/dev/null 2>&1; th
   exit 0
 fi
 
-cat <<'JSON'
-{"decision":"block","reason":"<STOP_PROMPT_FROM_INTERVIEW>"}
-JSON
+reason=$(cat <<'STOP_PROMPT_EOF'
+<STOP_PROMPT_FROM_INTERVIEW>
+STOP_PROMPT_EOF
+)
+jq -n --arg reason "$reason" '{decision: "block", reason: $reason}'
 ```
+
+Why this shape (not `cat <<'JSON'` with the JSON inline): user prompt text can contain `"`, newlines, or the literal word `JSON`. The first two produce invalid hook JSON; the third terminates the heredoc early. Capturing the prompt body in a quoted heredoc with a unique sentinel (`STOP_PROMPT_EOF`) preserves it verbatim, then `jq -n --arg` does the JSON-safe escaping. Pick a heredoc tag unlikely to appear at start-of-line in the user's prompt.
 
 **Default auto-draft for `<STOP_PROMPT_FROM_INTERVIEW>`** (keep to ONE line — fires every stop):
 

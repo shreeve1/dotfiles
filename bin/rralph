@@ -210,9 +210,14 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
     || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
 
   if [ -n "$FROM_STEP" ]; then
-    # Resume mode: record current branch as the base (rpiv-merge will treat the
-    # resumed run dir as a no-op fork, since detached pass won't create a branch).
-    BASE_REF="$BRANCH"
+    # Resume mode: inherit the prior run's fork point so .base keeps naming the
+    # immutable kickoff base, not the moving branch tip. rpiv-merge reads
+    # .base from the ORIGINAL run dir (TS = branch suffix), so mirroring the
+    # value here is mostly for consistency, but it also keeps the contract that
+    # .base is always a stable ref a diff can be taken against.
+    ORIG_TS="${BRANCH#${BRANCH_PREFIX}/}"
+    BASE_REF="$(cat ".rpiv/run/$ORIG_TS/.base" 2>/dev/null || true)"
+    [ -n "$BASE_REF" ] || BASE_REF="$(resolve_base "$BRANCH")"
     printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"
   else
     # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
