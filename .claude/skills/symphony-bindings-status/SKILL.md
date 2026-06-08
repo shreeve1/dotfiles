@@ -9,11 +9,11 @@ Read-only situational awareness. Answers "what bindings exist, are they reconcil
 
 ## Prerequisites
 
-- Read access to `/home/james/plane/symphony/bindings.yml`.
+- Read access to `/home/james/symphony/bindings.yml`.
 - Read access to the journal: `journalctl -u symphony-host.service` works without sudo.
 - Plane env (for the open-issue count column): `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`. If unset in the shell, source them the same way `symphony-project-scaffold` does:
   ```bash
-  [ -r /home/james/plane/symphony-host.env ] && set -a && . /home/james/plane/symphony-host.env && set +a
+  [ -r /home/james/symphony-host.env ] && set -a && . /home/james/symphony-host.env && set +a
   if [ -z "$PLANE_API_URL" ] || [ -z "$PLANE_WORKSPACE_SLUG" ]; then
     eval "$(systemctl show symphony-host.service --property=Environment --no-pager \
       | sed 's/^Environment=//' | tr ' ' '\n' \
@@ -39,7 +39,7 @@ Read-only situational awareness. Answers "what bindings exist, are they reconcil
 
 ### 1. Locate bindings.yml
 
-- Default: `/home/james/plane/symphony/bindings.yml`.
+- Default: `/home/james/symphony/bindings.yml`.
 - Override: `$SYMPHONY_BINDINGS_PATH` if set.
 
 Parse with `python3 -c "import yaml,sys; print(yaml.safe_load(open(sys.argv[1])))" <path>` or equivalent.

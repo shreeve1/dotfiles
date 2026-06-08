@@ -9,7 +9,7 @@ Wraps the operational ritual James ran 3× during the 2026-06-08 multi-binding r
 
 ## Prerequisites
 
-- Host: aidev (`/home/james/plane/symphony` exists, `symphony-host.service` installed).
+- Host: aidev (`/home/james/symphony` exists, `symphony-host.service` installed).
 - Read access to journal (no sudo needed for `journalctl -u`).
 - `sudo systemctl restart` requires James's typed approval at the moment of the restart.
 - Optional `--with-tests` flag runs `python3 -m pytest` as part of sanity (slow ~30s; default off).
@@ -17,7 +17,7 @@ Wraps the operational ritual James ran 3× during the 2026-06-08 multi-binding r
 ## Safety rules
 
 - Never invoke `sudo systemctl restart symphony-host.service` without a fresh yes from James in this turn.
-- Never print values from `/home/james/plane/symphony-host.env`.
+- Never print values from `/home/james/symphony-host.env`.
 - If sanity fails, stop. Do not "fix" anything from this skill — surface the failure to James.
 - If the disk sha and the running sha already match AND sanity is green, point out that no restart is needed and ask James whether to proceed anyway.
 - If a reconcile fails after restart, surface the error and remind James the rollback recipe (per `end-to-end-test.md`) is `git revert <head>` + restart — do not auto-rollback.
@@ -32,10 +32,10 @@ Wraps the operational ritual James ran 3× during the 2026-06-08 multi-binding r
 
 ### 1. Pre-restart sanity (read-only)
 
-Run from `/home/james/plane/symphony`:
+Run from `/home/james/symphony`:
 
 ```bash
-SYMPHONY_REPO=${SYMPHONY_REPO:-/home/james/plane/symphony}
+SYMPHONY_REPO=${SYMPHONY_REPO:-/home/james/symphony}
 cd "$SYMPHONY_REPO"
 
 git log --oneline -1                    # current master head sha

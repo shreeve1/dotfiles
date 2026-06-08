@@ -9,7 +9,7 @@ Files a single low-risk smoke ticket on a binding's Plane project, watches the d
 
 ## Prerequisites
 
-- Target binding exists in `/home/james/plane/symphony/bindings.yml`.
+- Target binding exists in `/home/james/symphony/bindings.yml`.
 - Binding's `WORKFLOW.md` is **not** the scaffold stub. The agent on a stub WORKFLOW.md produces noise.
 - `symphony-host.service` is `active/running` (check with `symphony-bindings-status` first).
 - Plane env sourced (`PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`) — same sourcing block as `symphony-project-scaffold` / `symphony-bindings-status`.
@@ -42,7 +42,7 @@ Files a single low-risk smoke ticket on a binding's Plane project, watches the d
 ```bash
 python3 - <<PY
 import yaml, sys
-bindings = yaml.safe_load(open("/home/james/plane/symphony/bindings.yml"))
+bindings = yaml.safe_load(open("/home/james/symphony/bindings.yml"))
 [b] = [x for x in bindings.get("bindings", bindings) if x["name"] == "$NAME"]
 print(b["project_id"], b["repo_path"], b.get("default_agent","pi"))
 print(b["states"]["todo"])  # state uuid for Todo

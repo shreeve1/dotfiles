@@ -10,11 +10,11 @@ Replaces the generic `WORKFLOW.md` stub that `symphony-project-scaffold` drops w
 ## Prerequisites
 
 - Target repo path is a git repo.
-- Target repo is already bound in `/home/james/plane/symphony/bindings.yml`. If not, run `symphony-project-scaffold` first — the stub-then-bind order matters, and binding without a real WORKFLOW.md leaves Symphony in a per-issue blocked state.
+- Target repo is already bound in `/home/james/symphony/bindings.yml`. If not, run `symphony-project-scaffold` first — the stub-then-bind order matters, and binding without a real WORKFLOW.md leaves Symphony in a per-issue blocked state.
 - Read access to:
   - `/home/james/homelab/WORKFLOW.md` — shape reference (195 lines).
-  - `/home/james/plane/symphony/CONTEXT.md` — Symphony vocab (Mode, Verdict, Run, Worktree, Landing).
-  - `/home/james/plane/symphony/prompt_renderer.py` — substitution contract.
+  - `/home/james/symphony/CONTEXT.md` — Symphony vocab (Mode, Verdict, Run, Worktree, Landing).
+  - `/home/james/symphony/prompt_renderer.py` — substitution contract.
 
 ## Safety rules
 
@@ -43,7 +43,7 @@ Validate:
 
 ```bash
 test -d "$REPO_PATH/.git" || { echo "not a git repo: $REPO_PATH"; exit 1; }
-grep -q "repo_path: $REPO_PATH" /home/james/plane/symphony/bindings.yml \
+grep -q "repo_path: $REPO_PATH" /home/james/symphony/bindings.yml \
   || { echo "not bound in bindings.yml; run symphony-project-scaffold first"; exit 1; }
 ```
 
@@ -61,8 +61,8 @@ Read (don't print to chat — just load into your working memory):
 - `$REPO_PATH/README*`, `$REPO_PATH/CLAUDE.md`, `$REPO_PATH/AGENTS.md` (if present).
 - Top-level directory listing of `$REPO_PATH`.
 - `/home/james/homelab/WORKFLOW.md` for shape (frontmatter, sections, verdict block).
-- `/home/james/plane/symphony/CONTEXT.md` for vocabulary.
-- `/home/james/plane/symphony/prompt_renderer.py` lines 1-175 for the substitution contract.
+- `/home/james/symphony/CONTEXT.md` for vocabulary.
+- `/home/james/symphony/prompt_renderer.py` lines 1-175 for the substitution contract.
 
 The substitution variables you may reference in the body are exactly:
 
@@ -149,7 +149,7 @@ Substitute the `<placeholders>` with the operator's answers. Keep the Workflow t
 Render the draft against a synthetic issue to confirm it parses and substitutes cleanly:
 
 ```bash
-cd /home/james/plane/symphony
+cd /home/james/symphony
 python3 - <<PY
 from pathlib import Path
 from plane.symphony.prompt_renderer import IssueData, render_prompt
