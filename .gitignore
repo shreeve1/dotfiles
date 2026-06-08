@@ -55,7 +55,6 @@ bin/*
 .claude/settings.json
 .claude/settings.local.json
 .claude/settings-*.json
-.claude/.caveman-active
 
 # Machine-local runtime state (not synced)
 .claude/skills/Automation/References/execution-log.jsonl
