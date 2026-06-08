@@ -17,15 +17,11 @@ commands).
   OpenCode commands live under `.config/opencode/archive/commands/`).
 - Shared skills: `.claude/skills/<name>/SKILL.md` (read by Claude Code natively,
   by OpenCode via `~/.claude/skills` fallback).
-- Hooks: `.claude/hooks/` (Claude Code hook scripts; the OpenCode caveman
-  plugin reuses the helper module here).
+- Hooks: `.claude/hooks/` (Claude Code hook scripts).
 - See `README.md` § "Canonical vs tool-specific" for the full table.
 
 ## Non-obvious requirements
 
-- `node` must be on `$PATH` — the caveman SessionStart and UserPromptSubmit
-  hooks are Node scripts (`.claude/hooks/caveman-*.cjs`). Hooks fail silently
-  without it.
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins

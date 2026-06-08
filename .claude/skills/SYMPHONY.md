@@ -1,3 +1,9 @@
+---
+name: symphony-suite
+description: Index of Symphony skills for project onboarding, service restarts, binding status checks, smoke tests, and Plane recovery workflows.
+disable-model-invocation: true
+---
+
 # Symphony Skill Suite
 
 Cat this file to remember which `symphony-*` skills exist and what they do. Skills live at `~/dotfiles/.claude/skills/<name>/SKILL.md` and are symlinked into `~/.claude/skills/`.

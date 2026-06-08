@@ -11,7 +11,6 @@ Rules:
 - Stage only intended files explicitly; never use `git add .` or `git add -A`.
 - Never commit `.env`, credentials, tokens, private keys, or secrets.
 - Never force-push, amend, skip hooks, or auto-commit without explicit user request.
-- Use the canonical `caveman-commit` skill to draft the commit message when useful.
 - Do not add AI attribution or co-author trailers unless the user explicitly asks.
 
 Modes:
