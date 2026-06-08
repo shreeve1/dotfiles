@@ -91,7 +91,7 @@ Target repo = the repo you're scaffolding *into*, not the Symphony repo.
 | Param | Derivation |
 |---|---|
 | `--repo-path` | `cwd` if cwd is a git repo and ≠ symphony repo. Otherwise ask. |
-| `--slug` | `basename "$repo_path"` → lowercase, replace non-`[a-z0-9-]` with `-`, collapse repeats, trim to 32 chars. |
+| `--slug` | `basename "$repo_path"` → lowercase, replace non-`[a-z0-9-]` with `-`, collapse repeats, **trim to 12 chars** (Plane's `identifier` field max — derives the ticket prefix e.g. `TRADING-1`). If the basename exceeds 12 chars, surface this and ask James for a short slug rather than auto-truncating. |
 | `--name` | Title-case the slug with spaces (`crypto-trading-agents` → `Crypto Trading Agents`). |
 | `--base-branch` | `git -C "$repo_path" symbolic-ref --short HEAD` (fallback: `git -C "$repo_path" remote show origin \| awk '/HEAD branch/ {print $NF}'`). |
 | `--bindings-path` | `$SYMPHONY_BINDINGS_PATH` else `<symphony-repo>/bindings.yml`. |
