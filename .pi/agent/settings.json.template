@@ -16,7 +16,7 @@
     "extensions/@juicesharp/rpiv-args",
     {
       "source": "extensions/rpiv-pi",
-      "skills": []
+      "skills": ["+skills/personalize-harness-pi/SKILL.md"]
     }
   ],
   "collapseChangelog": true,
