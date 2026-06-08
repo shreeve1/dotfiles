@@ -7,8 +7,8 @@ description: Scaffold a new Plane project and register it in Symphony bindings.y
 
 ## Prerequisites
 
-- Symphony repo at `/home/james/plane/symphony` (host default). If absent, set `SYMPHONY_REPO`.
-- Plane env: `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`. On the aidev host these live in `/home/james/plane/symphony-host.env` (`PLANE_API_KEY`) and on `symphony-host.service` Environment= (`PLANE_API_URL`, `PLANE_WORKSPACE_SLUG`). The skill auto-sources them — see Interactive workflow step 1.
+- Symphony repo at `/home/james/symphony` (host default). If absent, set `SYMPHONY_REPO`.
+- Plane env: `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG`. On the aidev host these live in `/home/james/symphony-host.env` (`PLANE_API_KEY`) and on `symphony-host.service` Environment= (`PLANE_API_URL`, `PLANE_WORKSPACE_SLUG`). The skill auto-sources them — see Interactive workflow step 1.
 - Optional: `SYMPHONY_BINDINGS_PATH` overrides the default `<symphony-repo>/bindings.yml`.
 
 ## Dry run
@@ -60,7 +60,7 @@ Check `PLANE_API_URL`, `PLANE_API_KEY`, `PLANE_WORKSPACE_SLUG` in the current sh
 
 ```bash
 # Plane API key (and other secrets) live in the host env file
-[ -r /home/james/plane/symphony-host.env ] && set -a && . /home/james/plane/symphony-host.env && set +a
+[ -r /home/james/symphony-host.env ] && set -a && . /home/james/symphony-host.env && set +a
 
 # PLANE_API_URL and PLANE_WORKSPACE_SLUG live in the systemd unit's Environment=, not the env file.
 # Pull them from there if still unset.
@@ -81,7 +81,7 @@ Do not print the values. Just confirm "Plane env loaded from symphony-host.env +
 
 - If `cwd` contains `project_scaffold.py`, use cwd.
 - Else if `$SYMPHONY_REPO` is set and contains `project_scaffold.py`, use it.
-- Else default to `/home/james/plane/symphony`.
+- Else default to `/home/james/symphony`.
 - Else stop and ask James.
 
 ### 3. Auto-derive project parameters
@@ -109,7 +109,7 @@ Derived:
   slug         crypto-trading-agents
   repo-path    /home/james/trading/crypto-trading-agents
   base-branch  main
-  bindings     /home/james/plane/symphony/bindings.yml
+  bindings     /home/james/symphony/bindings.yml
   agent        pi
   landing      local
   approval     off
