@@ -11,6 +11,7 @@ Cat this file to remember which `symphony-*` skills exist and what they do. Skil
 ## Daily operations
 
 - **symphony-bindings-status** — read-only "what's running" table. Run first; no mutations, no env file reads. Good before any restart, scaffold, or smoke.
+- **symphony-troubleshooter** — real-time diagnostic copilot. Captures safe context, reviews logs with James, correlates bindings/issues/runs, ranks hypotheses, and hands mutations to restart/smoke/recover skills.
 - **symphony-restart** — pre-sanity → ask → `sudo systemctl restart` → verify reconcile + dispatch log lines. `--with-tests` re-runs pytest in sanity (off by default).
 
 ## Onboarding a new repo (in order)
