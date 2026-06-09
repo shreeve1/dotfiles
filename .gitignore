@@ -24,6 +24,7 @@ bin/*
 
 # Pi agent — secrets, dependencies, and runtime state
 .pi/agent/auth.json
+.pi/agent/auth.json.*
 .pi/agent/settings.json
 
 # Pi-lens — runtime churn (keep only config.json synced)
