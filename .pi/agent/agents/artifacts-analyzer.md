@@ -1,5 +1,6 @@
 ---
 name: artifacts-analyzer
+model: openai-codex/gpt-5.4
 description: The research equivalent of codebase-analyzer. Use this subagent_type when wanting to deep dive on a research topic. Not commonly needed otherwise.
 tools: read, grep, find, ls
 isolated: true
