@@ -116,6 +116,7 @@ bin/*
 !.omp/agent/extensions/
 # Vendored extension deps are installed per-machine by install.sh
 .omp/agent/extensions/**/node_modules/
+.omp/agent/extensions/**/package-lock.json
 
 # Backup / temp files
 *.bak
