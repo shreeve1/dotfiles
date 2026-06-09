@@ -19,7 +19,7 @@ Use this skill when the user wants to carry out a written implementation plan, e
 
 ---
 
-> **MANDATORY — DO NOT SKIP PHASE 7.5.** Every code-changing wave ends with a pi reviewer audit. The audit is **not** optional. There is no flag to disable it and no flag to swap the reviewer — pi is the only reviewer backend. If you complete a wave and move on without running Phase 7.5, you have not completed this skill. Surface-only waves (docs-only, no code) are the only exemption.
+> **MANDATORY — DO NOT SKIP PHASE 7.5.** Every code-changing wave ends with a pi reviewer audit. The audit is **not** user-suppressible — there is no flag to disable it and no flag to swap the reviewer. pi is the only reviewer backend. Involuntary skips (pi binary missing, doc-only diff, zero diff, reviewer timeout/failure) are logged as `audit_skipped` with a `skip_reason`; a *voluntary* skip on a code-changing wave is a skill-completion failure.
 
 ## Invocation
 
@@ -243,9 +243,9 @@ If any task failed or produced conflicting work:
 
 Only continue when the wave result is coherent.
 
-### Stage progress (do NOT flip checkboxes yet when `AUDIT_MODE != off`)
+### Stage progress (do NOT flip checkboxes yet — audit runs first)
 
-When `AUDIT_MODE != off`, Phase 7 evaluates the wave but does **not** modify the plan markdown. The wave-end audit (Phase 7.5) runs first; if it halts, downstream tools must NOT see those tasks as complete. The checkbox flip is deferred to Phase 7.5.6 (after the audit gate resolves).
+Phase 7 evaluates the wave but does **not** modify the plan markdown. The wave-end audit (Phase 7.5) runs first; if it halts, downstream tools must NOT see those tasks as complete. The checkbox flip is deferred to Phase 7.5.6 (after the audit gate resolves).
 
 In this step:
 - Track which task IDs the wave reported complete (in working memory or the state YAML).
@@ -282,10 +282,13 @@ If the file already exists with a `rounds:` block from `/dev-plan --loop`, appen
 
 ### Skip conditions
 
-The audit is enforced; the only valid skip is reviewer-binary missing.
+The audit is enforced. The only valid *voluntary* (user-side) skip is none — there is no flag to bypass the audit. *Involuntary* skips are logged with a `skip_reason` and surfaced in the Phase 10 report:
 
-- If `which pi` is empty: log a single `outcome: audit_skipped` entry with `skip_reason: reviewer_unavailable` and continue subsequent waves with the same result (don't re-probe per wave). Surface this prominently in the Phase 10 report so the user knows the safety net was down.
-- "User didn't pass a flag" / "wave looked trivial" / "I already checked the diff" are NOT valid skip reasons. Run the audit.
+- `reviewer_unavailable` — `which pi` is empty. Log once and continue subsequent waves with the same result (don't re-probe per wave). Surface prominently in the Phase 10 report so the user knows the safety net was down.
+- `doc_only` / `zero_diff` — the wave produced no code-changing diff (Phase 7.5.1). Logged and skipped without invoking pi.
+- `reviewer_timeout` / `reviewer_failed` / `malformed_output` — pi was invoked but did not complete usefully (Phase 7.5.4). Logged and the wave's checkbox flip proceeds without an audit gate.
+
+"User didn't pass a flag" / "wave looked trivial" / "I already checked the diff" are NOT valid skip reasons. Run the audit unless one of the involuntary conditions above fires.
 
 ### 7.5.1 — Capture the wave's diff (working-tree, includes uncommitted+untracked)
 
@@ -392,11 +395,11 @@ Append the audit entry to `build_audits:` in the state YAML using the schema in 
 
 Per audit-mode:
 
-| Severity | `critical-only` (default) | `all` | `off` |
-|----------|--------------------------|-------|-------|
-| Critical | Auto-fix → re-validate → re-audit | Auto-fix → re-validate → re-audit | n/a — phase skipped |
-| Warning  | Logged silently | Surfaced in build output, build continues | n/a |
-| Note     | Logged silently | Logged silently | n/a |
+| Severity | `critical-only` (default) | `all` |
+|----------|--------------------------|-------|
+| Critical | Auto-fix → re-validate → re-audit | Auto-fix → re-validate → re-audit |
+| Warning  | Logged silently | Surfaced in build output, build continues |
+| Note     | Logged silently | Logged silently |
 
 **Auto-fix-and-retry contract for Critical findings:**
 
@@ -473,9 +476,9 @@ If the plan does not define validation commands, say so explicitly and provide t
 Repeat:
 1. Parse the plan markdown to determine next ready tasks
 2. Build the next safe wave from ready tasks (Phase 4)
-3. Prepare builder prompts with inlined task content, and capture the pre-wave snapshot when `AUDIT_MODE != off` (Phase 5)
+3. Prepare builder prompts with inlined task content, and capture the pre-wave snapshot (Phase 5)
 4. Execute the wave (Phase 6)
-5. Evaluate results using the structured builder reports (Phase 7) — stage completed task IDs but do NOT flip checkboxes yet when `AUDIT_MODE != off`
+5. Evaluate results using the structured builder reports (Phase 7) — stage completed task IDs but do NOT flip checkboxes yet (audit gate runs first)
 6. **Run the wave-end reviewer audit** (Phase 7.5) — capture the wave diff, audit it with pi, auto-fix-and-retry-and-re-audit on Critical, log otherwise. Skip only if the pi backend binary is missing
 7. **Mark wave progress** (Phase 7.5.6) — flip plan checkboxes only AFTER the audit gate passes / auto_fixes / is skipped (reviewer unavailable) / overridden. Skip flipping if the audit escalated and the user chose manual fix or abort
 8. Verify as appropriate (Phase 8)
