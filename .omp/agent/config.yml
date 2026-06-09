@@ -9,7 +9,7 @@ modelRoles:
   default: openai-codex/gpt-5.5
   plan: openai-codex/gpt-5.5
   slow: openai-codex/gpt-5.4
-  smol: zai/glm-4.7-flash
+  smol: zai/glm-5.1:high
   commit: zai/glm-4.7-flash
   vision: openai-codex/gpt-5.5
 extensions: 
