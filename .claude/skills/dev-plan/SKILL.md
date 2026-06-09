@@ -59,7 +59,7 @@ Work through these phases in order:
 6. **Document Plan** — write comprehensive markdown document following Plan Format
 7. **Generate filename** — create descriptive kebab-case filename
 8. **Save plan file** — write complete plan to PLAN_OUTPUT_DIRECTORY/<filename>.md
-9. **Reviewer Audit Loop** — *only when `--loop`*: independent reviewer audits the plan, you revise, repeat up to `MAX_ROUNDS`
+9. **Reviewer Audit Loop** — MANDATORY: pi audits the plan, you revise, repeat up to `MAX_ROUNDS`, exit early on zero Critical
 10. **Validate** — verify plan completeness and coherence
 11. **Report** — present completed plan summary (with loop outcome if the loop ran)
 
@@ -179,7 +179,7 @@ END_OF_FINDINGS
 
 **Rounds 2+ (Re-review):** same format, but open with: `The plan at plans/<feature>.md was revised after a prior audit. Re-read it end-to-end and re-review against the codebase. For each prior issue, verify the revision genuinely addresses it rather than rewording it; then flag any NEW issues the revision introduced.` End with the same `END_OF_FINDINGS` sentinel instruction.
 
-#### 9.2 Run the reviewer — `pi` backend (default)
+#### 9.2 Run the reviewer (pi)
 
 `pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Detach it with `setsid`, write the PID to a file, then poll the output file across separate Bash calls** — do not wrap in a blocking `timeout 600s` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
 
@@ -252,7 +252,7 @@ If `current_round >= MAX_ROUNDS`: `status: hard_stopped`, `exit_reason: "Reached
 #### 9.8 Reviewer unavailable / failure
 
 Detect before round 1 and on any round failure:
-- **Backend binary missing** (`which pi` / `which claude` empty), or **reviewer exits non-zero**, or **no sentinel / empty output / poll budget exhausted**.
+- **pi binary missing** (`which pi` empty), or **pi exits non-zero**, or **no sentinel / empty output / poll budget exhausted**.
 
 In any of these: set `status: reviewer_unavailable`, record `exit_reason` with the cause, **keep the plan as-is**, and proceed to Validate. Do NOT fail the whole skill — an unaudited plan is still useful. Surface the failure in the Phase 11 report. (Phase 10 validation is the deterministic safety net when the loop couldn't run.)
 
@@ -265,17 +265,17 @@ In any of these: set `status: reviewer_unavailable`, record `exit_reason` with t
 - No missing dependencies between tasks
 - Testing strategy is clear and complete
 
-**Deterministic preflights** (mechanical, run independently of the audit loop — these catch concrete file/tool reality even when the reviewer missed it, and are the *primary* safety net when Phase 9 ran with `status: reviewer_unavailable` or didn't run at all):
+**Deterministic preflights** (mechanical, run independently of the audit loop — these catch concrete file/tool reality even when the reviewer missed it, and are the *primary* safety net when Phase 9 ran with `status: reviewer_unavailable`):
 - **Validation Commands:** for each command in the plan's `## Validation Commands` section, parse out file paths and tool names. Verify referenced files exist on disk and tools are present (`which <tool>`). Anything missing → **Critical**.
 - **Edit-target existence:** for each path the plan claims to modify (under `## Relevant Files` and inline in tasks), verify the file exists OR is explicitly listed under `### New Files`. A claimed-to-modify file that doesn't exist and isn't a new file → **Critical**.
 - **Test paths:** if the plan references `tests/unit/`, `tests/integration/`, or `tests/e2e/`, verify those directories exist or are listed as new. Missing test infrastructure → **Warning**.
 - **Prerequisite tools:** if the plan adds dependencies via `uv add`, `pnpm add`, etc., verify the package manager is installed. Missing → **Critical**.
 
-If any preflight fails, surface the failures in the Phase 11 report. Treat Critical-level preflight failures as blocking — flag them for human review the same way as an unresolved loop. If the loop ran, record preflight failures under a `phase_10_findings` block in the state YAML.
+If any preflight fails, surface the failures in the Phase 11 report. Treat Critical-level preflight failures as blocking — flag them for human review the same way as an unresolved loop. Record preflight failures under a `phase_10_findings` block in the state YAML (the loop always runs, so the state file always exists).
 
 ### Phase 11: Report
 
-Present the completed plan summary and remind user to run `/dev-build` when ready. If the loop ran (or was attempted), include the loop outcome — see the Report section below.
+Present the completed plan summary and remind user to run `/dev-build` when ready. Always include the loop outcome — the loop runs every invocation. See the Report section below.
 
 ## Instructions
 
