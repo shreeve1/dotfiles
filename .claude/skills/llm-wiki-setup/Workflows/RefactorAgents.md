@@ -9,7 +9,7 @@ Apply this workflow to each of the following that exists at the project root:
 - `CLAUDE.md`
 - `AGENTS.md`
 
-If both exist, update both and keep the LLM Wiki section wording consistent between them. If neither exists, create `CLAUDE.md` by default; ask before also creating `AGENTS.md`.
+If both exist, update both and keep the LLM Wiki section wording consistent between them. If neither exists, create `CLAUDE.md`. Do not create `AGENTS.md` when `CLAUDE.md` exists or was just created — OpenCode reads `CLAUDE.md` via the dotfiles `instructions[]` config.
 
 ## Rules
 
