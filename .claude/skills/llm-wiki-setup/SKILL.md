@@ -20,26 +20,20 @@ Sets up and operates a Karpathy-style LLM Wiki in the current project: immutable
 
 ## Defaults
 
+Initial setup is built for future AI sessions, not for James. Apply defaults silently — do not interview unless James proactively supplies overrides or the setup hits a real ambiguity (existing unrelated `wiki/`, dotfiles install repo as target).
+
 - Wiki root: `wiki/`
 - Raw sources: `wiki/raw/`
-- Candidate review gate: enabled by default as a skill extension
-- Claim provenance: required for factual claims as a skill extension
-- Routing file: `wiki/ROUTING.md` as a skill extension
-- Search tooling: document optional local search; do not install without explicit approval
-- `CLAUDE.md` and `AGENTS.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules to whichever exist; if neither exists, default to creating `CLAUDE.md`
-- Post-setup ingestion handoff: perform the first approved ingest when sources are named, otherwise suggest a prioritized ingest shortlist
-
-## Required Interview
-
-Before setup, ask for missing project-specific choices:
-
-- Domain and purpose of the wiki
-- Source types expected: docs, papers, meeting notes, codebase notes, articles, images, transcripts
-- Whether generated wiki files should be committed to git
-- Whether candidate promotion requires James approval or project-owner approval
-- Preferred citation style if the project already has one
-
-Use the defaults above when James says to proceed without more customization.
+- Candidate review gate: enabled
+- Claim provenance: required for factual claims via `wiki/CLAIMS.md`
+- Routing file: `wiki/ROUTING.md`
+- Search tooling: documented only; do not install
+- Git policy: commit generated wiki files; ignore common raw binary patterns (`wiki/raw/**/*.{pdf,mp4,mov,zip,tar,gz,bin}`, `wiki/assets/**`) without asking
+- Candidate promotion approval: James
+- Citation style: inline path references (`wiki/raw/...`) and wikilinks; no external style
+- Domain: infer from project `README.md`, `CLAUDE.md`, `AGENTS.md`, or top-level docs; if nothing is inferrable, use a generic project-knowledge framing
+- `CLAUDE.md` and `AGENTS.md`: preserve existing content, refactor lightly, add LLM Wiki operating rules to whichever exist; if neither exists, create `CLAUDE.md`
+- Post-setup ingestion: suggest a prioritized ingest shortlist; do not auto-ingest
 
 ## Execution Rules
 
@@ -51,7 +45,7 @@ Use the defaults above when James says to proceed without more customization.
 - New pages and risky updates go through `wiki/candidates/` first.
 - Candidate pages must remain discoverable until promoted or discarded.
 - Existing pages can be updated directly only when the source impact is clear and cited.
-- After setup, do not stop at an empty wiki: either run `Workflows/Ingest.md` for named/approved sources or report a prioritized ingest shortlist with exact source paths or source-selection questions.
+- After setup, do not stop at an empty wiki: report a prioritized ingest shortlist with exact source paths. Ingest runs only on a follow-up invocation.
 - Prefer small, deterministic Markdown files over new infrastructure.
 - Do not install qmd, MCP servers, Obsidian plugins, or other tooling without explicit approval.
 - Do not initialize a project wiki inside this skill's own install repository unless James explicitly confirms that target.
