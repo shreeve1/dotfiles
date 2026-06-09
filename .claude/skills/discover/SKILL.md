@@ -1,13 +1,13 @@
 ---
 name: discover
-description: Interview the developer one question at a time to extract feature intent and requirements, then synthesize into a Feature Requirements Document at .rpiv/artifacts/discover/. The first question is intent-only and runs before any codebase probe; subsequent questions ground in evidence the probe surfaces. Use as the canonical entry point of the pipeline before research, or to stress-test a feature idea before codebase discovery. The FRD's Decisions block is consumed by `research` and propagates through Developer Context into `design`.
+description: Synthesize a Feature Requirements Document at .rpiv/artifacts/discover/ from the current session, asking clarifying questions ONLY for sections the session does not already cover. Pairs cleanly with `/grill-me` — run grill-me first to sort details, then `/discover` to convert that conversation into an FRD that kicks off the rralph loop. Falls back to a full one-question-at-a-time interview when the session is empty (fresh-feature mode). The FRD's Decisions block is consumed by `research` and propagates through Developer Context into `design`.
 argument-hint: "[free-text feature description | existing artifact path]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, AskUserQuestion
 ---
 
 # Discover
 
-You are tasked with extracting feature intent and requirements through a one-question-at-a-time interview, then writing a Feature Requirements Document (FRD) that downstream skills consume. Two principles shape the flow: (1) **intent before agents** — the foundational intent question runs before any probe, so stated intent shapes the probe scope; (2) **lazy + confirm** — build the decision tree one layer at a time, and surface evidence-based pre-resolutions for confirmation rather than silently recording them.
+You are tasked with producing a Feature Requirements Document (FRD) that downstream skills consume. Three principles shape the flow: (1) **session-aware** — if the current conversation already resolved intent / goals / decisions (typical after `/grill-me`), extract them verbatim instead of re-interviewing; only ask about genuinely uncovered sections; (2) **intent before agents** — when an intent question IS needed, it runs before any probe, so stated intent shapes the probe scope; (3) **lazy + confirm** — build the decision tree one layer at a time, and surface evidence-based pre-resolutions for confirmation rather than silently recording them.
 
 ## Input
 
@@ -25,7 +25,9 @@ Copy values verbatim — do not reformat the timezone offset.
 
 ## Flow
 
-1. Input → 2. Intent question → 3. Codebase probe → 4. Lazy tree → 5. Interview loop → 6. Synthesize FRD → 7. Write artifact → 8. Follow-ups
+1. Input → 1.5. Session coverage scan → 2. Intent question (only if uncovered) → 3. Codebase probe (gap-scoped, skip if coverage already cites evidence) → 4. Lazy tree (uncovered nodes only) → 5. Interview loop (uncovered nodes only) → 6. Synthesize FRD → 7. Write artifact → 8. Follow-ups
+
+When the session is already saturated (typical after `/grill-me`), Steps 2-5 collapse to no-ops and the skill flows Input → Coverage scan → Synthesize → Write. When the session is empty, every step fires as in fresh-feature mode.
 
 The final artifact is research-compatible — its Decisions block is translated into research's Developer Context and inherited by design.
 
@@ -34,13 +36,15 @@ The final artifact is research-compatible — its Decisions block is translated 
 ### Step 1: Input Handling
 
 1. **No argument provided**:
-   ```
-   I'll capture feature intent into an FRD. Provide one of:
+   - If the current session is empty (no prior turns relevant to a feature), print:
+     ```
+     I'll capture feature intent into an FRD. Provide one of:
 
-   `/discover [free-text feature description]`     — fresh interview, write a new FRD
-   `/discover [existing artifact path]`            — refine an existing FRD/ticket/doc via fresh interview
-   ```
-   Then wait for input.
+     `/discover [free-text feature description]`     — fresh interview, write a new FRD
+     `/discover [existing artifact path]`            — refine an existing FRD/ticket/doc via fresh interview
+     ```
+     Then wait for input.
+   - If the current session already has feature context (e.g., a `/grill-me` exchange just landed), proceed directly to Step 1.5 — the session content IS the input. Do not prompt for a free-text description.
 
 2. **Detect input shape** — parse the input:
    - If the argument is an existing file path (resolves to a readable `.md` under `.rpiv/artifacts/`, or any path the user mentions for refinement context), read it FULLY using the Read tool WITHOUT limit/offset. Treat its content as baseline context — the interview surfaces gaps, missing requirements, and unstated assumptions relative to what's already documented.
@@ -52,9 +56,53 @@ The final artifact is research-compatible — its Decisions block is translated 
 
 Each invocation always writes a NEW timestamp-distinct artifact (Step 7) — there is no in-place stress-test append mode. To iterate on a prior FRD, either re-invoke discover (produces a fresh artifact) or manually Edit the prior artifact.
 
+### Step 1.5: Session Coverage Scan
+
+Before asking anything, inventory what the current conversation already settled. This is the gate that decides whether Steps 2-5 fire at all.
+
+1. **Scan the current session** (developer turns + your own prior turns + files already Read in this session) for content that maps to FRD sections. Build an internal **coverage map** with one row per FRD section:
+
+   | FRD section | Covered? | Evidence (turn ref / quote / `file:line`) |
+   |---|---|---|
+   | Problem & Intent | yes / no / partial | … |
+   | Goals | yes / no / partial | … |
+   | Non-Goals | yes / no / partial | … |
+   | Functional Requirements | yes / no / partial | … |
+   | Non-Functional Requirements | yes / no / partial | … |
+   | Constraints & Assumptions | yes / no / partial | … |
+   | Acceptance Criteria | yes / no / partial | … |
+   | Recommended Approach | yes / no / partial | … |
+   | Decisions | yes / no / partial | … |
+
+2. **Coverage rules** (strict where it matters, lax where grill-me typically lands):
+   - **Problem & Intent** — `covered` only if the developer's own framing of the problem and affected party appears in the session in their own words. Recommended-by-agent framing does NOT count.
+   - **Goals / Non-Goals** — `covered` if at least one explicit goal AND one explicit exclusion exist. Otherwise `partial`.
+   - **Functional Requirements** — `covered` if each behavior the feature must exhibit can be extracted as an independently testable statement. Loose narrative ("it should work well") → `partial`.
+   - **Non-Functional Requirements** — `covered` if perf / security / UX / reliability are each either explicitly addressed or explicitly out-of-scope. Silence on all four → `no`.
+   - **Constraints & Assumptions** — `covered` if at least one constraint OR assumption was stated; bare absence is acceptable for trivial features → `partial` rather than `no`.
+   - **Acceptance Criteria** — **strictest gate.** `covered` only if each criterion names a concrete command, output, file path, or visible behavior a reviewer could check. "Feature works correctly" / "UX is acceptable" → `no`. Default lean is `no` unless the session was explicit.
+   - **Recommended Approach** — `covered` if a session turn (yours or the developer's) names the architectural shape (component, seam, integration point). Grill-me sessions typically land this.
+   - **Decisions** — `covered` if every shape-level tradeoff that drove the recommended approach is recorded with chosen-side and rationale. `partial` if rationale is missing.
+
+3. **Decide the mode**:
+   - **Session-saturated** — every row `covered`. Skip Steps 2, 3, 4, 5 entirely. Proceed to Step 6 (Synthesize FRD) using session content as the source of truth. Cite session turns or `file:line` references that already appeared in the session as evidence.
+   - **Gap mode** — some rows `partial` or `no`. Carry the coverage map into Step 2+; each downstream step operates ONLY on uncovered rows (see step-specific gates below).
+   - **Empty session** — every row `no` (typical when `/discover` is the first command of the session). Fall through to Steps 2-5 in full fresh-feature mode.
+
+4. **Show the developer the gap list (only if gaps exist).** Before firing Step 2, print a one-line summary:
+   ```
+   Session covers: <comma-separated covered sections>.
+   Gaps to resolve: <comma-separated uncovered sections>.
+   ```
+   This is a transparency line, not a question — do NOT ask the developer to confirm the coverage map. They corrected the model during `/grill-me`; trust the coverage scan and move on.
+
+5. **No coverage-map persistence.** The map lives only in your working memory for this skill invocation — it is not written into the FRD or anywhere on disk.
+
 ### Step 2: Foundational Intent Question
 
-Before any codebase probe, ask the foundational intent question. This is purely conversational — no agents, no recommendation, no `file:line` citations.
+**Gate**: skip this step entirely if the coverage map (Step 1.5) marks **Problem & Intent** as `covered`. Lift the framing verbatim from the session into the Step 6 synthesis instead.
+
+If Problem & Intent is `partial` or `no`, ask the foundational intent question. This is purely conversational — no agents, no recommendation, no `file:line` citations.
 
 1. **Ask one open-ended `intent` question directly in the conversation** (plain chat, NOT the AskUserQuestion tool — the developer should generate the framing, not pick from a proposal). Prefix it with **❓ Question:** so the developer knows their input is needed:
    - Frame: "What problem are you solving and who hits it?" / "What does success look like for the person experiencing this today?" — phrase it for the specific feature.
@@ -69,7 +117,9 @@ Before any codebase probe, ask the foundational intent question. This is purely 
 
 ### Step 3: Lightweight Codebase Probe (parallel agents, intent-shaped)
 
-Goal: ground the upcoming interview in concrete codebase evidence, with the probe slice shaped by the developer's stated intent from Step 2 — not by the raw input text.
+**Gate**: skip this step entirely if the coverage map (Step 1.5) shows the session already cites concrete `file:line` evidence for Recommended Approach AND Decisions. Grill-me sessions typically satisfy this — the developer already named the seam and the integration point. When skipping, reuse the in-session evidence as Step 4's pre-resolution input.
+
+When the gate does not skip: probe only the seams tied to **uncovered** sections from the coverage map. Goal: ground the upcoming interview in concrete codebase evidence, with the probe slice shaped by the developer's stated intent from Step 2 — not by the raw input text.
 
 1. **Pick the agent set.** Dispatch `codebase-locator`, `codebase-analyzer`, or both — nothing else. Cap: 2 agents per Step 3 invocation.
 
@@ -91,11 +141,13 @@ Goal: ground the upcoming interview in concrete codebase evidence, with the prob
 
 ### Step 4: Lazy Tree Setup + Pre-Resolution Confirmation
 
-Synthesize the **next layer** of questions internally before asking anything. Lazy expansion — build only root + immediate children at this stage, not the full tree. Each subsequent layer is built after its parent resolves.
+**Gate**: include in the tree ONLY the branches whose corresponding FRD section is `partial` or `no` in the coverage map (Step 1.5). Drop `covered` branches entirely — they already have answers waiting to flow into Step 6.
 
-1. **Build root + immediate children**:
-   - **Root** — the developer's already-stated problem from Step 2.
-   - **Immediate children** — the foundational unresolved branches: Goals/Non-Goals · Functional Requirements · Non-Functional Requirements (perf/security/UX/reliability) · Constraints · Acceptance Criteria · Recommended Approach.
+Synthesize the **next layer** of questions internally before asking anything. Lazy expansion — build only root + immediate uncovered children at this stage, not the full tree. Each subsequent layer is built after its parent resolves.
+
+1. **Build root + immediate children (uncovered only)**:
+   - **Root** — the developer's already-stated problem from Step 2 (or from the session, when Step 2 was skipped).
+   - **Immediate children** — the foundational unresolved branches drawn from the uncovered rows of the coverage map: Goals/Non-Goals · Functional Requirements · Non-Functional Requirements (perf/security/UX/reliability) · Constraints · Acceptance Criteria · Recommended Approach.
    - Order branches by dependency (root → goals → constraints → solution shape → details). **This order drives the interview, not the FRD section order** — Step 6 redistributes answers into FRD sections.
 
 2. **Mark evidence-based pre-resolutions** from Step 3 with `file:line` citations. Do NOT silently record them as Decisions yet.
@@ -108,6 +160,8 @@ Synthesize the **next layer** of questions internally before asking anything. La
 4. The lazy tree stays internal — do NOT present the tree to the developer unless asked.
 
 ### Step 5: Interview Loop
+
+**Gate**: if the lazy tree (Step 4) is empty because every FRD section was `covered` in the coverage map, skip this step entirely and jump to Step 6. Otherwise walk only the uncovered nodes that survived the Step 4 gate. Do NOT manufacture questions for sections the session already covers — re-asking a settled point is the explicit failure mode this gate prevents.
 
 Walk the lazy tree depth-first, parent before child. Expand the next layer (build a node's children) only after the node resolves. For each unresolved node:
 
@@ -149,17 +203,22 @@ Walk the lazy tree depth-first, parent before child. Expand the next layer (buil
 
 Read `templates/frd.md` (relative to this skill folder) at runtime to confirm the section list and frontmatter shape — do not inline it from memory.
 
-Compile interview output into the FRD. The interview's logical order (problem → goals → constraints → solution → details) is decoupled from the FRD's section order — redistribute answers into the template buckets here:
+Compile output into the FRD. The source is **interview answers + session-context content** — for each FRD section, draw from whichever is authoritative:
+- If the section was `covered` in the coverage map (Step 1.5), draw from the session — quote the developer's own framing verbatim where possible; cite session `file:line` references where they were named.
+- If the section was filled via the interview loop (Step 5), draw from the recorded Q/A answers.
+- Where both contribute (e.g., session named goals and the interview added one more), merge — session content first, interview additions appended in the same section.
+
+The interview's logical order (problem → goals → constraints → solution → details) is decoupled from the FRD's section order — redistribute answers into the template buckets here:
 
 - **Summary** — 2-3 sentences capturing the settled feature concept.
-- **Problem & Intent** — the developer's framing from Step 2, in their own words. Verbatim where possible.
+- **Problem & Intent** — the developer's framing in their own words (from Step 2's answer, or from the session when Step 2 was skipped). Verbatim where possible.
 - **Goals / Non-Goals** — explicit in/out lists from the interview.
 - **Functional Requirements** — numbered, each independently testable.
 - **Non-Functional Requirements** — perf, security, UX, accessibility, reliability constraints.
 - **Constraints & Assumptions** — environmental, technical, schedule, organizational.
 - **Acceptance Criteria** — observable pass conditions a reviewer can check. Each MUST name a concrete command, output, or visible behavior (e.g., "running `npm test` exits 0", "`/X` writes `path/to/Y`"). Reject vague phrasing like "feature works correctly" or "UX is acceptable".
 - **Recommended Approach** — 1-2 sentences naming the architectural shape implied by the decisions (e.g., "new command in `packages/rpiv-pi/extensions/`, output to stdout, no persistence"). This text is what `research` passes to `scope-tracer` as the topic for breadth grounding.
-- **Decisions** — full Q/A log per decision: `### [title]` + `**Question**:` (text as asked, or "Pre-resolved from codebase evidence — confirmed in Step 4") + `**Recommended**:` (or "n/a — `intent` question") + `**Chosen**:` (developer's pick or evidence-derived answer) + `**Rationale**:` (1 line — why, or `evidence: path/to/file.ext:line + confirmed` for codebase-derived). This block is the inheritance hook into research's Developer Context.
+- **Decisions** — full Q/A log per decision: `### [title]` + `**Question**:` (text as asked during the interview, or "Pre-resolved from codebase evidence — confirmed in Step 4", or "Settled in session prior to `/discover` — see conversation context (e.g., `/grill-me` exchange)") + `**Recommended**:` (or "n/a — `intent` question", or "n/a — session-derived") + `**Chosen**:` (developer's pick, evidence-derived answer, or the position the developer landed on in the prior session) + `**Rationale**:` (1 line — why, or `evidence: path/to/file.ext:line + confirmed` for codebase-derived, or a short quote/paraphrase pointing to the session reasoning for session-derived decisions). This block is the inheritance hook into research's Developer Context.
 - **Open Questions** — only items the developer explicitly deferred.
 - **Suggested Follow-ups** — related-but-out-of-scope items surfaced during the probe or interview that the developer did NOT add to scope (per the Step 5 scope-creep guardrail). One line per item: what was observed and where (`file:line` when applicable). Omit the section entirely if empty.
 - **References** — input files, mentioned tickets, related artifacts.
@@ -180,6 +239,7 @@ Compile interview output into the FRD. The interview's logical order (problem �
    `.rpiv/artifacts/discover/<YYYY-MM-DD_HH-MM-SS>_<topic>.md`
 
    {N} requirements, {M} decisions, {K} open questions.
+   Mode: <session-saturated | gap-mode | empty-session>.
 
    The FRD's Decisions block is translated into research's Developer Context and inherited by design.
 
@@ -187,9 +247,16 @@ Compile interview output into the FRD. The interview's logical order (problem �
 
    💬 Follow-up: discover writes a fresh FRD per call — re-invoke `/discover` to iterate (the prior FRD stays unchanged on disk).
 
-   **Next step:** `/research .rpiv/artifacts/discover/<YYYY-MM-DD_HH-MM-SS>_<topic>.md` — ground the intent in codebase reality.
+   **Next step (manual chain):** `/research .rpiv/artifacts/discover/<YYYY-MM-DD_HH-MM-SS>_<topic>.md` — ground the intent in codebase reality.
 
-   > 🆕 Tip: start a fresh session with `/new` first — chained skills work best with a clean context window.
+   **Or kick off the rralph loop** (fire-and-forget, full pipeline research → design → plan → implement → validate → code-review → commit on a fresh branch):
+   ```
+   rralph                       # default engine = pi
+   rralph --engine claude       # use Claude instead
+   ```
+   rralph picks up the newest FRD under `.rpiv/artifacts/discover/` automatically — no FRD path argument needed.
+
+   > 🆕 Tip: for the manual chain, start a fresh session with `/new` first — chained skills work best with a clean context window. rralph spawns its own fresh sessions per step, so this tip does not apply to the rralph path.
    ```
 
 ### Step 8: Handle Follow-ups
@@ -203,8 +270,8 @@ Compile interview output into the FRD. The interview's logical order (problem �
 
 These reinforce the critical rules from the steps above — listed here so they don't get lost in step-body detail.
 
-- **Always interview-first, intent-first**: Never write the FRD without running the interview loop. The `intent` question (Step 2) always precedes any agent dispatch — let stated intent shape the probe, not the other way around.
-- **Always one question at a time**: Even with 2-4 batched independent `detail` leaves, that's still one `AskUserQuestion` call — wait for answers before asking the next round.
+- **Session-aware before interview-first**: Step 1.5 runs the coverage scan before anything else. Re-asking a question the session already settled (typical after `/grill-me`) is the explicit failure mode. Trust the coverage scan; do not loop on confirmed coverage. The `intent` question (Step 2) still precedes any agent dispatch — but only fires when intent is not yet covered.
+- **Always one question at a time** (when questions ARE asked): Even with 2-4 batched independent `detail` leaves, that's still one `AskUserQuestion` call — wait for answers before asking the next round.
 - **`intent` generates, `scope`/`shape`/`detail` reviews**: Intent is the developer's framing — they generate it. Scope, shape, and detail are proposals — they review them. The "developer reviews a proposal" model does not apply at the intent layer.
 - **`file:line` is tier-conditional**: `intent` — never. `scope` — only when an option references existing code, otherwise label "no codebase precedent". `shape` — required on every option that references existing code; if no precedent exists, switch to ungrounded "convention A / convention B" mode. `detail` — same rule as `scope`.
 - **Lazy tree, no full-tree pre-build**: Build only root + immediate children in Step 4. Expand each node's children only after the node resolves. Premature full-tree construction biases the dialogue.
@@ -215,14 +282,17 @@ These reinforce the critical rules from the steps above — listed here so they 
 - **Never write or edit source files**: This skill produces an artifact only. Source-file changes are `implement`'s job, far downstream.
 - **Fresh artifact every invocation**: Each `/discover` call writes a NEW timestamp-distinct file. To iterate on a prior FRD, re-invoke or manually Edit the prior file.
 - **Critical ordering** — follow the numbered steps exactly:
-  - ALWAYS read mentioned files before any agent dispatch (Step 1 → Step 2)
-  - ALWAYS ask the `intent` question before probing (Step 2 → Step 3)
+  - ALWAYS read mentioned files before any agent dispatch (Step 1 → Step 1.5)
+  - ALWAYS run the session coverage scan before any question or probe (Step 1.5)
+  - ALWAYS skip Step 2 / 3 / 4 / 5 for sections the coverage map marks `covered`
+  - ALWAYS ask the `intent` question before probing, when intent is NOT covered (Step 2 → Step 3)
   - ALWAYS shape the probe by stated intent, not the raw input text (Step 3)
   - ALWAYS batch-confirm pre-resolutions instead of silent auto-record (Step 4)
   - ALWAYS expand the tree lazily during the interview (Step 5)
   - ALWAYS re-queue cross-cutting answers under each affected parent (Step 5)
   - ALWAYS terminate on depth signal, not bucket-fill (Step 5)
-  - ALWAYS synthesize from the interview log, never from memory of the conversation (Step 6)
-  - NEVER skip the developer-facing interview — it's the entire point of this skill
+  - ALWAYS synthesize from session content for `covered` sections and from the interview log for the rest (Step 6)
+  - NEVER re-interview sections the session already settled (Step 1.5 gate)
+  - NEVER write the FRD without either a covered intent or a Step 2 intent answer
   - NEVER ask a final "looks good / want to adjust" rubber-stamp question (anti-pattern per `a93e591`)
-  - NEVER dispatch agents before Step 2's `intent` question is answered
+  - NEVER dispatch agents before Step 1.5 coverage scan completes, or — in gap mode — before Step 2's `intent` question is answered when intent is uncovered
