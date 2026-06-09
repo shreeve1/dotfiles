@@ -21,15 +21,18 @@ cmd_prepare() {
   local nonce
   nonce="$(openssl rand -hex 6 2>/dev/null || mktemp -u XXXXXXXXXXXX | tr -dc 'a-zA-Z0-9' | head -c 12)"
 
+  # mktemp templates omit trailing suffixes for BSD/macOS compatibility — only
+  # trailing X's are replaced on BSD; GNU tolerates suffixes but BSD may reject
+  # or leave them literal.
   local review_file prompt_file output_file findings_file done_file base_status after_status state_file
-  review_file="$(mktemp "${TMPDIR:-/tmp}/drc-review-XXXXXX.md")"
-  prompt_file="$(mktemp "${TMPDIR:-/tmp}/drc-prompt-XXXXXX.md")"
-  output_file="$(mktemp "${TMPDIR:-/tmp}/drc-output-XXXXXX.log")"
-  findings_file="$(mktemp "${TMPDIR:-/tmp}/drc-findings-XXXXXX.md")"
+  review_file="$(mktemp "${TMPDIR:-/tmp}/drc-review-XXXXXX")"
+  prompt_file="$(mktemp "${TMPDIR:-/tmp}/drc-prompt-XXXXXX")"
+  output_file="$(mktemp "${TMPDIR:-/tmp}/drc-output-XXXXXX")"
+  findings_file="$(mktemp "${TMPDIR:-/tmp}/drc-findings-XXXXXX")"
   done_file="$(mktemp -u "${TMPDIR:-/tmp}/drc-done-XXXXXX")"
-  base_status="$(mktemp "${TMPDIR:-/tmp}/drc-base-XXXXXX.status")"
-  after_status="$(mktemp -u "${TMPDIR:-/tmp}/drc-after-XXXXXX.status")"
-  state_file="$(mktemp "${TMPDIR:-/tmp}/drc-state-XXXXXX.env")"
+  base_status="$(mktemp "${TMPDIR:-/tmp}/drc-base-XXXXXX")"
+  after_status="$(mktemp -u "${TMPDIR:-/tmp}/drc-after-XXXXXX")"
+  state_file="$(mktemp "${TMPDIR:-/tmp}/drc-state-XXXXXX")"
 
   local socket session
   socket="${TMPDIR:-/tmp}/drc-sock-${nonce}"
