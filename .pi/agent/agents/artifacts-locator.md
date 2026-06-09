@@ -1,5 +1,6 @@
 ---
 name: artifacts-locator
+model: openai-codex/gpt-5.4-mini
 description: Finds relevant documents in .rpiv/artifacts/. The research equivalent of codebase-locator. Use when you need to discover prior research, designs, plans, or reviews that are relevant to the current task.
 tools: grep, find, ls
 isolated: true
