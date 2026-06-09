@@ -7,26 +7,27 @@ description: Create a structured implementation plan, technical approach, phased
 
 Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
 
+> **MANDATORY — DO NOT SKIP PHASE 9.** Every invocation of `/dev-plan` runs the pi reviewer audit loop (up to `MAX_ROUNDS=3` rounds, exit early on zero Critical). The loop is **not** optional. If you draft a plan and stop without running Phase 9, you have not completed this skill. There is no flag to disable the loop and no flag to swap the reviewer — pi is the only reviewer backend. Reach Phase 9 every time.
+
 ## Variables
 
 - `USER_PROMPT` — user's planning request
 - `PLAN_OUTPUT_DIRECTORY` — `plans/`
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
-- `LOOP_ENABLED` — default `false`; set `true` with `--loop`
-- `REVIEWER` — `pi` (default) or `claude`; set with `--reviewer <name>`
-- `MAX_ROUNDS` — default `3`; override with `--rounds N`
-- `REVIEWER_MODEL` — optional model override passed to the reviewer backend with `--reviewer-model <m>`
+- `REVIEWER` — fixed to `pi`. No flag to change.
+- `MAX_ROUNDS` — default `3`; override with `--rounds N` where `N >= 1`
+- `REVIEWER_MODEL` — optional model override passed to pi with `--reviewer-model <m>`
 
 ## Invocation
 
 | Form | Behavior |
 |------|----------|
-| `/dev-plan <prompt>` | Single-pass plan (default — no audit loop) |
-| `/dev-plan <prompt> --loop` | Draft, then run up to `MAX_ROUNDS` reviewer-audit rounds (reviewer = `pi` by default), exit early when no Critical findings remain |
-| `/dev-plan <prompt> --loop --reviewer claude` | Same loop, but use the Claude backend (tmux) as the auditor |
-| `/dev-plan <prompt> --loop --rounds N` | Override max rounds |
-| `/dev-plan <prompt> --loop --reviewer-model <m>` | Pass a model override to the reviewer backend |
+| `/dev-plan <prompt>` | Draft, then run up to `MAX_ROUNDS=3` pi-audit rounds, exit early when a round produces zero Critical (remaining Warning/Note are addressed during that round's revision pass) |
+| `/dev-plan <prompt> --rounds N` | Override max rounds; `N` must be `>= 1` |
+| `/dev-plan <prompt> --reviewer-model <m>` | Pass a model override to pi |
+
+There is no `--no-loop`, no `--reviewer`, no `--rounds 0`. The audit loop is enforced.
 
 ## Pre-flight
 
@@ -41,12 +42,10 @@ Parse flags from the invocation before anything else, then strip them from `USER
 
 | Flag | Effect |
 |------|--------|
-| `--loop` | Set `LOOP_ENABLED=true` (enables Phase 9) |
-| `--reviewer <pi\|claude>` | Set `REVIEWER` (default `pi`). Only `pi` and `claude` are valid — reject anything else |
-| `--rounds N` | Set `MAX_ROUNDS` to integer N (default 3) |
-| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for the chosen backend |
+| `--rounds N` | Set `MAX_ROUNDS` to integer `N >= 1` (default 3). Reject `N <= 0` |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi |
 
-If `--reviewer` is given without `--loop`, treat it as implying `--loop`. If `LOOP_ENABLED` is false, Phase 9 is skipped entirely and behavior is identical to the prior single-pass skill.
+Any other flag (`--loop`, `--no-loop`, `--reviewer`, `--rounds 0`) — reject with a one-line explanation that the loop and reviewer are enforced. Do not silently accept and skip.
 
 ## Workflow Overview
 
@@ -133,11 +132,11 @@ Write the complete plan to `plans/<filename>.md`. Ensure:
 - Code examples or pseudo-code included where appropriate
 - All edge cases and error handling addressed
 
-### Phase 9: Reviewer Audit Loop (only when `--loop`)
+### Phase 9: Reviewer Audit Loop (MANDATORY — runs every invocation)
 
-If `LOOP_ENABLED` is false, **skip this entire phase** — go straight to Validate. Behavior is then identical to the single-pass skill.
+This phase is **not optional**. Every `/dev-plan` invocation reaches Phase 9. The only way Phase 9 can end without running at least one full audit round is if the pi backend is genuinely unavailable (binary missing or all rounds fail) — see 9.8. "User did not pass a flag" is not a valid skip reason.
 
-The Phase 8 draft is **round 0**. Run rounds 1..`MAX_ROUNDS`: an independent reviewer audits the on-disk plan against the codebase and emits severity-tagged findings; you revise the plan; repeat. Exit early when no Critical findings remain.
+The Phase 8 draft is **round 0**. Run rounds 1..`MAX_ROUNDS`: pi audits the on-disk plan against the codebase and emits severity-tagged findings; you revise the plan; repeat. Exit as soon as a round produces zero Critical findings — the converging round's revision still addresses any remaining Warnings and cheap Notes inline before exit (no extra re-audit round).
 
 Each round re-reads the revised plan from `plans/<feature>.md`, so **rounds are stateless** — no reviewer session continuity is needed. Reuse the reviewer *engine* inline (the mechanics below). Do **not** invoke the `/dev-review-pi` or `/dev-review-claude` skills — their interactive scope-verify / present / discuss steps would stall an automated loop.
 
@@ -145,7 +144,7 @@ Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || 
 
 #### 9.0 Initialize state
 
-Write `plans/.<feature>.state.yml` (schema in **State YAML Schema** below) with `current_round: 0`, `status: running`, `reviewer: <REVIEWER>`, empty `rounds: []`.
+Write `plans/.<feature>.state.yml` (schema in **State YAML Schema** below) with `current_round: 0`, `status: running`, `reviewer: pi`, empty `rounds: []`.
 
 #### 9.1 Build the round prompt
 
@@ -222,22 +221,6 @@ echo "pi launched pid=$PID"
 
 **Poll in separate Bash calls** — each call its own short invocation so the review stays observable. Stop when `$OUTPUT_FILE` contains `END_OF_FINDINGS` or `kill -0 $PID` fails. Surface a one-line progress note each poll. Do not block on a fixed long sleep.
 
-#### 9.2-alt Run the reviewer — `claude` backend
-
-Interactive `claude` in a detached **tmux** session with `--permission-mode bypassPermissions` (so read/search/shell inspection doesn't stall on prompts), driven by **send-keys**, completion detected by **polling `capture-pane`** for the sentinel.
-
-```bash
-OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
-SESSION="devplan-review-$$-r${ROUND}"
-CL_MODEL_ARGS=""; [ -n "$REVIEWER_MODEL" ] && CL_MODEL_ARGS="--model $REVIEWER_MODEL"
-tmux new-session -d -s "$SESSION" -x 220 -y 50
-tmux send-keys -t "$SESSION" "cd $REPO_ROOT && claude --permission-mode bypassPermissions $CL_MODEL_ARGS" Enter
-# wait for the prompt to be ready, then point claude at the prompt file (avoids multi-line paste issues):
-tmux send-keys -t "$SESSION" "Read the file $PROMPT_FILE and do exactly what it says." Enter
-```
-
-Then **poll** `tmux capture-pane -t "$SESSION" -p -S -` on an interval until the captured text contains `END_OF_FINDINGS`. On each poll, surface a one-line progress note. When the sentinel appears, write the captured pane to `$OUTPUT_FILE`, then `tmux kill-session -t "$SESSION"`. If the session dies or the poll budget is exhausted without the sentinel, treat as a reviewer failure (see 9.8).
-
 #### 9.3 Parse findings
 
 From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/`[NOTE]`), capturing verbatim text. Compute `critical_count`, `warning_count`, `note_count`. The `END_OF_FINDINGS` sentinel marks clean end-of-output; if it's missing, the output was truncated — record that and treat as a reviewer failure (9.8).
@@ -246,14 +229,7 @@ From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/
 
 Bump `current_round: <N>`, then append the round entry (verbatim findings + counts) per the schema. `current_round` now reflects the round whose findings were just parsed.
 
-#### 9.5 Check exit criteria
-
-If `current_round >= 1` AND `critical_count == 0` AND every Warning from prior rounds is resolved or was explicitly dismissed with recorded reasoning:
-- `status: converged`, `exit_reason: "No critical findings, prior warnings addressed"` → exit loop, go to Validate.
-
-(Round 1 always proceeds to at least one revision before it can exit — exit is evaluated *after* 9.6 for round 1.)
-
-#### 9.6 Revise plan
+#### 9.5 Revise plan
 
 Read the findings. Revise `plans/<feature>.md`:
 - Address each `[CRITICAL]` by changing the plan.
@@ -261,6 +237,13 @@ Read the findings. Revise `plans/<feature>.md`:
 - Address `[NOTE]` only if cheap.
 
 **Preserve the Plan Format exactly** — section structure, `[N.M]` task IDs, `[T.N.M]` test IDs (downstream `/dev-build` and `/dev-test` depend on them). Record a one-line `revision_summary` in the round entry.
+
+#### 9.6 Check exit criteria
+
+After the revision pass, if `critical_count == 0` for the round just parsed:
+- `status: converged`, `exit_reason: "Zero critical findings; warnings and notes addressed inline"` → exit loop, go to Validate.
+
+The revision in 9.5 already addressed remaining Warnings (by fix or by Note) and any cheap Notes. **No re-audit round is run** — exit immediately so the loop stops as soon as the reviewer reports no critical issues. If you intentionally dismissed a Warning without changing the plan, record the reasoning in `revision_summary`.
 
 #### 9.7 Hard stop / loop back
 
@@ -457,10 +440,10 @@ Next Steps:
 Run `/dev-build plans/<filename>.md` when ready to implement.
 ```
 
-If the audit loop ran (`--loop`), append a Loop Outcome block:
+Always append the Loop Outcome block (the audit loop always runs):
 
 ```
-Audit Loop (reviewer: <pi|claude>)
+Audit Loop (reviewer: pi)
 - Rounds run: <N>/<MAX_ROUNDS>
 - Exit reason: <converged | hard_stopped | reviewer_unavailable — detail>
 - Final findings: <critical> critical / <warning> warning / <note> note
@@ -476,7 +459,7 @@ If `status: reviewer_unavailable`, say so plainly — the plan is unaudited and 
 ```yaml
 plan_file: plans/<feature>.md
 prompt: "<original USER_PROMPT, flags stripped>"
-reviewer: pi              # pi | claude
+reviewer: pi              # always pi
 reviewer_model: null      # set when --reviewer-model given
 max_rounds: 3
 current_round: 2
