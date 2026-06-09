@@ -5,360 +5,163 @@ description: Independent code review using a fresh interactive Claude Code sessi
 
 # Dev Review Claude (Interactive Claude Code via tmux)
 
-Independent review using a fresh interactive Claude Code session as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, writes a structured brief, and sends it to a separate Claude Code process running in a private tmux session.
+Independent review using a fresh interactive Claude Code session as the reviewer. The primary agent extracts a review target from conversation context, gathers surrounding codebase context, writes a structured brief, and drives a separate Claude Code process via the helper script `engine.sh` (in this skill directory). The reviewer runs with bypass permissions so read/search/shell work does not stall.
 
-The reviewer runs with bypass permissions and normal tool access so read/search/shell work does not stall on prompts. The reviewer is instructed to stay read-only; the primary agent verifies the working tree after the review and surfaces any unexpected modifications before applying agreed changes.
-
-This skill is the single source of truth for `dev-review-claude`. The `/skill:dev-review-claude` invocation and the Development pack's Review sub-skill both route here.
+Review-only by instruction, not by permission — Bash and edit tools stay enabled inside the reviewer session so the reviewer can inspect the codebase freely. A malicious or buggy reviewer *could* modify files; the primary agent surfaces any working-tree change via `engine.sh diff_tree` after the run. This is trust-and-verify, not enforcement. (Same posture as `dev-review-pi`.)
 
 ## Variables
 
-TARGET: $1 — (Optional) One of:
-- `plan` — most recent plan file on disk
-- `build` — uncommitted git changes
-- `proposal` (aliases: `idea`, `context`) — an inline proposal/approach/snippet from the current conversation, even if nothing has been written to disk yet
-- An explicit file or directory path
-- Omitted — extract the review target from conversation context (file paths, plans, diffs, OR inline proposals). Default behaviour: review the current plan/context for gaps.
+- **TARGET** (`$1`) — what to review. One of:
+  - `plan` — most recent plan file on disk (search `plans/`, `specs/`, `artifacts/plans/`).
+  - `build` — uncommitted git changes; rejected outside a git repo.
+  - `proposal` (aliases: `idea`, `context`) — inline proposal/snippet from the current conversation, even if nothing is on disk.
+  - An explicit file or directory path.
+  - Omitted — extract the review target from conversation context.
+- **REVIEWER_MODEL_ARGS** — reviewer model selector, exported to engine as `DRC_MODEL_FLAG_STR`. Default `--model opus`. `--sonnet` overrides to `--model sonnet`. `--claude` and `--opus` are explicit no-op pins (equivalent to default). `--gpt` is rejected (Claude-first skill; ask for `--opus` or `--sonnet`). Multiple model flags — ask the user to choose one.
+- **ENGINE** — `/home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh`. The primary agent calls subcommands; the script owns all temp paths, tmux session lifecycle, ready-pattern polling, and cleanup.
 
-REVIEWER_MODEL_ARGS: Optional reviewer model selector array from the raw arguments:
-- `--claude` or `--opus` — set to `("--model" "opus")`
-- `--sonnet` — set to `("--model" "sonnet")`
-- Omitted — use an empty array and preserve the current default reviewer model behaviour
-- Multiple model flags present — ask the user to choose one before running the reviewer
+**Canonical finding regex** — defined here once, referenced everywhere else: `^[-*]\s*\*\*\[(Critical|Warning|Note)\]:\*\*`. The brief tells the reviewer to use this exact format; the primary parses captured findings with the same regex.
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+Create a task per item, complete in order:
 
-1. **Extract review target** — identify what to review from conversation context or argument (file, plan, build diff, OR inline proposal)
-2. **Verify target with user** — confirm scope before sending to the reviewer
-3. **Gather surrounding context** — read related files, conventions, plans
-4. **Build review brief** — assemble structured context document
-5. **Run Claude Code review** — execute interactive `claude` in a fresh tmux session with the bounded review brief pasted into the session
-6. **Present and discuss findings** — parse reviewer output, discuss interactively
-7. **Apply agreed changes** — implement only what the user agrees on
-
-## Instructions
-
-- **Context assembly is the critical step.** The value of this skill is in what context the reviewer receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
-- **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
-- **Reviewer runs in a fresh Claude Code session.** Use an interactive `claude` process inside a private tmux session. Do not use non-interactive print mode. Run with bypass permissions and default tool access so read/search/shell inspection does not stall on prompts. The reviewer is instructed to be read-only — applying changes happens back in the primary session.
-- **Present reviewer findings faithfully.** Don't soften or reinterpret. Show what the reviewer actually said, then add your own assessment separately.
-- **Flag disagreements.** Where the primary agent and the reviewer disagree — that's where the interesting discussion lives.
+1. Parse flags and extract review target from argument or conversation context.
+2. Verify scope with the user (conditional — see Phase 1).
+3. Gather surrounding context (conventions, related code, tests, plan).
+4. Build the review brief.
+5. Drive `engine.sh` through prepare → launch → poll → capture → diff_tree → cleanup.
+6. Present findings by severity, flag disagreements, ask which to address.
+7. Apply only the changes the user agrees to.
 
 ## Workflow
 
 ### Phase 1: Extract and Verify
 
-1. **Extract Review Target**
+**Parse model flags first**, strip them from the argument string, then interpret TARGET.
 
-   First parse model selector flags from the raw arguments:
-   - If `--claude` or `--opus` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "opus")`
-   - If `--sonnet` is present, set `REVIEWER_MODEL_ARGS` to `("--model" "sonnet")`
-   - If `--gpt` is present, explain that this Claude-first skill no longer routes through OpenCode; ask the user to choose `--opus` or `--sonnet`
-   - If multiple model flags are present, ask the user which reviewer model to use and stop until they answer
-   - Remove model flags from the argument string before interpreting TARGET
+**Resolve TARGET:**
+- `plan` — find the most recent plan file (ask if ambiguous).
+- `build` — use uncommitted git changes; if working tree is clean, report "nothing to review" and stop; if changes are unrelated to a known plan, warn before proceeding.
+- `proposal` / `idea` / `context` — extract the most recent concrete suggestion from chat history. The proposal *is* the content under review, not a file. If multiple candidates, ask the user to pick.
+- Explicit path — use it directly.
+- Nothing provided and nothing clear in context — ask what to review.
 
-   Scan the conversation context for:
-   - File paths that were discussed, modified, or created
-   - Plan content (from `/dev-plan` or plan files)
-   - Build output or git diffs
-   - **Inline proposals** — code snippets, design approaches, architectural sketches, or solutions you proposed in chat that the user wants double-checked, even if not yet written to disk
-   - Any explicit TARGET argument
+**Scope confirmation (conditional):**
+- **Skip** when TARGET resolves to an on-disk file or directory path AND context-file count is under 5.
+- **One-line confirm** for `plan` / `build` / `proposal` argument forms (resolution can pick the wrong artifact). Example: `Reviewing plans/<name>.md? (y/n)`.
+- **Full scope summary** (target, context files, review focus, "add or remove anything?") for ambiguous extracted-from-chat targets. Wait for confirmation; adjust on feedback.
 
-   If TARGET argument is provided:
-   - `plan` — find the most recent plan file (search `plans/`, `specs/`, then `artifacts/plans/` — matching dev-plan, dev-build, dev-test conventions; ask if ambiguous)
-   - `build` — use uncommitted git changes
-   - `proposal` (aliases: `idea`, `context`) — review an inline proposal from the current conversation. Extract the most recent concrete suggestion (snippet, approach, design) from your chat history. If multiple candidates exist, ask the user to pick. The proposal is the *content under review* — not a file on disk.
-   - File path — read that file
-   - Directory — scan and select key files
+### Phase 2: Gather Context and Build Brief
 
-   If no TARGET and nothing clear in context: ask the user what to review. When inline proposals AND on-disk artifacts both exist in context, list both and let the user choose.
+**Context assembly is the critical step.** Be thorough — read related files, conventions, plans, tests, configs. Don't pre-review; pass raw context and let the reviewer form independent opinions.
 
-2. **Verify Scope with User**
+**Always gather:** project conventions (CLAUDE.md, AGENTS.md, linting configs, tsconfig), stack detection.
 
-   Before sending to the reviewer, present what you'll review:
+**By review type:**
+- **Plan/context** — the plan file, PRD or requirements, code the plan will modify, established conventions.
+- **Build** — `git status` (tracked + untracked), `git diff`, `git diff --staged` inline in the brief; the plan the build was based on; tests for modified code; dependents of changed files.
+- **File/directory** — imports/dependencies of the target, tests for the target, files that import the target.
+- **Proposal (inline)** — paste the proposal verbatim; include the problem it solves, constraints from the conversation, and files it would touch if knowable. If purely abstract, note that explicitly and let the reviewer reason on first principles.
 
-   ```
-   I'll send the following to a fresh Claude Code session for review:
+Keep context focused: summarise large files, include small ones in full, target under ~8K lines total. If the brief overflows, summarise older files rather than enabling edit-capable tools.
 
-   Target: [description of what's being reviewed]
-   Context files: [list of related files you'll include]
-   Review focus: [gaps / plan compliance / correctness / completeness / all of the above]
+**Brief structure** (Write this to `$REVIEW_FILE`). Sections: Review Type; Project Context (stack, conventions, working directory); What's Being Reviewed (plan / diff / file / proposal content); Related Code (paths, roles, excerpts); Review Instructions.
 
-   Does this look right? Should I add or remove anything?
-   ```
+The Review Instructions block must include, verbatim:
 
-   Wait for user confirmation. Adjust scope based on feedback.
+- Reviewer is independent, runs in a fresh Claude Code session, may inspect the repo, stays review-only (primary applies changes).
+- Analysis dimensions: gaps, technical risks, completeness, best-practice fit, architectural concerns, assumptions.
+- Findings format: the canonical regex form — `- **[Critical|Warning|Note]:** <one-line summary> — <file:line if applicable>. <explanation and suggested resolution>`. No freeform paragraphs.
+- **Deterministic completion contract**: write the complete findings list to `$FINDINGS_FILE` via Bash (e.g. `cat > "$FINDINGS_FILE" <<'EOF' ... EOF`), then `touch "$DONE_FILE"`. Only the Bash-written file counts as output. Do not print findings to the chat pane, and do not print any line matching the canonical regex to chat (it confuses the polling layer).
 
-### Phase 2: Gather and Build Brief
+Interpolate the literal values of `$FINDINGS_FILE` and `$DONE_FILE` into the brief at build time — the primary learns these paths in Phase 3 Step 1.
 
-3. **Gather Surrounding Context**
+### Phase 3: Run the Engine
 
-   Based on the review target, read:
+The reviewer mechanics live in `engine.sh`. The primary agent invokes subcommands as five sequential Bash-tool calls and one poll loop. Do not reimplement ready-detection, tmux session management, or cleanup in the skill — call the engine.
 
-   **Always:**
-   - Project conventions (CLAUDE.md, AGENTS.md if present, linting configs, tsconfig, etc.)
-   - Stack detection — languages, frameworks, key dependencies
+> **Critical: shell variables do NOT persist across separate Bash tool calls.** Each Bash invocation is a fresh subshell. After Step 1, capture the literal state-file path and the brief-paths it printed in your own working notes (as plain strings), then substitute those literal paths into every subsequent Bash call by string-interpolation when you compose the command. Do not write `$STATE` or `$FINDINGS_FILE` and expect a later call to know what they mean. The shell snippets below use `<STATE>`, `<FINDINGS_FILE>`, `<DONE_FILE>`, `<REVIEW_FILE>`, `<PROMPT_FILE>` as placeholders the primary fills with the actual `/tmp/drc-*` paths returned by Step 1.
 
-   **For plan / context reviews (default):**
-   - The plan file (or session context summary)
-   - PRD or requirements documents if available
-   - Existing code that the plan will modify or interact with
-   - Conventions and constraints established earlier in the conversation
+**Step 1 — Prepare and load state paths.** One Bash call. Choose `PROJECT_ROOT`: prefer the target's enclosing repo (`git rev-parse --show-toplevel` against the target's directory); fall back to the target's parent directory when the target lives outside any git repo (`engine.sh` tolerates non-git roots — the baseline and diff become trivially empty). Reject `build` reviews on non-git targets and fall back to a file review of the would-be diff target.
 
-   **For build reviews:**
-   - Run `git status` to capture all changes (tracked + untracked), then `git diff` and `git diff --staged` for details
-   - **Preflight check:** if working tree is clean, report "nothing to review" and stop. If there are changes unrelated to the plan, warn the user before proceeding.
-   - The plan the build was based on (if available)
-   - Test files for modified code
-   - Files that import or depend on changed files
+```bash
+bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh prepare <PROJECT_ROOT>
+# Then read the state file the engine printed and surface its keys:
+cat /tmp/drc-state-XXXXXX.env
+```
 
-   **For file/directory reviews:**
-   - Imports and dependencies of the target files
-   - Test files for the target
-   - Files that import the target
+Record from that output:
+- `<STATE>` — the state-file path the engine printed on stdout.
+- `<REVIEW_FILE>`, `<PROMPT_FILE>`, `<FINDINGS_FILE>`, `<DONE_FILE>` — the brief and contract paths inside the state file.
 
-   **For proposal reviews (inline content):**
-   - The proposal itself (pasted verbatim into the brief — be faithful, do not rewrite or "improve" it)
-   - The problem the proposal is intended to solve (extracted from conversation)
-   - Any constraints, requirements, or decisions established earlier in the conversation
-   - Existing files the proposal would touch or interact with (if any are knowable)
-   - If the proposal is purely abstract (no target codebase): skip "related code" and let the reviewer review on first principles. Note this explicitly in the brief.
+**Step 2 — Write brief and prompt files.** Use the Write tool to write the brief (with the literal `<FINDINGS_FILE>` and `<DONE_FILE>` paths interpolated into the completion contract) to `<REVIEW_FILE>`. Then build `<PROMPT_FILE>` by prepending a one-line cover instruction. Substitute the literal paths into the Bash call:
 
-   **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. If the reviewer needs more context, rebuild the brief with those files instead of enabling edit-capable tools.
+```bash
+{
+  printf 'Review the following brief. Follow the completion contract exactly: write findings to <FINDINGS_FILE> with your Bash tool, then touch <DONE_FILE>.\n\n'
+  cat <REVIEW_FILE>
+} > <PROMPT_FILE>
+```
 
-4. **Build Review Brief**
+**Step 3 — Launch the reviewer session.** One Bash call. Default model is `--model opus`; swap to `--model sonnet` if `--sonnet` flag was given:
 
-   Assemble a structured brief. This is what the reviewer receives.
+```bash
+DRC_MODEL_FLAG_STR='--model opus' bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh launch <STATE>
+```
 
-   ```markdown
-   # Review Brief
+Engine.sh starts tmux, runs `claude` with bypass permissions, polls for the ready pattern (`bypass permissions on|shift\+tab to cycle`), then pastes `<PROMPT_FILE>` and sends Enter.
 
-   ## Review Type
-   [Plan/Context Review | Build Review | Code Review | Proposal Review]
+**Step 4 — Poll loop.** In the primary agent's outer harness, repeat with a sleep between calls (5–15 seconds is reasonable):
 
-   ## Project Context
-   - Stack: [languages, frameworks, key deps]
-   - Conventions: [naming patterns, project rules, CLAUDE.md highlights]
-   - Working directory: [project root path]
+```bash
+bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh poll <STATE>
+```
 
-   ## What's Being Reviewed
+The engine prints exactly one of `done`, `running`, `exited`. Stop on `done` or `exited`. Cap at roughly 20 polls (~5 minutes wall clock) before pausing to ask the user: stuck or abort?
 
-   [The actual content — plan document, git diff, file contents, or inline proposal]
+**Step 5 — Capture, diff, cleanup.** Three Bash calls, each with the literal `<STATE>` path:
 
-   ## Related Code
+```bash
+bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh capture   <STATE>
+bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh diff_tree <STATE>
+bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh cleanup   <STATE>
+```
 
-   [For each related file: path, role, key excerpts]
-
-   ## Review Instructions
-
-   You are an independent reviewer running in a fresh Claude Code session. You have read-only intent — DO NOT modify any files. The primary agent will apply any agreed changes later.
-
-   Analyze for:
-   - Gaps and missing considerations
-   - Technical risks (failure modes, edge cases, performance, security)
-   - Completeness (error handling, test coverage, documentation)
-   - Best practices for the detected stack
-   - Architectural concerns or pattern violations
-   - Assumptions that may not hold
-
-   Format your response as a structured list. For each finding, use this exact format:
-   - **[Critical|Warning|Note]:** <one-line summary> — <file:line reference if applicable>. <explanation and suggested resolution>
-
-   This format is required for automated parsing. Do not use freeform paragraphs for findings.
-   ```
-
-### Phase 3: Run Claude Code Reviewer
-
-> Canonical tmux reviewer engine. The planned `/dev-plan --loop` reuses this engine inline — keep the two in sync if either changes.
-
-5. **Execute Claude Code Review**
-
-   **Determine project root:**
-   ```bash
-   git rev-parse --show-toplevel 2>/dev/null
-   ```
-   - If the target IS inside a git repo: use the repo root as project directory.
-   - If the target is NOT inside a git repo: use its parent directory. Only `plan`, `proposal`, and `file` reviews work outside repos — **reject `build` reviews for non-git targets** and fall back to file review instead.
-   - The project root should be derived from the review target's location, not `pwd`.
-
-   **Write the review brief and prompt to temp files:**
-   ```bash
-   REVIEW_FILE=$(mktemp /tmp/claude-review-XXXXXX.md)
-   PROMPT_FILE=$(mktemp /tmp/claude-review-prompt-XXXXXX.md)
-   OUTPUT_FILE=$(mktemp /tmp/claude-review-output-XXXXXX.txt)
-   BASE_STATUS_FILE=$(mktemp /tmp/claude-review-status-before-XXXXXX.txt)
-   AFTER_STATUS_FILE=$(mktemp /tmp/claude-review-status-after-XXXXXX.txt)
-   DONE_NONCE="$(date +%s)_$RANDOM"
-   DONE_MARKER="DEV_REVIEW_DONE_$DONE_NONCE"
-   trap 'rm -f "$REVIEW_FILE" "$PROMPT_FILE" "$OUTPUT_FILE" "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"' EXIT
-   # Write the brief content to $REVIEW_FILE using the Write tool.
-   # Then wrap it in $PROMPT_FILE with submit instructions and the completion marker.
-   ```
-
-   **Run the reviewer in a fresh interactive tmux session:**
-   ```bash
-   SOCKET_DIR="${CLAUDE_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/claude-tmux-sockets}"
-   mkdir -p "$SOCKET_DIR"
-   SOCKET="$SOCKET_DIR/claude.sock"
-   SESSION="dev-review-claude-$(date +%s)"
-
-   git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
-
-   # Raise history-limit and create the session in ONE invocation so the pane inherits
-   # the larger scrollback (avoids truncating long reviews). On a fresh socket the server
-   # starts for this command chain; a separate `set-option -g` first would error (no
-   # server yet) and a `set-option` after new-session won't resize the existing pane.
-   tmux -S "$SOCKET" set-option -g history-limit 50000 \; new-session -d -s "$SESSION" -c "$PROJECT_ROOT" -n review
-   tmux -S "$SOCKET" send-keys -t "$SESSION":0.0 -- \
-     "claude ${REVIEWER_MODEL_ARGS[*]} --permission-mode bypassPermissions --disallowedTools 'Edit,Write,MultiEdit,NotebookEdit' --append-system-prompt 'You are a read-only independent code review tool. Follow the requested finding format exactly. Do not modify files. Do not use local house style or wrapper behavior.'" Enter
-   ```
-
-   Immediately print monitor commands for the user:
-   ```bash
-   tmux -S "$SOCKET" attach -t "$SESSION"
-   tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S -200
-   ```
-
-   **Wait for Claude Code to be ready before pasting:**
-   - Poll `tmux capture-pane` until the Claude prompt/input UI is visible, or until a short timeout (default: 30 seconds).
-   - If Claude does not become ready, capture the pane, print the attach command, and ask whether to continue waiting, attach manually, or abort.
-   - Do not paste the review brief while the pane is still at a shell prompt or startup screen.
-
-   **Send the brief without shell-quoting risk:**
-   ```bash
-   {
-     printf 'Review the following brief. You may inspect the repository with tools, but you must not modify files. Format findings exactly as requested. When complete, print DEV_REVIEW_DONE_ followed immediately by this nonce on its own line: %s\n\n' "$DONE_NONCE"
-     cat "$REVIEW_FILE"
-   } > "$PROMPT_FILE"
-
-   tmux -S "$SOCKET" load-buffer -b dev-review-claude "$PROMPT_FILE"
-   tmux -S "$SOCKET" paste-buffer -b dev-review-claude -t "$SESSION":0.0
-   tmux -S "$SOCKET" send-keys -t "$SESSION":0.0 Enter
-   ```
-
-   Notes:
-   - `--claude` and `--opus` map to `--model opus`; `--sonnet` maps to `--model sonnet`.
-   - `--gpt` is intentionally unsupported in this Claude-first workflow.
-   - If neither model flag is provided, use an empty `REVIEWER_MODEL_ARGS` array and preserve the current default reviewer model behaviour.
-   - Do not pass print-mode flags; this workflow intentionally uses interactive Claude Code through tmux.
-   - Do not pass `--tools ""`; this workflow intentionally allows default tools so repository reads/searches do not stall.
-   - Disallow direct edit tools (`Edit`, `Write`, `MultiEdit`, `NotebookEdit`) while keeping read/search/shell tools available.
-   - The reviewer has bypass permissions. Treat this as trusted local automation only. Bash can still modify files, so the primary agent must compare working-tree status before and after the review.
-
-   **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files, but the diff remains the authoritative review target.
-
-   **Capture output reliably:**
-   - Poll the pane until the unique `$DONE_MARKER` appears, or until a timeout (default: 10 minutes). The pasted prompt includes only the nonce, not the full marker, so the full marker should appear only in the reviewer response.
-   - On success, capture the pane to `$OUTPUT_FILE`:
-     ```bash
-     tmux -S "$SOCKET" capture-pane -p -J -t "$SESSION":0.0 -S - > "$OUTPUT_FILE"   # -S - captures full history (history-limit raised at session start)
-     ```
-   - If the timeout fires, capture the pane, leave the tmux session running, print the attach command, and ask whether to continue waiting, attach manually, or abort.
-   - After successful capture, kill the tmux session unless the user asks to keep it:
-     ```bash
-     tmux -S "$SOCKET" kill-session -t "$SESSION"
-     ```
-   - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
-
-   **Verify read-only behavior:**
-   - After the reviewer completes, compare project status against the pre-review baseline:
-     ```bash
-     git -C "$PROJECT_ROOT" status --short > "$AFTER_STATUS_FILE" 2>/dev/null || true
-     if ! cmp -s "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"; then
-       diff -u "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE" || true
-       # Stop and ask the user before presenting findings or applying anything.
-     fi
-     ```
-   - This comparison is required even for build reviews, because the tree may already have intentional changes before review starts.
-   - If files changed unexpectedly, stop and surface the changed paths before presenting findings.
-   - Do not apply or revert reviewer changes without explicit user confirmation.
-
-   **Clean up temp files after parsing:** the `trap` above removes `$REVIEW_FILE`, `$PROMPT_FILE`, `$OUTPUT_FILE`, `$BASE_STATUS_FILE`, and `$AFTER_STATUS_FILE`. Do not trap-kill the tmux session, because timeout/debug flows may need the session left open.
-
-   **Error handling:**
-   - If `claude` is not on PATH: report it and ask the user to check their Claude Code install.
-   - If `tmux` is not on PATH: report it and offer a manual reviewer handoff using the generated prompt file.
-   - If the reviewer output is empty: note the issue, offer to re-open the tmux session or use primary-agent-only fallback.
-   - If the reviewer attempts to modify files despite the read-only instruction: surface that in the report.
+`capture` prints `<FINDINGS_FILE>` to stdout. If the findings file is empty, it dumps the tmux pane instead and exits non-zero with `FINDINGS_FILE_EMPTY` on stderr — apply lenient parsing in that case. `diff_tree` prints any working-tree drift since `prepare`; surface it before findings if non-empty. `cleanup` is idempotent — kills tmux and removes every temp path the engine allocated.
 
 ### Phase 4: Present and Discuss
 
-6. **Present Findings**
+Parse captured findings using the canonical regex defined at the top. Present organised by severity:
 
-   Parse reviewer output and present organized by severity:
+- **Critical findings** — quote the reviewer, give your assessment (agree / disagree / nuance), suggest a resolution.
+- **Warnings** — same shape.
+- **Notes** — same shape.
+- **Reviewer disagreements** — call them out explicitly with your reasoning; let the user decide.
 
-   **Critical findings** (will cause problems):
-   - Quote the reviewer's finding
-   - Your assessment: agree / disagree / nuance
-   - Suggested resolution
-
-   **Warnings** (may cause issues):
-   - Same format
-
-   **Notes** (worth considering):
-   - Same format
-
-   **Reviewer Disagreements:**
-   - Where you disagree with the reviewer, flag it explicitly
-   - Explain your reasoning
-   - Let the user decide
-
-   Then ask the user:
-   - "Which findings do you want to address?"
-   - "Any findings you disagree with or want to explore further?"
-
-7. **Interactive Discussion**
-
-   Based on user feedback:
-   - Drop findings the user dismisses (with reason)
-   - Deep-dive on areas the user wants to explore
-   - Refine recommendations based on constraints revealed
-   - Converge on agreed changes
+Then ask: "Which findings do you want to address? Any you want to dismiss or explore further?" Iterate based on user feedback.
 
 ### Phase 5: Apply Changes
 
-8. **Apply Agreed Changes**
-
-   After discussion, the primary agent applies the changes the user agreed to:
-   - Make precise, surgical modifications
-   - Show a summary diff of what changed
-   - Do NOT apply anything the user didn't explicitly agree to
-
-   If the user prefers no changes: close the review as discussion-only.
+Primary agent applies only the changes the user explicitly agrees to. Show a summary diff. If the user wants no changes, close the review as discussion-only.
 
 ## Report
 
-After the review is complete, provide:
-
 ```
 Review Complete (Dev Review Claude via tmux)
-
-Target: <what was reviewed>
-Type: <Plan/Context | Build | File | Proposal>
-Stack: <detected languages/frameworks>
-Context files: <N files gathered>
-
-Reviewer Findings:
-- Critical: <N>
-- Warning: <N>
-- Note: <N>
-
-Key Findings:
-- <most important finding 1>
-- <most important finding 2>
-- <most important finding 3>
-
-Disagreements with reviewer: <N>
-
-Outcome: <"Changes applied" | "Recommendations discussed" | "No issues found">
+Target: <what>   Type: <Plan/Context | Build | File | Proposal>
+Stack: <detected>   Context files: <N>
+Findings: Critical=<N> Warning=<N> Note=<N>
+Key Findings: <top 1-3>
+Working-tree drift: <yes/no>   Disagreements: <N>
+Outcome: <Changes applied | Recommendations discussed | No issues found>
 ```
 
 ## Error Handling
 
-- **claude not on PATH:** Report error, ask the user to verify their Claude Code install
-- **Target not found:** Ask user to clarify what to review
-- **Reviewer returns error:** Show error, offer retry or primary-agent-only fallback
-- **Reviewer output empty/trivial:** Note issue, offer primary-agent-only fallback
-- **No issues found:** Clean review — acknowledge the code is solid as-is
+- `claude` or `tmux` missing — `engine.sh launch` exits non-zero with a diagnostic; report and ask the user to fix their install.
+- Ready timeout — `engine.sh launch` dumps the last ~30 pane lines to stderr; surface them and ask whether to retry or abort.
+- Empty findings file — `engine.sh capture` falls back to a pane dump and writes `FINDINGS_FILE_EMPTY` on stderr; apply lenient parsing and offer to re-run or fall back to a primary-agent-only review.
+- Working-tree mutation detected — `engine.sh diff_tree` shows the drift; surface it before presenting findings and confirm with the user before applying or reverting anything.
+- Target not found — ask the user to clarify what to review.
+- No issues — clean review; acknowledge the code is solid as-is.
