@@ -1,7 +1,7 @@
 ---
 name: discover
 description: Synthesize a Feature Requirements Document at .rpiv/artifacts/discover/ from the current session, asking clarifying questions ONLY for sections the session does not already cover. Pairs cleanly with `/grill-me` — run grill-me first to sort details, then `/discover` to convert that conversation into an FRD that kicks off the rralph loop. Falls back to a full one-question-at-a-time interview when the session is empty (fresh-feature mode). The FRD's Decisions block is consumed by `research` and propagates through Developer Context into `design`.
-argument-hint: "[free-text feature description | existing artifact path]"
+argument-hint: "[free-text | artifact path | (empty when session has feature context)]"
 allowed-tools: Bash, Read, Edit, Write, Grep, Glob, Agent, AskUserQuestion
 ---
 
@@ -35,16 +35,7 @@ The final artifact is research-compatible — its Decisions block is translated 
 
 ### Step 1: Input Handling
 
-1. **No argument provided**:
-   - If the current session is empty (no prior turns relevant to a feature), print:
-     ```
-     I'll capture feature intent into an FRD. Provide one of:
-
-     `/discover [free-text feature description]`     — fresh interview, write a new FRD
-     `/discover [existing artifact path]`            — refine an existing FRD/ticket/doc via fresh interview
-     ```
-     Then wait for input.
-   - If the current session already has feature context (e.g., a `/grill-me` exchange just landed), proceed directly to Step 1.5 — the session content IS the input. Do not prompt for a free-text description.
+1. **No argument provided** — proceed unconditionally to Step 1.5. The coverage scan is the single decision point on whether the session has feature context. If the scan returns `empty-session` (no covered or partial rows), Step 1.5 emits the "provide input" prompt and waits — Step 1 never makes this call independently. This avoids two decision points using different criteria.
 
 2. **Detect input shape** — parse the input:
    - If the argument is an existing file path (resolves to a readable `.md` under `.rpiv/artifacts/`, or any path the user mentions for refinement context), read it FULLY using the Read tool WITHOUT limit/offset. Treat its content as baseline context — the interview surfaces gaps, missing requirements, and unstated assumptions relative to what's already documented.
@@ -60,19 +51,25 @@ Each invocation always writes a NEW timestamp-distinct artifact (Step 7) — the
 
 Before asking anything, inventory what the current conversation already settled. This is the gate that decides whether Steps 2-5 fire at all.
 
-1. **Scan the current session** (developer turns + your own prior turns + files already Read in this session) for content that maps to FRD sections. Build an internal **coverage map** with one row per FRD section:
+1. **Scan the current session** (developer turns + your own prior turns) for content that maps to FRD sections. Build an internal **coverage map** with one row per FRD section.
 
-   | FRD section | Covered? | Evidence (turn ref / quote / `file:line`) |
-   |---|---|---|
-   | Problem & Intent | yes / no / partial | … |
-   | Goals | yes / no / partial | … |
-   | Non-Goals | yes / no / partial | … |
-   | Functional Requirements | yes / no / partial | … |
-   | Non-Functional Requirements | yes / no / partial | … |
-   | Constraints & Assumptions | yes / no / partial | … |
-   | Acceptance Criteria | yes / no / partial | … |
-   | Recommended Approach | yes / no / partial | … |
-   | Decisions | yes / no / partial | … |
+   **Source-of-truth carve-outs**:
+   - **Baseline-FRD-path argument** — when Step 1 read an existing FRD because the user passed `/discover [path]`, that file's content is **baseline-only** and does NOT count toward coverage. The user's documented intent in that mode is "refine via fresh interview" — silently saturating the map from the baseline FRD would defeat that. Treat the baseline FRD as reference material for the interview, not as session content.
+   - **Files mentioned in the prompt and Read for context** — same rule. Reading a ticket / spec / doc to ground the conversation does not constitute session coverage.
+   - **Coverage rows only credit explicit developer/agent turns** in this conversation (typically the grill-me exchange or any other in-session discussion).
+
+   The coverage map is built per FRD section. Use a markdown table with three columns: FRD section, Covered? (`yes` / `no` / `partial`), Evidence (turn reference, quote, or `file:line`). One row per section:
+
+   - Problem & Intent
+   - Goals / Non-Goals
+   - Functional Requirements
+   - Non-Functional Requirements
+   - Constraints & Assumptions
+   - Acceptance Criteria
+   - Recommended Approach
+   - Decisions
+
+   FRD sections NOT in the coverage map — `Summary` (derived), `Open Questions` (only populated from explicit deferrals), `Suggested Follow-ups` (probe/interview observations), `References` (derived from input files) — are populated by Step 6 unconditionally.
 
 2. **Coverage rules** (strict where it matters, lax where grill-me typically lands):
    - **Problem & Intent** — `covered` only if the developer's own framing of the problem and affected party appears in the session in their own words. Recommended-by-agent framing does NOT count.
@@ -87,7 +84,16 @@ Before asking anything, inventory what the current conversation already settled.
 3. **Decide the mode**:
    - **Session-saturated** — every row `covered`. Skip Steps 2, 3, 4, 5 entirely. Proceed to Step 6 (Synthesize FRD) using session content as the source of truth. Cite session turns or `file:line` references that already appeared in the session as evidence.
    - **Gap mode** — some rows `partial` or `no`. Carry the coverage map into Step 2+; each downstream step operates ONLY on uncovered rows (see step-specific gates below).
-   - **Empty session** — every row `no` (typical when `/discover` is the first command of the session). Fall through to Steps 2-5 in full fresh-feature mode.
+   - **Empty session** — every row `no` (typical when `/discover` is the first command of the session). Behavior depends on whether an argument was passed:
+     - **No argument AND no baseline FRD path** → emit the "provide input" prompt and wait:
+       ```
+       I'll capture feature intent into an FRD. Provide one of:
+
+       `/discover [free-text feature description]`     — fresh interview, write a new FRD
+       `/discover [existing artifact path]`            — refine an existing FRD/ticket/doc via fresh interview
+       ```
+       Re-run Step 1.5 after the developer replies.
+     - **Argument present** (free-text or baseline FRD path) → fall through to Steps 2-5 in full fresh-feature mode. The argument becomes the seed for the intent question and probe.
 
 4. **Show the developer the gap list (only if gaps exist).** Before firing Step 2, print a one-line summary:
    ```
@@ -117,7 +123,7 @@ If Problem & Intent is `partial` or `no`, ask the foundational intent question. 
 
 ### Step 3: Lightweight Codebase Probe (parallel agents, intent-shaped)
 
-**Gate**: skip this step entirely if the coverage map (Step 1.5) shows the session already cites concrete `file:line` evidence for Recommended Approach AND Decisions. Grill-me sessions typically satisfy this — the developer already named the seam and the integration point. When skipping, reuse the in-session evidence as Step 4's pre-resolution input.
+**Gate**: skip this step entirely if the coverage map (Step 1.5) marks **Recommended Approach** as `covered` (per the coverage rule — naming the architectural shape is enough; `file:line` is not required). Reuse in-session evidence as Step 4's pre-resolution input. Grill-me sessions typically satisfy this — the developer already named the seam and the integration point, even when the exact `file:line` was not cited. The probe's purpose is to ground the interview in concrete code; when the session already grounded the discussion, the probe adds noise rather than value.
 
 When the gate does not skip: probe only the seams tied to **uncovered** sections from the coverage map. Goal: ground the upcoming interview in concrete codebase evidence, with the probe slice shaped by the developer's stated intent from Step 2 — not by the raw input text.
 
@@ -152,10 +158,16 @@ Synthesize the **next layer** of questions internally before asking anything. La
 
 2. **Mark evidence-based pre-resolutions** from Step 3 with `file:line` citations. Do NOT silently record them as Decisions yet.
 
-3. **Batch-confirm pre-resolutions in a single `AskUserQuestion` call** before entering the interview loop. Frame each as: "From the probe I inferred — `<observed behavior>` (`file:line`). Keep this for the feature, or change it as part of the work?" The developer's confirm/correct is the actual Decision.
+3. **Coverage-filter pre-resolutions BEFORE asking.** For each pre-resolution, check whether the coverage map (Step 1.5) already shows a session turn confirming, contradicting, or selecting on this point:
+   - **Session-confirmed** (the developer or you, in this session, already endorsed the position the probe inferred) → record as Decision directly, rationale `evidence: file:line + session-confirmed (turn ref)`. Do NOT include in the batch-confirm question. Re-asking it is the exact failure mode the session-aware gate exists to prevent.
+   - **Session-contradicted** (the session settled on the opposite of what the probe inferred) → record the Decision in the developer's direction, rationale `evidence: file:line; session overrode probe inference (turn ref)`. Skip the question; the session has authority.
+   - **Not addressed in session** → include in the batch-confirm question below.
+
+4. **Batch-confirm the remaining pre-resolutions in a single `AskUserQuestion` call** before entering the interview loop. Frame each as: "From the probe I inferred — `<observed behavior>` (`file:line`). Keep this for the feature, or change it as part of the work?" The developer's confirm/correct is the actual Decision.
 
    - **Confirm** → record as Decision, rationale `evidence: file:line + confirmed`.
    - **Correct** → flip the Decision direction, schedule a Correction probe at Step 5 (≤1 additional agent on the new seam).
+   - If every pre-resolution was resolved by the coverage filter above, skip this call entirely.
 
 4. The lazy tree stays internal — do NOT present the tree to the developer unless asked.
 
@@ -190,23 +202,28 @@ Walk the lazy tree depth-first, parent before child. Expand the next layer (buil
 
 6. **Batching**: When 2-4 sibling `detail` leaves are independent (answers don't depend on each other), you MAY batch them in a single `AskUserQuestion` call. Keep dependent questions sequential. Do not batch `scope` or `shape` questions.
 
-7. **Termination — depth check, not bucket-fill**: stop the loop when:
-   - (a) every branch has a Decision or a Deferral, AND
+7. **Termination — depth check, not bucket-fill** (applies only when Step 5 actually runs; in session-saturated mode the loop never starts and these conditions are vacuously satisfied): stop the loop when:
+   - (a) every uncovered branch has a Decision or a Deferral, AND
    - (b) the developer's own words appear in Problem/Goals (not paraphrased agent prose), AND
    - (c) no Decision is `Recommendation accepted` without at least one Rationale clause beyond `agreed`.
 
    Do not invent questions to pad the interview. Do NOT ask a final "looks good / want to adjust" rubber-stamp question — chain forward to research is automatic at Step 7.
 
-**Total agent budget across the skill**: 2 (Step 3 initial probe) + N×1 (Step 5 corrections, typically 0-2) = 2-4 agent dispatches per FRD.
+**Total agent budget across the skill**: 0-4 dispatches per FRD, mode-dependent.
+- Session-saturated mode: 0 (Step 3 skipped, Step 5 skipped).
+- Gap mode with RA covered: 0 from Step 3, up to 2 from Step 5 corrections = 0-2.
+- Gap mode with RA uncovered: 2 from Step 3 initial probe + up to 2 from Step 5 corrections = 2-4.
+- Empty-session mode (fresh-feature): same as the RA-uncovered gap path = 2-4.
 
 ### Step 6: Synthesize FRD Body
 
 Read `templates/frd.md` (relative to this skill folder) at runtime to confirm the section list and frontmatter shape — do not inline it from memory.
 
 Compile output into the FRD. The source is **interview answers + session-context content** — for each FRD section, draw from whichever is authoritative:
-- If the section was `covered` in the coverage map (Step 1.5), draw from the session — quote the developer's own framing verbatim where possible; cite session `file:line` references where they were named.
-- If the section was filled via the interview loop (Step 5), draw from the recorded Q/A answers.
-- Where both contribute (e.g., session named goals and the interview added one more), merge — session content first, interview additions appended in the same section.
+- **`covered` row** → draw from the session. Quote the developer's own framing verbatim where possible; cite session `file:line` references where they were named.
+- **`partial` row** → merge. Carry forward whatever the session already supplied, then append interview-loop answers (Step 5) that filled the gap. Session content first, interview additions after.
+- **`no` row** → draw entirely from the interview-loop Q/A log (Step 5).
+- **Empty-session mode** → every row was `no`, so every section comes from the interview. Equivalent to the original fresh-feature flow.
 
 The interview's logical order (problem → goals → constraints → solution → details) is decoupled from the FRD's section order — redistribute answers into the template buckets here:
 
@@ -262,7 +279,10 @@ The interview's logical order (problem → goals → constraints → solution �
 ### Step 8: Handle Follow-ups
 
 - **Fresh artifact per call, no in-place append.** Discover deliberately writes a NEW timestamp-distinct FRD on every invocation — there is no `## Follow-up` append mode. The prior FRD stays unchanged on disk.
-- **Iterate by re-invoking.** Re-run `/discover [path-to-prior-FRD]` (or `/discover <free-text>`) to produce a fresh FRD informed by the prior one.
+- **Iterate by re-invoking.** Three iteration paths:
+  - `/discover [path-to-prior-FRD]` — refine a prior FRD via fresh interview (the prior FRD is read for context but does NOT saturate the coverage scan; see Step 1.5).
+  - `/discover <free-text>` — fresh interview seeded by a new description.
+  - `/discover` (no argument, in the same session) — re-run the coverage scan. New `/grill-me` turns since the prior `/discover` will be picked up and may flip rows from `partial` to `covered`. The natural iteration loop after grill-me corrections.
 - **No rubber-stamp question.** NEVER ask a final "looks good / want to adjust" question — chain forward to research is automatic at Step 7.
 - **Manual edits are allowed.** If the developer wants a one-off correction without re-running the full interview, they can Edit the FRD directly — the skill does not own follow-up surface area beyond fresh-artifact-per-call.
 
