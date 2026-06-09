@@ -13,23 +13,24 @@ Use this skill when the user wants to carry out a written implementation plan, e
 
 - `PATH_TO_PLAN` - path to a specific plan file, if provided
 - `PLAN_DIRECTORIES` - `plans/`, `specs/`
-- `AUDIT_MODE` - `critical-only` (default) | `all` | `off`. Override with `--audit-mode=<value>`. Shorthand: `--no-audit` == `--audit-mode=off`
-- `REVIEWER` - `pi` (default) or `claude`; set with `--reviewer <name>`. Only `pi` and `claude` are valid
-- `REVIEWER_MODEL` - optional model override passed to the reviewer backend with `--reviewer-model <m>`
+- `AUDIT_MODE` - `critical-only` (default) | `all`. Override with `--audit-mode=<value>`. There is no `off`/`--no-audit`.
+- `REVIEWER` - fixed to `pi`. No flag to change.
+- `REVIEWER_MODEL` - optional model override passed to pi with `--reviewer-model <m>`
 
 ---
+
+> **MANDATORY — DO NOT SKIP PHASE 7.5.** Every code-changing wave ends with a pi reviewer audit. The audit is **not** optional. There is no flag to disable it and no flag to swap the reviewer — pi is the only reviewer backend. If you complete a wave and move on without running Phase 7.5, you have not completed this skill. Surface-only waves (docs-only, no code) are the only exemption.
 
 ## Invocation
 
 | Form | Behavior |
 |------|----------|
-| `/dev-build <plan>` | Default — wave-end reviewer audit on (reviewer = `pi`), critical-only auto-fix-and-retry |
+| `/dev-build <plan>` | Wave-end pi audit on every code-changing wave; critical-only auto-fix-and-retry |
 | `/dev-build <plan> --audit-mode=critical-only` | Explicit form of the default; only Critical findings act, Warning/Note logged silently |
 | `/dev-build <plan> --audit-mode=all` | Surface Warnings inline in build output (still auto-fix only on Critical) |
-| `/dev-build <plan> --audit-mode=off` | Skip audit entirely (equivalent to `--no-audit`) |
-| `/dev-build <plan> --no-audit` | Shorthand for `--audit-mode=off`; skip wave-end audits entirely |
-| `/dev-build <plan> --reviewer claude` | Use the Claude backend (tmux) as the wave auditor instead of `pi` |
-| `/dev-build <plan> --reviewer-model <m>` | Pass a model override to the reviewer backend |
+| `/dev-build <plan> --reviewer-model <m>` | Pass a model override to pi |
+
+There is no `--no-audit`, no `--audit-mode=off`, no `--reviewer`. The wave-end pi audit is enforced.
 
 ## Flag Parsing
 
@@ -37,14 +38,11 @@ Parse flags from the invocation before Phase 1:
 
 | Flag | Effect |
 |------|--------|
-| `--no-audit` | Set `AUDIT_MODE=off` (disables Phase 7.5) |
 | `--audit-mode=critical-only` | Default. Audit fires after every code-changing wave; only Critical findings trigger auto-fix-and-retry, Warning/Note logged silently |
 | `--audit-mode=all` | Audit fires; Warnings also surface in build output (Critical still triggers auto-fix-and-retry) |
-| `--audit-mode=off` | Skip audit entirely |
-| `--reviewer <pi\|claude>` | Set `REVIEWER` (default `pi`). Only `pi` and `claude` are valid — reject anything else |
-| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for the chosen backend |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi |
 
-When `AUDIT_MODE=off`, Phase 7.5 is skipped entirely and the checkbox flip happens in Phase 7 as it did before the audit was added.
+Any other flag (`--no-audit`, `--audit-mode=off`, `--reviewer`) — reject with a one-line explanation that the wave-end pi audit is enforced. Do not silently accept and skip.
 
 ---
 
@@ -158,9 +156,9 @@ Before launching a wave:
 - include relevant plan context for the assigned work
 - include outputs or constraints from earlier completed waves if needed
 
-### Pre-wave snapshot (required when `AUDIT_MODE != off`)
+### Pre-wave snapshot (required for every code-changing wave)
 
-Capture a tree-ish reference for the working tree's state BEFORE the wave runs. This is required so Phase 7.5.1 can produce a diff that includes uncommitted AND untracked changes (which `<ref>..HEAD` comparisons silently miss). Skip this step only when `AUDIT_MODE=off`.
+Capture a tree-ish reference for the working tree's state BEFORE the wave runs. This is required so Phase 7.5.1 can produce a diff that includes uncommitted AND untracked changes (which `<ref>..HEAD` comparisons silently miss).
 
 Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
 
@@ -253,15 +251,13 @@ In this step:
 - Track which task IDs the wave reported complete (in working memory or the state YAML).
 - Parse the plan markdown to project which tasks WILL become ready once the audit gate passes — but don't flip them yet.
 
-When `AUDIT_MODE=off`, there is no audit gate, so flip checkboxes here instead:
-- Use `Edit` to change `- [ ]` to `- [x]` in the plan markdown file for each completed task
-- Parse the plan markdown to determine which tasks become ready after dependencies complete
+Checkbox flips are deferred to Phase 7.5.6 — they happen only after the audit gate resolves.
 
 ---
 
-## Phase 7.5 — Wave-End Reviewer Audit (default ON)
+## Phase 7.5 — Wave-End Reviewer Audit (MANDATORY — runs after every code-changing wave)
 
-After a wave's tasks complete and BEFORE moving to the next wave, run a focused independent-reviewer audit on the diff this wave produced. The audit catches bugs, missed edge cases, and pattern violations introduced by the wave's work — at the natural boundary where issues are still cheap to fix. The reviewer is `pi` by default (`--reviewer claude` switches backends); the *engine* mechanics mirror `/dev-plan` Phase 9.2 / 9.2-alt. Do **not** invoke the `/dev-review-pi` or `/dev-review-claude` skills — their interactive scope-verify / present / discuss steps would stall an automated build.
+This phase is **not optional**. After a wave's tasks complete and BEFORE moving to the next wave, run a pi audit on the diff this wave produced. The only valid skip path is reviewer-binary-missing (see 7.5 skip conditions). Reviewer is pi — there is no claude option. Do **not** invoke the `/dev-review-pi` skill — its interactive scope-verify / present / discuss steps would stall an automated build; reuse the engine inline per `/dev-plan` Phase 9.2.
 
 Set `REPO_ROOT` once if not already set: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
 
@@ -286,9 +282,10 @@ If the file already exists with a `rounds:` block from `/dev-plan --loop`, appen
 
 ### Skip conditions
 
-Skip this phase entirely (no reviewer call, no state write) when:
-- `AUDIT_MODE=off` (user passed `--no-audit`).
-- The reviewer backend binary is missing (`which pi` / `which claude` empty). Log a single `outcome: audit_skipped` entry with `skip_reason: reviewer_unavailable` and continue subsequent waves with the same result (don't re-probe per wave).
+The audit is enforced; the only valid skip is reviewer-binary missing.
+
+- If `which pi` is empty: log a single `outcome: audit_skipped` entry with `skip_reason: reviewer_unavailable` and continue subsequent waves with the same result (don't re-probe per wave). Surface this prominently in the Phase 10 report so the user knows the safety net was down.
+- "User didn't pass a flag" / "wave looked trivial" / "I already checked the diff" are NOT valid skip reasons. Run the audit.
 
 ### 7.5.1 — Capture the wave's diff (working-tree, includes uncommitted+untracked)
 
@@ -373,20 +370,6 @@ PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
 ```
 
 Launch with the Bash tool's `run_in_background`. Then **poll**: read `$OUTPUT_FILE` on an interval, stop when it contains `END_OF_FINDINGS` (audit complete) or the process exits. Surface a one-line progress note each poll. Do not block on a fixed long sleep.
-
-**`claude` backend (`--reviewer claude`).** Interactive `claude` in a detached **tmux** session with `--permission-mode bypassPermissions` (so read/search/shell inspection doesn't stall), driven by **send-keys**, completion detected by **polling `capture-pane`** for the sentinel.
-
-```bash
-OUTPUT_FILE=$(mktemp /tmp/devbuild-review-XXXXXX.txt)
-SESSION="devbuild-review-$$-w${N}"
-CL_MODEL_ARGS=""; [ -n "$REVIEWER_MODEL" ] && CL_MODEL_ARGS="--model $REVIEWER_MODEL"
-tmux new-session -d -s "$SESSION" -x 220 -y 50
-tmux send-keys -t "$SESSION" "cd $REPO_ROOT && claude --permission-mode bypassPermissions $CL_MODEL_ARGS" Enter
-# wait for the prompt to be ready, then point claude at the prompt file (avoids multi-line paste issues):
-tmux send-keys -t "$SESSION" "Read the file $PROMPT_FILE and do exactly what it says." Enter
-```
-
-Then **poll** `tmux capture-pane -t "$SESSION" -p -S -` on an interval until the captured text contains `END_OF_FINDINGS`. Surface a one-line progress note each poll. When the sentinel appears, write the captured pane to `$OUTPUT_FILE`, then `tmux kill-session -t "$SESSION"`. If the session dies or the poll budget is exhausted without the sentinel, treat as a reviewer failure (see 7.5.4).
 
 ### 7.5.4 — Parse findings and handle reviewer failure modes
 
@@ -493,8 +476,8 @@ Repeat:
 3. Prepare builder prompts with inlined task content, and capture the pre-wave snapshot when `AUDIT_MODE != off` (Phase 5)
 4. Execute the wave (Phase 6)
 5. Evaluate results using the structured builder reports (Phase 7) — stage completed task IDs but do NOT flip checkboxes yet when `AUDIT_MODE != off`
-6. **Run the wave-end reviewer audit** (Phase 7.5) — capture the wave diff, audit it, auto-fix-and-retry-and-re-audit on Critical, log otherwise. Skip if `--no-audit` or the reviewer backend is unavailable
-7. **Mark wave progress** (Phase 7.5.6) — flip plan checkboxes only AFTER the audit gate passes / auto_fixes / is skipped / overridden. When `AUDIT_MODE=off`, the flip already happened in Phase 7. Skip flipping if the audit escalated and the user chose manual fix or abort
+6. **Run the wave-end reviewer audit** (Phase 7.5) — capture the wave diff, audit it with pi, auto-fix-and-retry-and-re-audit on Critical, log otherwise. Skip only if the pi backend binary is missing
+7. **Mark wave progress** (Phase 7.5.6) — flip plan checkboxes only AFTER the audit gate passes / auto_fixes / is skipped (reviewer unavailable) / overridden. Skip flipping if the audit escalated and the user chose manual fix or abort
 8. Verify as appropriate (Phase 8)
 
 Stop when:
@@ -548,10 +531,10 @@ Execution Summary:
 - Tasks completed: <M>
 - Tasks failed: 0
 
-Wave Audits (reviewer: <pi|claude>):
+Wave Audits (reviewer: pi):
 - <N> audited / <K> passed / <J> auto_fixed / <S> skipped
 - State: plans/.<feature>.state.yml
-- (omit this block entirely when --no-audit)
+- (omit this block entirely only when reviewer was unavailable on every wave)
 
 Verification:
 - <command/result>
@@ -603,7 +586,7 @@ Status: Not complete
 ```yaml
 build_audits:            # one entry per audited wave
   - wave: 1
-    reviewer: pi         # pi | claude
+    reviewer: pi         # always pi
     reviewer_model: null # set when --reviewer-model given
     started: "2026-06-03T16:00:00Z"
     files_audited: ["src/foo.py", "tests/test_foo.py"]
