@@ -182,17 +182,45 @@ END_OF_FINDINGS
 
 #### 9.2 Run the reviewer — `pi` backend (default)
 
-`pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Background it and poll the output file** — do not wrap in a blocking `timeout 600s` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
+`pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Detach it with `setsid`, write the PID to a file, then poll the output file across separate Bash calls** — do not wrap in a blocking `timeout 600s` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
+
+> Canonical backgrounded-`pi --print` reviewer engine. `/dev-review-pi` step 5a uses the same pattern — keep the two in sync if either changes.
+
+**Launch (one synchronous Bash call — do NOT also set `run_in_background: true`):**
 
 ```bash
 OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
+PID_FILE=$(mktemp /tmp/devplan-review-pid-XXXXXX.txt)
 PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
-( cd "$REPO_ROOT" && pi --print "${PI_MODEL_ARGS[@]}" \
+
+# setsid puts pi in its own session/process group (PPID=1 after detach);
+# < /dev/null protects against stdin/tty contention; shell & returns immediately.
+(
+  cd "$REPO_ROOT"
+  setsid pi --print "${PI_MODEL_ARGS[@]}" \
     --append-system-prompt "You are an independent plan auditor. Review only; do not modify files." \
-    "@$PROMPT_FILE" > "$OUTPUT_FILE" 2>&1 )
+    "@$PROMPT_FILE" \
+    > "$OUTPUT_FILE" 2>&1 < /dev/null &
+  echo $! > "$PID_FILE"
+)
+
+# Sanity check: if pi is dead within 1s and wrote nothing, the launch failed
+# (bad args, missing API key, etc.). Without this, downstream polls spin
+# against an empty output file for the full budget while the harness reports
+# the launcher as "completed".
+sleep 1
+PID=$(cat "$PID_FILE")
+if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
+  echo "pi launch failed: process exited within 1s and produced no output" >&2
+  cat "$OUTPUT_FILE" >&2 2>/dev/null
+  exit 1
+fi
+echo "pi launched pid=$PID"
 ```
 
-Launch this with the Bash tool's `run_in_background`. Then **poll**: read `$OUTPUT_FILE` on an interval and stop when it contains `END_OF_FINDINGS` (round complete) or the process exits. Surface a one-line progress note to the user each poll. Do not block on a fixed long sleep.
+**Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns in ~1s. Combining the two with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
+
+**Poll in separate Bash calls** — each call its own short invocation so the review stays observable. Stop when `$OUTPUT_FILE` contains `END_OF_FINDINGS` or `kill -0 $PID` fails. Surface a one-line progress note each poll. Do not block on a fixed long sleep.
 
 #### 9.2-alt Run the reviewer — `claude` backend
 

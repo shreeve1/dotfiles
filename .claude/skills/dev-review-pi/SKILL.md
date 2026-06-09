@@ -179,7 +179,7 @@ You MUST create a task for each of these items and complete them in order:
 
 ### Phase 3: Run Pi Reviewer
 
-> Canonical backgrounded-`pi --print` reviewer engine. The planned `/dev-plan --loop` reuses this engine inline — keep the two in sync if either changes.
+> Canonical backgrounded-`pi --print` reviewer engine. `/dev-plan --loop` Phase 9.2 reuses this engine inline — keep the two in sync if either changes.
 
 5. **Execute Pi Review**
 
@@ -216,20 +216,37 @@ You MUST create a task for each of these items and complete them in order:
    } > "$PROMPT_FILE"
    ```
 
-   **5a. Launch the reviewer backgrounded (this Bash call returns immediately):**
+   **5a. Launch the reviewer detached (one synchronous Bash call — do NOT also set `run_in_background: true`):**
+
+   `setsid` puts pi in its own session/process group (PPID becomes 1 immediately after detach), so SIGHUP on launcher exit and parent-pgid signals can't reach it. `< /dev/null` removes stdin/tty contention. The shell-level `&` lets the launcher return in ~1s; subsequent polls run in their own short Bash calls.
+
    ```bash
    git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
 
    (
      cd "$PROJECT_ROOT"
-     pi --print \
+     setsid pi --print \
        "${PI_MODEL_ARGS[@]}" \
        --append-system-prompt "You are an independent code review tool. Follow the requested finding format exactly. Do not modify files." \
        "@$PROMPT_FILE" \
-       > "$OUTPUT_FILE" 2>&1
-   ) &
-   echo $! > "$PID_FILE"   # persist PID; separate Bash calls don't share shell vars
+       > "$OUTPUT_FILE" 2>&1 < /dev/null &
+     echo $! > "$PID_FILE"   # persist PID; separate Bash calls don't share shell vars
+   )
+
+   # Sanity check: if pi died within 1s and produced no output, the launch
+   # failed (bad args, missing API key, etc.). Without this, downstream polls
+   # spin against an empty output file for the full budget while the launcher
+   # already reported "completed" exit 0.
+   sleep 1
+   PID=$(cat "$PID_FILE")
+   if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
+     echo "pi launch failed: process exited within 1s and produced no output" >&2
+     cat "$OUTPUT_FILE" >&2 2>/dev/null
+     exit 1
+   fi
    ```
+
+   **Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns synchronously after the 1s sanity sleep. Combining both with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
 
    **5b. Poll for completion in *separate* Bash calls (do not block in one call):**
    Each poll is its own short Bash invocation so the review stays observable and
