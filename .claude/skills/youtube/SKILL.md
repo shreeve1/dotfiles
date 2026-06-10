@@ -1,6 +1,6 @@
 ---
 name: youtube
-description: Ingest a YouTube URL, pull subtitles + metadata via yt-dlp, then run web search to verify and augment, producing two separate markdown artifacts (transcript extract vs. web research) under .rpiv/artifacts/youtube/. Use when the user says `/youtube <url>`, "youtube knowledge extract", "pull this youtube and extract", "extract from youtube", or wants a video's claims captured and cross-checked against primary sources.
+description: Ingest a YouTube URL, pull subtitles + metadata via yt-dlp, then run web search to verify and augment, producing two separate markdown artifacts (transcript extract vs. web research) under youtube/ at the project root. Use when the user says `/youtube <url>`, "youtube knowledge extract", "pull this youtube and extract", "extract from youtube", or wants a video's claims captured and cross-checked against primary sources.
 argument-hint: "<youtube url>"
 allowed-tools: Bash, Read, Write, WebSearch, WebFetch
 ---
@@ -115,10 +115,10 @@ Now that the pull succeeded and metadata is in hand, compute the final output pa
    - Suffix with `-<VIDEO_ID>` so reruns of the same video idempotently land in the same dir, and different videos with similar titles don't collide.
    - Example: `OpenAI Dreaming V3 — The Quiet Update That Ends RAG` + id `i3mejqRikzk` → `openai-dreaming-v3-the-quiet-update-that-ends-rag-i3mejqRikzk`.
 
-2. **Create the layout:**
+2. **Create the layout** at the project root:
 
    ```
-   .rpiv/artifacts/youtube/<slug>-<videoId>/
+   youtube/<slug>-<videoId>/
    ├── transcript-extract.md
    ├── web-research.md
    └── raw/
@@ -129,7 +129,7 @@ Now that the pull succeeded and metadata is in hand, compute the final output pa
 3. **Create the dir and move the pulled files** from `${TMPDIR}` into `raw/`. Keep the original filenames (yt-dlp's `%(title)s [%(id)s]` shape, which contains spaces and `[...]`) so they remain self-identifying when copied out of the repo. **Quote every path** — bracketed `[id]` and spaces both break unquoted shell expansion:
 
    ```bash
-   OUT_DIR=".rpiv/artifacts/youtube/<slug>-<VIDEO_ID>"
+   OUT_DIR="youtube/<slug>-<VIDEO_ID>"
    mkdir -p "${OUT_DIR}/raw"
    mv "${TMPDIR}"/*.en.vtt    "${OUT_DIR}/raw/"
    mv "${TMPDIR}"/*.info.json "${OUT_DIR}/raw/"
@@ -289,10 +289,10 @@ Pulled: {title}
 {channel} · {duration_seconds}s · {view_count} views · uploaded {upload_date}
 
 Wrote:
-- `.rpiv/artifacts/youtube/{slug}/transcript-extract.md`
-- `.rpiv/artifacts/youtube/{slug}/web-research.md`
+- `youtube/{slug}/transcript-extract.md`
+- `youtube/{slug}/web-research.md`
 
-Raw VTT + info.json under `.rpiv/artifacts/youtube/{slug}/raw/`.
+Raw VTT + info.json under `youtube/{slug}/raw/`.
 
 Verdict (web research): {Real / Partially real / Overstated / Fabricated}
 Primary sources unreachable: {N} (see web-research.md → Primary Sources Attempted)
@@ -303,8 +303,8 @@ User-facing summary is terse. The two artifact files themselves are written in n
 ## Important Notes
 
 - **Two artifacts, hard separation.** Transcript-derived claims live only in `transcript-extract.md`; web-derived claims live only in `web-research.md`. The split is the whole point of the skill — do not merge them "for convenience".
-- **Read-only network posture.** The skill never uploads, never posts, never authenticates. `yt-dlp` is configured with `--skip-download` so no media files are written either. The only writes are inside `.rpiv/artifacts/youtube/`.
-- **No half-written artifact dirs.** Stage the `yt-dlp` pull into a `mktemp -d` tmpdir first; only create `.rpiv/artifacts/youtube/<slug>-<videoId>/` after the pull and metadata parse both succeed.
+- **Read-only network posture.** The skill never uploads, never posts, never authenticates. `yt-dlp` is configured with `--skip-download` so no media files are written either. The only writes are inside `youtube/` at the project root.
+- **No half-written artifact dirs.** Stage the `yt-dlp` pull into a `mktemp -d` tmpdir first; only create `youtube/<slug>-<videoId>/` after the pull and metadata parse both succeed.
 - **Idempotent reruns.** The `<slug>-<videoId>` suffix ensures rerunning the skill on the same URL overwrites the same directory rather than spawning a new one each time.
 - **Failure modes, enumerated:**
   - `yt-dlp` missing → install-hint error, no artifact dir created.
@@ -315,7 +315,7 @@ User-facing summary is terse. The two artifact files themselves are written in n
 - **English only, v1.** Cross-language subtitle support and audio transcription fallback are out of scope unless explicitly requested.
 - **Critical ordering**: Follow the numbered steps exactly
   - ALWAYS check `yt-dlp` is installed before staging the pull (Step 2.1)
-  - ALWAYS stage into `mktemp -d` first, never write directly into `.rpiv/artifacts/youtube/` (Step 2.2 → Step 4)
+  - ALWAYS stage into `mktemp -d` first, never write directly into `youtube/` (Step 2.2 → Step 4)
   - ALWAYS write `transcript-extract.md` with **no** external citations (Step 5)
   - ALWAYS write `web-research.md` with **every** non-trivial claim cited (Step 6)
   - NEVER mix transcript-only claims and web-verified claims in the same file
