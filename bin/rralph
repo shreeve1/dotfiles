@@ -14,9 +14,10 @@
 # mode (`claude -p` / `pi -p`) — print mode is being retired, and the SDK cannot
 # invoke a skill by name. Slash commands work in interactive mode, so each step
 # triggers its exact skill. Context is fresh per step; handoff is via on-disk
-# artifacts under .rpiv/artifacts/<type>/. No quality gates; commits always.
-# Both engines' rpiv skills write the same artifact dir names (research, designs,
-# plans), so the on-disk handoff is engine-independent.
+# artifacts under .rpiv/artifacts/<type>/. Commit is gated by validation +
+# code-review artifacts by default; --ungated preserves the old commit-always
+# behavior. Both engines' rpiv skills write the same artifact dir names
+# (research, designs, plans), so the on-disk handoff is engine-independent.
 #
 # Between generative steps a gap-sweep runs (/gap-sweep skill): a fresh session
 # sweeps the just-produced artifact for CRITICAL gaps only, fixes them in place,
@@ -51,10 +52,11 @@ READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for engine 
 # Override via RPIV_READY_PATTERN if a TUI footer changes.
 READY_PATTERN="${RPIV_READY_PATTERN:-}"
 FROM_STEP="${RPIV_FROM_STEP:-}"               # resume from this step (research|design|plan|implement|validate|code-review|commit)
+UNGATED="${RPIV_UNGATED:-0}"                  # 1 = commit even when validation/review gate fails
 
 usage() {
   cat <<'EOF'
-usage: rralph [--engine claude|pi] [--model M] [--provider P]
+usage: rralph [--engine claude|pi] [--model M] [--provider P] [--ungated]
 
 Run /discover interactively first. Then rralph drives
 research -> design -> plan -> implement -> validate -> code-review -> commit
@@ -69,6 +71,8 @@ commands let you watch or kill the background driver.
 --model is engine-specific: claude takes opus/sonnet; pi takes a provider/id
 pattern (e.g. anthropic/claude-opus-4).
 -y/--yes is accepted for backward compatibility but is a no-op.
+--ungated / --commit-on-review-fail commits even when validation or review fails
+(default: gated; failed validation/review stops before commit).
 
 --from <step> resumes a partial run: stays on the CURRENT branch (no fresh
 checkout), skips every step before <step>, and runs <step> onwards. Valid
@@ -79,7 +83,7 @@ the new run's start marker as usual.
 
 env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_BRANCH_PREFIX
      RPIV_STEP_TIMEOUT RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
-     RPIV_FROM_STEP
+     RPIV_FROM_STEP RPIV_UNGATED
 EOF
 }
 
@@ -90,6 +94,7 @@ while [ $# -gt 0 ]; do
     --model)    MODEL="$2"; shift ;;
     --provider) PROVIDER="$2"; shift ;;
     --from)     FROM_STEP="$2"; shift ;;
+    --ungated|--commit-on-review-fail) UNGATED=1 ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -105,6 +110,133 @@ case "$FROM_STEP" in
   ""|research|design|plan|implement|validate|code-review|commit) ;;
   *) echo "error: --from must be one of: research design plan implement validate code-review commit (got: $FROM_STEP)" >&2; exit 2 ;;
 esac
+
+frontmatter_value() {
+  local key="$1" path="$2"
+  [ -n "$path" ] && [ -f "$path" ] || return 1
+  awk -v key="$key" '
+    /^---[[:space:]]*$/ {
+      if (!seen) { seen=1; in_header=1; next }
+      if (in_header) { exit }
+    }
+    in_header && index($0, key ":") == 1 {
+      value=substr($0, length(key) + 2)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+frontmatter_number() {
+  local key="$1" path="$2"
+  [ -n "$path" ] && [ -f "$path" ] || return 1
+  awk -v key="$key" '
+    /^---[[:space:]]*$/ {
+      if (!seen) { seen=1; in_header=1; next }
+      if (in_header) { exit }
+    }
+    in_header {
+      line=$0
+      sub(/[[:space:]]+#.*$/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line ~ "^[[:space:]]*" key ":[[:space:]]*[0-9]+$") {
+        sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+        print line
+        exit
+      }
+    }
+  ' "$path"
+}
+
+artifact_status() {
+  frontmatter_value status "$1"
+}
+
+review_critical_count() {
+  local rv="$1" sev n
+  sev="$(frontmatter_value severity "$rv" || true)"
+  n="$(printf '%s\n' "$sev" | sed -nE 's/.*critical:[[:space:]]*([0-9]+).*/\1/p' | head -1)"
+  [ -n "$n" ] || n="$(frontmatter_number critical "$rv" || true)"
+  case "$n" in
+    ''|*[!0-9]*) return 1 ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+review_blockers_count() {
+  local rv="$1" n
+  n="$(frontmatter_number blockers_count "$rv" || true)"
+  case "$n" in
+    ''|*[!0-9]*) return 1 ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+GATE_REASON=""
+commit_gate_allows() {
+  local validation="$1" review="$2" vstatus rstatus critical blockers
+
+  if [ -z "$validation" ] || [ ! -f "$validation" ]; then
+    GATE_REASON="validation artifact missing"
+    return 1
+  fi
+  vstatus="$(artifact_status "$validation" || true)"
+  # Status values are strict allowlists tied to current validate/code-review templates.
+  # New template statuses must update this gate before they can commit by default.
+  if [ "$vstatus" != complete ]; then
+    GATE_REASON="validation status is ${vstatus:-unknown}, expected complete"
+    return 1
+  fi
+
+  if [ -z "$review" ] || [ ! -f "$review" ]; then
+    GATE_REASON="code-review artifact missing"
+    return 1
+  fi
+  rstatus="$(artifact_status "$review" || true)"
+  if [ "$rstatus" != approved ]; then
+    GATE_REASON="code-review status is ${rstatus:-unknown}, expected approved"
+    return 1
+  fi
+
+  critical="$(review_critical_count "$review" || true)"
+  if [ -z "$critical" ]; then
+    GATE_REASON="code-review critical count missing or malformed"
+    return 1
+  fi
+  if [ "$critical" -ne 0 ]; then
+    GATE_REASON="code-review has $critical critical finding(s)"
+    return 1
+  fi
+
+  blockers="$(review_blockers_count "$review" || true)"
+  if [ -z "$blockers" ]; then
+    GATE_REASON="code-review blockers_count missing or malformed"
+    return 1
+  fi
+  if [ "$blockers" -ne 0 ]; then
+    GATE_REASON="code-review has $blockers blocker(s)"
+    return 1
+  fi
+
+  GATE_REASON=""
+  return 0
+}
+
+if [ "${RRALPH_INTERNAL_GATE_CHECK:-}" = 1 ] && [ -n "${RRALPH_TEST_VALIDATION+x}" ] && [ -n "${RRALPH_TEST_REVIEW+x}" ]; then
+  if [ "$UNGATED" = 1 ]; then
+    echo "allow: ungated"
+    exit 0
+  fi
+  if commit_gate_allows "${RRALPH_TEST_VALIDATION:-}" "${RRALPH_TEST_REVIEW:-}"; then
+    echo "allow: gated"
+    exit 0
+  fi
+  echo "block: $GATE_REASON" >&2
+  exit 1
+fi
 
 # Engine-specific idle-UI readiness marker (unless overridden via RPIV_READY_PATTERN).
 if [ -z "$READY_PATTERN" ]; then
@@ -238,6 +370,8 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
   else
     BRANCH_DESC="$BRANCH (fresh, from $BASE_REF)"
   fi
+  MODE_NOTE="gated by default"
+  [ "$UNGATED" = 1 ] && MODE_NOTE="ungated override"
 
   cat <<EOF
 
@@ -248,7 +382,7 @@ RPIV pipeline kickoff
   model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
   steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
             (+ gap-sweep after FRD/research/design/plan/implement)
-  mode:     detached | unattended | auto-accept defaults | commit always
+  mode:     detached | unattended | auto-accept defaults | $MODE_NOTE
   timeout:  ${STEP_TIMEOUT}s/step, ${IMPLEMENT_TIMEOUT}s for implement
   logs:     $LOGDIR/
 
@@ -267,6 +401,7 @@ EOF
   reexec="$reexec $(printf 'RPIV_PROVIDER=%q' "$PROVIDER")"
   reexec="$reexec $(printf 'RPIV_BRANCH_PREFIX=%q' "$BRANCH_PREFIX")"
   reexec="$reexec $(printf 'RPIV_FROM_STEP=%q' "$FROM_STEP")"
+  reexec="$reexec $(printf 'RPIV_UNGATED=%q' "$UNGATED")"
   reexec="$reexec $(printf 'RPIV_RESUME_BRANCH=%q' "$BRANCH")"
   reexec="$reexec $(printf '%q' "$SELF")"
 
@@ -519,31 +654,46 @@ require_artifact() {
   [ -n "$path" ] || { echo "error: $type produced no artifact this run; halting." >&2; exit 1; }
 }
 
-# Final verdict block (lands in driver.log via the tee above). A fire-and-forget
-# run can finish "ok" yet still be needs_changes, so surface the code-review
-# status/severity and validate's follow-up signal instead of burying them.
+# Final verdict block (lands in driver.log via the tee above). Surface the
+# validation/review gate outcome so fire-and-forget runs cannot look successful
+# when artifacts say needs_changes.
 run_summary() {
-  local rv st sev
+  local outcome="${1:-complete}" reason="${2:-}"
+  local rv="${REVIEW:-}" vv="${VALIDATION:-}" vst rst sev blockers mode
+  [ -n "$rv" ] || rv="$(newest_since .rpiv/artifacts/reviews)"
+  [ -n "$vv" ] || vv="$(newest_since .rpiv/artifacts/validation)"
+  mode="gated"
+  [ "$UNGATED" = 1 ] && mode="ungated"
+
   echo
   echo "═══════════════════ run summary ═══════════════════"
-  echo "branch:   $BRANCH   (forked from $ORIG_REF)"
-  rv="$(newest_since .rpiv/artifacts/reviews)"
-  if [ -n "$rv" ]; then
-    st="$(sed -n 's/^status:[[:space:]]*//p' "$rv" | head -1)"
-    sev="$(sed -n 's/^severity:[[:space:]]*//p' "$rv" | head -1)"
-    echo "review:   ${st:-?}   ${sev:-}"
-    echo "          $rv"
+  echo "branch:     $BRANCH   (forked from $ORIG_REF)"
+  echo "mode:       $mode"
+  echo "outcome:    $outcome"
+  [ -n "$reason" ] && echo "reason:     $reason"
+  if [ -n "$vv" ]; then
+    vst="$(artifact_status "$vv" || true)"
+    echo "validate:   ${vst:-?}"
+    echo "            $vv"
   else
-    echo "review:   no review artifact found — see code-review.log"
+    echo "validate:   no validation artifact found — see validate.log"
   fi
-  if grep -qiE 'needs_changes|re-run /validate|skip.*/commit' "$LOGDIR/validate.log" 2>/dev/null; then
-    echo "validate: flagged follow-ups — see validate.log"
+  if [ -n "$rv" ]; then
+    rst="$(artifact_status "$rv" || true)"
+    sev="$(frontmatter_value severity "$rv" || true)"
+    blockers="$(review_blockers_count "$rv" || true)"
+    echo "review:     ${rst:-?}   ${sev:-severity unknown}   blockers:${blockers:-?}"
+    echo "            $rv"
   else
-    echo "validate: see validate.log"
+    echo "review:     no review artifact found — see code-review.log"
   fi
   echo
-  echo "next:     review the findings, then \`rpiv-merge\` when satisfied."
-  echo "          rralph is ungated — it commits even when review says needs_changes."
+  if [ "$outcome" = gate_failed ]; then
+    echo "next:       review artifacts, fix findings, then run \`rralph --from validate\`."
+    echo "            Use \`rralph --from implement\` if fixes require reimplementation."
+  else
+    echo "next:       review the branch, then \`rpiv-merge\` when satisfied."
+  fi
   echo "═══════════════════════════════════════════════════"
 }
 
@@ -570,10 +720,41 @@ gate implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1
 gate sweep-code "/gap-sweep working code" "$IMPLEMENT_TIMEOUT" || exit 1
 
 gate validate "/validate $PLAN" || exit 1
+# If resuming at code-review or commit, validation was intentionally skipped in
+# this run; reuse the newest prior validation artifact and still apply the gate.
+if [ "$FROM_STEP" = code-review ] || [ "$FROM_STEP" = commit ]; then
+  VALIDATION="$(newest .rpiv/artifacts/validation)"
+  [ -n "$VALIDATION" ] && echo "note: reusing prior validation artifact: $VALIDATION (run rralph --from validate to refresh)"
+else
+  VALIDATION="$(newest_since .rpiv/artifacts/validation)"
+fi
 gate code-review "/code-review working" || exit 1
+# If resuming at commit, code-review was intentionally skipped in this run;
+# reuse the newest prior review artifact and still apply the gate.
+if [ "$FROM_STEP" = commit ]; then
+  REVIEW="$(newest .rpiv/artifacts/reviews)"
+  [ -n "$REVIEW" ] && echo "note: reusing prior review artifact: $REVIEW (run rralph --from code-review to refresh)"
+else
+  REVIEW="$(newest_since .rpiv/artifacts/reviews)"
+fi
+UNGATED_REASON=""
+if [ "$UNGATED" != 1 ]; then
+  if ! commit_gate_allows "$VALIDATION" "$REVIEW"; then
+    echo
+    echo "stopped. review gate failed on branch $BRANCH"
+    echo "reason: $GATE_REASON"
+    run_summary gate_failed "$GATE_REASON"
+    exit 1
+  fi
+else
+  if ! commit_gate_allows "$VALIDATION" "$REVIEW"; then
+    UNGATED_REASON="ungated: committing despite gate failure: $GATE_REASON"
+    echo "warning: $UNGATED_REASON"
+  fi
+fi
 gate commit "/commit commit all changes on the current branch with a clear message; do NOT push and do NOT open a PR" || exit 1
 
 echo
-echo "done. pipeline complete on branch $BRANCH"
+echo "done. pipeline committed on branch $BRANCH"
 echo "review: git log --oneline -n 20 ; git show --stat"
-run_summary
+run_summary committed "$UNGATED_REASON"
