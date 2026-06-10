@@ -1,7 +1,7 @@
 ---
 name: Plan
 description: Software architect for implementation planning (read-only)
-model: openai-codex/gpt-5.5
+model: deepseek/deepseek-v4-pro
 tools: read, bash, grep, find, ls
 prompt_mode: replace
 enabled: true

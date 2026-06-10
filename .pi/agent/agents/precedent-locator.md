@@ -1,6 +1,6 @@
 ---
 name: precedent-locator
-model: openai-codex/gpt-5.4-mini
+model: deepseek/deepseek-v4-flash
 description: "Finds similar past changes in git history: commits, blast radius, follow-up fixes, and lessons from related .rpiv/artifacts/ docs. Use when planning a change and you need to know what went wrong last time something similar was done."
 tools: bash, grep, find, read, ls
 isolated: true

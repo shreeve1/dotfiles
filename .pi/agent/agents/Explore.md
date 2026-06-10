@@ -1,7 +1,7 @@
 ---
 name: Explore
 description: Fast codebase exploration agent (read-only)
-model: openai-codex/gpt-5.4-mini
+model: deepseek/deepseek-v4-flash
 tools: read, bash, grep, find, ls
 prompt_mode: replace
 enabled: true
