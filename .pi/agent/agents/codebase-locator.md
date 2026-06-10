@@ -1,6 +1,6 @@
 ---
 name: codebase-locator
-model: openai-codex/gpt-5.4-mini
+model: deepseek/deepseek-v4-flash
 description: Locates files, directories, and components relevant to a feature or task. Call `codebase-locator` with a human-language prompt describing what you're looking for. A "super grep/find/ls" tool. Reach for it when you would otherwise reach for grep, find, or ls more than once.
 tools: grep, find, ls
 isolated: true
