@@ -110,7 +110,7 @@ esac
 if [ -z "$READY_PATTERN" ]; then
   case "$ENGINE" in
     claude) READY_PATTERN='bypass permissions on|shift\+tab to cycle' ;;
-    pi)     READY_PATTERN='[0-9]+%/[0-9]+k' ;;
+    pi)     READY_PATTERN='[0-9.]+%/[0-9.]+[kMG]' ;;
   esac
 fi
 
@@ -380,7 +380,7 @@ run_skill() {
   # the concatenated form on its own final line, which is what we poll for.
   # NOTE: keep this text apostrophe-free for readability; apostrophes are
   # escaped below regardless, but avoiding them keeps the launch line clean.
-  local sys="You are one fully autonomous step in an unattended pipeline. Complete the command you are given, end to end. At any decision point, checkpoint, or clarifying question, silently pick your recommended default and proceed. Never ask the user anything. Never wait for input. When the work is fully complete and any artifact is written, print on its own final line, with nothing else on that line, the marker RPIV_DONE_ immediately followed by the digits ${nonce} with no space between them, then stop."
+  local sys="You are one fully autonomous step in an unattended pipeline. Complete the command you are given, end to end. At any decision point, checkpoint, or clarifying question, silently pick your recommended default and proceed. Never ask the user anything. Never wait for input. IMPORTANT: Never use the ask_user_question tool. If a skill reaches a checkpoint where it would call ask_user_question, silently pick the recommended (first) option and continue. When the work is fully complete and any artifact is written, print on its own final line, with nothing else on that line, the marker RPIV_DONE_ immediately followed by the digits ${nonce} with no space between them, then stop."
   # Harden single-quote wrapping: replace ' with '\'' so a future apostrophe
   # cannot break the command line sent via send-keys.
   local sys_q=${sys//\'/\'\\\'\'}
@@ -417,15 +417,16 @@ run_skill() {
   # enough. pi paints its footer context meter *before* the startup banners
   # (skill-conflict / update notices) finish streaming, so a bare match fires
   # early and the first paste lands in a not-yet-interactive box and is dropped.
-  # For pi, additionally require the pane to settle (two consecutive identical
-  # captures) so startup output has stopped before we paste.
-  local i ready= prev= stable=0 pane=
+  # For pi, wait briefly after pattern match so startup banners flush
+  # before pasting. The old 2-frame stability check was too fragile
+  # against async messages (agent notices, LSP status, update prompts).
+  local i ready= prev= pane=
   for ((i=0; i<READY_TIMEOUT; i++)); do
     pane="$(tmux capture-pane -p -t "$session":0.0 2>/dev/null || true)"
     if printf '%s' "$pane" | grep -qiE "$READY_PATTERN"; then
       if [ "$ENGINE" = pi ]; then
-        if [ "$pane" = "$prev" ]; then stable=$((stable+1)); else stable=0; fi
-        [ "$stable" -ge 2 ] && { ready=1; break; }
+        sleep 2
+        ready=1; break
       else
         ready=1; break
       fi
@@ -446,18 +447,57 @@ run_skill() {
   sleep 1
   tmux send-keys -t "$session":0.0 Enter
 
-  # Poll for the done marker on its own line (anchored to start-of-line after
-  # optional whitespace) so a mid-stream mention of the token cannot fire early.
+  # Poll for the done marker. Two detection paths:
+  # 1. Direct marker match — the agent printed RPIV_DONE_${nonce}.
+  # 2. Fallback for engines (pi) whose agents don't follow the marker instruction:
+  #    detect prompt reappearance (pane stable + context meter visible), then send
+  #    the marker via shell echo. The echo output then triggers path 1.
   # Side effect: every ~5s dump the current capture to the step log so the log
   # exists *during* the step (live view via `watch -n5 cat "$log"` or
   # `tail -f "$log"`), not only at completion — this removes the "no log =
   # stuck" ambiguity. capture-pane is read-only and cannot corrupt the pane.
-  local done= snap=
+  local done= snap= prev_snap= stable_cnt=0 echo_sent= widget_answered=
   for ((i=0; i<timeout; i++)); do
     snap="$(tmux capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
+    # Path 1: direct marker match
     if printf '%s\n' "$snap" | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
       done=1; break
     fi
+    # Path 2: fallback — pane stable at prompt -> send marker via shell echo
+    if [ -z "$echo_sent" ] && [ -n "$prev_snap" ] && [ "$snap" = "$prev_snap" ]; then
+      stable_cnt=$((stable_cnt + 1))
+      if [ "$stable_cnt" -ge 3 ] && printf '%s\n' "$snap" | grep -qiE "$READY_PATTERN"; then
+        tmux send-keys -t "$session":0.0 -- "echo ${marker}" Enter
+        echo_sent=1
+      fi
+    fi
+    # Path 3: auto-answer ask_user_question widget if it appears
+    if printf '%s\n' "$snap" | grep -qiE 'Enter to select'; then
+      if [ -z "$widget_answered" ]; then
+        if printf '%s\n' "$snap" | grep -qE '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]'; then
+          # Multi-select: toggle all checkboxes then submit
+          local n wline
+          n=0
+          while IFS= read -r wline; do
+            n=$((n + 1))
+          done <<< "$(printf '%s\n' "$snap" | grep -E '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]')"
+          if [ "$n" -gt 0 ]; then
+            for ((j=0; j<n; j++)); do
+              tmux send-keys -t "$session":0.0 Space
+              [ "$j" -lt "$((n-1))" ] && tmux send-keys -t "$session":0.0 Down
+            done
+            tmux send-keys -t "$session":0.0 Down Enter
+          fi
+        else
+          # Single-select: press Enter to select first/recommended option
+          tmux send-keys -t "$session":0.0 Enter
+        fi
+        widget_answered=1
+      fi
+    else
+      widget_answered=
+    fi
+    prev_snap="$snap"
     (( i % 5 == 0 )) && printf '%s\n' "$snap" > "$log"
     sleep 1
   done
