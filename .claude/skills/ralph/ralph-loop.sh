@@ -317,11 +317,11 @@ fi
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
 if [[ "$REVIEW_LOOP" == "true" ]]; then
-	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 else
-	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 fi
@@ -357,7 +357,7 @@ cd "$PROJECT_DIR"
 
 # Prompt framing used when an inline auto-review/repair worker is spawned for a
 # blocked issue. Mirrors the review-loop reminder built by the outer script.
-REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 
@@ -413,7 +413,10 @@ git_status_short_ignoring_pi_lens() {
 
 normalize_issue_id() {
   local id="${1#\#}"
-  id=$(printf '%s' "$id" | sed 's/^0*//;s/^$/0/')
+  # Keep IDs verbatim (e.g. zero-padded "022", alphanumeric "023a"); only map
+  # empty to "0". Stripping leading zeros previously broke file-id lookups like
+  # grep "^id: <id>$" against zero-padded kanban issue files.
+  id=$(printf '%s' "$id" | sed 's/^$/0/')
   printf '%s' "$id"
 }
 
@@ -551,7 +554,7 @@ count_unblocked_pending() {
 
 extract_completed_issue() {
   local file="$1"
-  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: DONE #\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$file" | tail -1
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: DONE #\([0-9A-Za-z][0-9A-Za-z]*\)[[:space:]]*$/\1/p' "$file" | tail -1
 }
 
 has_no_work_result() {
@@ -561,22 +564,22 @@ has_no_work_result() {
 
 has_success_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: DONE #[0-9]+[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: DONE #[0-9A-Za-z]+[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_failure_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9]+)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9A-Za-z]+)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_blocked_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_hard_fail_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 # A BLOCKED sentinel is non-fatal (keep looping instead of stopping) when running
@@ -592,7 +595,7 @@ blocked_is_skippable() {
 
 extract_result_issue() {
   local file="$1"
-  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\([0-9][0-9]*\)[[:space:]]*$/\2/p' "$file" | tail -1
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\([0-9A-Za-z][0-9A-Za-z]*\)[[:space:]]*$/\2/p' "$file" | tail -1
 }
 
 run_pi_adapter() {
