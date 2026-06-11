@@ -140,6 +140,8 @@ The Phase 8 draft is **round 0**. Run rounds 1..`MAX_ROUNDS`: pi audits the on-d
 
 Each round re-reads the revised plan from `plans/<feature>.md`, so **rounds are stateless** — no reviewer session continuity is needed. Reuse the reviewer *engine* inline (the mechanics below). Do **not** invoke the `/dev-review-pi` or `/dev-review-claude` skills — their interactive scope-verify / present / discuss steps would stall an automated loop.
 
+> **AUTO-REVISE — NO GATE BETWEEN ROUNDS.** Parsing findings (9.3) is **not** a stopping point. Do **not** present the findings to the user, summarize them in chat, or wait for approval before revising. The moment findings are parsed, apply 9.5 (revise the plan on disk) and continue the loop automatically. The only user-facing output of Phase 9 is the Phase 11 Loop Outcome block, emitted **after** the loop has exited. If you find yourself writing "here are the findings" to the user mid-loop, you have violated this rule — revise the plan instead and keep going.
+
 Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
 
 #### 9.0 Initialize state
@@ -224,6 +226,8 @@ echo "pi launched pid=$PID"
 #### 9.3 Parse findings
 
 From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/`[NOTE]`), capturing verbatim text. Compute `critical_count`, `warning_count`, `note_count`. The `END_OF_FINDINGS` sentinel marks clean end-of-output; if it's missing, the output was truncated — record that and treat as a reviewer failure (9.8).
+
+After parsing, proceed **directly** to 9.4 then 9.5. Do not pause to report findings to the user — see the AUTO-REVISE guard above.
 
 #### 9.4 Append round to state
 

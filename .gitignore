@@ -12,6 +12,9 @@ MEMORY/
 Plans/
 plans/
 
+# Machine-local youtube skill output (transcript/research extracts — per-machine)
+youtube/
+
 # Machine-local helper binaries (sync rralph; keep the rest machine-local)
 bin/*
 !bin/rralph
