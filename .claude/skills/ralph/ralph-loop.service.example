@@ -1,0 +1,37 @@
+# Ralph loop supervisor — systemd user service template.
+#
+# Runs ralph-supervise.sh, which keeps the Ralph driver tmux session alive
+# across the intermittent reaping of its tmux pane scope (and across logout,
+# when lingering is enabled). The driver + workers still run on the user's
+# default tmux server, so they stay attachable.
+#
+# Install (per machine; not synced by dotfiles — paths/uid are host-specific):
+#   cp ralph-loop.service.example ~/.config/systemd/user/ralph-loop.service
+#   # edit WorkingDirectory + Environment paths for this host/user
+#   loginctl enable-linger "$USER"
+#   systemctl --user daemon-reload
+#
+# Run a supervised loop (instead of the bare `tralph` alias):
+#   systemctl --user start ralph-loop        # driver auto-heals if its session dies
+#   systemctl --user stop  ralph-loop        # the ONLY correct way to stop the loop
+#   journalctl --user -u ralph-loop -f       # supervisor log
+#   tmux attach -t ralph-loop                # still attachable; workers: ralph-ralph-loop-N
+#
+# Stop the SERVICE to end a run — killing only the tmux session triggers a relaunch.
+
+[Unit]
+Description=Ralph loop supervisor (keeps the Ralph driver tmux session alive)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/symphony
+Environment=PATH=%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TMUX_TMPDIR=/tmp
+Environment=RALPH_SESSION_NAME=ralph-loop
+ExecStart=%h/.claude/skills/ralph/ralph-supervise.sh --force tmux ralph-loop
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
