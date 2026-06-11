@@ -125,6 +125,7 @@ Before writing new generated wiki content, check existing wiki state:
 5. Prefer a low-risk promoted-page maintenance edit only when the new evidence is clear, cited, and non-controversial.
 6. When the session contradicts existing claims, keep both claims and add notes such as `contradicts C-XXXX` or `supersedes C-XXXX`; do not delete the older claim.
 7. Create a candidate analysis page when a contradiction is important enough to explain.
+8. Outdated-source check: for overlapping existing pages and claims, verify their cited sources still support them given the session evidence. When the session shows a cited source is outdated, edited, superseded, or contradicted, flag it for supersession per the provenance rule — keep the old claim, mark it `superseded` (or `active` with a drift note) and propose a replacement claim or candidate page. Never silently rewrite. Reuse the Content Drift Check definition from `llm-wiki-setup` `Workflows/Lint.md`.
 
 ## 7. Apply Wiki Updates
 
@@ -173,4 +174,5 @@ Report:
 - Files changed.
 - Candidate pages awaiting review.
 - Claims added or updated.
+- Outdated or superseded sources flagged by the outdated-source check, with proposed action.
 - Open questions or suggested next ingest/promote action.
