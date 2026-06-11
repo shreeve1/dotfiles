@@ -15,7 +15,7 @@
 #   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
 #   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
-#   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
+#   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
 #   --private-tmux        Use Ralph's private tmux socket instead of default tmux
 #   --normal-tmux         Use the default tmux server (default)
@@ -68,7 +68,7 @@ OPTIONS:
   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
-  --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker
+  --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
   --private-tmux        Use Ralph's private tmux socket instead of default tmux
   --normal-tmux         Use the default tmux server (default)
@@ -784,6 +784,7 @@ run_lsp_check_gate() {
 
 checkpoint_dirty_worktree() {
   local status message
+  message="${1:-chore(ralph): checkpoint worktree before worker}"
 
   [[ "$CHECKPOINT_DIRTY" == "true" ]] || return 0
   git rev-parse --git-dir >/dev/null 2>&1 || return 0
@@ -793,17 +794,16 @@ checkpoint_dirty_worktree() {
   [[ -n "$status" ]] || return 0
 
   echo "" | tee -a "$LOG_FILE"
-  echo "💾 Checkpointing dirty worktree before launching worker" | tee -a "$LOG_FILE"
+  echo "💾 Checkpointing dirty worktree: $message" | tee -a "$LOG_FILE"
   git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
 
   git add -A -- . ':(exclude).pi-lens'
   if git diff --cached --quiet; then
-    echo "⚠️  Dirty worktree had nothing stageable; refusing to launch worker" | tee -a "$LOG_FILE"
+    echo "⚠️  Dirty worktree had nothing stageable" | tee -a "$LOG_FILE"
     git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
     return 1
   fi
 
-  message="chore(ralph): checkpoint worktree before worker"
   if ! git commit -m "$message" 2>&1 | tee -a "$LOG_FILE"; then
     echo "⚠️  Failed to create pre-worker checkpoint commit" | tee -a "$LOG_FILE"
     return 1
@@ -812,12 +812,12 @@ checkpoint_dirty_worktree() {
   cleanup_ephemeral_artifacts || true
   status=$(git_status_ignoring_pi_lens)
   if [[ -n "$status" ]]; then
-    echo "⚠️  Worktree still dirty after checkpoint commit; refusing to launch worker" | tee -a "$LOG_FILE"
+    echo "⚠️  Worktree still dirty after checkpoint commit" | tee -a "$LOG_FILE"
     git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
     return 1
   fi
 
-  echo "✅ Worktree clean before worker" | tee -a "$LOG_FILE"
+  echo "✅ Worktree clean after checkpoint commit" | tee -a "$LOG_FILE"
 }
 
 # Spawn a fresh actionable-review/repair worker against a single blocked issue,
@@ -1094,11 +1094,26 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     cleanup_ephemeral_artifacts || true
     POST_RALPH_STATUS=$(git_status_ignoring_pi_lens)
     if [[ $LAST_EXIT_CODE -eq 0 && -n "$POST_RALPH_STATUS" ]]; then
-      echo "" | tee -a "$LOG_FILE"
-      echo "⚠️  Ralph left the worktree dirty after the worker finished" | tee -a "$LOG_FILE"
-      echo "   Stopping so the next worker does not start from mixed state." | tee -a "$LOG_FILE"
-      git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
-      LAST_EXIT_CODE=1
+      if [[ "$CHECKPOINT_DIRTY" == "true" ]]; then
+        echo "" | tee -a "$LOG_FILE"
+        echo "💾 Worker left the worktree dirty; auto-committing before next issue" | tee -a "$LOG_FILE"
+        POST_ISSUE_ID=$(extract_completed_issue "$RALPH_OUTPUT")
+        if [[ -n "$POST_ISSUE_ID" ]]; then
+          POST_ISSUE_MSG="chore(ralph): post-issue commit for #$POST_ISSUE_ID"
+        else
+          POST_ISSUE_MSG="chore(ralph): post-issue commit"
+        fi
+        if ! checkpoint_dirty_worktree "$POST_ISSUE_MSG"; then
+          echo "Stopping loop" | tee -a "$LOG_FILE"
+          LAST_EXIT_CODE=1
+        fi
+      else
+        echo "" | tee -a "$LOG_FILE"
+        echo "⚠️  Ralph left the worktree dirty after the worker finished" | tee -a "$LOG_FILE"
+        echo "   Stopping so the next worker does not start from mixed state." | tee -a "$LOG_FILE"
+        git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
+        LAST_EXIT_CODE=1
+      fi
     fi
   fi
 
