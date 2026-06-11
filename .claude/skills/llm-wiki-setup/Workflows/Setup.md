@@ -27,6 +27,8 @@ Detect existing wiki state before writing:
 
 Do not overwrite existing wiki files. If a file exists, update it surgically or ask before replacing.
 
+When setup is a re-run or partial recovery against a wiki that already holds promoted pages or claims, run the outdated-source check from `Workflows/Lint.md` (the Content Drift Check, default staleness scope) over the existing content. Report findings in the final report; do not auto-rewrite drifted claims or pages. A fresh init over an empty wiki skips this check.
+
 ## 3. Create Structure
 
 Create missing directories:
@@ -96,3 +98,5 @@ Verify with exact probes:
 ## 7. Report
 
 Report changed files plus a prioritized shortlist of 3-5 high-value ingest sources inferred from project docs (with source paths when known). Do not auto-ingest. Suggest the next step in natural language, e.g. `Next: ingest <path> into the wiki` — this matches the `ingest source` trigger row in `SKILL.md`.
+
+On a re-run or partial recovery, also report outdated-source findings from the Content Drift Check (claim ID or page, cited path, asserted vs. current, proposed action). Do not apply drift fixes automatically.

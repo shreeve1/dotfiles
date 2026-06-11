@@ -44,6 +44,7 @@ Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention:
 - Append operations to `wiki/log.md`.
 - Track factual claims in `wiki/CLAIMS.md`.
 - Use `/wiki-update` to capture durable session decisions, verified facts, and follow-ups into the wiki.
+- Include a `Maintenance Trigger` rule framed as a mandatory end-of-session check, not advisory: before reporting any task complete, decide whether it hit a trigger (durable decisions, terminology/architecture/contract changes, superseding facts); if yes, run `/wiki-update` before reporting done; if no, state one line confirming the wiki check ran and nothing qualified. Routine or already-documented work does not trigger a pass, and superseded claims are marked `superseded` with a pointer, never deleted.
 - Offer to save durable query outputs as candidate pages.
 - Include the lint workflow and candidate cleanup rules.
 

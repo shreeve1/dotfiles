@@ -93,6 +93,14 @@ Before broad repo inspection, prefer compact helper scripts when present:
 
 Use these first to reduce token usage, then read only the specific files needed. Script output is a map, not source of truth: verify claims by reading targeted files before editing or making project claims. Pi uses this Claude setup too, so keep this guidance in `CLAUDE.md` rather than harness-specific config.
 
+## Wiki Upkeep
+
+Applies only when the current project has a `wiki/` knowledge base (created by `/llm-wiki-setup`). Projects without one skip this entirely.
+
+- For project-specific questions, check `wiki/index.md` and `wiki/ROUTING.md` before broad repository search.
+- When a session produces durable knowledge — a direction-setting decision, changed terminology, a new architecture/process/contract, or a fact that supersedes existing wiki content — capture it with `/wiki-update` before wrapping up.
+- Routine edits and already-documented facts need no pass. This is a standing nudge, not a hard gate; the project's own `CLAUDE.md` `LLM Wiki` section is authoritative when present.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
