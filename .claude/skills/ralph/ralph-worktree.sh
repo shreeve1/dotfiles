@@ -5,9 +5,10 @@
 # ($RALPH_WORKTREE, default ~/symphony-ralph) on $RALPH_BRANCH (default
 # ralph/run), branched from $RALPH_BASE_BRANCH (default main) of $RALPH_BASE_REPO
 # (default ~/symphony), committing any queued .kanban changes on the base branch
-# first so the fresh worktree picks up newly-dropped issues. If the worktree
-# already exists it is reused as-is (in-flight batch). Removal + merge are owned
-# by ralph-finalize.sh, so this script never deletes anything.
+# first so the fresh worktree picks up newly-dropped issues. The board (.kanban)
+# must be git-tracked in the base repo for it to travel into the worktree. If the
+# worktree already exists it is reused as-is (in-flight batch). Removal + merge
+# are owned by ralph-finalize.sh, so this script never deletes anything.
 #
 # Prints the worktree path on stdout (success); logs detail to
 # ~/.cache/ralph-worktree.log.
@@ -37,6 +38,8 @@ ensure)
 		echo "$WORKTREE"
 		exit 0
 	fi
+	# Commit any queued board changes so a worktree branched from the base
+	# branch picks up newly-dropped issues. Requires .kanban to be tracked.
 	if [[ -n "$(git status --porcelain -- .kanban 2>/dev/null)" ]]; then
 		log "committing queued .kanban changes on $BASE_BRANCH"
 		git add -- .kanban && git commit -q -m "chore(kanban): queue issues for ralph run" \
