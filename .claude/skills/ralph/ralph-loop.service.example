@@ -29,7 +29,7 @@ WorkingDirectory=%h/symphony
 Environment=PATH=%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 Environment=TMUX_TMPDIR=/tmp
 Environment=RALPH_SESSION_NAME=ralph-loop
-ExecStart=%h/.claude/skills/ralph/ralph-supervise.sh --force tmux ralph-loop
+ExecStart=%h/.claude/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
 Restart=on-failure
 RestartSec=10
 
