@@ -7,11 +7,7 @@ esac
 
 # OPENSPEC:START
 # OpenSpec shell completions configuration
-if [[ $IS_MACOS -eq 1 ]]; then
-  fpath=("/Users/james/.oh-my-zsh/custom/completions" $fpath)
-else
-  fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
-fi
+fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
 autoload -Uz compinit
 compinit
 # OPENSPEC:END
@@ -258,7 +254,7 @@ relpath() {
     printf 'usage: relpath <file> [base]\n' >&2
     return 1
   fi
-  realpath --relative-to="${2:-.}" "$1" | tr -d '\n' | clip
+  python3 -c 'import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]), end="")' "$1" "${2:-.}" | clip
 }
 
 # Copy the absolute path of a file to the local clipboard.
@@ -267,7 +263,7 @@ abspath() {
     printf 'usage: abspath <file>\n' >&2
     return 1
   fi
-  realpath "$1" | tr -d '\n' | clip
+  python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]), end="")' "$1" | clip
 }
 
 # Ghostty CLI wrapper
@@ -318,4 +314,4 @@ export PATH="$HOME/.opencode/bin:$PATH"
 
 # Auto-Warpify
 [[ "$-" == *i* ]] && printf 'P$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "Linux" }}�' 
-export PATH="$PATH:/home/james/.temporalio/bin"
+[[ -d "$HOME/.temporalio/bin" ]] && export PATH="$PATH:$HOME/.temporalio/bin"
