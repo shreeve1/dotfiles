@@ -66,22 +66,7 @@
   "model": "sonnet",
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [],
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ~/.claude/hooks/caveman-session-start.cjs" }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node ~/.claude/hooks/caveman-user-prompt.cjs" }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"

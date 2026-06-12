@@ -1,0 +1,760 @@
+#!/usr/bin/env bash
+# rralph — drive the RPIV skill pipeline unattended on a fresh branch.
+#
+# Fire-and-forget: invoking rralph validates, then re-execs itself inside a
+# DETACHED tmux session (RPIV_DETACHED=1) and returns the terminal immediately.
+# No confirmation prompt — the background driver runs the whole pipeline. The
+# driver and its per-step sessions live on the DEFAULT tmux server (like tralph),
+# so a plain `tmux ls` / `tmux attach -t rpivdriver-<TS>` finds them. Watch with
+# the printed `tmux attach` / `tail -f` commands; stop it with
+# `tmux kill-session -t rpivdriver-<TS>`.
+#
+# Each step runs in a FRESH interactive session of the selected engine
+# (--engine claude|pi, default pi) on the default tmux server. NOT print
+# mode (`claude -p` / `pi -p`) — print mode is being retired, and the SDK cannot
+# invoke a skill by name. Slash commands work in interactive mode, so each step
+# triggers its exact skill. Context is fresh per step; handoff is via on-disk
+# artifacts under .rpiv/artifacts/<type>/. Commit is gated by validation +
+# code-review artifacts by default; --ungated preserves the old commit-always
+# behavior. Both engines' rpiv skills write the same artifact dir names
+# (research, designs, plans), so the on-disk handoff is engine-independent.
+#
+# Between generative steps a gap-sweep runs (/gap-sweep skill): a fresh session
+# sweeps the just-produced artifact for CRITICAL gaps only, fixes them in place,
+# and continues. This is NOT a gate — it never blocks, it improves and moves on.
+#
+# Note: pi steps run slower than claude (the rpiv-advisor extension adds
+# deliberation/cleanup rounds), so keep the default timeouts for pi — do not
+# shrink RPIV_STEP_TIMEOUT or steps can time out before printing the marker.
+#
+# Prereq: run /discover interactively first to produce an FRD under
+# .rpiv/artifacts/discover/. The host must already be onboarded for the chosen
+# engine (logged in + directory trusted) — readiness detection waits for the
+# input UI, not for theme/trust/login prompts.
+#
+# Engine mirrors .claude/skills/dev-review-claude (tmux send-keys + nonce marker).
+
+set -euo pipefail
+
+# --- config (override via env or flags) ---
+ENGINE="${RPIV_ENGINE:-pi}"                   # claude | pi
+MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = default
+                                               #   claude: opus, sonnet
+                                               #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
+PROVIDER="${RPIV_PROVIDER:-}"                  # pi only; empty = pi default provider
+BRANCH_PREFIX="${RPIV_BRANCH_PREFIX:-rpiv}"
+STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-5400}"          # seconds per step (90m)
+IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-10800}" # seconds for implement (3h)
+READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for engine TUI
+# Idle-UI marker; engine-specific default is set after flag parsing (see below).
+# claude: bypassPermissions always shows "bypass permissions on".
+# pi: the footer context meter "<n>%/<n>k" only renders once the TUI is live.
+# Override via RPIV_READY_PATTERN if a TUI footer changes.
+READY_PATTERN="${RPIV_READY_PATTERN:-}"
+FROM_STEP="${RPIV_FROM_STEP:-}"               # resume from this step (research|design|plan|implement|validate|code-review|commit)
+UNGATED="${RPIV_UNGATED:-0}"                  # 1 = commit even when validation/review gate fails
+
+usage() {
+  cat <<'EOF'
+usage: rralph [--engine claude|pi] [--model M] [--provider P] [--ungated]
+
+Run /discover interactively first. Then rralph drives
+research -> design -> plan -> implement -> validate -> code-review -> commit
+in fresh interactive engine sessions (via tmux), unattended, on a fresh branch.
+
+Fire-and-forget: there is NO confirmation prompt. rralph re-execs itself into
+a detached tmux session and returns immediately; the printed monitor/stop
+commands let you watch or kill the background driver.
+
+--engine selects the agent CLI (default pi; pass --engine claude for Claude).
+--provider applies to pi only.
+--model is engine-specific: claude takes opus/sonnet; pi takes a provider/id
+pattern (e.g. anthropic/claude-opus-4).
+-y/--yes is accepted for backward compatibility but is a no-op.
+--ungated / --commit-on-review-fail commits even when validation or review fails
+(default: gated; failed validation/review stops before commit).
+
+--from <step> resumes a partial run: stays on the CURRENT branch (no fresh
+checkout), skips every step before <step>, and runs <step> onwards. Valid
+values: research, design, plan, implement, validate, code-review, commit.
+Upstream artifact for <step> is the newest file in its source directory
+(produced by the prior run); subsequent steps' artifacts are resolved against
+the new run's start marker as usual.
+
+env: RPIV_ENGINE RPIV_MODEL RPIV_PROVIDER RPIV_BRANCH_PREFIX
+     RPIV_STEP_TIMEOUT RPIV_IMPLEMENT_TIMEOUT RPIV_READY_TIMEOUT RPIV_READY_PATTERN
+     RPIV_FROM_STEP RPIV_UNGATED
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -y|--yes)   ;;  # accepted for backward compat; no-op (runs are always unattended)
+    --engine)   ENGINE="$2"; shift ;;
+    --model)    MODEL="$2"; shift ;;
+    --provider) PROVIDER="$2"; shift ;;
+    --from)     FROM_STEP="$2"; shift ;;
+    --ungated|--commit-on-review-fail) UNGATED=1 ;;
+    -h|--help)  usage; exit 0 ;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+case "$ENGINE" in
+  claude|pi) ;;
+  *) echo "error: --engine must be 'claude' or 'pi' (got: $ENGINE)" >&2; exit 2 ;;
+esac
+
+case "$FROM_STEP" in
+  ""|research|design|plan|implement|validate|code-review|commit) ;;
+  *) echo "error: --from must be one of: research design plan implement validate code-review commit (got: $FROM_STEP)" >&2; exit 2 ;;
+esac
+
+frontmatter_value() {
+  local key="$1" path="$2"
+  [ -n "$path" ] && [ -f "$path" ] || return 1
+  awk -v key="$key" '
+    /^---[[:space:]]*$/ {
+      if (!seen) { seen=1; in_header=1; next }
+      if (in_header) { exit }
+    }
+    in_header && index($0, key ":") == 1 {
+      value=substr($0, length(key) + 2)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+#.*$/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+      exit
+    }
+  ' "$path"
+}
+
+frontmatter_number() {
+  local key="$1" path="$2"
+  [ -n "$path" ] && [ -f "$path" ] || return 1
+  awk -v key="$key" '
+    /^---[[:space:]]*$/ {
+      if (!seen) { seen=1; in_header=1; next }
+      if (in_header) { exit }
+    }
+    in_header {
+      line=$0
+      sub(/[[:space:]]+#.*$/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line ~ "^[[:space:]]*" key ":[[:space:]]*[0-9]+$") {
+        sub("^[[:space:]]*" key ":[[:space:]]*", "", line)
+        print line
+        exit
+      }
+    }
+  ' "$path"
+}
+
+artifact_status() {
+  frontmatter_value status "$1"
+}
+
+review_critical_count() {
+  local rv="$1" sev n
+  sev="$(frontmatter_value severity "$rv" || true)"
+  n="$(printf '%s\n' "$sev" | sed -nE 's/.*critical:[[:space:]]*([0-9]+).*/\1/p' | head -1)"
+  [ -n "$n" ] || n="$(frontmatter_number critical "$rv" || true)"
+  case "$n" in
+    ''|*[!0-9]*) return 1 ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+review_blockers_count() {
+  local rv="$1" n
+  n="$(frontmatter_number blockers_count "$rv" || true)"
+  case "$n" in
+    ''|*[!0-9]*) return 1 ;;
+    *) printf '%s\n' "$n" ;;
+  esac
+}
+
+GATE_REASON=""
+commit_gate_allows() {
+  local validation="$1" review="$2" vstatus rstatus critical blockers
+
+  if [ -z "$validation" ] || [ ! -f "$validation" ]; then
+    GATE_REASON="validation artifact missing"
+    return 1
+  fi
+  vstatus="$(artifact_status "$validation" || true)"
+  # Status values are strict allowlists tied to current validate/code-review templates.
+  # New template statuses must update this gate before they can commit by default.
+  if [ "$vstatus" != complete ]; then
+    GATE_REASON="validation status is ${vstatus:-unknown}, expected complete"
+    return 1
+  fi
+
+  if [ -z "$review" ] || [ ! -f "$review" ]; then
+    GATE_REASON="code-review artifact missing"
+    return 1
+  fi
+  rstatus="$(artifact_status "$review" || true)"
+  if [ "$rstatus" != approved ]; then
+    GATE_REASON="code-review status is ${rstatus:-unknown}, expected approved"
+    return 1
+  fi
+
+  critical="$(review_critical_count "$review" || true)"
+  if [ -z "$critical" ]; then
+    GATE_REASON="code-review critical count missing or malformed"
+    return 1
+  fi
+  if [ "$critical" -ne 0 ]; then
+    GATE_REASON="code-review has $critical critical finding(s)"
+    return 1
+  fi
+
+  blockers="$(review_blockers_count "$review" || true)"
+  if [ -z "$blockers" ]; then
+    GATE_REASON="code-review blockers_count missing or malformed"
+    return 1
+  fi
+  if [ "$blockers" -ne 0 ]; then
+    GATE_REASON="code-review has $blockers blocker(s)"
+    return 1
+  fi
+
+  GATE_REASON=""
+  return 0
+}
+
+if [ "${RRALPH_INTERNAL_GATE_CHECK:-}" = 1 ] && [ -n "${RRALPH_TEST_VALIDATION+x}" ] && [ -n "${RRALPH_TEST_REVIEW+x}" ]; then
+  if [ "$UNGATED" = 1 ]; then
+    echo "allow: ungated"
+    exit 0
+  fi
+  if commit_gate_allows "${RRALPH_TEST_VALIDATION:-}" "${RRALPH_TEST_REVIEW:-}"; then
+    echo "allow: gated"
+    exit 0
+  fi
+  echo "block: $GATE_REASON" >&2
+  exit 1
+fi
+
+# Engine-specific idle-UI readiness marker (unless overridden via RPIV_READY_PATTERN).
+if [ -z "$READY_PATTERN" ]; then
+  case "$ENGINE" in
+    claude) READY_PATTERN='bypass permissions on|shift\+tab to cycle' ;;
+    pi)     READY_PATTERN='[0-9.]+%/[0-9.]+[kMG]' ;;
+  esac
+fi
+
+command -v "$ENGINE" >/dev/null 2>&1 || { echo "error: $ENGINE CLI not on PATH" >&2; exit 1; }
+command -v tmux   >/dev/null 2>&1 || { echo "error: tmux not on PATH" >&2; exit 1; }
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repo" >&2; exit 1; }
+
+# Newest *.md in a dir (used for the pre-existing FRD).
+newest() { ls -t "$1"/*.md 2>/dev/null | head -1; }
+
+# Newest *.md created during THIS run (newer than the start marker). Avoids
+# picking up stale artifacts from a prior feature in the same dir.
+newest_since() {
+  local d="$1" f best=
+  for f in "$d"/*.md; do
+    [ -e "$f" ] || continue
+    [ "$f" -nt "$STARTMARK" ] || continue
+    if [ -z "$best" ] || [ "$f" -nt "$best" ]; then best="$f"; fi
+  done
+  printf '%s' "$best"
+}
+
+# Repo default branch (origin/HEAD, else main/master, else current commit).
+resolve_default_branch() {
+  local d
+  d="$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
+  if [ -n "$d" ]; then printf '%s' "$d"; return; fi
+  for d in main master; do
+    if git rev-parse --verify --quiet "$d" >/dev/null; then printf '%s' "$d"; return; fi
+  done
+  git rev-parse --short HEAD
+}
+
+# Resolve the ref a new run should fork from. If HEAD is on a prior rralph branch
+# (${BRANCH_PREFIX}/<TS>), unwind its recorded .base chain back to the original
+# non-rralph base so consecutive runs do NOT stack on each other.
+resolve_base() {
+  local ref="$1" guard=0 ts pb
+  while [ "$guard" -lt 10 ]; do
+    case "$ref" in "$BRANCH_PREFIX"/*) ;; *) break ;; esac
+    ts="${ref#"$BRANCH_PREFIX"/}"
+    pb="$(cat ".rpiv/run/$ts/.base" 2>/dev/null || true)"
+    [ -n "$pb" ] || break
+    ref="$pb"; guard=$((guard + 1))
+  done
+  case "$ref" in "$BRANCH_PREFIX"/*) ref="$(resolve_default_branch)" ;; esac
+  git rev-parse --verify --quiet "$ref" >/dev/null || ref="$(resolve_default_branch)"
+  printf '%s' "$ref"
+}
+
+FRD="$(newest .rpiv/artifacts/discover || true)"
+[ -n "${FRD:-}" ] || { echo "error: no FRD in .rpiv/artifacts/discover/ — run /discover first" >&2; exit 1; }
+
+TS="${RPIV_TS:-$(date +%Y%m%d-%H%M%S)}"
+BRANCH="${BRANCH_PREFIX}/${TS}"
+LOGDIR=".rpiv/run/${TS}"
+STARTMARK="$LOGDIR/.start"
+# Driver session name deliberately omits the `rpiv-<word>-` shape used by the
+# per-step sessions (rpiv-<step>-<epoch>), so rpiv-monitor never mistakes the
+# long-lived driver for a step session on the shared default server.
+DRIVER="rpivdriver-${TS}"
+
+# Absolute path to this script, for the detached re-exec.
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+
+# ---------------------------------------------------------------------------
+# Foreground pass: validate, lay down the run dir, then re-exec ourselves inside
+# a detached tmux session and hand the terminal straight back (fire-and-forget).
+# The detached driver (RPIV_DETACHED=1) runs the actual pipeline further below.
+# Config crosses into the driver via env; RPIV_TS pins the run id so branch and
+# log dir match between the two passes.
+# ---------------------------------------------------------------------------
+if [ -z "${RPIV_DETACHED:-}" ]; then
+  if [ -n "$FROM_STEP" ]; then
+    # Resume mode: reuse the CURRENT branch, no fresh checkout.
+    BRANCH="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+    [ -n "$BRANCH" ] || { echo "error: --from requires being on a branch (HEAD is detached)" >&2; exit 1; }
+  else
+    if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
+      echo "error: branch $BRANCH already exists" >&2; exit 1
+    fi
+  fi
+  # The branch is not created until the detached pass, so a second launch in the
+  # same wall-clock second would share TS/BRANCH/run dir. Reject it here:
+  # the run dir is the earliest per-run artifact the foreground pass writes.
+  if [ -e "$LOGDIR" ]; then
+    echo "error: run dir $LOGDIR already exists (concurrent launch in the same second?)" >&2; exit 1
+  fi
+
+  mkdir -p "$LOGDIR"
+  touch "$STARTMARK"
+
+  # Keep run logs out of the autonomous /commit sweep (local, per-repo, untracked).
+  GITDIR="$(git rev-parse --git-dir)"
+  mkdir -p "$GITDIR/info"
+  grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
+    || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
+
+  if [ -n "$FROM_STEP" ]; then
+    # Resume mode: inherit the prior run's fork point so .base keeps naming the
+    # immutable kickoff base, not the moving branch tip. rpiv-merge reads
+    # .base from the ORIGINAL run dir (TS = branch suffix), so mirroring the
+    # value here is mostly for consistency, but it also keeps the contract that
+    # .base is always a stable ref a diff can be taken against.
+    ORIG_TS="${BRANCH#${BRANCH_PREFIX}/}"
+    BASE_REF="$(cat ".rpiv/run/$ORIG_TS/.base" 2>/dev/null || true)"
+    [ -n "$BASE_REF" ] || BASE_REF="$(resolve_base "$BRANCH")"
+    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"
+  else
+    # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
+    # (default branch) so runs don't stack. Recorded in .base for rpiv-merge and
+    # used as the explicit start point of `git checkout -b` in the detached pass.
+    CUR_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+    BASE_REF="$(resolve_base "$CUR_REF")"
+    [ "$BASE_REF" != "$CUR_REF" ] && \
+      echo "note: HEAD ($CUR_REF) is a prior rralph branch — forking this run from '$BASE_REF' so runs don't stack." >&2
+    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge + detached checkout
+  fi
+
+  PROVIDER_NOTE=""
+  [ "$ENGINE" = pi ] && [ -n "$PROVIDER" ] && PROVIDER_NOTE="  provider: $PROVIDER"
+
+  if [ -n "$FROM_STEP" ]; then
+    BRANCH_DESC="$BRANCH (resume on current branch, from $FROM_STEP onwards)"
+  else
+    BRANCH_DESC="$BRANCH (fresh, from $BASE_REF)"
+  fi
+  MODE_NOTE="gated by default"
+  [ "$UNGATED" = 1 ] && MODE_NOTE="ungated override"
+
+  cat <<EOF
+
+RPIV pipeline kickoff
+  FRD:      $FRD
+  branch:   $BRANCH_DESC
+  engine:   interactive $ENGINE via tmux (fresh session per step)
+  model:    ${MODEL:-<$ENGINE default>}${PROVIDER_NOTE}
+  steps:    research -> design -> plan -> implement -> validate -> code-review -> commit
+            (+ gap-sweep after FRD/research/design/plan/implement)
+  mode:     detached | unattended | auto-accept defaults | $MODE_NOTE
+  timeout:  ${STEP_TIMEOUT}s/step, ${IMPLEMENT_TIMEOUT}s for implement
+  logs:     $LOGDIR/
+
+----- FRD head -----
+EOF
+  sed -n '1,25p' "$FRD"
+  echo "--------------------"
+
+  # Forward resolved config via env (values are simple tokens; %q keeps them
+  # sh-safe). READY_PATTERN is intentionally NOT forwarded — the driver pass
+  # recomputes it from ENGINE so we never push regex/backslash through sh.
+  reexec="exec env RPIV_DETACHED=1"
+  reexec="$reexec $(printf 'RPIV_TS=%q' "$TS")"
+  reexec="$reexec $(printf 'RPIV_ENGINE=%q' "$ENGINE")"
+  reexec="$reexec $(printf 'RPIV_MODEL=%q' "$MODEL")"
+  reexec="$reexec $(printf 'RPIV_PROVIDER=%q' "$PROVIDER")"
+  reexec="$reexec $(printf 'RPIV_BRANCH_PREFIX=%q' "$BRANCH_PREFIX")"
+  reexec="$reexec $(printf 'RPIV_FROM_STEP=%q' "$FROM_STEP")"
+  reexec="$reexec $(printf 'RPIV_UNGATED=%q' "$UNGATED")"
+  reexec="$reexec $(printf 'RPIV_RESUME_BRANCH=%q' "$BRANCH")"
+  reexec="$reexec $(printf '%q' "$SELF")"
+
+  # Default tmux server (no -S). The driver's own output is mirrored to
+  # driver.log via tee, so its pane needs no extra scrollback — leave the
+  # server's global history-limit untouched (step panes raise it per-session).
+  tmux new-session -d -s "$DRIVER" -c "$PWD" -n driver "$reexec"
+
+  cat <<EOF
+
+launched (fire-and-forget) — pipeline running in the background on the default tmux server.
+  branch:  $BRANCH (created by the driver once it starts)
+  driver:  tmux session '$DRIVER'
+  logs:    $LOGDIR/
+
+monitor:
+  tmux attach -t '$DRIVER'          # watch live; detach with Ctrl-b d
+  tmux ls                             # all sessions (driver + current rpiv-<step>-)
+  tail -f '$LOGDIR'/driver.log        # driver progress
+  tail -f '$LOGDIR'/<step>.log        # individual step output
+
+stop:
+  tmux kill-session -t '$DRIVER'    # stops the driver; it kills the in-flight step on its way out
+EOF
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Detached driver pass (RPIV_DETACHED=1): runs the real pipeline. Mirror the
+# driver's stdout/stderr into driver.log so progress is captured even when no
+# one is attached to the driver pane.
+# ---------------------------------------------------------------------------
+exec > >(tee -a "$LOGDIR/driver.log") 2>&1
+
+ORIG_REF="$(cat "$LOGDIR/.base" 2>/dev/null || git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+BRANCH_CREATED=
+CUR_SESSION=""
+cleanup() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ -n "$BRANCH_CREATED" ]; then
+    echo >&2
+    echo "pipeline exited ($rc) on branch $BRANCH — work left for inspection." >&2
+    echo "return to your previous ref with: git checkout $ORIG_REF" >&2
+  fi
+  # We are on the shared default tmux server — NEVER kill-server (that would tear
+  # down the user's other sessions, e.g. tralph). Only reap the in-flight step
+  # session; the driver's own session closes when this script exits.
+  [ -n "$CUR_SESSION" ] && tmux kill-session -t "$CUR_SESSION" 2>/dev/null || true
+}
+# `tmux kill-session -t rpivdriver-<TS>` SIGHUPs the driver; on_signal turns that
+# into a normal exit so the EXIT trap runs once and reaps the in-flight step.
+on_signal() { exit 130; }
+trap on_signal INT TERM HUP
+trap cleanup EXIT
+
+if [ -n "$FROM_STEP" ]; then
+  # Resume mode: stay on the branch we were called from. No checkout, no branch
+  # creation; cleanup() therefore skips the "work left for inspection" hint since
+  # BRANCH_CREATED stays empty (the branch existed before this run).
+  BRANCH="${RPIV_RESUME_BRANCH:-$BRANCH}"
+  echo "resume: continuing on branch $BRANCH from step '$FROM_STEP'"
+else
+  # Fork explicitly from the resolved base (ORIG_REF, read from .base) rather than
+  # whatever HEAD happens to be — keeps runs off each other's branches.
+  git checkout -b "$BRANCH" "$ORIG_REF"
+  BRANCH_CREATED=1
+fi
+
+# Step gating for --from. REACHED stays empty until we hit FROM_STEP; gate() runs
+# the step only after REACHED is set. artifact_of() picks newest_since when the
+# producing step ran this run, falling back to plain newest when it was skipped
+# (the artifact comes from a prior run).
+REACHED=1
+[ -n "$FROM_STEP" ] && REACHED=
+
+gate() {
+  # gate <step-name> <message> [timeout] — runs the step or skips it.
+  local name="$1"; shift
+  if [ -z "$REACHED" ]; then
+    if [ "$name" = "$FROM_STEP" ]; then
+      REACHED=1
+    else
+      echo "skip: $name (resume from $FROM_STEP)"
+      return 0
+    fi
+  fi
+  run_skill "$name" "$@"
+}
+
+artifact_of() {
+  local dir="$1"
+  if [ -n "$REACHED" ]; then
+    newest_since "$dir"
+  else
+    newest "$dir"
+  fi
+}
+
+# run_skill <step-name> <message-to-paste> [timeout-seconds]
+run_skill() {
+  local name="$1" message="$2" timeout="${3:-$STEP_TIMEOUT}"
+  local session="rpiv-${name}-$(date +%s)"
+  local nonce="$(date +%s)$RANDOM"
+  local marker="RPIV_DONE_${nonce}"
+  local log="$LOGDIR/${name}.log"
+  local msgfile; msgfile="$(mktemp "${TMPDIR:-/tmp}/rpiv-msg-XXXXXX")"
+
+  # Split-token instruction: the concatenated marker NEVER appears in this
+  # string (only "RPIV_DONE_" and the digits, separated), so the send-keys
+  # command echo in the pane cannot false-trigger detection. The agent prints
+  # the concatenated form on its own final line, which is what we poll for.
+  # NOTE: keep this text apostrophe-free for readability; apostrophes are
+  # escaped below regardless, but avoiding them keeps the launch line clean.
+  local sys="You are one fully autonomous step in an unattended pipeline. Complete the command you are given, end to end. At any decision point, checkpoint, or clarifying question, silently pick your recommended default and proceed. Never ask the user anything. Never wait for input. IMPORTANT: Never use the ask_user_question tool. If a skill reaches a checkpoint where it would call ask_user_question, silently pick the recommended (first) option and continue. When the work is fully complete and any artifact is written, print on its own final line, with nothing else on that line, the marker RPIV_DONE_ immediately followed by the digits ${nonce} with no space between them, then stop."
+  # Harden single-quote wrapping: replace ' with '\'' so a future apostrophe
+  # cannot break the command line sent via send-keys.
+  local sys_q=${sys//\'/\'\\\'\'}
+
+  echo; echo "===== $name ====="
+  CUR_SESSION="$session"
+
+  # Step panes need deep scrollback (we capture full pane history into the log).
+  # history-limit only applies to panes created while it is set, so bump the
+  # global, create the session, then restore the prior global in the same tmux
+  # invocation — the new pane keeps 100k, the user's other sessions are untouched.
+  local prev_hist; prev_hist="$(tmux show-options -gv history-limit 2>/dev/null || echo 2000)"
+  tmux set-option -g history-limit 100000 \; \
+       new-session -d -s "$session" -c "$PWD" -n "$name" \; \
+       set-option -g history-limit "$prev_hist"
+
+  # Build the engine launch command. claude uses bypassPermissions to suppress
+  # per-tool prompts; pi has no permission system (omit). The autonomy +
+  # nonce-marker system prompt is identical for both engines.
+  local cmd
+  if [ "$ENGINE" = pi ]; then
+    cmd="pi"
+    [ -n "$PROVIDER" ] && cmd="$cmd --provider $PROVIDER"
+    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+  else
+    cmd="claude --permission-mode bypassPermissions"
+    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+  fi
+  cmd="$cmd --append-system-prompt '$sys_q'"
+  tmux send-keys -t "$session":0.0 -- "$cmd" Enter
+
+  # Wait for the engine input UI before pasting. claude shows the readiness
+  # footer only once the input is interactive, so a single pattern match is
+  # enough. pi paints its footer context meter *before* the startup banners
+  # (skill-conflict / update notices) finish streaming, so a bare match fires
+  # early and the first paste lands in a not-yet-interactive box and is dropped.
+  # For pi, wait briefly after pattern match so startup banners flush
+  # before pasting. The old 2-frame stability check was too fragile
+  # against async messages (agent notices, LSP status, update prompts).
+  local i ready= prev= pane=
+  for ((i=0; i<READY_TIMEOUT; i++)); do
+    pane="$(tmux capture-pane -p -t "$session":0.0 2>/dev/null || true)"
+    if printf '%s' "$pane" | grep -qiE "$READY_PATTERN"; then
+      if [ "$ENGINE" = pi ]; then
+        sleep 2
+        ready=1; break
+      else
+        ready=1; break
+      fi
+    fi
+    prev="$pane"; sleep 1
+  done
+  if [ -z "$ready" ]; then
+    tmux capture-pane -p -t "$session":0.0 > "$log" 2>/dev/null || true
+    echo "error: $ENGINE TUI not ready after ${READY_TIMEOUT}s (step $name). Pane saved to $log." >&2
+    rm -f "$msgfile"; return 1
+  fi
+
+  # Paste the bare slash command (no quoting risk). Settle briefly so any
+  # slash/path autocomplete popup closes before Enter submits the line.
+  printf '%s' "$message" > "$msgfile"
+  tmux load-buffer -b rpiv "$msgfile"
+  tmux paste-buffer -b rpiv -t "$session":0.0
+  sleep 1
+  tmux send-keys -t "$session":0.0 Enter
+
+  # Poll for the done marker. Two detection paths:
+  # 1. Direct marker match — the agent printed RPIV_DONE_${nonce}.
+  # 2. Fallback for engines (pi) whose agents don't follow the marker instruction:
+  #    detect prompt reappearance (pane stable + context meter visible), then send
+  #    the marker via shell echo. The echo output then triggers path 1.
+  # Side effect: every ~5s dump the current capture to the step log so the log
+  # exists *during* the step (live view via `watch -n5 cat "$log"` or
+  # `tail -f "$log"`), not only at completion — this removes the "no log =
+  # stuck" ambiguity. capture-pane is read-only and cannot corrupt the pane.
+  local done= snap= prev_snap= stable_cnt=0 echo_sent= widget_answered=
+  for ((i=0; i<timeout; i++)); do
+    snap="$(tmux capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
+    # Path 1: direct marker match
+    if printf '%s\n' "$snap" | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
+      done=1; break
+    fi
+    # Path 2: fallback — pane stable at prompt -> send marker via shell echo
+    if [ -z "$echo_sent" ] && [ -n "$prev_snap" ] && [ "$snap" = "$prev_snap" ]; then
+      stable_cnt=$((stable_cnt + 1))
+      if [ "$stable_cnt" -ge 3 ] && printf '%s\n' "$snap" | grep -qiE "$READY_PATTERN"; then
+        tmux send-keys -t "$session":0.0 -- "echo ${marker}" Enter
+        echo_sent=1
+      fi
+    fi
+    # Path 3: auto-answer ask_user_question widget if it appears
+    if printf '%s\n' "$snap" | grep -qiE 'Enter to select'; then
+      if [ -z "$widget_answered" ]; then
+        if printf '%s\n' "$snap" | grep -qE '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]'; then
+          # Multi-select: toggle all checkboxes then submit
+          local n wline
+          n=0
+          while IFS= read -r wline; do
+            n=$((n + 1))
+          done <<< "$(printf '%s\n' "$snap" | grep -E '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]')"
+          if [ "$n" -gt 0 ]; then
+            for ((j=0; j<n; j++)); do
+              tmux send-keys -t "$session":0.0 Space
+              [ "$j" -lt "$((n-1))" ] && tmux send-keys -t "$session":0.0 Down
+            done
+            tmux send-keys -t "$session":0.0 Down Enter
+          fi
+        else
+          # Single-select: press Enter to select first/recommended option
+          tmux send-keys -t "$session":0.0 Enter
+        fi
+        widget_answered=1
+      fi
+    else
+      widget_answered=
+    fi
+    prev_snap="$snap"
+    (( i % 5 == 0 )) && printf '%s\n' "$snap" > "$log"
+    sleep 1
+  done
+
+  tmux capture-pane -p -J -S - -t "$session":0.0 > "$log" 2>/dev/null || true
+  tmux kill-session -t "$session" 2>/dev/null || true
+  CUR_SESSION=""
+  rm -f "$msgfile"
+
+  if [ -z "$done" ]; then
+    echo "error: step '$name' did not finish within ${timeout}s. Pane saved to $log." >&2
+    return 1
+  fi
+  echo "  ok ($name) — log: $log"
+}
+
+require_artifact() {
+  local path="$1" type="$2"
+  [ -n "$path" ] || { echo "error: $type produced no artifact this run; halting." >&2; exit 1; }
+}
+
+# Final verdict block (lands in driver.log via the tee above). Surface the
+# validation/review gate outcome so fire-and-forget runs cannot look successful
+# when artifacts say needs_changes.
+run_summary() {
+  local outcome="${1:-complete}" reason="${2:-}"
+  local rv="${REVIEW:-}" vv="${VALIDATION:-}" vst rst sev blockers mode
+  [ -n "$rv" ] || rv="$(newest_since .rpiv/artifacts/reviews)"
+  [ -n "$vv" ] || vv="$(newest_since .rpiv/artifacts/validation)"
+  mode="gated"
+  [ "$UNGATED" = 1 ] && mode="ungated"
+
+  echo
+  echo "═══════════════════ run summary ═══════════════════"
+  echo "branch:     $BRANCH   (forked from $ORIG_REF)"
+  echo "mode:       $mode"
+  echo "outcome:    $outcome"
+  [ -n "$reason" ] && echo "reason:     $reason"
+  if [ -n "$vv" ]; then
+    vst="$(artifact_status "$vv" || true)"
+    echo "validate:   ${vst:-?}"
+    echo "            $vv"
+  else
+    echo "validate:   no validation artifact found — see validate.log"
+  fi
+  if [ -n "$rv" ]; then
+    rst="$(artifact_status "$rv" || true)"
+    sev="$(frontmatter_value severity "$rv" || true)"
+    blockers="$(review_blockers_count "$rv" || true)"
+    echo "review:     ${rst:-?}   ${sev:-severity unknown}   blockers:${blockers:-?}"
+    echo "            $rv"
+  else
+    echo "review:     no review artifact found — see code-review.log"
+  fi
+  echo
+  if [ "$outcome" = gate_failed ]; then
+    echo "next:       review artifacts, fix findings, then run \`rralph --from validate\`."
+    echo "            Use \`rralph --from implement\` if fixes require reimplementation."
+  else
+    echo "next:       review the branch, then \`rpiv-merge\` when satisfied."
+  fi
+  echo "═══════════════════════════════════════════════════"
+}
+
+# Between each generative step, gap-sweep the artifact it produced: a fresh
+# session sweeps for CRITICAL gaps only, fixes them in place, and continues.
+# Not a quality gate — it never blocks; it improves the artifact and moves on.
+# Sweeps target the explicit path captured below (in-place edits keep the path
+# stable). validate/code-review are themselves review steps, so no sweep there.
+gate sweep-frd "/gap-sweep $FRD frd" || exit 1
+
+gate research "/research $FRD" || exit 1
+RESEARCH="$(artifact_of .rpiv/artifacts/research)"; require_artifact "$RESEARCH" research
+gate sweep-research "/gap-sweep $RESEARCH research" || exit 1
+
+gate design "/design $RESEARCH" || exit 1
+DESIGN="$(artifact_of .rpiv/artifacts/designs)"; require_artifact "$DESIGN" design
+gate sweep-design "/gap-sweep $DESIGN design" || exit 1
+
+gate plan "/plan $DESIGN" || exit 1
+PLAN="$(artifact_of .rpiv/artifacts/plans)"; require_artifact "$PLAN" plan
+gate sweep-plan "/gap-sweep $PLAN plan" || exit 1
+
+gate implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1
+gate sweep-code "/gap-sweep working code" "$IMPLEMENT_TIMEOUT" || exit 1
+
+gate validate "/validate $PLAN" || exit 1
+# If resuming at code-review or commit, validation was intentionally skipped in
+# this run; reuse the newest prior validation artifact and still apply the gate.
+if [ "$FROM_STEP" = code-review ] || [ "$FROM_STEP" = commit ]; then
+  VALIDATION="$(newest .rpiv/artifacts/validation)"
+  [ -n "$VALIDATION" ] && echo "note: reusing prior validation artifact: $VALIDATION (run rralph --from validate to refresh)"
+else
+  VALIDATION="$(newest_since .rpiv/artifacts/validation)"
+fi
+gate code-review "/code-review working" || exit 1
+# If resuming at commit, code-review was intentionally skipped in this run;
+# reuse the newest prior review artifact and still apply the gate.
+if [ "$FROM_STEP" = commit ]; then
+  REVIEW="$(newest .rpiv/artifacts/reviews)"
+  [ -n "$REVIEW" ] && echo "note: reusing prior review artifact: $REVIEW (run rralph --from code-review to refresh)"
+else
+  REVIEW="$(newest_since .rpiv/artifacts/reviews)"
+fi
+UNGATED_REASON=""
+if [ "$UNGATED" != 1 ]; then
+  if ! commit_gate_allows "$VALIDATION" "$REVIEW"; then
+    echo
+    echo "stopped. review gate failed on branch $BRANCH"
+    echo "reason: $GATE_REASON"
+    run_summary gate_failed "$GATE_REASON"
+    exit 1
+  fi
+else
+  if ! commit_gate_allows "$VALIDATION" "$REVIEW"; then
+    UNGATED_REASON="ungated: committing despite gate failure: $GATE_REASON"
+    echo "warning: $UNGATED_REASON"
+  fi
+fi
+gate commit "/commit commit all changes on the current branch with a clear message; do NOT push and do NOT open a PR" || exit 1
+
+echo
+echo "done. pipeline committed on branch $BRANCH"
+echo "review: git log --oneline -n 20 ; git show --stat"
+run_summary committed "$UNGATED_REASON"

@@ -3,7 +3,10 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findMissingSiblings } from "./package-checks.js";
 import { SIBLINGS } from "./siblings.js";
+import { useTempPiAgentDir } from "./test-helpers.js";
 import { getPiAgentSettingsPath } from "./utils.js";
+
+const piAgent = useTempPiAgentDir();
 
 function writeSettings(contents: unknown) {
 	const settingsPath = getPiAgentSettingsPath();
@@ -59,7 +62,7 @@ describe("findMissingSiblings", () => {
 	});
 
 	it("reads settings from PI_CODING_AGENT_DIR when configured", () => {
-		process.env.PI_CODING_AGENT_DIR = join(process.env.HOME!, ".config", "pi", "agent");
+		process.env.PI_CODING_AGENT_DIR = join(piAgent.root, "alt-agent");
 		writeSettings({
 			packages: SIBLINGS.map((s) => s.pkg.replace(/^npm:/, "")),
 		});
