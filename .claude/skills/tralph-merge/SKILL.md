@@ -41,6 +41,14 @@ pipeline makes in-place. This lands the tralph **worktree** batch.
    the merge would touch, `git merge` will refuse — surface that and let the user
    commit/stash their other-session work first. Do not stash or discard it for
    them without asking.
+7. **Coordinate with the live supervisor.** This skill is for the *deferred*
+   case: a `ralph-merge-needed` marker means the supervisor has gone idle, so a
+   manual merge is safe and you leave the service running. If there is **no
+   marker** and the batch is clean, the supervisor will **auto-finalize it
+   itself** — a manual merge then races its `$SESSION-merge` session and the
+   driver. Only force a manual merge of a non-deferred batch after
+   `systemctl --user stop ralph-loop` (and restart it after). Always verify no
+   `$SESSION-merge` finalize session is running before you merge.
 
 ## Phase 1 — Derive config
 
@@ -67,10 +75,28 @@ Report, from `BASE_REPO`:
 ```bash
 git -C "$BASE_REPO" rev-list --count "$BASE_BRANCH..$BRANCH"        # commits to land
 git -C "$BASE_REPO" rev-list --count "$BRANCH..$BASE_BRANCH"        # how far main moved
-git -C "$BASE_REPO" branch --merged "$BASE_BRANCH" | grep -qxF "  $BRANCH" && echo "ALREADY MERGED"
+git -C "$BASE_REPO" merge-base --is-ancestor "$BRANCH" "$BASE_BRANCH" 2>/dev/null && echo "ALREADY MERGED (branch is an ancestor of $BASE_BRANCH)"
 [ -e "$MARKER" ] && echo "marker present (finalizer deferred): $MARKER"
 git -C "$BASE_REPO" status --porcelain -- . ':(exclude).pi-lens' | head   # base dirty?
+git -C "$WORKTREE" status --porcelain -- . ':(exclude).pi-lens' | head    # worktree dirty?
+tmux has-session -t "${SESSION}-merge" 2>/dev/null && echo "FINALIZE SESSION RUNNING — wait, do not merge"
 ```
+
+**Already merged?** If the `ALREADY MERGED` check fired (the branch's commits
+are already in `$BASE_BRANCH`), there is nothing to merge — skip straight to
+Phase 5 cleanup (remove worktree, delete branch, clear marker).
+
+**Worktree dirty?** If `git -C "$WORKTREE" status` is non-empty, the run branch
+is **missing uncommitted work** (e.g. a driver died mid-write) — merging would
+silently drop it. Surface it; with the user's OK, checkpoint it onto the branch
+first, then merge:
+
+```bash
+git -C "$WORKTREE" add -A -- . ':(exclude).pi-lens'
+git -C "$WORKTREE" commit -m "chore(ralph): checkpoint worktree before manual merge"
+```
+
+Otherwise stop and investigate. Never merge a half-written branch silently.
 
 Batch completeness — count the worktree board (it is the live board):
 
@@ -96,7 +122,8 @@ git -C "$BASE_REPO" diff --stat "$BASE_BRANCH...$BRANCH"
 ```
 
 Offer the full diff (`git -C "$BASE_REPO" diff "$BASE_BRANCH...$BRANCH"`).
-Pre-check for conflicts without touching the tree:
+Pre-check for conflicts without touching the tree (needs git ≥ 2.38; if
+unsupported just skip — Phase 4 surfaces conflicts anyway):
 
 ```bash
 git -C "$BASE_REPO" merge-tree --write-tree "$BASE_BRANCH" "$BRANCH" >/dev/null 2>&1 \
@@ -108,16 +135,27 @@ optional — but always show the diff summary and let the user decide.
 
 ## Phase 4 — Merge (after explicit confirmation)
 
-From `BASE_REPO`, on `BASE_BRANCH`. Try fast-forward first, then a merge commit:
+First gate, then merge. **Both gates must pass before `git merge` runs** — do
+not proceed if either fails; tell the user the one thing to fix.
 
 ```bash
-git -C "$BASE_REPO" rev-parse --abbrev-ref HEAD          # must be $BASE_BRANCH
-git -C "$BASE_REPO" merge --ff-only "$BRANCH" \
-  || git -C "$BASE_REPO" merge --no-ff --no-edit -m "merge(tralph): land $BRANCH batch" "$BRANCH"
+cur="$(git -C "$BASE_REPO" rev-parse --abbrev-ref HEAD)"
+dirty="$(git -C "$BASE_REPO" status --porcelain -- . ':(exclude).pi-lens')"
+if [ "$cur" != "$BASE_BRANCH" ]; then
+  echo "STOP: base repo is on '$cur', not '$BASE_BRANCH' (another session owns it — do not checkout)"
+elif [ -n "$dirty" ]; then
+  echo "STOP: base working tree dirty — let the user commit/stash their session work first"
+else
+  # Gates passed: fast-forward first, else a merge commit.
+  git -C "$BASE_REPO" merge --ff-only "$BRANCH" \
+    || git -C "$BASE_REPO" merge --no-ff --no-edit -m "merge(tralph): land $BRANCH batch" "$BRANCH"
+fi
 ```
 
-- If `merge` reports **local changes would be overwritten** → base has
-  uncommitted work (likely the user's other session). Stop; let them commit or
+- Gate 1 fails (base on another branch) → **stop**. Do not switch it; the other
+  session owns that working tree.
+- Gate 2 fails / `merge` reports **local changes would be overwritten** → base
+  has uncommitted work (likely your other session). Stop; let them commit or
   stash it, then retry. Do not stash it for them without asking.
 - If it **conflicts** → resolve with the user (show conflicted files, edit, `git
   add`, `git commit`). Never `--abort` and force a side. If the user wants to
@@ -133,8 +171,12 @@ rm -f "$MARKER"
 ```
 
 Clearing the marker and removing the worktree is what lets the **supervisor pick
-up the next batch** — until then it idles. Confirm before deleting. Do **not**
-restart or stop the service; the running supervisor handles the rest.
+up the next batch** — until then it idles. Confirm before deleting.
+
+If you left the service running (the normal deferred-merge case), the supervisor
+now starts the next batch on its own. If you had `systemctl --user stop
+ralph-loop` to force a manual merge of a non-deferred batch, `systemctl --user
+start ralph-loop` to resume.
 
 Only `git push` if the user explicitly asks.
 
