@@ -29,7 +29,13 @@ WorkingDirectory=%h/symphony
 Environment=PATH=%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 Environment=TMUX_TMPDIR=/tmp
 Environment=RALPH_SESSION_NAME=ralph-loop
-ExecStart=%h/.claude/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
+# Worktree isolation: runs in $RALPH_WORKTREE on $RALPH_BRANCH, branched from the
+# base repo's main, so the live checkout (where symphony-host runs) is untouched.
+# Land a finished batch with the rpiv-merge skill (ralph/run -> main).
+Environment=RALPH_BASE_REPO=%h/symphony
+Environment=RALPH_WORKTREE=%h/symphony-ralph
+Environment=RALPH_BRANCH=ralph/run
+ExecStart=%h/.claude/skills/ralph/ralph-worktree.sh --unattended --force tmux ralph-loop
 Restart=on-failure
 RestartSec=10
 
