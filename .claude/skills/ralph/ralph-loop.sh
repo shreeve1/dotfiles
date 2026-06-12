@@ -38,6 +38,12 @@ AGENT_PROMPT_EXPLICIT=false
 REVIEW_LOOP=false
 SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
 AUTO_REVIEW_BLOCKED="${RALPH_AUTO_REVIEW_BLOCKED:-true}"
+# Unattended mode (set by the systemd supervisor): on a worker timeout/FAIL the
+# loop exits non-zero instead of leaving an idle keepalive session, so the
+# supervisor relaunches and continues. MAX_ISSUE_FAILS bounds retries — an issue
+# that fails this many launch attempts is auto-blocked so the loop moves on.
+UNATTENDED="${RALPH_UNATTENDED:-false}"
+MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
@@ -140,6 +146,10 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--no-auto-review-blocked)
 		AUTO_REVIEW_BLOCKED=false
+		shift
+		;;
+	--unattended)
+		UNATTENDED=true
 		shift
 		;;
 	--lsp-check-cmd)
@@ -349,7 +359,11 @@ CHECKPOINT_DIRTY="${16}"
 REVIEW_LOOP="${17}"
 LSP_CHECK_CMD="${18}"
 AUTO_REVIEW_BLOCKED="${19}"
+UNATTENDED="${20:-false}"
+MAX_ISSUE_FAILS="${21:-2}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
+FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
+LOOP_EXIT_CODE=0
 
 mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
@@ -974,6 +988,42 @@ normalize_todo_status() {
   return 0
 }
 
+# Unattended poison-issue guard. When a worker times out or returns FAIL and the
+# loop is about to stop, record the offending issue in $FAIL_STATE. On the Nth
+# failure (MAX_ISSUE_FAILS) auto-block it with a `## Blocker` note so the
+# supervisor's relaunch skips it instead of resuming the same stuck issue
+# forever. Only consulted in unattended mode. $FAIL_STATE is cleared on any
+# clean (exit 0) completion.
+guard_and_block_failing_issue() {
+  local fid="${1:-}" count f inprog
+  if [[ -z "$fid" ]]; then
+    # No FAIL/BLOCKED id (e.g. a timeout with no sentinel): fall back to the
+    # single in-progress issue, which the worker left mid-flight.
+    inprog=$(find .kanban/issues -name '*.md' -exec grep -l '^status: in-progress$' {} \; 2>/dev/null | sed '/^$/d')
+    if [[ $(printf '%s\n' "$inprog" | sed '/^$/d' | wc -l | tr -d ' ') -eq 1 ]]; then
+      fid=$(issue_id_for_file "$inprog")
+    fi
+  fi
+  if [[ -z "$fid" ]]; then
+    echo "⚠️  Unattended guard: could not identify a single failing issue; not blocking" | tee -a "$LOG_FILE"
+    return 0
+  fi
+  echo "$fid" >> "$FAIL_STATE"
+  count=$(grep -cxF "$fid" "$FAIL_STATE" 2>/dev/null || echo 0)
+  echo "⚠️  Issue #$fid failed $count/${MAX_ISSUE_FAILS} launch attempt(s) this run series" | tee -a "$LOG_FILE"
+  if [[ "$count" -ge "$MAX_ISSUE_FAILS" ]]; then
+    f=$(grep -l "^id: ${fid}$" .kanban/issues/*.md 2>/dev/null | head -1)
+    if [[ -n "$f" ]] && ! grep -q '^status: blocked$' "$f"; then
+      perl -0pi -e 's/^status: (pending|in-progress|review)$/status: blocked/m' "$f"
+      if ! grep -q '^## Blocker' "$f"; then
+        printf '\n## Blocker\n\nAuto-blocked by the Ralph loop after %s failed launch attempts (timeout or FAIL) in unattended mode. Needs manual investigation before retry.\n' "$count" >> "$f"
+      fi
+      echo "⛔ Auto-blocked issue #$fid after $count failures so the loop can continue" | tee -a "$LOG_FILE"
+    fi
+  fi
+  return 0
+}
+
 while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   ITERATION=$((ITERATION + 1))
 
@@ -1164,6 +1214,13 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
+  # Capture the failing issue id from the worker output BEFORE deleting it; the
+  # unattended poison-guard below needs it (extract returns the FAIL/BLOCKED id).
+  FAILING_ISSUE=""
+  if [[ $LAST_EXIT_CODE -ne 0 ]]; then
+    FAILING_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
+  fi
+
   rm -f "$RALPH_OUTPUT"
 
   if [[ $LAST_EXIT_CODE -ne 0 ]]; then
@@ -1174,6 +1231,13 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       reset_active_issues_to_pending || break
       sleep "$SLEEP_INTERVAL"
       continue
+    fi
+
+    if [[ "$UNATTENDED" == "true" ]]; then
+      guard_and_block_failing_issue "$FAILING_ISSUE"
+      LOOP_EXIT_CODE=1
+      echo "Unattended: exiting so the supervisor relaunches and continues with remaining work" | tee -a "$LOG_FILE"
+      break
     fi
 
     echo "Stopping loop" | tee -a "$LOG_FILE"
@@ -1209,6 +1273,15 @@ fi
   echo "Session will remain open. Press Ctrl+D to exit or run: $TMUX_DISPLAY kill-session -t '$SESSION_NAME'"
 } | tee -a "$LOG_FILE"
 
+# In unattended (supervisor) mode, exit instead of holding the session open with
+# an idle shell: a clean finish (exit 0) lets the supervisor idle; a stop on
+# timeout/FAIL (exit 1) lets it relaunch to continue. Clear the poison-fail
+# state on any clean completion.
+if [[ "$UNATTENDED" == "true" ]]; then
+  [[ "$LOOP_EXIT_CODE" -eq 0 ]] && rm -f "$FAIL_STATE"
+  exit "$LOOP_EXIT_CODE"
+fi
+
 exec bash
 LOOP_EOF
 
@@ -1222,7 +1295,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
 	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-	"$AUTO_REVIEW_BLOCKED"; do
+	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
