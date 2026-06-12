@@ -42,7 +42,7 @@ trust_level = "trusted"
 [projects."/home/itadmin/itastack"]
 trust_level = "trusted"
 
-[projects."/home/james/plane/symphony"]
+[projects."/home/james/symphony"]
 trust_level = "trusted"
 
 [projects."/tmp/opencode/symphony-build"]

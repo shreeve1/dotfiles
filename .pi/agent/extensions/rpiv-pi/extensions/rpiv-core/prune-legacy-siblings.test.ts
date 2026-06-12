@@ -2,7 +2,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findLegacySiblings, pruneLegacySiblings } from "./prune-legacy-siblings.js";
+import { useTempPiAgentDir } from "./test-helpers.js";
 import { getPiAgentSettingsPath } from "./utils.js";
+
+const piAgent = useTempPiAgentDir();
 
 function writeSettingsRaw(raw: string): void {
 	const settingsPath = getPiAgentSettingsPath();
@@ -101,7 +104,7 @@ describe("pruneLegacySiblings", () => {
 	});
 
 	it("prunes settings from PI_CODING_AGENT_DIR when configured", () => {
-		process.env.PI_CODING_AGENT_DIR = join(process.env.HOME!, ".config", "pi", "agent");
+		process.env.PI_CODING_AGENT_DIR = join(piAgent.root, "alt-agent");
 		writeSettings({
 			packages: ["npm:pi-subagents"],
 		});
@@ -168,7 +171,7 @@ describe("findLegacySiblings (read-only scan)", () => {
 	});
 
 	it("reads settings from PI_CODING_AGENT_DIR when configured", () => {
-		process.env.PI_CODING_AGENT_DIR = join(process.env.HOME!, ".config", "pi", "agent");
+		process.env.PI_CODING_AGENT_DIR = join(piAgent.root, "alt-agent");
 		writeSettings({ packages: ["npm:pi-subagents"] });
 		expect(findLegacySiblings()).toEqual(["npm:pi-subagents"]);
 	});

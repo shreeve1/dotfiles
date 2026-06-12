@@ -12,8 +12,12 @@ MEMORY/
 Plans/
 plans/
 
-# Machine-local helper binaries
-bin/
+# Machine-local youtube skill output (transcript/research extracts — per-machine)
+youtube/
+
+# Machine-local helper binaries (sync rralph; keep the rest machine-local)
+bin/*
+!bin/rralph
 
 # Machine-local secrets (not synced)
 .env
@@ -23,6 +27,7 @@ bin/
 
 # Pi agent — secrets, dependencies, and runtime state
 .pi/agent/auth.json
+.pi/agent/auth.json.*
 .pi/agent/settings.json
 
 # Pi-lens — runtime churn (keep only config.json synced)
@@ -54,7 +59,6 @@ bin/
 .claude/settings.json
 .claude/settings.local.json
 .claude/settings-*.json
-.claude/.caveman-active
 
 # Machine-local runtime state (not synced)
 .claude/skills/Automation/References/execution-log.jsonl
@@ -115,6 +119,7 @@ bin/
 !.omp/agent/extensions/
 # Vendored extension deps are installed per-machine by install.sh
 .omp/agent/extensions/**/node_modules/
+.omp/agent/extensions/**/package-lock.json
 
 # Backup / temp files
 *.bak
@@ -127,3 +132,9 @@ bin/
 .DS_Store
 .claude.bak/
 .config/opencode-pre-reset-*/
+
+# Personal (non-dotfiles) content — not synced
+/personal/
+
+# Pi-lens runtime state/cache (nested per-machine install)
+.pi/agent/.pi-lens/

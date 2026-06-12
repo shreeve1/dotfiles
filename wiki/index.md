@@ -19,6 +19,7 @@
 
 | Page | Summary | Sources | Updated |
 |------|---------|---------|---------|
+| `wiki/analyses/rpiv-pipeline.md` | The `rralph` pipeline driver and its companion skills (rpiv-monitor, gap-sweep, rpiv-merge): pipeline order, pi-default engine, fresh-branch model, file-based cross-engine handoff, and `.rpiv/run/<TS>/.base` base-ref persistence. | `wiki/raw/sessions/2026-06-04-rpiv-pipeline-skills.md`, `bin/rralph` | 2026-06-04 |
 
 ## Candidate Review Queue
 

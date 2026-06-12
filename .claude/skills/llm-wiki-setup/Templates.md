@@ -20,7 +20,7 @@ This directory is an LLM-maintained knowledge base for the project.
 - Ingest: add source to `raw/`, summarize, discuss key takeaways when needed, extract claims, create candidates, update candidate index/routing/claims, and log.
 - Session update: use `/wiki-update` to capture durable decisions, verified facts, and follow-ups from a session into raw session notes, candidates, claims, routing, index, and log.
 - Query: read `index.md`, optionally use `ROUTING.md` to narrow scope, then read relevant promoted pages; cite sources.
-- Lint: check broken links, orphan pages, stale claims, duplicates, missing concept pages, data gaps, and contradictions.
+- Lint: check broken links, orphan pages, stale claims, claim content drift against cited sources, duplicates, missing concept pages, data gaps, and contradictions.
 - Promote: move candidate to final location, update index/routing/claims/log.
 - Discard: remove stale candidate index rows, candidate routes, and candidate claim references, then log the discard.
 ```
@@ -172,6 +172,25 @@ For any project-specific question, investigation, design task, bug hunt, or code
 
 Use `/wiki-update` during or after meaningful sessions to capture durable decisions, verified facts, root causes, follow-ups, and reusable context. Create curated raw session captures under `wiki/raw/sessions/` when conversation evidence is needed. Do not archive full transcripts, secrets, private material, or raw pasted user content without explicit approval. New or risky session-derived knowledge goes through `wiki/candidates/` and must update `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md`.
 
+### Maintenance Trigger
+
+The wiki is a standing obligation, not an opt-in step. Before reporting any task complete, run the end-of-session wiki check. This is mandatory, not advisory.
+
+A task produces durable project knowledge — and therefore requires a `/wiki-update` pass before it is reported done — when it includes any of:
+
+- A decision that sets or reverses project direction, scope, or ownership.
+- Accepted or changed terminology, naming, or domain concepts.
+- A new or revised architecture, process, or contract that future sessions must honor.
+- A verified fact, root cause, or fix that contradicts or supersedes existing wiki knowledge.
+
+End-of-session check, every task:
+
+1. Decide whether the task hit any trigger above.
+2. If yes, run `/wiki-update` before reporting completion. If a full pass must be deferred, state the wiki gap and the proposed ingest, candidate, or promotion path in the final answer.
+3. If no, state one line in the final answer confirming the wiki check ran and nothing qualified.
+
+Mark superseded knowledge `superseded` in `wiki/CLAIMS.md` with a pointer to the newer claim; never delete it to clean up history.
+
 ### Ingest Workflow
 
 1. Read the new source from `wiki/raw/`.
@@ -203,5 +222,5 @@ When a candidate is rejected, remove its candidate index row, candidate-only rou
 
 ### Lint Workflow
 
-Check broken wikilinks, orphan pages, duplicate concepts, uncited claims, stale claims, contradictions, missing concept pages, data gaps, stale candidate references, and missing index/routing entries. Report findings before making broad changes.
+Check broken wikilinks, orphan pages, duplicate concepts, uncited claims, stale claims, claim content drift against cited sources, contradictions, missing concept pages, data gaps, stale candidate references, and missing index/routing entries. Report findings before making broad changes.
 ```
