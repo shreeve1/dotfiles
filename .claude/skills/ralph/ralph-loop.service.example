@@ -35,7 +35,7 @@ Environment=RALPH_SESSION_NAME=ralph-loop
 Environment=RALPH_BASE_REPO=%h/symphony
 Environment=RALPH_WORKTREE=%h/symphony-ralph
 Environment=RALPH_BRANCH=ralph/run
-ExecStart=%h/.claude/skills/ralph/ralph-worktree.sh --unattended --force tmux ralph-loop
+ExecStart=%h/.claude/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
 Restart=on-failure
 RestartSec=10
 
