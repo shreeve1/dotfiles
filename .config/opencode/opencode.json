@@ -13,8 +13,7 @@
     }
   },
   "plugin": [
-    "file://{env:HOME}/.config/opencode/plugins/tokenjuice.js",
-    "./plugins/caveman/plugin.js"
+    "file://{env:HOME}/.config/opencode/plugins/tokenjuice.js"
   ],
   "provider": {
     "cliproxy": {
@@ -85,17 +84,6 @@
           }
         }
       }
-    }
-  },
-  "mcp": {
-    "caveman-shrink": {
-      "type": "local",
-      "command": [
-        "npx",
-        "-y",
-        "caveman-shrink"
-      ],
-      "enabled": true
     }
   }
 }

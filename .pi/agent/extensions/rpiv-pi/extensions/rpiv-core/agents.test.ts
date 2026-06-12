@@ -10,8 +10,9 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	CLEANUP_SKIP_REASON,
@@ -22,6 +23,9 @@ import {
 	syncBundledAgents,
 } from "./agents.js";
 import { BUNDLED_AGENTS_DIR } from "./paths.js";
+import { useTempPiAgentDir } from "./test-helpers.js";
+
+useTempPiAgentDir();
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
 
@@ -35,15 +39,15 @@ let markerPath: string;
 
 beforeEach(() => {
 	cwd = mkdtempSync(join(tmpdir(), "rpiv-agents-"));
-	targetDir = join(homedir(), ".pi", "agent", "agents");
+	// useTempPiAgentDir() points PI_CODING_AGENT_DIR at a fresh temp dir, so
+	// getAgentDir() resolves into the sandbox — never the real ~/.pi/agent.
+	targetDir = join(getAgentDir(), "agents");
 	manifestPath = join(targetDir, ".rpiv-managed.json");
 	markerPath = join(targetDir, ".rpiv-managed.v2");
 });
 afterEach(() => {
 	rmSync(cwd, { recursive: true, force: true });
-	// Remove the `agent/` parent — not just `agent/agents/` — so Q18's writeFileSync
-	// (which needs the `agent` slot empty) and cross-test isolation both hold.
-	rmSync(join(homedir(), ".pi", "agent"), { recursive: true, force: true });
+	// The sandbox agent dir is removed by useTempPiAgentDir()'s afterEach.
 	vi.restoreAllMocks();
 });
 
@@ -700,10 +704,10 @@ describe("syncBundledAgents — error paths", () => {
 	it("Q18: mkdir failure tagged op:'mkdir' (not op:'manifest-write')", () => {
 		// Reset pre-state: parent must exist as a dir; the agent slot must NOT exist
 		// (other tests may have left it as an empty dir via mkdirSync(recursive)).
-		mkdirSync(join(homedir(), ".pi"), { recursive: true });
-		rmSync(join(homedir(), ".pi", "agent"), { recursive: true, force: true });
-		// Block the global agents dir path by placing a file where the dir should go
-		writeFileSync(join(homedir(), ".pi", "agent"), "not a dir", "utf-8");
+		mkdirSync(dirname(getAgentDir()), { recursive: true });
+		rmSync(getAgentDir(), { recursive: true, force: true });
+		// Block the agent dir path by placing a file where the dir should go
+		writeFileSync(getAgentDir(), "not a dir", "utf-8");
 
 		try {
 			const r = syncBundledAgents(false);
@@ -711,7 +715,7 @@ describe("syncBundledAgents — error paths", () => {
 			expect(r.errors.some((e) => e.op === SYNC_OP.MKDIR)).toBe(true);
 			expect(r.errors.some((e) => e.op === SYNC_OP.MANIFEST_WRITE)).toBe(false);
 		} finally {
-			rmSync(join(homedir(), ".pi", "agent"), { force: true });
+			rmSync(getAgentDir(), { force: true });
 		}
 	});
 

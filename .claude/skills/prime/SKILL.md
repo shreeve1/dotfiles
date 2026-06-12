@@ -7,6 +7,17 @@ description: Medium-depth project orientation at session start. Build a high-lev
 
 Build enough understanding of the project to answer questions or start work without further onboarding. Read curated knowledge first, then verify against source. Stop at medium depth — this runs at session start, not as an audit.
 
+## Scope
+
+If the user passed an argument (e.g. `/prime frontend text rendering`), treat it as a **focus area**. Prime narrows to that area instead of mapping the whole project:
+
+- **Phase 1** — read only `CLAUDE.md`/`AGENTS.md` (always) plus curated docs that touch the focus area; skip unrelated wiki/README sections.
+- **Phase 2** — run `git status --short` and `git log --oneline -15`; skip the broader churn/branch survey unless the focus area is the reason for the session.
+- **Phase 3** — point the `explore` sub-agent at the focus area only. Spend the file budget deep inside that area rather than spreading ~10–12 files project-wide.
+- **Report** — emit only sections that carry signal for the focus (typically **Architecture Snapshot**, **Key Components**, **Open Questions**, plus a one-line **What This Project Is** for grounding). Drop sections that would just restate whole-project boilerplate.
+
+If no argument was passed, run all phases at full breadth as written below.
+
 ## Phase 1 — Curated Knowledge First
 
 If the project has human/LLM-maintained docs, read them before scanning code. They are the fastest path to intent.

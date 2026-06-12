@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { useTempPiAgentDir } from "./test-helpers.js";
 import {
 	getPiAgentSettingsPath,
 	isPlainObject,
@@ -8,6 +9,8 @@ import {
 	readPiAgentSettings,
 	toErrorMessage,
 } from "./utils.js";
+
+const piAgent = useTempPiAgentDir();
 
 function writeSettingsRaw(raw: string, path = getPiAgentSettingsPath()): void {
 	mkdirSync(dirname(path), { recursive: true });
@@ -73,6 +76,7 @@ describe("toErrorMessage", () => {
 
 describe("getPiAgentSettingsPath", () => {
 	it("uses ~/.pi/agent/settings.json when PI_CODING_AGENT_DIR is unset", () => {
+		delete process.env.PI_CODING_AGENT_DIR;
 		expect(getPiAgentSettingsPath()).toBe(PI_AGENT_SETTINGS);
 	});
 
@@ -89,7 +93,7 @@ describe("getPiAgentSettingsPath", () => {
 
 describe("readPiAgentSettings", () => {
 	it("returns undefined when the settings file is missing", () => {
-		rmSync(PI_AGENT_SETTINGS, { force: true });
+		rmSync(getPiAgentSettingsPath(), { force: true });
 		expect(readPiAgentSettings()).toBeUndefined();
 	});
 
@@ -128,7 +132,7 @@ describe("readPiAgentSettings", () => {
 	});
 
 	it("reads from PI_CODING_AGENT_DIR/settings.json when configured", () => {
-		process.env.PI_CODING_AGENT_DIR = join(process.env.HOME!, ".config", "pi", "agent");
+		process.env.PI_CODING_AGENT_DIR = join(piAgent.root, "alt-agent");
 		writeSettings({ packages: ["npm:@juicesharp/rpiv-todo"] });
 		expect(readPiAgentSettings()?.packages).toEqual(["npm:@juicesharp/rpiv-todo"]);
 	});

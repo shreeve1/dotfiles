@@ -2,31 +2,13 @@
 
 Use this workflow to initialize an LLM Wiki in the current project.
 
+Initial setup is for future AI sessions, not James. Run end-to-end with defaults from `SKILL.md`. Do not interview unless an ambiguity blocks progress (existing unrelated `wiki/`, dotfiles install repo as target, or James proactively supplied overrides in the invoking prompt).
+
 ## 1. Notify
 
 Send a short progress note: `Running the Setup workflow in llm-wiki-setup to initialize the project wiki.`
 
-## 2. Interview
-
-Ask only for missing information. Defaults are:
-
-- Wiki root: `wiki/`
-- Raw sources: `wiki/raw/`
-- Candidate review gate: enabled as a skill extension
-- Claims: enabled via `wiki/CLAIMS.md` as a skill extension
-- Routing: enabled via `wiki/ROUTING.md` as a skill extension
-- Optional search tooling: document only
-- `CLAUDE.md` and `AGENTS.md`: preserve existing rules in whichever files exist, refactor lightly, add LLM Wiki section
-
-Required questions when not already answered:
-
-- What is the wiki's project/domain purpose?
-- What source types will be ingested first?
-- Should generated wiki files be committed to git?
-- Who approves candidate promotion?
-- Does the project already require a citation style?
-
-## 3. Inspect
+## 2. Inspect
 
 Before editing, read:
 
@@ -39,13 +21,15 @@ Determine the project root before creating files. If the current project root is
 
 Detect existing wiki state before writing:
 
-- If `wiki/` exists and contains `index.md`, `log.md`, `ROUTING.md`, and `CLAIMS.md`, treat setup as a re-run and update only missing directories/files after confirming the existing wiki should be maintained.
-- If `wiki/` exists but lacks the LLM Wiki core files, warn that the path may be an unrelated wiki and ask whether to reuse `wiki/`, choose another root, or abort.
-- If only some core files exist, treat it as a partial initialization: report missing pieces, create only missing files, and append a recovery/setup entry to `wiki/log.md`.
+- If `wiki/` exists and contains all four of `index.md`, `log.md`, `ROUTING.md`, and `CLAIMS.md`, treat setup as a re-run and silently update only missing directories/files. Do not ask.
+- If `wiki/` exists but lacks all four core files and contains content that looks unrelated (non-template Markdown, non-wiki subdirs), warn and ask whether to reuse `wiki/`, choose another root, or abort.
+- If only some core files exist and the rest of `wiki/` matches the template structure, treat it as a partial initialization: create only missing files and append a recovery/setup entry to `wiki/log.md`.
 
 Do not overwrite existing wiki files. If a file exists, update it surgically or ask before replacing.
 
-## 4. Create Structure
+When setup is a re-run or partial recovery against a wiki that already holds promoted pages or claims, run the outdated-source check from `Workflows/Lint.md` (the Content Drift Check, default staleness scope) over the existing content. Report findings in the final report; do not auto-rewrite drifted claims or pages. A fresh init over an empty wiki skips this check.
+
+## 3. Create Structure
 
 Create missing directories:
 
@@ -67,25 +51,39 @@ Create missing files from `Templates.md`:
 - `wiki/ROUTING.md`
 - `wiki/CLAIMS.md`
 
-Customize the initial `ROUTING.md` branches to the project domain when there is enough context.
+Customize the initial `ROUTING.md` branches to the project domain inferred from `README.md`, `CLAUDE.md`, `AGENTS.md`, or top-level docs. If nothing infers cleanly, leave the template branches as-is.
 
-Append a setup entry to `wiki/log.md` using the `Templates.md` log format. Include created files, selected defaults, unanswered choices, and whether this was a fresh setup, partial recovery, or re-run.
+Append a setup entry to `wiki/log.md` using the `Templates.md` log format. Record created files, inferred domain, and whether this was a fresh setup, partial recovery, or re-run.
 
-## 5. Configure Raw Source Git Policy
+## 4. Apply Default Git Policy
 
-Ask how raw sources should be handled in git:
+Ensure the project has a `.gitignore` with a `# LLM Wiki` block ignoring common raw binaries. Skip silently if the project is not a git repo (no `.git/`).
 
-- Commit raw sources: leave `.gitignore` unchanged, but warn about large binaries.
-- Ignore large/binary raw sources: add targeted patterns such as `wiki/raw/**/*.pdf`, `wiki/raw/**/*.mp4`, `wiki/raw/**/*.zip`, and `wiki/assets/**` only after confirming.
-- External storage: add a `wiki/raw/README.md` pointer convention and ignore external-only raw files if approved.
+- If `.gitignore` exists and lacks the block: append it.
+- If `.gitignore` does not exist but `.git/` does: create `.gitignore` containing only the block.
+- If neither exists: skip and note "not a git repo" in the setup log entry.
 
-Do not edit `.gitignore` without explicit confirmation of the raw-source policy.
+Block to write:
 
-## 6. Refactor CLAUDE.md and AGENTS.md
+```text
+# LLM Wiki
+wiki/raw/**/*.pdf
+wiki/raw/**/*.mp4
+wiki/raw/**/*.mov
+wiki/raw/**/*.zip
+wiki/raw/**/*.tar
+wiki/raw/**/*.gz
+wiki/raw/**/*.bin
+wiki/assets/**
+```
 
-Run `Workflows/RefactorAgents.md` against each of `CLAUDE.md` and `AGENTS.md` that exists at the project root. If neither exists, create `CLAUDE.md` by default; ask before also creating or updating `AGENTS.md`.
+Do not touch `.gitignore` further. Generated wiki files commit by default.
 
-## 7. Verify
+## 5. Refactor CLAUDE.md and AGENTS.md
+
+Run `Workflows/RefactorAgents.md` against each of `CLAUDE.md` and `AGENTS.md` that exists at the project root. If neither exists, create `CLAUDE.md`. Do not create `AGENTS.md` when `CLAUDE.md` already exists or was just created — OpenCode reads `CLAUDE.md` via the dotfiles `instructions[]` config.
+
+## 6. Verify
 
 Verify with exact probes:
 
@@ -94,20 +92,11 @@ Verify with exact probes:
 - All required core files exist.
 - Each of `CLAUDE.md` and `AGENTS.md` that exists contains an `LLM Wiki` section.
 - `wiki/log.md` contains a setup entry.
+- `.gitignore` contains the `# LLM Wiki` block, or the setup entry notes "not a git repo".
 - Existing unrelated `wiki/` content was not overwritten.
 
-## 8. Initial Ingestion Handoff
+## 7. Report
 
-Do not end setup with only an empty wiki.
+Report changed files plus a prioritized shortlist of 3-5 high-value ingest sources inferred from project docs (with source paths when known). Do not auto-ingest. Suggest the next step in natural language, e.g. `Next: ingest <path> into the wiki` — this matches the `ingest source` trigger row in `SKILL.md`.
 
-If James named initial sources and they are available under `wiki/raw/`, run `Workflows/Ingest.md` for the first approved source, then ask whether to continue with the remaining sources.
-
-If James named initial sources but they are not yet under `wiki/raw/`, report the exact files or source material needed and where they should be placed before ingest.
-
-If no initial sources were named, inspect the project README, existing `CLAUDE.md`, existing `AGENTS.md`, and obvious project docs read during setup. Suggest a prioritized shortlist of 3-5 high-value ingest sources with why each matters. Include source paths when known.
-
-Do not auto-ingest the whole repository. Prefer source documents and stable project guides before code files. Ask before ingesting large, binary, generated, private, or ambiguous material.
-
-## 9. Report
-
-Report changed files, unanswered choices, ingestion performed if any, and the prioritized next ingest shortlist.
+On a re-run or partial recovery, also report outdated-source findings from the Content Drift Check (claim ID or page, cited path, asserted vs. current, proposed action). Do not apply drift fixes automatically.

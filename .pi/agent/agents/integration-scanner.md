@@ -1,5 +1,6 @@
 ---
 name: integration-scanner
+model: deepseek/deepseek-v4-flash
 description: "Finds what connects to a given component or area: inbound references, outbound dependencies, config registrations, event subscriptions. The reverse-reference counterpart to codebase-locator. Use when you need to understand what calls, depends on, or wires into a component."
 tools: grep, find, ls
 isolated: true

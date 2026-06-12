@@ -202,10 +202,13 @@ link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
 
+# ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
+link_path "bin/rralph" ".local/bin/rralph"
+
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)
-#   - plugins/               (tokenjuice, caveman, etc.)
+#   - plugins/               (tokenjuice, etc.)
 #   - archive/               (retired OpenCode commands/agents/skills)
 # OpenCode loads canonical guidance from ~/.claude/CLAUDE.md via instructions[].
 # Canonical shared skills live under ~/.claude/skills/ (linked below).
@@ -364,7 +367,7 @@ if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
   # via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
   link_path ".claude/skills" ".claude/skills"
 
-  # Claude Code hooks (caveman SessionStart + UserPromptSubmit, shared helpers).
+  # Claude Code hooks.
   link_path ".claude/hooks" ".claude/hooks"
 else
   printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
@@ -420,14 +423,14 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   done
 fi
 
-# Note: settings.json is NOT symlinked — it contains secrets.
-# Copy the template on a new device: cp .claude/settings.json.template ~/.claude/settings.json
-# Then fill in your API keys and machine-specific values.
+# Note: live settings.json files are NOT tracked — they may contain secrets or
+# machine-specific values. Copy templates on a new device, then edit locally.
 #
 # On a fresh machine, the full setup sequence is:
 #   1. git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh
 #   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
-#   3. Edit settings.json with your API keys and machine-specific values
+#   3. cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
+#   4. Edit live settings with API keys and machine-specific values
 #
 # ─── Opencode post-install verification ────────────────────
 # After install.sh runs, verify opencode:
@@ -435,7 +438,3 @@ fi
 #   a. Provider auth (cliproxy must be running locally):
 #        curl -s http://127.0.0.1:8317/v1/models | head -c 100
 #        # 401 with "Missing API key" means reachable; configure auth as needed
-#
-#   b. Plugin registration:
-#        node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); console.log(c.plugin.includes('./plugins/caveman/plugin.js'))"
-#        # Should print true if the caveman plugin is enabled.

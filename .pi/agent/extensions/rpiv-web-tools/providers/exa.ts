@@ -1,4 +1,10 @@
-import type { FetchResponse, SearchProvider, SearchResponse, SearchResult } from "./types.js";
+import { fetchDirectHttp, truncateErrorBody } from "./fetch-helpers.js";
+import type {
+	FetchResponse,
+	SearchProvider,
+	SearchResponse,
+	SearchResult,
+} from "./types.js";
 
 const EXA_API_URL = "https://api.exa.ai/search";
 const EXA_CONTENTS_API_URL = "https://api.exa.ai/contents";
@@ -37,9 +43,15 @@ export class ExaProvider implements SearchProvider {
 
 	constructor(private readonly apiKey: string) {}
 
-	async search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse> {
+	async search(
+		query: string,
+		maxResults: number,
+		signal?: AbortSignal,
+	): Promise<SearchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
 		}
 
 		const res = await fetch(EXA_API_URL, {
@@ -59,17 +71,30 @@ export class ExaProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
-			throw new Error(`${this.label} Search API error (${res.status}): ${text}`);
+			const text = truncateErrorBody(await res.text());
+			throw new Error(
+				`${this.label} Search API error (${res.status}): ${text}`,
+			);
 		}
 
 		const raw = (await res.json()) as ExaRawResponse;
 		return { query, results: normalizeExaResults(raw.results ?? []) };
 	}
 
-	async fetch(url: string, _raw: boolean, signal?: AbortSignal): Promise<FetchResponse> {
+	async fetch(
+		url: string,
+		raw: boolean,
+		signal?: AbortSignal,
+	): Promise<FetchResponse> {
 		if (!this.apiKey) {
-			throw new Error(`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`);
+			throw new Error(
+				`${this.envVar} is not set. Run /web-search-config to configure, or export the env var.`,
+			);
+		}
+
+		// When raw is true, fall back to direct HTTP fetch (same pipeline as Brave/Serper).
+		if (raw) {
+			return fetchDirectHttp(url, raw, signal);
 		}
 
 		const res = await fetch(EXA_CONTENTS_API_URL, {
@@ -86,7 +111,7 @@ export class ExaProvider implements SearchProvider {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
+			const text = truncateErrorBody(await res.text());
 			throw new Error(`${this.label} Fetch API error (${res.status}): ${text}`);
 		}
 
@@ -94,7 +119,9 @@ export class ExaProvider implements SearchProvider {
 		const result = data.results?.[0];
 
 		if (!result?.text) {
-			throw new Error(`${this.label} Fetch API error: no content returned for ${url}`);
+			throw new Error(
+				`${this.label} Fetch API error: no content returned for ${url}`,
+			);
 		}
 
 		return {

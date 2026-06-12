@@ -179,6 +179,8 @@ You MUST create a task for each of these items and complete them in order:
 
 ### Phase 3: Run Pi Reviewer
 
+> Canonical backgrounded-`pi --print` reviewer engine. `/dev-plan --loop` Phase 9.2 reuses this engine inline — keep the two in sync if either changes.
+
 5. **Execute Pi Review**
 
    **Determine project root:**
@@ -194,33 +196,73 @@ You MUST create a task for each of these items and complete them in order:
    REVIEW_FILE=$(mktemp /tmp/pi-review-XXXXXX.md)
    PROMPT_FILE=$(mktemp /tmp/pi-review-prompt-XXXXXX.md)
    OUTPUT_FILE=$(mktemp /tmp/pi-review-output-XXXXXX.txt)
+   PID_FILE=$(mktemp /tmp/pi-review-pid-XXXXXX.txt)
    BASE_STATUS_FILE=$(mktemp /tmp/pi-review-status-before-XXXXXX.txt)
    AFTER_STATUS_FILE=$(mktemp /tmp/pi-review-status-after-XXXXXX.txt)
-   trap 'rm -f "$REVIEW_FILE" "$PROMPT_FILE" "$OUTPUT_FILE" "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"' EXIT
+   DONE_NONCE="$(date +%s)_$RANDOM"
+   DONE_MARKER="PI_REVIEW_DONE_$DONE_NONCE"
+   # Do NOT trap-rm these on EXIT: Pi runs backgrounded across separate tool
+   # calls and reads $PROMPT_FILE / writes $OUTPUT_FILE asynchronously. An EXIT
+   # trap would delete them mid-run. Clean up explicitly after parsing instead.
    # Write the brief content to $REVIEW_FILE using the Write tool.
-   # Then wrap it in $PROMPT_FILE with submit instructions.
+   # Then wrap it in $PROMPT_FILE with submit instructions and the completion marker.
    ```
 
    **Build the Pi prompt file:**
    ```bash
    {
-     printf '%s\n\n' 'Review the following brief. You may inspect the repository with normal Pi capabilities. Do not modify files. Format findings exactly as requested.'
+     printf 'Review the following brief. You may inspect the repository with normal Pi capabilities. Do not modify files. Format findings exactly as requested. When complete, print PI_REVIEW_DONE_ followed immediately by this nonce on its own line: %s\n\n' "$DONE_NONCE"
      cat "$REVIEW_FILE"
    } > "$PROMPT_FILE"
    ```
 
-   **Run the reviewer in a fresh Pi session:**
+   **5a. Launch the reviewer detached (one synchronous Bash call — do NOT also set `run_in_background: true`):**
+
+   `setsid` puts pi in its own session/process group (PPID becomes 1 immediately after detach), so SIGHUP on launcher exit and parent-pgid signals can't reach it. `< /dev/null` removes stdin/tty contention. The shell-level `&` lets the launcher return in ~1s; subsequent polls run in their own short Bash calls.
+
    ```bash
    git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
 
    (
      cd "$PROJECT_ROOT"
-     timeout 600s pi --print \
+     setsid pi --print \
        "${PI_MODEL_ARGS[@]}" \
        --append-system-prompt "You are an independent code review tool. Follow the requested finding format exactly. Do not modify files." \
        "@$PROMPT_FILE" \
-       > "$OUTPUT_FILE" 2>&1
+       > "$OUTPUT_FILE" 2>&1 < /dev/null &
+     echo $! > "$PID_FILE"   # persist PID; separate Bash calls don't share shell vars
    )
+
+   # Sanity check: if pi died within 1s and produced no output, the launch
+   # failed (bad args, missing API key, etc.). Without this, downstream polls
+   # spin against an empty output file for the full budget while the launcher
+   # already reported "completed" exit 0.
+   sleep 1
+   PID=$(cat "$PID_FILE")
+   if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
+     echo "pi launch failed: process exited within 1s and produced no output" >&2
+     cat "$OUTPUT_FILE" >&2 2>/dev/null
+     exit 1
+   fi
+   ```
+
+   **Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns synchronously after the 1s sanity sleep. Combining both with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
+
+   **5b. Poll for completion in *separate* Bash calls (do not block in one call):**
+   Each poll is its own short Bash invocation so the review stays observable and
+   never dies on a hard `timeout`. Completion = the `$DONE_MARKER` appears in
+   `$OUTPUT_FILE`, or the PID has exited. On a soft cap (default 600s of
+   wall-clock across polls), leave the process running and ask the user whether
+   to keep waiting or abort — never SIGKILL here.
+   ```bash
+   PID=$(cat "$PID_FILE")
+   if grep -q "$DONE_MARKER" "$OUTPUT_FILE" 2>/dev/null; then
+     echo "done"
+   elif kill -0 "$PID" 2>/dev/null; then
+     echo "running"   # poll again after a short wait, or hand off if past the soft cap
+   else
+     echo "exited"    # process gone; capture $OUTPUT_FILE and check for the marker
+   fi
    ```
 
    Notes:
@@ -233,10 +275,10 @@ You MUST create a task for each of these items and complete them in order:
    **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files with normal Pi capabilities, but the diff remains the authoritative review target.
 
    **Capture output reliably:**
-   - Redirect stdout+stderr to `$OUTPUT_FILE`.
-   - Keep the `timeout 600s` wrapper to avoid hanging on complex reviews.
-   - After execution, read `$OUTPUT_FILE`.
-   - Parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
+   - Redirect stdout+stderr to `$OUTPUT_FILE`; poll it across separate calls (step 5b).
+   - Treat the run as complete when `$DONE_MARKER` appears in `$OUTPUT_FILE`, or when the PID has exited. The marker bounds the findings region so preamble/thinking is easy to discard.
+   - The soft cap (default 600s) only leaves the process running and prompts the user — it must not SIGKILL the review.
+   - Once complete, read `$OUTPUT_FILE` and parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
 
    **Verify read-only behavior:**
    - After the reviewer completes, compare project status against the pre-review baseline:
@@ -251,7 +293,10 @@ You MUST create a task for each of these items and complete them in order:
    - If files changed unexpectedly, stop and surface the changed paths before presenting findings.
    - Do not apply or revert reviewer changes without explicit user confirmation.
 
-   **Clean up temp files after parsing:** the `trap` above removes `$REVIEW_FILE`, `$PROMPT_FILE`, `$OUTPUT_FILE`, `$BASE_STATUS_FILE`, and `$AFTER_STATUS_FILE`.
+   **Clean up temp files after parsing:** because Pi runs backgrounded, there is no EXIT trap — remove the temp files explicitly only after findings are parsed and the read-only check is done:
+   ```bash
+   rm -f "$REVIEW_FILE" "$PROMPT_FILE" "$OUTPUT_FILE" "$PID_FILE" "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"
+   ```
 
    **Error handling:**
    - If `pi` is not on PATH: report it and ask the user to check their Pi install.

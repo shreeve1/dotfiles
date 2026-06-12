@@ -1,0 +1,11 @@
+{
+  "name": "omp-lens-lite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Omp-native lightweight diagnostics status and anti-slop skills.",
+  "pi": {
+    "extensions": ["./index.ts"],
+    "skills": ["./skills"]
+  }
+}
