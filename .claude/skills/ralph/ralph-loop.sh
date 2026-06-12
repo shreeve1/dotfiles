@@ -956,6 +956,24 @@ ISSUES_COMPLETED=0
 REVIEW_TARGETS_PROCESSED=0
 ATTEMPTED_REVIEW_ISSUES=""
 
+# Treat `status: todo` as an alias for `status: pending`. Some issue generators
+# (e.g. Plane-derived boards) emit `todo`, but the kanban vocabulary and every
+# selection path here use `pending`. Normalize in place at the top of each
+# iteration so the loop counters AND the worker's own issue selection see
+# `pending`; the per-iteration checkpoint commit records the status change.
+normalize_todo_status() {
+  local f changed=false
+  for f in .kanban/issues/*.md; do
+    [[ -f "$f" ]] || continue
+    if grep -q "^status: todo$" "$f"; then
+      perl -0pi -e 's/^status: todo$/status: pending/m' "$f"
+      changed=true
+    fi
+  done
+  [[ "$changed" == "true" ]] && echo "🔄 Normalized 'status: todo' -> 'status: pending'" | tee -a "$LOG_FILE"
+  return 0
+}
+
 while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   ITERATION=$((ITERATION + 1))
 
@@ -967,6 +985,8 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
   fi
+
+  normalize_todo_status
 
   TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
   DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l | tr -d ' ')
