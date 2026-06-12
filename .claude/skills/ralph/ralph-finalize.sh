@@ -37,10 +37,35 @@ ahead=$(git rev-list --count "$BASE_BRANCH..$BRANCH" 2>/dev/null || echo 0)
 cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
 [[ "$cur" == "$BASE_BRANCH" ]] || { : > "$MARKER"; log "base repo HEAD is '$cur', expected '$BASE_BRANCH'; refusing (marker set)"; exit 1; }
 
-if [[ -d "$WORKTREE" ]] && [[ -n "$(git -C "$WORKTREE" status --porcelain -- . ':(exclude).pi-lens' 2>/dev/null)" ]]; then
-	: > "$MARKER"
-	log "worktree $WORKTREE is dirty; refusing to finalize (marker set)"
-	exit 1
+# Policy: auto-checkpoint a dirty worktree (capture committed work), but first
+# drop known ephemeral artifacts so caches are not committed. A true merge
+# conflict below is still left for manual resolution.
+if [[ -d "$WORKTREE" ]]; then
+	for p in .pytest_cache .ruff_cache .mypy_cache htmlcov test-results playwright-report .playwright-sessions; do
+		if [[ -e "$WORKTREE/$p" ]] && [[ -z "$(git -C "$WORKTREE" ls-files -- "$p")" ]]; then
+			rm -rf -- "$WORKTREE/$p"
+		fi
+	done
+	if [[ -n "$(git -C "$WORKTREE" status --porcelain -- . ':(exclude).pi-lens' 2>/dev/null)" ]]; then
+		log "worktree dirty; auto-checkpointing before merge"
+		git -C "$WORKTREE" add -A -- . ':(exclude).pi-lens'
+		if git -C "$WORKTREE" diff --cached --quiet; then
+			: > "$MARKER"
+			log "worktree dirty but nothing stageable; refusing (marker set)"
+			exit 1
+		fi
+		if ! git -C "$WORKTREE" commit -q -m "chore(ralph): checkpoint worktree before finalize" >>"$LOG" 2>&1; then
+			: > "$MARKER"
+			log "pre-finalize checkpoint commit failed; refusing (marker set)"
+			exit 1
+		fi
+		if [[ -n "$(git -C "$WORKTREE" status --porcelain -- . ':(exclude).pi-lens' 2>/dev/null)" ]]; then
+			: > "$MARKER"
+			log "worktree still dirty after checkpoint; refusing (marker set)"
+			exit 1
+		fi
+		log "worktree checkpointed before finalize"
+	fi
 fi
 
 # Merge -----------------------------------------------------------------------
