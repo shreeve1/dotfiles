@@ -41,7 +41,9 @@ log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
 # driver is running while fresh pending work exists.
 pending_count() {
 	[[ -d .kanban/issues ]] || { echo 0; return; }
-	find .kanban/issues -name '*.md' -exec grep -l '^status: pending$' {} \; 2>/dev/null | wc -l | tr -d ' '
+	# `todo` is treated as an alias for `pending` (the driver normalizes it on
+	# launch); count both so the supervisor still launches for a todo-only board.
+	find .kanban/issues -name '*.md' -exec grep -lE '^status: (pending|todo)$' {} \; 2>/dev/null | wc -l | tr -d ' '
 }
 
 if [[ ! -x "$LOOP_SCRIPT" ]]; then
