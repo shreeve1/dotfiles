@@ -9,6 +9,27 @@ Break a plan into independently-grabbable issues using vertical slices (tracer b
 
 ## Process
 
+### 0. Check board state and archive if complete
+
+If `.kanban/` exists in the project root, check it before drafting anything new:
+
+1. Read the frontmatter `status` of every file in `.kanban/issues/*.md` and skim `.kanban/progress.md`.
+2. Report the board state to the user (done / in-progress / pending counts).
+3. **If every issue is `status: done`**, archive the completed board:
+   - Create `.kanban/archive/{YYYY-MM-DD}/` (today's date).
+   - Move all issue files from `.kanban/issues/` into it, unmodified.
+   - Move `.kanban/progress.md` into it as well.
+   - Start a fresh `.kanban/progress.md` containing only the header:
+
+     ```markdown
+     # Ralph Progress Log
+
+     This file tracks implementation notes across Ralph iterations.
+     ```
+4. If some issues are NOT done, do not archive. Tell the user what is still open and ask whether to proceed (new issues will be appended to the existing board).
+
+Issue IDs are never reset by archiving — numbering continues across archives (see step 5).
+
 ### 1. Gather context
 
 Work from whatever is already in the conversation context. If the user passes a GitHub issue number or URL as an argument, fetch it with `gh issue view <number>` (with comments).
@@ -99,7 +120,7 @@ created: {YYYY-MM-DD}
 {#issue-number or "None — can start immediately"}
 ```
 
-Auto-assign IDs sequentially (scan existing files for highest ID, start from +1).
+Auto-assign IDs sequentially: scan `.kanban/issues/` AND `.kanban/archive/**/` for the highest existing ID, start from +1. Archived issues count — IDs are never reused after a board archive.
 
 <issue-template>
 ## Parent
