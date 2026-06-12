@@ -18,7 +18,7 @@ Review-only by instruction, not by permission — Bash and edit tools stay enabl
   - An explicit file or directory path.
   - Omitted — extract the review target from conversation context.
 - **REVIEWER_MODEL_ARGS** — reviewer model selector, exported to engine as `DRC_MODEL_FLAG_STR`. Default `--model opus`. `--sonnet` overrides to `--model sonnet`. `--claude` and `--opus` are explicit no-op pins (equivalent to default). `--gpt` is rejected (Claude-first skill; ask for `--opus` or `--sonnet`). Multiple model flags — ask the user to choose one.
-- **ENGINE** — `/home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh`. The primary agent calls subcommands; the script owns all temp paths, tmux session lifecycle, ready-pattern polling, and cleanup.
+- **ENGINE** — `$HOME/.claude/skills/dev-review-claude/engine.sh`. The primary agent calls subcommands; the script owns all temp paths, tmux session lifecycle, ready-pattern polling, and cleanup.
 
 **Canonical finding regex** — defined here once, referenced everywhere else: `^[-*]\s*\*\*\[(Critical|Warning|Note)\]:\*\*`. The brief tells the reviewer to use this exact format; the primary parses captured findings with the same regex.
 
@@ -86,7 +86,7 @@ The reviewer mechanics live in `engine.sh`. The primary agent invokes subcommand
 **Step 1 — Prepare and load state paths.** One Bash call. Choose `PROJECT_ROOT`: prefer the target's enclosing repo (`git rev-parse --show-toplevel` against the target's directory); fall back to the target's parent directory when the target lives outside any git repo (`engine.sh` tolerates non-git roots — the baseline and diff become trivially empty). Reject `build` reviews on non-git targets and fall back to a file review of the would-be diff target.
 
 ```bash
-bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh prepare <PROJECT_ROOT>
+bash "$HOME/.claude/skills/dev-review-claude/engine.sh" prepare <PROJECT_ROOT>
 # Then read the state file the engine printed and surface its keys:
 cat /tmp/drc-state-XXXXXX.env
 ```
@@ -107,7 +107,7 @@ Record from that output:
 **Step 3 — Launch the reviewer session.** One Bash call. Default model is `--model opus`; swap to `--model sonnet` if `--sonnet` flag was given:
 
 ```bash
-DRC_MODEL_FLAG_STR='--model opus' bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh launch <STATE>
+DRC_MODEL_FLAG_STR='--model opus' bash "$HOME/.claude/skills/dev-review-claude/engine.sh" launch <STATE>
 ```
 
 Engine.sh starts tmux, runs `claude` with bypass permissions, polls for the ready pattern (`bypass permissions on|shift\+tab to cycle`), then pastes `<PROMPT_FILE>` and sends Enter.
@@ -115,7 +115,7 @@ Engine.sh starts tmux, runs `claude` with bypass permissions, polls for the read
 **Step 4 — Poll loop.** In the primary agent's outer harness, repeat with a sleep between calls (5–15 seconds is reasonable):
 
 ```bash
-bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh poll <STATE>
+bash "$HOME/.claude/skills/dev-review-claude/engine.sh" poll <STATE>
 ```
 
 The engine prints exactly one of `done`, `running`, `exited`. Stop on `done` or `exited`. Cap at roughly 20 polls (~5 minutes wall clock) before pausing to ask the user: stuck or abort?
@@ -123,9 +123,9 @@ The engine prints exactly one of `done`, `running`, `exited`. Stop on `done` or 
 **Step 5 — Capture, diff, cleanup.** Three Bash calls, each with the literal `<STATE>` path:
 
 ```bash
-bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh capture   <STATE>
-bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh diff_tree <STATE>
-bash /home/james/dotfiles/.claude/skills/dev-review-claude/engine.sh cleanup   <STATE>
+bash "$HOME/.claude/skills/dev-review-claude/engine.sh" capture   <STATE>
+bash "$HOME/.claude/skills/dev-review-claude/engine.sh" diff_tree <STATE>
+bash "$HOME/.claude/skills/dev-review-claude/engine.sh" cleanup   <STATE>
 ```
 
 `capture` prints `<FINDINGS_FILE>` to stdout. If the findings file is empty, it dumps the tmux pane instead and exits non-zero with `FINDINGS_FILE_EMPTY` on stderr — apply lenient parsing in that case. `diff_tree` prints any working-tree drift since `prepare`; surface it before findings if non-empty. `cleanup` is idempotent — kills tmux and removes every temp path the engine allocated.
