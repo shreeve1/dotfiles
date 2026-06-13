@@ -1,7 +1,15 @@
-[manager]
+[mgr]
 prepend_keymap = [
+  { on = "<Enter>", run = "plugin smart-enter", desc = "Enter directory or open file" },
+  { on = "l", run = "plugin smart-enter", desc = "Enter directory or open file" },
   # Copy hovered file's full path to system clipboard via OSC 52 (works over SSH)
-  { on = ["y", "p"], run = "shell 'printf \"%s\" \"$0\" | ~/.local/bin/osc52'", desc = "Copy path to clipboard" },
+  { on = [
+    "y",
+    "p",
+  ], run = "shell 'printf \"%s\" \"$0\" | ~/.local/bin/osc52'", desc = "Copy path to clipboard" },
   # Copy hovered file's name only
-  { on = ["y", "n"], run = "shell 'basename \"$0\" | tr -d \"\\n\" | ~/.local/bin/osc52'", desc = "Copy filename to clipboard" },
+  { on = [
+    "y",
+    "n",
+  ], run = "shell 'basename \"$0\" | tr -d \"\\n\" | ~/.local/bin/osc52'", desc = "Copy filename to clipboard" },
 ]
