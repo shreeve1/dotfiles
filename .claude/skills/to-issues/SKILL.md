@@ -9,9 +9,21 @@ Break a plan into independently-grabbable issues using vertical slices (tracer b
 
 ## Process
 
+### 0a. Detect an active Ralph worktree
+
+If the project is a git repo, check for a live Ralph batch worktree before choosing where to write:
+
+```bash
+git worktree list --porcelain | awk '/^worktree /{wt=$2} /^branch refs\/heads\/ralph\//{print wt}'
+```
+
+- **Ralph worktree found** (e.g. `~/symphony-ralph` on `ralph/run`): the running batch reads its own `.kanban/` — issues written to the base repo are invisible until the next batch. Target the worktree instead: run all remaining steps (board check, ID assignment, issue files) against the worktree's `.kanban/`, then commit the new files inside the worktree (`git -C <worktree> add .kanban && git -C <worktree> commit -m "chore(kanban): add issues mid-batch"`). The loop re-scans `.kanban/issues/` every iteration, and the supervisor relaunches an exited driver when pending work appears, so committed issues get picked up automatically.
+- **No Ralph worktree**: proceed in the current repo as normal.
+- Tell the user which board you are targeting either way.
+
 ### 0. Check board state and archive if complete
 
-If `.kanban/` exists in the project root, check it before drafting anything new:
+If `.kanban/` exists in the project root (or in the Ralph worktree selected in step 0a), check it before drafting anything new:
 
 1. Read the frontmatter `status` of every file in `.kanban/issues/*.md` and skim `.kanban/progress.md`.
 2. Report the board state to the user (done / in-progress / pending counts).
@@ -27,6 +39,7 @@ If `.kanban/` exists in the project root, check it before drafting anything new:
      This file tracks implementation notes across Ralph iterations.
      ```
 4. If some issues are NOT done, do not archive. Tell the user what is still open and ask whether to proceed (new issues will be appended to the existing board).
+5. If targeting an active Ralph worktree (step 0a), never archive — even a fully-done board belongs to the in-flight batch and is finalized by `ralph-finalize.sh`. Append only.
 
 Issue IDs are never reset by archiving — numbering continues across archives (see step 5).
 
@@ -81,9 +94,10 @@ Iterate until the user approves the breakdown.
 ### 5. Create the issues
 
 **Output target — check in this order:**
-1. If `.kanban/` exists in the project root → write issues as local kanban files (see below). This is the default for Ralph.
-2. Else if `gh` is available and the project has a GitHub remote → create GitHub issues with `gh issue create`
-3. Otherwise → ask the user which format they prefer
+1. If step 0a found an active Ralph worktree → write issues into the worktree's `.kanban/issues/` and commit them there.
+2. If `.kanban/` exists in the project root → write issues as local kanban files (see below). This is the default for Ralph.
+3. Else if `gh` is available and the project has a GitHub remote → create GitHub issues with `gh issue create`
+4. Otherwise → ask the user which format they prefer
 
 Create issues in dependency order (blockers first) so you can reference real issue numbers in the "Blocked by" field.
 
