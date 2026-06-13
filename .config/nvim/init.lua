@@ -2,8 +2,8 @@
 -- Customized with: Python + JavaScript/TypeScript LSP, autopairs, file explorer
 
 -- Set <space> as the leader key (must be before plugins load)
-vim.g.mapleader = '\x13'
-vim.g.maplocalleader = '\x13'
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
 
 vim.g.have_nerd_font = true
 
