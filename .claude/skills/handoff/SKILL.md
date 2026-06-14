@@ -14,4 +14,4 @@ Do not duplicate content already captured in other artifacts (PRDs, plans, ADRs,
 
 If the user passed arguments, treat them as a description of what the next session will focus on and tailor the doc accordingly.
 
-Output a copy and paste prompt that includes the doc you created
+Output a short (2-3 sentence) copy-paste prompt for the next session that references the handoff document by its file path. Do not inline or re-print the document contents — the prompt should point the next session at the file and name any suggested skills to start with.
