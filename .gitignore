@@ -1,5 +1,6 @@
 # Machine-local plugin state — not synced across machines
 artifacts/
+.config/opencode/opencode.json
 .config/opencode/bak/
 
 # Machine-local session work logs (per-machine)
