@@ -28,8 +28,13 @@ The **symphony-onboard-project** umbrella chains those four with a checkpoint be
 - **symphony-plane-recover archive `<project>`** — archive a half-built Plane project. Typed-slug gate.
 - **symphony-plane-recover state-fill `<project>`** — idempotently add the standard state set (Todo / In Review / Running / Blocked / Done) and label set (mode:plan, mode:build, approval-required, agent:claude, agent:pi). Useful when scaffold partially completed or when adopting a legacy project.
 
+## Teardown a binding (inverse of onboarding)
+
+- **symphony-binding-remove** — drop a binding's `bindings.yml` entry and either **archive** (default, reversible — `binding.archived = TRUE`, keeps Issue/Run history) or **purge** (destructive — deletes the binding's Runs/Issues/settings rows). Purge requires explicit confirmation of the Issue/Run counts. Inverse of `symphony-binding-scaffold`.
+- **symphony-offboard-project** umbrella chains `symphony-bindings-status` → `symphony-binding-remove` → `symphony-restart` with a checkpoint between each step. Archive by default; purge stays gated. Inverse of `symphony-onboard-project`.
+
 ## Ownership boundaries
 
-- `bindings.yml` is owned exclusively by `symphony-project-scaffold`. Other skills read it but never mutate.
+- `bindings.yml` entries are written only by the scaffold/remove pair (`symphony-binding-scaffold` adds, `symphony-binding-remove` removes); `symphony-project-scaffold` is the deprecated Plane-era alias. Other skills read it but never mutate.
 - The `symphony-host.service` unit file is touched only by James directly; `symphony-restart` runs the unit but never edits it.
 - Plane mutations always require explicit James approval at the moment, even inside the umbrella. No skill auto-rollbacks.
