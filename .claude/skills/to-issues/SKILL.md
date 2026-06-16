@@ -164,3 +164,21 @@ Or "None - can start immediately" if no blockers.
 </issue-template>
 
 Do NOT close or modify any parent issue.
+
+### 6. Mirror to Podium (conditional)
+
+After writing local kanban issues, mirror them into Podium **only when the cwd
+repo is a Podium binding**:
+
+1. If `/home/james/symphony/bindings.yml` does not exist, skip this step
+   silently (project is not Symphony-managed).
+2. Otherwise check whether the cwd repo (its git toplevel) matches a
+   `tracker: podium` binding's `repo_path` in that file. If none matches, skip
+   silently.
+3. If it matches, invoke the `podium-issues` skill to create one Podium Issue
+   per newly-created kanban file (ascending id order, chronological dispatch).
+   This invocation is auto-chained, so `podium-issues` proceeds without a
+   re-confirm — the breakdown was already approved above.
+
+Tell the user whether issues were mirrored to Podium and, if so, the
+`k#NNN → podium #<id>` mapping. This step never runs for non-Symphony projects.
