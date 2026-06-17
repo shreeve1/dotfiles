@@ -375,11 +375,6 @@ AUTO_REVIEW_BLOCKED="${19}"
 UNATTENDED="${20:-false}"
 MAX_ISSUE_FAILS="${21:-2}"
 REVIEW_EACH="${22:-true}"
-# Marks every worker as spawned by the trusted Ralph loop. Project harnesses may
-# grant loop workers narrow extra latitude keyed on this (e.g. Symphony's
-# personal-harness allows an in-worker `systemctl restart symphony-host.service`
-# for live verification). Harmless where no harness reads it.
-export RALPH_LOOP_TRUSTED=1
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -731,7 +726,7 @@ run_tmux_adapter() {
   fi
 
   echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
-  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec env RALPH_LOOP_TRUSTED=1 $AGENT_CMD"
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec $AGENT_CMD"
   tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
   if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
