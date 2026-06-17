@@ -868,9 +868,9 @@ run_inline_review() {
   local target_id target_file review_out rc
   local forced_base="${2:-}"
   local mode="${3:-repair}"
-  local verb="repair of blocked"; local done_verb="repaired"; local fail_verb="could not repair"
+  local verb="repair of blocked"; local done_verb="repaired"
   if [[ "$mode" == "review" ]]; then
-    verb="independent review of"; done_verb="confirmed/repaired"; fail_verb="flagged gaps in (now parked) "
+    verb="independent review of"; done_verb="confirmed/repaired"
   fi
   target_id=$(normalize_issue_id "${1:-}")
   if [[ -z "${1:-}" ]]; then
@@ -924,8 +924,19 @@ run_inline_review() {
 
   if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
     echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
+  elif [[ "$mode" == "review" ]]; then
+    # DONE-path review did not confirm (timeout / BLOCKED / FAIL). Genuinely park
+    # the issue instead of silently leaving it done, so completion is never
+    # trusted on an unconfirmed review. The next scan / blocked-drain picks it up.
+    if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
+      perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+      printf '\n## Blocker\n\nAuto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff %s HEAD` before marking done.\n' "$REVIEW_BASE_SHA" >> "$target_file"
+      echo "↪️  Inline review did not confirm #$target_id; parked done→blocked for review" | tee -a "$LOG_FILE"
+    else
+      echo "↪️  Inline review did not confirm #$target_id; not in done state, left as-is" | tee -a "$LOG_FILE"
+    fi
   else
-    echo "↪️  Inline review $fail_verb#$target_id; leaving as-is and continuing" | tee -a "$LOG_FILE"
+    echo "↪️  Inline review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
   fi
 
   rm -f "$review_out"
