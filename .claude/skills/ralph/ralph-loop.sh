@@ -340,11 +340,11 @@ fi
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
 if [[ "$REVIEW_LOOP" == "true" ]]; then
-	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 else
-	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 fi
@@ -385,7 +385,7 @@ cd "$PROJECT_DIR"
 
 # Prompt framing used when an inline auto-review/repair worker is spawned for a
 # blocked issue. Mirrors the review-loop reminder built by the outer script.
-REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 
@@ -851,6 +851,36 @@ checkpoint_dirty_worktree() {
   echo "✅ Worktree clean after checkpoint commit" | tee -a "$LOG_FILE"
 }
 
+# Extract a cleanly-runnable shell command from an issue's `## Verification`
+# section, or print nothing. "Cleanly runnable" means the section is composed
+# ONLY of backtick-quoted commands joined by connectives (and/then/,/whitespace)
+# — e.g. `uv run pytest tests/x.py` and `uv run python -m py_compile y.py`.
+# Prose verifications (e.g. "restart the service and confirm logs") contain
+# non-connective words, so nothing is printed and the driver gate is skipped
+# (the reviewer agent still handles those per the prompt mandate).
+extract_runnable_verification() {
+  local file="$1" section
+  section=$(awk '/^##[[:space:]]+Verification/{p=1;next} /^##[[:space:]]/{if(p)exit} p' "$file" | tr '\n' ' ')
+  [[ -n "$section" ]] || return 0
+  printf '%s' "$section" | awk '
+    {
+      n = split($0, a, "`")
+      if (n < 3) exit 1               # no backtick-quoted command present
+      cmds = ""
+      for (i = 1; i <= n; i++) {
+        if (i % 2 == 0) {             # inside backticks: a command segment
+          if (cmds == "") cmds = a[i]; else cmds = cmds " && " a[i]
+        } else {                      # outside backticks: must be connective only
+          g = a[i]; gsub(/[[:space:],.;]/, "", g); gsub(/and|then/, "", g)
+          if (g != "") exit 1         # prose present → not cleanly runnable
+        }
+      }
+      if (cmds == "") exit 1
+      print cmds
+    }
+  ' || return 0
+}
+
 # Spawn a fresh actionable-review/repair worker against a single issue, then
 # return so the implement loop can continue. Never fatal: if the worker cannot
 # confirm the issue it stays blocked (parked) and the loop moves on.
@@ -918,7 +948,25 @@ run_inline_review() {
   esac
 
   if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
-    echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
+    # Layer 2 backstop: on a DONE-path review, the driver itself re-runs the
+    # issue's verification command (when cleanly runnable) and overrides to
+    # blocked if it fails — the reviewer's DONE is not trusted on faith.
+    local verify_cmd=""
+    if [[ "$mode" == "review" ]]; then verify_cmd=$(extract_runnable_verification "$target_file"); fi
+    if [[ -n "$verify_cmd" ]]; then
+      echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
+      if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
+        echo "✅ Inline review $done_verb issue #$target_id (verification passed)" | tee -a "$LOG_FILE"
+      else
+        echo "❌ Verification FAILED after review for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
+        if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
+          perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+          printf '\n## Blocker\n\nReview reported DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
+        fi
+      fi
+    else
+      echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
+    fi
   elif [[ "$mode" == "review" ]]; then
     # DONE-path review did not confirm (timeout / BLOCKED / FAIL). Genuinely park
     # the issue instead of silently leaving it done, so completion is never

@@ -81,7 +81,26 @@ whole implementation. The reviewer may edit/test/commit fixes in place:
 
 - review confirms or repairs → issue stays `done`, loop continues;
 - reviewer finds an unfixable gap → it flips the issue back to `blocked`
-  itself, and the next scan (or `--auto-review-blocked` drain) handles it.
+  itself, and the next scan (or `--auto-review-blocked` drain) handles it;
+- the review worker times out / dies without a `DONE` sentinel → the driver
+  parks the issue `done→blocked` with a Blocker note rather than trusting the
+  unconfirmed completion.
+
+**Verification is enforced at the review step, two ways:**
+
+1. **Prompt mandate (all issue types).** The reviewer must run the issue's
+   `## Verification` command exactly as written and may only emit `DONE` if it
+   exits 0; otherwise it marks `BLOCKED`/`FAIL`. This covers prose verifications
+   (e.g. "restart the service and confirm logs") that no script can run, because
+   the reviewer is an agent that interprets them.
+2. **Driver backstop (cleanly-runnable commands).** After the reviewer returns
+   `DONE`, the driver itself re-runs the issue's `## Verification` command when
+   it is composed only of backtick-quoted commands joined by connectives
+   (e.g. `` `uv run pytest tests/x.py` and `uv run python -m py_compile y.py` ``).
+   If it exits non-zero the driver overrides `DONE→blocked` and records the
+   failing command — the reviewer's `DONE` is not trusted on faith. Prose
+   verifications have no runnable command, so they fall back to the agent mandate
+   above (`extract_runnable_verification` prints nothing and the gate is skipped).
 
 Each issue is reviewed at most once per run (shares the
 `ATTEMPTED_REVIEW_ISSUES` guard with the block-repair paths). Cost is roughly
