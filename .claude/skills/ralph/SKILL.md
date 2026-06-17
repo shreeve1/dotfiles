@@ -30,6 +30,7 @@ Useful runner examples:
 tralph                                      # normal tmux, default Pi agent (openai-codex/gpt-5.5)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --no-auto-review-blocked             # disable inline auto-repair; a BLOCKED issue stops the loop
+tralph --no-review-each                     # disable the default per-issue review on DONE (trust the implementer)
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
 tralph --agent-cmd 'pi --model openai-codex/gpt-5.5' tmux
@@ -64,6 +65,29 @@ fixed it stays `blocked` (parked) and the run completes. So a plain `tralph`
 now covers what previously required a separate `--review-loop` pass. A blocked
 issue is never re-selected by the implement scan (it is no longer `pending`),
 and the per-run attempt set prevents repair/implement cycling.
+
+### Per-issue review on DONE (default on)
+
+Every `DONE` gets an independent fresh-session review — the implementer never
+just self-certifies. Without this, the only independent reviewer fires on
+`BLOCKED` (above) or in the separate `--review-loop` pass, leaving a gap: a
+silently wrong "done" issue is accepted and later issues get built on top of it
+before any out-of-band review runs.
+
+After every `DONE`, once the implementation is committed, the loop spawns a
+fresh reviewer scoped to that issue, diffing the pre-worker base
+(`REVIEW_BASE_SHA` captured before the worker ran) against `HEAD` so it sees the
+whole implementation. The reviewer may edit/test/commit fixes in place:
+
+- review confirms or repairs → issue stays `done`, loop continues;
+- reviewer finds an unfixable gap → it flips the issue back to `blocked`
+  itself, and the next scan (or `--auto-review-blocked` drain) handles it.
+
+Each issue is reviewed at most once per run (shares the
+`ATTEMPTED_REVIEW_ISSUES` guard with the block-repair paths). Cost is roughly
+**2x workers per issue** (implement + review). Disable with `--no-review-each`
+(env `RALPH_REVIEW_EACH=false`) if you want to trust the implementer's own
+`DONE` sentinel — e.g. a throwaway run where review latency/cost isn't worth it.
 
 On startup the driver also kills any orphaned `ralph-<session>-*` worker tmux
 sessions left behind by a previously killed driver, so you never have to

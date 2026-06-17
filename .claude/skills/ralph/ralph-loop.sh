@@ -14,6 +14,8 @@
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
 #   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
 #   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
+#   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
+#   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -38,6 +40,7 @@ AGENT_PROMPT_EXPLICIT=false
 REVIEW_LOOP=false
 SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
 AUTO_REVIEW_BLOCKED="${RALPH_AUTO_REVIEW_BLOCKED:-true}"
+REVIEW_EACH="${RALPH_REVIEW_EACH:-true}"
 # Unattended mode (set by the systemd supervisor): on a worker timeout/FAIL the
 # loop exits non-zero instead of leaving an idle keepalive session, so the
 # supervisor relaunches and continues. MAX_ISSUE_FAILS bounds retries — an issue
@@ -73,6 +76,8 @@ OPTIONS:
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
+  --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
+  --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -146,6 +151,14 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--no-auto-review-blocked)
 		AUTO_REVIEW_BLOCKED=false
+		shift
+		;;
+	--review-each)
+		REVIEW_EACH=true
+		shift
+		;;
+	--no-review-each)
+		REVIEW_EACH=false
 		shift
 		;;
 	--unattended)
@@ -361,6 +374,7 @@ LSP_CHECK_CMD="${18}"
 AUTO_REVIEW_BLOCKED="${19}"
 UNATTENDED="${20:-false}"
 MAX_ISSUE_FAILS="${21:-2}"
+REVIEW_EACH="${22:-true}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -837,27 +851,38 @@ checkpoint_dirty_worktree() {
   echo "✅ Worktree clean after checkpoint commit" | tee -a "$LOG_FILE"
 }
 
-# Spawn a fresh actionable-review/repair worker against a single blocked issue,
-# then return so the implement loop can continue. Never fatal: if the repair
-# worker cannot fix the issue it stays blocked (parked) and the loop moves on.
+# Spawn a fresh actionable-review/repair worker against a single issue, then
+# return so the implement loop can continue. Never fatal: if the worker cannot
+# confirm the issue it stays blocked (parked) and the loop moves on.
+#   $1 issue id
+#   $2 forced review base SHA (optional). When set, the reviewer diffs this base
+#      against HEAD instead of HEAD-at-review-start. Used by the per-issue
+#      review-on-DONE path so the reviewer sees the whole implementation.
+#   $3 mode label: "repair" (default, BLOCKED path) or "review" (DONE path).
 run_inline_review() {
   local target_id target_file review_out rc
+  local forced_base="${2:-}"
+  local mode="${3:-repair}"
+  local verb="repair of blocked"; local done_verb="repaired"; local fail_verb="could not repair"
+  if [[ "$mode" == "review" ]]; then
+    verb="independent review of"; done_verb="confirmed/repaired"; fail_verb="flagged gaps in (now parked) "
+  fi
   target_id=$(normalize_issue_id "${1:-}")
   if [[ -z "${1:-}" ]]; then
-    echo "⚠️  Inline auto-review: no issue id in BLOCKED sentinel; leaving blocked" | tee -a "$LOG_FILE"
+    echo "⚠️  Inline review: no issue id; skipping" | tee -a "$LOG_FILE"
     return 0
   fi
   target_file=$(grep -l "^id: ${target_id}$" .kanban/issues/*.md 2>/dev/null | head -1 || true)
   if [[ -z "$target_file" ]]; then
-    echo "⚠️  Inline auto-review: issue #$target_id not found; leaving blocked" | tee -a "$LOG_FILE"
+    echo "⚠️  Inline review: issue #$target_id not found; skipping" | tee -a "$LOG_FILE"
     return 0
   fi
 
   echo "" | tee -a "$LOG_FILE"
-  echo "🩹 Inline auto-review: attempting repair of blocked issue #$target_id" | tee -a "$LOG_FILE"
+  echo "🩹 Inline review: attempting $verb issue #$target_id" | tee -a "$LOG_FILE"
 
   if ! checkpoint_dirty_worktree; then
-    echo "⚠️  Inline auto-review: worktree not clean; skipping repair of #$target_id" | tee -a "$LOG_FILE"
+    echo "⚠️  Inline review: worktree not clean; skipping #$target_id" | tee -a "$LOG_FILE"
     return 0
   fi
 
@@ -868,7 +893,10 @@ run_inline_review() {
 
   REVIEW_BASE_SHA=""
   BASE_REMINDER=""
-  if git rev-parse --git-dir >/dev/null 2>&1; then
+  if [[ -n "$forced_base" ]]; then
+    REVIEW_BASE_SHA="$forced_base"
+    BASE_REMINDER=$'\n'"Implementation base commit (HEAD before the implementer started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1'."
+  elif git rev-parse --git-dir >/dev/null 2>&1; then
     REVIEW_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
     if [[ -n "$REVIEW_BASE_SHA" ]]; then
       BASE_REMINDER=$'\n'"Implementation base commit (HEAD before this worker started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1'."
@@ -890,9 +918,9 @@ run_inline_review() {
   esac
 
   if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
-    echo "✅ Inline auto-review repaired issue #$target_id" | tee -a "$LOG_FILE"
+    echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
   else
-    echo "↪️  Inline auto-review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
+    echo "↪️  Inline review $fail_verb#$target_id; leaving as-is and continuing" | tee -a "$LOG_FILE"
   fi
 
   rm -f "$review_out"
@@ -934,6 +962,7 @@ reset_active_issues_to_pending() {
   echo "Continue on error: $CONTINUE_ON_ERROR"
   echo "Review loop: $REVIEW_LOOP"
   echo "Auto-review blocked: $AUTO_REVIEW_BLOCKED"
+  echo "Review each (per-issue review on DONE): $REVIEW_EACH"
   echo "Sleep interval: ${SLEEP_INTERVAL}s"
   echo "Ready delay: ${READY_DELAY}s"
   echo "Ready timeout: ${READY_TIMEOUT}s"
@@ -1190,6 +1219,19 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     fi
   fi
 
+  # Per-issue independent review on DONE (opt-in via --review-each). A fresh
+  # reviewer inspects the just-completed implementation (REVIEW_BASE_SHA..HEAD,
+  # captured before this worker ran) against the issue and repairs gaps in place
+  # before the loop builds further work on top. The reviewer flips the issue back
+  # to blocked itself if it finds an unfixable gap.
+  if [[ "$REVIEW_EACH" == "true" && "$REVIEW_LOOP" != "true" && $LAST_EXIT_CODE -eq 0 ]]; then
+    REVIEW_EACH_ID=$(extract_completed_issue "$RALPH_OUTPUT")
+    if [[ -n "$REVIEW_EACH_ID" ]] && ! review_issue_attempted "$REVIEW_EACH_ID"; then
+      ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$REVIEW_EACH_ID")"
+      run_inline_review "$REVIEW_EACH_ID" "$REVIEW_BASE_SHA" "review"
+    fi
+  fi
+
   if [[ "$REVIEW_LOOP" == "true" && -n "$CURRENT_REVIEW_TARGET_ID" ]]; then
     RESULT_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
     if [[ -n "$RESULT_ISSUE" ]]; then
@@ -1295,7 +1337,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
 	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS"; do
+	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
@@ -1312,6 +1354,7 @@ echo "  Force mode: $FORCE_MODE"
 echo "  Continue on error: $CONTINUE_ON_ERROR"
 echo "  Review loop: $REVIEW_LOOP"
 echo "  Auto-review blocked: $AUTO_REVIEW_BLOCKED"
+echo "  Review each (per-issue review on DONE): $REVIEW_EACH"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo "  Ready delay: ${READY_DELAY}s"
 echo "  Ready timeout: ${READY_TIMEOUT}s"
