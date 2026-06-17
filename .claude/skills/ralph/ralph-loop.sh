@@ -582,7 +582,7 @@ count_unblocked_pending() {
 
 extract_completed_issue() {
   local file="$1"
-  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: DONE #\([0-9A-Za-z][0-9A-Za-z]*\)[[:space:]]*$/\1/p' "$file" | tail -1
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: DONE #\{0,1\}\([0-9][0-9A-Za-z]*\)[[:space:]]*$/\1/p' "$file" | tail -1
 }
 
 has_no_work_result() {
@@ -592,22 +592,22 @@ has_no_work_result() {
 
 has_success_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: DONE #[0-9A-Za-z]+[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: DONE #?[0-9][0-9A-Za-z]*[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: NO_WORK[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_failure_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9A-Za-z]+)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$|^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_blocked_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: BLOCKED( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 has_hard_fail_result() {
   local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #[0-9A-Za-z]+)?[[:space:]]*$' "$file" 2>/dev/null
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
 # A BLOCKED sentinel is non-fatal (keep looping instead of stopping) when running
@@ -623,7 +623,7 @@ blocked_is_skippable() {
 
 extract_result_issue() {
   local file="$1"
-  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\([0-9A-Za-z][0-9A-Za-z]*\)[[:space:]]*$/\2/p' "$file" | tail -1
+  sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\{0,1\}\([0-9][0-9A-Za-z]*\)[[:space:]]*$/\2/p' "$file" | tail -1
 }
 
 run_pi_adapter() {
@@ -982,7 +982,7 @@ run_inline_review() {
       ;;
   esac
 
-  if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
+  if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #?${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
     # Layer 2 backstop: on a DONE-path review, the driver itself re-runs the
     # issue's verification command (when cleanly runnable) and overrides to
     # blocked if it fails — the reviewer's DONE is not trusted on faith.
