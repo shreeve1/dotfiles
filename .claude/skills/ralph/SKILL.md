@@ -108,6 +108,19 @@ Each issue is reviewed at most once per run (shares the
 (env `RALPH_REVIEW_EACH=false`) if you want to trust the implementer's own
 `DONE` sentinel — e.g. a throwaway run where review latency/cost isn't worth it.
 
+### Stall handling (tmux adapter)
+
+Pi workers sometimes auto-compact at high context and then sit idle instead of
+resuming the turn — previously the driver would poll fruitlessly until the
+`ITERATION_TIMEOUT` (3600s) and waste the whole hour. The tmux monitor now
+detects this: it hashes the visible pane each poll, and if the pane is
+byte-identical for `RALPH_STALL_NUDGE_SECONDS` (default 120s) with no sentinel,
+it sends `continue` to the worker — exactly what a human would type. An
+actively-working worker animates its spinner/status line, so its hash keeps
+changing and it is never nudged. After `RALPH_MAX_STALL_NUDGES` (default 3)
+nudges with no progress the iteration gives up (returns failure, session left
+alive for inspection) rather than waiting out the full timeout.
+
 On startup the driver also kills any orphaned `ralph-<session>-*` worker tmux
 sessions left behind by a previously killed driver, so you never have to
 `tmux kill-session` by hand before re-running.

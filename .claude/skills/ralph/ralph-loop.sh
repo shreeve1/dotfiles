@@ -716,6 +716,7 @@ run_tmux_adapter() {
   local agent_session="ralph-${SESSION_NAME}-${iteration}"
   local target="$agent_session:0.0"
   local project_q pane now start prompt prompt_line result_file
+  local last_vishash idle_secs stall_nudges stall_after max_nudges vispane vishash
 
   printf -v project_q '%q' "$PROJECT_DIR"
   result_file="$HOME/.cache/ralph-result-${SESSION_NAME}-${iteration}.txt"
@@ -745,6 +746,9 @@ run_tmux_adapter() {
   echo "📺 Monitor agent: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
 
   start=$(date +%s)
+  last_vishash=""; idle_secs=0; stall_nudges=0
+  stall_after="${RALPH_STALL_NUDGE_SECONDS:-120}"   # idle seconds before nudging "continue"
+  max_nudges="${RALPH_MAX_STALL_NUDGES:-3}"          # give up after this many nudges
   while true; do
     now=$(date +%s)
     if (( now - start > ITERATION_TIMEOUT )); then
@@ -798,6 +802,37 @@ run_tmux_adapter() {
       cat "$output_file" >> "$LOG_FILE"
       echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
       return 1
+    fi
+
+    # Stall detection: if the visible pane is byte-identical for $stall_after
+    # seconds with no sentinel, the worker is idle — most often Pi auto-compacted
+    # and did not resume the turn. Nudge it with "continue" (what a human would
+    # type); give up after $max_nudges so a genuinely dead worker still fails
+    # instead of waiting out the full iteration timeout. An actively-working
+    # worker animates its spinner/status line, so its pane hash keeps changing
+    # and it is never nudged.
+    vispane=$(tmux_cmd capture-pane -p -J -t "$target" -S -40 2>/dev/null || true)
+    vishash=$(printf '%s' "$vispane" | cksum | cut -d' ' -f1)
+    if [[ "$vishash" == "$last_vishash" ]]; then
+      idle_secs=$(( idle_secs + SLEEP_INTERVAL ))
+    else
+      idle_secs=0; last_vishash="$vishash"
+    fi
+    if (( idle_secs >= stall_after )); then
+      if (( stall_nudges < max_nudges )); then
+        stall_nudges=$(( stall_nudges + 1 ))
+        echo "⏯️  Worker idle ${idle_secs}s with no sentinel; sending 'continue' (nudge ${stall_nudges}/${max_nudges})" | tee -a "$LOG_FILE"
+        tmux_cmd send-keys -t "$target" C-u
+        tmux_cmd send-keys -t "$target" -l -- "continue"
+        tmux_cmd send-keys -t "$target" C-m
+        idle_secs=0
+      else
+        echo "⚠️  Worker still idle after ${max_nudges} continue nudges; giving up on this iteration" | tee -a "$LOG_FILE"
+        tmux_cmd capture-pane -p -J -t "$target" -S -50000 > "$output_file" 2>/dev/null || true
+        cat "$output_file" >> "$LOG_FILE"
+        echo "Session left alive for inspection: $TMUX_DISPLAY attach -t '$agent_session'" | tee -a "$LOG_FILE"
+        return 1
+      fi
     fi
 
     sleep "$SLEEP_INTERVAL"
