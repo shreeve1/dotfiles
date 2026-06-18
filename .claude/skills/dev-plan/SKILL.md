@@ -62,6 +62,7 @@ Work through these phases in order:
 9. **Reviewer Audit Loop** — MANDATORY: pi audits the plan, you revise, repeat up to `MAX_ROUNDS`, exit early on zero Critical
 10. **Validate** — verify plan completeness and coherence
 11. **Report** — present completed plan summary (with loop outcome if the loop ran)
+12. **Route Next Step** — size the build and recommend either `/dev-build` or `/to-issues`
 
 ## Phase Details
 
@@ -279,7 +280,30 @@ If any preflight fails, surface the failures in the Phase 11 report. Treat Criti
 
 ### Phase 11: Report
 
-Present the completed plan summary and remind user to run `/dev-build` when ready. Always include the loop outcome — the loop runs every invocation. See the Report section below.
+Present the completed plan summary and the routing recommendation from Phase 12. Always include the loop outcome — the loop runs every invocation. See the Report section below.
+
+### Phase 12: Route Next Step
+
+Size the build from the saved plan, then recommend exactly **one** next skill — `/dev-build` or `/to-issues`. This is a recommendation only; do not invoke the skill.
+
+Compute these signals from the on-disk plan:
+- **Task count** — total `[N.M]` items under `## Step by Step Tasks`
+- **Step groups** — number of `### N.` task headers
+- **Files touched** — entries under `## Relevant Files` (including `### New Files`)
+- **Complexity** — the `simple|medium|complex` value from Phase 1
+
+Decide with this rule (the build is "large" if **any** large signal holds):
+
+| Signal | → `/dev-build` (small, one session) | → `/to-issues` (large, break up for Ralph) |
+|--------|------------------------------------|--------------------------------------------|
+| Task count | ≤ 12 | > 12 |
+| Step groups | ≤ 4 | > 4 |
+| Files touched | ≤ 10 | > 10 |
+| Complexity | simple or medium | complex |
+
+If the plan has independent vertical slices that could each ship and verify on their own (multiple unrelated features/endpoints/flows), prefer `/to-issues` even when counts are borderline — that is exactly what tracer-bullet slicing is for. If it is one cohesive change, prefer `/dev-build`.
+
+Emit the recommendation in the Phase 11 report (one line, with the one or two signals that drove it). Recommend only one.
 
 ## Instructions
 
@@ -440,8 +464,10 @@ Key Components:
 - <main component 2>
 - <main component 3>
 
-Next Steps:
-Run `/dev-build plans/<filename>.md` when ready to implement.
+Next Step (recommended):
+<one of:>
+Run `/dev-build plans/<filename>.md` when ready to implement. (small build — <driving signal>)
+Run `/to-issues plans/<filename>.md` to break this into Ralph-grabbable issues. (large build — <driving signal>)
 ```
 
 Always append the Loop Outcome block (the audit loop always runs):
