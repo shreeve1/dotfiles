@@ -44,7 +44,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context the reviewer receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
-- **Reviewer runs as normal Pi.** Use `pi --print` with prompt content in a temp file referenced as `@$PROMPT_FILE`. Do not apply tool allowlists, context suppressions, extension suppressions, or permission restrictions.
+- **Reviewer runs as normal Pi.** Use `pi --print` with prompt content in a temp file referenced as `@$PROMPT_FILE`. Do not apply tool allowlists, context suppressions, extension suppressions, or permission restrictions — with one narrow exception: the subagent-spawning tools (`Agent,get_subagent_result,steer_subagent`) are denied via `--exclude-tools`, because subagent output bypasses `pi --print` capture (see Phase 3 notes). Everything else stays at Pi defaults.
 - **Review-only by instruction, not by permission.** Pi keeps normal default capabilities; the primary agent must compare working-tree status before and after the review.
 - **Present reviewer findings faithfully.** Don't soften or reinterpret. Show what the reviewer actually said, then add your own assessment separately.
 - **Flag disagreements.** Where the primary agent and the reviewer disagree — that's where the interesting discussion lives.
@@ -227,7 +227,8 @@ You MUST create a task for each of these items and complete them in order:
      cd "$PROJECT_ROOT"
      setsid pi --print \
        "${PI_MODEL_ARGS[@]}" \
-       --append-system-prompt "You are an independent code review tool. Follow the requested finding format exactly. Do not modify files." \
+       --exclude-tools "Agent,get_subagent_result,steer_subagent" \
+       --append-system-prompt "You are an independent code review tool. Follow the requested finding format exactly. Do not modify files. Do all analysis yourself and emit every finding inline in your own final response." \
        "@$PROMPT_FILE" \
        > "$OUTPUT_FILE" 2>&1 < /dev/null &
      echo $! > "$PID_FILE"   # persist PID; separate Bash calls don't share shell vars
@@ -271,6 +272,7 @@ You MUST create a task for each of these items and complete them in order:
    - If neither model flag is provided, use `PI_MODEL_ARGS=("--model" "openai-codex/gpt-5.5")`.
    - Explicit `--model <pattern>` or `--provider <name>` arguments override this default.
    - Do not pass `--tools`, `--no-context-files`, `--no-skills`, `--no-prompt-templates`, or `--no-extensions`; this skill intentionally runs Pi as it would run for the user.
+   - **Exception — subagent delegation:** always pass `--exclude-tools "Agent,get_subagent_result,steer_subagent"`. If the `@tintinweb/pi-subagents` extension is installed, the reviewer model will delegate repo reading to an `Explore`/`Plan` subagent whose findings land in a separate notification channel (`.pi/output/agent-*.jsonl`) that `pi --print` does NOT capture — the parent's final stdout message is then just a content-free "incorporated the Explore result" ack and the review comes back empty. Excluding only the three subagent tools keeps file read/grep, web-tools, skills, and context intact, so the analysis stays in the parent agent → stdout. The denylist is harmless when the extension is absent (unmatched names are ignored).
 
    **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files with normal Pi capabilities, but the diff remains the authoritative review target.
 

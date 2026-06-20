@@ -199,8 +199,13 @@ PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
 # < /dev/null protects against stdin/tty contention; shell & returns immediately.
 (
   cd "$REPO_ROOT"
+  # --exclude-tools denies the pi-subagents Agent/Explore/Plan tools: their
+  # output lands in a notification channel that `pi --print` does not capture,
+  # so delegated findings never reach $OUTPUT_FILE. Denylist is a no-op when the
+  # extension is absent. Keep in sync with dev-review-pi Phase 3.
   setsid pi --print "${PI_MODEL_ARGS[@]}" \
-    --append-system-prompt "You are an independent plan auditor. Review only; do not modify files." \
+    --exclude-tools "Agent,get_subagent_result,steer_subagent" \
+    --append-system-prompt "You are an independent plan auditor. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response." \
     "@$PROMPT_FILE" \
     > "$OUTPUT_FILE" 2>&1 < /dev/null &
   echo $! > "$PID_FILE"
