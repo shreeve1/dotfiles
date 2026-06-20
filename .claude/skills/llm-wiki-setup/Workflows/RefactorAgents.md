@@ -48,6 +48,18 @@ Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention:
 - Offer to save durable query outputs as candidate pages.
 - Include the lint workflow and candidate cleanup rules.
 
+### Directories
+
+- `wiki/raw/` — immutable source material; read, never rewrite.
+- `wiki/raw/sessions/` — curated session captures created by `/wiki-update` when conversation evidence needs citation.
+- `wiki/candidates/` — transient holding for generated pages awaiting lint and auto-promotion.
+- `wiki/sources/` — promoted source summaries.
+- `wiki/entities/` — promoted entity pages (services, bindings, agents, projects).
+- `wiki/concepts/` — promoted concept pages (dispatch loop, reconcile lifecycle, etc.).
+- `wiki/analyses/` — promoted query outputs and syntheses.
+- `wiki/raw/assets/` — source attachments clipped with raw material.
+- `wiki/assets/` — generated or wiki-native images and attachments.
+
 ## Verification
 
 Use a diff review before claiming completion. Confirm:
