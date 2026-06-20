@@ -5,11 +5,11 @@ prepend_keymap = [
   # Copy hovered file's full path to system clipboard via OSC 52 (works over SSH)
   { on = [
     "c",
-    "c",
-  ], run = "shell 'printf \"%s\" %h | ~/.local/bin/osc52'", desc = "Copy path to clipboard via OSC 52" },
+    "p",
+  ], run = "shell 'printf \"%s\" \"$0\" | ~/.local/bin/osc52'", desc = "Copy path to clipboard" },
   # Copy hovered file's name only
   { on = [
     "c",
-    "f",
-  ], run = "shell 'basename -- %h | tr -d \"\\n\" | ~/.local/bin/osc52'", desc = "Copy filename to clipboard via OSC 52" },
+    "n",
+  ], run = "shell 'basename \"$0\" | tr -d \"\\n\" | ~/.local/bin/osc52'", desc = "Copy filename to clipboard" },
 ]
