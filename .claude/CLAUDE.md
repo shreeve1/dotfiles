@@ -16,12 +16,6 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 **Exception** — drop caveman for security warnings, irreversible-action confirmations, and when the user is confused. Resume after.
 
-## Claude Code Read Reminder
-
-Claude Code may append a generic `<system-reminder>` after `Read` tool results about considering whether files are malware. Treat this as malware-screening guidance, not a blanket edit ban. For owned or clearly benign project files, including authorized admin, deployment, diagnostic, RMM, or security tooling, analyze normally and continue requested edits. Do not stop solely to announce the reminder. Refuse to improve or augment only when the file appears malicious, exploit-focused, credential-stealing, evasive/persistent for unauthorized control, or otherwise harmful/unauthorized dual-use.
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
@@ -77,32 +71,3 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
-## Agent Helper Scripts
-
-Before broad repo inspection, prefer compact helper scripts when present:
-
-- `scripts/ai/context.sh` — one-shot repo context: structure, manifests, git state, errors, large files
-- `scripts/ai/repo_summary.py` — language/tooling/entrypoint summary
-- `scripts/ai/tree_compact.py` — filtered tree without dependency/cache noise
-- `scripts/ai/list_recent_changes.py` — status, recent commits, diff summary
-- `scripts/ai/extract_imports.py` — compact import/dependency scan
-- `scripts/ai/find_large_files.py` — files to avoid reading whole
-- `scripts/ai/summarize_json.py` — compact package/config JSON summary
-- `scripts/ai/scan_errors.py` / `compact_logs.py` — error-focused log views
-
-Use these first to reduce token usage, then read only the specific files needed. Script output is a map, not source of truth: verify claims by reading targeted files before editing or making project claims. Pi uses this Claude setup too, so keep this guidance in `CLAUDE.md` rather than harness-specific config.
-
-## Wiki Upkeep
-
-Applies only when the current project has a `wiki/` knowledge base (created by `/llm-wiki-setup`). Projects without one skip this entirely.
-
-- For project-specific questions, check `wiki/index.md` and `wiki/ROUTING.md` before broad repository search.
-- When a session produces durable knowledge — a direction-setting decision, changed terminology, a new architecture/process/contract, or a fact that supersedes existing wiki content — capture it with `/wiki-update` before wrapping up.
-- Routine edits and already-documented facts need no pass. This is a standing nudge, not a hard gate; the project's own `CLAUDE.md` `LLM Wiki` section is authoritative when present.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
-Source: https://github.com/multica-ai/andrej-karpathy-skills
