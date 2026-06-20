@@ -67,6 +67,28 @@ commands).
   `provider/model` form (e.g. `anthropic/claude-sonnet-4-6`, not bare `opus`).
 - macOS: `install.sh` already handles BSD vs GNU `realpath` / `readlink -f`.
   No extra setup needed.
+- `ponytail` (lazy-senior-dev / YAGNI enforcer, from
+  `github.com/DietrichGebert/ponytail`) is vendored into both harnesses rather
+  than installed via `/plugin marketplace add` or `pi install git:` (both write
+  machine-local state that does not sync). Surfaces:
+    - Claude skills: `.claude/skills/ponytail{,-review,-audit,-debt,-gain,-help}/`
+      (synced natively via the `.claude/skills` symlink).
+    - Claude commands: `.claude/commands/ponytail*.md` (TOML originals from
+      upstream were converted to Claude `.md`; `{{args}}` → `$ARGUMENTS`).
+    - Claude hooks: `.claude/hooks/ponytail/*.js`. Upstream uses
+      `${CLAUDE_PLUGIN_ROOT}`; since this is not a plugin install, the wiring
+      points at `$HOME/.claude/hooks/ponytail/`. Always-on full mode: the
+      `SessionStart` + `UserPromptSubmit` hook entries are wired into
+      `.claude/settings.json.template` (the tracked seed) **and** every
+      machine-local `.claude/settings-*.json` provider file — they must be in
+      each provider file because `switch-provider.sh` copies one over the live
+      `~/.claude/settings.json`. Default mode is `full` (set in
+      `hooks/ponytail-config.js`); override per-machine with
+      `PONYTAIL_DEFAULT_MODE` or `~/.config/ponytail/config.json`.
+    - Pi extension: `.pi/agent/extensions/ponytail/` (auto-discovered; its
+      `index.js` requires were rewritten `../hooks/` → `./hooks/` because the
+      hook files are vendored under the extension dir). Do not `pi install`.
+  To repair on another machine: `bash install.sh` from the repo root.
 
 ## Editing rules
 
