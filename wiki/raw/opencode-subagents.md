@@ -7,10 +7,10 @@ This is the on-demand catalog for OpenCode subagent routing. Keep always-loaded 
 | Trigger | Subagent | Why |
 | --- | --- | --- |
 | Multi-file implementation, refactor, or feature build at E3+ | `forge` | GPT-family code producer for completeness. |
-| One-task focused implementation with TDD | `pai-engineer` | Claude-side focused implementation. |
+| One-task focused implementation with TDD | `engineer` | Claude-side focused implementation. |
 | Generic single-task work | `builder` | Lightweight executor. |
-| Full 7-phase Algorithm subproblem | `pai-algorithm` | Own ISA and phase loop. |
-| System design, architecture, specs | `pai-architect` | Strategic planning. |
+| Full 7-phase Algorithm subproblem | `algorithm` | Own ISA and phase loop. |
+| System design, architecture, specs | `architect` | Strategic planning. |
 | Python CLI plus SQLite tooling | `python-sqlite-cli` | Stdlib CLI, SQLite, FTS5, argparse specialist. |
 
 ## Investigation And Review
