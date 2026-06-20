@@ -72,9 +72,9 @@ commands).
   than installed via `/plugin marketplace add` or `pi install git:` (both write
   machine-local state that does not sync). Surfaces:
     - Claude skills: `.claude/skills/ponytail{,-review,-audit,-debt,-gain,-help}/`
-      (synced natively via the `.claude/skills` symlink).
-    - Claude commands: `.claude/commands/ponytail*.md` (TOML originals from
-      upstream were converted to Claude `.md`; `{{args}}` → `$ARGUMENTS`).
+      (synced natively via the `.claude/skills` symlink). These register the
+      `/ponytail*` slash names; the redundant `.claude/commands/ponytail*.md`
+      copies were removed (skill triggers + hook cover the same surface).
     - Claude hooks: `.claude/hooks/ponytail/*.js`. Upstream uses
       `${CLAUDE_PLUGIN_ROOT}`; since this is not a plugin install, the wiring
       points at `$HOME/.claude/hooks/ponytail/`. Always-on full mode: the
