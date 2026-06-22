@@ -24,6 +24,9 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - Full transcript capture: disabled unless James explicitly requests it
 - Existing promoted page edits: allowed only for low-risk, cited maintenance
 - Raw session capture collisions: never overwrite; append `-2`, `-3`, etc.
+- Claim writes: gated by `gate.py` (deterministic). No claim enters `CLAIMS.md` except through an `ADMIT` verdict.
+- Claim budget: `BUDGET` active claims per hot file (default 40); over budget forces a demotion before any add.
+- Hot/cold: `CLAIMS.md` is loaded by default; `CLAIMS-cold.md` is the searchable archive, not loaded.
 
 ## Execution Rules
 
@@ -36,6 +39,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - Before creating candidates, reconcile against existing promoted pages, candidates, routes, and claims to avoid duplicates and record contradictions.
 - Update `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md` whenever wiki content changes.
 - Mark session-derived claims with appropriate confidence; do not present them as stronger than the evidence supports.
+- Bounding is enforced by gates, not goodwill. Every claim write runs `gate.py check`; the run's Verification step runs `gate.py audit`. A write that bypassed the gate but violates budget or schema fails the audit and the run is not done. See `Workflows/SessionUpdate.md` §7a and §7b.
 
 ## Context Files
 
