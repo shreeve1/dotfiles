@@ -123,7 +123,7 @@ Before writing new generated wiki content, check existing wiki state:
 3. Scan `wiki/CLAIMS.md` for existing `C-####` claims that match, overlap, contradict, or supersede proposed claims.
 4. Prefer updating an existing candidate over creating a duplicate candidate when the topic is the same.
 5. Prefer a low-risk promoted-page maintenance edit only when the new evidence is clear, cited, and non-controversial.
-6. When the session contradicts existing claims, keep both claims and add notes such as `contradicts C-XXXX` or `supersedes C-XXXX`; do not delete the older claim.
+6. When the session contradicts existing claims, distinguish two cases. Genuine unresolved contradiction (both may hold): keep both, note `contradicts C-XXXX`. Clear replacement (the new fact makes the old false): use the `supersedes` field in the §7a gate, which marks the old claim `superseded` with a timestamp rather than letting both coexist. Never delete the older claim.
 7. Create a candidate analysis page when a contradiction is important enough to explain.
 8. Outdated-source check: for overlapping existing pages and claims, verify their cited sources still support them given the session evidence. When the session shows a cited source is outdated, edited, superseded, or contradicted, flag it for supersession per the provenance rule — keep the old claim, mark it `superseded` (or `active` with a drift note) and propose a replacement claim or candidate page. Never silently rewrite. Reuse the Content Drift Check definition from `llm-wiki-setup` `Workflows/Lint.md`.
 
@@ -133,10 +133,55 @@ When updating the wiki:
 
 1. Add the raw session capture under `wiki/raw/sessions/` if conversation evidence is used.
 2. Create or update candidate pages in `wiki/candidates/` unless a promoted update is clearly safe.
-3. Update `wiki/CLAIMS.md` for important atomic claims. Assign claim IDs by scanning existing `C-####` IDs and using the next available zero-padded integer.
+3. Update `wiki/CLAIMS.md` **only through the claim write gates in §7a**. Do not hand-edit claim rows; do not assign IDs by hand.
 4. Update `wiki/index.md`: promoted-page sections for promoted pages only, candidate review queue for candidates.
 5. Update `wiki/ROUTING.md` when the new content provides a durable route. Mark candidate routes as candidate/non-authoritative.
 6. Append a `session-update` entry to `wiki/log.md` with inputs, outputs, and unresolved questions.
+
+## 7a. Claim Write Gates (mandatory, per claim)
+
+`gate.py` (in this skill's directory) is the only sanctioned path into `CLAIMS.md`. Prose discipline gets skipped under pressure; the gate exits non-zero instead. For each atomic claim you want to store:
+
+1. Build the candidate as JSON with the typed-slot schema:
+
+   ```json
+   {"kind": "gotcha|decision|config-fact|runbook-step",
+    "claim": "<atomic claim>", "source": "<path or command>",
+    "page": "<wiki page, optional>", "confidence": "high|medium|low",
+    "impact": "<what failure knowing this would have prevented, or the speedup it gives>",
+    "supersedes": "C-XXXX (optional)", "notes": "(optional)"}
+   ```
+
+2. Run the gate:
+
+   ```text
+   python3 .claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>
+   ```
+
+3. Obey the verdict. You may not write past it:
+   - `ADMIT` — re-run with `--apply` to write the row (it assigns the ID, timestamps, hits).
+   - `REJECT` (gate `validate`) — fix the typed slot: kind must be one of the four; claim/source/impact required.
+   - `REJECT` (gate `admit`) — the claim has not earned its place. The `impact` must state counterfactual value (a failure it would have prevented, or a materially faster success). Boilerplate ("good to know", restating the claim) is rejected. If you cannot articulate the impact, do not store the claim.
+   - `MERGE` — a near-duplicate exists. Refine that existing claim and bump its `Hits`; never add a slight variant.
+   - `SUPERSEDE` — the new fact conflicts with an existing one. Mark the old claim `superseded` with today's date, add the new one with `Created` today and a `supersedes` note. Do not let both coexist.
+   - `EVICT_FIRST` — the hot file is at budget. Run the named `gate.py demote --force <ID>` to move the lowest-value claim to the cold archive, then re-run the add. Eviction is a precondition of the write, not later cleanup.
+
+The admission filter is meant to reject most candidates. Storing nothing is the common correct outcome.
+
+## 7b. Scheduled Gates (run when maintenance is due)
+
+`gate.py audit` reports `maintenance_due: true` after `MAINT_EVERY` writes (default 20). When due, or on a periodic cadence:
+
+- **Hot/cold split:** `python3 .claude/skills/wiki-update/gate.py --wiki wiki demote` — moves low-hit, stale active claims to `CLAIMS-cold.md` (demotion, not deletion; eval-referenced claims are protected from auto-demotion).
+- **Gated consolidation:** write a plan JSON (`{"merge": [[keep_id,[drop_ids],"merged text?"]], "prune": [ids], "resolve": [[loser_id, winner_id]]}`), then:
+
+  ```text
+  python3 .claude/skills/wiki-update/gate.py --wiki wiki consolidate <plan.json>
+  ```
+
+  It snapshots `CLAIMS.md`, applies the plan, runs the eval slice, and **keeps the result only if the eval pass rate held AND total active size dropped** — otherwise it reverts automatically. An ungated rewrite is how a wiki quietly loses the detail that mattered, so this gate is mandatory. Consolidation requires a non-empty `wiki/eval/*.eval` slice (`<query> ||| <token that must stay retrievable>`); with no eval, you cannot verify a rewrite kept what mattered, so do not consolidate.
+
+  Tradeoff (deferred): this runs as a local snapshot+eval+revert, not a Temporal propose→eval→commit workflow. git/file-copy already gives atomic snapshot and revert on a single host; Temporal would only earn its keep if consolidation needed cross-crash durability or multi-host coordination, which a markdown maintenance pass does not. Revisit if the wiki moves off-host.
 
 ## 8. Approval Gates
 
@@ -154,6 +199,7 @@ If approval is needed, present a concise preview of proposed captured facts, can
 
 Verify exact probes before reporting completion:
 
+- `python3 .claude/skills/wiki-update/gate.py --wiki wiki audit` exits 0 (no budget or schema violation). This catches any claim that reached `CLAIMS.md` without passing the write gate. If it reports `maintenance_due`, run §7b before reporting done.
 - Core wiki files still exist.
 - Raw session capture exists when conversation evidence was used.
 - Raw session capture path did not overwrite an existing file.

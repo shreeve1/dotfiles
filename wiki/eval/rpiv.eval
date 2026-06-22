@@ -1,0 +1,7 @@
+# Eval slice for gated consolidation. Format: <query> ||| <token that must stay retrievable in CLAIMS.md>
+# A consolidation pass is KEPT only if every line still passes and total size dropped; else it reverts.
+which engine does rralph default to? ||| defaults to the `pi` engine
+can I attach to the live rralph tmux pane to check on it? ||| corrupts the driver's paste/marker detection
+how do I find the live rralph socket? ||| not `ls -t`
+what order do the RPIV pipeline steps run in? ||| research → design → plan → implement → validate → code-review → commit
+how does rpiv-merge pick the base branch? ||| .rpiv/run/<TS>/.base
