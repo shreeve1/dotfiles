@@ -13,6 +13,8 @@ Resolve dependencies in order — settle a foundational decision before the ones
 
 Ask the questions one at a time, waiting for feedback on each question before continuing.
 
+Always output questions as plain text in the chat. Never use the `ask_user_question` / `AskUserQuestion` tool — this is a back-and-forth grilling conversation, not a multiple-choice form.
+
 Stop when the remaining open questions are all low-stakes detail. At that point, say so and summarize the defaults you're assuming for the rest rather than continuing to grill.
 
 If a question can be answered by exploring the codebase, explore the codebase instead. If it can be answered by web search (library docs, API behavior, current best practices), search the web instead.
