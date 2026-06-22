@@ -55,8 +55,6 @@
       "Read(~/.ssh/*.pem)",
       "Read(~/.aws/credentials)",
       "Read(~/.gnupg/private*)",
-      "Write(~/.claude/settings.json)",
-      "Edit(~/.claude/settings.json)",
       "Write(~/.ssh/*)",
       "Edit(~/.ssh/*)"
     ],
