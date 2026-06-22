@@ -12,6 +12,8 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
+**Ask in plain chat text. Never use the `ask_user_question` / `AskUserQuestion` tool** — keep interactive tool calls to a minimum. Present questions and options as ordinary prose; let me reply in the chat.
+
 ## 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
