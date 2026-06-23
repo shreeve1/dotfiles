@@ -482,6 +482,20 @@ require('lazy').setup({
       on_attach = function(bufnr)
         local api = require 'nvim-tree.api'
         api.config.mappings.default_on_attach(bufnr)
+        -- Preview file under cursor in previous window (keep focus in tree)
+        vim.keymap.set('n', 'K', function()
+          local node = api.tree.get_node_under_cursor()
+          if not node or node.name == '..' then return end
+          vim.cmd.wincmd 'p'
+          api.node.open.edit(node)
+          vim.cmd.wincmd 'p'
+        end, { buffer = bufnr, desc = 'Preview file' })
+        vim.keymap.set('n', 'P', function()
+          local node = api.tree.get_node_under_cursor()
+          if not node or node.name == '..' then return end
+          vim.cmd.wincmd 'p'
+          api.node.open.edit(node)
+        end, { buffer = bufnr, desc = 'Preview file (switch to it)' })
         vim.keymap.set('n', 'Y', function()
           local node = api.tree.get_node_under_cursor()
           if not node then return end
