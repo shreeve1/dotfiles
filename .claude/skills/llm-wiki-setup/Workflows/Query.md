@@ -26,5 +26,5 @@ When saving a durable answer:
 
 1. Create `wiki/candidates/analysis-<slug>.md`.
 2. Include sources and confidence in frontmatter.
-3. Add or update claims in `wiki/CLAIMS.md`.
+3. Add or update claims in `wiki/CLAIMS.md` **only through `gate.py`** — never hand-edit rows. Build typed-slot JSON and run `python3 .claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>`, obeying the verdict (`--apply` on ADMIT). Same gated procedure as `wiki-update`'s `SessionUpdate.md` §7a.
 4. Append a query entry to `wiki/log.md`.

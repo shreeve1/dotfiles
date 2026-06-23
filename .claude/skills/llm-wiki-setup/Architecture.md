@@ -55,7 +55,7 @@ Schema and operating rules:
 
 `wiki/ROUTING.md` is a skill extension that maps topic branches to likely pages. It helps agents narrow search after consulting the index.
 
-`wiki/CLAIMS.md` is a skill extension that tracks important atomic claims with citations, confidence, status, and supersession notes.
+`wiki/CLAIMS.md` is a skill extension that tracks important atomic claims with citations, kind, confidence, status, impact, and supersession metadata. Its 12-column schema is the contract enforced by the companion `wiki-update` skill's `gate.py`; see `Templates.md` for the columns and rules.
 
 `wiki/candidates/` is a skill extension that holds new or risky pages before promotion. Candidates are discoverable in the index but excluded from authoritative answers unless explicitly referenced.
 

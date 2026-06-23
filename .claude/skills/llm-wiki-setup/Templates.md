@@ -73,6 +73,30 @@ Append entries with this format:
 - Notes: key decisions or unresolved questions
 ```
 
+## eval/README.md
+
+```markdown
+# Wiki Eval Slice
+
+This directory holds the regression slice that gates claim consolidation.
+`gate.py consolidate` runs every case before and after a merge/prune and reverts
+(or refuses) if the pass rate drops — this is what stops consolidation from
+silently dropping a load-bearing claim. An empty `eval/` makes the gate refuse
+to run, so add cases as high-value claims land.
+
+## Format
+
+One case per line in any `*.eval` file:
+
+    <query text> ||| <token that must survive in CLAIMS.md>
+
+- The left side is a query; the right side is a substring that must still appear
+  in `CLAIMS.md` for the case to pass.
+- Blank lines and lines starting with `#` are ignored.
+
+Authored by `/wiki-update` when a high-confidence, load-bearing claim is admitted.
+```
+
 ## ROUTING.md
 
 ```markdown
@@ -103,15 +127,28 @@ Use this file after reading `index.md` when narrowing a wiki-backed question to 
 
 ## CLAIMS.md
 
+This 12-column schema is the contract enforced by the `wiki-update` skill's `gate.py`. Setup must emit exactly these columns, in this order, so the first gated claim write does not corrupt the table. A hand-curated narrower table (e.g. 7 columns) breaks `gate.py`.
+
 ```markdown
 # Claims Registry
 
-| ID | Claim | Source | Page | Confidence | Status | Notes |
-|----|-------|--------|------|------------|--------|-------|
-| C-0001 | Example claim. | `wiki/raw/example.md` | `wiki/concepts/example.md` | medium | active | Created during setup. |
+| ID | Kind | Claim | Source | Page | Confidence | Status | Created | Hits | Superseded | Impact | Notes |
+|----|------|-------|--------|------|------------|--------|---------|------|------------|--------|-------|
+| C-0001 | config-fact | Example claim. | `wiki/raw/example.md` | `wiki/concepts/example.md` | medium | active | YYYY-MM-DD | 0 |  | Without this, future sessions re-derive the fact from scratch. | Created during setup. |
+
+Claim IDs use the next available zero-padded integer in `C-0001` format. Schema and bounding gates enforced by `gate.py`.
 ```
 
-Claim IDs use the next available zero-padded integer in `C-0001` format. Before adding claims, scan existing `C-####` IDs in `CLAIMS.md`, find the maximum, and increment by one for each new claim.
+Column rules (`gate.py` rejects writes that violate them):
+
+- `Kind`: one of `gotcha`, `decision`, `config-fact`, `runbook-step`.
+- `Confidence`: one of `high`, `medium`, `low`.
+- `Status`: `active`, `superseded`, or `cold`.
+- `Created`: `YYYY-MM-DD`. `Hits`: integer (start `0`). `Superseded`: date or empty.
+- `Impact`: required; state the counterfactual value (the failure it prevents or speedup it gives), not a restatement of the claim.
+- No field may contain `|` (breaks the table row).
+
+Before adding claims, scan existing `C-####` IDs in `CLAIMS.md` and `CLAIMS-cold.md`, find the maximum, and increment by one for each new claim. `CLAIMS-cold.md` (the demoted-claim archive) is created by `gate.py` on first demotion; setup does not need to create it.
 
 ## Page Frontmatter
 
@@ -133,94 +170,32 @@ tags: []
 
 Adapt heading levels to the target project's existing `CLAUDE.md` or `AGENTS.md` structure. The `##` and `###` headings below are defaults, not mandatory depths.
 
+Keep this section compact. The detailed ingest, query, promotion, lint, and discard procedures live in the `/llm-wiki-setup` and `/wiki-update` skills — do not inline them here; CLAUDE.md only needs the layout, the wiki-first rule, and the mandatory end-of-run check.
+
 ```markdown
 ## LLM Wiki
 
-This project uses `wiki/` as an LLM-maintained knowledge base.
+This project uses `wiki/` as an LLM-maintained knowledge base. Operate it with the `/llm-wiki-setup` skill (setup, ingest, query, promote, lint) and the `/wiki-update` skill (capture durable session knowledge). Those skills own the full procedures — follow them rather than reinventing the steps here.
 
-### Directories
+### Layout
 
-- `wiki/raw/`: immutable source material; read but do not rewrite.
-- `wiki/raw/sessions/`: curated session captures created by `/wiki-update` when conversation evidence needs citation.
-- `wiki/candidates/`: generated pages awaiting review or promotion.
-- `wiki/sources/`: promoted source summaries.
-- `wiki/entities/`: promoted entity pages.
-- `wiki/concepts/`: promoted concept pages.
-- `wiki/analyses/`: promoted query outputs and syntheses.
-- `wiki/raw/assets/`: source attachments clipped with raw material.
-- `wiki/assets/`: generated or wiki-native images and attachments.
+- `wiki/index.md` — read first for any wiki-backed question; `wiki/ROUTING.md` narrows broad searches.
+- `wiki/raw/` — immutable source material (read, never rewrite); `wiki/raw/sessions/` holds `/wiki-update` captures.
+- `wiki/candidates/` — review gate for generated pages before promotion.
+- `wiki/sources/`, `wiki/entities/`, `wiki/concepts/`, `wiki/analyses/` — promoted pages.
+- `wiki/CLAIMS.md` — tracked factual claims (12-column schema, gated by `/wiki-update`). `wiki/log.md` — append every ingest, query, lint, and promotion.
 
-### Required Files
+### Wiki-First Search
 
-- Read `wiki/index.md` first when answering wiki-backed questions.
-- Use `wiki/ROUTING.md` after `wiki/index.md` to narrow large searches.
-- Append every ingest, query, lint, and promotion to `wiki/log.md`.
-- Track important factual claims in `wiki/CLAIMS.md`.
+For any project-specific question, investigation, design task, bug hunt, or code search needing project context: read `wiki/index.md` (then `wiki/ROUTING.md`) and the relevant pages and `wiki/CLAIMS.md` entries before broad repository search. If non-wiki search reveals durable knowledge the wiki lacks, note the gap and propose an ingest, candidate, or promotion path in your answer.
 
-### Wiki-First Project Search
+### Mandatory End-of-Run Wiki Check
 
-For any project-specific question, investigation, design task, bug hunt, or code search that requires looking up project context, check the wiki first.
+The wiki is a standing obligation, not opt-in. Before reporting ANY task complete:
 
-1. Read `wiki/index.md` before searching broadly.
-2. Use `wiki/ROUTING.md` to identify relevant promoted pages, candidates, and claim entries.
-3. Read relevant wiki pages and `wiki/CLAIMS.md` entries before using general repository search.
-4. If the wiki does not contain enough information, search the codebase, docs, or external sources as needed.
-5. When non-wiki search reveals durable project knowledge, propose ingesting the source into `wiki/raw/`, creating or updating a page in `wiki/candidates/`, or promoting an existing candidate after James approves.
-6. If external or codebase search was needed to answer a wiki-backed question, mention the wiki gap and proposed ingest or promotion path in the final answer.
-
-### Session Update Workflow
-
-Use `/wiki-update` during or after meaningful sessions to capture durable decisions, verified facts, root causes, follow-ups, and reusable context. Create curated raw session captures under `wiki/raw/sessions/` when conversation evidence is needed. Do not archive full transcripts, secrets, private material, or raw pasted user content without explicit approval. New or risky session-derived knowledge goes through `wiki/candidates/` and must update `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md`.
-
-### Maintenance Trigger
-
-The wiki is a standing obligation, not an opt-in step. Before reporting any task complete, run the end-of-session wiki check. This is mandatory, not advisory.
-
-A task produces durable project knowledge — and therefore requires a `/wiki-update` pass before it is reported done — when it includes any of:
-
-- A decision that sets or reverses project direction, scope, or ownership.
-- Accepted or changed terminology, naming, or domain concepts.
-- A new or revised architecture, process, or contract that future sessions must honor.
-- A verified fact, root cause, or fix that contradicts or supersedes existing wiki knowledge.
-
-End-of-session check, every task:
-
-1. Decide whether the task hit any trigger above.
-2. If yes, run `/wiki-update` before reporting completion. If a full pass must be deferred, state the wiki gap and the proposed ingest, candidate, or promotion path in the final answer.
-3. If no, state one line in the final answer confirming the wiki check ran and nothing qualified.
+1. Decide whether the task produced durable knowledge — a decision setting/reversing project direction, scope, or ownership; accepted or changed terminology; a new/changed architecture, process, or contract; or a verified fact, root cause, or fix that supersedes existing wiki knowledge.
+2. If yes, run `/wiki-update` before reporting done (or, if a full pass is deferred, state the wiki gap and proposed ingest/candidate/promotion path in the final answer).
+3. If no, state one line confirming the wiki check ran and nothing qualified.
 
 Mark superseded knowledge `superseded` in `wiki/CLAIMS.md` with a pointer to the newer claim; never delete it to clean up history.
-
-### Ingest Workflow
-
-1. Read the new source from `wiki/raw/`.
-2. Summarize the source with citations to the raw path.
-3. Discuss key takeaways or emphasis with James when the source is substantial, ambiguous, or likely to touch multiple pages.
-4. Extract entities, concepts, contradictions, and atomic claims.
-5. Create new pages in `wiki/candidates/` unless the edit is low-risk maintenance.
-6. Update `wiki/index.md` candidate queue, `wiki/ROUTING.md`, and `wiki/CLAIMS.md` with cited candidate entries.
-7. Append an entry to `wiki/log.md`.
-
-### Query Workflow
-
-1. Read `wiki/index.md` to identify relevant promoted pages and candidates.
-2. Use `wiki/ROUTING.md` to narrow branches when the index is too broad.
-3. Read only the relevant promoted pages and claim entries.
-4. Answer with citations to wiki pages or raw sources.
-5. If the answer produces durable synthesis, offer to save it as `wiki/candidates/<slug>.md`.
-
-### Promotion Workflow
-
-1. Review the candidate page for citations, confidence, and duplicates.
-2. Move it to `sources/`, `entities/`, `concepts/`, or `analyses/`.
-3. Set `status: promoted` and update timestamps.
-4. Update `index.md`, `ROUTING.md`, `CLAIMS.md`, and `log.md`.
-
-### Discard Workflow
-
-When a candidate is rejected, remove its candidate index row, candidate-only routes, and candidate claim page references before deleting the candidate file. Append a discard entry to `wiki/log.md`.
-
-### Lint Workflow
-
-Check broken wikilinks, orphan pages, duplicate concepts, uncited claims, stale claims, claim content drift against cited sources, contradictions, missing concept pages, data gaps, stale candidate references, and missing index/routing entries. Report findings before making broad changes.
 ```

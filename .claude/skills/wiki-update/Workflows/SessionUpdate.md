@@ -159,7 +159,7 @@ When updating the wiki:
    ```
 
 3. Obey the verdict. You may not write past it:
-   - `ADMIT` — re-run with `--apply` to write the row (it assigns the ID, timestamps, hits).
+   - `ADMIT` — re-run with `--apply` to write the row (it assigns the ID, timestamps, hits). If the admitted claim is high-confidence and load-bearing (a fact whose loss in a later consolidation would hurt), add a regression case to `wiki/eval/` so consolidation is forced to keep it: append `<a query that should surface it> ||| <a token from the claim that must stay in CLAIMS.md>` to a `*.eval` file. This is what makes the consolidation gate (§7b) actually protect the claim; an empty eval slice makes that gate refuse to run.
    - `REJECT` (gate `validate`) — fix the typed slot: kind must be one of the four; claim/source/impact required.
    - `REJECT` (gate `admit`) — the claim has not earned its place. The `impact` must state counterfactual value (a failure it would have prevented, or a materially faster success). Boilerplate ("good to know", restating the claim) is rejected. If you cannot articulate the impact, do not store the claim.
    - `MERGE` — a near-duplicate exists. Refine that existing claim and bump its `Hits`; never add a slight variant.
