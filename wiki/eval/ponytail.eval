@@ -1,0 +1,4 @@
+# Eval slice for ponytail + wiki-gate claims (C-0116..C-0118). Format: <query> ||| <token that must stay retrievable in CLAIMS.md>
+how is ponytail installed in this repo? ||| vendored into both the Claude Code and Pi harnesses
+why did ponytail stop working after switching providers? ||| every machine-local `.claude/settings-*.json` provider file
+how do claims get into CLAIMS.md? ||| only through gate.py with an ADMIT verdict
