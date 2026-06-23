@@ -17,7 +17,7 @@ Use this workflow when adding a new source to the wiki.
 6. Check existing promoted pages before creating new candidates or updating existing pages.
 7. Update existing promoted pages directly only when the source impact is clear, cited, and low-risk; otherwise create candidates.
 8. Create candidate pages in `wiki/candidates/` using page frontmatter from `Templates.md`.
-9. Update `wiki/CLAIMS.md` with important claims and citation paths. Assign claim IDs by scanning existing `C-####` IDs and using the next available zero-padded integer. Candidate claims must point to `wiki/candidates/...` until promotion.
+9. Add important claims to `wiki/CLAIMS.md` **only through `gate.py`** — never hand-edit claim rows. For each claim, build the typed-slot JSON and run `python3 .claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>`, then obey the verdict (`--apply` on ADMIT). This is the same gated procedure as the `wiki-update` skill's `SessionUpdate.md` §7a; follow it rather than writing rows by hand. The gate assigns IDs, enforces the 12-column schema and column rules, and bounds the budget. Candidate claims must point to `wiki/candidates/...` until promotion.
 10. Update `wiki/index.md`: promoted-page sections for promoted pages only, and the candidate review queue for candidates.
 11. Update `wiki/ROUTING.md` with candidate routes only when the route is clearly durable, and mark those routes as candidate/non-authoritative.
 12. Append an ingest entry to `wiki/log.md`.
