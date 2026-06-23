@@ -32,10 +32,20 @@ Structural checks confirm a cited path still exists. The drift check confirms th
 4. Never auto-rewrite a drifted claim. Follow the provenance rule: keep the old claim, mark it `superseded` (or `active` with a drift note) and propose a replacement claim or a candidate analysis page citing current evidence.
 5. Report each drift finding with: claim ID or page, cited path, what the claim asserts, what the source now shows, and proposed action.
 
+## Claim Gate Audit
+
+Run the companion gate's own audit, which checks `CLAIMS.md` for budget and schema violations the structural checks above do not cover (over-budget hot file, malformed rows, a claim that reached the file without passing the write gate):
+
+```sh
+python3 .claude/skills/wiki-update/gate.py --wiki wiki audit
+```
+
+Report any problems it prints (non-zero exit, or `maintenance_due: true`). A non-zero exit is a `critical` finding. `maintenance_due` is a `warning` — recommend the `wiki-update` §7b hot/cold split and gated consolidation. If `gate.py` is missing, report that as a `critical` finding (the wiki cannot enforce its claim schema without it).
+
 ## Procedure
 
 1. Inspect wiki files and report structural findings first.
-2. Run the Content Drift Check within scope.
+2. Run the Claim Gate Audit and the Content Drift Check within scope.
 3. Categorize findings as `critical`, `warning`, or `suggestion`.
 4. Ask before broad rewrites, mass link changes, or any claim supersession.
 5. Apply small deterministic fixes when safe: missing log entry, missing index row, stale candidate reference, obvious broken relative path. Drift fixes are never auto-applied.

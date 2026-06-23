@@ -353,6 +353,12 @@ def cmd_consolidate(args):
     wiki = Path(args.wiki)
     path = wiki / "CLAIMS.md"
     plan = json.loads(Path(args.plan).read_text())
+    if not load_eval(wiki):
+        print(json.dumps({"result": "REFUSED", "reason":
+                          "no eval slice (wiki/eval/*.eval) — consolidation cannot "
+                          "verify it kept load-bearing claims; add eval cases first"},
+                         indent=2))
+        return 6
     bak = path.with_suffix(".md.snapshot")
     shutil.copy2(path, bak)  # snapshot (file copy: safe even on a dirty tree)
 
@@ -421,6 +427,33 @@ def cmd_audit(args):
     return 0 if not problems else 5
 
 
+def cmd_migrate(args):
+    """Rewrite CLAIMS.md (and CLAIMS-cold.md if present) into the canonical
+    12-column schema. `parse` already tolerates a narrow/legacy table and fills
+    missing columns with defaults; `serialize` always emits the 12-column header.
+    So this is just parse->serialize: legacy rows survive, new columns appear
+    blank (Kind/Impact left for a later gated touch to fill), Hits defaults to 0.
+    Idempotent — an already-canonical file re-serializes byte-identically and is
+    left untouched. This is the upgrade path for wikis created before the schema
+    was widened (the cause of mixed-width tables that corrupt gated writes)."""
+    wiki = Path(args.wiki)
+    changed = []
+    for name in ("CLAIMS.md", "CLAIMS-cold.md"):
+        p = wiki / name
+        if not p.exists():
+            continue
+        before = p.read_text()
+        pre, rows, foot = parse(p)
+        after = serialize(pre, rows, foot)
+        if after != before:
+            p.write_text(after)
+            changed.append(name)
+    print(json.dumps({"migrated": changed,
+                      "note": "already canonical; nothing to do" if not changed
+                      else "rewrote to 12-column schema"}, indent=2))
+    return 0
+
+
 def cmd_selftest(args):
     """Build a throwaway wiki and assert every gate fires. No framework; the one
     runnable check that proves the gates still bite after edits."""
@@ -462,6 +495,32 @@ def cmd_selftest(args):
         assert "Do not attach" not in (tmp / "CLAIMS.md").read_text(), "C-0002 should be gone"
         assert "Default engine is pi" in (tmp / "CLAIMS.md").read_text(), "C-0001 must survive"
 
+        # migrate: a legacy 7-column file widens to the canonical 12-column schema
+        leg = tmp / "leg"
+        leg.mkdir()
+        (leg / "CLAIMS.md").write_text(
+            "# Claims Registry\n\n"
+            "| ID | Claim | Source | Page | Confidence | Status | Notes |\n"
+            "|----|-------|--------|------|------------|--------|-------|\n"
+            "| C-0001 | Legacy claim. | src |  | medium | active | n |\n")
+        cmd_migrate(argparse.Namespace(wiki=str(leg)))
+        head = next(l for l in (leg / "CLAIMS.md").read_text().splitlines()
+                    if l.strip().startswith("| ID"))
+        assert head.count("|") == 13, "migrated header should have 12 columns"
+        assert "Legacy claim." in (leg / "CLAIMS.md").read_text(), "legacy row preserved"
+        assert gate_check(leg, good)["verdict"] == "ADMIT", "migrated file accepts gated writes"
+        first = (leg / "CLAIMS.md").read_text()
+        cmd_migrate(argparse.Namespace(wiki=str(leg)))
+        assert (leg / "CLAIMS.md").read_text() == first, "migrate is idempotent"
+
+        # consolidate refuses when there is no eval slice to verify against
+        noeval = tmp / "noeval"
+        noeval.mkdir()
+        shutil.copy2(tmp / "CLAIMS.md", noeval / "CLAIMS.md")
+        (noeval / "p.json").write_text(json.dumps({"prune": ["C-0001"]}))
+        assert cmd_consolidate(argparse.Namespace(
+            wiki=str(noeval), plan=str(noeval / "p.json"))) == 6, "no-eval consolidation refused"
+
         print("selftest OK — all gates fired")
         return 0
     finally:
@@ -492,6 +551,9 @@ def main():
 
     a = sub.add_parser("audit", help="budget+schema check (verify-step bite)")
     a.set_defaults(fn=cmd_audit)
+
+    mi = sub.add_parser("migrate", help="rewrite CLAIMS.md to the canonical 12-column schema")
+    mi.set_defaults(fn=cmd_migrate)
 
     s = sub.add_parser("selftest", help="assert every gate fires (no framework)")
     s.set_defaults(fn=cmd_selftest)

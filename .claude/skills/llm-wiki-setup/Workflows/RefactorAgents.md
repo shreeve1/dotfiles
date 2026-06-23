@@ -27,26 +27,19 @@ Run these steps once per target file (`CLAUDE.md`, `AGENTS.md`):
 1. Identify existing sections and project-specific rules.
 2. Determine whether a `LLM Wiki` section already exists.
 3. If absent, insert the section after project overview/editing conventions if present; otherwise append it near the end.
-4. If present, update it to include directories, required files, wiki-first project search, session update, ingest, query, promotion, and lint workflows.
+4. If present, update it to the compact section: layout, wiki-first search, and the mandatory end-of-run wiki check, plus the pointer to the `/llm-wiki-setup` and `/wiki-update` skills. Do NOT inline the ingest, query, promotion, lint, or discard step-by-step procedures — those live in the skills. If a prior version inlined those full workflows, replace them with the compact section to reduce CLAUDE.md bloat (preserve any non-wiki rules untouched).
 5. Preserve local style: heading levels, tone, and path formatting. Remap the template's `##` and `###` heading depths to fit the surrounding file's hierarchy instead of pasting them verbatim when that would break structure.
 6. Verify no existing non-wiki instruction was removed.
 7. If both files were updated, diff the resulting LLM Wiki sections and reconcile any wording drift.
 
 ## Required Content
 
-Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention:
+Keep the injected section compact (use the compact `Agent Instructions Section` in `Templates.md` verbatim, adapting only heading depth). Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention, and no more:
 
-- `wiki/raw/` is immutable.
-- `wiki/candidates/` is the review gate.
-- Read `wiki/index.md` before wiki-backed answers, then use `wiki/ROUTING.md` to narrow broad searches.
-- Include a `Wiki-First Project Search` rule: for project-specific questions, investigations, design tasks, bug hunts, or code searches that require project context, check the wiki before broad repository search.
-- When codebase, docs, or external search reveals durable knowledge missing from the wiki, mention the wiki gap and propose an ingest, candidate update, or promotion path.
-- Append operations to `wiki/log.md`.
-- Track factual claims in `wiki/CLAIMS.md`.
-- Use `/wiki-update` to capture durable session decisions, verified facts, and follow-ups into the wiki.
-- Include a `Maintenance Trigger` rule framed as a mandatory end-of-session check, not advisory: before reporting any task complete, decide whether it hit a trigger (durable decisions, terminology/architecture/contract changes, superseding facts); if yes, run `/wiki-update` before reporting done; if no, state one line confirming the wiki check ran and nothing qualified. Routine or already-documented work does not trigger a pass, and superseded claims are marked `superseded` with a pointer, never deleted.
-- Offer to save durable query outputs as candidate pages.
-- Include the lint workflow and candidate cleanup rules.
+- A one-line pointer that the project uses `wiki/` and is operated via the `/llm-wiki-setup` and `/wiki-update` skills, which own the ingest/query/promotion/lint/discard procedures (do NOT inline those procedures).
+- Layout essentials: `wiki/index.md` (read first) + `wiki/ROUTING.md` (narrow), `wiki/raw/` immutable, `wiki/candidates/` review gate, promoted dirs, `wiki/CLAIMS.md` (gated claims), `wiki/log.md` (append operations).
+- A `Wiki-First Search` rule: for project-specific questions, investigations, design tasks, bug hunts, or code searches needing project context, check the wiki before broad repository search; when non-wiki search reveals durable knowledge the wiki lacks, note the gap and propose an ingest/candidate/promotion path.
+- A `Mandatory End-of-Run Wiki Check` framed as required, not advisory: before reporting any task complete, decide whether it produced durable knowledge (direction/scope/ownership decisions, terminology/architecture/contract changes, superseding facts); if yes, run `/wiki-update` before reporting done (or state the gap + proposed path if deferred); if no, state one line confirming the check ran and nothing qualified. Mark superseded claims `superseded` with a pointer, never delete.
 
 ### Directories
 
