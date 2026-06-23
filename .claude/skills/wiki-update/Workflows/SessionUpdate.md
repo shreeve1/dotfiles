@@ -164,7 +164,7 @@ When updating the wiki:
    - `REJECT` (gate `admit`) — the claim has not earned its place. The `impact` must state counterfactual value (a failure it would have prevented, or a materially faster success). Boilerplate ("good to know", restating the claim) is rejected. If you cannot articulate the impact, do not store the claim.
    - `MERGE` — a near-duplicate exists. Refine that existing claim and bump its `Hits`; never add a slight variant.
    - `SUPERSEDE` — the new fact conflicts with an existing one. Mark the old claim `superseded` with today's date, add the new one with `Created` today and a `supersedes` note. Do not let both coexist.
-   - `EVICT_FIRST` — the hot file is at budget. Run the named `gate.py demote --force <ID>` to move the lowest-value claim to the cold archive, then re-run the add. Eviction is a precondition of the write, not later cleanup.
+   - `EVICT_FIRST` — the hot file is at budget. If the wiki is genuinely large and curated (the active claims are all load-bearing, not cruft), the budget is the wrong size, not the claim: set `WIKI_CLAIM_BUDGET` to the wiki's real scale (e.g. `WIKI_CLAIM_BUDGET=300`) and re-run, rather than evicting a good claim. Default is 40. Only when the hot file is genuinely over-full of low-value claims, run the named `gate.py demote --force <ID>` to move the lowest-value claim to cold and re-run the add. Eviction is a precondition of the write, not later cleanup.
 
 The admission filter is meant to reject most candidates. Storing nothing is the common correct outcome.
 

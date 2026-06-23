@@ -12,6 +12,12 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Pages: `wiki/analyses/rpiv-pipeline.md` (promoted)
 - Keywords: rralph, rpiv-monitor, gap-sweep, rpiv-merge, pipeline driver, tmux engine, fresh branch, FRD handoff, .rpiv/artifacts, .rpiv/run, base ref
 
+## ponytail & Wiki Maintenance Gates
+
+- Claims: C-0116, C-0117, C-0118 (no promoted page yet)
+- Raw: `wiki/raw/sessions/2026-06-23-ponytail-and-wiki-gates.md`
+- Keywords: ponytail, YAGNI enforcer, vendored, plugin marketplace, pi install, switch-provider, settings provider file, gate.py, CLAIMS.md, eval slice, consolidation
+
 ## Research
 
 - Pages:
