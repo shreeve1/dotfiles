@@ -23,6 +23,7 @@ stdlib only. CLAIMS.md is the source of truth; this never invents a DB.
 """
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -35,8 +36,9 @@ CONFIDENCES = {"high", "medium", "low"}
 COLS = ["ID", "Kind", "Claim", "Source", "Page", "Confidence", "Status",
         "Created", "Hits", "Superseded", "Impact", "Notes"]
 
-# Tunables (env-overridable in the workflow if a project needs different limits).
-BUDGET = 40          # max active claims in the hot file before eviction is forced
+# Tunables. BUDGET is env-overridable per wiki: a large curated wiki sets
+# WIKI_CLAIM_BUDGET to its real scale so writes don't spuriously force eviction.
+BUDGET = int(os.environ.get("WIKI_CLAIM_BUDGET", "40"))  # max active hot claims before eviction
 DEDUP_RATIO = 0.82   # claim-text similarity at/above this = near-duplicate
 RESTATE_RATIO = 0.70 # impact this similar to the claim = not a real justification
 COLD_HITS = 1        # demote active claims with hits <= this ...
