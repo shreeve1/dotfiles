@@ -20,6 +20,14 @@ Read the project wiki contract before writing:
 
 If the core files are missing, stop and recommend `/llm-wiki-setup`. Do not create an ad hoc wiki from this workflow.
 
+Normalize the claim schema up front, before any claim write:
+
+```text
+python3 .claude/skills/wiki-update/gate.py --wiki wiki migrate
+```
+
+This widens a legacy 7-column `CLAIMS.md` (and `CLAIMS-cold.md` if present) to the canonical 12-column schema. It is idempotent — an already-canonical file is left byte-identical (no rewrite). Run it every time: `serialize` only upgrades the schema when a write actually lands, so a session that stores no claim (or one blocked at the gate) would otherwise leave the file 7-column. Migrating up front makes the schema upgrade deterministic instead of incidental.
+
 ## 3. Determine Capture Scope
 
 Use James's prompt as the primary focus when provided.
