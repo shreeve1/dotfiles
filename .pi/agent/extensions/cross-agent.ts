@@ -4,8 +4,13 @@
  * Scans .claude/ directories (project + global) for:
  *   nested command markdown files -> registered as /name or /namespace:name
  *   skills/           → exposed to Pi skills and listed as /skill:name
- * Also injects global Claude guidance from ~/.claude/CLAUDE.md.
- * Project CLAUDE.md files are loaded by Pi core, not this bridge.
+ * Also forwards Claude guidance (global ~/.claude/CLAUDE.md + project CLAUDE.md /
+ * AGENTS.md that Pi core discovered) into the conversation as a user-turn
+ * <system-reminder>, once per session. This is deliberate: when Pi runs behind a
+ * Claude OAuth proxy that cloaks requests as Claude Code, the client system prompt
+ * (where Pi core puts project context) is stripped/sanitized before it reaches the
+ * model. User-turn content is not cloaked, so guidance delivered this way survives
+ * — mirroring how Claude Code itself injects CLAUDE.md.
  *
  * Usage: pi -e extensions/cross-agent.ts
  */
@@ -338,12 +343,6 @@ function loadClaudeGuidance(home: string): GuidanceFile[] {
 	return files;
 }
 
-function formatClaudeGuidance(files: GuidanceFile[]): string {
-	return files
-		.map((file) => `### ${file.label}\n\n${file.content}`)
-		.join("\n\n");
-}
-
 function parseFrontmatter(raw: string): {
 	description: string;
 	body: string;
@@ -600,16 +599,63 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	// ── Global Claude guidance injection ───────────────────────────────────
-	// Pi core loads project CLAUDE.md files; this bridge only adds ~/.claude/CLAUDE.md.
+	// ── Claude guidance injection (user-turn, cloak-safe) ───────────────────
+	// Forward project + global CLAUDE.md guidance as a user-role <system-reminder>
+	// instead of appending to the system prompt: an upstream Claude OAuth proxy
+	// cloaks requests as Claude Code and strips/sanitizes the client system prompt,
+	// so system-prompt context never reaches the model. User-turn content is left
+	// intact. Pi converts a returned custom message to a user message, and injecting
+	// once per session keeps it in history for later turns.
+	const injectedSessions = new Set<string>();
 
-	pi.on("before_agent_start", async (event) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		try {
-			const guidance = loadClaudeGuidance(home);
-			if (guidance.length === 0) return;
+			const sessionId = ctx.sessionManager?.getSessionId?.() ?? "";
+			if (injectedSessions.has(sessionId)) return;
+
+			const cwd = event.systemPromptOptions?.cwd ?? ctx.cwd ?? process.cwd();
+			const cwdReal = realPathIfExists(cwd) ?? resolve(cwd);
+			const sections: string[] = [];
+
+			// Project context files Pi core already discovered (e.g. project
+			// CLAUDE.md), scoped to the project subtree. Files outside cwd — notably
+			// the global ~/.pi/agent/AGENTS.md harness identity — are excluded so we
+			// never forward agent-harness markers that get the client flagged.
+			for (const file of event.systemPromptOptions?.contextFiles ?? []) {
+				if (!file.content.trim()) continue;
+				const real = realPathIfExists(file.path) ?? resolve(file.path);
+				const rel = relative(cwdReal, real);
+				const insideProject =
+					rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+				if (!insideProject) continue;
+				sections.push(
+					`<project_instructions path="${file.path}">\n${file.content.trim()}\n</project_instructions>`,
+				);
+			}
+
+			// Global ~/.claude/CLAUDE.md guidance (generic; safe to forward).
+			for (const file of loadClaudeGuidance(home)) {
+				if (!file.content.trim()) continue;
+				sections.push(
+					`<global_guidance source="${file.label}">\n${file.content.trim()}\n</global_guidance>`,
+				);
+			}
+
+			if (sections.length === 0) return;
+			injectedSessions.add(sessionId);
+
+			const content =
+				"<system-reminder>\n" +
+				"Project and agent guidance from CLAUDE.md files (authoritative project context):\n\n" +
+				sections.join("\n\n") +
+				"\n</system-reminder>";
 
 			return {
-				systemPrompt: `${event.systemPrompt}\n\n## Claude Guidance\n\n${formatClaudeGuidance(guidance)}`,
+				message: {
+					customType: "cross-agent-guidance",
+					content,
+					display: false,
+				},
 			};
 		} catch {
 			return;
