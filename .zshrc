@@ -1,3 +1,5 @@
+export PATH="$PATH:/snap/bin"
+
 # Platform detection
 case "$(uname -s)" in
   Darwin) IS_MACOS=1; IS_LINUX=0 ;;
