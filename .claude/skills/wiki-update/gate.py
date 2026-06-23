@@ -36,9 +36,11 @@ CONFIDENCES = {"high", "medium", "low"}
 COLS = ["ID", "Kind", "Claim", "Source", "Page", "Confidence", "Status",
         "Created", "Hits", "Superseded", "Impact", "Notes"]
 
-# Tunables. BUDGET is env-overridable per wiki: a large curated wiki sets
-# WIKI_CLAIM_BUDGET to its real scale so writes don't spuriously force eviction.
-BUDGET = int(os.environ.get("WIKI_CLAIM_BUDGET", "40"))  # max active hot claims before eviction
+# Tunables. Budget is resolved per-wiki at runtime (resolve_budget): the
+# WIKI_CLAIM_BUDGET env var wins, else a "budget" persisted in .gate-state.json,
+# else this default. A large curated wiki records its real scale once via
+# `gate.py set-budget N` instead of re-exporting the env var every invocation.
+DEFAULT_BUDGET = 40  # max active hot claims before eviction
 DEDUP_RATIO = 0.82   # claim-text similarity at/above this = near-duplicate
 RESTATE_RATIO = 0.70 # impact this similar to the claim = not a real justification
 COLD_HITS = 1        # demote active claims with hits <= this ...
@@ -166,6 +168,24 @@ def reset_writes(wiki):
     p.write_text(json.dumps(st, indent=2))
 
 
+def resolve_budget(wiki):
+    """Active-claim budget for this wiki: env var > persisted state > default.
+
+    Persisting per-wiki (via set-budget) lets a large curated KB record its real
+    scale once instead of re-supplying WIKI_CLAIM_BUDGET on every invocation,
+    while small wikis keep the default's curation pressure.
+    """
+    env = os.environ.get("WIKI_CLAIM_BUDGET")
+    if env:
+        return int(env)
+    p = state_path(wiki)
+    if p.exists():
+        b = json.loads(p.read_text()).get("budget")
+        if b is not None:
+            return int(b)
+    return DEFAULT_BUDGET
+
+
 # ---------- per-write gates ----------
 
 def gate_check(wiki, entry):
@@ -173,6 +193,7 @@ def gate_check(wiki, entry):
     path = wiki / "CLAIMS.md"
     _, rows, _ = parse(path)
     acts = active(rows)
+    budget = resolve_budget(wiki)
     fails = []
 
     # 1. typed slot
@@ -228,12 +249,12 @@ def gate_check(wiki, entry):
 
     # 5. hard budget cap — eviction is a precondition of the add
     nid = next_id(wiki, *rows)
-    if len(acts) >= BUDGET:
+    if len(acts) >= budget:
         victim = min(acts, key=score)
         return {"verdict": "EVICT_FIRST", "gate": "budget",
-                "active": len(acts), "budget": BUDGET, "new_id": nid,
+                "active": len(acts), "budget": budget, "new_id": nid,
                 "evict": victim["ID"], "evict_score": round(score(victim), 2),
-                "instruction": (f"budget {BUDGET} reached ({len(acts)} active). "
+                "instruction": (f"budget {budget} reached ({len(acts)} active). "
                                 f"Demote lowest-value claim {victim['ID']} "
                                 f"(score {round(score(victim),2)}) to CLAIMS-cold.md "
                                 f"via `gate.py demote --force {victim['ID']}` "
@@ -412,11 +433,12 @@ def cmd_audit(args):
     """Re-check budget + schema over the live file. Wired into the workflow's
     Verification step so a hand-edit that bypassed `check` still fails the run."""
     wiki = Path(args.wiki)
+    budget = resolve_budget(wiki)
     _, rows, _ = parse(wiki / "CLAIMS.md")
     acts = active(rows)
     problems = []
-    if len(acts) > BUDGET:
-        problems.append(f"over budget: {len(acts)} active > {BUDGET}")
+    if len(acts) > budget:
+        problems.append(f"over budget: {len(acts)} active > {budget}")
     for r in rows:
         if r["Status"] in ("active", "") and r["Kind"] and r["Kind"] not in KINDS:
             problems.append(f"{r['ID']} bad kind {r['Kind']!r}")
@@ -424,7 +446,7 @@ def cmd_audit(args):
             problems.append(f"{r['ID']} bad confidence {r['Confidence']!r}")
     st = json.loads(state_path(wiki).read_text()) if state_path(wiki).exists() else {}
     due = st.get("writes_since_maint", 0) >= MAINT_EVERY
-    print(json.dumps({"active": len(acts), "budget": BUDGET, "problems": problems,
+    print(json.dumps({"active": len(acts), "budget": budget, "problems": problems,
                       "maintenance_due": due}, indent=2))
     return 0 if not problems else 5
 
@@ -456,11 +478,23 @@ def cmd_migrate(args):
     return 0
 
 
+def cmd_set_budget(args):
+    """Persist the active-claim budget for this wiki in .gate-state.json so a
+    large curated KB records its real scale once, instead of re-supplying
+    WIKI_CLAIM_BUDGET on every invocation (the env var still overrides this)."""
+    wiki = Path(args.wiki)
+    p = state_path(wiki)
+    st = json.loads(p.read_text()) if p.exists() else {}
+    st["budget"] = int(args.value)
+    p.write_text(json.dumps(st, indent=2))
+    print(json.dumps({"budget": st["budget"], "state": str(p)}, indent=2))
+    return 0
+
+
 def cmd_selftest(args):
     """Build a throwaway wiki and assert every gate fires. No framework; the one
     runnable check that proves the gates still bite after edits."""
     import tempfile
-    global BUDGET
     tmp = Path(tempfile.mkdtemp(prefix="gate-selftest-"))
     try:
         (tmp / "eval").mkdir()
@@ -484,11 +518,17 @@ def cmd_selftest(args):
                                 "kind": "config-fact"})["verdict"] == "MERGE", "near-dup -> MERGE"
         assert gate_check(tmp, {**good, "supersedes": "C-9999"})["gate"] == "supersede", "bad supersede"
 
-        old, BUDGET = BUDGET, 2
+        os.environ["WIKI_CLAIM_BUDGET"] = "2"
         try:
-            assert gate_check(tmp, good)["verdict"] == "EVICT_FIRST", "over budget -> EVICT_FIRST"
+            assert gate_check(tmp, good)["verdict"] == "EVICT_FIRST", "env budget -> EVICT_FIRST"
         finally:
-            BUDGET = old
+            del os.environ["WIKI_CLAIM_BUDGET"]
+
+        # persisted per-wiki budget forces eviction without the env var
+        cmd_set_budget(ns(value=2))
+        assert resolve_budget(tmp) == 2, "set-budget persisted to .gate-state.json"
+        assert gate_check(tmp, good)["verdict"] == "EVICT_FIRST", "persisted budget -> EVICT_FIRST"
+        cmd_set_budget(ns(value=99))  # clear pressure for later cases
 
         (tmp / "p_bad.json").write_text(json.dumps({"prune": ["C-0001"]}))
         assert cmd_consolidate(ns(plan=str(tmp / "p_bad.json"))) == 4, "eval-breaking prune reverts"
@@ -556,6 +596,10 @@ def main():
 
     mi = sub.add_parser("migrate", help="rewrite CLAIMS.md to the canonical 12-column schema")
     mi.set_defaults(fn=cmd_migrate)
+
+    sb = sub.add_parser("set-budget", help="persist this wiki's active-claim budget")
+    sb.add_argument("value", type=int, help="max active hot claims")
+    sb.set_defaults(fn=cmd_set_budget)
 
     s = sub.add_parser("selftest", help="assert every gate fires (no framework)")
     s.set_defaults(fn=cmd_selftest)
