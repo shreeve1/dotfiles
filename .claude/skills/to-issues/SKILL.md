@@ -127,7 +127,7 @@ created: {YYYY-MM-DD}
 
 ## Verification
 
-{exact command(s) Ralph will run to verify, e.g. `npm test && npm run typecheck`}
+{exact command(s) Ralph will run to verify, e.g. `npm test && npm run typecheck`. MUST be on a single line inside a single pair of backticks (`), never a fenced code block (```).}
 
 ## Blocked by
 

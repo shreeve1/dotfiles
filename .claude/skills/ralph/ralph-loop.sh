@@ -897,6 +897,9 @@ extract_runnable_verification() {
   local file="$1" section
   section=$(awk '/^##[[:space:]]+Verification/{p=1;next} /^##[[:space:]]/{if(p)exit} p' "$file" | tr '\n' ' ')
   [[ -n "$section" ]] || return 0
+  if [[ "$section" == *"\`\`\`"* ]]; then
+    return 0
+  fi
   printf '%s' "$section" | awk '
     {
       n = split($0, a, "`")

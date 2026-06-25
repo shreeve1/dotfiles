@@ -26,10 +26,20 @@ Podium instead of Ralph's local kanban.
 2. Draft vertical tracer-bullet slices using the `/to-issues` rules:
    - each slice is end-to-end and independently useful;
    - acceptance criteria are objective;
-   - verification is a repo-correct runnable command, not prose — slicer-created
-     issues are stamped `auto_land=true`, and review backstop re-runs this command;
+   - verification is a repo-correct runnable command, not prose — must be on a
+     single line wrapped in a single pair of single backticks (`), never a fenced
+     code block (```); slicer-created issues are stamped `auto_land=true`, and
+     review backstop re-runs this command;
    - blockers are explicit;
    - `locks` labels identify resources that must not co-run.
+   - **Migration lock (C-0335):** any slice that creates an Alembic
+     revision under `web/api/migrations/` MUST carry `locks: [migrations]`.
+     Parallel slices branching a new revision from the same parent produce
+     two Alembic heads (e.g. #136 + #137 both created `0012_*` from `0011`).
+     Use the single coarse `migrations` lock on *every* migration-creating
+     slice — not a per-file lock — because two *different* new migrations from
+     the same head still collide; Symphony's dispatch lock enforcement then
+     serializes them so the second branches from the first's landed head.
 3. Show the proposed slices and ask the operator to approve granularity,
    dependencies, locks, and verification commands. This skill is
    authoring-time; do not use it inside unattended dispatch.
