@@ -14,6 +14,7 @@
     "extensions/@juicesharp/rpiv-i18n",
     "extensions/rpiv-web-tools",
     "extensions/@juicesharp/rpiv-args",
+    "extensions/pi-retry",
     {
       "source": "extensions/rpiv-pi",
       "skills": ["skills/personalize-harness-pi/SKILL.md"]
