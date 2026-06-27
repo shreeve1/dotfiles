@@ -25,7 +25,7 @@ PI_MODEL_ARGS: Optional Pi model selector array from the raw arguments:
 - `--provider <name>` — pass through to Pi as `("--provider" "<name>")`
 - `--claude` or `--opus` — set to `("--model" "opus")`
 - `--sonnet` — set to `("--model" "sonnet")`
-- Omitted — set to `("--model" "openai-codex/gpt-5.5")`
+- Omitted — empty array (use Pi's configured default model)
 - Multiple conflicting model flags present — ask the user to choose one before running the reviewer
 
 ## Checklist
@@ -62,7 +62,7 @@ You MUST create a task for each of these items and complete them in order:
    - If `--sonnet` is present, set `PI_MODEL_ARGS` to `("--model" "sonnet")`
    - If `--gpt` is present, explain that Pi supports many providers; ask the user for an explicit `--model <provider/model>` or `--provider <name> --model <pattern>`
    - If multiple conflicting model flags are present, ask the user which reviewer model to use and stop until they answer
-   - If no model/provider flags are present, set `PI_MODEL_ARGS` to `("--model" "openai-codex/gpt-5.5")`
+   - If no model/provider flags are present, set `PI_MODEL_ARGS` to an empty array (Pi uses its configured default)
    - Remove model/provider flags from the argument string before interpreting TARGET
 
    Scan the conversation context for:
@@ -269,7 +269,7 @@ You MUST create a task for each of these items and complete them in order:
    Notes:
    - `--model <pattern>` and `--provider <name>` pass through to Pi.
    - `--claude` and `--opus` map to `--model opus`; `--sonnet` maps to `--model sonnet`.
-   - If neither model flag is provided, use `PI_MODEL_ARGS=("--model" "openai-codex/gpt-5.5")`.
+   - If neither model flag is provided, use an empty `PI_MODEL_ARGS` (Pi uses its configured default).
    - Explicit `--model <pattern>` or `--provider <name>` arguments override this default.
    - Do not pass `--tools`, `--no-context-files`, `--no-skills`, `--no-prompt-templates`, or `--no-extensions`; this skill intentionally runs Pi as it would run for the user.
    - **Exception — subagent delegation:** always pass `--exclude-tools "Agent,get_subagent_result,steer_subagent"`. If the `@tintinweb/pi-subagents` extension is installed, the reviewer model will delegate repo reading to an `Explore`/`Plan` subagent whose findings land in a separate notification channel (`.pi/output/agent-*.jsonl`) that `pi --print` does NOT capture — the parent's final stdout message is then just a content-free "incorporated the Explore result" ack and the review comes back empty. Excluding only the three subagent tools keeps file read/grep, web-tools, skills, and context intact, so the analysis stays in the parent agent → stdout. The denylist is harmless when the extension is absent (unmatched names are ignored).
