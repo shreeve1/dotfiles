@@ -193,7 +193,12 @@ END_OF_FINDINGS
 ```bash
 OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
 PID_FILE=$(mktemp /tmp/devplan-review-pid-XXXXXX.txt)
-PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
+# Empty REVIEWER_MODEL -> empty array -> pi uses its configured default model
+if [ -n "$REVIEWER_MODEL" ]; then
+  PI_MODEL_ARGS=( --model "$REVIEWER_MODEL" )
+else
+  PI_MODEL_ARGS=()
+fi
 
 # setsid puts pi in its own session/process group (PPID=1 after detach);
 # < /dev/null protects against stdin/tty contention; shell & returns immediately.
