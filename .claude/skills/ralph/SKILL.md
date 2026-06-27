@@ -27,13 +27,13 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default Pi agent (openai-codex/gpt-5.5)
+tralph                                      # normal tmux, default Pi agent (uses Pi's configured default model)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --no-auto-review-blocked             # disable inline auto-repair; a BLOCKED issue stops the loop
 tralph --no-review-each                     # disable the default per-issue review on DONE (trust the implementer)
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'pi --model openai-codex/gpt-5.5' tmux
+tralph --agent-cmd 'pi --model deepseek/deepseek-v4-pro' tmux  # explicit model override
 tralph pi                                   # Pi non-interactive adapter
 ```
 
@@ -344,10 +344,10 @@ For the selected issue:
 
    ```bash
    # Pi non-interactive reviewer
-   pi --no-session --model openai-codex/gpt-5.5 -p "$(cat reviewer-prompt.txt)"
+   pi --no-session -p "$(cat reviewer-prompt.txt)"
 
    # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --model openai-codex/gpt-5.5"
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi"
    tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
    tmux send-keys -t ralph-review-<ID>:0.0 Enter
    ```

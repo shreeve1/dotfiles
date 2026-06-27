@@ -9,7 +9,7 @@
 #   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
 #   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
 #   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
-#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with openai-codex/gpt-5.5)
+#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with its configured default model)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
 #   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
@@ -50,7 +50,7 @@ MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
-RALPH_MODEL="${RALPH_MODEL:-openai-codex/gpt-5.5}"
+RALPH_MODEL="${RALPH_MODEL:-}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
@@ -70,7 +70,7 @@ OPTIONS:
   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
-  --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with openai-codex/gpt-5.5)
+  --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with its configured default model)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
@@ -226,8 +226,11 @@ fi
 
 if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
 	printf -v skill_dir_q '%q' "$SKILL_DIR"
-	printf -v model_q '%q' "$RALPH_MODEL"
-	AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
+	AGENT_CMD="pi --skill $skill_dir_q"
+	if [[ -n "$RALPH_MODEL" ]]; then
+		printf -v model_q '%q' "$RALPH_MODEL"
+		AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
+	fi
 fi
 
 case "$ADAPTER" in
@@ -629,7 +632,12 @@ extract_result_issue() {
 run_pi_adapter() {
   local output_file="$1"
   local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"
-  local cmd=(pi --no-session --model "$RALPH_MODEL" --skill "$SKILL_DIR" -p "$full_prompt")
+  local cmd
+  if [[ -n "$RALPH_MODEL" ]]; then
+    cmd=(pi --no-session --model "$RALPH_MODEL" --skill "$SKILL_DIR" -p "$full_prompt")
+  else
+    cmd=(pi --no-session --skill "$SKILL_DIR" -p "$full_prompt")
+  fi
   local rc=0
   "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
 
