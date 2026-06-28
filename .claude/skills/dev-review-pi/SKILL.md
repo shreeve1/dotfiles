@@ -7,7 +7,7 @@ description: Independent code review using Pi Coding Agent as the reviewer. USE 
 
 Independent review using a fresh Pi Coding Agent invocation as the reviewer. The primary agent extracts the review target from conversation context, gathers surrounding codebase context, writes a structured brief, and sends it to `pi --print`.
 
-Pi runs with its normal default tools, extensions, skills, prompt templates, and context loading, as if launched directly by the user. The reviewer is instructed to stay review-only; the primary agent verifies the working tree after review and surfaces any unexpected modifications before applying agreed changes.
+Pi runs with its normal default tools, extensions, skills, prompt templates, and context loading, as if launched directly by the user. The reviewer is instructed to stay review-only; the primary agent verifies the working tree after review, then applies the reviewer's findings autonomously — no human-in-the-loop gate. Drift and primary-agent disagreements are recorded in the report, not used as pause points.
 
 This skill is the single source of truth for `dev-review-pi`. Invoke it with `/skill:dev-review-pi`.
 
@@ -33,12 +33,12 @@ PI_MODEL_ARGS: Optional Pi model selector array from the raw arguments:
 You MUST create a task for each of these items and complete them in order:
 
 1. **Extract review target** — identify what to review from conversation context or argument (file, plan, build diff, OR inline proposal)
-2. **Verify target with user** — confirm scope before sending to the reviewer
-3. **Gather surrounding context** — read related files, conventions, plans
-4. **Build review brief** — assemble structured context document
-5. **Run Pi review** — execute `pi --print` with the bounded review brief and normal Pi defaults
-6. **Present and discuss findings** — parse reviewer output, discuss interactively
-7. **Apply agreed changes** — implement only what the user agrees on
+2. **Gather surrounding context** — read related files, conventions, plans
+3. **Build review brief** — assemble structured context document
+4. **Run Pi review** — execute `pi --print` with the bounded review brief and normal Pi defaults
+5. **Parse findings** — extract structured findings from reviewer output
+6. **Apply findings** — implement all reviewer findings autonomously, then report
+7. **Verify changes** — detect & run the project's test/lint command once, report pass/fail (does not block)
 
 ## Instructions
 
@@ -46,12 +46,12 @@ You MUST create a task for each of these items and complete them in order:
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
 - **Reviewer runs as normal Pi.** Use `pi --print` with prompt content in a temp file referenced as `@$PROMPT_FILE`. Do not apply tool allowlists, context suppressions, extension suppressions, or permission restrictions — with one narrow exception: the subagent-spawning tools (`Agent,get_subagent_result,steer_subagent`) are denied via `--exclude-tools`, because subagent output bypasses `pi --print` capture (see Phase 3 notes). Everything else stays at Pi defaults.
 - **Review-only by instruction, not by permission.** Pi keeps normal default capabilities; the primary agent must compare working-tree status before and after the review.
-- **Present reviewer findings faithfully.** Don't soften or reinterpret. Show what the reviewer actually said, then add your own assessment separately.
-- **Flag disagreements.** Where the primary agent and the reviewer disagree — that's where the interesting discussion lives.
+- **Apply findings autonomously.** Parse the reviewer's findings and implement them directly. No confirm gate, no discussion round.
+- **Record disagreements, don't gate on them.** Where the primary agent disagrees with a finding, apply it anyway (autonomous mode) and note the disagreement in the report so the user sees it after the fact.
 
 ## Workflow
 
-### Phase 1: Extract and Verify
+### Phase 1: Extract
 
 1. **Extract Review Target**
 
@@ -81,27 +81,9 @@ You MUST create a task for each of these items and complete them in order:
 
    If no TARGET and nothing clear in context: ask the user what to review. When inline proposals AND on-disk artifacts both exist in context, list both and let the user choose.
 
-2. **Verify Scope with User**
-
-   Before sending to the reviewer, present what you'll review:
-
-   ```
-   I'll send the following to a fresh Pi Coding Agent session for review:
-
-   Target: [description of what's being reviewed]
-   Context files: [list of related files you'll include]
-   Review focus: [gaps / plan compliance / correctness / completeness / all of the above]
-   Pi model/provider: [default or chosen args]
-   Pi execution: normal defaults (no tool allowlist or context suppression)
-
-   Does this look right? Should I add or remove anything?
-   ```
-
-   Wait for user confirmation. Adjust scope based on feedback.
-
 ### Phase 2: Gather and Build Brief
 
-3. **Gather Surrounding Context**
+2. **Gather Surrounding Context**
 
    Based on the review target, read:
 
@@ -117,7 +99,7 @@ You MUST create a task for each of these items and complete them in order:
 
    **For build reviews:**
    - Run `git status` to capture all changes (tracked + untracked), then `git diff` and `git diff --staged` for details
-   - **Preflight check:** if working tree is clean, report "nothing to review" and stop. If there are changes unrelated to the plan, warn the user before proceeding.
+   - **Preflight check:** if working tree is clean, report "nothing to review" and stop. Otherwise review all uncommitted changes as-is — autonomous mode reviews the whole diff, no "unrelated changes" filter.
    - The plan the build was based on (if available)
    - Test files for modified code
    - Files that import or depend on changed files
@@ -136,7 +118,7 @@ You MUST create a task for each of these items and complete them in order:
 
    **Keep context focused.** Include summaries for large files, full content for small ones. Target a brief under ~8K lines total. If the brief exceeds this, summarize older/larger files and focus on the most relevant excerpts. Pi can inspect the repo with its normal tools, but the brief should still contain the review target and key context.
 
-4. **Build Review Brief**
+3. **Build Review Brief**
 
    Assemble a structured brief. This is what the reviewer receives.
 
@@ -161,7 +143,7 @@ You MUST create a task for each of these items and complete them in order:
 
    ## Review Instructions
 
-   You are an independent reviewer running in a fresh Pi Coding Agent session with normal Pi capabilities. Review only — DO NOT modify any files. The primary agent will apply any agreed changes later.
+   You are an independent reviewer running in a fresh Pi Coding Agent session with normal Pi capabilities. Review only — DO NOT modify any files. The primary agent will apply changes derived from your findings later.
 
    Analyze for:
    - Gaps and missing considerations
@@ -181,7 +163,7 @@ You MUST create a task for each of these items and complete them in order:
 
 > Canonical backgrounded-`pi --print` reviewer engine. `/dev-plan --loop` Phase 9.2 reuses this engine inline — keep the two in sync if either changes.
 
-5. **Execute Pi Review**
+4. **Execute Pi Review**
 
    **Determine project root:**
    ```bash
@@ -199,6 +181,7 @@ You MUST create a task for each of these items and complete them in order:
    PID_FILE=$(mktemp /tmp/pi-review-pid-XXXXXX.txt)
    BASE_STATUS_FILE=$(mktemp /tmp/pi-review-status-before-XXXXXX.txt)
    AFTER_STATUS_FILE=$(mktemp /tmp/pi-review-status-after-XXXXXX.txt)
+   SNAP_DIR=$(mktemp -d /tmp/pi-review-snap-XXXXXX)
    DONE_NONCE="$(date +%s)_$RANDOM"
    DONE_MARKER="PI_REVIEW_DONE_$DONE_NONCE"
    # Do NOT trap-rm these on EXIT: Pi runs backgrounded across separate tool
@@ -216,12 +199,20 @@ You MUST create a task for each of these items and complete them in order:
    } > "$PROMPT_FILE"
    ```
 
-   **5a. Launch the reviewer detached (one synchronous Bash call — do NOT also set `run_in_background: true`):**
+   **4a. Launch the reviewer detached (one synchronous Bash call — do NOT also set `run_in_background: true`):**
 
    `setsid` puts pi in its own session/process group (PPID becomes 1 immediately after detach), so SIGHUP on launcher exit and parent-pgid signals can't reach it. `< /dev/null` removes stdin/tty contention. The shell-level `&` lets the launcher return in ~1s; subsequent polls run in their own short Bash calls.
 
    ```bash
    git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
+
+   # Snapshot pre-review content of every changed tracked file so reviewer
+   # drift can be reverted per-path without losing intentional pre-review edits.
+   git -C "$PROJECT_ROOT" status --short | cut -c4- | while read -r p; do
+     [ -f "$PROJECT_ROOT/$p" ] || continue
+     mkdir -p "$SNAP_DIR/$(dirname "$p")"
+     cp "$PROJECT_ROOT/$p" "$SNAP_DIR/$p"
+   done
 
    (
      cd "$PROJECT_ROOT"
@@ -249,12 +240,11 @@ You MUST create a task for each of these items and complete them in order:
 
    **Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns synchronously after the 1s sanity sleep. Combining both with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
 
-   **5b. Poll for completion in *separate* Bash calls (do not block in one call):**
+   **4b. Poll for completion in *separate* Bash calls (do not block in one call):**
    Each poll is its own short Bash invocation so the review stays observable and
    never dies on a hard `timeout`. Completion = the `$DONE_MARKER` appears in
    `$OUTPUT_FILE`, or the PID has exited. On a soft cap (default 600s of
-   wall-clock across polls), leave the process running and ask the user whether
-   to keep waiting or abort — never SIGKILL here.
+   wall-clock across polls), leave the process running and keep polling — autonomous mode does not prompt the user. Never SIGKILL here.
    ```bash
    PID=$(cat "$PID_FILE")
    if grep -q "$DONE_MARKER" "$OUTPUT_FILE" 2>/dev/null; then
@@ -277,9 +267,9 @@ You MUST create a task for each of these items and complete them in order:
    **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files with normal Pi capabilities, but the diff remains the authoritative review target.
 
    **Capture output reliably:**
-   - Redirect stdout+stderr to `$OUTPUT_FILE`; poll it across separate calls (step 5b).
+   - Redirect stdout+stderr to `$OUTPUT_FILE`; poll it across separate calls (step 4b).
    - Treat the run as complete when `$DONE_MARKER` appears in `$OUTPUT_FILE`, or when the PID has exited. The marker bounds the findings region so preamble/thinking is easy to discard.
-   - The soft cap (default 600s) only leaves the process running and prompts the user — it must not SIGKILL the review.
+   - The soft cap (default 600s) only marks elapsed time — keep polling (autonomous mode does not prompt the user). It must not SIGKILL the review.
    - Once complete, read `$OUTPUT_FILE` and parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
 
    **Verify read-only behavior:**
@@ -288,15 +278,19 @@ You MUST create a task for each of these items and complete them in order:
      git -C "$PROJECT_ROOT" status --short > "$AFTER_STATUS_FILE" 2>/dev/null || true
      if ! cmp -s "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"; then
        diff -u "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE" || true
-       # Stop and ask the user before presenting findings or applying anything.
+       # DRIFT = unauthorized reviewer edits. Restore every path present in
+       # AFTER but not BASE from the pre-review snapshot ($SNAP_DIR) so Phase 4
+       # runs on a clean tree. (Paths already changed before review keep their
+       # pre-review content; the reviewer's delta is dropped.) Caveat: paths
+       # with spaces or mid-review renames need manual restoration.
      fi
      ```
    - This comparison is required even for build reviews, because the tree may already have intentional changes before review starts.
-   - If files changed unexpectedly, stop and surface the changed paths before presenting findings.
-   - Do not apply or revert reviewer changes without explicit user confirmation.
+   - **Drift = unauthorized reviewer edits (review-only was violated).** Autonomous rule: restore every newly-drifted path from the pre-review snapshot before applying findings; record restored paths in the report. Never apply Phase 4 findings on a contaminated tree.
 
    **Clean up temp files after parsing:** because Pi runs backgrounded, there is no EXIT trap — remove the temp files explicitly only after findings are parsed and the read-only check is done:
    ```bash
+   rm -rf "$SNAP_DIR"
    rm -f "$REVIEW_FILE" "$PROMPT_FILE" "$OUTPUT_FILE" "$PID_FILE" "$BASE_STATUS_FILE" "$AFTER_STATUS_FILE"
    ```
 
@@ -306,50 +300,58 @@ You MUST create a task for each of these items and complete them in order:
    - If the reviewer output is empty: note the issue and offer primary-agent-only fallback.
    - If the reviewer modifies files despite the review-only instruction: surface that in the report.
 
-### Phase 4: Present and Discuss
+### Phase 4: Apply Findings
 
-6. **Present Findings**
+5. **Apply Findings**
 
-   Parse reviewer output and present organized by severity:
+   Parse the reviewer output for `[Critical|Warning|Note]:` findings and implement them directly — no discussion round, no confirm gate.
 
-   **Critical findings** (will cause problems):
-   - Quote the reviewer's finding
-   - Your assessment: agree / disagree / nuance
-   - Suggested resolution
+   - For each finding, apply the suggested resolution with precise, surgical edits.
+   - Apply every finding the reviewer emitted (autonomous mode). If the primary agent disagrees with a finding, apply it anyway and record the disagreement in the report — disagreements are logged, not gated on.
+   - **Detect conflicting findings before applying.** If two findings target the same file/region with opposing directives (e.g. "add error handling to X" vs "simplify X by removing it"), skip BOTH, log them under Skipped in the report with the conflict reason. Do not thrash by applying both or last-write-wins.
+   - **Handle unparseable output.** If the reviewer output is non-empty but yields zero `[Critical|Warning|Note]:` findings (freeform text, ignored format), re-prompt the reviewer once with a stricter format reminder. If still zero, fall back to primary-agent parse: read the raw output, extract the substantive issues yourself, apply those, and note the fallback in the report.
+   - Show a summary diff of what changed.
+   - If the reviewer output has no findings: close as a clean review (no changes needed).
 
-   **Warnings** (may cause issues):
-   - Same format
+### Phase 5: Verify
 
-   **Notes** (worth considering):
-   - Same format
+6. **Verify Applied Changes**
 
-   **Reviewer Disagreements:**
-   - Where you disagree with the reviewer, flag it explicitly
-   - Explain your reasoning
-   - Let the user decide
+   After applying findings, run the project's own verify command once. Autonomous apply can break invariants; the report is the user's only signal, so test/lint failure belongs there. **Do not auto-fix, do not loop** — the run is a quality signal, not a blocker. Verify failures are reported; the user decides whether to roll back.
 
-   Then ask the user:
-   - "Which findings do you want to address?"
-   - "Any findings you disagree with or want to explore further?"
+   **Detect the verify command** (first match wins, probed at `$PROJECT_ROOT`):
+   ```bash
+   VERIFY_CMD=""
+   if [ -f "$PROJECT_ROOT/package.json" ] && grep -q '"test"' "$PROJECT_ROOT/package.json"; then
+     VERIFY_CMD="npm test"
+   elif [ -f "$PROJECT_ROOT/Makefile" ] && grep -qE '^test:' "$PROJECT_ROOT/Makefile"; then
+     VERIFY_CMD="make test"
+   elif [ -f "$PROJECT_ROOT/Cargo.toml" ]; then
+     VERIFY_CMD="cargo test"
+   elif [ -f "$PROJECT_ROOT/pyproject.toml" ] || [ -f "$PROJECT_ROOT/setup.py" ] || ls "$PROJECT_ROOT"/test_*.py "$PROJECT_ROOT"/*_test.py >/dev/null 2>&1; then
+     VERIFY_CMD="pytest"
+   elif [ -f "$PROJECT_ROOT/go.mod" ]; then
+     VERIFY_CMD="go test ./..."
+   fi
+   ```
 
-7. **Interactive Discussion**
+   **Run it (single synchronous call, 120s timeout — this is the final phase, no backgrounding):**
+   ```bash
+   VERIFY_LOG=$(mktemp /tmp/pi-review-verify-XXXXXX.txt)
+   if [ -z "$VERIFY_CMD" ]; then
+     echo "skipped: no detectible verify command" > "$VERIFY_LOG"
+   else
+     ( cd "$PROJECT_ROOT" && timeout 120 $VERIFY_CMD ) > "$VERIFY_LOG" 2>&1
+     echo "exit=$?" >> "$VERIFY_LOG"
+   fi
+   # Read $VERIFY_LOG for the report's Verify line, then rm -f it.
+   ```
 
-   Based on user feedback:
-   - Drop findings the user dismisses (with reason)
-   - Deep-dive on areas the user wants to explore
-   - Refine recommendations based on constraints revealed
-   - Converge on agreed changes
-
-### Phase 5: Apply Changes
-
-8. **Apply Agreed Changes**
-
-   After discussion, the primary agent applies the changes the user agreed to:
-   - Make precise, surgical modifications
-   - Show a summary diff of what changed
-   - Do NOT apply anything the user didn't explicitly agree to
-
-   If the user prefers no changes: close the review as discussion-only.
+   - Passed → `Verify: passed`.
+   - Failed (non-zero exit) → `Verify: failed: <cmd> exit <N>` + one-sentence condensed failure from the log. `Outcome` stays `Changes applied` — verify does not block.
+   - Skipped (no command detected) → `Verify: skipped: no detectible verify command`.
+   - Timeout (exit 124) → `Verify: failed: <cmd> timed out after 120s`.
+   - **Do not auto-fix.** A failing verify means the reviewer's suggestion was bad for this code; auto-fixing would compound. Report it and stop.
 
 ## Report
 
@@ -373,9 +375,21 @@ Key Findings:
 - <most important finding 2>
 - <most important finding 3>
 
-Disagreements with reviewer: <N>
+Applied Changes (one line per finding implemented — file:line + edit made):
+- <file:line>: <finding> → <edit made>
+- <file:line>: <finding> → <edit made>
 
-Outcome: <"Changes applied" | "Recommendations discussed" | "No issues found">
+Skipped (conflicting findings):
+- <finding a> ↔ <finding b>: <conflict reason>
+
+Disagreements with reviewer (applied anyway unless skipped — list each with reason):
+- <finding>: <disagreement reason>
+
+Reviewer drift: <"none" | "reverted: <paths>">
+
+Verify: <"passed" | "failed: <cmd> exit <N>" | "failed: <cmd> timed out after 120s" | "skipped: no detectible verify command">
+
+Outcome: <"Changes applied" | "No issues found">
 ```
 
 ## Error Handling
@@ -384,4 +398,7 @@ Outcome: <"Changes applied" | "Recommendations discussed" | "No issues found">
 - **Target not found:** Ask user to clarify what to review.
 - **Reviewer returns error:** Show error, offer retry with another Pi model/provider or primary-agent-only fallback.
 - **Reviewer output empty/trivial:** Note issue, offer primary-agent-only fallback.
+- **Reviewer output malformed (present but unparseable):** Re-prompt once for strict format; if still unparseable, primary-agent parse + note fallback.
+- **Reviewer modified files (drift):** Restore drifted paths from snapshot; record in report; do not apply findings on a contaminated tree.
+- **Verify failed after apply:** Report the failure (cmd, exit, condensed log). Do not auto-fix or loop; the user decides whether to roll back.
 - **No issues found:** Clean review — acknowledge the code is solid as-is.
