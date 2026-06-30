@@ -108,6 +108,9 @@ Podium instead of Ralph's local kanban.
 
 - The live command creates `todo` Podium issues with `auto_land=true` and may make
   them dispatchable on the next scheduler poll. Dry-run first.
+- Slices are also stamped `worktree_active=true`, so each dispatches into its own
+  per-issue git worktree (the operator-authored worktree opt-out — `worktree_active=false`, main-checkout — does not apply to slices). Parallel
+  dispatch stays intact.
 - Dependencies are created blocker-first; dependent `blocked_by` uses the real
   Podium ids returned by earlier inserts.
 - The old `issues import-kanban` mirror is retired. If you need Ralph local
