@@ -1,51 +1,47 @@
 ---
 name: dev-plan
-description: Create a structured implementation plan, technical approach, phased roadmap, or task breakdown for a feature, fix, refactor, or enhancement before writing code. USE WHEN user wants implementation plan, tech approach, phased roadmap, or pre-build task breakdown.
+description: Create a structured implementation plan before writing code. USE WHEN user wants an implementation plan, pre-build task breakdown, or roadmap for a feature, fix, refactor, or enhancement.
 ---
 
 # Create Implementation Plan
 
-Create a detailed implementation plan based on the user's requirements. Analyze the request, think through the implementation approach, and save a comprehensive specification document to `plans/<name-of-plan>.md` that can be used as a blueprint for actual development work.
+Analyze the user's requirements, develop the implementation approach, and save a comprehensive specification to `plans/<name-of-plan>.md` as a blueprint for development.
 
-> **MANDATORY — DO NOT SKIP PHASE 9.** Every invocation of `/dev-plan` runs the pi reviewer audit loop (up to `MAX_ROUNDS=2` rounds, exit early on zero Critical). The loop is **not** optional. If you draft a plan and stop without running Phase 9, you have not completed this skill. There is no flag to disable the loop and no flag to swap the reviewer — pi is the only reviewer backend. Reach Phase 9 every time.
+> Phase 9 runs the pi audit loop every invocation. No flag disables it; no flag swaps the reviewer — pi is the only backend.
 
 ## Variables
 
-- `USER_PROMPT` — user's planning request
+- `USER_PROMPT` — user's planning request (flags stripped)
 - `PLAN_OUTPUT_DIRECTORY` — `plans/`
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
-- `REVIEWER` — fixed to `pi`. No flag to change.
-- `MAX_ROUNDS` — default `2`; override with `--rounds N` where `N >= 1`
-- `REVIEWER_MODEL` — optional model override passed to pi with `--reviewer-model <m>`
+- `MAX_ROUNDS` — audit-loop round cap; default 2 (see **Flag Parsing**)
+- `REVIEWER_MODEL` — optional pi model override (see **Flag Parsing**)
 
 ## Invocation
 
 | Form | Behavior |
 |------|----------|
-| `/dev-plan <prompt>` | Draft, preflight, then run up to `MAX_ROUNDS=2` pi-audit rounds, exit early when a round produces zero Critical (remaining Warning/Note are addressed during that round's revision pass) |
-| `/dev-plan <prompt> --rounds N` | Override max rounds; `N` must be `>= 1` |
-| `/dev-plan <prompt> --reviewer-model <m>` | Pass a model override to pi |
-
-There is no `--no-loop`, no `--reviewer`, no `--rounds 0`. The audit loop is enforced.
+| `/dev-plan <prompt>` | Draft, preflight, then run the Phase 9 audit loop (up to `MAX_ROUNDS`), exit early on zero Critical |
+| `/dev-plan <prompt> <flags>` | Flags parsed per **Flag Parsing**; the loop still runs |
 
 ## Pre-flight
 
-Ensure `plans/` directory exists. If not, create it:
+Ensure `plans/` exists:
 ```bash
 mkdir -p plans/
 ```
 
 ## Flag Parsing
 
-Parse flags from the invocation before anything else, then strip them from `USER_PROMPT`:
+Parse flags from the invocation first, then strip them from `USER_PROMPT`:
 
 | Flag | Effect |
 |------|--------|
-| `--rounds N` | Set `MAX_ROUNDS` to integer `N >= 1` (default 2). Reject `N <= 0` |
-| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi |
+| `--rounds N` | Set `MAX_ROUNDS` to integer `N >= 1` (default 2). Reject `N <= 0`. |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi. |
 
-Any other flag (`--loop`, `--no-loop`, `--reviewer`, `--rounds 0`) — reject with a one-line explanation that the loop and reviewer are enforced. Do not silently accept and skip.
+Any other flag (`--no-loop`, `--reviewer`, `--loop`, `--rounds 0`, …) — reject with a one-line message: the pi audit loop is enforced (no disable, no swap). Do not silently accept and skip.
 
 ## Workflow Overview
 
@@ -58,27 +54,25 @@ Work through these phases in order:
 5. **Plan phases** — structure the implementation into logical phases
 6. **Document Plan** — write comprehensive markdown document following Plan Format
 7. **Generate filename** — create descriptive kebab-case filename
-8. **Save plan file & preflight** — write plan to PLAN_OUTPUT_DIRECTORY/<filename>.md, then run deterministic preflights (Phase 8.1) and fix Criticals before the audit loop
-9. **Reviewer Audit Loop** — MANDATORY: pi audits the plan, you revise, repeat up to `MAX_ROUNDS`, exit early on zero Critical
+8. **Save plan file & preflight** — write plan to PLAN_OUTPUT_DIRECTORY/<filename>.md, then run deterministic preflights (8.1) and fix Criticals before the audit loop
+9. **Reviewer Audit Loop** — pi audits the plan, you revise, repeat up to `MAX_ROUNDS`, exit early on zero Critical
 10. **Validate** — verify plan completeness and coherence
-11. **Report** — present completed plan summary (with loop outcome if the loop ran)
+11. **Report** — present completed plan summary (with loop outcome)
 12. **Route Next Step** — size the build and recommend either `/dev-build` or `/to-issues`
 
 ## Phase Details
 
 ### Phase 1: Parse Requirements
 
-Analyze the USER_PROMPT to understand:
-- What is the core problem or desired outcome?
-- What type of task is this (feature|fix|refactor|enhancement|chore)?
-- What is the complexity level (simple|medium|complex)?
-- What constraints or requirements exist?
-
-Ask clarifying questions if intent is not clear.
+Analyze the USER_PROMPT:
+- Core problem or desired outcome?
+- Task type (feature|fix|refactor|enhancement|chore)?
+- Complexity (simple|medium|complex)?
+- Constraints or requirements?
 
 ### Phase 2: Source Document Discovery
 
-If USER_PROMPT is a file path, read that file directly as the source document.
+If USER_PROMPT is a file path, read it directly as the source document.
 If USER_PROMPT is free text (not a path), check for a source document:
 1. List all `.md` files in both `artifacts/specs/` and `artifacts/brainstorming/` sorted by modification date (most recent first)
 2. If source documents exist, use `AskUserQuestion`: "Found source document: <filename>. Use this as the source for planning and traceability?"
@@ -93,7 +87,7 @@ Explore the codebase directly to understand:
 - Dependencies and integrations
 - Test structure and patterns
 
-Use `Read` and `Grep` tools to gather context. Do not use subagents for this phase.
+Use `Read` and `Grep` to gather context. Do not use subagents for this phase.
 
 ### Phase 4: Design Solution
 
@@ -109,33 +103,27 @@ Document the reasoning behind key decisions.
 ### Phase 5: Plan Phases
 
 Structure the implementation into logical phases:
-- **Phase 1: Foundation** — any foundational work needed
+- **Phase 1: Foundation** — foundational work needed
 - **Phase 2: Core Implementation** — the main implementation work
-- **Phase 3: Integration & Polish** — integration, testing, and final touches
+- **Phase 3: Integration & Polish** — integration, testing, final touches
 
 For simple tasks, phases may be combined. For complex tasks, add more phases as needed.
 
 ### Phase 6: Document Plan
 
-Follow the Plan Format below to create a comprehensive implementation plan with all required sections.
+Follow the **Plan Format** below to create a comprehensive implementation plan with all required sections.
 
 ### Phase 7: Generate Filename
 
-Create a descriptive kebab-case filename based on the plan's main topic, e.g.:
-- `feature-auth-jwt.md`
-- `fix-session-timeout.md`
-- `refactor-api-client.md`
+Create a descriptive kebab-case filename based on the plan's main topic, e.g. `feature-auth-jwt.md`, `fix-session-timeout.md`, `refactor-api-client.md`.
 
 ### Phase 8: Save Plan File & Deterministic Preflight
 
-Write the complete plan to `plans/<filename>.md`. Ensure:
-- Plan is detailed enough that another developer could follow it
-- Code examples or pseudo-code included where appropriate
-- All edge cases and error handling addressed
+Write the complete plan to `plans/<filename>.md`. **Completion criterion:** every `[N.M]` task names a file it modifies or creates, and every entry under `## Relevant Files` is touched by at least one task. Code examples or pseudo-code are included where appropriate.
 
 #### 8.1 Deterministic preflight (runs before the audit loop)
 
-These mechanical checks run in seconds and catch concrete file/tool reality. Running them BEFORE the audit loop (and fixing their Criticals inline) means pi never burns a round re-discovering a missing file or tool — round 1 starts from a mechanically-clean plan and the loop is tightened onto judgment calls. The checks double as the sole safety net when the reviewer is unavailable (9.8).
+These mechanical checks run in seconds and catch concrete file/tool reality. Running them BEFORE the audit loop (and fixing their Criticals inline) means pi never burns a round re-discovering a missing file or tool — round 1 starts from a mechanically-clean plan and the loop is tightened onto judgment calls. They double as the sole safety net when the reviewer is unavailable (9.8).
 
 - **Validation Commands:** for each command in the plan's `## Validation Commands` section, parse out file paths and tool names. Verify referenced files exist on disk and tools are present (`which <tool>`). Anything missing → **Critical**.
 - **Edit-target existence:** for each path the plan claims to modify (under `## Relevant Files` and inline in tasks), verify the file exists OR is explicitly listed under `### New Files`. A claimed-to-modify file that doesn't exist and isn't a new file → **Critical**.
@@ -144,25 +132,23 @@ These mechanical checks run in seconds and catch concrete file/tool reality. Run
 
 **Fix Critical preflights before round 1** — do not just record them. Resolve each inline: a missing claimed-to-modify file → add it under `### New Files` or correct the path; a missing tool in a Validation Command → adjust the command; a missing package manager → add the install step. Record every finding (fixed or not) under a `phase_8_findings` block in `plans/.<feature>.state.yml`, which 8.1 creates now (9.0 extends it with the loop fields). Any rare unresolved Critical → surface in the Phase 11 report as blocking.
 
-### Phase 9: Reviewer Audit Loop (MANDATORY — runs every invocation)
+### Phase 9: Reviewer Audit Loop
 
-This phase is **not optional**. Every `/dev-plan` invocation reaches Phase 9. The only way Phase 9 can end without running at least one full audit round is if the pi backend is genuinely unavailable (binary missing or all rounds fail) — see 9.8. "User did not pass a flag" is not a valid skip reason.
+Round 0 = the Phase 8 draft (after 8.1 preflight fixes). Run rounds 1..`MAX_ROUNDS`: pi audits the on-disk plan against the codebase and emits severity-tagged findings; you revise; repeat. Exit as soon as a round produces zero Critical — its revision still addresses remaining Warnings and cheap Notes inline (no extra re-audit round).
 
-The Phase 8 draft (after Phase 8.1 preflight fixes) is **round 0**. Run rounds 1..`MAX_ROUNDS`: pi audits the on-disk plan against the codebase and emits severity-tagged findings; you revise the plan; repeat. Exit as soon as a round produces zero Critical findings — the converging round's revision still addresses any remaining Warnings and cheap Notes inline before exit (no extra re-audit round).
+Each round re-reads the revised plan from `plans/<feature>.md`, so **rounds are stateless** — no reviewer session continuity is needed. Reuse the reviewer engine inline (9.2). Do NOT invoke `/dev-review-pi` or `/dev-review-claude` — their interactive scope-verify / present / discuss steps would stall an automated loop.
 
-Each round re-reads the revised plan from `plans/<feature>.md`, so **rounds are stateless** — no reviewer session continuity is needed. Reuse the reviewer *engine* inline (the mechanics below). Do **not** invoke the `/dev-review-pi` or `/dev-review-claude` skills — their interactive scope-verify / present / discuss steps would stall an automated loop.
+> **AUTO-REVISE — no gate between rounds.** Parsing findings (9.3) is not a stopping point. Do not present findings to the user, summarize them in chat, or wait for approval before revising. The moment findings are parsed, apply 9.5 and continue automatically. The only user-facing output of Phase 9 is the Phase 11 Loop Outcome block, emitted after the loop has exited. If you find yourself writing "here are the findings" mid-loop, you have violated this rule — revise instead and keep going.
 
-> **AUTO-REVISE — NO GATE BETWEEN ROUNDS.** Parsing findings (9.3) is **not** a stopping point. Do **not** present the findings to the user, summarize them in chat, or wait for approval before revising. The moment findings are parsed, apply 9.5 (revise the plan on disk) and continue the loop automatically. The only user-facing output of Phase 9 is the Phase 11 Loop Outcome block, emitted **after** the loop has exited. If you find yourself writing "here are the findings" to the user mid-loop, you have violated this rule — revise the plan instead and keep going.
-
-Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
+Set `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
 
 #### 9.0 Initialize state
 
-Phase 8.1 already created `plans/.<feature>.state.yml` with the `phase_8_findings` block. Ensure it also carries the loop fields (schema in **State YAML Schema** below): `current_round: 0`, `status: running`, `reviewer: pi`, `max_rounds`, empty `rounds: []`. If Phase 8.1 produced no findings and skipped the write, create the file now with an empty `phase_8_findings` block.
+Phase 8.1 already created `plans/.<feature>.state.yml` with the `phase_8_findings` block. Ensure it also carries the loop fields (schema in **State YAML Schema** below): `current_round: 0`, `status: running`, `reviewer: pi`, `max_rounds`, empty `rounds: []`. If 8.1 produced no findings and skipped the write, create the file now with an empty `phase_8_findings` block.
 
 #### 9.1 Build the round prompt
 
-Write the prompt to a temp file (`PROMPT_FILE=$(mktemp /tmp/devplan-prompt-XXXXXX.md)`).
+Generate the completion sentinel once and reuse it across every bash call this round: `COMPLETION_SENTINEL="DEVPLAN_AUDIT_DONE_$(date +%s)_$RANDOM"`. Write the prompt to a temp file (`PROMPT_FILE=$(mktemp /tmp/devplan-prompt-XXXXXX.md)`), ending it with an instruction to print the sentinel on a final line. When writing the file, **substitute the literal sentinel value** for the `<COMPLETION_SENTINEL>` placeholder in the templates below — the reviewer must print the actual nonce token, and the poll greps for that same value. (Shell vars do not persist across separate bash calls; carry the literal value, as with `$PID_FILE`.)
 
 **Round 1 (Challenge):**
 ```
@@ -189,11 +175,11 @@ Output every finding with a severity tag in this exact format:
 Severity: CRITICAL = will cause execution failure or wrong behavior;
 WARNING = significant risk/gap, can proceed with mitigation; NOTE = minor.
 Do not invent problems. Do not be sycophantic. Be precise. Do NOT modify any
-files — review only. After all findings, on a final line print exactly:
-END_OF_FINDINGS
+files — review only. After all findings, print exactly this on a final line:
+<COMPLETION_SENTINEL>
 ```
 
-**Rounds 2+ (Diff-aware re-review):** same output format, but **diff-scoped** — do NOT re-read the whole plan or re-explore the whole repo (round 1 already covered untouched sections). Build the prompt from the prior round's verbatim findings and the `revision_summary` recorded in the state YAML, so the re-review verifies fixes and scans only the revised sections. The prompt body:
+**Rounds 2+ (Diff-aware re-review):** same output format, but **diff-scoped** — do NOT re-read the whole plan or re-explore the whole repo (round 1 already covered untouched sections). Build the prompt from the prior round's verbatim findings and the `revision_summary` in the state YAML, so the re-review verifies fixes and scans only the revised sections:
 
 ```
 The plan at plans/<feature>.md was revised after round <N-1>'s audit. Do NOT
@@ -205,67 +191,40 @@ sections the revision left untouched. Do exactly two things:
 Prior round findings (verbatim):
 <paste round N-1 findings from the state YAML>
 Revision summary: <paste revision_summary from the state YAML>
+
+<same [CRITICAL]/[WARNING]/[NOTE] output format and severity key as round 1.
+After all findings, print exactly this on a final line: <COMPLETION_SENTINEL>
 ```
 
-End with the same `END_OF_FINDINGS` sentinel instruction. Because rounds are stateless, the prior context rides inline in the prompt — no reviewer session continuity needed.
+Because rounds are stateless, the prior context rides inline in the prompt — no reviewer session continuity needed.
 
-#### 9.2 Run the reviewer (pi)
+#### 9.2 Run the reviewer
 
-`pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Detach it with `setsid`, write the PID to a file, then poll the output file across separate Bash calls** — do not wrap in a blocking `timeout 600s` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
-
-> Canonical backgrounded-`pi --print` reviewer engine. `/dev-review-pi` step 5a uses the same pattern — keep the two in sync if either changes.
-
-**Launch (one synchronous Bash call — do NOT also set `run_in_background: true`):**
+Resolve the model args, then launch via the backgrounded-`pi --print` engine at `~/.claude/skills/_shared/pi-reviewer-engine.md`:
 
 ```bash
-OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
-PID_FILE=$(mktemp /tmp/devplan-review-pid-XXXXXX.txt)
-# Empty REVIEWER_MODEL -> empty array -> pi uses its configured default model
 if [ -n "$REVIEWER_MODEL" ]; then
   PI_MODEL_ARGS=( --model "$REVIEWER_MODEL" )
 else
   PI_MODEL_ARGS=()
 fi
-
-# setsid puts pi in its own session/process group (PPID=1 after detach);
-# < /dev/null protects against stdin/tty contention; shell & returns immediately.
-(
-  cd "$REPO_ROOT"
-  # --exclude-tools denies the pi-subagents Agent/Explore/Plan tools: their
-  # output lands in a notification channel that `pi --print` does not capture,
-  # so delegated findings never reach $OUTPUT_FILE. Denylist is a no-op when the
-  # extension is absent. Keep in sync with dev-review-pi Phase 3.
-  setsid pi --print "${PI_MODEL_ARGS[@]}" \
-    --exclude-tools "Agent,get_subagent_result,steer_subagent" \
-    --append-system-prompt "You are an independent plan auditor. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response." \
-    "@$PROMPT_FILE" \
-    > "$OUTPUT_FILE" 2>&1 < /dev/null &
-  echo $! > "$PID_FILE"
-)
-
-# Sanity check: if pi is dead within 1s and wrote nothing, the launch failed
-# (bad args, missing API key, etc.). Without this, downstream polls spin
-# against an empty output file for the full budget while the harness reports
-# the launcher as "completed".
-sleep 1
-PID=$(cat "$PID_FILE")
-if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
-  echo "pi launch failed: process exited within 1s and produced no output" >&2
-  cat "$OUTPUT_FILE" >&2 2>/dev/null
-  exit 1
-fi
-echo "pi launched pid=$PID"
 ```
 
-**Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns in ~1s. Combining the two with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
+Create the engine's output/pid temp files, then assemble the caller params:
+```bash
+OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
+PID_FILE=$(mktemp /tmp/devplan-review-pid-XXXXXX.txt)
+PROJECT_ROOT="$REPO_ROOT"
+```
+Caller params for the engine: `$PROJECT_ROOT`, `$PROMPT_FILE` and `$COMPLETION_SENTINEL` from 9.1, `$OUTPUT_FILE` / `$PID_FILE` above, and `PI_MODEL_ARGS`. The engine launches with `--exclude-tools "Agent,get_subagent_result,steer_subagent"` and the review-only system prompt, runs the 1s launch-failure sanity check, and is polled in separate Bash calls. This is a plan-file audit — the reviewer is review-only by instruction, so drift detection is not required.
 
-**Poll in separate Bash calls** — each call its own short invocation so the review stays observable. Stop when `$OUTPUT_FILE` contains `END_OF_FINDINGS` or `kill -0 $PID` fails. Surface a one-line progress note each poll. Do not block on a fixed long sleep.
+Poll per the engine until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits. Surface a one-line progress note each poll.
 
 #### 9.3 Parse findings
 
-From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/`[NOTE]`), capturing verbatim text. Compute `critical_count`, `warning_count`, `note_count`. The `END_OF_FINDINGS` sentinel marks clean end-of-output; if it's missing, the output was truncated — record that and treat as a reviewer failure (9.8).
+From `$OUTPUT_FILE`, extract findings by severity tag (`[CRITICAL]`/`[WARNING]`/`[NOTE]`), capturing verbatim text. Compute `critical_count`, `warning_count`, `note_count`. The `$COMPLETION_SENTINEL` marks clean end-of-output; if it's missing, the output was truncated — record that and treat as a reviewer failure (9.8).
 
-After parsing, proceed **directly** to 9.4 then 9.5. Do not pause to report findings to the user — see the AUTO-REVISE guard above.
+Proceed **directly** to 9.4 then 9.5 — do not pause to report findings (AUTO-REVISE).
 
 #### 9.4 Append round to state
 
@@ -285,18 +244,15 @@ Read the findings. Revise `plans/<feature>.md`:
 After the revision pass, if `critical_count == 0` for the round just parsed:
 - `status: converged`, `exit_reason: "Zero critical findings; warnings and notes addressed inline"` → exit loop, go to Validate.
 
-The revision in 9.5 already addressed remaining Warnings (by fix or by Note) and any cheap Notes. **No re-audit round is run** — exit immediately so the loop stops as soon as the reviewer reports no critical issues. If you intentionally dismissed a Warning without changing the plan, record the reasoning in `revision_summary`.
+The revision in 9.5 already addressed remaining Warnings (by fix or by Note) and any cheap Notes. **No re-audit round** — exit immediately. If you intentionally dismissed a Warning without changing the plan, record the reasoning in `revision_summary`.
 
 #### 9.7 Hard stop / loop back
 
-If `current_round >= MAX_ROUNDS`: `status: hard_stopped`, `exit_reason: "Reached MAX_ROUNDS=<N>"` → exit loop, go to Validate. Otherwise loop back to 9.1 for the next round.
+If `current_round >= MAX_ROUNDS`: `status: hard_stopped`, `exit_reason: "Reached MAX_ROUNDS=<N>"` → exit loop, go to Validate. Otherwise loop back to 9.1.
 
 #### 9.8 Reviewer unavailable / failure
 
-Detect before round 1 and on any round failure:
-- **pi binary missing** (`which pi` empty), or **pi exits non-zero**, or **no sentinel / empty output / poll budget exhausted**.
-
-In any of these: set `status: reviewer_unavailable`, record `exit_reason` with the cause, **keep the plan as-is**, and proceed to Validate. Do NOT fail the whole skill — an unaudited plan is still useful. Surface the failure in the Phase 11 report. (Phase 8.1's deterministic preflight is the safety net when the loop couldn't run.)
+Detect before round 1 and on any round failure: pi binary missing (`which pi` empty), pi exits non-zero, or no sentinel / empty output / poll budget exhausted. Per the engine's **Reviewer failure modes**, set `status: reviewer_unavailable`, record `exit_reason` with the cause, **keep the plan as-is**, and proceed to Validate. Do NOT fail the whole skill — an unaudited plan is still useful. Surface the failure in the Phase 11 report. (Phase 8.1's deterministic preflight is the safety net when the loop couldn't run.)
 
 ### Phase 10: Validate
 
@@ -307,13 +263,11 @@ In any of these: set `status: reviewer_unavailable`, record `exit_reason` with t
 - No missing dependencies between tasks
 - Testing strategy is clear and complete
 
-The deterministic preflights (Validation Commands, edit-target existence, test paths, prerequisite tools) already ran in **Phase 8.1** and their Criticals were fixed before round 1 — see `phase_8_findings` in the state YAML. This phase is the post-loop coherence pass; it does not repeat them.
-
-If Phase 9 ran with `status: reviewer_unavailable`, Phase 8.1's preflight is the only safety net that ran — surface any unresolved `phase_8_findings` Criticals in the Phase 11 report as blocking.
+The deterministic preflights (Validation Commands, edit-target existence, test paths, prerequisite tools) already ran in **Phase 8.1** and their Criticals were fixed before round 1 — see `phase_8_findings` in the state YAML. This phase is the post-loop coherence pass; it does not repeat them. If Phase 9 ran with `status: reviewer_unavailable`, surface any unresolved `phase_8_findings` Criticals in the Phase 11 report as blocking.
 
 ### Phase 11: Report
 
-Present the completed plan summary and the routing recommendation from Phase 12. Always include the loop outcome — the loop runs every invocation. See the Report section below.
+Present the completed plan summary and the routing recommendation from Phase 12. Always include the loop outcome. See the **Report** section below.
 
 ### Phase 12: Route Next Step
 
@@ -342,9 +296,7 @@ Emit the recommendation in the Phase 11 report (one line, with the one or two si
 
 - **IMPORTANT**: If no USER_PROMPT is provided, stop and ask the user to provide it.
 - Determine task type (chore|feature|refactor|fix|enhancement) and complexity (simple|medium|complex)
-- Think deeply (ultrathink) about the best approach
 - Follow the Plan Format below exactly
-- Generate descriptive, kebab-case filename
 
 ### Tag Propagation
 
@@ -503,7 +455,7 @@ Run `/dev-build plans/<filename>.md` when ready to implement. (small build — <
 Run `/to-issues plans/<filename>.md` to break this into Ralph-grabbable issues. (large build — <driving signal>)
 ```
 
-Always append the Loop Outcome block (the audit loop always runs):
+Always append the Loop Outcome block:
 
 ```
 Audit Loop (reviewer: pi)

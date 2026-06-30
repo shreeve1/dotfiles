@@ -161,17 +161,17 @@ You MUST create a task for each of these items and complete them in order:
 
 ### Phase 3: Run Pi Reviewer
 
-> Canonical backgrounded-`pi --print` reviewer engine. `/dev-plan --loop` Phase 9.2 reuses this engine inline — keep the two in sync if either changes.
+Launch and poll the reviewer via the backgrounded-`pi --print` engine at `~/.claude/skills/_shared/pi-reviewer-engine.md` — the single source for the `setsid` detach, PID-file persistence, 1s launch-failure check, the `--exclude-tools` subagent-swallow fix, and the separate-call poll loop. This step wires the caller-specific params and drift detection; the engine owns the mechanics.
 
 4. **Execute Pi Review**
 
-   **Determine project root:**
+   **Determine project root** (assign it to `$PROJECT_ROOT`, which the engine and every later step reference — shell vars don't persist across separate bash calls, so carry the literal):
    ```bash
-   git rev-parse --show-toplevel 2>/dev/null
+   PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
    ```
-   - If the target IS inside a git repo: use the repo root as project directory.
-   - If the target is NOT inside a git repo: use its parent directory. Only `plan`, `proposal`, and `file` reviews work outside repos — **reject `build` reviews for non-git targets** and fall back to file review instead.
-   - The project root should be derived from the review target's location, not `pwd`.
+   - If the target IS inside a git repo: use the repo root.
+   - If the target is NOT inside a git repo: set `PROJECT_ROOT` to the target's parent directory. Only `plan`, `proposal`, and `file` reviews work outside repos — **reject `build` reviews for non-git targets** and fall back to file review instead.
+   - Derive `$PROJECT_ROOT` from the review target's location, not `pwd`.
 
    **Write the review brief and prompt to temp files:**
    ```bash
@@ -183,7 +183,7 @@ You MUST create a task for each of these items and complete them in order:
    AFTER_STATUS_FILE=$(mktemp /tmp/pi-review-status-after-XXXXXX.txt)
    SNAP_DIR=$(mktemp -d /tmp/pi-review-snap-XXXXXX)
    DONE_NONCE="$(date +%s)_$RANDOM"
-   DONE_MARKER="PI_REVIEW_DONE_$DONE_NONCE"
+   COMPLETION_SENTINEL="PI_REVIEW_DONE_$DONE_NONCE"
    # Do NOT trap-rm these on EXIT: Pi runs backgrounded across separate tool
    # calls and reads $PROMPT_FILE / writes $OUTPUT_FILE asynchronously. An EXIT
    # trap would delete them mid-run. Clean up explicitly after parsing instead.
@@ -199,13 +199,9 @@ You MUST create a task for each of these items and complete them in order:
    } > "$PROMPT_FILE"
    ```
 
-   **4a. Launch the reviewer detached (one synchronous Bash call — do NOT also set `run_in_background: true`):**
-
-   `setsid` puts pi in its own session/process group (PPID becomes 1 immediately after detach), so SIGHUP on launcher exit and parent-pgid signals can't reach it. `< /dev/null` removes stdin/tty contention. The shell-level `&` lets the launcher return in ~1s; subsequent polls run in their own short Bash calls.
-
+   **4a. Launch the reviewer:** snapshot the pre-review tree (for drift detection in the verify step below), then launch per the engine with `$PROJECT_ROOT`, `$PROMPT_FILE`, `$OUTPUT_FILE`, `$PID_FILE`, `$COMPLETION_SENTINEL`, and `PI_MODEL_ARGS`:
    ```bash
    git -C "$PROJECT_ROOT" status --short > "$BASE_STATUS_FILE" 2>/dev/null || true
-
    # Snapshot pre-review content of every changed tracked file so reviewer
    # drift can be reverted per-path without losing intentional pre-review edits.
    git -C "$PROJECT_ROOT" status --short | cut -c4- | while read -r p; do
@@ -213,62 +209,16 @@ You MUST create a task for each of these items and complete them in order:
      mkdir -p "$SNAP_DIR/$(dirname "$p")"
      cp "$PROJECT_ROOT/$p" "$SNAP_DIR/$p"
    done
-
-   (
-     cd "$PROJECT_ROOT"
-     setsid pi --print \
-       "${PI_MODEL_ARGS[@]}" \
-       --exclude-tools "Agent,get_subagent_result,steer_subagent" \
-       --append-system-prompt "You are an independent code review tool. Follow the requested finding format exactly. Do not modify files. Do all analysis yourself and emit every finding inline in your own final response." \
-       "@$PROMPT_FILE" \
-       > "$OUTPUT_FILE" 2>&1 < /dev/null &
-     echo $! > "$PID_FILE"   # persist PID; separate Bash calls don't share shell vars
-   )
-
-   # Sanity check: if pi died within 1s and produced no output, the launch
-   # failed (bad args, missing API key, etc.). Without this, downstream polls
-   # spin against an empty output file for the full budget while the launcher
-   # already reported "completed" exit 0.
-   sleep 1
-   PID=$(cat "$PID_FILE")
-   if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
-     echo "pi launch failed: process exited within 1s and produced no output" >&2
-     cat "$OUTPUT_FILE" >&2 2>/dev/null
-     exit 1
-   fi
    ```
+   The engine handles the `setsid` detach, PID-file persistence, the 1s launch-failure sanity check, and `--exclude-tools "Agent,get_subagent_result,steer_subagent"` (keeps findings in the parent → stdout). `PI_MODEL_ARGS` was resolved in Phase 1; empty array → Pi's configured default.
 
-   **Do NOT pass `run_in_background: true` on this Bash call.** The shell-level `setsid ... &` is the backgrounding mechanism; the launcher returns synchronously after the 1s sanity sleep. Combining both with the old `... &; disown` pattern caused the harness to report `completed` while pi vanished — see `/tmp/handoff-mf7MKL.md` for the failure mode.
-
-   **4b. Poll for completion in *separate* Bash calls (do not block in one call):**
-   Each poll is its own short Bash invocation so the review stays observable and
-   never dies on a hard `timeout`. Completion = the `$DONE_MARKER` appears in
-   `$OUTPUT_FILE`, or the PID has exited. On a soft cap (default 600s of
-   wall-clock across polls), leave the process running and keep polling — autonomous mode does not prompt the user. Never SIGKILL here.
-   ```bash
-   PID=$(cat "$PID_FILE")
-   if grep -q "$DONE_MARKER" "$OUTPUT_FILE" 2>/dev/null; then
-     echo "done"
-   elif kill -0 "$PID" 2>/dev/null; then
-     echo "running"   # poll again after a short wait, or hand off if past the soft cap
-   else
-     echo "exited"    # process gone; capture $OUTPUT_FILE and check for the marker
-   fi
-   ```
-
-   Notes:
-   - `--model <pattern>` and `--provider <name>` pass through to Pi.
-   - `--claude` and `--opus` map to `--model opus`; `--sonnet` maps to `--model sonnet`.
-   - If neither model flag is provided, use an empty `PI_MODEL_ARGS` (Pi uses its configured default).
-   - Explicit `--model <pattern>` or `--provider <name>` arguments override this default.
-   - Do not pass `--tools`, `--no-context-files`, `--no-skills`, `--no-prompt-templates`, or `--no-extensions`; this skill intentionally runs Pi as it would run for the user.
-   - **Exception — subagent delegation:** always pass `--exclude-tools "Agent,get_subagent_result,steer_subagent"`. If the `@tintinweb/pi-subagents` extension is installed, the reviewer model will delegate repo reading to an `Explore`/`Plan` subagent whose findings land in a separate notification channel (`.pi/output/agent-*.jsonl`) that `pi --print` does NOT capture — the parent's final stdout message is then just a content-free "incorporated the Explore result" ack and the review comes back empty. Excluding only the three subagent tools keeps file read/grep, web-tools, skills, and context intact, so the analysis stays in the parent agent → stdout. The denylist is harmless when the extension is absent (unmatched names are ignored).
+   **4b. Poll per the engine** in separate Bash calls until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits (soft cap 600s wall-clock — keep polling, never SIGKILL).
 
    **For build reviews:** include `git status`, `git diff`, and `git diff --staged` output inline in the brief itself. The reviewer may inspect files with normal Pi capabilities, but the diff remains the authoritative review target.
 
    **Capture output reliably:**
    - Redirect stdout+stderr to `$OUTPUT_FILE`; poll it across separate calls (step 4b).
-   - Treat the run as complete when `$DONE_MARKER` appears in `$OUTPUT_FILE`, or when the PID has exited. The marker bounds the findings region so preamble/thinking is easy to discard.
+   - Treat the run as complete when `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE`, or when the PID has exited. The sentinel bounds the findings region so preamble/thinking is easy to discard.
    - The soft cap (default 600s) only marks elapsed time — keep polling (autonomous mode does not prompt the user). It must not SIGKILL the review.
    - Once complete, read `$OUTPUT_FILE` and parse the review message for `[Critical|Warning|Note]:` patterns to extract structured findings.
 
