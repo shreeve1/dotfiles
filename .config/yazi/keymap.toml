@@ -2,14 +2,20 @@
 prepend_keymap = [
   { on = "<Enter>", run = "plugin smart-enter", desc = "Enter directory or open file" },
   { on = "l", run = "plugin smart-enter", desc = "Enter directory or open file" },
-  # Copy hovered file's full path to system clipboard via OSC 52 (works over SSH)
+  # Copy hovered file's full path to the LOCAL clipboard (OSC 52, works over SSH)
   { on = [
     "c",
     "p",
-  ], run = "shell 'printf \"%s\" \"$0\" | ~/.local/bin/osc52'", desc = "Copy path to clipboard" },
+  ], run = "plugin pull -- path", desc = "Copy path to clipboard" },
   # Copy hovered file's name only
   { on = [
     "c",
     "n",
-  ], run = "shell 'basename \"$0\" | tr -d \"\\n\" | ~/.local/bin/osc52'", desc = "Copy filename to clipboard" },
+  ], run = "plugin pull -- name", desc = "Copy filename to clipboard" },
+  # Copy a ready-to-paste `scp -r <user>@<host>:<hovered> .` to the LOCAL clipboard —
+  # paste on the machine you SSH'd FROM to pull this file/folder over.
+  { on = [
+    "c",
+    "c",
+  ], run = "plugin pull -- scp", desc = "Copy scp pull command to clipboard" },
 ]
