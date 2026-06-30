@@ -137,5 +137,11 @@ bin/*
 # Personal (non-dotfiles) content — not synced
 /personal/
 
+# Machine-local git worktrees (ralph/tralph agent branches)
+/worktrees/
+
+# Machine-local scratch (non-dotfiles)
+/baseten/
+
 # Pi-lens runtime state/cache (nested per-machine install)
 .pi/agent/.pi-lens/
