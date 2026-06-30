@@ -64,6 +64,28 @@ Podium instead of Ralph's local kanban.
        locks: [web-api]
    ```
 
+   Each slice may optionally pin a `model:` (and optionally `agent:`), validated
+   against `models.yml` at load time so a bad/ambiguous model fails before any
+   issue is inserted (ADR-0030):
+
+   ```yaml
+   slices:
+     - key: heavy
+       title: Run on opus
+       description: ...
+       acceptance: [...]
+       verification: uv run pytest -q
+       model: claude-opus-4-8
+       agent: claude
+   ```
+
+   - `model:` must resolve in `models.yml` for the slice's agent (use `provider/id`
+     if the bare id is ambiguous across agents/providers).
+   - `agent:` must be a known agent (`pi` or `claude`). If omitted, the binding's
+     `default_agent` is used; the model's catalog agent must still match it.
+   - Slices without `model:`/`agent:` behave exactly as before.
+   - Validation runs in `--dry-run` too.
+
 5. Dry-run:
 
    ```bash
