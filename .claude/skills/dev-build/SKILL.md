@@ -157,7 +157,7 @@ Before launching a wave:
 
 Capture a tree-ish reference for the working tree's state BEFORE the wave runs. This is required so Phase 7.5.1 can produce a diff that includes uncommitted AND untracked changes (which `<ref>..HEAD` comparisons silently miss) — and it must never mutate the user's real git index.
 
-Mechanics: `dev-build/git-snapshot.md` (throwaway-index snapshot). Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`, then capture `PRE_WAVE_SNAPSHOT`. Record it for Phase 7.5.1.
+Mechanics: READ `dev-build/git-snapshot.md` (throwaway-index snapshot) for the exact capture + diff commands — do not re-derive them. Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`, then capture `PRE_WAVE_SNAPSHOT`. Record it for Phase 7.5.1.
 
 ---
 
@@ -276,7 +276,7 @@ If the file already exists with a `rounds:` block from `/dev-plan --loop`, appen
 
 ### 7.5.1 — Capture the wave's diff (working-tree, includes uncommitted+untracked)
 
-Phase 5's `PRE_WAVE_SNAPSHOT` captured the workspace before the wave. Now capture `POST_WAVE_SNAPSHOT` and diff the two per the throwaway-index mechanics in `dev-build/git-snapshot.md` — this includes uncommitted edits AND untracked new files, which a `<ref>..HEAD` diff would silently drop.
+Phase 5's `PRE_WAVE_SNAPSHOT` captured the workspace before the wave. Now capture `POST_WAVE_SNAPSHOT` and diff the two per the commands in `dev-build/git-snapshot.md` (READ it — do not re-derive the throwaway-index procedure) — this includes uncommitted edits AND untracked new files, which a `<ref>..HEAD` diff would silently drop.
 
 `<files_touched_by_wave>` is the union of the `Files changed:` paths reported by this wave's builders (Phase 6). On the initial audit, write to `/tmp/build_wave_<N>_diff.patch`; on a post-fix re-audit (7.5.5 step 5), write to `/tmp/build_wave_<N>_reaudit_diff.patch` so the original is preserved.
 
@@ -332,22 +332,59 @@ The `Affected files` line is required for Critical and Warning findings so 7.5.5
 
 Each wave's audit is independent — no session continuity across waves.
 
-Resolve the caller params, then launch via the backgrounded-`pi --print` engine at `.claude/skills/_shared/pi-reviewer-engine.md` — the single source for the `setsid` detach, PID-file persistence, 1s launch-failure check, the `--exclude-tools` subagent-swallow fix, the separate-call poll loop, and drift detection. This step wires the caller-specific params; the engine owns the mechanics.
+The launch + poll commands are inlined below (copy-paste them verbatim — weak models must not re-derive the `pi` flags). They mirror `.claude/skills/_shared/pi-reviewer-engine.md`, which stays the canonical source — if the engine changes, update this block to match. The engine exists to fix three failure modes (vanish-on-background, false-completion, subagent-swallow) that a naive `pi --print` invocation hits; do not simplify the `setsid` / PID-file / 1s-check / `--exclude-tools` mechanics away.
+
+Set caller params (each wave fresh — no session continuity):
 
 ```bash
 OUTPUT_FILE=$(mktemp /tmp/devbuild-review-XXXXXX.txt)
 PID_FILE=$(mktemp /tmp/devbuild-pid-XXXXXX)
 PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
 PROJECT_ROOT="$REPO_ROOT"
-BASE_STATUS_FILE=$(mktemp /tmp/devbuild-basestatus-XXXXXX)
-SNAP_DIR=$(mktemp -d /tmp/devbuild-snap-XXXXXX)
 ```
 
-Wiring for the engine: `$PROJECT_ROOT`, `$PROMPT_FILE` (from 7.5.2, with `$COMPLETION_SENTINEL` interpolated into it), `$OUTPUT_FILE` / `$PID_FILE` above, and `PI_MODEL_ARGS`. The engine launches with `--exclude-tools "Agent,get_subagent_result,steer_subagent"` and the review-only system prompt ("You are an independent reviewer. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response."), runs the 1s launch-failure sanity check, and is polled in separate Bash calls.
+Launch (one synchronous Bash call — do NOT also set `run_in_background: true`; the shell-level `setsid ... &` is the backgrounding mechanism):
 
-This is a code review — drift detection IS required (unlike `/dev-plan`'s plan-file audit, which the engine lets skip): wire `$BASE_STATUS_FILE` and `$SNAP_DIR` per the engine's **Drift detection** section (snapshot the pre-review tree; restore any drifted path after). Note: dev-build's PRE/POST throwaway-index snapshots (Phase 5 / 7.5.1) scope the *audit input diff* — a separate mechanism from the engine's drift detection, which guards against the reviewer editing the tree.
+```bash
+(
+  cd "$PROJECT_ROOT"
+  setsid pi --print \
+    "${PI_MODEL_ARGS[@]}" \
+    --exclude-tools "Agent,get_subagent_result,steer_subagent" \
+    --append-system-prompt "You are an independent reviewer. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response, following the requested finding format exactly." \
+    "@$PROMPT_FILE" \
+    > "$OUTPUT_FILE" 2>&1 < /dev/null &
+  echo $! > "$PID_FILE"
+)
 
-Poll per the engine until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits. Surface a one-line progress note each poll.
+# Sanity check: if pi died within 1s and produced no output, the launch failed
+# (bad args, missing API key, etc.). Without this, downstream polls spin against
+# an empty output file for the full budget while the harness reports the
+# launcher as "completed".
+sleep 1
+PID=$(cat "$PID_FILE")
+if ! kill -0 "$PID" 2>/dev/null && [ ! -s "$OUTPUT_FILE" ]; then
+  echo "pi launch failed: process exited within 1s and produced no output" >&2
+  cat "$OUTPUT_FILE" >&2 2>/dev/null
+  exit 1
+fi
+echo "pi launched pid=$PID"
+```
+
+Poll in separate short Bash calls (never one blocking call — a single call can't show progress and dies on a hard timeout) until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits. Surface a one-line progress note each poll:
+
+```bash
+PID=$(cat "$PID_FILE")
+if grep -q "$COMPLETION_SENTINEL" "$OUTPUT_FILE" 2>/dev/null; then
+  echo "done"        # sentinel present → findings region complete
+elif kill -0 "$PID" 2>/dev/null; then
+  echo "running"     # poll again after a short wait
+else
+  echo "exited"      # process gone; check $OUTPUT_FILE for the sentinel
+fi
+```
+
+This is a code review — drift detection IS required (unlike `/dev-plan`'s plan-file audit, which skips it): READ the **Drift detection** section of `_shared/pi-reviewer-engine.md` and apply it — snapshot the pre-review tree before launch, restore any drifted path after. dev-build's PRE/POST throwaway-index snapshots (Phase 5 / 7.5.1) scope the *audit input diff* — a separate mechanism from drift detection, which guards against the reviewer editing the tree.
 
 ### 7.5.4 — Parse findings and handle reviewer failure modes
 
