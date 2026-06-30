@@ -204,6 +204,7 @@ link_path ".config/zellij" ".config/zellij"
 
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
 link_path "bin/rralph" ".local/bin/rralph"
+link_path "bin/osc52" ".local/bin/osc52"
 
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
