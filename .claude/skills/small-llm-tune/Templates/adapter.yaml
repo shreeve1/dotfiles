@@ -1,0 +1,59 @@
+# adapter.yaml for small-llm-tune.
+#
+# The SUT is a SKILL.md being tuned for a small LLM. The runner feeds that
+# SKILL.md to the small model as the system prompt, gives it a probe's input,
+# and verify.sh scores the output against expected.md assertions.
+#
+# Required env (export in the shell that drives the loop so every verify.sh
+# inherits them):
+#   LLM_API_KEY   LLM_MODEL   LLM_BASE_URL   (LLM_TEMPERATURE optional, default 0)
+name: skill-md-tune-FILL_NAME
+loop_mode: self_driven
+
+sut:
+  description: "The SKILL.md being tuned for a small LLM (used as the system prompt)."
+  paths:
+    - SKILL.md
+  live: false
+
+mutator:
+  # The loop edits the SKILL.md BODY only.
+  edit_surface:
+    - "SKILL.md"
+  fixed:
+    # The loop must never edit its own contract, its steering doc, the probes,
+    # or cross the frontmatter boundary marker in SKILL.md.
+    - "adapter.yaml"
+    - "program.md"
+    - "probes/**"
+    - "SKILL.md#FRONTMATTER_BOUNDARY"
+  apply_cmd: null
+  rollback_cmd: "git reset --hard HEAD~1"
+
+probe:
+  dir: probes
+  list_glob: "probes/*/probe.yaml"
+
+verifier:
+  score_file: ".autoagent/last_score"
+  score_file_scope: repo
+  # Small models differ; 0.5 = "got most critical assertions". Tune per skill.
+  pass_threshold: 0.5
+  # verify.sh writes pi-computed usage.cost.total (DOLLARS) to AUTOAGENT_COST_FILE
+  # (falls back to totalTokens when the provider reports no dollar cost). Set the
+  # loop budget in DOLLARS in program.md; the cost column matches that unit.
+  emits_cost: true
+
+runner:
+  # SUT_PATH is injected so verify.sh finds the skill file. {probe} is the
+  # probe dir, substituted by the autoagent loop driver. The runner is `pi -p`
+  # (headless), so each probe is an agentic turn — allow minutes, not seconds.
+  cmd: "SUT_PATH=./SKILL.md bash {probe}/verify.sh"
+  concurrency: 1
+  timeout_seconds: 600
+
+loop:
+  plateau_iterations: 5
+  human_checkpoint_every: 10
+
+# Omit `snapshot:` — sut.live is false.
