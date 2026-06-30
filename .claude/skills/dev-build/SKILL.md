@@ -13,8 +13,7 @@ Use this skill when the user wants to carry out a written implementation plan, e
 
 - `PATH_TO_PLAN` - path to a specific plan file, if provided
 - `PLAN_DIRECTORIES` - `plans/`, `specs/`
-- `AUDIT_MODE` - `critical-only` (default) | `all`. Override with `--audit-mode=<value>`. There is no `off`/`--no-audit`.
-- `REVIEWER` - fixed to `pi`. No flag to change.
+- `AUDIT_MODE` - `critical-only` (default) | `all`. Override with `--audit-mode=<value>`
 - `REVIEWER_MODEL` - optional model override passed to pi with `--reviewer-model <m>`
 
 ---
@@ -30,8 +29,6 @@ Use this skill when the user wants to carry out a written implementation plan, e
 | `/dev-build <plan> --audit-mode=all` | Surface Warnings inline in build output (still auto-fix only on Critical) |
 | `/dev-build <plan> --reviewer-model <m>` | Pass a model override to pi |
 
-There is no `--no-audit`, no `--audit-mode=off`, no `--reviewer`. The wave-end pi audit is enforced.
-
 ## Flag Parsing
 
 Parse flags from the invocation before Phase 1:
@@ -42,7 +39,7 @@ Parse flags from the invocation before Phase 1:
 | `--audit-mode=all` | Audit fires; Warnings also surface in build output (Critical still triggers auto-fix-and-retry) |
 | `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi |
 
-Any other flag (`--no-audit`, `--audit-mode=off`, `--reviewer`) — reject with a one-line explanation that the wave-end pi audit is enforced. Do not silently accept and skip.
+Any other flag — reject with a one-line explanation and do not silently accept and skip. (The wave-end pi audit is enforced — see the banner above.)
 
 ---
 
@@ -158,22 +155,9 @@ Before launching a wave:
 
 ### Pre-wave snapshot (required for every code-changing wave)
 
-Capture a tree-ish reference for the working tree's state BEFORE the wave runs. This is required so Phase 7.5.1 can produce a diff that includes uncommitted AND untracked changes (which `<ref>..HEAD` comparisons silently miss).
+Capture a tree-ish reference for the working tree's state BEFORE the wave runs. This is required so Phase 7.5.1 can produce a diff that includes uncommitted AND untracked changes (which `<ref>..HEAD` comparisons silently miss) — and it must never mutate the user's real git index.
 
-Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
-
-Build the tree in a **throwaway index** via `GIT_INDEX_FILE` so the user's real index (their staged/unstaged split) is never touched. Do NOT use `git add -A; git write-tree; git reset` — the `git reset` is a mixed reset that silently unstages whatever the user had staged before `/dev-build`.
-
-```bash
-# Snapshot the full working tree (tracked + untracked) WITHOUT mutating the real index.
-TMP_INDEX=$(mktemp /tmp/devbuild-index-XXXXXX)
-GIT_INDEX_FILE="$TMP_INDEX" git -C "$REPO_ROOT" add -A
-PRE_WAVE_SNAPSHOT=$(GIT_INDEX_FILE="$TMP_INDEX" git -C "$REPO_ROOT" write-tree)
-rm -f "$TMP_INDEX"
-echo "Wave <N> pre-snapshot: $PRE_WAVE_SNAPSHOT"
-```
-
-Record `PRE_WAVE_SNAPSHOT` for Phase 7.5.1. The same throwaway-index mechanism captures `POST_WAVE_SNAPSHOT` after the wave completes.
+Mechanics: `dev-build/git-snapshot.md` (throwaway-index snapshot). Set `REPO_ROOT` once: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`, then capture `PRE_WAVE_SNAPSHOT`. Record it for Phase 7.5.1.
 
 ---
 
@@ -257,7 +241,7 @@ Checkbox flips are deferred to Phase 7.5.6 — they happen only after the audit 
 
 ## Phase 7.5 — Wave-End Reviewer Audit (MANDATORY — runs after every code-changing wave)
 
-This phase is **not optional**. After a wave's tasks complete and BEFORE moving to the next wave, run a pi audit on the diff this wave produced. The only valid skip path is reviewer-binary-missing (see 7.5 skip conditions). Reviewer is pi — there is no claude option. Do **not** invoke the `/dev-review-pi` skill — its interactive scope-verify / present / discuss steps would stall an automated build; reuse the engine inline per `/dev-plan` Phase 9.2.
+After a wave's tasks complete and BEFORE moving to the next wave, run a pi audit on the diff this wave produced (this runs every code-changing wave — see skip conditions for the only exceptions). Do **not** invoke the `/dev-review-pi` skill — its interactive scope-verify / present / discuss steps would stall an automated build; run the shared engine inline (`.claude/skills/_shared/pi-reviewer-engine.md`).
 
 Set `REPO_ROOT` once if not already set: `REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)`.
 
@@ -282,7 +266,7 @@ If the file already exists with a `rounds:` block from `/dev-plan --loop`, appen
 
 ### Skip conditions
 
-The audit is enforced. The only valid *voluntary* (user-side) skip is none — there is no flag to bypass the audit. *Involuntary* skips are logged with a `skip_reason` and surfaced in the Phase 10 report:
+*Involuntary* skips are logged with a `skip_reason` and surfaced in the Phase 10 report:
 
 - `reviewer_unavailable` — `which pi` is empty. Log once and continue subsequent waves with the same result (don't re-probe per wave). Surface prominently in the Phase 10 report so the user knows the safety net was down.
 - `doc_only` / `zero_diff` — the wave produced no code-changing diff (Phase 7.5.1). Logged and skipped without invoking pi.
@@ -292,23 +276,9 @@ The audit is enforced. The only valid *voluntary* (user-side) skip is none — t
 
 ### 7.5.1 — Capture the wave's diff (working-tree, includes uncommitted+untracked)
 
-Phase 5's `PRE_WAVE_SNAPSHOT` captured the workspace before the wave. Now capture `POST_WAVE_SNAPSHOT` the same way (throwaway index — never `git reset` the real index) and diff between the two — this includes uncommitted edits AND untracked new files, which a `<ref>..HEAD` diff would silently drop.
+Phase 5's `PRE_WAVE_SNAPSHOT` captured the workspace before the wave. Now capture `POST_WAVE_SNAPSHOT` and diff the two per the throwaway-index mechanics in `dev-build/git-snapshot.md` — this includes uncommitted edits AND untracked new files, which a `<ref>..HEAD` diff would silently drop.
 
 `<files_touched_by_wave>` is the union of the `Files changed:` paths reported by this wave's builders (Phase 6). On the initial audit, write to `/tmp/build_wave_<N>_diff.patch`; on a post-fix re-audit (7.5.5 step 5), write to `/tmp/build_wave_<N>_reaudit_diff.patch` so the original is preserved.
-
-```bash
-TMP_INDEX=$(mktemp /tmp/devbuild-index-XXXXXX)
-GIT_INDEX_FILE="$TMP_INDEX" git -C "$REPO_ROOT" add -A
-POST_WAVE_SNAPSHOT=$(GIT_INDEX_FILE="$TMP_INDEX" git -C "$REPO_ROOT" write-tree)
-rm -f "$TMP_INDEX"
-git -C "$REPO_ROOT" diff "$PRE_WAVE_SNAPSHOT" "$POST_WAVE_SNAPSHOT" -- <files_touched_by_wave> > /tmp/build_wave_<N>_diff.patch
-```
-
-If `<files_touched_by_wave>` is empty (the wave didn't declare a file scope and builders reported no paths), diff without the path filter, and set `files_audited` in the state YAML to the full changed set from this diff:
-
-```bash
-git -C "$REPO_ROOT" diff "$PRE_WAVE_SNAPSHOT" "$POST_WAVE_SNAPSHOT" > /tmp/build_wave_<N>_diff.patch
-```
 
 **Empty-diff handling:** if the resulting patch is empty (zero bytes), the wave produced no actual changes. Two sub-cases:
 - The wave's tasks are pure docs/config edits where every changed file matches `*.md|*.txt|*.rst|*.toml|*.cfg|*.ini` → record `outcome: audit_skipped, skip_reason: doc_only` and continue.
@@ -320,7 +290,7 @@ If the patch is non-empty, proceed to 7.5.2.
 
 ### 7.5.2 — Build the audit prompt
 
-Write the prompt to a temp file (`PROMPT_FILE=$(mktemp /tmp/devbuild-prompt-XXXXXX.md)`). The audit is intentionally narrow — diff-only review, no codebase-wide tangents:
+Generate the completion sentinel once and reuse it: `COMPLETION_SENTINEL="DEVBUILD_AUDIT_DONE_$(date +%s)_$RANDOM"` (a nonce — never a fixed word like `END_OF_FINDINGS`, which can false-match inside a finding's evidence block). Write the prompt to a temp file (`PROMPT_FILE=$(mktemp /tmp/devbuild-prompt-XXXXXX.md)`), with the sentinel value **interpolated** into its final line (not the bash variable). The audit is intentionally narrow — diff-only review, no codebase-wide tangents:
 
 ```
 Review the diff at /tmp/build_wave_<N>_diff.patch as a quick sanity check.
@@ -353,7 +323,7 @@ Severity definitions:
   NOTE     = minor concern, optional
 
 If the diff is clean, output exactly: "[NOTE] No findings — diff looks correct."
-After all findings, on a final line print exactly: END_OF_FINDINGS
+After all findings, on a final line print exactly: <COMPLETION_SENTINEL>
 ```
 
 The `Affected files` line is required for Critical and Warning findings so 7.5.5's auto-fix can edit beyond just the file where the bug surfaces.
@@ -362,28 +332,33 @@ The `Affected files` line is required for Critical and Warning findings so 7.5.5
 
 Each wave's audit is independent — no session continuity across waves.
 
-**`pi` backend (default).** `pi --print` gives clean, parseable stdout and does not stall on permission prompts. **Background it and poll the output file** — do not wrap in a blocking `timeout` (a single blocking call can SIGKILL a slow review mid-thought and gives no live observability).
+Resolve the caller params, then launch via the backgrounded-`pi --print` engine at `.claude/skills/_shared/pi-reviewer-engine.md` — the single source for the `setsid` detach, PID-file persistence, 1s launch-failure check, the `--exclude-tools` subagent-swallow fix, the separate-call poll loop, and drift detection. This step wires the caller-specific params; the engine owns the mechanics.
 
 ```bash
 OUTPUT_FILE=$(mktemp /tmp/devbuild-review-XXXXXX.txt)
+PID_FILE=$(mktemp /tmp/devbuild-pid-XXXXXX)
 PI_MODEL_ARGS=( --model "${REVIEWER_MODEL:-openai-codex/gpt-5.5}" )
-( cd "$REPO_ROOT" && pi --print "${PI_MODEL_ARGS[@]}" \
-    --append-system-prompt "You are an independent diff auditor. Review only; do not modify files." \
-    "@$PROMPT_FILE" > "$OUTPUT_FILE" 2>&1 )
+PROJECT_ROOT="$REPO_ROOT"
+BASE_STATUS_FILE=$(mktemp /tmp/devbuild-basestatus-XXXXXX)
+SNAP_DIR=$(mktemp -d /tmp/devbuild-snap-XXXXXX)
 ```
 
-Launch with the Bash tool's `run_in_background`. Then **poll**: read `$OUTPUT_FILE` on an interval, stop when it contains `END_OF_FINDINGS` (audit complete) or the process exits. Surface a one-line progress note each poll. Do not block on a fixed long sleep.
+Wiring for the engine: `$PROJECT_ROOT`, `$PROMPT_FILE` (from 7.5.2, with `$COMPLETION_SENTINEL` interpolated into it), `$OUTPUT_FILE` / `$PID_FILE` above, and `PI_MODEL_ARGS`. The engine launches with `--exclude-tools "Agent,get_subagent_result,steer_subagent"` and the review-only system prompt ("You are an independent reviewer. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response."), runs the 1s launch-failure sanity check, and is polled in separate Bash calls.
+
+This is a code review — drift detection IS required (unlike `/dev-plan`'s plan-file audit, which the engine lets skip): wire `$BASE_STATUS_FILE` and `$SNAP_DIR` per the engine's **Drift detection** section (snapshot the pre-review tree; restore any drifted path after). Note: dev-build's PRE/POST throwaway-index snapshots (Phase 5 / 7.5.1) scope the *audit input diff* — a separate mechanism from the engine's drift detection, which guards against the reviewer editing the tree.
+
+Poll per the engine until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits. Surface a one-line progress note each poll.
 
 ### 7.5.4 — Parse findings and handle reviewer failure modes
 
-After 7.5.3 completes, classify the result. The `END_OF_FINDINGS` sentinel marks clean end-of-output; if missing, the output was truncated.
+After 7.5.3 completes, classify the result. The `$COMPLETION_SENTINEL` marks clean end-of-output; if missing, the output was truncated.
 
 | Condition | Action |
 |-----------|--------|
-| Reviewer exits 0 AND output ends with `END_OF_FINDINGS` | Normal — parse findings by severity tag, capture verbatim text and `Affected files` lines. Proceed to 7.5.5. |
+| Reviewer exits 0 AND output ends with `$COMPLETION_SENTINEL` | Normal — parse findings by severity tag, capture verbatim text and `Affected files` lines. Proceed to 7.5.5. |
 | Poll budget exhausted / no sentinel (process hung or slow) | `skip_reason: reviewer_timeout`. |
 | Reviewer exits non-zero | `skip_reason: reviewer_failed`, capture the last ~50 lines of output as `error_excerpt`. |
-| Exits 0 but output missing `END_OF_FINDINGS` (truncated) | `skip_reason: malformed_output`. Capture what was parseable, log the rest as `error_excerpt`. |
+| Exits 0 but output missing `$COMPLETION_SENTINEL` (truncated) | `skip_reason: malformed_output`. Capture what was parseable, log the rest as `error_excerpt`. |
 
 For the three failure rows, the action depends on which audit failed:
 - **Initial audit:** record `outcome: audit_skipped` with the `skip_reason` above and continue the build (the wave is still considered complete — see 7.5.6).
@@ -407,7 +382,7 @@ Per audit-mode:
 2. **Patch** via `Edit`. Edits are bounded to the union of every Critical finding's `Affected files` list. No opportunistic refactors of files outside that union.
 3. **Re-run the wave's relevant validation:** test or validation commands covering the changed code. Prefer the plan's `## Validation Commands` filtered to this wave's file scope; otherwise targeted `pytest <changed_test_files>` or equivalent. Capture stdout/stderr.
 4. **If validation FAILS:** escalate immediately (skip step 5). The fix didn't work.
-5. **If validation passes:** **re-audit** by running 7.5.1 + 7.5.2 + 7.5.3 once more on the post-fix diff. Do NOT re-enter step 5 after this re-audit (that is what bounds the loop to one attempt). Three outcomes:
+5. **If validation passes:** **re-audit** the post-fix diff. Re-capture `POST_WAVE_SNAPSHOT` (now reflecting the fixes) via the throwaway-index procedure in `dev-build/git-snapshot.md`, diff it against the *original* `PRE_WAVE_SNAPSHOT`, and write the result to `/tmp/build_wave_<N>_reaudit_diff.patch` (preserving the original `..._diff.patch`). Then run 7.5.2 (prompt) + 7.5.3 (engine launch) on that re-audit diff. Do NOT re-enter step 5 after this re-audit (that is what bounds the loop to one attempt). Three outcomes:
    - Re-audit completes and returns NO Critical findings → success. Outcome `auto_fixed`. Append the second audit attempt to the wave's `attempts:` list. Proceed to 7.5.6.
    - Re-audit completes and returns Critical findings (recurring OR new) → escalate (step 6).
    - Re-audit could NOT complete (reviewer_timeout / reviewer_failed / malformed_output per 7.5.4) → the safety re-check is inconclusive, so do NOT treat it as a pass → escalate (step 6).
@@ -584,41 +559,7 @@ Status: Not complete
 
 ## State YAML — `build_audits`
 
-`/dev-build`'s wave audits append to `plans/.<feature>.state.yml` under a `build_audits:` key (one entry per audited wave). This is additive to `/dev-plan`'s loop state — if a `rounds:` block exists from `/dev-plan --loop`, leave it untouched and add `build_audits:` alongside. If no state file exists, create the stub described in Phase 7.5 "State-file location" first. Findings are stored **verbatim** so the trail can be reconstructed later.
-
-```yaml
-build_audits:            # one entry per audited wave
-  - wave: 1
-    reviewer: pi         # always pi
-    reviewer_model: null # set when --reviewer-model given
-    started: "2026-06-03T16:00:00Z"
-    files_audited: ["src/foo.py", "tests/test_foo.py"]
-    outcome: passed      # passed | auto_fixed | escalated_to_user | overridden | audit_skipped
-    skip_reason: null    # when outcome=audit_skipped: reviewer_unavailable | doc_only | zero_diff | reviewer_timeout | reviewer_failed | malformed_output
-    error_excerpt: null  # when skip_reason in {reviewer_failed, malformed_output, reviewer_timeout}: last ~50 lines of reviewer output
-
-    attempts:            # one entry per audit attempt — initial always present; second appears only when auto-fix-and-retry-and-re-audit fired
-      - attempt: 1       # 1 = initial audit; 2 = post-fix re-audit
-        kind: initial
-        started: "2026-06-03T16:00:00Z"
-        findings:
-          critical: ["[CRITICAL] <verbatim with Affected files line>"]
-          warning: ["[WARNING] <verbatim>"]
-          note: ["[NOTE] <verbatim>"]
-        counts: { critical: 1, warning: 1, note: 0 }
-        # present on the initial attempt only when outcome=auto_fixed:
-        fix_summary: null
-        files_edited: []          # union of Affected files across all Critical findings, edited in 7.5.5 step 2
-        validation_command: null  # what was run in 7.5.5 step 3
-        validation_passed: null   # bool
-      - attempt: 2       # only when outcome=auto_fixed; reports the post-fix re-audit
-        kind: post_fix_reaudit
-        started: "2026-06-03T16:02:00Z"
-        findings: { critical: [], warning: [], note: ["[NOTE] No findings — diff looks correct."] }
-        counts: { critical: 0, warning: 0, note: 1 }
-```
-
-The findings sections must hold **verbatim reviewer output** so an AI reviewing this state YAML later can reconstruct the audit trail without a separate audit markdown.
+Schema for the `build_audits:` block appended to `plans/.<feature>.state.yml`: see `dev-build/audit-state.md` (loaded when Phase 7.5 writes audit state). The when-to-create-the-stub decision, the `build_only` sentinel, and the append-don't-overwrite `rounds:` rule live inline in Phase 7.5 "State-file location"; the schema itself is disclosed. Findings are stored verbatim so the trail can be reconstructed later.
 
 ---
 
