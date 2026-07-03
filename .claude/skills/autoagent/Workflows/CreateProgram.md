@@ -4,6 +4,7 @@ Interview the user, then write `program.md` AND `adapter.yaml`. These two files 
 
 ## Inputs (ask via AskUserQuestion if missing)
 
+0. **Run name** — kebab-case, unique within the repo (e.g. `billing-wf`, `weather-scraper`). Names the per-run workspace. Two systems (or two workflows) = two run names.
 1. **System type** — agent harness, Temporal workflow, cron job, scraper, n8n flow, custom CLI, etc. Drives which reference adapter to start from.
 2. **Directive** — one paragraph: what should the system *do well* when this loop finishes?
 3. **Edit surface** — files/dirs the loop may mutate.
@@ -15,6 +16,12 @@ Interview the user, then write `program.md` AND `adapter.yaml`. These two files 
 
 ## Steps
 
+0. **Create the run workspace.** All bookkeeping lands here, NOT at repo root (see SKILL.md “Workspace Convention”):
+   ```bash
+   RUN=<run-name>
+   mkdir -p ".autoagent-runs/$RUN" && cd ".autoagent-runs/$RUN"
+   ```
+   Ensure `.autoagent-runs/` is in the repo’s `.gitignore` (add it if missing). `sut.paths` and `mutator.edit_surface` remain repo-relative paths pointing at the real SUT code — the workspace holds only bookkeeping.
 1. Pick the closest reference adapter:
    - agent harness → `Adapters/autoagent.yaml`
    - Temporal workflow/schedule → `Adapters/temporal.yaml`

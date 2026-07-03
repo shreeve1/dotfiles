@@ -8,10 +8,12 @@ If `loop_mode: external_meta_agent`, hand off to the user's coding-agent context
 
 ## Preconditions
 
-- `program.md` and `adapter.yaml` exist at repo root.
+- **The driver is `cd`'d into the run's workspace** (`.autoagent-runs/<run-name>/`), NOT repo root. All bookkeeping paths below (`results.tsv`, `probes/`, `snapshots/`, `.autoagent/`) are workspace-relative. See SKILL.md “Workspace Convention.”
+- **Only ONE loop driver runs against a given git repo at a time.** Runs sharing a repo must be driven sequentially: the discard path's `git reset --hard HEAD~1` assumes the only new commit is THIS run's mutation. A second concurrent driver's mutation commit would be dropped by the other's rollback. The per-workspace `loop.lock` does NOT catch this (each run has its own lock). Finish or pause one run to a clean tree before starting another. For genuine parallelism, give each run a `git worktree`.
+- `program.md` and `adapter.yaml` exist in the run workspace (`.autoagent-runs/<run-name>/`).
 - `probes/` (or wherever `adapter.yaml` points) has **≥ 4 probes** covering the four mandatory failure-mode keys (`misunderstanding`, `missing_capability`, `missing_verification`, `silent_failure` — see `References/FailureModes.md`). Driver verifies by reading each probe's `probe.yaml` `failure_mode` field and checking that all four mandatory keys appear at least once. If any are missing, REFUSE to start the baseline and surface the gap.
 - `git status` is clean.
-- `.gitignore` excludes loop driver state: `snapshots/`, `.autoagent/`, plus any adapter-specific runtime files (e.g. `worker.log`, `worker.pid` for the temporal adapter). If these are tracked, the discard path's `git reset --hard` will delete the snapshot file mid-restore. Driver MUST verify these are ignored before starting.
+- `.gitignore` excludes loop driver state. With the per-run workspace convention, `.autoagent-runs/` at repo root covers `snapshots/`, `.autoagent/`, `results.tsv`, and `run.log` for every run. Also ignore any adapter-specific runtime files (e.g. `worker.log`, `worker.pid` for the temporal adapter). If any of these are tracked, the discard path's `git reset --hard` will delete the snapshot file mid-restore. Driver MUST verify these are ignored before starting.
 - Required CLIs are on `PATH`:
   - `git`, `bash`, `mikefarah/yq` v4+. Verify variant explicitly: `yq --version 2>&1 | grep -qE 'mikefarah|version v4'` (Python `yq` reports `jq-`-style versions).
   - For temporal adapter: `temporal` and `jq`. Driver also verifies `TEMPORAL_TASK_QUEUE` and (if used by capture/restore) `TEMPORAL_ADDRESS` are exported.
