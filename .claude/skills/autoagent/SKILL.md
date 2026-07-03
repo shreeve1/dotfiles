@@ -70,9 +70,79 @@ This table is the **authoritative listing** of workflows. The frontmatter `descr
 
 ---
 
+## Workspace Convention (per-run isolation — DEFAULT)
+
+A **run** is one named hill-climb over one system. Runs are keyed by **name, not
+by system type** — so "tune temporal workflow A" and "tune temporal workflow B"
+are two runs by the exact same rule that "tune a temporal workflow" and "tune a
+scraper" are two runs. Both cases resolve identically.
+
+Each run gets its own **workspace directory**, and ALL loop bookkeeping lives
+inside it — never at repo root:
+
+```
+<repo-root>/
+  .autoagent-runs/            gitignored — holds every run's workspace
+    <run-name>/              ONE run's workspace (cd here to drive the loop)
+      program.md             steering file for THIS run
+      adapter.yaml           adapter contract for THIS run
+      probes/                THIS run's experiments
+      snapshots/             THIS run's pre-mutation snapshots
+      results.tsv            THIS run's ledger
+      run.log                THIS run's latest output
+      .autoagent/            THIS run's driver state (loop.lock, last_score, last_cost)
+    <other-run-name>/        a completely separate run — never collides
+```
+
+The **SUT itself stays in the real repo tree**. `sut.paths` and
+`mutator.edit_surface` in each run's `adapter.yaml` are repo-relative paths
+pointing at the actual code/system being tuned (e.g. `workflows/billing/**`).
+The workspace holds only bookkeeping; it does not copy the SUT.
+
+Because every run's `results.tsv`, `probes/`, `snapshots/`, and `.autoagent/`
+(including its `loop.lock`) are inside its own workspace, a second run's baseline
+can NEVER overwrite the first run's ledger or state. This is the same isolation
+`autoagent-skill` already uses via `<skill-name>` workspaces — generalized to
+`<run-name>`.
+
+### Isolating what mutates
+
+Scope each run's `adapter.yaml` so the loop only touches that run's system:
+
+- `mutator.edit_surface` → only the paths THIS run may mutate.
+- `mutator.fixed` → freeze the OTHER runs' SUT paths (plus `adapter.yaml`), so a
+  mutation can never wander into a sibling run's system.
+
+### Sequential, not concurrent (shared git repo)
+
+All runs in one repo share **one git history**. RunLoop commits per mutation and
+rolls back discards with `git reset --hard HEAD~1`, which assumes the only new
+commit is THIS run's mutation. Two loop drivers committing into the same repo at
+once corrupt each other's rollback — and the per-workspace `loop.lock` will NOT
+catch it (each run has its own lock). So: **drive one run to a stop condition (or
+pause it to a clean tree), then start the next.** Sequential heterogeneous or
+same-type runs are fully supported; concurrent wall-clock drivers in one repo are
+not.
+
+Escape hatch for genuine concurrency: give each run a `git worktree` (separate
+working dir + separate HEAD), so the `HEAD~1` resets don't interfere. Overkill
+unless you actually need parallel drivers.
+
+### Live-state isolation (only for live SUTs)
+
+Filesystem isolation is enough for `sut.live: false` runs (scraper, CLI, code
+harness) — different systems have no shared deployed state. For two **live** runs
+of the same type (e.g. two Temporal workflows), the workspace split does NOT
+isolate the live layer: they may share a Temporal namespace / cron table. See the
+adapter's `snapshot` section (e.g. `Adapters/temporal.yaml`) — scope the snapshot
+to that run's schedule-id or use a separate namespace, or one run's discard-restore
+can delete the other's live state.
+
+---
+
 ## Core Files Produced
 
-In the target repo / working directory:
+Inside the run's workspace (`.autoagent-runs/<run-name>/`):
 
 ```
 program.md                  human-edited steering file (directive, edit boundary, loop rules)
