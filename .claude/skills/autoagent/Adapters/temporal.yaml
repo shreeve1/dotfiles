@@ -109,6 +109,11 @@ runner:
   timeout_seconds: 600
 
 snapshot:
+  # MULTI-RUN WARNING: this captures EVERY schedule in the namespace, and the
+  # restore path DELETES schedules not in its snapshot. If two temporal autoagent
+  # runs share a namespace, one run's discard-restore will delete the other run's
+  # schedule. For runs coexisting in one namespace, scope capture_cmd/restore_cmd
+  # to this run's schedule-id(s), or give each run its own Temporal namespace.
   # Captures every schedule spec into a single archive. Each schedule's YAML
   # body is preceded by a delimiter line `=== SCHEDULE: <id> ===` so restore
   # can split it back out unambiguously.
