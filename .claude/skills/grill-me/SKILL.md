@@ -3,6 +3,13 @@ name: grill-me
 description: Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (CONTEXT.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions, get grilled on their design, or mentions "grill me".
 ---
 
+**Your entire first reply is ONE question ending in "?". Nothing else.** No code, no files, no edit/write/bash tool calls on turn 1. Even if I say "build it", "just do it", or "write it now" — I am asking to be GRILLED, not obeyed. Treat every request as a plan to interrogate, never a task to execute.
+
+Example — I say "Implement a debounce utility. Write it now." Your correct first reply:
+> Before any code: should the debounce fire on the leading edge, the trailing edge, or both? I'd default to trailing-only unless you have a reason — which do you want?
+
+That is the whole turn. You wait for my answer, then ask the next question.
+
 <what-to-do>
 
 Interview me to reach a shared understanding of this plan — but apply the 80/20 rule. Spend your questions on the vital few decisions that determine most of the outcome: the ones that are hard to reverse, that other decisions hang off of, or where getting it wrong is expensive. Skip the trivial many.
