@@ -43,6 +43,30 @@ This is idempotent and reuses `gate.py`'s own parser/serializer: every existing 
 
 When setup is a re-run or partial recovery against a wiki that already holds promoted pages or claims, run the outdated-source check from `Workflows/Lint.md` (the Content Drift Check, default staleness scope) over the existing content. Report findings in the final report; do not auto-rewrite drifted claims or pages. A fresh init over an empty wiki skips this check.
 
+### Migrate an existing wiki to OKF conformance
+
+A wiki created before OKF adoption uses `[[wikilinks]]`, a single table-format global `index.md`, no per-directory indexes, `## [YYYY-MM-DD] type | Title` log headings, and page frontmatter without a guaranteed `type`. On a re-run or partial recovery, detect and migrate it to OKF v0.1. Skip this entirely for a fresh init (nothing to migrate) and skip any dimension already conformant.
+
+Detect non-conformance with cheap probes over the existing wiki:
+
+- `grep -rl '\[\[' wiki --include='*.md' | grep -v '^wiki/raw/'` — pages still using wikilinks (exclude `wiki/raw/`, which is immutable and never migrated).
+- Root `wiki/index.md` uses `| Page | Summary |` table headers instead of `* [Title](/path.md) - desc` bullets, or lacks `okf_version`.
+- Concept directories (`sources/`, `entities/`, `concepts/`, `analyses/`, `candidates/`) missing their own `index.md`.
+- `wiki/log.md` headings match `## [YYYY-MM-DD]` instead of `## YYYY-MM-DD`.
+- Promoted/candidate pages whose frontmatter has no `type`, or governance sidecars (`CLAIMS.md`, `ROUTING.md`, `README.md`, `eval/README.md`) without a `type`.
+
+Migrate each non-conformant dimension. This edits generated wiki pages (never `wiki/raw/`, which stays immutable):
+
+1. **Links:** rewrite `[[Concept Name]]` → bundle-relative markdown `[Concept Name](/<dir>/<slug>.md)`. Resolve each target to its actual promoted path via the per-directory `index.md` files (use the root `index.md` to find the relevant directory, then that directory's `index.md` for the exact path); if a wikilink target has no page, leave the display text and add it to the report as a broken/not-yet-written link (OKF tolerates broken links; do not invent a target). Preserve any alias syntax (`[[Name|Alias]]` → `[Alias](/path.md)`).
+2. **Root index:** convert the table catalog to the OKF §6 bullet listing (`* [Title](/path.md) - description`), add `okf_version: "0.1"` frontmatter, and keep the candidate review queue as a bullet section.
+3. **Per-directory indexes:** create a `<Dir> Index` in each concept directory listing its pages with descriptions pulled from each page's `description`/summary frontmatter.
+4. **Log:** reformat headings to `## YYYY-MM-DD` and convert entries to bold-action-word bullets; preserve every existing entry's content. Append, never drop, history.
+5. **Page frontmatter:** ensure every page has a `type` (map the existing page category, or infer a descriptive value); add `description`/`timestamp` where derivable. Preserve all existing extension keys (`status`, `created`, `updated`, `sources`, `confidence`, `tags`).
+6. **Citations:** where a page lists external URLs inline or in a `sources:`-style trailer, gather them under a `# Citations` section at the bottom. Leave inline cross-page links in the body.
+7. **Sidecars:** add the `type` frontmatter block to `CLAIMS.md` (`claims-registry`), `ROUTING.md` (`routing-index`), `README.md` (`wiki-readme`), `eval/README.md` (`wiki-eval-readme`) per `Templates.md`, and `CLAIMS-cold.md` (`claims-registry-cold`) if it already exists. The `CLAIMS.md`/`CLAIMS-cold.md` blocks are opaque preamble to `gate.py` and survive `migrate`/writes — verified safe. (`gate.py` now creates new cold files with `type` frontmatter automatically; only a pre-existing legacy cold file needs the block added.)
+
+This link/index/frontmatter migration is content editing, not a `gate.py` operation; `gate.py migrate` only handles the `CLAIMS.md` column schema (above). Run both when recovering an old wiki: `gate.py migrate` for the claims table, this step for OKF shape. Log an OKF-migration entry in `wiki/log.md` recording which dimensions were converted. For a large wiki, migrate deterministic dimensions (indexes, log headings, sidecar frontmatter) automatically and report link rewrites that could not resolve a target rather than guessing.
+
 ## 3. Create Structure
 
 Create missing directories:
@@ -61,11 +85,14 @@ wiki/eval/
 Create missing files from `Templates.md`:
 
 - `wiki/README.md`
-- `wiki/index.md`
+- `wiki/index.md` (root OKF index — bullet listing, `okf_version: "0.1"` frontmatter)
 - `wiki/log.md`
 - `wiki/ROUTING.md`
 - `wiki/CLAIMS.md`
 - `wiki/eval/README.md`
+- A per-directory `index.md` in each concept-bearing directory: `wiki/sources/index.md`, `wiki/entities/index.md`, `wiki/concepts/index.md`, `wiki/analyses/index.md`, `wiki/candidates/index.md` (OKF §6 progressive disclosure; use the per-subdirectory index template). These start with just the section heading and no page rows until pages are added.
+
+This is a conformant OKF v0.1 bundle: every non-reserved `.md` carries a `type`, `index.md`/`log.md` are the reserved files, links are bundle-relative markdown, and citations sit under `# Citations`. See `Architecture.md` → OKF Conformance.
 
 `wiki/eval/` holds the regression slice that gates claim consolidation. `gate.py consolidate` refuses to run with an empty `eval/` (it cannot verify a merge/prune kept load-bearing claims), so create the directory and a `README.md` documenting the format at setup time. Each `*.eval` file holds one case per line: `<query text> ||| <token that must survive in CLAIMS.md>`. Lines that are blank or start with `#` are ignored. Seed no cases at setup — the file documents the format; `wiki-update` authors cases as high-value claims land.
 
@@ -110,8 +137,9 @@ Verify with exact probes:
 - All required core files exist.
 - `.claude/skills/wiki-update/gate.py` exists (the claim gate the wiki depends on).
 - `wiki/CLAIMS.md` header is the 12-column `gate.py` schema (`| ID | Kind | Claim | Source | Page | Confidence | Status | Created | Hits | Superseded | Impact | Notes |`). A narrower hand-curated table will break the `wiki-update` skill's claim gate.
+- OKF conformance: `wiki/index.md` uses the bullet listing with `okf_version: "0.1"`; each concept directory has its own `index.md`; `CLAIMS.md`/`ROUTING.md`/`README.md`/`eval/README.md` carry a `type` frontmatter block; no promoted page uses `[[wikilinks]]` (`grep -rl '\[\[' wiki --include='*.md' | grep -v '^wiki/raw/'` returns nothing among promoted/candidate pages); `wiki/log.md` uses `## YYYY-MM-DD` headings.
 - Each of `CLAUDE.md` and `AGENTS.md` that exists contains an `LLM Wiki` section.
-- `wiki/log.md` contains a setup entry.
+- `wiki/log.md` contains a setup entry (and an OKF-migration entry on a migration run).
 - `.gitignore` contains the `# LLM Wiki` block, or the setup entry notes "not a git repo".
 - Existing unrelated `wiki/` content was not overwritten.
 
@@ -120,3 +148,5 @@ Verify with exact probes:
 Report changed files plus a prioritized shortlist of 3-5 high-value ingest sources inferred from project docs (with source paths when known). Do not auto-ingest. Suggest the next step in natural language, e.g. `Next: ingest <path> into the wiki` — this matches the `ingest source` trigger row in `SKILL.md`.
 
 On a re-run or partial recovery, also report outdated-source findings from the Content Drift Check (claim ID or page, cited path, asserted vs. current, proposed action). Do not apply drift fixes automatically.
+
+On an OKF migration run, report which conformance dimensions were converted (links, root index, per-directory indexes, log format, page frontmatter, citations, sidecars) and list any wikilink targets that could not be resolved to a promoted page (left as not-yet-written links for manual follow-up).
