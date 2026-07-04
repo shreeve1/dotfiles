@@ -18,7 +18,7 @@ TARGET: $1 — (Optional) One of:
 - `build` — uncommitted git changes
 - `proposal` (aliases: `idea`, `context`) — an inline proposal/approach/snippet from the current conversation, even if nothing has been written to disk yet
 - An explicit file or directory path
-- Omitted — extract the review target from conversation context (file paths, plans, diffs, OR inline proposals). Default behaviour: review the current plan/context for gaps.
+- Omitted — **review the last turn.** Default: take the most recent user+assistant exchange (the user's last message AND your reply as one pair) and review that pair as an inline proposal. Route it through the proposal-review path (Phase 2 "proposal reviews"). Only fall back to asking the user if there is no prior exchange in the conversation.
 
 PI_MODEL_ARGS: Optional Pi model selector array from the raw arguments:
 - `--model <pattern>` — pass through to Pi as `("--model" "<pattern>")`
@@ -79,7 +79,7 @@ You MUST create a task for each of these items and complete them in order:
    - File path — read that file
    - Directory — scan and select key files
 
-   If no TARGET and nothing clear in context: ask the user what to review. When inline proposals AND on-disk artifacts both exist in context, list both and let the user choose.
+   If no TARGET argument: **review the last turn.** Take the most recent user+assistant exchange — the user's last message AND your reply — as one pair, and treat that pair as an inline proposal (route through the proposal-review path). Do NOT ask the user what to review when a prior exchange exists. Only ask if the conversation has no prior exchange to review.
 
 ### Phase 2: Gather and Build Brief
 
