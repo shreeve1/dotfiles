@@ -120,13 +120,13 @@ Candidate filenames use lowercase slugs:
 - `wiki/candidates/concept-<slug>.md`
 - `wiki/candidates/analysis-session-<slug>.md`
 
-Candidate pages must include frontmatter compatible with `llm-wiki-setup` templates: title, type, status, created, updated, sources, confidence, and tags.
+Candidate pages must include frontmatter compatible with `llm-wiki-setup` templates (OKF-required `type` plus title, description, status, created, updated, sources, confidence, tags) and be OKF-conformant: bundle-relative markdown links (`[Name](/concepts/name.md)`, never `[[wikilinks]]`) and external sources under a `# Citations` section.
 
 ## 6. Reconcile Existing Knowledge
 
 Before writing new generated wiki content, check existing wiki state:
 
-1. Read `wiki/index.md` candidate queue and promoted-page sections for overlapping topics.
+1. Read the root `wiki/index.md` candidate queue and the per-directory `index.md` files for overlapping promoted topics.
 2. Read relevant promoted pages, existing candidates, and `wiki/ROUTING.md` routes for duplicates.
 3. Scan `wiki/CLAIMS.md` for existing `C-####` claims that match, overlap, contradict, or supersede proposed claims.
 4. Prefer updating an existing candidate over creating a duplicate candidate when the topic is the same.
@@ -142,9 +142,9 @@ When updating the wiki:
 1. Add the raw session capture under `wiki/raw/sessions/` if conversation evidence is used.
 2. Create or update candidate pages in `wiki/candidates/` unless a promoted update is clearly safe.
 3. Update `wiki/CLAIMS.md` **only through the claim write gates in §7a**. Do not hand-edit claim rows; do not assign IDs by hand.
-4. Update `wiki/index.md`: promoted-page sections for promoted pages only, candidate review queue for candidates.
+4. Update indexes: root `wiki/index.md` candidate review queue for candidates; the destination directory `index.md` for any promoted-page edit.
 5. Update `wiki/ROUTING.md` when the new content provides a durable route. Mark candidate routes as candidate/non-authoritative.
-6. Append a `session-update` entry to `wiki/log.md` with inputs, outputs, and unresolved questions.
+6. Append a `session-update` entry to `wiki/log.md` (OKF `## YYYY-MM-DD` / bold-action-word format) with inputs, outputs, and unresolved questions.
 
 ## 7a. Claim Write Gates (mandatory, per claim)
 
@@ -211,11 +211,11 @@ Verify exact probes before reporting completion:
 - Core wiki files still exist.
 - Raw session capture exists when conversation evidence was used.
 - Raw session capture path did not overwrite an existing file.
-- Candidate pages include frontmatter, sources, confidence, and citations.
+- Candidate pages include frontmatter (with `type`), sources, confidence, and citations, and are OKF-conformant (bundle-relative markdown links, `# Citations` section).
 - `CLAIMS.md` entries cite exact source paths and use non-conflicting IDs.
 - Duplicate candidates and claims were checked before writing.
 - Contradictions or supersessions are marked in `CLAIMS.md` notes when present.
-- `index.md` lists candidates only in the candidate review queue.
+- Root `index.md` lists candidates only in the candidate review queue.
 - `ROUTING.md` marks candidate routes as non-authoritative.
 - `log.md` contains a `session-update` entry.
 - Diff review confirms no secrets, credentials, tokens, private personal information, or unapproved raw pasted user content were written. Search changed wiki files for obvious secret-shaped strings such as `api_key`, `token`, `secret`, `password`, `BEGIN PRIVATE KEY`, and `AWS_SECRET_ACCESS_KEY` before claiming this.

@@ -6,7 +6,7 @@ argument-hint: "What durable session knowledge should be captured?"
 
 # Wiki Update
 
-Companion skill for `llm-wiki-setup`. Use it during or after a session to extract durable project knowledge from the current conversation and update an existing project `wiki/` without dumping the whole transcript.
+Companion skill for `llm-wiki-setup`. Use it during or after a session to extract durable project knowledge from the current conversation and update an existing project `wiki/` without dumping the whole transcript. The wiki is a conformant OKF v0.1 bundle: pages created here must carry `type` frontmatter, link with bundle-relative markdown links (`[Name](/concepts/name.md)`, not `[[wikilinks]]`), and cite external sources under a `# Citations` section; see `llm-wiki-setup/Templates.md`.
 
 ## Workflow Routing
 
@@ -37,7 +37,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - For conversation-only decisions, create a curated raw session capture under `wiki/raw/sessions/` and cite that raw capture.
 - New pages and risky updates go through `wiki/candidates/` until promoted.
 - Before creating candidates, reconcile against existing promoted pages, candidates, routes, and claims to avoid duplicates and record contradictions.
-- Update `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md` whenever wiki content changes.
+- Update indexes (root `wiki/index.md` candidate queue for candidates; destination directory `index.md` for promoted-page edits), `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md` whenever wiki content changes.
 - Mark session-derived claims with appropriate confidence; do not present them as stronger than the evidence supports.
 - Bounding is enforced by gates, not goodwill. Every claim write runs `gate.py check`; the run's Verification step runs `gate.py audit`. A write that bypassed the gate but violates budget or schema fails the audit and the run is not done. See `Workflows/SessionUpdate.md` §7a and §7b.
 
