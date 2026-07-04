@@ -5,8 +5,9 @@ Use this workflow to health-check the wiki.
 ## Checks
 
 - Missing core files: `README.md`, `index.md`, `log.md`, `ROUTING.md`, `CLAIMS.md`.
-- Broken wikilinks and path links.
-- Promoted pages missing from `index.md`.
+- Broken markdown links and path links (OKF tolerates a link to a not-yet-written page — flag as a suggestion, not an error).
+- OKF conformance: pages using `[[wikilinks]]` (`grep -rl '\[\[' wiki --include='*.md' | grep -v '^wiki/raw/'` — `wiki/raw/` is immutable, never migrated); non-reserved `.md` files missing a `type` frontmatter field; concept directories missing their own `index.md`; root `index.md` missing `okf_version` or still in table format; `log.md` not using `## YYYY-MM-DD` headings; governance sidecars (`CLAIMS.md`/`ROUTING.md`/`README.md`/`eval/README.md`, plus `CLAIMS-cold.md` when it exists) missing a `type`. These are OKF-migration findings — propose the Setup OKF-migration step.
+- Promoted pages missing from their directory `index.md`.
 - Indexed pages that no longer exist.
 - Orphan promoted pages with no route or inbound links.
 - Candidate pages older than the project threshold.

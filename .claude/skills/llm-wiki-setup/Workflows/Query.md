@@ -4,7 +4,7 @@ Use this workflow when answering questions from the project wiki.
 
 ## Procedure
 
-1. Read `wiki/index.md` to identify relevant promoted pages and candidate context.
+1. Read the root `wiki/index.md` to identify relevant directories and candidate context, then follow the per-directory `index.md` files to specific pages.
 2. Use `wiki/ROUTING.md` to narrow branches when the index is too broad.
 3. Read only relevant promoted pages and `wiki/CLAIMS.md` entries.
 4. Answer from promoted wiki knowledge first.
@@ -24,7 +24,7 @@ Use this workflow when answering questions from the project wiki.
 
 When saving a durable answer:
 
-1. Create `wiki/candidates/analysis-<slug>.md`.
+1. Create `wiki/candidates/analysis-<slug>.md` (OKF-conformant: `type` frontmatter, bundle-relative markdown links, `# Citations` section).
 2. Include sources and confidence in frontmatter.
 3. Add or update claims in `wiki/CLAIMS.md` **only through `gate.py`** — never hand-edit rows. Build typed-slot JSON and run `python3 .claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>`, obeying the verdict (`--apply` on ADMIT). Same gated procedure as `wiki-update`'s `SessionUpdate.md` §7a.
 4. Append a query entry to `wiki/log.md`.
