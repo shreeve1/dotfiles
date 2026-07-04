@@ -319,7 +319,8 @@ def cmd_demote(args):
         return 0
     ids = {r["ID"] for r in picked}
     cpre, crows, cfoot = parse(cold) if cold.exists() else (
-        ["# Claims Registry — Cold Archive", "",
+        ["---", "type: claims-registry-cold", "title: Claims Registry — Cold Archive", "---", "",
+         "# Claims Registry — Cold Archive", "",
          "Demoted low-traffic claims. NOT loaded by default; search explicitly."], [], [])
     for r in picked:
         r["Status"] = "cold"
