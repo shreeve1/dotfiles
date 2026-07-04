@@ -2,7 +2,7 @@
 # selfcheck.sh — end-to-end check of Templates/probe/verify.sh.
 # Mocks `pi` on PATH (emits canned JSONL: assistant text + tool calls + usage),
 # runs the real verify.sh, asserts score and dollar cost. No real model, no net.
-# Run: bash ~/.claude/skills/small-llm-tune/selfcheck.sh
+# Run: bash ~/.claude/skills/autoagent-skill/selfcheck.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

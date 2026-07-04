@@ -1,4 +1,4 @@
-# small-llm-tune — {{SKILL_NAME}} for {{LLM_MODEL}}
+# autoagent-skill — {{SKILL_NAME}} for {{LLM_MODEL}}
 
 Autonomous experiment loop. You (the loop driver) hill-climb on a numeric
 `passed` score by mutating the SKILL.md body, running probes against the small
@@ -27,7 +27,7 @@ provider reports no dollar cost).
 
 The `SKILL.md` body ONLY — below the `# ===== FRONTMATTER_BOUNDARY =====` line.
 Use the technique catalog in
-`~/.claude/skills/small-llm-tune/References/mutator-techniques.md` to pick each
+`~/.claude/skills/autoagent-skill/References/mutator-techniques.md` to pick each
 edit. ONE class of change per mutation.
 
 ## What you must not modify
