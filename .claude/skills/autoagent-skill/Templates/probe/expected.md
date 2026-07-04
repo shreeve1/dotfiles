@@ -1,6 +1,6 @@
 # Assertions the small model's output must satisfy. verify.sh scores
 # passed/total. Author FUZZY (concepts, not exact phrasing) — see
-# ~/.claude/skills/small-llm-tune/References/verifier-patterns.md
+# ~/.claude/skills/autoagent-skill/References/verifier-patterns.md
 #
 #   +pat    output MUST contain pat        (case-insensitive substring)
 #   -pat    output must NOT contain pat    (case-insensitive, inverted)

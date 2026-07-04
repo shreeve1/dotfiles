@@ -1,4 +1,4 @@
-# adapter.yaml for small-llm-tune.
+# adapter.yaml for autoagent-skill.
 #
 # The SUT is a SKILL.md being tuned for a small LLM. The runner feeds that
 # SKILL.md to the small model as the system prompt, gives it a probe's input,
