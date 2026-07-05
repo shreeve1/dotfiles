@@ -25,6 +25,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - Existing promoted page edits: allowed only for low-risk, cited maintenance
 - Raw session capture collisions: never overwrite; append `-2`, `-3`, etc.
 - Claim writes: gated by `gate.py` (deterministic). No claim enters `CLAIMS.md` except through an `ADMIT` verdict.
+- Gate path: resolve `gate.py` as `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). Commands in `Workflows/SessionUpdate.md` use the global path.
 - Claim budget: `BUDGET` active claims per hot file (default 40); over budget forces a demotion before any add.
 - Hot/cold: `CLAIMS.md` is loaded by default; `CLAIMS-cold.md` is the searchable archive, not loaded.
 

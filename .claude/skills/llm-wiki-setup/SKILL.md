@@ -27,6 +27,7 @@ Initial setup is built for future AI sessions, not for James. Apply defaults sil
 - Raw sources: `wiki/raw/`
 - Candidate review gate: enabled
 - Claim provenance: required for factual claims via `wiki/CLAIMS.md`
+- Gate path: `gate.py` ships with the `wiki-update` skill. Resolve it as `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). Command examples below use the global path; substitute the project-local path only when the project vendors it. The wiki relies on the globally-installed skills and does not require project-local vendoring.
 - Routing file: `wiki/ROUTING.md`
 - Search tooling: documented only; do not install
 - Git policy: commit generated wiki files; ignore common raw binary patterns (`wiki/raw/**/*.{pdf,mp4,mov,zip,tar,gz,bin}`, `wiki/assets/**`) without asking

@@ -23,7 +23,7 @@ If the core files are missing, stop and recommend `/llm-wiki-setup`. Do not crea
 Normalize the claim schema up front, before any claim write:
 
 ```text
-python3 .claude/skills/wiki-update/gate.py --wiki wiki migrate
+python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki migrate
 ```
 
 This widens a legacy 7-column `CLAIMS.md` (and `CLAIMS-cold.md` if present) to the canonical 12-column schema. It is idempotent — an already-canonical file is left byte-identical (no rewrite). Run it every time: `serialize` only upgrades the schema when a write actually lands, so a session that stores no claim (or one blocked at the gate) would otherwise leave the file 7-column. Migrating up front makes the schema upgrade deterministic instead of incidental.
@@ -163,7 +163,7 @@ When updating the wiki:
 2. Run the gate:
 
    ```text
-   python3 .claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>
+   python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki check <candidate.json>
    ```
 
 3. Obey the verdict. You may not write past it:
@@ -172,7 +172,7 @@ When updating the wiki:
    - `REJECT` (gate `admit`) — the claim has not earned its place. The `impact` must state counterfactual value (a failure it would have prevented, or a materially faster success). Boilerplate ("good to know", restating the claim) is rejected. If you cannot articulate the impact, do not store the claim.
    - `MERGE` — a near-duplicate exists. Refine that existing claim and bump its `Hits`; never add a slight variant.
    - `SUPERSEDE` — the new fact conflicts with an existing one. Mark the old claim `superseded` with today's date, add the new one with `Created` today and a `supersedes` note. Do not let both coexist.
-   - `EVICT_FIRST` — the hot file is at budget. If the wiki is genuinely large and curated (the active claims are all load-bearing, not cruft), the budget is the wrong size, not the claim. Record the real scale **once** with `python3 .claude/skills/wiki-update/gate.py --wiki wiki set-budget 300` — it persists to `.gate-state.json`, so every later `check`/`audit` honors it without re-supplying anything (a one-shot `WIKI_CLAIM_BUDGET=300` env var still overrides per-invocation if you prefer). Default is 40. Only when the hot file is genuinely over-full of low-value claims, run the named `gate.py demote --force <ID>` to move the lowest-value claim to cold and re-run the add. Eviction is a precondition of the write, not later cleanup.
+   - `EVICT_FIRST` — the hot file is at budget. If the wiki is genuinely large and curated (the active claims are all load-bearing, not cruft), the budget is the wrong size, not the claim. Record the real scale **once** with `python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki set-budget 300` — it persists to `.gate-state.json`, so every later `check`/`audit` honors it without re-supplying anything (a one-shot `WIKI_CLAIM_BUDGET=300` env var still overrides per-invocation if you prefer). Default is 40. Only when the hot file is genuinely over-full of low-value claims, run the named `gate.py demote --force <ID>` to move the lowest-value claim to cold and re-run the add. Eviction is a precondition of the write, not later cleanup.
 
 The admission filter is meant to reject most candidates. Storing nothing is the common correct outcome.
 
@@ -180,11 +180,11 @@ The admission filter is meant to reject most candidates. Storing nothing is the 
 
 `gate.py audit` reports `maintenance_due: true` after `MAINT_EVERY` writes (default 20). When due, or on a periodic cadence:
 
-- **Hot/cold split:** `python3 .claude/skills/wiki-update/gate.py --wiki wiki demote` — moves low-hit, stale active claims to `CLAIMS-cold.md` (demotion, not deletion; eval-referenced claims are protected from auto-demotion).
+- **Hot/cold split:** `python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki demote` — moves low-hit, stale active claims to `CLAIMS-cold.md` (demotion, not deletion; eval-referenced claims are protected from auto-demotion).
 - **Gated consolidation:** write a plan JSON (`{"merge": [[keep_id,[drop_ids],"merged text?"]], "prune": [ids], "resolve": [[loser_id, winner_id]]}`), then:
 
   ```text
-  python3 .claude/skills/wiki-update/gate.py --wiki wiki consolidate <plan.json>
+  python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki consolidate <plan.json>
   ```
 
   It snapshots `CLAIMS.md`, applies the plan, runs the eval slice, and **keeps the result only if the eval pass rate held AND total active size dropped** — otherwise it reverts automatically. An ungated rewrite is how a wiki quietly loses the detail that mattered, so this gate is mandatory. Consolidation requires a non-empty `wiki/eval/*.eval` slice (`<query> ||| <token that must stay retrievable>`); with no eval, you cannot verify a rewrite kept what mattered, so do not consolidate.
@@ -207,7 +207,7 @@ If approval is needed, present a concise preview of proposed captured facts, can
 
 Verify exact probes before reporting completion:
 
-- `python3 .claude/skills/wiki-update/gate.py --wiki wiki audit` exits 0 (no budget or schema violation). This catches any claim that reached `CLAIMS.md` without passing the write gate. If it reports `maintenance_due`, run §7b before reporting done.
+- `python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki audit` exits 0 (no budget or schema violation). This catches any claim that reached `CLAIMS.md` without passing the write gate. If it reports `maintenance_due`, run §7b before reporting done.
 - Core wiki files still exist.
 - Raw session capture exists when conversation evidence was used.
 - Raw session capture path did not overwrite an existing file.

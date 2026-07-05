@@ -38,7 +38,7 @@ Structural checks confirm a cited path still exists. The drift check confirms th
 Run the companion gate's own audit, which checks `CLAIMS.md` for budget and schema violations the structural checks above do not cover (over-budget hot file, malformed rows, a claim that reached the file without passing the write gate):
 
 ```sh
-python3 .claude/skills/wiki-update/gate.py --wiki wiki audit
+python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki audit
 ```
 
 Report any problems it prints (non-zero exit, or `maintenance_due: true`). A non-zero exit is a `critical` finding. `maintenance_due` is a `warning` — recommend the `wiki-update` §7b hot/cold split and gated consolidation. If `gate.py` is missing, report that as a `critical` finding (the wiki cannot enforce its claim schema without it).

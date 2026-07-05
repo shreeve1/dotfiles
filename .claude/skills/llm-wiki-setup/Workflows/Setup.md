@@ -19,7 +19,7 @@ Before editing, read:
 
 Determine the project root before creating files. If the current project root is this skill's install repository, or contains `.claude/skills/llm-wiki-setup/`, stop and ask James to confirm that the dotfiles repo is the intended target before creating `wiki/`.
 
-Confirm the companion gate is present: `.claude/skills/wiki-update/gate.py` must exist. It is the only sanctioned path into `CLAIMS.md` and backs migrate, verify, and consolidation. If it is missing, stop and report that the `wiki-update` skill must be installed before the wiki can be operated — do not silently fall back to hand-editing claim rows.
+Confirm the companion gate is resolvable: `gate.py` must exist at `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). It is the only sanctioned path into `CLAIMS.md` and backs migrate, verify, and consolidation. If it is missing in both locations, stop and report that the `wiki-update` skill must be installed before the wiki can be operated — do not silently fall back to hand-editing claim rows. This wiki relies on the globally-installed `/llm-wiki-setup` and `/wiki-update` skills; project-local vendoring is optional, not required.
 
 Detect existing wiki state before writing:
 
@@ -36,7 +36,7 @@ On a re-run or partial recovery, check whether the existing `wiki/CLAIMS.md` hea
 If the header is narrower, migrate it in place by running the companion skill's gate:
 
 ```sh
-python3 .claude/skills/wiki-update/gate.py --wiki wiki migrate
+python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki migrate
 ```
 
 This is idempotent and reuses `gate.py`'s own parser/serializer: every existing row is preserved, missing columns are added with safe defaults (`Hits=0`, blank `Kind`/`Impact`/`Created`), and an already-canonical file is left byte-identical. It widens `CLAIMS.md` and, if present, `CLAIMS-cold.md`. Note the migration in the setup log entry. After migrating, the blank `Kind`/`Impact` fields on legacy rows are filled opportunistically by later gated `wiki-update` writes; do not bulk-edit them during setup.
@@ -135,7 +135,7 @@ Verify with exact probes:
 - `wiki/` directory exists.
 - All required subdirectories exist, including `wiki/eval/` with a `README.md` documenting the `.eval` format.
 - All required core files exist.
-- `.claude/skills/wiki-update/gate.py` exists (the claim gate the wiki depends on).
+- `gate.py` is resolvable — present at `~/.claude/skills/wiki-update/gate.py` (global install) or `.claude/skills/wiki-update/gate.py` (project-vendored). The wiki depends on it but does not require the project to vendor it.
 - `wiki/CLAIMS.md` header is the 12-column `gate.py` schema (`| ID | Kind | Claim | Source | Page | Confidence | Status | Created | Hits | Superseded | Impact | Notes |`). A narrower hand-curated table will break the `wiki-update` skill's claim gate.
 - OKF conformance: `wiki/index.md` uses the bullet listing with `okf_version: "0.1"`; each concept directory has its own `index.md`; `CLAIMS.md`/`ROUTING.md`/`README.md`/`eval/README.md` carry a `type` frontmatter block; no promoted page uses `[[wikilinks]]` (`grep -rl '\[\[' wiki --include='*.md' | grep -v '^wiki/raw/'` returns nothing among promoted/candidate pages); `wiki/log.md` uses `## YYYY-MM-DD` headings.
 - Each of `CLAUDE.md` and `AGENTS.md` that exists contains an `LLM Wiki` section.
