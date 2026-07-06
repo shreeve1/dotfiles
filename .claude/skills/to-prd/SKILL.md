@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: to-prd
 description: Turn the current conversation context into a PRD and submit it as a GitHub issue. Use when user wants to create a PRD from the current context.
 ---

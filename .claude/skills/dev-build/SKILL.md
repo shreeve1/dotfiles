@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: dev-build
 description: Execute an implementation plan with parallel wave-based execution. Use AFTER /dev-plan when ready to build. USE WHEN user says 'implement the plan', 'build this', 'execute the plan', 'start coding', or wants to begin implementation from a plan file. Runs validation and connects to /dev-test.
 ---

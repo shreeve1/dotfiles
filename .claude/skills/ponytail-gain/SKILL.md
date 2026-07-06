@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: ponytail-gain
 description: >
   Show ponytail's measured impact as a compact scoreboard: less code, less

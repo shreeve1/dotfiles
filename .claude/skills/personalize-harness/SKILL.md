@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: personalize-harness
 description: "Personalize Claude Code's hook harness for a project or global dotfiles. Builds a project profile from docs and manifests, optionally researches current stack best practices, runs a gap-driven interview, then generates idempotent hook scripts and settings merges. Use for edit-time formatters, validators, linters, Bash guardrails, protected-path blockers, pre-git project checks, e2e reminders, post-compact rule reinjection, or Stop-time self-review checkpoints."
 argument-hint: "[--no-web] [<empty> = current project | global | <absolute-path>]"
