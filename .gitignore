@@ -145,3 +145,4 @@ bin/*
 
 # Pi-lens runtime state/cache (nested per-machine install)
 .pi/agent/.pi-lens/
+.pi/agent/extensions/**/.pi-lens/
