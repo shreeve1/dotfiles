@@ -54,6 +54,9 @@ trust_level = "trusted"
 [projects."/home/itadmin/pi-win"]
 trust_level = "trusted"
 
+[projects."/home/james/pi-rmm"]
+trust_level = "trusted"
+
 [tui]
 terminal_title = ["spinner", "current-dir", "context-remaining", "task-progress"]
 status_line = ["model-with-reasoning", "current-dir", "context-remaining", "task-progress"]
@@ -62,7 +65,7 @@ status_line = ["model-with-reasoning", "current-dir", "context-remaining", "task
 "gpt-5.5" = 4
 
 [features]
-codex_hooks = true
+hooks = true
 
 [hooks.state]
 
@@ -71,3 +74,9 @@ trusted_hash = "sha256:fc87dbee1cb8a9be4f78ba094c4fa8d5e2fd38cb800854e3717f9b6a5
 
 [hooks.state."/home/james/.codex/hooks.json:post_tool_use:0:0"]
 trusted_hash = "sha256:ac371f260e4b23ba1d1b7a4ad68a44a323a8470b61f38471a47aceac1b7a5a7c"
+
+[hooks.state."/home/james/pi-rmm/.codex/hooks.json:session_start:0:0"]
+trusted_hash = "sha256:b6116e8116489895032e853a2f061a1d80d2faf3b206ff1ca0354e222bf5dfcb"
+
+[hooks.state."/home/james/pi-rmm/.codex/hooks.json:stop:0:0"]
+trusted_hash = "sha256:563443c9d19c809a37ed98d0135ee4e60558df3c9d716dac99ba9aba28f57716"
