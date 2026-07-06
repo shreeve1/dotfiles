@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: goal
 description: Set a durable objective the agent works toward across many turns, with a verifiable stopping condition, validation command, and checkpoint-based progress log.
 ---

@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: interview
 description: Conduct a thorough interview about project plans, ideas, goals, or technical decisions. USE WHEN user wants to be interviewed about a plan, design, or architecture — drills into reasoning with one question at a time across technical, operational, security, testing, and tradeoff dimensions.
 ---
