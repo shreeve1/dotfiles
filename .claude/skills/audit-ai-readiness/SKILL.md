@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: audit-ai-readiness
 description: "Audit a repo against AI-assisted engineering best practices (harness, context split, skills, specs/ADRs, evals) and emit a fix spec to artifacts/specs/ that /dev-plan auto-discovers. Respectful lens: reads existing CLAUDE.md/CONTEXT.md/docs/adr/ as ground truth, never relitigates a recorded ADR, audits for gaps not overrides. Advisory-only — no hooks, no gates, writes one spec file. Use when user wants to check a project's AI-readiness, audit agent harness/context hygiene, or find what's missing before bringing a repo up to standard."
 argument-hint: "[<empty> = current project | <absolute-path>]"

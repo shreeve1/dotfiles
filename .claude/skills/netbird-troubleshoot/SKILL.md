@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: netbird-troubleshoot
 description: Diagnose NetBird VPN connectivity issues, peer state, relay health, WireGuard handshakes, and self-hosted server problems.
 ---

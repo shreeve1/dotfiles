@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: wiki-update
 description: Update an existing LLM Wiki from the current session. USE WHEN update wiki from this session, capture session learnings, save decisions to wiki, ingest current conversation, update project memory, wiki update, session to wiki.
 argument-hint: "What durable session knowledge should be captured?"

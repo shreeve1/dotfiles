@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: dev-test
 description: >-
   Backfill and run automated tests for code that ALREADY exists — the
