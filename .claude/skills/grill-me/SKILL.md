@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: grill-me
 description: Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (CONTEXT.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions, get grilled on their design, or mentions "grill me".
 ---
@@ -25,6 +26,14 @@ Always output questions as plain text in the chat. Never use the `ask_user_quest
 Stop when the remaining open questions are all low-stakes detail. At that point, say so and summarize the defaults you're assuming for the rest rather than continuing to grill.
 
 If a question can be answered by exploring the codebase, explore the codebase instead. If it can be answered by web search (library docs, API behavior, current best practices), search the web instead.
+
+## Explore, then fact-check — EVERY turn
+
+Your exploration drifts. What you read early goes stale, and a mental model built once gets asserted as fact many turns later. So on every turn where you present findings, ask a question, or make a recommendation: **first explore — read the actual files this turn depends on and form your claim from them — then run an independent fact-check on that claim.** Order matters; the check is a second opinion on findings you already grounded, not your researcher. See [VERIFY.md](./VERIFY.md). No exceptions: even a turn that feels purely design-level usually rests on some claim about what the repo already does.
+
+The check runs `deepseek/deepseek-v4-pro` in a fresh `pi -p` process with no skills loaded, grounded only in the actual files — so it has none of your accumulated assumptions. It returns VERIFIED / FALSE / UNSURE per claim with file:line evidence.
+
+Surface the result to me inline before your question, e.g.: "Fact-check: my claim that Orders cancel wholesale came back FALSE — `order.ts:88` shows line-item cancellation. Corrected question: …". If the check disagrees with you but you have fuller context and still believe you're right, say so and go with your judgment — note the disagreement so I can weigh in. The check informs the turn; it does not override you.
 
 </what-to-do>
 
