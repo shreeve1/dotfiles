@@ -30,6 +30,14 @@ Podium instead of Ralph's local kanban.
      single line wrapped in a single pair of single backticks (`), never a fenced
      code block (```); slicer-created issues are stamped `auto_land=true`, and
      review backstop re-runs this command;
+     - **Refactor/move slices must use the full test suite**
+       (`.venv/bin/python -m pytest -q`).  Relocating a function into a
+       different module can silently break monkeypatches or imports in
+       *any* test file — scoped per-file verification (e.g. only
+       ``tests/test_scheduler.py``) will miss regressions in sibling
+       suites (see Symphony issue #258 → slice 6, log_retention
+       regression).  Scoped verification is fine for additive slices
+       that do not touch existing call-site modules.
    - blockers are explicit;
    - `locks` labels identify resources that must not co-run.
    - **Migration lock (C-0335):** any slice that creates an Alembic
