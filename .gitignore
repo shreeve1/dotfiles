@@ -23,7 +23,6 @@ bin/*
 # Machine-local secrets (not synced)
 .env
 .env.*
-.config/nushell/secrets.nu
 .zshrc.secrets
 
 # Pi agent — secrets, dependencies, and runtime state

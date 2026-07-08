@@ -217,7 +217,6 @@ link_path ".config/opencode" ".config/opencode"
 
 # ─── Pi Agent ──────────────────────────────────────────────
 link_path ".pi/agent" ".pi/agent"
-link_path ".pi/agent-sessions" ".pi/agent-sessions"
 link_path ".pi/README.md" ".pi/README.md"
 
 # Pi uses ~/.pi/agent/package.json for extension/runtime dependencies. On fresh
@@ -360,8 +359,9 @@ if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
 	link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
 	link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
 
-	# Canonical Claude Code slash commands.
+	# Canonical Claude Code slash commands and agents.
 	link_path ".claude/commands" ".claude/commands"
+	link_path ".claude/agents" ".claude/agents"
 
 	# Canonical shared skills — read by Claude Code natively and by OpenCode
 	# via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
