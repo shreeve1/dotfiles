@@ -195,6 +195,7 @@ link_path ".zshrc" ".zshrc"
 
 # ─── XDG config ────────────────────────────────────────────
 link_path ".config/starship.toml" ".config/starship.toml"
+link_path ".config/herdr/config.toml" ".config/herdr/config.toml"
 link_path ".config/ghostty" ".config/ghostty"
 link_path ".config/nushell" ".config/nushell"
 link_path ".config/nvim" ".config/nvim"
