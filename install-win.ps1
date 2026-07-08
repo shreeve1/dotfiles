@@ -29,12 +29,17 @@ function Get-DisplayPath {
     return $Path
 }
 
+function Get-ExistingItem {
+    param([string]$Path)
+    Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+}
+
 function New-BackupPath {
     param([string]$Target)
     $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
     $backup = "$Target-bak-$stamp"
     $n = 2
-    while (Test-Path -LiteralPath $backup) {
+    while (Get-ExistingItem $backup) {
         $backup = "$Target-bak-$stamp-$n"
         $n += 1
     }
@@ -47,11 +52,10 @@ function Test-SameLinkTarget {
         [string]$Source
     )
 
-    if (-not (Test-Path -LiteralPath $Target)) {
+    $item = Get-ExistingItem $Target
+    if (-not $item) {
         return $false
     }
-
-    $item = Get-Item -LiteralPath $Target -Force
     $sourceFull = (Get-Item -LiteralPath $Source -Force).FullName
     $linkType = $item.PSObject.Properties["LinkType"]
     $targetProperty = $item.PSObject.Properties["Target"]
@@ -86,7 +90,8 @@ function Link-Path {
 
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
 
-    if (Test-Path -LiteralPath $target) {
+    $targetItem = Get-ExistingItem $target
+    if ($targetItem) {
         if (Test-SameLinkTarget -Target $target -Source $source) {
             Write-Host "ok: $target already linked"
             return
@@ -192,12 +197,29 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
 } elseif ($env:INSTALL_PI_CLI -eq "1" -and (Get-Command npm -ErrorAction SilentlyContinue)) {
     Write-Host "install: pi CLI via npm -g"
     npm install -g @earendil-works/pi-coding-agent
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "ok: pi CLI installed"
+    } else {
+        Write-Warning "failed to install pi CLI; run: npm install -g @earendil-works/pi-coding-agent"
+    }
 } else {
     Write-Warning "pi CLI not found; install with: npm install -g @earendil-works/pi-coding-agent"
 }
 
 if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
     Write-Warning "bun not found; Pi tools and OpenCode helpers may require bun"
+}
+
+if (Get-Command nvim -ErrorAction SilentlyContinue) {
+    Write-Host "ok: nvim available: $((nvim --version 2>&1 | Select-Object -First 1))"
+} else {
+    Write-Warning "nvim not found; install Neovim to use ~/.config/nvim"
+}
+
+foreach ($tool in @("rg", "fd", "node", "npm", "python")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+        Write-Warning "$tool not found; some Neovim/Pi/OpenCode tooling may need it"
+    }
 }
 
 if ($env:INSTALL_PI_NPM -ne "0") {
