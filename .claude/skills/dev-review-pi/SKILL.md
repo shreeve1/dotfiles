@@ -45,7 +45,7 @@ You MUST create a task for each of these items and complete them in order:
 
 - **Context assembly is the critical step.** The value of this skill is in what context the reviewer receives. Be thorough — read related files, conventions, the plan (if any), tests, configs.
 - **Don't pre-review.** Your job is to gather, not filter. Pass raw context and let the reviewer form independent opinions.
-- **Reviewer runs as normal Pi.** Use `pi --print` with prompt content in a temp file referenced as `@$PROMPT_FILE`. Do not apply tool allowlists, context suppressions, extension suppressions, or permission restrictions — with one narrow exception: the subagent-spawning tools (`Agent,get_subagent_result,steer_subagent`) are denied via `--exclude-tools`, because subagent output bypasses `pi --print` capture (see Phase 3 notes). Everything else stays at Pi defaults.
+- **Reviewer runs as normal Pi.** Use `pi --print` with prompt content in a temp file referenced as `@$PROMPT_FILE`. Do not apply tool allowlists, context suppressions, extension suppressions, or permission restrictions. `--exclude-tools` is not available on Pi 0.73.1; keep normal tools/extensions and rely on the review-only prompt plus drift detection.
 - **Review-only by instruction, not by permission.** Pi keeps normal default capabilities; the primary agent must compare working-tree status before and after the review.
 - **Apply findings autonomously.** Parse the reviewer's findings and implement them directly. No confirm gate, no discussion round.
 - **Record disagreements, don't gate on them.** Where the primary agent disagrees with a finding, apply it anyway (autonomous mode) and note the disagreement in the report so the user sees it after the fact.
@@ -162,7 +162,7 @@ You MUST create a task for each of these items and complete them in order:
 
 ### Phase 3: Run Pi Reviewer
 
-Launch and poll the reviewer via the backgrounded-`pi --print` engine at `~/.claude/skills/_shared/pi-reviewer-engine.md` — the single source for the `setsid` detach, PID-file persistence, 1s launch-failure check, the `--exclude-tools` subagent-swallow fix, and the separate-call poll loop. This step wires the caller-specific params and drift detection; the engine owns the mechanics.
+Launch and poll the reviewer via the backgrounded-`pi --print` engine at `~/.claude/skills/_shared/pi-reviewer-engine.md` — the single source for the `setsid` detach, PID-file persistence, 1s launch-failure check, and the separate-call poll loop. This step wires the caller-specific params and drift detection; the engine owns the mechanics.
 
 4. **Execute Pi Review**
 
@@ -211,7 +211,7 @@ Launch and poll the reviewer via the backgrounded-`pi --print` engine at `~/.cla
      cp "$PROJECT_ROOT/$p" "$SNAP_DIR/$p"
    done
    ```
-   The engine handles the `setsid` detach, PID-file persistence, the 1s launch-failure sanity check, and `--exclude-tools "Agent,get_subagent_result,steer_subagent"` (keeps findings in the parent → stdout). `PI_MODEL_ARGS` was resolved in Phase 1; empty array → Pi's configured default.
+   The engine handles the `setsid` detach, PID-file persistence, and the 1s launch-failure sanity check. `PI_MODEL_ARGS` was resolved in Phase 1; empty array → Pi's configured default.
 
    **4b. Poll per the engine** in separate Bash calls until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits (soft cap 600s wall-clock — keep polling, never SIGKILL).
 

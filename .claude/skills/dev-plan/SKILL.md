@@ -17,7 +17,7 @@ Analyze the user's requirements, develop the implementation approach, and save a
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
 - `MAX_ROUNDS` — audit-loop round cap; default 2 (see **Flag Parsing**)
-- `REVIEWER_MODEL` — optional pi model override (see **Flag Parsing**)
+- `REVIEWER_MODEL` — optional pi model override (see **Flag Parsing**); default reviewer model is `deepseek-v4-flash`
 
 ## Invocation
 
@@ -40,7 +40,7 @@ Parse flags from the invocation first, then strip them from `USER_PROMPT`:
 | Flag | Effect |
 |------|--------|
 | `--rounds N` | Set `MAX_ROUNDS` to integer `N >= 1` (default 2). Reject `N <= 0`. |
-| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi. |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi, overriding the default `deepseek-v4-flash`. |
 
 Any other flag (`--no-loop`, `--reviewer`, `--loop`, `--rounds 0`, …) — reject with a one-line message: the pi audit loop is enforced (no disable, no swap). Do not silently accept and skip.
 
@@ -207,7 +207,7 @@ Resolve the model args, then launch via the backgrounded-`pi --print` engine at 
 if [ -n "$REVIEWER_MODEL" ]; then
   PI_MODEL_ARGS=( --model "$REVIEWER_MODEL" )
 else
-  PI_MODEL_ARGS=()
+  PI_MODEL_ARGS=( --model "deepseek-v4-flash" )
 fi
 ```
 
@@ -217,7 +217,7 @@ OUTPUT_FILE=$(mktemp /tmp/devplan-review-XXXXXX.txt)
 PID_FILE=$(mktemp /tmp/devplan-review-pid-XXXXXX.txt)
 PROJECT_ROOT="$REPO_ROOT"
 ```
-Caller params for the engine: `$PROJECT_ROOT`, `$PROMPT_FILE` and `$COMPLETION_SENTINEL` from 9.1, `$OUTPUT_FILE` / `$PID_FILE` above, and `PI_MODEL_ARGS`. The engine launches with `--exclude-tools "Agent,get_subagent_result,steer_subagent"` and the review-only system prompt, runs the 1s launch-failure sanity check, and is polled in separate Bash calls. This is a plan-file audit — the reviewer is review-only by instruction, so drift detection is not required.
+Caller params for the engine: `$PROJECT_ROOT`, `$PROMPT_FILE` and `$COMPLETION_SENTINEL` from 9.1, `$OUTPUT_FILE` / `$PID_FILE` above, and `PI_MODEL_ARGS`. The engine launches without the removed `--exclude-tools` flag and with the review-only system prompt, runs the 1s launch-failure sanity check, and is polled in separate Bash calls. This is a plan-file audit — the reviewer is review-only by instruction, so drift detection is not required.
 
 Poll per the engine until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits. Surface a one-line progress note each poll.
 
