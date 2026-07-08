@@ -8,7 +8,6 @@ This repo stores config files and folders synced across machines.
 - `~/.config/starship.toml`
 - `~/.config/tmux`
 - `~/.config/ghostty`
-- `~/.config/nushell`
 - `~/.config/nvim`
 - `~/.config/yazi`
 - `~/.config/zellij`

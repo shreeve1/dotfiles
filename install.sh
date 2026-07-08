@@ -10,185 +10,185 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 # output as "could not canonicalize", not "different paths". Order tried:
 # `realpath` (coreutils + BSD), `readlink -f` (GNU + recent macOS).
 canonicalize_existing_path() {
-  local p="$1"
-  if [ ! -e "$p" ] && [ ! -L "$p" ]; then
-    return 1
-  fi
-  if command -v realpath >/dev/null 2>&1; then
-    realpath "$p" 2>/dev/null && return 0
-  fi
-  if readlink -f / >/dev/null 2>&1; then
-    readlink -f "$p" 2>/dev/null && return 0
-  fi
-  return 1
+	local p="$1"
+	if [ ! -e "$p" ] && [ ! -L "$p" ]; then
+		return 1
+	fi
+	if command -v realpath >/dev/null 2>&1; then
+		realpath "$p" 2>/dev/null && return 0
+	fi
+	if readlink -f / >/dev/null 2>&1; then
+		readlink -f "$p" 2>/dev/null && return 0
+	fi
+	return 1
 }
 
 backup_path() {
-  local target="$1"
-  local stamp
-  local backup
-  local n=2
+	local target="$1"
+	local stamp
+	local backup
+	local n=2
 
-  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  backup="$target-bak-$stamp"
+	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+	backup="$target-bak-$stamp"
 
-  while [ -e "$backup" ] || [ -L "$backup" ]; do
-    backup="$target-bak-$stamp-$n"
-    n=$((n + 1))
-  done
+	while [ -e "$backup" ] || [ -L "$backup" ]; do
+		backup="$target-bak-$stamp-$n"
+		n=$((n + 1))
+	done
 
-  printf '%s\n' "$backup"
+	printf '%s\n' "$backup"
 }
 
 link_path() {
-  local source_rel="$1"
-  local target_rel="$2"
-  local source="$DOTFILES_DIR/$source_rel"
-  local target="$HOME/$target_rel"
-  local parent
-  parent="$(dirname "$target")"
+	local source_rel="$1"
+	local target_rel="$2"
+	local source="$DOTFILES_DIR/$source_rel"
+	local target="$HOME/$target_rel"
+	local parent
+	parent="$(dirname "$target")"
 
-  if [ ! -e "$source" ]; then
-    printf 'skip: missing source %s\n' "$source"
-    return 0
-  fi
+	if [ ! -e "$source" ]; then
+		printf 'skip: missing source %s\n' "$source"
+		return 0
+	fi
 
-  mkdir -p "$parent"
+	mkdir -p "$parent"
 
-  # Self-link guard: if $target resolves (through any ancestor symlink) to the
-  # same canonical path as $source, the target IS the source file. Backing up
-  # and replacing it would clobber the repo. Skip silently.
-  #
-  # Both canonicalizations must succeed and match — empty output means the
-  # platform lacks both `realpath` and `readlink -f`, in which case we MUST
-  # fall through to the existing logic rather than treat empties as equal.
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    local source_canon target_canon
-    source_canon="$(canonicalize_existing_path "$source" || true)"
-    target_canon="$(canonicalize_existing_path "$target" || true)"
-    if [ -n "$source_canon" ] && [ -n "$target_canon" ] \
-        && [ "$source_canon" = "$target_canon" ]; then
-      printf 'ok: %s is the source file (parent already linked)\n' "$target"
-      return 0
-    fi
-  fi
+	# Self-link guard: if $target resolves (through any ancestor symlink) to the
+	# same canonical path as $source, the target IS the source file. Backing up
+	# and replacing it would clobber the repo. Skip silently.
+	#
+	# Both canonicalizations must succeed and match — empty output means the
+	# platform lacks both `realpath` and `readlink -f`, in which case we MUST
+	# fall through to the existing logic rather than treat empties as equal.
+	if [ -e "$target" ] || [ -L "$target" ]; then
+		local source_canon target_canon
+		source_canon="$(canonicalize_existing_path "$source" || true)"
+		target_canon="$(canonicalize_existing_path "$target" || true)"
+		if [ -n "$source_canon" ] && [ -n "$target_canon" ] &&
+			[ "$source_canon" = "$target_canon" ]; then
+			printf 'ok: %s is the source file (parent already linked)\n' "$target"
+			return 0
+		fi
+	fi
 
-  if [ -L "$target" ]; then
-    local current
-    current="$(readlink "$target")"
-    if [ "$current" = "$source" ]; then
-      printf 'ok: %s already linked\n' "$target"
-      return 0
-    fi
-    local backup
-    backup="$(backup_path "$target")"
-    mv "$target" "$backup"
-    printf 'backup-symlink: %s -> %s (was -> %s)\n' "$target" "$backup" "$current"
-  elif [ -e "$target" ]; then
-    local backup
-    backup="$(backup_path "$target")"
-    mv "$target" "$backup"
-    printf 'backup: %s -> %s\n' "$target" "$backup"
-  fi
+	if [ -L "$target" ]; then
+		local current
+		current="$(readlink "$target")"
+		if [ "$current" = "$source" ]; then
+			printf 'ok: %s already linked\n' "$target"
+			return 0
+		fi
+		local backup
+		backup="$(backup_path "$target")"
+		mv "$target" "$backup"
+		printf 'backup-symlink: %s -> %s (was -> %s)\n' "$target" "$backup" "$current"
+	elif [ -e "$target" ]; then
+		local backup
+		backup="$(backup_path "$target")"
+		mv "$target" "$backup"
+		printf 'backup: %s -> %s\n' "$target" "$backup"
+	fi
 
-  ln -s "$source" "$target"
-  printf 'linked: %s -> %s\n' "$target" "$source"
+	ln -s "$source" "$target"
+	printf 'linked: %s -> %s\n' "$target" "$source"
 }
 
 # Copy a starter file to a private/excluded location only if the target doesn't
 # already exist. Used for USER stubs that should be machine-local but need a
 # bootstrap default so referenced paths resolve on a fresh install.
 seed_path() {
-  local source_rel="$1"
-  local target_rel="$2"
-  local source="$DOTFILES_DIR/$source_rel"
-  local target="$HOME/$target_rel"
+	local source_rel="$1"
+	local target_rel="$2"
+	local source="$DOTFILES_DIR/$source_rel"
+	local target="$HOME/$target_rel"
 
-  if [ ! -e "$source" ]; then
-    printf 'skip-seed: missing source %s\n' "$source"
-    return 0
-  fi
+	if [ ! -e "$source" ]; then
+		printf 'skip-seed: missing source %s\n' "$source"
+		return 0
+	fi
 
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    printf 'ok: %s already present (no overwrite)\n' "$target"
-    return 0
-  fi
+	if [ -e "$target" ] || [ -L "$target" ]; then
+		printf 'ok: %s already present (no overwrite)\n' "$target"
+		return 0
+	fi
 
-  mkdir -p "$(dirname "$target")"
-  cp "$source" "$target"
-  printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
+	mkdir -p "$(dirname "$target")"
+	cp "$source" "$target"
+	printf 'seeded: %s -> %s (copy, not symlink)\n' "$target" "$source"
 }
 
 display_path() {
-  local p="$1"
-  case "$p" in
-    "$HOME") printf '~' ;;
-    "$HOME"/*) printf '~/%s' "${p#"$HOME"/}" ;;
-    *) printf '%s' "$p" ;;
-  esac
+	local p="$1"
+	case "$p" in
+	"$HOME") printf '~' ;;
+	"$HOME"/*) printf '~/%s' "${p#"$HOME"/}" ;;
+	*) printf '%s' "$p" ;;
+	esac
 }
 
 install_npm_deps_if_needed() {
-  local dir="$1"
-  shift || true
-  local label
-  label="$(display_path "$dir")"
+	local dir="$1"
+	shift || true
+	local label
+	label="$(display_path "$dir")"
 
-  if [ ! -f "$dir/package.json" ]; then
-    return 0
-  fi
+	if [ ! -f "$dir/package.json" ]; then
+		return 0
+	fi
 
-  # Skip reinstall when node_modules exists AND is at least as new as package.json.
-  # If package.json was edited after node_modules (e.g. deps swapped after a git
-  # pull), fall through to reinstall so peers resolve. Override with
-  # INSTALL_PI_NPM=always (force) or INSTALL_PI_NPM=0 (never; handled by caller).
-  if [ -d "$dir/node_modules" ] && [ "${INSTALL_PI_NPM:-1}" != "always" ]; then
-    if [ ! "$dir/package.json" -nt "$dir/node_modules" ]; then
-      printf 'ok: %s/node_modules present\n' "$label"
-      return 0
-    fi
-    printf 'refresh: %s package.json newer than node_modules\n' "$label"
-  fi
+	# Skip reinstall when node_modules exists AND is at least as new as package.json.
+	# If package.json was edited after node_modules (e.g. deps swapped after a git
+	# pull), fall through to reinstall so peers resolve. Override with
+	# INSTALL_PI_NPM=always (force) or INSTALL_PI_NPM=0 (never; handled by caller).
+	if [ -d "$dir/node_modules" ] && [ "${INSTALL_PI_NPM:-1}" != "always" ]; then
+		if [ ! "$dir/package.json" -nt "$dir/node_modules" ]; then
+			printf 'ok: %s/node_modules present\n' "$label"
+			return 0
+		fi
+		printf 'refresh: %s package.json newer than node_modules\n' "$label"
+	fi
 
-  if ! command -v npm >/dev/null 2>&1; then
-    printf 'warn: npm not found; run later: cd %s && npm install' "$label"
-    if [ "$#" -gt 0 ]; then
-      printf ' %s' "$@"
-    fi
-    printf '\n'
-    return 0
-  fi
+	if ! command -v npm >/dev/null 2>&1; then
+		printf 'warn: npm not found; run later: cd %s && npm install' "$label"
+		if [ "$#" -gt 0 ]; then
+			printf ' %s' "$@"
+		fi
+		printf '\n'
+		return 0
+	fi
 
-  local cmd=(npm install "$@")
-  local used_ci=0
-  if [ -f "$dir/package-lock.json" ]; then
-    cmd=(npm ci "$@")
-    used_ci=1
-  fi
+	local cmd=(npm install "$@")
+	local used_ci=0
+	if [ -f "$dir/package-lock.json" ]; then
+		cmd=(npm ci "$@")
+		used_ci=1
+	fi
 
-  printf 'install: %s dependencies (%s)\n' "$label" "${cmd[*]}"
-  if (cd "$dir" && "${cmd[@]}"); then
-    printf 'ok: %s dependencies installed\n' "$label"
-    return 0
-  fi
+	printf 'install: %s dependencies (%s)\n' "$label" "${cmd[*]}"
+	if (cd "$dir" && "${cmd[@]}"); then
+		printf 'ok: %s dependencies installed\n' "$label"
+		return 0
+	fi
 
-  # npm ci fails when the lockfile is out of sync with package.json (common after
-  # a dotfiles pull that swapped deps). Drop the stale lockfile and retry with
-  # `npm install` so the next sync regenerates a fresh lockfile.
-  if [ "$used_ci" = "1" ]; then
-    printf 'retry: %s — npm ci failed, removing stale lockfile and running npm install\n' "$label"
-    rm -f "$dir/package-lock.json"
-    if (cd "$dir" && npm install "$@"); then
-      printf 'ok: %s dependencies installed (lockfile regenerated)\n' "$label"
-      return 0
-    fi
-  fi
+	# npm ci fails when the lockfile is out of sync with package.json (common after
+	# a dotfiles pull that swapped deps). Drop the stale lockfile and retry with
+	# `npm install` so the next sync regenerates a fresh lockfile.
+	if [ "$used_ci" = "1" ]; then
+		printf 'retry: %s — npm ci failed, removing stale lockfile and running npm install\n' "$label"
+		rm -f "$dir/package-lock.json"
+		if (cd "$dir" && npm install "$@"); then
+			printf 'ok: %s dependencies installed (lockfile regenerated)\n' "$label"
+			return 0
+		fi
+	fi
 
-  printf 'warn: failed to install %s dependencies; run: cd %s && npm install' "$label" "$label"
-  if [ "$#" -gt 0 ]; then
-    printf ' %s' "$@"
-  fi
-  printf '\n'
+	printf 'warn: failed to install %s dependencies; run: cd %s && npm install' "$label" "$label"
+	if [ "$#" -gt 0 ]; then
+		printf ' %s' "$@"
+	fi
+	printf '\n'
 }
 
 link_path ".zshrc" ".zshrc"
@@ -196,7 +196,6 @@ link_path ".zshrc" ".zshrc"
 # ─── XDG config ────────────────────────────────────────────
 link_path ".config/starship.toml" ".config/starship.toml"
 link_path ".config/ghostty" ".config/ghostty"
-link_path ".config/nushell" ".config/nushell"
 link_path ".config/nvim" ".config/nvim"
 link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
@@ -232,95 +231,95 @@ link_path ".pi/README.md" ".pi/README.md"
 # @earendil-works/*. If the legacy package is still installed globally, warn so the
 # user can swap it (mariozechner is stuck at 0.67/0.73; earendil-works is current).
 if command -v pi >/dev/null 2>&1; then
-  pi_global_pkg=""
-  if command -v npm >/dev/null 2>&1; then
-    pi_global_pkg="$(npm ls -g --depth=0 2>/dev/null | grep -oE '@(mariozechner|earendil-works)/pi-coding-agent' | head -n 1 || true)"
-  fi
-  printf 'ok: pi CLI available: '
-  pi --version 2>&1 | head -n 1 || true
-  if [ "$pi_global_pkg" = "@mariozechner/pi-coding-agent" ]; then
-    printf 'warn: global pi is legacy @mariozechner/pi-coding-agent. Extensions need @earendil-works/*.\n'
-    printf '      swap with: npm uninstall -g @mariozechner/pi-coding-agent && npm install -g @earendil-works/pi-coding-agent\n'
-  fi
-  # Detect a stale /usr/bin/pi symlink left over from a prior root-level install of
-  # @mariozechner/pi-coding-agent. It can shadow the new user-prefix install on
-  # $PATH and silently route `pi` to the wrong binary (or a dangling symlink).
-  pi_resolved="$(command -v pi 2>/dev/null || true)"
-  if [ -L "/usr/bin/pi" ] && [ "$pi_resolved" = "/usr/bin/pi" ]; then
-    pi_link_target="$(readlink /usr/bin/pi || true)"
-    case "$pi_link_target" in
-      *@mariozechner/pi-coding-agent*)
-        printf 'warn: /usr/bin/pi is a legacy root-installed symlink (-> %s)\n' "$pi_link_target"
-        printf '      remove with: sudo npm uninstall -g @mariozechner/pi-coding-agent && sudo rm -f /usr/bin/pi\n'
-        printf '      or replace:  sudo npm install -g @earendil-works/pi-coding-agent\n'
-        ;;
-    esac
-  fi
+	pi_global_pkg=""
+	if command -v npm >/dev/null 2>&1; then
+		pi_global_pkg="$(npm ls -g --depth=0 2>/dev/null | grep -oE '@(mariozechner|earendil-works)/pi-coding-agent' | head -n 1 || true)"
+	fi
+	printf 'ok: pi CLI available: '
+	pi --version 2>&1 | head -n 1 || true
+	if [ "$pi_global_pkg" = "@mariozechner/pi-coding-agent" ]; then
+		printf 'warn: global pi is legacy @mariozechner/pi-coding-agent. Extensions need @earendil-works/*.\n'
+		printf '      swap with: npm uninstall -g @mariozechner/pi-coding-agent && npm install -g @earendil-works/pi-coding-agent\n'
+	fi
+	# Detect a stale /usr/bin/pi symlink left over from a prior root-level install of
+	# @mariozechner/pi-coding-agent. It can shadow the new user-prefix install on
+	# $PATH and silently route `pi` to the wrong binary (or a dangling symlink).
+	pi_resolved="$(command -v pi 2>/dev/null || true)"
+	if [ -L "/usr/bin/pi" ] && [ "$pi_resolved" = "/usr/bin/pi" ]; then
+		pi_link_target="$(readlink /usr/bin/pi || true)"
+		case "$pi_link_target" in
+		*@mariozechner/pi-coding-agent*)
+			printf 'warn: /usr/bin/pi is a legacy root-installed symlink (-> %s)\n' "$pi_link_target"
+			printf '      remove with: sudo npm uninstall -g @mariozechner/pi-coding-agent && sudo rm -f /usr/bin/pi\n'
+			printf '      or replace:  sudo npm install -g @earendil-works/pi-coding-agent\n'
+			;;
+		esac
+	fi
 elif [ "${INSTALL_PI_CLI:-0}" = "1" ] && command -v npm >/dev/null 2>&1; then
-  printf 'install: pi CLI via npm -g\n'
-  if npm install -g @earendil-works/pi-coding-agent; then
-    printf 'ok: pi CLI installed\n'
-  else
-    printf 'warn: failed to install pi CLI; run: npm install -g @earendil-works/pi-coding-agent\n'
-  fi
+	printf 'install: pi CLI via npm -g\n'
+	if npm install -g @earendil-works/pi-coding-agent; then
+		printf 'ok: pi CLI installed\n'
+	else
+		printf 'warn: failed to install pi CLI; run: npm install -g @earendil-works/pi-coding-agent\n'
+	fi
 else
-  printf 'warn: pi CLI not found; PiPerspective reviews will fail until installed\n'
-  printf '      install example: npm install -g @earendil-works/pi-coding-agent\n'
-  printf '      or run installer with: INSTALL_PI_CLI=1 bash install.sh\n'
+	printf 'warn: pi CLI not found; PiPerspective reviews will fail until installed\n'
+	printf '      install example: npm install -g @earendil-works/pi-coding-agent\n'
+	printf '      or run installer with: INSTALL_PI_CLI=1 bash install.sh\n'
 fi
 
 if ! command -v bun >/dev/null 2>&1; then
-  printf 'warn: bun not found; PiPerspective Tools/*.ts and OpenCode helpers require bun\n'
+	printf 'warn: bun not found; PiPerspective Tools/*.ts and OpenCode helpers require bun\n'
 fi
 
 if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
-  install_npm_deps_if_needed "$HOME/.pi/agent"
+	install_npm_deps_if_needed "$HOME/.pi/agent"
 
-  # rpiv-todo is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-todo`. Its package imports Pi SDK packages
-  # as runtime peers, so install its extension-local deps without --omit=peer.
-  # Fresh-system / AI-session repair command:
-  #   cd ~/.pi/agent/extensions/rpiv-todo && npm install --omit=dev
-  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-todo" --omit=dev
+	# rpiv-todo is vendored so it syncs with dotfiles, not installed via
+	# `pi install npm:@juicesharp/rpiv-todo`. Its package imports Pi SDK packages
+	# as runtime peers, so install its extension-local deps without --omit=peer.
+	# Fresh-system / AI-session repair command:
+	#   cd ~/.pi/agent/extensions/rpiv-todo && npm install --omit=dev
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-todo" --omit=dev
 
-  # rpiv-pi is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-pi`. Its core imports Pi SDK packages as
-  # runtime peers, so install its extension-local deps without --omit=peer.
-  # Fresh-system / AI-session repair command:
-  #   cd ~/.pi/agent/extensions/rpiv-pi && npm install --omit=dev
-  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-pi" --omit=dev
+	# rpiv-pi is vendored so it syncs with dotfiles, not installed via
+	# `pi install npm:@juicesharp/rpiv-pi`. Its core imports Pi SDK packages as
+	# runtime peers, so install its extension-local deps without --omit=peer.
+	# Fresh-system / AI-session repair command:
+	#   cd ~/.pi/agent/extensions/rpiv-pi && npm install --omit=dev
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-pi" --omit=dev
 
-  # pi-lens is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:pi-lens`. Its postinstall downloads tree-sitter grammars.
-  # Fresh-system / AI-session repair command:
-  #   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
+	# pi-lens is vendored so it syncs with dotfiles, not installed via
+	# `pi install npm:pi-lens`. Its postinstall downloads tree-sitter grammars.
+	# Fresh-system / AI-session repair command:
+	#   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
 
-  # rpiv-advisor is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-advisor`. It is registered in
-  # ~/.pi/agent/settings.json as extensions/rpiv-advisor. Fresh-system /
-  # AI-session repair command:
-  #   cd ~/.pi/agent && npm install
-  #   cd ~/.pi/agent/extensions/rpiv-advisor && npm install --omit=dev --omit=peer
+	# rpiv-advisor is vendored so it syncs with dotfiles, not installed via
+	# `pi install npm:@juicesharp/rpiv-advisor`. It is registered in
+	# ~/.pi/agent/settings.json as extensions/rpiv-advisor. Fresh-system /
+	# AI-session repair command:
+	#   cd ~/.pi/agent && npm install
+	#   cd ~/.pi/agent/extensions/rpiv-advisor && npm install --omit=dev --omit=peer
 
-  # rpiv-web-tools is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-web-tools`. It is registered in
-  # ~/.pi/agent/settings.json as extensions/rpiv-web-tools. The same settings
-  # file disables the older web-fetch extension with -extensions/web-fetch/index.ts
-  # to avoid duplicate web_search/web_fetch tools. Fresh-system / AI-session repair:
-  #   cd ~/.pi/agent && npm install
-  #   cd ~/.pi/agent/extensions/rpiv-web-tools && npm install --omit=dev --omit=peer
-  #   restart Pi, then run /web-search-config
+	# rpiv-web-tools is vendored so it syncs with dotfiles, not installed via
+	# `pi install npm:@juicesharp/rpiv-web-tools`. It is registered in
+	# ~/.pi/agent/settings.json as extensions/rpiv-web-tools. The same settings
+	# file disables the older web-fetch extension with -extensions/web-fetch/index.ts
+	# to avoid duplicate web_search/web_fetch tools. Fresh-system / AI-session repair:
+	#   cd ~/.pi/agent && npm install
+	#   cd ~/.pi/agent/extensions/rpiv-web-tools && npm install --omit=dev --omit=peer
+	#   restart Pi, then run /web-search-config
 
-  for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
-    [ -f "$package_json" ] || continue
-    case "$(dirname "$package_json")" in
-      "$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
-      "$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
-    esac
-    install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
-  done
+	for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
+		[ -f "$package_json" ] || continue
+		case "$(dirname "$package_json")" in
+		"$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
+		"$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
+		esac
+		install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
+	done
 else
-  printf 'skip: Pi npm dependencies (INSTALL_PI_NPM=0)\n'
+	printf 'skip: Pi npm dependencies (INSTALL_PI_NPM=0)\n'
 fi
 
 # ─── Neovim ────────────────────────────────────────────────
@@ -329,49 +328,49 @@ fi
 # and Mason will fetch the configured LSPs and formatters. The checks below
 # only warn about missing prerequisites — nothing is auto-installed.
 if command -v nvim >/dev/null 2>&1; then
-  printf 'ok: nvim available: '
-  nvim --version 2>&1 | head -n 1 || true
+	printf 'ok: nvim available: '
+	nvim --version 2>&1 | head -n 1 || true
 else
-  printf 'warn: nvim not found; install neovim (>= 0.10) to use ~/.config/nvim\n'
+	printf 'warn: nvim not found; install neovim (>= 0.10) to use ~/.config/nvim\n'
 fi
 
 for tool in rg fd node npm python3; do
-  if ! command -v "$tool" >/dev/null 2>&1; then
-    case "$tool" in
-      rg)      printf 'warn: ripgrep (rg) not found; telescope live_grep will fail\n' ;;
-      fd)      printf 'warn: fd not found; telescope find_files will fall back to slower finder\n' ;;
-      node)    printf 'warn: node not found; mason-installed JS/TS LSP (ts_ls) and prettier need node\n' ;;
-      npm)     printf 'warn: npm not found; mason cannot install JS/TS tooling\n' ;;
-      python3) printf 'warn: python3 not found; mason cannot install pyright/black/isort\n' ;;
-    esac
-  fi
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		case "$tool" in
+		rg) printf 'warn: ripgrep (rg) not found; telescope live_grep will fail\n' ;;
+		fd) printf 'warn: fd not found; telescope find_files will fall back to slower finder\n' ;;
+		node) printf 'warn: node not found; mason-installed JS/TS LSP (ts_ls) and prettier need node\n' ;;
+		npm) printf 'warn: npm not found; mason cannot install JS/TS tooling\n' ;;
+		python3) printf 'warn: python3 not found; mason cannot install pyright/black/isort\n' ;;
+		esac
+	fi
 done
 
 if ! command -v make >/dev/null 2>&1; then
-  printf 'warn: make not found; telescope-fzf-native build will be skipped\n'
+	printf 'warn: make not found; telescope-fzf-native build will be skipped\n'
 fi
 
 # ─── Claude Code ───────────────────────────────────────────
 # Optional: skip this whole block only when ~/.claude is managed separately.
 # OpenCode also reads ~/.claude/CLAUDE.md and ~/.claude/skills through this setup.
 if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
-  # Core files
-  link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
-  link_path ".claude/settings.json.template" ".claude/settings.json.template"
-  link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
-  link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
+	# Core files
+	link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
+	link_path ".claude/settings.json.template" ".claude/settings.json.template"
+	link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
+	link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
 
-  # Canonical Claude Code slash commands.
-  link_path ".claude/commands" ".claude/commands"
+	# Canonical Claude Code slash commands.
+	link_path ".claude/commands" ".claude/commands"
 
-  # Canonical shared skills — read by Claude Code natively and by OpenCode
-  # via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
-  link_path ".claude/skills" ".claude/skills"
+	# Canonical shared skills — read by Claude Code natively and by OpenCode
+	# via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
+	link_path ".claude/skills" ".claude/skills"
 
-  # Claude Code hooks.
-  link_path ".claude/hooks" ".claude/hooks"
+	# Claude Code hooks.
+	link_path ".claude/hooks" ".claude/hooks"
 else
-  printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
+	printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
 fi
 
 # ─── Codex ─────────────────────────────────────────────────
@@ -381,48 +380,13 @@ link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
 
 for skill_dir in "$DOTFILES_DIR"/.codex/skills/*; do
-  [ -d "$skill_dir" ] || continue
-  skill_name="$(basename "$skill_dir")"
-  case "$skill_name" in
-    .* ) continue ;;
-  esac
-  link_path ".codex/skills/$skill_name" ".codex/skills/$skill_name"
+	[ -d "$skill_dir" ] || continue
+	skill_name="$(basename "$skill_dir")"
+	case "$skill_name" in
+	.*) continue ;;
+	esac
+	link_path ".codex/skills/$skill_name" ".codex/skills/$skill_name"
 done
-
-# ─── oh-my-pi (omp) ────────────────────────────────────────
-# Only portable config is synced. Runtime churn stays machine-local:
-# ~/.omp/agent/*.db*, sessions/, terminal-sessions/, logs/, and
-# gpu_cache.json (caches the local machine's GPU). The model roles in config.yml
-# point at omp built-in providers (zai, openai-codex), which only need their API
-# keys present (machine-local secrets) — NOT models.yml. models.yml is optional
-# and links only if present (used to declare additional *custom* providers).
-# Note: config.yml also carries omp-managed keys (lastChangelogVersion,
-# setupVersion) that omp rewrites on update — expect occasional churn in diffs.
-link_path ".omp/agent/config.yml" ".omp/agent/config.yml"
-link_path ".omp/agent/models.yml" ".omp/agent/models.yml"
-
-# Vendored rpiv extensions (+ @tintinweb/pi-subagents) are synced via dotfiles
-# and discovered natively from ~/.omp/agent/extensions. omp aliases the legacy
-# @earendil-works / @mariozechner scopes to its bundled packages, so the
-# extensions' pi-* peer deps are satisfied by the omp runtime. Real deps are
-# installed per-machine below: each extension's own deps (e.g.
-# @juicesharp/rpiv-config), plus the shared unscoped `typebox` declared in
-# extensions/package.json (resolved by sibling extensions via upward lookup).
-link_path ".omp/agent/extensions" ".omp/agent/extensions"
-
-if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
-  # Shared deps at the extensions root (e.g. the unscoped `typebox`, a real dep
-  # of @juicesharp/rpiv-config) — installed without --omit=peer since they are
-  # real deps here, not pi-* peers. Sibling extensions resolve these via upward
-  # node_modules lookup. The per-extension loop below does NOT cover this root
-  # package.json (its globs require a subdirectory), so install it explicitly.
-  install_npm_deps_if_needed "$HOME/.omp/agent/extensions" --omit=dev
-
-  for package_json in "$HOME"/.omp/agent/extensions/*/package.json "$HOME"/.omp/agent/extensions/@*/*/package.json; do
-    [ -f "$package_json" ] || continue
-    install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
-  done
-fi
 
 # Note: live settings.json files are NOT tracked — they may contain secrets or
 # machine-specific values. Copy templates on a new device, then edit locally.

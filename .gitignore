@@ -3,6 +3,12 @@ artifacts/
 .config/opencode/opencode.json
 .config/opencode/bak/
 
+# Herdr-generated integrations are installed per-machine
+.claude/hooks/herdr-agent-state.sh
+.codex/herdr-agent-state.sh
+.config/opencode/plugins/herdr-agent-state.js
+.pi/agent/extensions/herdr-agent-state.ts
+
 # Machine-local session work logs (per-machine)
 MEMORY/
 
@@ -111,16 +117,8 @@ bin/*
 .codex/memories/
 .codex/skills/.system/
 
-# oh-my-pi (omp) — sync only config + vendored extensions; rest is runtime/machine-local
-.omp/*
-!.omp/agent/
-.omp/agent/*
-!.omp/agent/config.yml
-!.omp/agent/models.yml
-!.omp/agent/extensions/
-# Vendored extension deps are installed per-machine by install.sh
-.omp/agent/extensions/**/node_modules/
-.omp/agent/extensions/**/package-lock.json
+# oh-my-pi (omp) runtime/config is machine-local
+.omp/
 
 # Backup / temp files
 *.bak
