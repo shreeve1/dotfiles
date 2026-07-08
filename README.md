@@ -40,6 +40,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
       settings.json.template
   .codex/
   install.sh
+  install-win.ps1
 ```
 
 ### Canonical vs tool-specific
@@ -67,13 +68,28 @@ git clone <dotfiles> ~/dotfiles
 ~/dotfiles/install.sh
 ```
 
+On Windows PowerShell:
+
+```powershell
+git clone <dotfiles> $HOME\dotfiles
+Set-ExecutionPolicy -Scope Process Bypass -Force
+& "$HOME\dotfiles\install-win.ps1"
+```
+
+Windows symlinks require Developer Mode or an elevated PowerShell.
+
 If repo lives somewhere else, set `DOTFILES_DIR` first:
 
 ```bash
 DOTFILES_DIR=/path/to/dotfiles /path/to/dotfiles/install.sh
 ```
 
-## What Install Script Does
+```powershell
+$env:DOTFILES_DIR = "C:\path\to\dotfiles"
+& "$env:DOTFILES_DIR\install-win.ps1"
+```
+
+## What Install Scripts Do
 
 - creates parent directories when needed
 - creates symlinks from home directory back to this repo
@@ -81,7 +97,7 @@ DOTFILES_DIR=/path/to/dotfiles /path/to/dotfiles/install.sh
 - leaves correct symlinks alone
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
-- links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1`
+- links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1` (or not `0` on Windows)
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
 ## Notes
