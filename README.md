@@ -15,7 +15,6 @@ This repo stores config files and folders synced across machines.
 - selected Claude Code config under `~/.claude`
 - selected Codex config under `~/.codex`
 - `~/.pi/agent`
-- `~/.pi/agent-sessions`
 
 ## Layout
 
@@ -31,6 +30,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
   .claude/
     CLAUDE.md        (canonical agent guidance for Claude Code AND OpenCode)
     commands/        (canonical slash commands)
+    agents/          (canonical Claude Code subagents)
     skills/          (canonical shared skills, discovered by both tools)
     hooks/           (Claude Code hook scripts)
     settings.json.template
@@ -48,6 +48,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 |---|---|---|
 | Global agent guidance | `~/.claude/CLAUDE.md` | Claude Code reads natively; OpenCode reads via `opencode.json` `instructions[]`. |
 | Slash commands | `~/.claude/commands/` | Claude Code is canonical. Retired OpenCode commands live under `~/.config/opencode/archive/commands/`. |
+| Subagents | `~/.claude/agents/` | Claude Code reads natively; Pi uses `.pi/agent/agents/`. |
 | Reusable skills | `~/.claude/skills/` | Claude reads natively, OpenCode falls back to `~/.claude/skills/`. |
 | Hook scripts | `~/.claude/hooks/` | Claude-specific runtime. |
 | Provider/model config | tool-specific | Claude `~/.claude/settings*.json`; OpenCode `~/.config/opencode/opencode.json`. Schemas differ — no shared format. |
@@ -60,12 +61,6 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 3. Run installer.
 4. Seed Claude settings: `cp ~/.claude/settings.json.template ~/.claude/settings.json` then fill in API keys.
 5. Seed Pi settings: `cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json` then edit provider/model per machine if needed.
-
-## New Machine Setup
-
-1. Clone repo to `~/dotfiles`.
-2. Install local runtime prerequisites you want on this machine.
-3. Run installer.
 
 ```bash
 git clone <dotfiles> ~/dotfiles
