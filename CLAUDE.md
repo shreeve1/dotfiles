@@ -29,6 +29,8 @@ commands).
   `.config/opencode/opencode.json` `instructions[]`).
 - Slash commands: `.claude/commands/` (canonical Claude Code commands; retired
   OpenCode commands live under `.config/opencode/archive/commands/`).
+- Subagents: `.claude/agents/` (canonical Claude Code subagents; Pi uses
+  `.pi/agent/agents/`).
 - Shared skills: `.claude/skills/<name>/SKILL.md` (read by Claude Code natively,
   by OpenCode via `~/.claude/skills` fallback).
 - Hooks: `.claude/hooks/` (Claude Code hook scripts).
