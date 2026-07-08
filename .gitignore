@@ -3,12 +3,6 @@ artifacts/
 .config/opencode/opencode.json
 .config/opencode/bak/
 
-# Herdr-generated integrations are installed per-machine
-.claude/hooks/herdr-agent-state.sh
-.codex/herdr-agent-state.sh
-.config/opencode/plugins/herdr-agent-state.js
-.pi/agent/extensions/herdr-agent-state.ts
-
 # Machine-local session work logs (per-machine)
 MEMORY/
 
