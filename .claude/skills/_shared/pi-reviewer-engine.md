@@ -5,7 +5,7 @@ reviewer as a detached, polled subprocess. Consumed by `dev-plan` (Phase 9) and
 `dev-review-pi` (Phase 3). Both skills reach it via the phrase *backgrounded-`pi
 --print` engine*; change the mechanics here, not in each skill.
 
-The engine solves three failure modes that a naive `pi --print` invocation hits:
+The engine solves two failure modes that a naive `pi --print` invocation hits:
 
 1. **Vanish-on-background** — a blocking `timeout 600s pi ...` can SIGKILL a
    slow review mid-thought and gives no live observability.
@@ -13,11 +13,11 @@ The engine solves three failure modes that a naive `pi --print` invocation hits:
    instant it returns, even though `pi` was backgrounded and may have died
    immediately (bad args, missing API key). Polls then spin against an empty
    output file for the full budget.
-3. **Subagent swallow** — if the `@tintinweb/pi-subagents` extension is
-   installed, the reviewer delegates repo reading to an `Explore`/`Plan`
-   subagent whose findings land in a notification channel (`.pi/output/agent-*.jsonl`)
-   that `pi --print` does NOT capture; the parent's final stdout is then just a
-   content-free ack and the review comes back empty.
+
+Historical note: this engine used to pass `--exclude-tools` for a possible
+**subagent swallow** mode, but Pi 0.73.1 removed that flag. There is no supported
+subagent-only denylist today; callers rely on review-only prompting, sentinels,
+and failure handling instead.
 
 The fixes below are load-bearing — do not simplify them away without
 reproducing the failure they prevent (see `/tmp/handoff-mf7MKL.md` for the
@@ -55,7 +55,6 @@ launcher return in ~1s; subsequent polls run in their own short Bash calls.
   cd "$PROJECT_ROOT"
   setsid pi --print \
     "${PI_MODEL_ARGS[@]}" \
-    --exclude-tools "Agent,get_subagent_result,steer_subagent" \
     --append-system-prompt "You are an independent reviewer. Review only; do not modify files. Do all analysis yourself and emit every finding inline in your own final response, following the requested finding format exactly." \
     "@$PROMPT_FILE" \
     > "$OUTPUT_FILE" 2>&1 < /dev/null &
@@ -83,13 +82,10 @@ vanished — see `/tmp/handoff-mf7MKL.md`.
 
 ### Why these exact flags
 
-- `--exclude-tools "Agent,get_subagent_result,steer_subagent"` — denies only the
-  three subagent-spawning tools. This is the fix for **subagent swallow**: it
-  keeps file read/grep, web-tools, skills, and context intact, so analysis stays
-  in the parent agent → stdout. The denylist is a no-op when the extension is
-  absent (unmatched names are ignored). Do NOT pass `--tools` (it would replace
-  the whole toolset) or the `--no-*` context flags (they would strip Pi's normal
-  loading and defeat running Pi "as the user would").
+- No tool-denylist flag is passed. `--exclude-tools` was removed from Pi by
+  0.73.1, and `--tools` is an allowlist, not a denylist substitute. Keep normal
+  Pi tools/extensions here; callers that need a narrower plan-file audit can add
+  supported flags to `PI_MODEL_ARGS` explicitly.
 - `--append-system-prompt "..."` — review-only framing by **instruction, not by
   permission**. Pi keeps normal capabilities; the caller verifies read-only
   behavior separately (drift detection) rather than trusting the prompt.
