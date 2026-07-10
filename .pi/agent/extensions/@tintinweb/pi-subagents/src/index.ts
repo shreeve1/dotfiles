@@ -267,25 +267,29 @@ export default function (pi: ExtensionAPI) {
   const agentActivity = new Map<string, AgentActivity>();
 
   // ---- Cancellable pending notifications ----
-  // Holds notifications briefly so get_subagent_result can cancel them
-  // before they reach pi.sendMessage (fire-and-forget).
-  const pendingNudges = new Map<string, ReturnType<typeof setTimeout>>();
-  const NUDGE_HOLD_MS = 200;
+  // LOCAL PATCH (diverges from upstream 0.8.0): defer background completion
+  // notifications until the parent is idle, then re-check resultConsumed.
+  // If !isIdle(), a parent turn is in flight and agent_end will flush later.
+  // This prevents a stale follow-up turn after the parent already pulled the
+  // result with get_subagent_result.
+  const pendingNotifications = new Map<string, () => void>();
 
-  function scheduleNudge(key: string, send: () => void, delay = NUDGE_HOLD_MS) {
-    cancelNudge(key);
-    pendingNudges.set(key, setTimeout(() => {
-      pendingNudges.delete(key);
+  function flushPendingNotifications() {
+    if (!currentCtx?.isIdle()) return;
+    const pending = [...pendingNotifications.entries()];
+    pendingNotifications.clear();
+    for (const [, send] of pending) {
       try { send(); } catch { /* ignore stale completion side-effect errors */ }
-    }, delay));
+    }
   }
 
-  function cancelNudge(key: string) {
-    const timer = pendingNudges.get(key);
-    if (timer != null) {
-      clearTimeout(timer);
-      pendingNudges.delete(key);
-    }
+  function queueNotification(key: string, send: () => void) {
+    pendingNotifications.set(key, send);
+    flushPendingNotifications();
+  }
+
+  function cancelNotification(key: string) {
+    pendingNotifications.delete(key);
   }
 
   // ---- Individual nudge helper (async join mode) ----
@@ -306,7 +310,7 @@ export default function (pi: ExtensionAPI) {
   function sendIndividualNudge(record: AgentRecord) {
     agentActivity.delete(record.id);
     widget.markFinished(record.id);
-    scheduleNudge(record.id, () => emitIndividualNudge(record));
+    queueNotification(record.id, () => emitIndividualNudge(record));
     widget.update();
   }
 
@@ -316,7 +320,7 @@ export default function (pi: ExtensionAPI) {
       for (const r of records) { agentActivity.delete(r.id); widget.markFinished(r.id); }
 
       const groupKey = `group:${records.map(r => r.id).join(",")}`;
-      scheduleNudge(groupKey, () => {
+      queueNotification(groupKey, () => {
         // Re-check at send time
         const unconsumed = records.filter(r => !r.resultConsumed);
         if (unconsumed.length === 0) { widget.update(); return; }
@@ -475,6 +479,10 @@ export default function (pi: ExtensionAPI) {
     scheduler.stop();
   });
 
+  pi.on("agent_end", () => {
+    setTimeout(flushPendingNotifications, 0);
+  });
+
   const { unsubPing: unsubPingRpc, unsubSpawn: unsubSpawnRpc, unsubStop: unsubStopRpc } = registerRpcHandlers({
     events: pi.events,
     pi,
@@ -495,8 +503,7 @@ export default function (pi: ExtensionAPI) {
     delete (globalThis as any)[MANAGER_KEY];
     scheduler.stop();
     manager.abortAll();
-    for (const timer of pendingNudges.values()) clearTimeout(timer);
-    pendingNudges.clear();
+    pendingNotifications.clear();
     manager.dispose();
   });
 
@@ -1152,7 +1159,7 @@ Guidelines:
       // Setting the flag here prevents a redundant follow-up notification.
       if (params.wait && record.status === "running" && record.promise) {
         record.resultConsumed = true;
-        cancelNudge(params.agent_id);
+        cancelNotification(params.agent_id);
         await record.promise;
       }
 
@@ -1182,7 +1189,7 @@ Guidelines:
       // Mark result as consumed — suppresses the completion notification
       if (record.status !== "running" && record.status !== "queued") {
         record.resultConsumed = true;
-        cancelNudge(params.agent_id);
+        cancelNotification(params.agent_id);
       }
 
       // Verbose: include full conversation
