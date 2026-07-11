@@ -41,7 +41,9 @@ commands).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
-  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}`. Install globally with
+  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at `^0.80.6` (bumped from
+  0.75.5 so vendored `pi-moa` can import `@earendil-works/pi-ai/compat`, which
+  only exists in 0.80.6+). Install globally with
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
@@ -54,6 +56,22 @@ commands).
   `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
   `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
   stale. Do not use `pi install npm:@juicesharp/rpiv-advisor`; use the repo copy.
+- Pi `pi-moa` (Mixture-of-Agents Fusion provider, `@duyviet1804/pi-moa`) is a
+  synced vendored extension at `.pi/agent/extensions/pi-moa`, registered in
+  `.pi/agent/settings.json` `packages` as `extensions/pi-moa` and in
+  `enabledModels` as `pi-moa/Fusion` + `pi-moa/Fusion Fast`. Do not
+  `pi install npm:@duyviet1804/pi-moa`; use the repo copy (repair with
+  `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` if deps stale).
+  It reads per-variant config from `.pi/agent/moa.json` (Fusion) and
+  `.pi/agent/moa-fast.json` (Fusion Fast) — both git-tracked at the agent-dir
+  root, so they sync. Current config: advisors `deepseek/deepseek-v4-flash` +
+  `deepseek/deepseek-v4-pro`, aggregator `cliproxy/claude-opus-4-8`; Fusion runs
+  the verifier (aggregator ~2-3×/turn), Fusion Fast is 1 advisor with
+  `enableVerifier:false`. Requires pi-ai 0.80.6+ (see rename bullet). The
+  `advisor` tool (`rpiv-advisor`) is auto-stripped when a `pi-moa` model drives,
+  via `disabledForModels: ["pi-moa:Fusion", "pi-moa:Fusion Fast"]` in
+  `~/.config/rpiv-advisor/advisor.json` — that file is machine-local and NOT
+  synced, so re-add the blocklist on each machine.
 - Pi `rpiv-web-tools` is a synced vendored extension at
   `.pi/agent/extensions/rpiv-web-tools` and registered in `.pi/agent/settings.json`
   as `extensions/rpiv-web-tools`. Install/repair it with `bash install.sh`, or

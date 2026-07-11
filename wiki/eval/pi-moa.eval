@@ -1,0 +1,5 @@
+how do I change the models pi-moa uses ||| moa.json
+which file sets the pi-moa Fusion aggregator ||| aggregator
+what pi-ai version does pi-moa need ||| 0.80.6
+why does pi crash after adding pi-moa ||| compat
+what runs after editing pi-moa config ||| /reload

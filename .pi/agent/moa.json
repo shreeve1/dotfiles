@@ -1,0 +1,21 @@
+{
+  "referenceModels": [
+    { "provider": "deepseek", "model": "deepseek-v4-flash" },
+    { "provider": "deepseek", "model": "deepseek-v4-pro" }
+  ],
+  "aggregator": { "provider": "cliproxy", "model": "claude-opus-4-8" },
+  "verifier": { "provider": "deepseek", "model": "deepseek-v4-pro" },
+  "referenceTemperature": 0.2,
+  "aggregatorTemperature": 0.1,
+  "referenceMaxTokens": 650,
+  "advisorContextMode": "postTool",
+  "maxAdvisorRefreshesPerTurn": 1,
+  "maxToolResultChars": 6000,
+  "maxAdvisorContextChars": 20000,
+  "includeToolResultsForAdvisors": true,
+  "enableFullTrace": false,
+  "enableVerifier": true,
+  "verifierTemperature": 0,
+  "verifierMaxTokens": 700,
+  "maxVerifierLoops": 1
+}
