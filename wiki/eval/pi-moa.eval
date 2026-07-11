@@ -3,3 +3,4 @@ which file sets the pi-moa Fusion aggregator ||| aggregator
 what pi-ai version does pi-moa need ||| 0.80.6
 why does pi crash after adding pi-moa ||| compat
 what runs after editing pi-moa config ||| /reload
+which model replaced deepseek-v4-pro as a pi-moa Fusion advisor ||| gemini-3.1-flash-lite
