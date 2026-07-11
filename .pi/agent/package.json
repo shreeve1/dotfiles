@@ -4,9 +4,9 @@
   "private": true,
   "description": "Pi agent configuration with extension dependencies",
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.75.5",
-    "@earendil-works/pi-coding-agent": "^0.75.5",
-    "@earendil-works/pi-tui": "^0.75.5",
+    "@earendil-works/pi-ai": "^0.80.6",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "@earendil-works/pi-tui": "^0.80.6",
     "@juicesharp/rpiv-advisor": "1.13.0",
     "@juicesharp/rpiv-config": "1.13.0",
     "@sinclair/typebox": "^0.34.0",
