@@ -23,6 +23,13 @@ Append entries with this format:
 - Outputs: `wiki/analyses/rpiv-pipeline.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, `wiki/log.md`
 - Notes: Promoted the RPIV pipeline analysis candidate into `wiki/analyses/` (status: promoted). Moved the index row from the candidate review queue to the Analyses section, marked the RPIV Pipeline Automation route as promoted/authoritative, and repointed claims C-0106 through C-0115 to the promoted page path. Candidate file removed after the target was verified.
 
+## 2026-07-11 session-update | pi-moa Fusion advisor cost tuning
+
+- Actor: Claude Code (Symphony unattended, issue #372)
+- Inputs: task to experiment with cheaper pi-moa advisor combos keeping `cliproxy/claude-opus-4-8` aggregator; `wiki/candidates/analysis-session-pi-moa-fusion.md` runbook; `pi --list-models`; direct advisor smoke tests + a coding-advisor benchmark; end-to-end Fusion run.
+- Outputs: `.pi/agent/moa.json` (advisor swap), `wiki/raw/sessions/2026-07-11-pi-moa-advisor-cost-tuning.md`, `wiki/candidates/analysis-session-pi-moa-fusion.md` (advisor table + cost-tuning section), `wiki/CLAIMS.md` (C-0123 via gate.py ADMIT), `wiki/eval/pi-moa.eval`, `wiki/index.md`, `wiki/log.md`.
+- Notes: Replaced Fusion advisor `deepseek/deepseek-v4-pro` with `google/gemini-3.1-flash-lite` (kept as verifier). Benchmark: flash-lite 10.9s vs pro 18.0s, core angles covered; Opus aggregator carries synthesis depth so advisors need breadth not depth. Confirmed pi-moa resolves `google/*` via Pi's native catalog (not LiteLLM `gemini/` prefix) — end-to-end `pi --provider pi-moa --model Fusion` returned `MOA_OK` exit 0. Fusion Fast left unchanged (already single cheap advisor). Unresolved: absolute per-turn $ cost unmeasured; verifier model not cost-tested.
+
 ## 2026-07-11 session-update | pi-moa Fusion install and model-update runbook
 
 - Actor: Claude Code

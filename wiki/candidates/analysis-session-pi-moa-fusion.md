@@ -41,7 +41,7 @@ machine-local install state.
 
 | Variant | Config file | Advisors (`referenceModels`) | Aggregator | Verifier |
 |---------|-------------|------------------------------|------------|----------|
-| Fusion | `.pi/agent/moa.json` | `deepseek/deepseek-v4-flash`, `deepseek/deepseek-v4-pro` | `cliproxy/claude-opus-4-8` | on (`deepseek/deepseek-v4-pro`) |
+| Fusion | `.pi/agent/moa.json` | `deepseek/deepseek-v4-flash`, `google/gemini-3.1-flash-lite` | `cliproxy/claude-opus-4-8` | on (`deepseek/deepseek-v4-pro`) |
 | Fusion Fast | `.pi/agent/moa-fast.json` | `deepseek/deepseek-v4-flash` | `cliproxy/claude-opus-4-8` | off |
 
 Both config files live at the agent-dir root and are git-tracked, so model
@@ -96,6 +96,21 @@ so an Opus aggregator runs roughly 2-3x per turn. Fusion Fast (1 advisor,
 verifier off) is the cheap/fast path. To reduce cost without switching variant,
 lower `referenceMaxTokens`, drop an advisor, or point `aggregator` at a cheaper
 model.
+
+### Advisor cost tuning (2026-07-11)
+
+To cut advisor cost while keeping the Opus aggregator, the Fusion `deepseek/deepseek-v4-pro`
+advisor was replaced with `google/gemini-3.1-flash-lite`, leaving `deepseek/deepseek-v4-flash`
+as the second advisor and `deepseek/deepseek-v4-pro` as the single verifier. Rationale: the
+Opus aggregator supplies synthesis depth, so advisors need breadth of angle (now cross-provider:
+deepseek + google) more than per-advisor depth; the dropped advisor was both the priciest and
+slowest slot. On a representative coding-advisor prompt, `gemini-3.1-flash-lite` answered in
+10.9s vs `deepseek-v4-pro`'s 18.0s and still covered the core angles. Validated end-to-end with
+`pi --provider pi-moa --model Fusion --no-session -p "reply with exactly: MOA_OK"` → `MOA_OK`,
+exit 0, no auth/parse errors. Note: pi-moa resolves model names against Pi's native provider
+catalog (`google/...`), not a LiteLLM `gemini/` prefix, so no extra env var is needed when the
+`google` provider is already authed via Pi login. Absolute per-turn dollar cost was not measured;
+the saving is by advisor tier (pro → flash-lite) and latency, not instrumented spend.
 
 ## Version Requirement
 
