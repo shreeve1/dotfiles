@@ -1,0 +1,21 @@
+{
+  "referenceModels": [
+    { "provider": "opencode-go", "model": "kimi-k2.7-code" },
+    { "provider": "opencode-go", "model": "glm-5.2" }
+  ],
+  "aggregator": { "provider": "opencode-go", "model": "deepseek-v4-flash" },
+  "verifier": { "provider": "opencode-go", "model": "glm-5.2" },
+  "referenceTemperature": 0.2,
+  "aggregatorTemperature": 0.1,
+  "referenceMaxTokens": 650,
+  "advisorContextMode": "postTool",
+  "maxAdvisorRefreshesPerTurn": 1,
+  "maxToolResultChars": 6000,
+  "maxAdvisorContextChars": 20000,
+  "includeToolResultsForAdvisors": true,
+  "enableFullTrace": false,
+  "enableVerifier": true,
+  "verifierTemperature": 0,
+  "verifierMaxTokens": 700,
+  "maxVerifierLoops": 1
+}

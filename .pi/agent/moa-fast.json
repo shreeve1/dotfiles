@@ -1,0 +1,13 @@
+{
+  "referenceModels": [
+    { "provider": "deepseek", "model": "deepseek-v4-flash" }
+  ],
+  "aggregator": { "provider": "cliproxy", "model": "claude-opus-4-8" },
+  "referenceTemperature": 0.2,
+  "aggregatorTemperature": 0.1,
+  "referenceMaxTokens": 650,
+  "advisorContextMode": "postTool",
+  "maxAdvisorRefreshesPerTurn": 1,
+  "enableFullTrace": false,
+  "enableVerifier": false
+}

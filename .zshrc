@@ -217,7 +217,6 @@ elif [[ -d /usr/lib/jvm/java-*/ ]]; then
   [[ -n "$JAVA_HOME" ]] && export PATH="$JAVA_HOME/bin:$PATH"
 fi
 export ENABLE_EXPERIMENTAL_MCP_CLI=1
-export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/bin:$PATH"
 
 # Playwright visual browser debugging (output saves to your current project directory)
