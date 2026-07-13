@@ -9,7 +9,6 @@
     "extensions/pi-lens",
     "extensions/@tintinweb/pi-subagents",
     "extensions/rpiv-advisor",
-    "extensions/rpiv-ask-user-question",
     "extensions/rpiv-todo",
     "extensions/@juicesharp/rpiv-i18n",
     "extensions/rpiv-web-tools",
