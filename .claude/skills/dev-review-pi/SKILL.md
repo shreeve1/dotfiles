@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
 name: dev-review-pi
-description: Independent code review using Pi Coding Agent as the reviewer. USE WHEN user says "dev-review-pi", "/skill:dev-review-pi", "independent Pi review", or wants a Pi-powered second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--model <pattern>`, `--provider <name>`, `--opus`, `--sonnet`, or `--claude` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
+description: Independent code review using Pi Coding Agent as the reviewer. USE WHEN user says "dev-review-pi", "/skill:dev-review-pi", "independent Pi review", or wants a Pi-powered second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Default reviewer model: `cliproxy/claude-opus-4-8`. Accepts optional `--model <pattern>`, `--provider <name>`, `--opus`, `--sonnet`, or `--claude` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
 ---
 
 # Dev Review Pi (Pi Coding Agent-Powered)
@@ -26,7 +26,7 @@ PI_MODEL_ARGS: Optional Pi model selector array from the raw arguments:
 - `--provider <name>` — pass through to Pi as `("--provider" "<name>")`
 - `--claude` or `--opus` — set to `("--model" "opus")`
 - `--sonnet` — set to `("--model" "sonnet")`
-- Omitted — empty array (use Pi's configured default model)
+- Omitted — `("--model" "cliproxy/claude-opus-4-8")` (skill default)
 - Multiple conflicting model flags present — ask the user to choose one before running the reviewer
 
 ## Checklist
@@ -63,7 +63,7 @@ You MUST create a task for each of these items and complete them in order:
    - If `--sonnet` is present, set `PI_MODEL_ARGS` to `("--model" "sonnet")`
    - If `--gpt` is present, explain that Pi supports many providers; ask the user for an explicit `--model <provider/model>` or `--provider <name> --model <pattern>`
    - If multiple conflicting model flags are present, ask the user which reviewer model to use and stop until they answer
-   - If no model/provider flags are present, set `PI_MODEL_ARGS` to an empty array (Pi uses its configured default)
+   - If no model/provider flags are present, set `PI_MODEL_ARGS` to `("--model" "cliproxy/claude-opus-4-8")` (skill default)
    - Remove model/provider flags from the argument string before interpreting TARGET
 
    Scan the conversation context for:
@@ -211,7 +211,7 @@ Launch and poll the reviewer via the backgrounded-`pi --print` engine at `~/.cla
      cp "$PROJECT_ROOT/$p" "$SNAP_DIR/$p"
    done
    ```
-   The engine handles the `setsid` detach, PID-file persistence, and the 1s launch-failure sanity check. `PI_MODEL_ARGS` was resolved in Phase 1; empty array → Pi's configured default.
+   The engine handles the `setsid` detach, PID-file persistence, and the 1s launch-failure sanity check. `PI_MODEL_ARGS` was resolved in Phase 1; when no flag is passed, defaults to `("--model" "cliproxy/claude-opus-4-8")`.
 
    **4b. Poll per the engine** in separate Bash calls until `$COMPLETION_SENTINEL` appears in `$OUTPUT_FILE` or the PID exits (soft cap 600s wall-clock — keep polling, never SIGKILL).
 
