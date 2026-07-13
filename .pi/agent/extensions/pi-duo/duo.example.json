@@ -16,5 +16,5 @@
   "maxToolResultChars": 6000,
   "verifyEveryNSteps": 0,
   "enableVerifier": true,
-  "enableFullTrace": false
+  "enableFullTrace": true
 }
