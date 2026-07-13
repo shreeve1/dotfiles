@@ -44,7 +44,7 @@ export const DEFAULT_CONFIG: DuoConfig = {
 	maxVerifierLoops: 1,
 	maxContextChars: 20000,
 	maxToolResultChars: 6000,
-	enableVerifier: false,
+	enableVerifier: true,
 	enableFullTrace: false,
 };
 
