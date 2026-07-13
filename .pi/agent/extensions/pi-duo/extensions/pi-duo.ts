@@ -27,6 +27,7 @@ import {
 	addUsage,
 	hasToolCalls,
 	parseVerifierVerdict,
+	stepsSinceLastUser,
 	textFromAssistant,
 	truncateMiddle,
 	validateDuoConfig,
@@ -224,12 +225,18 @@ export function streamPiDuo(
 					: undefined;
 
 			// The actor drives with real tools. Pi enters this provider once per
-			// tool-loop step, so we only run the verifier when the actor produces a
-			// terminal (no-tool-call) message it wants to return to the user. Each
-			// terminal answer is gated independently: if a REVISE re-run needs tools,
-			// its tool-call message is returned and Pi's next terminal answer is
-			// re-gated on the next provider entry. Verifier feedback therefore does
-			// not need to survive the outer loop.
+			// tool-loop step. We always gate a terminal (no-tool-call) answer before
+			// it reaches the user; with verifyEveryNSteps>0 we also run a lighter
+			// checkpoint review on mid-loop steps at the configured cadence, so long
+			// investigations get periodic grounding checks instead of a single
+			// terminal gate. Each gate is independent: on REVISE the actor re-runs in
+			// this same entry with the feedback appended, so verifier guidance never
+			// needs to survive Pi's outer loop.
+			const stepIndex = stepsSinceLastUser(context.messages);
+			const checkpointDue =
+				config.verifyEveryNSteps > 0 &&
+				stepIndex > 0 &&
+				stepIndex % config.verifyEveryNSteps === 0;
 			let actingContextForRun = context;
 			let finalMessage: AssistantMessage | undefined;
 
@@ -314,20 +321,30 @@ export function streamPiDuo(
 					});
 				}
 
-				// Gate only terminal (no-tool-call) answers, and only if we still have
-				// verifier-loop budget left. Anything with tool calls is a mid-loop
-				// step Pi will act on and re-enter us for; relay it untouched.
+				// Gate a terminal answer always; gate a mid-loop step only when a
+				// checkpoint is due. Either way, only while REVISE budget remains.
+				const isTerminal = !hasToolCalls(actingMessage);
+				const gateMode: "terminal" | "checkpoint" | null = isTerminal
+					? "terminal"
+					: checkpointDue
+						? "checkpoint"
+						: null;
 				const gate =
 					verifierModel &&
 					verifierSlot &&
-					!hasToolCalls(actingMessage) &&
+					gateMode &&
 					loop < config.maxVerifierLoops;
 				if (gate) {
 					const verifierStartedAt = Date.now();
 					try {
 						const verifierMessage = await completeSimple(
 							verifierModel,
-							verifierContext(actingContextForRun, actingMessage, config),
+							verifierContext(
+								actingContextForRun,
+								actingMessage,
+								config,
+								gateMode,
+							),
 							await targetOptions(verifierModel, options, {
 								temperature: config.verifierTemperature,
 								maxTokens: config.verifierMaxTokens,
@@ -341,10 +358,14 @@ export function streamPiDuo(
 							textFromAssistant(verifierMessage),
 						);
 						const verifierLabel = `${verifierSlot.provider}:${verifierSlot.model}`;
-						verifierDiagnostics.push(`${verifierLabel} ${verdict.verdict}`);
+						verifierDiagnostics.push(
+							`${verifierLabel} ${gateMode} ${verdict.verdict}`,
+						);
 						if (config.enableFullTrace) {
 							trace.push({
 								stage: "verifier",
+								mode: gateMode,
+								stepIndex,
 								attempt: loop + 1,
 								model: verifierLabel,
 								status: verifierMessage.stopReason,
