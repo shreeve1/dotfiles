@@ -83,7 +83,17 @@ commands).
   request at finalization, not per step. On `REVISE` the actor re-runs the
   finalize pass with the feedback appended, up to `maxVerifierLoops` (each
   terminal answer is gated independently; guidance does not need to survive Pi's
-  outer loop). It is a provider (`streamSimple`), so it works in all modes
+  outer loop). For long tool-heavy sessions that would otherwise get only one
+  terminal check, `verifyEveryNSteps` (default `0` = terminal-only) adds a
+  lighter mid-loop **checkpoint** review at that step cadence (step index is
+  derived statelessly from the context — assistant messages since the last user
+  turn), catching a wrong investigative path early. The checkpoint uses a
+  separate prompt (`VERIFIER_CHECKPOINT_PROMPT`) that does not demand a premature
+  answer. The verifier sees evidence under its own larger budget
+  (`maxVerifierContextChars`, default 80000 vs the actor-facing
+  `maxContextChars`) with tail-weighted truncation, so recent tool results
+  survive on long sessions instead of a symmetric middle hole. It is a provider
+  (`streamSimple`), so it works in all modes
   including headless `pi -p` (unlike an `agent_settled` hook, whose injected
   follow-up does not run in one-shot print mode). Do not `pi install` it; use the
   repo copy (repair with `bash install.sh`; it has only peer deps and resolves

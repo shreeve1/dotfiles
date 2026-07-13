@@ -12,7 +12,9 @@
   "verifierMaxTokens": 700,
   "maxVerifierLoops": 1,
   "maxContextChars": 20000,
+  "maxVerifierContextChars": 80000,
   "maxToolResultChars": 6000,
+  "verifyEveryNSteps": 0,
   "enableVerifier": true,
   "enableFullTrace": false
 }
