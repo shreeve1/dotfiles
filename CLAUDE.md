@@ -91,9 +91,10 @@ commands).
   `node_modules` is needed). It reads config from `.pi/agent/duo.json`
   (git-tracked at the agent-dir root, so it syncs). Current config: actor
   `minimax/MiniMax-M3`, verifier `cliproxy/claude-opus-4-8`, **`enableVerifier`
-  defaults `false`** (tiered use: bare-minimax-speed daily driving, flip to
-  `true` in `duo.json` for gnarly/high-stakes work — Opus verifier every
-  finalize is expensive). Note: with the verifier ON, terminal answers are
+  defaults `true`** while the verifier is being tuned (Opus verifier every
+  finalize is expensive; for tiered use set `false` in `duo.json` for
+  bare-minimax-speed daily driving and `true` for gnarly/high-stakes work).
+  Note: with the verifier ON, terminal answers are
   buffered (not live-streamed) until the gate clears; the default OFF path streams
   live. Built as a trimmed fork of `pi-moa` (advisor stage + coding-discipline
   injection removed). Requires pi-ai 0.80.6+ (see rename bullet). When the
