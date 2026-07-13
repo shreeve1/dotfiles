@@ -1,0 +1,28 @@
+{
+  "name": "pi-duo",
+  "version": "0.1.0",
+  "description": "Actor + independent verifier two-model provider for pi (no advisor stage)",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "verifier",
+    "coding-agent"
+  ],
+  "files": [
+    "extensions",
+    "src",
+    "duo.example.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/pi-duo.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
