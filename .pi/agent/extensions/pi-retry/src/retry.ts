@@ -6,10 +6,12 @@ const CODEX_WEBSOCKET_CONNECTION_LIMIT_RE =
 // ponytail: broad rate-limit catch — covers "rate limit", "too many requests", 429 status.
 // If a specific provider sends a different message, add it here.
 const RATE_LIMIT_RE = /rate.?limit|too.?many.?requests|429/i;
+const UNHANDLED_ABORT_RE = /Unhandled stop reason:\s*abort/i;
 const RETRYABLE_HINT = "provider returned error";
 const UNKNOWN_ERROR_TAG = "[unknown-error-retry]";
 const CODEX_WEBSOCKET_CONNECTION_LIMIT_TAG = "[codex-websocket-limit-retry]";
 const RATE_LIMIT_TAG = "[rate-limit-retry]";
+const UNHANDLED_ABORT_TAG = "[unhandled-abort-retry]";
 const STALL_WATCHDOG_TAG = "[stall-watchdog-retry]";
 const STATUS_KEY = "unknown-error-retry";
 const STATUS_VISIBLE_MS = 8_000;
@@ -219,7 +221,14 @@ export default function retry(pi: ExtensionAPI) {
 							notification:
 								"Matched rate limit error; letting pi auto-retry with backoff.",
 						}
-					: undefined;
+					: UNHANDLED_ABORT_RE.test(message.errorMessage)
+						? {
+								tag: UNHANDLED_ABORT_TAG,
+								label: "unhandled abort stop reason",
+								notification:
+									"Matched 'Unhandled stop reason: abort'; letting pi auto-retry this turn.",
+							}
+						: undefined;
 		if (!matchedError) return;
 
 		// Avoid appending the hint repeatedly if a resumed/replayed message already has it.
