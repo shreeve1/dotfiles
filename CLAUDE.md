@@ -72,6 +72,35 @@ commands).
   via `disabledForModels: ["pi-moa:Fusion", "pi-moa:Fusion Fast"]` in
   `~/.config/rpiv-advisor/advisor.json` — that file is machine-local and NOT
   synced, so re-add the blocklist on each machine.
+- Pi `pi-duo` (actor + independent-verifier provider, local `pi-duo`) is a synced
+  vendored extension at `.pi/agent/extensions/pi-duo`, registered in
+  `.pi/agent/settings.json` `packages` as `extensions/pi-duo` and in
+  `enabledModels` as `pi-duo/Duo`. It is NOT a Mixture-of-Agents setup: there is
+  no advisor stage. One actor model drives the whole session with real tools.
+  Pi enters the provider once per tool-loop step; pi-duo relays tool-call
+  (mid-loop) messages untouched and only gates a **terminal** (no-tool-call)
+  answer through the independent verifier, so the verifier fires ~once per user
+  request at finalization, not per step. On `REVISE` the actor re-runs the
+  finalize pass with the feedback appended, up to `maxVerifierLoops` (each
+  terminal answer is gated independently; guidance does not need to survive Pi's
+  outer loop). It is a provider (`streamSimple`), so it works in all modes
+  including headless `pi -p` (unlike an `agent_settled` hook, whose injected
+  follow-up does not run in one-shot print mode). Do not `pi install` it; use the
+  repo copy (repair with `bash install.sh`; it has only peer deps and resolves
+  the Pi SDK from `~/.pi/agent/node_modules` at runtime, so no extension-local
+  `node_modules` is needed). It reads config from `.pi/agent/duo.json`
+  (git-tracked at the agent-dir root, so it syncs). Current config: actor
+  `minimax/MiniMax-M3`, verifier `cliproxy/claude-opus-4-8`, **`enableVerifier`
+  defaults `false`** (tiered use: bare-minimax-speed daily driving, flip to
+  `true` in `duo.json` for gnarly/high-stakes work — Opus verifier every
+  finalize is expensive). Note: with the verifier ON, terminal answers are
+  buffered (not live-streamed) until the gate clears; the default OFF path streams
+  live. Built as a trimmed fork of `pi-moa` (advisor stage + coding-discipline
+  injection removed). Requires pi-ai 0.80.6+ (see rename bullet). When the
+  verifier is enabled, pi-duo bakes in an Opus verifier, so the `advisor` tool
+  should be stripped when it drives — add `pi-duo:Duo` to `disabledForModels` in
+  `~/.config/rpiv-advisor/advisor.json` (machine-local, NOT synced; re-add per
+  machine) to avoid redundant double-Opus.
 - Pi `rpiv-web-tools` is a synced vendored extension at
   `.pi/agent/extensions/rpiv-web-tools` and registered in `.pi/agent/settings.json`
   as `extensions/rpiv-web-tools`. Install/repair it with `bash install.sh`, or
