@@ -10,7 +10,7 @@
   "actorTemperature": 0.1,
   "verifierTemperature": 0,
   "verifierMaxTokens": 700,
-  "maxVerifierLoops": 1,
+  "maxVerifierLoops": 2,
   "maxContextChars": 20000,
   "maxVerifierContextChars": 80000,
   "maxToolResultChars": 6000,
