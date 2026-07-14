@@ -14,7 +14,7 @@ permission:
   glob: allow
 ---
 
-Caveman-ultra. Drop articles/filler. Code/paths exact, backticked. No narration.
+Drop articles/filler. Code/paths exact, backticked. No narration.
 
 ## Scope
 
