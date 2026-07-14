@@ -80,6 +80,11 @@ ISSUES:
 REQUIRED_ACTIONS:
 - ...`;
 
+// Grounding checkpoint prompt. RETAINED INTENTIONALLY but currently unused by
+// the live path: the mid-loop slot now runs the scope gate (VERIFIER_SCOPE_PROMPT)
+// instead of this grounding checkpoint. Kept so that flipping the mid-loop gate
+// back to grounding is a one-line change in pi-duo.ts (gateMode "scope" →
+// "checkpoint") if the scope gate ever needs to be disabled.
 export const VERIFIER_CHECKPOINT_PROMPT = `You are an independent verifier checking on another model's work partway through an investigation, before it has finished. It is still gathering evidence with tools and has NOT produced a final answer yet.
 
 You did NOT produce this work and you cannot run tools. Your only job is to catch the actor going down a wrong path: check whether its latest interim step is grounded in the evidence actually present (files read, commands run, tool results) rather than proceeding from an unchecked assumption.
@@ -103,6 +108,64 @@ ISSUES:
 - ...
 REQUIRED_ACTIONS:
 - ...`;
+
+// Scope (proportionality) gate: a mid-loop check that judges whether the actor
+// is still doing what the user asked, or has expanded the work well beyond the
+// request (scope creep). Unlike the grounding gates it judges proportionality,
+// not evidence-support, and it is delivered as a SOFT nudge (see actingContext)
+// — a REVISE re-runs the step with the reminder appended; the actor may override
+// it and proceed if the work really is in scope. Work mandated by the project's
+// conventions (the distilled digest, prepended at gate time) is IN scope.
+export const VERIFIER_SCOPE_PROMPT = `You are an independent scope monitor watching another model (the "actor") work on a user's request. The actor is still working — it has NOT finished. You cannot run tools.
+
+Your ONLY job: judge whether the actor is still doing what the user actually asked, or whether it has expanded the work well beyond the request (scope creep / over-reach).
+
+You are given:
+1. The user's ORIGINAL request for this turn.
+2. PROJECT CONVENTIONS the actor is required to follow (work mandated by these is IN scope even if the user did not spell it out).
+3. A transcript of the actor's reasoning and actions so far (tool calls with arguments, and results).
+
+Judge PROPORTIONALITY, not correctness or grounding:
+- A large request (e.g. "review X and create a wiki entry", "investigate this bug") legitimately warrants many steps of reading, searching, editing. That is NOT drift.
+- Work explicitly required by the PROJECT CONVENTIONS above (e.g. mandated ledger/index/log updates that accompany a wiki entry) is IN scope. Do NOT flag it.
+- A small or yes/no request (e.g. "can I hide these?", "is there a way to X?", "remove this one thing") does NOT warrant sprawling multi-file edits, building features, or restructuring beyond what conventions require. That IS drift.
+- Editing/creating files unrelated to both the request and the conventions, or turning a question into a build, is drift.
+
+This is a SOFT nudge, not a hard stop. REVISE does not halt the actor — it only reminds the actor to re-check its scope; if the actor's evidence shows the work really is in scope (including convention-mandated work), it will correctly proceed and ignore the nudge. Because the nudge is cheap and easily overridden, do NOT hold back: if the actor appears to be doing substantial work the user did not ask for and the conventions do not require, REVISE. A missed over-reach is worse than an unnecessary nudge.
+
+Return REVISE when the actor appears to have expanded scope beyond what the user asked AND beyond what the conventions require — e.g. it turned a question into a build, or is editing/creating files unrelated to both the request and the conventions. Return PASS when the work plausibly matches the request or is convention-mandated.
+
+Output ONLY the verdict block. Do not rewrite the actor's work.
+
+Respond exactly with either:
+VERDICT: PASS
+
+or:
+VERDICT: REVISE
+ISSUES:
+- ...
+REQUIRED_ACTIONS:
+- ...`;
+
+// Conventions distillation: the raw project_instructions (whole CLAUDE.md /
+// AGENTS.md) are noisy input for the scope gate — the scope-bearing signal
+// (mandatory accompanying work, immutable areas) is diluted among style / PR /
+// commit guidance, driving false positives. One verifier call compresses the
+// raw instructions to only the rules that decide whether work is IN scope
+// (required) or OUT of scope (forbidden). Cached per raw-conventions string in
+// the provider, so it runs ~once per project rather than per checkpoint.
+export const CONVENTIONS_DISTILL_PROMPT = `You are compressing a project's agent-guidance document into a SHORT digest for a scope monitor. The monitor uses your digest to decide whether another agent's work is IN scope (required or permitted by the project) or OUT of scope (over-reach the user did not ask for).
+
+Extract ONLY rules that bear on whether a task's work is MANDATORY or FORBIDDEN:
+- Work the project REQUIRES as a mandatory accompaniment to a task — e.g. ledger/index/log/manifest files that MUST be updated before a task counts as done, required steps that must run.
+- Areas that are IMMUTABLE or off-limits to edit — read-only source, review-gated directories.
+
+For any required accompanying work, do BOTH of these in the same bullet: (a) NAME the specific files/directories it legitimately creates or edits, and (b) state EXPLICITLY that editing those files is REQUIRED convention work and must NOT be treated as scope creep or over-reach. This anti-false-positive framing is the single most important thing your digest carries — without it the monitor wrongly flags mandated ledger/index/log edits as over-reach. Keep the distinction sharp between these in-scope files and any IMMUTABLE/off-limits files, which remain over-reach if edited.
+
+IGNORE everything that does NOT bear on task scope: coding/comment style, commit and PR mechanics, tone, formatting, search-order preferences, tooling setup.
+
+Output terse bullets, at most 6, each one sentence. Name the specific files/paths and directories exactly as the source does. If nothing in the document bears on task scope, output exactly:
+(no scope-bearing conventions)`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -471,8 +534,10 @@ export function verifierContext(
 	context: Context,
 	candidate: AssistantMessage,
 	config: DuoConfig,
-	mode: "terminal" | "checkpoint" = "terminal",
+	mode: "terminal" | "checkpoint" | "scope" = "terminal",
+	conventions = "",
 ): Context {
+	const isScope = mode === "scope";
 	// Strip the actor's private verifier-feedback messages before building
 	// the evidence transcript: they were injected by `actingContext()` to
 	// guide the actor's retry and must not appear in the verifier's view
@@ -493,22 +558,43 @@ export function verifierContext(
 		}
 		return true;
 	});
+	// Scope mode judges proportionality, so it needs to see the actor's INTENT
+	// (thinking) and WHAT each tool call targets (args), which the grounding
+	// gates deliberately strip. The other modes keep the leaner name-only view.
 	const evidence = truncateTail(
 		transcriptFromMessages(messagesForEvidence, {
 			includeToolResults: true,
 			maxToolResultChars: config.maxToolResultChars,
 			includeToolCalls: true,
+			includeToolArgs: isScope,
+			includeThinking: isScope,
 		}),
 		config.maxVerifierContextChars,
 	);
+	// Scope mode surfaces this turn's user request explicitly so the monitor can
+	// judge the actor's work against it (the request also sits in `evidence`, but
+	// the leading callout anchors the proportionality judgement to THIS turn).
+	let originalRequest = "";
+	if (isScope) {
+		for (let i = messagesForEvidence.length - 1; i >= 0; i--) {
+			if (messagesForEvidence[i].role === "user") {
+				originalRequest = textFromMessage(messagesForEvidence[i], {}).trim();
+				break;
+			}
+		}
+	}
 	const candidateLabel =
-		mode === "checkpoint"
-			? "Latest interim step to verify"
-			: "Final answer to verify";
+		mode === "terminal"
+			? "Final answer to verify"
+			: "Latest interim step to verify";
 	const candidateText = truncateTail(
-		(mode === "checkpoint"
-			? textFromMessage(candidate, { includeToolCalls: true }).trim()
-			: textFromAssistant(candidate)) || "(no output)",
+		(mode === "terminal"
+			? textFromAssistant(candidate)
+			: textFromMessage(candidate, {
+					includeToolCalls: true,
+					includeToolArgs: isScope,
+					includeThinking: isScope,
+				}).trim()) || "(no output)",
 		config.maxVerifierContextChars,
 	).text;
 	// The verifier's rules AND evidence both ride in user-role messages, not
@@ -521,7 +607,18 @@ export function verifierContext(
 	// non-verdict. So we duplicate the full rules into the leading user
 	// message. We still pass systemPrompt too, for providers that honor it.
 	const basePrompt =
-		mode === "checkpoint" ? VERIFIER_CHECKPOINT_PROMPT : VERIFIER_SYSTEM_PROMPT;
+		mode === "scope"
+			? VERIFIER_SCOPE_PROMPT
+			: mode === "checkpoint"
+				? VERIFIER_CHECKPOINT_PROMPT
+				: VERIFIER_SYSTEM_PROMPT;
+	// Scope mode injects the distilled project conventions + the turn's request
+	// between the rules and the evidence, matching the offline-tuned prompt shape
+	// (rules → conventions → request → evidence). Empty conventions degrade to a
+	// convention-free proportionality check.
+	const scopePreamble = isScope
+		? `\n\n# PROJECT CONVENTIONS (work these mandate is IN scope)\n${conventions || "(no project conventions provided)"}\n\n# The user's ORIGINAL request for this turn\n${originalRequest || "(request unavailable)"}`
+		: "";
 	// The leading message (rules + evidence) is the stable prefix across a
 	// gate's REVISE re-runs; only the candidate (trailing message) varies. It
 	// carries an explicit cache_control breakpoint so Anthropic prompt cache
@@ -535,8 +632,8 @@ export function verifierContext(
 	// openai-completions + anthropic-messages providers but not declared on
 	// TextContent in the public type, hence the cast).
 	const prefixText = evidence.text
-		? `${basePrompt}\n\n# Task context and evidence\n${evidence.text}`
-		: basePrompt;
+		? `${basePrompt}${scopePreamble}\n\n# Task context and evidence\n${evidence.text}`
+		: `${basePrompt}${scopePreamble}`;
 	const messages: Context["messages"] = [
 		{
 			role: "user",
@@ -563,19 +660,44 @@ export function verifierContext(
 	};
 }
 
+// Distillation stage: build the one-shot context that compresses a project's
+// raw project_instructions into the scope digest. The prompt rides in the user
+// message (not only the system prompt) for the same stub-sanitizing-provider
+// reason as verifierContext. Run once per project and cached by the caller.
+export function distillContext(rawConventions: string): Context {
+	return {
+		systemPrompt: CONVENTIONS_DISTILL_PROMPT,
+		messages: [
+			{
+				role: "user",
+				timestamp: Date.now(),
+				content: `${CONVENTIONS_DISTILL_PROMPT}\n\n# Project guidance document\n${rawConventions}`,
+			},
+		],
+	};
+}
+
 // Acting stage: verifier feedback (if any) is appended as private guidance
-// before the actor retries its final answer. The actor keeps its real tools and
-// remains the sole agent producing user output.
+// before the actor retries. The actor keeps its real tools and remains the sole
+// agent producing user output. `kind` selects the framing: "grounding" (the
+// terminal gate — re-check unverified claims before finalizing) or "scope" (the
+// mid-loop gate — a soft nudge to re-check that the work is still in scope; the
+// actor is mid-investigation, not finalizing, and may override and proceed).
 export function actingContext(
 	context: Context,
 	guidance: Array<{ label: string; text: string }>,
+	kind: "grounding" | "scope" = "grounding",
 ): Context {
 	if (guidance.length === 0) return context;
+	const explanation =
+		kind === "scope"
+			? `The feedback above is from an automated scope check on your work so far — it is not a user message and not a separate agent giving you orders. It is a soft reminder: if you have drifted beyond what the user asked (and beyond what the project conventions require), narrow your focus back to the request. If the check is wrong and this work really is in scope — including convention-mandated work — say so briefly and continue. You are the only agent acting here; keep working toward the user's request.`
+			: `The feedback above is from an automated grounding check on the final answer you just drafted — it is not a user message and not a separate agent giving you orders. If it flags a claim you have not actually verified, read the file or run the tool to ground it, then produce your final answer. If the check is wrong and your evidence already supports the answer, say so briefly and proceed. You are the only agent acting here.`;
 	const block = `<duo_verifier_review>
 ${guidance.map((g) => `## ${g.label}\n${g.text}`).join("\n\n---\n\n")}
 </duo_verifier_review>
 
-The feedback above is from an automated grounding check on the final answer you just drafted — it is not a user message and not a separate agent giving you orders. If it flags a claim you have not actually verified, read the file or run the tool to ground it, then produce your final answer. If the check is wrong and your evidence already supports the answer, say so briefly and proceed. You are the only agent acting here.`;
+${explanation}`;
 	return {
 		...context,
 		messages: [
@@ -594,7 +716,10 @@ The feedback above is from an automated grounding check on the final answer you 
 // rather than adding a new mid-loop oversight mechanism. A user-role notice
 // tells the actor why its tools vanished so it answers from evidence already
 // gathered instead of stalling.
-export function finalizeContext(context: Context, maxActorSteps: number): Context {
+export function finalizeContext(
+	context: Context,
+	maxActorSteps: number,
+): Context {
 	const notice = `You have reached this session's tool-use budget (${maxActorSteps} steps). Your tools are now disabled. Answer the user's request now, directly, using only the evidence you have already gathered. State clearly what you did and did not verify — do not claim work you could not complete.`;
 	return {
 		...context,
