@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: playwright-browser
 description: Browser automation using Playwright CLI. Use for web scraping, UI testing, and browser automation tasks. Activates when the user needs to automate browser interactions, take screenshots, extract web data, or run Playwright tests with named sessions.
 ---

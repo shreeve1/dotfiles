@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: dev-review-claude
 description: Independent code review using a fresh interactive Claude Code session as the reviewer. USE WHEN user says "dev-review-claude", "/skill:dev-review-claude", "independent Claude review", or wants a Claude-powered second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Accepts optional `--claude` / `--opus` / `--sonnet` model flags and a target argument (`plan`, `build`, `proposal`, or a path).
 ---
