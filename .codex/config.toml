@@ -1,8 +1,8 @@
 approvals_reviewer = "user"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
-model = "gpt-5.5"
-model_reasoning_effort = "high"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
 [projects."/Users/james"]
 trust_level = "trusted"
 
