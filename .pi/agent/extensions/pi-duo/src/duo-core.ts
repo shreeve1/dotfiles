@@ -286,12 +286,38 @@ export function truncateTail(
 	};
 }
 
+// Compact one-line rendering of a tool call's arguments for the scope gate.
+// Prefers the argument that names the target of the action (command, path,
+// pattern, etc.) so the verifier can see WHAT the actor is doing, not just the
+// tool name. Falls back to a JSON dump. Hard-capped so a call carrying a whole
+// file body cannot blow the verifier budget.
+function summarizeToolArgs(args: Record<string, any>, cap: number): string {
+	if (!args || typeof args !== "object") return "";
+	const primary =
+		args.command ??
+		args.path ??
+		args.filePath ??
+		args.file_path ??
+		args.pattern ??
+		args.query ??
+		args.prompt ??
+		args.url;
+	const raw =
+		typeof primary === "string" && primary.length > 0
+			? primary
+			: JSON.stringify(args);
+	return truncateMiddle(raw, cap).text;
+}
+
 export function textFromMessage(
 	message: Message,
 	options: {
 		includeToolResults?: boolean;
 		maxToolResultChars?: number;
 		includeToolCalls?: boolean;
+		includeToolArgs?: boolean;
+		includeThinking?: boolean;
+		maxToolArgChars?: number;
 	} = {},
 ): string {
 	if (message.role === "user") {
@@ -302,14 +328,26 @@ export function textFromMessage(
 	}
 
 	if (message.role === "assistant") {
+		const argCap = options.maxToolArgChars ?? 200;
 		return message.content
 			.map((block) => {
 				if (block.type === "text") return block.text;
-				if (block.type === "thinking") return "";
+				if (block.type === "thinking") {
+					// Stripped by default (the terminal grounding gate never sees the
+					// actor's private reasoning); surfaced only for the scope gate,
+					// which needs the actor's intent to judge proportionality.
+					if (!options.includeThinking) return "";
+					const t = truncateMiddle(block.thinking ?? "", argCap * 3).text;
+					return t ? `[reasoning: ${t}]` : "";
+				}
 				if (block.type === "toolCall") {
-					return options.includeToolCalls
-						? `[tool call: ${block.name}]`
-						: `[tool call omitted: ${block.name}]`;
+					if (!options.includeToolCalls)
+						return `[tool call omitted: ${block.name}]`;
+					if (!options.includeToolArgs) return `[tool call: ${block.name}]`;
+					const summary = summarizeToolArgs(block.arguments, argCap);
+					return summary
+						? `[tool call: ${block.name} ${summary}]`
+						: `[tool call: ${block.name}]`;
 				}
 				return "";
 			})
@@ -374,6 +412,29 @@ export function parseVerifierVerdict(text: string): VerifierVerdict {
 	return { verdict: "PASS", text };
 }
 
+// Lift the project-guidance blocks out of the actor's system prompt. Pi injects
+// each discovered AGENTS.md / CLAUDE.md as a `<project_instructions path="...">
+// ...</project_instructions>` block into the system prompt it hands the actor,
+// so the conventions the actor operates under are already present on
+// context.systemPrompt at gate time — no file I/O or config needed. The scope
+// gate uses this to distinguish convention-mandated work (in scope) from true
+// over-reach. Returns "" when the prompt carries no such blocks, in which case
+// the scope gate degrades to a convention-free proportionality check.
+export function extractProjectInstructions(systemPrompt?: string): string {
+	if (!systemPrompt) return "";
+	const blocks: string[] = [];
+	const re =
+		/<project_instructions(?:\s+path="([^"]*)")?\s*>([\s\S]*?)<\/project_instructions>/g;
+	let match: RegExpExecArray | null;
+	while ((match = re.exec(systemPrompt)) !== null) {
+		const path = match[1]?.trim();
+		const body = match[2]?.trim();
+		if (!body) continue;
+		blocks.push(path ? `# ${path}\n${body}` : body);
+	}
+	return blocks.join("\n\n");
+}
+
 function roleLabel(message: Message): string {
 	if (message.role === "user") return "user";
 	if (message.role === "assistant") return "assistant";
@@ -386,6 +447,9 @@ function transcriptFromMessages(
 		includeToolResults?: boolean;
 		maxToolResultChars?: number;
 		includeToolCalls?: boolean;
+		includeToolArgs?: boolean;
+		includeThinking?: boolean;
+		maxToolArgChars?: number;
 	} = {},
 ): string {
 	return messages
