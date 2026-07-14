@@ -65,6 +65,10 @@ Return REVISE when the final answer:
 
 Otherwise return PASS. Do not invent new requirements, do not demand extra work beyond the user's request, and do not turn a direct answer into a coding task.
 
+Pay special attention to claims that an action was taken with no tool result behind it — e.g. "logged", "saved", "noted", "recorded", "remembered", "will remember". The actor has no memory or logging tool; such phrasing is fabrication and must be flagged.
+
+Output ONLY the verdict block below. Do NOT restate, rewrite, summarize, or draft a corrected answer — you are a gate, not a co-author, and any prose you write may be copied verbatim into the final answer. Keep ISSUES and REQUIRED_ACTIONS to terse pointers, never full replacement text.
+
 Respond exactly with either:
 VERDICT: PASS
 
@@ -86,6 +90,8 @@ Return REVISE only when the interim step:
 - asserts an action succeeded that no tool result confirms.
 
 Otherwise return PASS. Mid-investigation exploration is normal — do NOT demand a final answer, do NOT tell it to stop gathering evidence, and do NOT flag it merely for not being done. Only flag genuinely ungrounded moves.
+
+Output ONLY the verdict block below. Do NOT rewrite or draft the actor's work — you are a gate, not a co-author, and any prose you write may be copied into its output. Keep ISSUES and REQUIRED_ACTIONS to terse pointers.
 
 Respond exactly with either:
 VERDICT: PASS
@@ -384,8 +390,28 @@ export function verifierContext(
 	config: DuoConfig,
 	mode: "terminal" | "checkpoint" = "terminal",
 ): Context {
+	// Strip the actor's private verifier-feedback messages before building
+	// the evidence transcript: they were injected by `actingContext()` to
+	// guide the actor's retry and must not appear in the verifier's view
+	// (would pollute the candidate against itself and shift the cache
+	// entry's content on every REVISE re-run, killing cache reuse).
+	const messagesForEvidence = context.messages.filter((message) => {
+		const content = message.content;
+		if (typeof content === "string") {
+			return !content.includes("<duo_verifier_review>");
+		}
+		if (Array.isArray(content)) {
+			return !content.some(
+				(block) =>
+					block?.type === "text" &&
+					typeof block.text === "string" &&
+					block.text.includes("<duo_verifier_review>"),
+			);
+		}
+		return true;
+	});
 	const evidence = truncateTail(
-		transcriptFromMessages(context.messages, {
+		transcriptFromMessages(messagesForEvidence, {
 			includeToolResults: true,
 			maxToolResultChars: config.maxToolResultChars,
 			includeToolCalls: true,
@@ -402,18 +428,54 @@ export function verifierContext(
 			: textFromAssistant(candidate)) || "(no output)",
 		config.maxVerifierContextChars,
 	).text;
+	// Evidence rides in its own user-role message, not the system prompt:
+	// the system prompt + this evidence message form a stable prefix across
+	// a gate's REVISE re-runs, and the candidate (the only thing that varies)
+	// is the trailing user turn so pi-ai's last-message cache_control marker
+	// covers the whole prefix. Anthropic prompt cache then hits the bulk of
+	// the input on every re-gate instead of re-billing it.
+	//
+	// Why not put evidence in the system prompt: providers that front
+	// Anthropic via OAuth (e.g. cliproxy) replace the system prompt with a
+	// fixed-size stub before forwarding, so evidence in the system prompt
+	// never reaches the model AND the cache hit pins to that stub. Putting
+	// evidence in a user message lets it through unchanged.
+	const basePrompt =
+		mode === "checkpoint" ? VERIFIER_CHECKPOINT_PROMPT : VERIFIER_SYSTEM_PROMPT;
+	// Evidence must carry an explicit cache_control breakpoint on its own
+	// message. Without it, the only auto-added cache_control lands on the
+	// candidate (the last message), and that breakpoint's cache key includes
+	// the candidate text — which differs on every REVISE re-run, so the
+	// evidence never gets a stable cache entry. A second breakpoint on the
+	// evidence message anchors a [system + evidence] cache entry that hits
+	// across re-runs. The evidence text is sent as a content-block array so
+	// pi-ai passes the cache_control through to the provider.
+	const messages: Context["messages"] = [];
+	if (evidence.text) {
+		messages.push({
+			role: "user",
+			timestamp: Date.now(),
+			content: [
+				{
+					type: "text",
+					text: `# Task context and evidence\n${evidence.text}`,
+					// cache_control is recognized at runtime by pi-ai's
+					// openai-completions + anthropic-messages providers but
+					// not declared on TextContent in the public type, hence
+					// the cast.
+					cache_control: { type: "ephemeral" },
+				} as any,
+			],
+		});
+	}
+	messages.push({
+		role: "user",
+		timestamp: Date.now(),
+		content: `# ${candidateLabel}\n${candidateText}`,
+	});
 	return {
-		systemPrompt:
-			mode === "checkpoint"
-				? VERIFIER_CHECKPOINT_PROMPT
-				: VERIFIER_SYSTEM_PROMPT,
-		messages: [
-			{
-				role: "user",
-				timestamp: Date.now(),
-				content: `# Task context and evidence\n${evidence.text}\n\n# ${candidateLabel}\n${candidateText}`,
-			},
-		],
+		systemPrompt: basePrompt,
+		messages,
 	};
 }
 
