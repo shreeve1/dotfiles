@@ -25,6 +25,7 @@ import {
 	PRESET_NAME,
 	actingContext,
 	addUsage,
+	finalizeContext,
 	hasToolCalls,
 	parseVerifierVerdict,
 	stepsSinceLastUser,
@@ -237,7 +238,17 @@ export function streamPiDuo(
 				config.verifyEveryNSteps > 0 &&
 				stepIndex > 0 &&
 				stepIndex % config.verifyEveryNSteps === 0;
-			let actingContextForRun = context;
+			// Hard step ceiling: once the actor has taken maxActorSteps tool-loop
+			// steps this turn without finalizing, strip its tools so it must emit a
+			// terminal answer, routing the runaway into the existing terminal gate.
+			const ceilingReached =
+				config.maxActorSteps > 0 && stepIndex >= config.maxActorSteps;
+			let actingContextForRun = ceilingReached
+				? finalizeContext(context, config.maxActorSteps)
+				: context;
+			if (ceilingReached) {
+				verifierDiagnostics.push(`step ceiling ${config.maxActorSteps} hit`);
+			}
 			let finalMessage: AssistantMessage | undefined;
 
 			for (let loop = 0; ; loop++) {
