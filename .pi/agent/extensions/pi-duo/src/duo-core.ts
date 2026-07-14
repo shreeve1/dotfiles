@@ -2,7 +2,6 @@ import type {
 	AssistantMessage,
 	Context,
 	Message,
-	SimpleStreamOptions,
 	Usage,
 } from "@earendil-works/pi-ai/compat";
 
@@ -349,10 +348,18 @@ export function stepsSinceLastUser(messages: Message[]): number {
 }
 
 export function parseVerifierVerdict(text: string): VerifierVerdict {
-	return /^\s*VERDICT:\s*PASS\b/im.test(text) &&
-		!/^\s*VERDICT:\s*REVISE\b/im.test(text)
-		? { verdict: "PASS", text }
-		: { verdict: "REVISE", text };
+	// An explicit REVISE verdict is the only thing that gates the actor.
+	if (/^\s*VERDICT:\s*REVISE\b/im.test(text))
+		return { verdict: "REVISE", text };
+	// Everything else — an explicit `VERDICT: PASS` AND any response with no
+	// parseable verdict token at all — is treated as PASS. This is a
+	// deliberate fail-safe: verifier providers that discard the system prompt
+	// (e.g. cliproxy stubbing it before forwarding) often reply
+	// conversationally instead of emitting the verdict block. Defaulting a
+	// verdict-less reply to REVISE would inject the verifier's off-script prose
+	// into the actor as user-role guidance and loop indefinitely, so we ship
+	// the actor's answer instead of poisoning it.
+	return { verdict: "PASS", text };
 }
 
 function roleLabel(message: Message): string {
@@ -428,51 +435,52 @@ export function verifierContext(
 			: textFromAssistant(candidate)) || "(no output)",
 		config.maxVerifierContextChars,
 	).text;
-	// Evidence rides in its own user-role message, not the system prompt:
-	// the system prompt + this evidence message form a stable prefix across
-	// a gate's REVISE re-runs, and the candidate (the only thing that varies)
-	// is the trailing user turn so pi-ai's last-message cache_control marker
-	// covers the whole prefix. Anthropic prompt cache then hits the bulk of
-	// the input on every re-gate instead of re-billing it.
-	//
-	// Why not put evidence in the system prompt: providers that front
-	// Anthropic via OAuth (e.g. cliproxy) replace the system prompt with a
-	// fixed-size stub before forwarding, so evidence in the system prompt
-	// never reaches the model AND the cache hit pins to that stub. Putting
-	// evidence in a user message lets it through unchanged.
+	// The verifier's rules AND evidence both ride in user-role messages, not
+	// only the system prompt: providers that front Anthropic via OAuth (e.g.
+	// cliproxy) replace the system prompt with a fixed-size stub before
+	// forwarding, so anything left solely in the system prompt — including the
+	// "Respond exactly with VERDICT: PASS/REVISE" contract — never reaches the
+	// model. A stub-sanitized verifier that never saw its contract replies
+	// conversationally, which parseVerifierVerdict then has to treat as a
+	// non-verdict. So we duplicate the full rules into the leading user
+	// message. We still pass systemPrompt too, for providers that honor it.
 	const basePrompt =
 		mode === "checkpoint" ? VERIFIER_CHECKPOINT_PROMPT : VERIFIER_SYSTEM_PROMPT;
-	// Evidence must carry an explicit cache_control breakpoint on its own
-	// message. Without it, the only auto-added cache_control lands on the
-	// candidate (the last message), and that breakpoint's cache key includes
-	// the candidate text — which differs on every REVISE re-run, so the
-	// evidence never gets a stable cache entry. A second breakpoint on the
-	// evidence message anchors a [system + evidence] cache entry that hits
-	// across re-runs. The evidence text is sent as a content-block array so
-	// pi-ai passes the cache_control through to the provider.
-	const messages: Context["messages"] = [];
-	if (evidence.text) {
-		messages.push({
+	// The leading message (rules + evidence) is the stable prefix across a
+	// gate's REVISE re-runs; only the candidate (trailing message) varies. It
+	// carries an explicit cache_control breakpoint so Anthropic prompt cache
+	// anchors a [rules + evidence] entry that hits on every re-gate instead of
+	// re-billing it. Without it the only auto-added cache_control lands on the
+	// candidate, whose text differs each re-run, so nothing stable gets cached.
+	// Rules are static and evidence is static across a gate's re-runs, so
+	// folding them into one block keeps the cache key stable. The text is sent
+	// as a content-block array so pi-ai passes cache_control through to the
+	// provider (cache_control is recognized at runtime by pi-ai's
+	// openai-completions + anthropic-messages providers but not declared on
+	// TextContent in the public type, hence the cast).
+	const prefixText = evidence.text
+		? `${basePrompt}\n\n# Task context and evidence\n${evidence.text}`
+		: basePrompt;
+	const messages: Context["messages"] = [
+		{
 			role: "user",
 			timestamp: Date.now(),
 			content: [
 				{
 					type: "text",
-					text: `# Task context and evidence\n${evidence.text}`,
-					// cache_control is recognized at runtime by pi-ai's
-					// openai-completions + anthropic-messages providers but
-					// not declared on TextContent in the public type, hence
-					// the cast.
+					text: prefixText,
 					cache_control: { type: "ephemeral" },
 				} as any,
 			],
-		});
-	}
-	messages.push({
-		role: "user",
-		timestamp: Date.now(),
-		content: `# ${candidateLabel}\n${candidateText}`,
-	});
+		},
+		{
+			role: "user",
+			timestamp: Date.now(),
+			// Restate the output contract on the trailing (varying) turn so a
+			// stub-sanitized verifier is reminded of it right before answering.
+			content: `# ${candidateLabel}\n${candidateText}\n\nRespond ONLY with the verdict block: \`VERDICT: PASS\`, or \`VERDICT: REVISE\` followed by ISSUES and REQUIRED_ACTIONS. Do not rewrite or draft the answer.`,
+		},
+	];
 	return {
 		systemPrompt: basePrompt,
 		messages,
