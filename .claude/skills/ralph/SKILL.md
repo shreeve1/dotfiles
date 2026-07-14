@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: ralph
 description: Run the Ralph implementation loop. Picks up the next unblocked issue from the local kanban and implements + reviews it in fresh sessions, one issue per invocation. Use when the user wants to run the Ralph loop, implement the next issue, or grind through the board.
 ---

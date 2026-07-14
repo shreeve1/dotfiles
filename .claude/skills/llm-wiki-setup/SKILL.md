@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: llm-wiki-setup
 description: LLM Wiki project setup and maintenance. USE WHEN set up LLM wiki, initialize project knowledge base, compile project knowledge, ingest wiki source, query wiki memory, lint wiki, promote candidate page, or refactor CLAUDE.md with wiki workflows.
 ---

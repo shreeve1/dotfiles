@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: youtube
 description: Ingest a YouTube URL, pull subtitles + metadata via yt-dlp, then run web search to verify and augment, producing two separate markdown artifacts (transcript extract vs. web research) under youtube/ at the project root. Use when the user says `/youtube <url>`, "youtube knowledge extract", "pull this youtube and extract", "extract from youtube", or wants a video's claims captured and cross-checked against primary sources.
 argument-hint: "<youtube url>"

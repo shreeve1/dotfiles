@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: dev-review-pi
 description: "Independent code review using Pi Coding Agent as the reviewer. USE WHEN user says 'dev-review-pi', '/skill:dev-review-pi', 'independent Pi review', or wants a Pi-powered second-opinion review of a plan, build (uncommitted diff), file/directory path, or proposal. Default reviewer model `cliproxy/claude-opus-4-8`. Accepts optional `--model <pattern>`, `--provider <name>`, `--opus`, `--sonnet`, or `--claude` model flags and a target argument (`plan`, `build`, `proposal`, or a path)."
 ---

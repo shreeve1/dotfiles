@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: dev-plan
 description: Create a structured implementation plan before writing code. USE WHEN user wants an implementation plan, pre-build task breakdown, or roadmap for a feature, fix, refactor, or enhancement.
 ---

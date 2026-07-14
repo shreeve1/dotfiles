@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: dev-validate
 description: Validate an implementation plan against the current codebase before execution. USE WHEN user wants to validate a plan, check a plan for risks, verify a plan is safe to build, or mentions catching infeasible steps, missing prerequisites, breaking changes, database risks, or poor plan-to-repo fit. Do NOT use for creating plans, executing plans, or general coding tasks.
 ---

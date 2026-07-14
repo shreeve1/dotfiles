@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: prime
 description: Medium-depth project orientation at session start. Build a high-level understanding of what the project does, its major components, and operating context — enough to answer questions or begin work. USE WHEN user wants session priming, project orientation, "prime the session", or initial codebase overview. NOT for mid-session use when context is already loaded.
 ---

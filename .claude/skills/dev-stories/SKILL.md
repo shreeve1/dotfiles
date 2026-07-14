@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: dev-stories
 description: Generate user stories from an implementation plan for UI flow testing with Playwright browser automation. USE WHEN user wants Playwright user stories, browser test flows, UI testing stories derived from a plan, or YAML story specs for a plan file.
 ---
