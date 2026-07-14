@@ -349,7 +349,12 @@ export function stepsSinceLastUser(messages: Message[]): number {
 
 export function parseVerifierVerdict(text: string): VerifierVerdict {
 	// An explicit REVISE verdict is the only thing that gates the actor.
-	if (/^\s*VERDICT:\s*REVISE\b/im.test(text))
+	// Tolerate markdown decoration a chatty verifier may add around the
+	// verdict block — leading list/heading/quote markers or bold/backtick
+	// wrapping (e.g. `**VERDICT: REVISE**`, `VERDICT: **REVISE**`,
+	// `# VERDICT: REVISE`) — so a genuine REVISE is not silently downgraded
+	// to the PASS fail-safe below.
+	if (/^[\s>#*_`-]*VERDICT[:\s*_`]*REVISE\b/im.test(text))
 		return { verdict: "REVISE", text };
 	// Everything else — an explicit `VERDICT: PASS` AND any response with no
 	// parseable verdict token at all — is treated as PASS. This is a
