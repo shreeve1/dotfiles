@@ -25,6 +25,8 @@ import {
 	PRESET_NAME,
 	actingContext,
 	addUsage,
+	distillContext,
+	extractProjectInstructions,
 	finalizeContext,
 	hasToolCalls,
 	parseVerifierVerdict,
@@ -167,6 +169,59 @@ function pushError(
 	stream.end(message);
 }
 
+// Distilled scope-conventions cache, keyed by the raw project_instructions
+// string. Conventions are stable within a project/session, so distilling once
+// and reusing across every checkpoint (and turn) keeps the scope gate's extra
+// verifier call to ~one per project instead of one per checkpoint.
+const distilledConventionsCache = new Map<string, string>();
+
+// Distill the project's conventions (from context.systemPrompt's
+// project_instructions) into the scope digest, caching the result. Returns the
+// digest plus the usage of the distillation call (zero on cache hit / no
+// conventions) so the caller can fold it into private usage accounting.
+async function distilledConventions(
+	verifierModel: Model<Api>,
+	options: SimpleStreamOptions | undefined,
+	config: DuoConfig,
+	systemPrompt: string | undefined,
+): Promise<{ conventions: string; usage: Usage }> {
+	const raw = extractProjectInstructions(systemPrompt);
+	if (!raw) return { conventions: "", usage: zeroUsage() };
+	const cached = distilledConventionsCache.get(raw);
+	if (cached !== undefined) return { conventions: cached, usage: zeroUsage() };
+	try {
+		const distillMessage = await completeSimple(
+			verifierModel,
+			distillContext(raw),
+			await targetOptions(verifierModel, options, {
+				temperature: config.verifierTemperature,
+				// Distillation output (up to ~6 bullets) is longer than a verdict, and
+				// a reasoning verifier spends tokens on reasoning first; give it more
+				// than verifierMaxTokens (tuned for the short verdict) so it does not
+				// return empty.
+				maxTokens: 1500,
+				reasoning: options?.reasoning ?? "high",
+			}),
+		);
+		const conventions = textFromAssistant(distillMessage).trim();
+		// Cache only a non-empty digest. A reasoning verifier can return EMPTY
+		// text without throwing (it spent the budget on reasoning) — that is a
+		// transient failure, not "this project has no scope conventions" (which
+		// the prompt encodes as the non-empty "(no scope-bearing conventions)").
+		// Caching "" would short-circuit every later checkpoint into a
+		// convention-free check with no retry, reviving the false positives the
+		// digest exists to prevent.
+		if (conventions) distilledConventionsCache.set(raw, conventions);
+		return { conventions, usage: distillMessage.usage ?? zeroUsage() };
+	} catch (error) {
+		// Propagate a real abort; otherwise degrade to a convention-free scope
+		// check. Do NOT cache the failure — a transient blip should not disable
+		// conventions for the rest of the session; the next checkpoint retries.
+		if (options?.signal?.aborted) throw error;
+		return { conventions: "", usage: zeroUsage() };
+	}
+}
+
 export function streamPiDuo(
 	model: Model<Api>,
 	context: Context,
@@ -250,6 +305,15 @@ export function streamPiDuo(
 				verifierDiagnostics.push(`step ceiling ${config.maxActorSteps} hit`);
 			}
 			let finalMessage: AssistantMessage | undefined;
+			// Scope (mid-loop) and terminal (final-answer) gates get SEPARATE
+			// REVISE budgets. Sharing one counter let a scope nudge exhaust the
+			// budget so a terminal answer finalized in the same provider entry
+			// shipped ungated — breaking the "always gate a terminal answer"
+			// invariant. Each mode independently gets up to maxVerifierLoops
+			// re-runs; the loop still terminates because every REVISE increments
+			// one of these and the gate goes false once both are spent.
+			let scopeRevises = 0;
+			let terminalRevises = 0;
 
 			for (let loop = 0; ; loop++) {
 				const actingStartedAt = Date.now();
@@ -332,22 +396,43 @@ export function streamPiDuo(
 					});
 				}
 
-				// Gate a terminal answer always; gate a mid-loop step only when a
-				// checkpoint is due. Either way, only while REVISE budget remains.
+				// Gate a terminal answer always (grounding check); gate a mid-loop
+				// step only when a checkpoint is due, using the scope
+				// (proportionality) gate. Either way, only while REVISE budget
+				// remains. A scope REVISE re-runs the step with the nudge appended
+				// (soft — actingContext keeps the actor's tools and lets it
+				// override), reusing the same REVISE path as the terminal gate.
 				const isTerminal = !hasToolCalls(actingMessage);
-				const gateMode: "terminal" | "checkpoint" | null = isTerminal
+				const gateMode: "terminal" | "scope" | null = isTerminal
 					? "terminal"
 					: checkpointDue
-						? "checkpoint"
+						? "scope"
 						: null;
+				const revisesForMode =
+					gateMode === "scope" ? scopeRevises : terminalRevises;
 				const gate =
 					verifierModel &&
 					verifierSlot &&
 					gateMode &&
-					loop < config.maxVerifierLoops;
+					revisesForMode < config.maxVerifierLoops;
 				if (gate) {
 					const verifierStartedAt = Date.now();
 					try {
+						// Scope mode needs the distilled project conventions so it does
+						// not flag convention-mandated work as over-reach. Distillation
+						// is cached per project; its cost is folded into private usage.
+						let scopeConventions = "";
+						if (gateMode === "scope") {
+							const distilled = await distilledConventions(
+								verifierModel,
+								options,
+								config,
+								context.systemPrompt,
+							);
+							throwIfAborted(options?.signal);
+							privateUsage = addUsage(privateUsage, distilled.usage);
+							scopeConventions = distilled.conventions;
+						}
 						const verifierMessage = await completeSimple(
 							verifierModel,
 							verifierContext(
@@ -355,6 +440,7 @@ export function streamPiDuo(
 								actingMessage,
 								config,
 								gateMode,
+								scopeConventions,
 							),
 							await targetOptions(verifierModel, options, {
 								temperature: config.verifierTemperature,
@@ -390,9 +476,17 @@ export function streamPiDuo(
 						if (verdict.verdict === "REVISE") {
 							// Re-run the acting pass with the verifier feedback appended.
 							// Discard the buffered partials for this rejected answer.
-							actingContextForRun = actingContext(actingContextForRun, [
-								{ label: `verifier review ${loop + 1}`, text: verdict.text },
-							]);
+							// Scope gates use the soft-nudge framing; the terminal gate
+							// uses the grounding framing. Count the REVISE against this
+							// mode's own budget so scope nudges never starve the terminal
+							// grounding gate.
+							if (gateMode === "scope") scopeRevises++;
+							else terminalRevises++;
+							actingContextForRun = actingContext(
+								actingContextForRun,
+								[{ label: `verifier review ${loop + 1}`, text: verdict.text }],
+								gateMode === "scope" ? "scope" : "grounding",
+							);
 							continue;
 						}
 					} catch (error) {
