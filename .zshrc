@@ -324,3 +324,6 @@ export PATH="$HOME/.opencode/bin:$PATH"
 # Auto-Warpify
 [[ "$-" == *i* ]] && printf 'P$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "Linux" }}�' 
 [[ -d "$HOME/.temporalio/bin" ]] && export PATH="$PATH:$HOME/.temporalio/bin"
+
+# OpenWork endpoint env
+[ -f "/Users/james/.config/openwork/aidev.env" ] && . "/Users/james/.config/openwork/aidev.env"
