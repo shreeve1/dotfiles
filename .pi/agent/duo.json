@@ -14,7 +14,7 @@
   "maxContextChars": 20000,
   "maxVerifierContextChars": 80000,
   "maxToolResultChars": 6000,
-  "verifyEveryNSteps": 0,
+  "verifyEveryNSteps": 15,
   "maxActorSteps": 60,
   "enableVerifier": true,
   "enableFullTrace": true
