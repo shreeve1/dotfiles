@@ -27,6 +27,7 @@ export type DuoConfig = {
 	maxVerifierContextChars: number;
 	maxToolResultChars: number;
 	verifyEveryNSteps: number;
+	maxActorSteps: number;
 	enableVerifier: boolean;
 	enableFullTrace: boolean;
 };
@@ -47,6 +48,7 @@ export const DEFAULT_CONFIG: DuoConfig = {
 	maxVerifierContextChars: 80000,
 	maxToolResultChars: 6000,
 	verifyEveryNSteps: 0,
+	maxActorSteps: 0,
 	enableVerifier: true,
 	enableFullTrace: false,
 };
@@ -189,6 +191,11 @@ export function validateDuoConfig(value: unknown): DuoConfig {
 			value.verifyEveryNSteps,
 			"verifyEveryNSteps",
 			DEFAULT_CONFIG.verifyEveryNSteps,
+		),
+		maxActorSteps: readNumber(
+			value.maxActorSteps,
+			"maxActorSteps",
+			DEFAULT_CONFIG.maxActorSteps,
 		),
 		enableVerifier: readBoolean(
 			value.enableVerifier,
@@ -510,6 +517,27 @@ The feedback above is from an automated grounding check on the final answer you 
 		messages: [
 			...context.messages,
 			{ role: "user", content: block, timestamp: Date.now() },
+		],
+	};
+}
+
+// Hard step ceiling (maxActorSteps): when the actor has taken at least that
+// many tool-loop steps this user turn without finalizing, force it to finalize.
+// Tools are stripped from the context so the actor physically cannot call
+// another tool and must emit a terminal (no-tool-call) answer, which then flows
+// through the existing terminal verifier gate. This is a hard bound — not a soft
+// instruction a weak actor can ignore — and reuses the working finalize path
+// rather than adding a new mid-loop oversight mechanism. A user-role notice
+// tells the actor why its tools vanished so it answers from evidence already
+// gathered instead of stalling.
+export function finalizeContext(context: Context, maxActorSteps: number): Context {
+	const notice = `You have reached this session's tool-use budget (${maxActorSteps} steps). Your tools are now disabled. Answer the user's request now, directly, using only the evidence you have already gathered. State clearly what you did and did not verify — do not claim work you could not complete.`;
+	return {
+		...context,
+		tools: [],
+		messages: [
+			...context.messages,
+			{ role: "user", content: notice, timestamp: Date.now() },
 		],
 	};
 }
