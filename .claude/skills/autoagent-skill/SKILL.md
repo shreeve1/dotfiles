@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: autoagent-skill
 description: "Tune an existing SKILL.md so a small/weak LLM (Haiku, GPT-4o-mini, Gemma, local models) can execute it correctly. Scaffolds an autoagent loop where the SUT is the skill file, probes run the skill against the small model, and the verifier scores whether critical behaviors survived. Delegates the hill-climb to autoagent's RunLoop — does NOT reimplement the loop. USE WHEN user wants to make a skill small-LLM-friendly, tune SKILL.md for a weaker model, reduce skill token bloat for small models, or auto-iterate skill edits against a cheap model. NOT for building new skills from scratch, generic prompt compression (use LLMLingua), or LLM eval suites (use Evals)."
 ---

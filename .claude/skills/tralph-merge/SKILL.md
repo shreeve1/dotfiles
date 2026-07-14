@@ -1,5 +1,4 @@
 ---
-disable-model-invocation: true
 name: tralph-merge
 description: Land a finished tralph batch — merge the worktree's run branch (ralph/run) into the base repo's main, then remove the worktree, delete the branch, and clear the merge-needed marker. USE WHEN user says "tralph-merge", "merge the tralph batch/worktree", "land ralph/run", "the finalizer deferred", or the auto-finalizer left a ralph-merge-needed marker for manual merge. Interactive — confirms before merging, never forces, resolves conflicts with the user. The manual counterpart to ralph-finalize.sh.
 ---
