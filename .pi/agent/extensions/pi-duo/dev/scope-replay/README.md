@@ -16,13 +16,26 @@ and `CONVENTIONS_DISTILL_PROMPT` — this harness is kept for re-tuning.
   (imported relatively), so the harness tests shipped code. `USE_BRIDGE=1`.
 - `verify-codex.mjs` — routes the verdict through a real Pi provider model
   (OAuth codex etc.) via Pi's `AuthStorage`/`ModelRegistry`. `VERIFIER=<slot>`.
+- `bench.py` — scores candidate verifier models against the 5-case matrix.
+  Loops `replay.py` over (model × case × trial) with the SHIPPED prompt
+  (`USE_BRIDGE=1 DISTILL=1`), parses the verdict, prints per-model accuracy vs
+  expected + per-case majority/stability. The hand-run model comparison, made
+  one command.
 
 ## Run
 ```
 USE_BRIDGE=1 DISTILL=1 python3 replay.py <session.jsonl> <turnIdx> <cutSteps>
 # alt verifier: VERIFIER=openai-codex/gpt-5.6-terra ...   (default deepseek-v4-pro)
 # show digest:  SHOW_CONV=1 ...
+
+# score models across the whole matrix (default N=3 trials):
+python3 bench.py                                         # default model list
+python3 bench.py deepseek-v4-pro openai-codex/gpt-5.6-terra
+N=5 python3 bench.py <slot> ...                          # more trials
 ```
+Slots with `/` route through the bridge; a bare name = deepseek direct.
+Borderline cases (PIMOA cuts, WIKI) wobble ~1/3 across trials — read the
+majority + stability count, not a single run.
 
 ## Machine-local assumptions (this is a dev tool, not portable code)
 - `replay.py` reads the deepseek key from `~/.pi/agent/auth.json` via an
