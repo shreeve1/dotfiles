@@ -33,11 +33,12 @@ commands).
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
-- Pi `ask_user_question` is a synced vendored extension at
-  `.pi/agent/extensions/rpiv-ask-user-question`. On another system, run
-  `bash install.sh` from the repo root, or `INSTALL_PI_NPM=always bash install.sh`
-  if `~/.pi/agent/node_modules` already exists but extension deps are stale. Do
-  not use `pi install npm:@juicesharp/rpiv-ask-user-question`; use the repo copy.
+- Pi `ask_user_question` remains vendored at
+  `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
+  the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
+  `extensions` settings. Keep that exclusion: questions should be asked inline
+  in chat per `.claude/CLAUDE.md`. Removing only a `packages` entry is
+  insufficient because Pi auto-discovers `extensions/*/index.ts`.
 - Pi `rpiv-advisor` is also a synced vendored extension at
   `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
   `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are

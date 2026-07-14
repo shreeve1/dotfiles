@@ -52,33 +52,21 @@ Create `~/.pi/agent/auth.json` with your API keys:
 
 Only add providers you use. For custom providers (Ollama, OpenRouter, etc.), add them to `~/.pi/agent/models.json`.
 
-### Synced extension: ask_user_question
+### Disabled extension: ask_user_question
 
-`rpiv-ask-user-question` is vendored in this repo at `~/.pi/agent/extensions/rpiv-ask-user-question` and registered in `~/.pi/agent/settings.json` as `extensions/rpiv-ask-user-question`. Do not install it with `pi install npm:@juicesharp/rpiv-ask-user-question` on synced machines; that creates machine-local files under `~/.pi/agent/npm/` instead of using the repo copy.
+`rpiv-ask-user-question` remains vendored at
+`~/.pi/agent/extensions/rpiv-ask-user-question`, but Pi's `extensions` setting
+must contain this exact exclusion:
 
-On another system, install it through the dotfiles installer:
-
-```bash
-cd ~/dotfiles
-bash install.sh
+```json
+"-extensions/rpiv-ask-user-question/index.ts"
 ```
 
-If `~/.pi/agent` is already linked and only dependencies are missing or stale:
-
-```bash
-cd ~/dotfiles
-INSTALL_PI_NPM=always bash install.sh
-```
-
-Manual fallback:
-
-```bash
-cd ~/.pi/agent && npm install
-cd ~/.pi/agent/extensions/rpiv-ask-user-question && npm install --omit=dev --omit=peer
-pi list | grep rpiv-ask-user-question
-```
-
-Restart Pi after install. Expected tool: `ask_user_question`.
+Pi auto-discovers `extensions/*/index.ts`, so removing only the extension's
+`packages` entry does not disable it. Keep the exclusion in both the tracked
+`settings.json.template` and each machine's `settings.json`; restart Pi or run
+`/reload` after changing it. Questions should instead be asked as ordinary chat
+text, as required by `~/.claude/CLAUDE.md`.
 
 ### Synced extension: pi-lens
 

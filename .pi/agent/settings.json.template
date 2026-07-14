@@ -22,6 +22,7 @@
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [
+    "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/rpiv-pi/extensions",
     "-extensions/web-fetch/index.ts"
   ]
