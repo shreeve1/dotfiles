@@ -4,8 +4,8 @@
     "model": "MiniMax-M3"
   },
   "verifier": {
-    "provider": "deepseek",
-    "model": "deepseek-v4-flash"
+    "provider": "opencode-go",
+    "model": "deepseek-v4-pro"
   },
   "actorTemperature": 0.1,
   "verifierTemperature": 0,
