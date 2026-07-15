@@ -28,7 +28,7 @@ The skill bias: computational sensors first (cheap, high signal), then feedforwa
 
 ## Timing / posture vocabulary
 
-Every sensor has a **timing** (when it fires) and a **posture** (what it does on failure). Claude Code's hook events map onto the same vocabulary the Pi `personalize-harness-pi` skill uses, so the two harnesses stay conceptually aligned:
+Every sensor has a **timing** (when it fires) and a **posture** (what it does on failure). Claude Code's hook events map onto a shared timing/posture vocabulary that the global Pi `harness-gates` adapter (see issue #030) also maps onto, so the two harnesses stay conceptually aligned:
 
 | Timing | Claude hook event | Can block? | Use for |
 |---|---|---|---|
@@ -42,14 +42,15 @@ Every sensor has a **timing** (when it fires) and a **posture** (what it does on
 
 ## Gap categories (gap-driven coverage)
 
-Evaluate **every** universal category below, even when the answer is "not present in this repo". Record skipped/absent categories with a one-line reason in the Step 5 summary — silent omission reads as "covered" when it wasn't. Categories map to the hooks the skill can emit:
+Evaluate **every** universal category below, even when the answer is "not present in this repo". Record skipped/absent categories with a one-line reason in the Step 5 summary — silent omission reads as "covered" when it wasn't. Category 4 is split into 4a (fast changed-files static — the recommended default) and 4b (slow whole-project — opt-in, prefer CI / `dev-test`). Categories map to the hooks the skill can emit:
 
 | # | Category | Hook(s) | Default posture |
 |---|---|---|---|
 | 1 | touched-file syntax | `validate-syntax.sh` (afterWrite) | blocking |
 | 2 | formatter | `format-on-edit.sh` (afterWrite) | fail-open |
 | 3 | lint | `lint-on-edit.sh` (afterWrite) | advisory (opt-in) |
-| 4 | project typecheck/build/test | `pre-git-checks.sh` (beforeGit) + optional Stop | beforeGit blocking / Stop advisory |
+| 4a | changed-files static (lint + type) on commit | `staged-static-check.sh` (beforeGit) | beforeGit blocking |
+| 4b | project typecheck/build/test | `pre-git-checks.sh` (beforeGit) + optional Stop | beforeGit blocking / Stop advisory |
 | 5 | scenario / e2e | `pre-git-checks.sh` (beforeGit, bounded) or reminder text (manual) | manual advisory |
 | 6 | architecture / context guidance | `reinject-rules.sh` (compact) + Stop prompt | advisory |
 | 7 | operational safety (live service / deploy / destructive shell) | `block-bash-pattern.sh` (PreToolUse Bash) | blocking |
@@ -57,7 +58,7 @@ Evaluate **every** universal category below, even when the answer is "not presen
 | 9 | git / preflight | `pre-git-checks.sh` (beforeGit) | blocking |
 | 10 | self-review checkpoint | `stop-quality-check.sh` (Stop) | advisory (opt-in) |
 
-Categories 4, 5, 8, 9 are the gap-driven additions over the original per-file-only model — they cover project-level validation and protected-path safety that edit-time hooks cannot express.
+Categories 4a/4b, 5, 8, 9 are the gap-driven additions over the original per-file-only model — they cover project-level validation and protected-path safety that edit-time hooks cannot express.
 
 ## Input
 
@@ -314,16 +315,16 @@ PROFILE
 - `go.mod` exists → TEST_CMD=`go test ./...`.
 - `Cargo.toml` exists → TEST_CMD=`cargo test`.
 
-**Build command** (cat 4 — first match wins; `none-detected` if no match):
+**Build command** (cat 4b — first match wins; `none-detected` if no match):
 
 - `package.json` has `scripts.build` → BUILD_CMD=`<npm|pnpm|yarn> run build` (match BUILD_TOOL).
 - `Makefile` defines `build:` → BUILD_CMD=`make build`.
 - `go.mod` exists → BUILD_CMD=`go build ./...`.
 - `Cargo.toml` exists → BUILD_CMD=`cargo build`.
 
-**Project check** (cat 4 — the command `pre-git-checks.sh` runs at `beforeGit`; compose in priority order, fastest first): TYPE_CHECK (if not `none-detected`) → BUILD_CMD (if not `none-detected`) → TEST_CMD (if not `unknown`). The interview (Q below) decides which of these the user wants gated pre-git, and whether the Stop hook also runs the cheapest one (typecheck) as an advisory end-of-turn pass.
+**Project check** (cat 4b — the command `pre-git-checks.sh` runs at `beforeGit`; compose in priority order, fastest first): TYPE_CHECK (if not `none-detected`) → BUILD_CMD (if not `none-detected`) → TEST_CMD (if not `unknown`). The interview (Q below) decides which of these the user wants gated pre-git, and whether the Stop hook also runs the cheapest one (typecheck) as an advisory end-of-turn pass.
 
-**Baseline verification + runner resolution** (cat 4 — run BEFORE the interview offers any check as blocking). Inference picks a *candidate* command; it is NOT trusted until it actually runs. A gate wired to a command that cannot execute in the project's environment blocks every commit (or passes vacuously). For each candidate (TYPE_CHECK, BUILD_CMD, TEST_CMD, and any `beforeGit` SCENARIO_CMD) the skill MUST verify the baseline and resolve the correct runner:
+**Baseline verification + runner resolution** (cat 4b — run BEFORE the interview offers any check as blocking). Inference picks a *candidate* command; it is NOT trusted until it actually runs. A gate wired to a command that cannot execute in the project's environment blocks every commit (or passes vacuously). For each candidate (TYPE_CHECK, BUILD_CMD, TEST_CMD, and any `beforeGit` SCENARIO_CMD) the skill MUST verify the baseline and resolve the correct runner:
 
 1. **Dry-run the candidate**, time-boxed (`timeout 280`), from `PROJECT_ROOT`. Capture exit code + output tail.
 2. **On success (exit 0):** record it as the verified command. Done.
@@ -335,7 +336,7 @@ PROFILE
    - `go.mod` → `go mod download`. `Cargo.toml` → `cargo fetch`.
    Re-run the runner-prefixed candidate. If it now passes, record THAT as the verified command. (This is exactly how a documented `python3 -m pytest` becomes `uv run pytest` when `uv.lock` is present and the system interpreter lacks the deps.)
 4. **If it still fails on missing deps after the runner prefix**, the managed environment isn't installed. Ask via `AskUserQuestion`: "Project deps missing — `<runner candidate>` fails with `<first missing module>`. Install with `<install cmd>` now?" — options `install + re-verify (Recommended)`, `offer the check anyway (warn it's red)`, `skip the check`. On `install`, run the install command (time-boxed), then re-run the candidate. **NEVER install into the system interpreter when a lockfile names a managed environment** — always install through the build tool so the lockfile stays authoritative (installing `alembic` into `/usr/bin/python3` to make `python3 -m pytest` pass is the wrong fix; `uv run pytest` + `uv sync` is right).
-5. **If it fails for a non-dependency reason** (genuine test/type failures), record the command as verified-but-red and carry that into Q7's clean-baseline warning — do NOT attempt to fix the failures.
+5. **If it fails for a non-dependency reason** (genuine test/type failures), record the command as verified-but-red and carry that into Q7b's clean-baseline warning — do NOT attempt to fix the failures.
 
 Record per component: `VERIFIED_CMD` (the command that actually runs — possibly runner-prefixed) and `BASELINE` ∈ {green, red-failures, red-deps-declined}. The interview, the generated `pre-git-checks.sh`, and the Stop hook all use `VERIFIED_CMD`, never the unverified inference. Update the PROFILE block's `Test command` / `Build command` fields to the verified form and annotate `(verified green)` / `(verified — currently RED)`.
 
@@ -470,7 +471,7 @@ Print a compact table — one row per violation — then ask via `AskUserQuestio
    rm -f "$tmp"
    ```
 
-4. **`script|<path>|syntax-error`** — back up and re-write from the current canonical template for whichever hook this is (look up by basename). If the hook role can't be identified (third-party script), do NOT touch — print `skip: <path> not a personalize-harness-owned script; manual repair needed.`
+4. **`script|<path>|syntax-error`** — back up and re-write from the current canonical template for whichever hook this is (look up by basename). If the hook role can't be identified (third-party script), do NOT touch — print `skip: <path> is not a harness-gate-owned script; manual repair needed.`
 
 #### Re-validate
 
@@ -552,12 +553,14 @@ Order is fixed; skip Qs that don't apply per profile. Lead bullets carry `(Recom
   - **Writes + reads** — also block `Read` of the secret globs (prevents the agent surfacing secrets into context). Heavier; only when the repo genuinely holds secrets.
   - **Skip** — no path guardrail.
   Echo the exact write/read glob lists before writing. All patterns feed ONE `block-path-access.sh`.
-- **Q7 — Project checks before git** _(beforeGit, blocking)_ (cat 4/9). Only ask if PROJECT_CHECK has at least one component (TYPE_CHECK / BUILD_CMD / TEST_CMD). Phrase as: "Run `<composed project check>` before `git commit`/`git push` and block the commit if it fails? Detected: typecheck=`<TYPE_CHECK>`, build=`<BUILD_CMD>`, test=`<TEST_CMD>`." Sub-choice (multiSelect) for which components to gate. Lead = `typecheck + build (Recommended)` — fast, high signal; full test suite optional (slower). Phrase each component with its `VERIFIED_CMD` and `BASELINE` from Step 2.5's baseline verification — e.g. "test=`uv run pytest` (verified green, 53s)" or "test=`uv run pytest` (verified — currently RED, N failures)". **Clean-baseline note:** the skill has already dry-run each candidate (Step 2.5), so the verified command and its green/red status are known — surface them here, do not re-ask the user to confirm. If a component is `red-failures`, warn that gating it blocks every commit until the baseline is fixed and lead toward leaving it ungated.
+- **Q7 — Static check + whole-project checks before git** _(beforeGit, blocking)_ (cat **4a/4b**). Split into TWO sub-questions, in this fixed order:
+  - **Q7a — Changed-files static check (cat 4a).** Always ask when any of `ruff`/`mypy`/`eslint`/`tsc` is present in `TOOLS_HAVE` (or `have-local:`). Phrase as: "Run changed-files static checks on staged files (`git diff --cached`) before `git commit`/`git push` and block the commit on lint/type errors? Detected: ruff, mypy, eslint, tsc." Lead = `yes (Recommended)` — fast (sub-second to a few seconds per file), high signal, gates every commit. The script (`staged-static-check.sh`) automatically selects `ruff check` + `mypy` (Python) / `eslint` + `tsc --noEmit` (JS/TS) based on detected tools and dropped-when-absent behavior; runs ONLY on staged paths (plus tracked-but-unstaged files when `git commit -a`/`-am` is used).
+  - **Q7b — Whole-project typecheck/build/test (cat 4b)** _(slow — opt-in)_. Only ask if PROJECT_CHECK has at least one component (TYPE_CHECK / BUILD_CMD / TEST_CMD). When asked, surface the explicit warning: "Whole-project checks are slow (full `cargo test` / `npm test` / `uv run pytest` can take minutes) and better suited to CI or `/dev-test`. Enable pre-git anyway?" Lead = `skip (Recommended)` — defer to CI for the slow lane. If accepted, sub-choice (multiSelect) for which components to gate; lead with `skip`. Each component carries its `VERIFIED_CMD` and `BASELINE` from Step 2.5's baseline verification — e.g. "test=`uv run pytest` (verified green, 53s)" or "test=`uv run pytest` (verified — currently RED, N failures)". **Clean-baseline note:** the skill has already dry-run each candidate (Step 2.5), so the verified command and its green/red status are known — surface them here, do not re-ask the user to confirm. If a component is `red-failures`, warn that gating it blocks every commit until the baseline is fixed and lead toward leaving it ungated.
 - **Q8 — Scenario / e2e checks** _(manual advisory, or beforeGit if bounded)_ (cat 5). Only ask if profile's `Scenario check` is not `none-detected`. Phrase as: "Detected e2e command `<SCENARIO_CMD>`. e2e is expensive — surface it as a manual pre-commit reminder, or run it pre-git (blocking)?" Lead = `manual reminder (Recommended)` — never auto-run expensive suites on every commit unless the user insists and CI already treats it as normal pre-merge validation.
   - **`beforeGit`** = the command is appended (last, after project checks) to `pre-git-checks.sh` and blocks the commit on failure.
   - **`manual`** = no command is ever auto-run. The reminder line `Before committing, consider running the e2e suite: \`<SCENARIO_CMD>\`` is folded into whichever advisory surface the user already enabled, in this preference order: the Q11 Stop prompt body → else the Q9 reinject text. If neither Q9 nor Q11 is enabled, there is **no runtime hook** for it — report it in the Step 5 summary as a manual to-do and say so plainly (do not pretend it is enforced).
 - **Q9 — Reinject invariants on compact** _(SessionStart compact, advisory)_. Only ask if profile's `Stated invariants` block is non-empty. Three-option pattern, **but auto-draft now means "use the invariants list verbatim"** — no LLM rewriting. Echo the exact bullets the skill will inject. Lead = `auto-draft (Recommended)`.
-- **Q10 — Lint on Edit** _(afterWrite, blocking — opt-in)_. Phrase as: "Detected linter `<LINTER>`. Run on Edit (blocks on lint errors)?" Lead = `skip (Recommended)` — lint blocking mid-refactor is invasive. Skip entirely if profile says `Linter: none-detected`.
+- **Q10 — Lint on Edit** _(afterWrite, **fail-open with --fix by default**; `--strict` opt-in for blocking)_. Phrase as: "Detected linter `<LINTER>`. Run `lint-on-edit.sh` on every Edit? Default is autofix (`ruff check --fix` / `eslint --fix`) — safe fixes are applied automatically, exits 0; on Stop the workflow catches anything that couldn't autofix. Opt in to blocking mode (`lint-on-edit.sh --strict`, exits 2 on any remaining lint error) if you want edits to fail on lint." Lead = `autofix (fail-open, Recommended)` — silent autofix is the common 2026 default. Skip entirely if profile says `Linter: none-detected`.
 - **Q11 — Stop self-review checkpoint** _(agentEnd, advisory)_. Always ask. Phrase as: "Run a self-review checkpoint on every Stop? Fires every reply, costs tokens, but enforces a final discipline pass." Lead = `skip (Recommended)`. If accepted, use three-option pattern:
   - **Auto-draft (project-tailored)** — body lists profile's `Stated invariants`, `Test command`, `Type checker`, and the generic 5-point pass. Echo it inline before writing.
   - **Custom** — drop to plain chat for body.
@@ -672,14 +675,19 @@ esac
 exit 0
 ```
 
-**`lint-on-edit.sh`** — PostToolUse, matcher `Edit|Write|MultiEdit`. Fail-closed on lint errors (opt-in). Polyglot: ESLint for JS/TS, Ruff for Python:
+**`lint-on-edit.sh`** — PostToolUse, matcher `Edit|Write|MultiEdit`. **Fail-open by default** — runs `ruff check --fix` / `eslint --fix` (auto-fixes safe lint issues and exits 0 when only auto-fixable issues remain). Switch to blocking mode by wiring `lint-on-edit.sh --strict` (then it runs without `--fix` and `exit 2`s on any leftover lint error). Polyglot: ESLint for JS/TS, Ruff for Python:
 
 ```bash
 #!/usr/bin/env bash
+# lint-on-edit — autofix safe lint issues on the edited file. Fail-open by default.
+# Pass --strict to block (exit 2) on remaining lint errors after autofix.
 set -u
 path=$(jq -r '.tool_input.file_path // empty')
 [ -z "$path" ] && exit 0
 [ -f "$path" ] || exit 0
+
+strict=0
+[ "$1" = "--strict" ] && strict=1
 
 case "$path" in
   *.js|*.jsx|*.ts|*.tsx)
@@ -690,15 +698,25 @@ case "$path" in
       bin=eslint
     fi
     [ -z "$bin" ] && exit 0
-    if ! out=$("$bin" --no-fix "$path" 2>&1); then
-      echo "$out" >&2
-      exit 2
+    # Default: --fix (autofix safe). Strict: --no-fix (block on any error).
+    if [ "$strict" -eq 1 ]; then
+      if ! out=$("$bin" --no-fix "$path" 2>&1); then
+        echo "$out" >&2
+        exit 2
+      fi
+    else
+      "$bin" --fix "$path" >/dev/null 2>&1 || true
     fi ;;
   *.py)
     if command -v ruff >/dev/null 2>&1; then
-      if ! out=$(ruff check "$path" 2>&1); then
-        echo "$out" >&2
-        exit 2
+      if [ "$strict" -eq 1 ]; then
+        if ! out=$(ruff check "$path" 2>&1); then
+          echo "$out" >&2
+          exit 2
+        fi
+      else
+        # --fix is the recommended default; fail-open.
+        ruff check --fix "$path" >/dev/null 2>&1 || true
       fi
     fi ;;
 esac
@@ -735,7 +753,7 @@ patterns=(
 
 for pat in "${patterns[@]}"; do
   if echo "$cmd" | grep -qE "$pat"; then
-    echo "Blocked by personalize-harness: matches /$pat/" >&2
+    echo "Blocked by harness-gate: matches /$pat/" >&2
     exit 2
   fi
 done
@@ -790,23 +808,23 @@ case "$tool" in
     # Symlink / traversal escape: a write resolving outside the project root is blocked.
     case "$real" in
       "$rootreal"|"$rootreal"/*) ;;
-      *) echo "Blocked by personalize-harness: write resolves outside project root ($real)." >&2; exit 2 ;;
+      *) echo "Blocked by harness-gate: write resolves outside project root ($real)." >&2; exit 2 ;;
     esac
     if matches "$base" "${write_allow[@]}"; then exit 0; fi
     if matches "$base" "${write_block[@]}" || matches "$rel" "${write_block[@]}"; then
-      echo "Blocked by personalize-harness: writes to protected path '$rel' are blocked." >&2
+      echo "Blocked by harness-gate: writes to protected path '$rel' are blocked." >&2
       exit 2
     fi ;;
   Read)
     if matches "$base" "${read_block[@]}" || matches "$rel" "${read_block[@]}"; then
-      echo "Blocked by personalize-harness: reads of secret path '$rel' are blocked." >&2
+      echo "Blocked by harness-gate: reads of secret path '$rel' are blocked." >&2
       exit 2
     fi ;;
 esac
 exit 0
 ```
 
-**`pre-git-checks.sh`** — PreToolUse, matcher `Bash` (cat 4/5/9, `beforeGit` timing). **Create this script if Q7 selected ≥1 project-check component OR Q8 chose `beforeGit` scenario** — not only Q7. Fires only when the command is a `git commit`/`git push`; runs the composed checks from the project root and `exit 2` blocks the commit on failure. Order the `checks=()` array fastest-first: typecheck → build → test → bounded scenario (the Q8 `beforeGit` scenario command goes **last**). Each check is wrapped in a timeout so a hanging test cannot wedge the commit. Commands are skill-authored (trusted), so `eval` honors their args:
+**`pre-git-checks.sh`** — PreToolUse, matcher `Bash` (cat **4b**/5/9, `beforeGit` timing). **Create this script if Q7b selected ≥1 project-check component OR Q8 chose `beforeGit` scenario** — not only Q7b. Fires only when the command is a `git commit`/`git push`; runs the composed checks from the project root and `exit 2` blocks the commit on failure. Order the `checks=()` array fastest-first: typecheck → build → test → bounded scenario (the Q8 `beforeGit` scenario command goes **last**). Each check is wrapped in a timeout so a hanging test cannot wedge the commit. Commands are skill-authored (trusted), so `eval` honors their args:
 
 ```bash
 #!/usr/bin/env bash
@@ -838,13 +856,111 @@ for c in "${checks[@]}"; do
   out=$(run_to "$c" 2>&1); rc=$?
   if [ "$rc" -ne 0 ]; then
     [ "$rc" = 124 ] && note=" (timed out after ${TIMEOUT_S}s)" || note=""
-    echo "Blocked by personalize-harness pre-git check: \`$c\` failed${note}. Fix before committing." >&2
+    echo "Blocked by harness-gate pre-git check: \`$c\` failed${note}. Fix before committing." >&2
     printf '%s\n' "$out" | tail -40 >&2
     exit 2
   fi
 done
 exit 0
 ```
+
+**`staged-static-check.sh`** — PreToolUse, matcher `Bash` (cat **4a**, `beforeGit` timing). **Changed-files static check** — runs `ruff check` + `mypy` (Python) / `eslint` + `tsc --noEmit` (JS/TS) on ONLY the files in `git diff --cached --diff-filter=ACM` (plus tracked-but-unstaged files when the user passes `-a`/`-am` to `git commit`). Fast (sub-second to a few seconds per file) and high signal; the recommended default for cat 4a. `exit 2` blocks the commit. Drops arms whose tool is absent. Read command from stdin as JSON `{tool_input:{command}}`. Fires only on `git commit` / `git push`; other bash commands pass through unchanged (exit 0). See Step 5 dry-check 4c for the gating guarantee.
+
+```bash
+#!/usr/bin/env bash
+# staged-static-check — fast lint+type check on staged files. exit 2 blocks.
+# Reads {tool_input:{command}} on stdin. Only acts on git commit/push; otherwise exits 0.
+# Resolves paths via git diff --cached (plus tracked-but-unstaged on -a/-am).
+set -u
+input=$(cat)
+cmd=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
+[ -z "$cmd" ] && exit 0
+
+# Only act on git commit / push (word-boundary, allows leading env/&&/; prefixes).
+echo "$cmd" | grep -qE '(^|[;&|[:space:]])git[[:space:]]+(commit|push)([[:space:]]|$)' || exit 0
+
+root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+cd "$root" 2>/dev/null || exit 0
+
+# Detect -a / -am so tracked-but-unstaged files are also caught.
+extra_args=""
+if echo "$cmd" | grep -qE '(^|[[:space:]])(-a|-am)([[:space:]]|$)'; then
+  extra_args="--untracked-files"
+fi
+
+# Collect changed paths (cached + unstaged when -a/-am).
+mapfile -t files < <(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)
+if [ -n "$extra_args" ]; then
+  mapfile -t unstaged < <(git diff --name-only --diff-filter=ACM 2>/dev/null)
+  files+=( "${unstaged[@]}" )
+fi
+# Dedup.
+if [ "${#files[@]}" -gt 0 ]; then
+  tmp=$(mktemp)
+  printf '%s\n' "${files[@]}" | sort -u > "$tmp"
+  mapfile -t files < "$tmp"
+  rm -f "$tmp"
+fi
+
+[ "${#files[@]}" -eq 0 ] && exit 0
+
+# Per-check timeout (seconds). Stays tiny — this script should be sub-second
+# on most repos; a 60s cap is generous.
+TIMEOUT_S=60
+run_to() {
+  if command -v timeout >/dev/null 2>&1; then timeout "$TIMEOUT_S" bash -c "$1"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$TIMEOUT_S" bash -c "$1"
+  else bash -c "$1"; fi
+}
+
+failed=0
+failure_msg=""
+for f in "${files[@]}"; do
+  [ -e "$f" ] || continue
+  case "$f" in
+    *.py)
+      # Python: ruff (lint+autofix-aware) -> mypy (type).
+      if command -v ruff >/dev/null 2>&1; then
+        if ! out=$(run_to "ruff check '$f'" 2>&1); then
+          failed=1; failure_msg="${failure_msg}ruff on $f:\n${out}\n"
+        fi
+      fi
+      if command -v mypy >/dev/null 2>&1; then
+        if ! out=$(run_to "mypy '$f'" 2>&1); then
+          failed=1; failure_msg="${failure_msg}mypy on $f:\n${out}\n"
+        fi
+      fi
+      ;;
+    *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs)
+      # JS/TS: eslint (lint) -> tsc --noEmit (type).
+      bin=""
+      if [ -x ./node_modules/.bin/eslint ]; then
+        bin=./node_modules/.bin/eslint
+      elif command -v eslint >/dev/null 2>&1; then
+        bin=eslint
+      fi
+      if [ -n "$bin" ]; then
+        if ! out=$(run_to "$bin '$f'" 2>&1); then
+          failed=1; failure_msg="${failure_msg}eslint on $f:\n${out}\n"
+        fi
+      fi
+      if command -v tsc >/dev/null 2>&1; then
+        if ! out=$(run_to "tsc --noEmit '$f'" 2>&1); then
+          failed=1; failure_msg="${failure_msg}tsc on $f:\n${out}\n"
+        fi
+      fi
+      ;;
+  esac
+done
+
+if [ "$failed" -ne 0 ]; then
+  printf 'Blocked by harness-gate staged-static-check:\n%b' "$failure_msg" >&2
+  exit 2
+fi
+exit 0
+```
+
+> **Note on python-vs-ruff ordering and `tsc --noEmit` per-file.** `tsc --noEmit <single-file>` requires a `tsconfig.json` to apply project compiler options; if `tsc --noEmit` per-file is too noisy in a given repo, drop the `tsc` arm at write time and rely on the whole-project check (cat 4b) to catch type errors. `ruff check <file>` works without project config; `mypy <file>` works without project config but flags missing imports more aggressively — both are reasonable defaults and dropped automatically when the tool is absent.
 
 **`stop-quality-check.sh`** — Stop, no matcher (cat 4/10, `agentEnd` timing). Inferential checkpoint via `decision: block` JSON output. Fires on every Stop; gated by `stop_hook_active` to prevent infinite loops. When Q11 enabled the optional end-of-turn project check, it also runs the cheapest project command (only when the working tree is dirty) and folds any failure into the re-injected reason — advisory, since `agentEnd` cannot hard-block.
 
@@ -993,6 +1109,7 @@ Command-path conventions:
 | `block-bash-pattern.sh` | `PreToolUse` | `Bash` |
 | `block-path-access.sh` | `PreToolUse` | `Edit\|Write\|MultiEdit` (always) + `Read` (only if writes+reads chosen) |
 | `pre-git-checks.sh` | `PreToolUse` | `Bash` |
+| `staged-static-check.sh` | `PreToolUse` | `Bash` |
 | `stop-quality-check.sh` | `Stop` | _(none — matcherless event)_ |
 
 `block-path-access.sh` and `pre-git-checks.sh` both register on `PreToolUse`/`Bash` alongside `block-bash-pattern.sh` — multiple matchered entries on the same event/matcher are fine (they run in parallel; each is its own array entry). `block-path-access.sh` registers twice when reads are protected: once for `Edit|Write|MultiEdit`, once for `Read` (call `merge_hook` once per matcher).
@@ -1058,6 +1175,28 @@ Command-path conventions:
    fi
    ```
 
+4c. **Staged-static-check dry check** — if `staged-static-check.sh` was generated, confirm the gate passes non-git commands, blocks a dirty staged file, and accepts a clean staged file. Never run the real linter against a real repo — the throwaway fixture below uses `mktemp -d` and is self-contained:
+
+   ```bash
+   s="$HOOK_DIR/staged-static-check.sh"
+   if [ -f "$s" ]; then
+     tmp=$(mktemp -d); cd "$tmp" || exit 0
+     git init -q -b main 2>/dev/null || git init -q
+     git config user.email t@t && git config user.name t
+     git commit --allow-empty -q -m init
+     # Clean baseline: a clean .py staged, then `git commit -m wip` MUST pass.
+     printf 'x = 1\n' > clean.py
+     # Non-git command MUST exit 0 (not gated).
+     (cd "$tmp" && CLAUDE_PROJECT_DIR="$tmp" bash "$s" <<< '{"tool_input":{"command":"ls"}}')
+     [ $? -eq 0 ] || echo "warn: non-git command not ignored by staged-static-check.sh"
+     # Stash a lint-dirty staged file by mocking ruff — the smoke test in
+     # .claude/skills/harness-apply/tests/staged-static-check-smoke.sh does
+     # the full fidelity pass (with optional ruff + mypy). This Step 5 check
+     # only asserts git-detection + diff-scoping when tools are available.
+     echo "staged-static-check smoke: run tests/staged-static-check-smoke.sh for the T.1 cases."
+   fi
+   ```
+
 5. **Hygiene hints** based on layer chosen:
    - **Team layer** (`.claude/settings.json` written) — print: "Team layer chosen. Commit with: `git add .claude/ && git commit -m 'add Claude Code hooks'`. Hook scripts in `.claude/hooks/` will be shared."
    - **Personal layer** (`.claude/settings.local.json` written) — print: "Personal layer. Add `.claude/settings.local.json` to project `.gitignore` if not already covered."
@@ -1076,11 +1215,12 @@ Command-path conventions:
      - <path> (new) | (updated; backup <path>-bak-<UTC-stamp>) | (unchanged)
    Settings updated:
      - <path>: +<N> hook entries, <M> already present
-   Gap coverage (all 10 categories — enabled or why not):
-     - 1 touched-file syntax: <enabled afterWrite blocking | skipped: reason>
-     - 2 formatter:           <enabled afterWrite fail-open | skipped: reason>
-     - 3 lint:                <enabled afterWrite blocking | skipped: reason>
-     - 4 project check:       <enabled beforeGit blocking (<components>) | skipped: reason>
+   Gap coverage (all 10 categories — enabled or why not; 4 split into 4a/4b):
+     - 1 touched-file syntax:    <enabled afterWrite blocking | skipped: reason>
+     - 2 formatter:              <enabled afterWrite fail-open | skipped: reason>
+     - 3 lint:                   <enabled afterWrite fail-open (autofix) or blocking (--strict) | skipped: reason>
+     - 4a changed-files static:  <enabled beforeGit blocking | skipped: reason>
+     - 4b whole-project check:   <enabled beforeGit blocking (<components>) | skipped: reason>
      - 5 scenario/e2e:        <manual reminder | beforeGit | not-detected: reason>
      - 6 arch/context guidance: <reinject enabled | skipped: reason>
      - 7 operational safety (bash): <enabled | skipped: reason>
@@ -1118,9 +1258,9 @@ Command-path conventions:
 - **Inferential (Stop-prompt) hooks are off by default.** They cost tokens every Stop. Only add if the user explicitly asks.
 - **Already-configured hooks aren't re-prompted.** Step 3 skips Qs whose entry is detected by Step 2; Step 5 reports them as "already present".
 - **`permissions.ask` overlap.** Bash guardrails (Q4/Q5) may overlap with patterns already in `permissions.ask` (e.g. `git push --force`, `rm -rf /`). The hook is a hard block (`exit 2`); the permission is an interactive prompt. They coexist — both fire. Step 5 summary should flag overlapping patterns when detected so the user knows the coverage is doubled, not redundant.
-- **Timing/posture vocabulary.** Every sensor is `afterWrite` (PostToolUse), `beforeGit` (PreToolUse Bash git-detector), `agentEnd` (Stop, advisory only), or `manual` (reminder text). `blocking` is honored at `afterWrite`/`beforeGit`; `agentEnd` always degrades to advisory because Stop cannot hard-stop the model. Mirrors the Pi `personalize-harness-pi` contract so both harnesses stay aligned.
+- **Timing/posture vocabulary.** Every sensor is `afterWrite` (PostToolUse), `beforeGit` (PreToolUse Bash git-detector), `agentEnd` (Stop, advisory only), or `manual` (reminder text). `blocking` is honored at `afterWrite`/`beforeGit`; `agentEnd` always degrades to advisory because Stop cannot hard-stop the model. The global Pi `harness-gates` adapter uses the same vocabulary so both harnesses stay aligned (issue #030 covers the adapter itself).
 - **Web research is advisory, never authoritative.** Step 2.7 dispatches one `web-search-researcher` agent (project mode only, on by default, `--no-web` to skip) to recommend posture/timing for the detected stack. Local repo evidence still decides which commands are offered — research that names a tool the repo lacks is dropped, and where research and the skill's conservative defaults disagree the user is shown both. The skill works fully with `--no-web`; research is a lead-tuning input, not a dependency.
-- **Gap-driven coverage.** Evaluate all 10 categories even when absent. Categories with no hook get a one-line skip reason in the Step 5 summary — silent omission reads as "covered". The four gap-driven additions over the original per-file model are: project checks (cat 4), scenario checks (cat 5), protected paths (cat 8), git preflight (cat 9).
+- **Gap-driven coverage.** Evaluate all 10 categories even when absent (cat 4 splits into 4a + 4b). Categories with no hook get a one-line skip reason in the Step 5 summary — silent omission reads as "covered". The four gap-driven additions over the original per-file model are: changed-files static (cat 4a), project checks (cat 4b), scenario checks (cat 5), protected paths (cat 8), git preflight (cat 9).
 - **Protected-path safety (`block-path-access.sh`).** Blocks `Edit|Write|MultiEdit` to `.env*` (excluding `.example`/`.sample`/`.template`), key/secret globs, and inferred vendored/generated paths, plus any write whose realpath escapes the project root (symlink-escape hardening via deepest-existing-ancestor resolution). Optionally blocks `Read` of secret globs. Universal `.env`-write protection is the recommended default. Distinct from the **command** guardrail (`block-bash-pattern.sh`) — one guards paths, the other guards Bash strings.
 - **Project checks run pre-git, not per-edit (`pre-git-checks.sh`).** Typecheck/build/test are project-level and too slow for every Edit, and Claude has no per-turn touched-file memory, so they are gated to `git commit`/`git push` where they run once and can hard-block a bad commit. Recommend a clean baseline before enabling a component as blocking — a red baseline blocks every commit. The skill verifies this for you: Step 2.5's **baseline verification + runner resolution** dry-runs each candidate, resolves the correct runner (e.g. bare `pytest`/`python3 -m pytest` → `uv run pytest` when `uv.lock` is present and the system interpreter lacks deps), offers to install missing deps through the build tool (never the system interpreter), and records the `VERIFIED_CMD` the gate actually uses. Compose fastest-first (typecheck → build → test), each time-boxed (`TIMEOUT_S`, default 180s) so a hung check cannot wedge the commit. **Coverage limit:** the gate only sees `git commit`/`git push` run through the **Bash tool** — a commit made another way (MCP git server, IDE, a pre-existing alias that doesn't match the regex) is not caught. It is a strong default, not an airtight gate; CI remains the backstop.
 - **Scenario/e2e checks default to manual.** Expensive suites surface as a reminder line, never auto-run on every commit. Promote to `beforeGit` only when the suite is bounded and CI already treats it as normal pre-merge validation.
