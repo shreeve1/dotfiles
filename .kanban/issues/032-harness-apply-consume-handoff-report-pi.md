@@ -1,12 +1,13 @@
 ---
 id: 032
 title: harness-apply consume audit handoff + report Pi coverage
-status: review
+status: done
 blocked_by: [028, 029, 030]
 parent: null
 priority: 0
 created: 2026-07-14
 updated: 2026-07-15
+actor: ralph
 ---
 
 ## What to build
@@ -21,9 +22,9 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 
 ## Acceptance criteria
 
-- [ ] SKILL.md documents a handoff-consume input mode referencing the shared contract
-- [ ] SKILL.md includes a step to ensure/register the global `harness-gates` adapter and a Step 5 Pi-coverage report line
-- [ ] cross-references describe the unified dual-target (one skill, shared scripts, two adapters); no stale `personalize-harness-pi` framing and no per-project Pi extension generation
+- [x] SKILL.md documents a handoff-consume input mode referencing the shared contract
+- [x] SKILL.md includes a step to ensure/register the global `harness-gates` adapter and a Step 5 Pi-coverage report line
+- [x] cross-references describe the unified dual-target (one skill, shared scripts, two adapters); no stale `personalize-harness-pi` framing and no per-project Pi extension generation
 
 ## Verification
 
