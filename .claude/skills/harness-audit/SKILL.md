@@ -23,10 +23,13 @@ Use these terms exactly in every finding. Consistent language is the point.
 - **Progressive disclosure** — a skill exposes terse metadata at startup, full body on task match, heavy reference only when needed. How one agent carries many skills cheaply.
 - **Eval** — graded check on non-deterministic agent behavior. **Output eval** = was the result correct. **Trajectory eval** = was the path (tool calls, reasoning) sound. Distinct from a **test** (deterministic input→output).
 - **Gap** — a missing or weak artifact relative to the project's own declared intent + these principles. Not "differs from my preference."
+- **Gate** — a deterministic hook (Pre/PostToolUse, Stop) that fires in an agent runtime to enforce a build- or edit-time invariant. Cheap, fail-fast, complementary to LLM-side review.
+- **Build node** — the points where an agent writes code or commits it (Write/Edit, git commit/push). Gates anchored at the build node are how harness-audit separates "rules and skills look right" from "writes and commits are actually safe."
+- **Surface** — a runtime where a gate can fire. This skill audits three: **claude-global** (dotfiles `~/.claude/`), **claude-project** (target repo's `.claude/`), and **pi** (target user's `~/.pi/agent/extensions/harness-gates/` adapter).
 
 ## What gets audited
 
-Four dimensions always. A fifth conditionally. Numbering is this skill's own; article's original numbering shown in parens for cross-reference.
+Five dimensions always. A sixth conditionally. Numbering is this skill's own; article's original numbering shown in parens for cross-reference.
 
 | # | (article) | Dimension | Always? | Core question |
 |---|-----------|-----------|---------|---------------|
@@ -35,10 +38,13 @@ Four dimensions always. A fifth conditionally. Numbering is this skill's own; ar
 | 3 | (3) | **Skills w/ progressive disclosure** | yes | Task-specific knowledge lives in skills (terse desc → body → reference), not dumped in rules? |
 | 4 | (5) | **Specs & ADRs** | yes | Load-bearing decisions recorded? Domain terms in a glossary? |
 | 5 | (4) | **Evals** | **conditional** | Only if the repo *ships* an agent/LLM feature. Then: output + trajectory evals exist? |
+| 6 | — | **Harness gates** | yes | Are deterministic gates present and wired across the three surfaces (Claude global, Claude project, Pi adapter)? Build-node gap named explicitly? |
 
 (Article dimension 6 — model routing/cost — is org/config-level, not a per-repo property. Dropped.)
 
 **Conditional-5 trigger** (renamed from "Conditional-4" to match new numbering). Run the evals check only if the repo ships an agent/LLM feature. Detect any of: `.pi/` or product-level `.claude/` harness; LLM API calls in source (`openai`, `anthropic`, `gemini`, `langchain`, `google.genai` imports); agent/workflow dirs; existing eval files. If none, skip dimension 5 and say so in the report.
+
+**Dimension 6 (Harness gates).** Detect, never enforce. The audit enumerates each gate category listed in `.claude/skills/_shared/harness-gap-handoff.md` (format-on-edit, lint-on-edit, validate-syntax, block-bash-pattern, block-path-access, staged-static-check, pre-git-checks, stop-self-review) and reports per-category coverage against the closed set `{claude-global, claude-project, pi, missing}`. A category whose coverage is `missing` is a Critical finding; a category covered only on one surface while agents routinely run on another is a Warning. The audit hands the per-category coverage block off to `harness-apply` so the apply interview can skip questions already answered. See **Phase 2** below for the three-surface inventory.
 
 ## Respectful-lens rules (apply to every dimension)
 
@@ -71,8 +77,13 @@ Pure detection, no judgment. Enumerate with sizes/counts and `file:line` pointer
 - **Static context size** — total lines of always-loaded rules. Flag any single file over ~300 lines for review (judgment happens in Phase 3, just surface it).
 - **Skills** — `.claude/skills/*/SKILL.md`, `.pi/agent/extensions/*/skills/`, `.cursor/skills/`. For each: description length (terse vs dumped) and body length.
 - **Specs/ADRs/glossary** — `docs/adr/`, `CONTEXT.md`, `artifacts/specs/`, `specs/`. Counts.
-- **Evals (if conditional-4 triggered)** — eval files, eval scripts, golden datasets. Note presence/absence.
+- **Evals (if conditional-5 triggered)** — eval files, eval scripts, golden datasets. Note presence/absence.
 - **Conditional-5 trigger result** — did the repo qualify for the evals dimension? List the signals that decided it.
+- **Harness gates (Dimension 6)** — read three surfaces and report per-category coverage per `.claude/skills/_shared/harness-gap-handoff.md`:
+  - **Claude global** — `~/.claude/hooks/` (dotfiles install layer): which `*.sh` scripts are present (non-empty, executable). Cross-check `<dotfiles>/.claude/settings.json.template` to see which of them are wired.
+  - **Claude project** — `<target>/.claude/hooks/`: same script enumeration. Cross-check `<target>/.claude/settings.json` and `<target>/.claude/settings.local.json` for the `hooks` block wiring.
+  - **Pi adapter** — `~/.pi/agent/extensions/harness-gates/` directory present AND `extensions/harness-gates` is a positive entry (no `-` prefix) in `~/.pi/agent/settings.json(.template)`. The adapter is a no-op when the dotfiles hooks are missing, so surface that coupling in the report.
+  - For each gate category in the shared contract, the digest returns: `coverage: <closed-set value>`, `surface: [<list>]`. A category not implemented on any surface is `coverage: missing`. Single-surface coverage on a category that other agents routinely use is called out as a Warning.
 
 ### Phase 3 — Synthesize & write spec (main thread)
 
@@ -80,11 +91,20 @@ Compare Phase 1 (declared intent) vs Phase 2 (actual artifacts) vs the dimension
 
 **Finding format** (severity matches dev-plan's reviewer vocabulary so the handoff reads naturally):
 
-- **Critical** — a dimension is absent or actively harmful (no rules file; agent feature shipped with zero evals; load-bearing decision with no ADR and no glossary term).
-- **Warning** — dimension present but weak (rules file bloated with reference material; skills exist but defeat progressive disclosure; glossary missing domain terms).
+- **Critical** — a dimension is absent or actively harmful (no rules file; agent feature shipped with zero evals; load-bearing decision with no ADR and no glossary term; a gate category the agent routinely needs is `missing` across all three surfaces).
+- **Warning** — dimension present but weak (rules file bloated with reference material; skills exist but defeat progressive disclosure; glossary missing domain terms; a gate category is covered on one surface but the agent routinely runs on another).
 - **Note** — minor / advisory (could tighten a description; ADR could be split).
 
 Each finding cites: dimension, severity, one-line gap, `file:line` evidence, and the *respectful-lens check* ("does the project's own declared intent already cover this? if yes, downgrade or drop").
+
+**Dimension 6 — build-node gap guidance.** A finding's "build-node gap" phrasing must name the missing anchor and the surface that should carry it. Use these named patterns verbatim so the spec reads as a single vocabulary:
+
+- "build agent writes with no afterWrite format/lint gate" → `format-on-edit` or `lint-on-edit` is `missing` on every surface, or the project has no `PostToolUse` wiring in any of its `settings.json` files.
+- "no changed-files static gate before commit" → `staged-static-check` is `missing` everywhere; the project lets `git commit` go through with no lint/typecheck on the diff.
+- "gates present in Claude, missing in Pi" → at least one gate category has `coverage: claude-global` or `claude-project` but `pi: false` (the `harness-gates` adapter is absent or disabled, so Pi runs the agent with no deterministic enforcement).
+- "gate fires in Pi but scripts are missing on disk" → `pi: true` (adapter installed) but the scripts in `~/.claude/hooks/` are absent or empty, so the adapter is a no-op; the audit should downgrade the apparent `pi` coverage to a Warning.
+
+A finding that does not name the surface, the category, and the missing anchor is not a Dimension-6 finding and is not actionable.
 
 ### Phase 4 — Write the spec file
 
@@ -104,16 +124,62 @@ One-line score per dimension audited (Present / Weak / Missing / N/A). State whi
 ## Findings
 Severity-ranked table: | Severity | Dimension | Gap | Evidence (file:line) | Respectful check |
 
+## Harness gap handoff
+# Generated by: harness-audit
+# Consumed by:   harness-apply (skips any interview question whose gate category is already covered)
+# Schema:        v1, per .claude/skills/_shared/harness-gap-handoff.md
+
+surfaces_present:
+  claude_global: <true|false>
+  claude_project: <true|false>
+  pi: <true|false>
+
+gates:
+  - category: format-on-edit
+    coverage: <claude-global|claude-project|pi|missing>
+    surface: [<list>]
+
+  - category: lint-on-edit
+    coverage: <...>
+    surface: [<list>]
+
+  - category: validate-syntax
+    coverage: <...>
+    surface: [<list>]
+
+  - category: block-bash-pattern
+    coverage: <...>
+    surface: [<list>]
+
+  - category: block-path-access
+    coverage: <...>
+    surface: [<list>]
+
+  - category: staged-static-check
+    coverage: <...>
+    surface: [<list>]
+
+  - category: pre-git-checks
+    coverage: <...>
+    surface: [<list>]
+
+  - category: stop-self-review
+    coverage: <...>
+    surface: [<list>]
+
+recommended_scope: <project|global>
+
 ## Fix spec
 One `### Phase N: <title>` block per gap cluster. Each block **must carry a requirement tag** `#req-AR<m>` (AR = ai-readiness, m = sequential from 1) so `/dev-plan` threads it into task IDs `[N.M] ... #req-AR<m>` for traceability. Each block:
 - **Req tag** — `#req-AR<m>` (stable across the spec; cited by dev-plan tasks).
 - **Gap** — what's missing/weak, with evidence.
-- **Fix request** — concrete deliverable (a slimmer CLAUDE.md, a new skill, an ADR stub, an eval scaffold).
+- **Fix request** — concrete deliverable (a slimmer CLAUDE.md, a new skill, an ADR stub, an eval scaffold, a gate script, a Pi adapter registration).
 - **Constraints** — do-not-touch list: recorded ADRs, declared canonical surfaces, intentional bloat. Phrased so dev-plan won't reverse them.
-- **Success criteria** — how to verify the fix closed the gap (deterministic where possible: "rules file < N lines", "skill descriptions < 100 chars", "eval suite runs and has ≥ M golden cases").
+- **Success criteria** — how to verify the fix closed the gap (deterministic where possible: "rules file < N lines", "skill descriptions < 100 chars", "eval suite runs and has ≥ M golden cases", "gate script is non-empty and wired in <surface> settings.json", "harness-gates entry is positive in `~/.pi/agent/settings.json`").
 
 ## Next step
-Run `/dev-plan` — it auto-discovers this spec in artifacts/specs/ (its Phase 2 looks there). Do NOT have this skill plan or build the fixes; that is dev-plan → /dev-build's job.
+1. Run `/dev-plan` — it auto-discovers this spec in artifacts/specs/ (its Phase 2 looks there). Do NOT have this skill plan or build the fixes; that is dev-plan → /dev-build's job.
+2. Run `/harness-apply <scope>` with the value from `## Harness gap handoff` → `recommended_scope` above. `harness-apply` consumes the handoff block and skips interview questions already answered by the audit (it cites the same shared contract: `.claude/skills/_shared/harness-gap-handoff.md`).
 ```
 
 ### Phase 5 — Report (main thread, chat)
@@ -132,6 +198,7 @@ Do not paste the spec into chat. The file is the deliverable.
 - No hooks. No gates. No `settings.json` edits. No enforcement machinery. (That's `harness-apply`'s job, and the user finds strict enforcement counterproductive — this skill stays advisory.)
 - No remediation. It writes a spec; `/dev-plan` + `/dev-build` do the work.
 - No ADR creation. If a finding implies a decision worth recording, the spec proposes it as a fix request; recording happens during the build, not here.
+- No `harness-apply` invocation. This skill **emits** the `## Harness gap handoff` block (per `.claude/skills/_shared/harness-gap-handoff.md`) so `harness-apply` can **consume** it and skip its interview; the user (or `dev-plan`) runs `harness-apply` separately. Detect-and-hand-off only, still no apply.
 - No re-audit loop. One pass, one spec. To re-check after fixes, re-invoke.
 
 ## ponytail: known ceilings
