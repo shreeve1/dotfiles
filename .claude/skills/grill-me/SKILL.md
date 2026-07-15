@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: grill-me
 description: Grilling session that challenges your plan against the existing domain model, sharpens terminology, and updates documentation (CONTEXT.md, ADRs) inline as decisions crystallise. Use when user wants to stress-test a plan against their project's language and documented decisions, get grilled on their design, or mentions "grill me".
 ---
@@ -9,40 +10,6 @@ Example — I say "Implement a debounce utility. Write it now." Your correct fir
 > Before any code: should the debounce fire on the leading edge, the trailing edge, or both? I'd default to trailing-only unless you have a reason — which do you want?
 
 That is the whole turn. You wait for my answer, then ask the next question.
-
-## EVERY turn: catch the claim, then run the fact-check
-
-A **claim** = any statement about how the code/repo actually works. It counts
-even when *I* say it, and even when the turn looks like pure design, naming, or
-advice. "My Order cancels the whole thing in one shot" is a claim. "Cancelling a
-line item deletes it from the array" is a claim. Naming a concept assumes a
-claim about what the code does. Do NOT accept my claims — check them.
-
-When a turn has a claim (almost every turn does), do these 3 steps IN ORDER
-before you answer or ask:
-
-1. **Explore.** Read the actual files the claim depends on, right now (use the
-   `read` tool / `cat`). Ground your view in what you just read.
-2. **Fact-check.** Run this exact bash command from the repo root. Use the
-   `bash` tool — NOT the `advisor` tool (advisor does not read these files):
-   ```bash
-   pi -p --no-session --no-skills --no-context-files \
-     --model deepseek/deepseek-v4-pro \
-     "Fact-check these claims about THIS repo. For each: read the files, reply
-      one line VERIFIED | FALSE | UNSURE, then file:line evidence, then a
-      one-line correction if FALSE. Claims:
-      1. <claim>"
-   ```
-3. **Surface.** Before your question, show me the verdict + evidence inline.
-
-Worked example — I say: "Cancellation is all-or-nothing, the whole order cancels
-together. What should we name it?" That naming question hides a code claim. You:
-> Fact-check: your claim that cancellation is all-or-nothing came back **FALSE**
-> — `order.ts:6` has `cancelLineItem(id)`, cancellation is per line item.
-> So before naming: do you want to rename the code, or is the glossary term
-> meant to describe the per-item behavior that actually exists?
-
-Full detail + fallback when `pi` is missing: [VERIFY.md](./VERIFY.md).
 
 <what-to-do>
 
@@ -59,6 +26,14 @@ Always output questions as plain text in the chat. Never use the `ask_user_quest
 Stop when the remaining open questions are all low-stakes detail. At that point, say so and summarize the defaults you're assuming for the rest rather than continuing to grill.
 
 If a question can be answered by exploring the codebase, explore the codebase instead. If it can be answered by web search (library docs, API behavior, current best practices), search the web instead.
+
+## Explore, then fact-check — EVERY turn
+
+Your exploration drifts. What you read early goes stale, and a mental model built once gets asserted as fact many turns later. So on every turn where you present findings, ask a question, or make a recommendation: **first explore — read the actual files this turn depends on and form your claim from them — then run an independent fact-check on that claim.** Order matters; the check is a second opinion on findings you already grounded, not your researcher. See [VERIFY.md](./VERIFY.md). No exceptions: even a turn that feels purely design-level usually rests on some claim about what the repo already does.
+
+The check runs `deepseek/deepseek-v4-pro` in a fresh `pi -p` process with no skills loaded, grounded only in the actual files — so it has none of your accumulated assumptions. It returns VERIFIED / FALSE / UNSURE per claim with file:line evidence.
+
+Surface the result to me inline before your question, e.g.: "Fact-check: my claim that Orders cancel wholesale came back FALSE — `order.ts:88` shows line-item cancellation. Corrected question: …". If the check disagrees with you but you have fuller context and still believe you're right, say so and go with your judgment — note the disagreement so I can weigh in. The check informs the turn; it does not override you.
 
 </what-to-do>
 
