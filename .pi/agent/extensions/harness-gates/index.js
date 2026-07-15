@@ -96,6 +96,9 @@ export function runHook(scriptPath, payloadObj, projectRoot) {
 // --- Script discovery ------------------------------------------------------
 
 function scriptDirs(projectRoot) {
+	// Global first, project last. discoverScripts does NOT break on first hit,
+	// so a project-level script (evaluated later) overwrites a same-named global
+	// one — project wins by filename, matching Claude Code's project-over-global.
 	const dirs = [];
 	const globalHooks = join(homedir(), ".claude", "hooks");
 	if (existsSync(globalHooks)) dirs.push(globalHooks);
@@ -113,11 +116,13 @@ export function discoverScripts(scriptNames, projectRoot) {
 	const dirs = scriptDirs(projectRoot);
 	const out = new Map();
 	for (const name of scriptNames) {
+		// dirs is [global, project]; do NOT break on the first hit — let a
+		// later dir (project) overwrite an earlier one (global) so project
+		// wins by filename, per _shared/harness-gap-handoff.md scope layering.
 		for (const dir of dirs) {
 			const candidate = join(dir, name);
 			if (existsSync(candidate)) {
 				out.set(name, candidate);
-				break;
 			}
 		}
 	}
