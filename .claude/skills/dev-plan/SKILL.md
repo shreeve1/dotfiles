@@ -16,7 +16,7 @@ Analyze the user's requirements, develop the implementation approach, and save a
 - `SOURCE_DIRECTORIES` — `artifacts/specs/`, `artifacts/brainstorming/`
 - `TEST_DIR` — `tests/`
 - `MAX_ROUNDS` — audit-loop round cap; default 2 (see **Flag Parsing**)
-- `REVIEWER_MODEL` — optional pi model override (see **Flag Parsing**); default reviewer model is `deepseek-v4-flash`
+- `REVIEWER_MODEL` — optional pi model override (see **Flag Parsing**); default reviewer model is `opencode-go/deepseek-v4-pro`
 
 ## Invocation
 
@@ -39,7 +39,7 @@ Parse flags from the invocation first, then strip them from `USER_PROMPT`:
 | Flag | Effect |
 |------|--------|
 | `--rounds N` | Set `MAX_ROUNDS` to integer `N >= 1` (default 2). Reject `N <= 0`. |
-| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi, overriding the default `deepseek-v4-flash`. |
+| `--reviewer-model <m>` | Set `REVIEWER_MODEL` passthrough for pi, overriding the default `opencode-go/deepseek-v4-pro`. |
 
 Any other flag (`--no-loop`, `--reviewer`, `--loop`, `--rounds 0`, …) — reject with a one-line message: the pi audit loop is enforced (no disable, no swap). Do not silently accept and skip.
 
@@ -206,7 +206,7 @@ Resolve the model args, then launch via the backgrounded-`pi --print` engine at 
 if [ -n "$REVIEWER_MODEL" ]; then
   PI_MODEL_ARGS=( --model "$REVIEWER_MODEL" )
 else
-  PI_MODEL_ARGS=( --model "deepseek-v4-flash" )
+  PI_MODEL_ARGS=( --model "opencode-go/deepseek-v4-pro" )
 fi
 ```
 
