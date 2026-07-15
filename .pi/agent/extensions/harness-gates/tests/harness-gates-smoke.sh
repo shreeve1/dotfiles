@@ -62,6 +62,7 @@ cat >"$driver" <<'DRIVER_EOF'
 import {
 	runBashGates,
 	runPathGate,
+	runResultGates,
 	findProjectRoot,
 } from '__ADAPTER_URL__';
 
@@ -74,6 +75,8 @@ if (mode === "bash") {
 	result = await runBashGates(payload, projectRoot);
 } else if (mode === "path") {
 	result = await runPathGate(payload.tool_name, payload.tool_input.file_path, projectRoot);
+} else if (mode === "result") {
+	result = await runResultGates(payload.tool_input.file_path, projectRoot);
 } else {
 	console.error("unknown mode:", mode);
 	process.exit(2);
@@ -147,6 +150,38 @@ esac
 out=$(node "$driver" path '{"tool_name":"Write","tool_input":{"file_path":"$repo/src.txt"}}')
 [ "$out" = "undefined" ] || fail "case 4: benign path wrongly blocked (got '$out')"
 ok "case 4 (pass-on-benign-path)"
+
+# --- (d.5) Result gates: fail-open vs fail-closed distinction -----------
+# format-on-edit.sh and lint-on-edit.sh are fail-open (notification only,
+# NOT isError). validate-syntax.sh is fail-closed (exit-2 -> isError=true).
+cat >"$hooks_dir/format-on-edit.sh" <<'GATE_EOF'
+#!/usr/bin/env bash
+echo "Formatted (notification)" >&2
+exit 2
+GATE_EOF
+chmod +x "$hooks_dir/format-on-edit.sh"
+
+# fail-open exit-2: stderr surfaces but isError MUST stay false.
+out=$(node "$driver" result '{"tool_input":{"file_path":"$repo/x.js"}}')
+case "$out" in
+	*"\"isError\":false"*) ok "result-gate: fail-open exit-2 -> isError=false" ;;
+	*) fail "result-gate: fail-open wrongly flipped isError (got '$out')" ;;
+esac
+
+rm -f "$hooks_dir/format-on-edit.sh"
+cat >"$hooks_dir/validate-syntax.sh" <<'GATE_EOF'
+#!/usr/bin/env bash
+echo "Syntax error" >&2
+exit 2
+GATE_EOF
+chmod +x "$hooks_dir/validate-syntax.sh"
+
+# fail-closed exit-2: isError MUST be true.
+out=$(node "$driver" result '{"tool_input":{"file_path":"$repo/x.js"}}')
+case "$out" in
+	*"\"isError\":true"*) ok "result-gate: fail-closed exit-2 -> isError=true" ;;
+	*) fail "result-gate: fail-closed exit-2 not surfaced (got '$out')" ;;
+esac
 
 # --- (e) findProjectRoot sanity ------------------------------------------
 # Test directly via Node since it isn't async.

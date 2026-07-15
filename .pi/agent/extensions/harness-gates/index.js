@@ -85,6 +85,10 @@ export function runHook(scriptPath, payloadObj, projectRoot) {
 		child.on("close", (code) => {
 			resolveResult({ code: code ?? 0, stderr });
 		});
+		// Ignore EPIPE — fast-exiting scripts (no stdin reader) close the
+		// pipe before our write completes. The script ran fine; we only
+		// care about its exit code and stderr.
+		child.stdin.on("error", () => {});
 		child.stdin.end(JSON.stringify(payloadObj));
 	});
 }
@@ -168,21 +172,22 @@ export async function runPathGate(toolName, filePath, projectRoot) {
 
 /**
  * Run the post-tool result gates. Format-on-edit and lint-on-edit are
- * fail-open — their exit code is ignored, only their stderr is captured
- * (still surfaced as isError so the user sees the warning). validate-syntax
- * is fail-closed — exit 2 flips isError=true.
+ * fail-open — their exit code is ignored and their stderr is surfaced as a
+ * notification (NOT as isError, so the agent doesn't see "formatted X" as a
+ * tool failure). validate-syntax is fail-closed — exit 2 flips isError=true.
  */
 export async function runResultGates(filePath, projectRoot) {
 	const scripts = discoverScripts(RESULT_SCRIPTS, projectRoot);
 	const payload = { tool_input: { file_path: filePath } };
-	const errors = [];
+	const notifications = []; // fail-open stderr, informational only
+	const errors = [];        // fail-closed exit-2, flips isError
 	for (const name of RESULT_SCRIPTS) {
 		const scriptPath = scripts.get(name);
 		if (!scriptPath) continue;
 		const { code, stderr } = await runHook(scriptPath, payload, projectRoot);
 		const trimmed = stderr.trim();
 		if (FAIL_OPEN.has(name)) {
-			if (trimmed) errors.push(trimmed);
+			if (trimmed) notifications.push(trimmed);
 			continue;
 		}
 		if (code === 2) {
@@ -190,10 +195,11 @@ export async function runResultGates(filePath, projectRoot) {
 			break;
 		}
 	}
-	if (errors.length === 0) return undefined;
+	if (errors.length === 0 && notifications.length === 0) return undefined;
+	const text = [...errors, ...notifications].join("\n");
 	return {
-		isError: true,
-		content: [{ type: "text", text: errors.join("\n") }],
+		isError: errors.length > 0,
+		content: [{ type: "text", text }],
 	};
 }
 
