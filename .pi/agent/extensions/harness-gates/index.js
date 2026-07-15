@@ -157,7 +157,11 @@ export async function runBashGates(payload, projectRoot) {
 		const scriptPath = scripts.get(name);
 		if (!scriptPath) continue;
 		const { code, stderr } = await runHook(scriptPath, payload, projectRoot);
-		if (code === 2) return { block: true, reason: stderr.trim() || "blocked by harness-gate" };
+		if (code === 2)
+			return {
+				block: true,
+				reason: stderr.trim() || "blocked by harness-gate",
+			};
 	}
 	return undefined;
 }
@@ -171,7 +175,8 @@ export async function runPathGate(toolName, filePath, projectRoot) {
 	if (!scriptPath) return undefined;
 	const payload = { tool_name: toolName, tool_input: { file_path: filePath } };
 	const { code, stderr } = await runHook(scriptPath, payload, projectRoot);
-	if (code === 2) return { block: true, reason: stderr.trim() || "blocked by harness-gate" };
+	if (code === 2)
+		return { block: true, reason: stderr.trim() || "blocked by harness-gate" };
 	return undefined;
 }
 
@@ -185,7 +190,7 @@ export async function runResultGates(filePath, projectRoot) {
 	const scripts = discoverScripts(RESULT_SCRIPTS, projectRoot);
 	const payload = { tool_input: { file_path: filePath } };
 	const notifications = []; // fail-open stderr, informational only
-	const errors = [];        // fail-closed exit-2, flips isError
+	const errors = []; // fail-closed exit-2, flips isError
 	for (const name of RESULT_SCRIPTS) {
 		const scriptPath = scripts.get(name);
 		if (!scriptPath) continue;
