@@ -1,7 +1,7 @@
 ---
 id: 030
 title: Global Pi adapter (harness-gates) — run Claude hook scripts in Pi
-status: in-progress
+status: review
 blocked_by: [028]
 parent: null
 priority: 0
