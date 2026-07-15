@@ -1,8 +1,8 @@
 ---
 id: 029
 title: harness-apply build-node gate upgrades (changed-files static check)
-status: pending
-blocked_by: [028]
+status: in-progress
+blocked_by: [028] 
 parent: null
 priority: 0
 created: 2026-07-14
