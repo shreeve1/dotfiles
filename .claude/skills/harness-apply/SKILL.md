@@ -579,6 +579,7 @@ The net effect: a clean audit short-circuits the interview down to only the `cov
 **Global mode** — auto-include Tier 1 + Tier 3, but confirm specifics:
 
 - **Q1 (only if multiple formatters detected)** — Which extensions to format on Edit/Write/MultiEdit? Default = union of detected formatters. Lead = "all detected (Recommended)".
+  - **Steer.** If a stack-specific formatter/linter is detected (e.g. `ruff`, `prettier`, `eslint`, `gofmt`) but NOT wired here because it's not a safe global default, print one line: `<tool> detected but not wired globally (stack-specific — would no-op in other repos). Run \`/harness-apply project <repo>\` inside the repo to enable format/lint-on-edit there.` Global mode wires only universal gates; format/lint-on-edit live at project scope (see `.claude/skills/_shared/harness-gap-handoff.md` → Scope layering).
 - **Q2** — Compact-reinject content. Use the **three-option pattern** below (Skip / Auto-draft / Custom). Auto-draft reads `~/.claude/CLAUDE.md`.
 - **Q3** — Add Bash guardrails? If yes, ask for patterns (default examples: `git commit --no-verify`, `git push --force`, `rm -rf /`). Lead = "yes (Recommended)".
 - **Q4** — Validate JSON / Python / Node / Bash syntax on write (`validate-syntax.sh`, exit-2 on parse errors)? Lead = "yes (Recommended)".
