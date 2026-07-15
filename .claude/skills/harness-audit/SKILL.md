@@ -50,6 +50,7 @@ Five dimensions always. A sixth conditionally. Numbering is this skill's own; ar
 
 1. **Ground truth first.** Before flagging anything, read what the project declares. If `CLAUDE.md` explains *why* a rules file is large (e.g. this dotfiles repo documents its canonical surfaces), that bloat is intentional — do not flag it.
 2. **ADRs are final.** If `docs/adr/<n>-*.md` records a decision, the audit accepts it. At most, note tension if the *evidence* now contradicts the ADR — never propose reversing it.
+2a. **Deliberate removals are ground truth.** If `git log` shows a harness/hooks/gate was *intentionally removed* by the operator (a commit message like "remove .claude harness (operator decision)" or "hooks broke autonomous runs"), treat that like an ADR: do **not** score the now-absent category Critical and do **not** propose restoring it. Emit at most a **tension Note** that (a) cites the removal commit + its stated reason, (b) does not propose reversal, and (c) if a *different* delivery architecture now exists that avoids the original objection (e.g. the global Pi `harness-gates` adapter delivers gates non-blocking / Pi-side, sidestepping a "hooks broke autonomy" removal), names it and flags "confirm with operator before restoring." Absence that a removal rationale never objected to (e.g. `block-path-access` secret protection when the objection was only about blocking pre-commit hooks) may still be a finding, but frame it against the recorded reason. Never let "it was removed" silently bury a safety gap, and never relitigate the removal itself.
 3. **CONTEXT.md is the glossary.** Use its terms in findings. If a finding needs a term not in `CONTEXT.md`, propose adding it in the spec — don't invent jargon.
 4. **Gaps, not preferences.** Every finding must cite a concrete missing/weak artifact with `file:line` evidence. "Could be nicer" is not a gap.
 
@@ -66,6 +67,7 @@ Read, in priority order: root `CLAUDE.md` / `AGENTS.md`; `CONTEXT.md` / `CONTEXT
 - Recorded decisions (ADR numbers + one-line each).
 - Domain terms the glossary defines.
 - Anything the docs explicitly say is *intentional* (e.g. "this file is large because…").
+- **Deliberate removals** — scan `git log --oneline` (and `git log -- .claude/ .pi/` when present) for commits that intentionally removed a harness / hooks / gates. Record the commit hash + stated reason. A documented removal is ground truth (respectful-lens rule 2a): it changes an absent gate from a Critical gap into a tension Note.
 
 This digest is the respectful lens. Every later finding is checked against it.
 
@@ -91,7 +93,7 @@ Compare Phase 1 (declared intent) vs Phase 2 (actual artifacts) vs the dimension
 
 **Finding format** (severity matches dev-plan's reviewer vocabulary so the handoff reads naturally):
 
-- **Critical** — a dimension is absent or actively harmful (no rules file; agent feature shipped with zero evals; load-bearing decision with no ADR and no glossary term; a gate category the agent routinely needs is `missing` across all three surfaces).
+- **Critical** — a dimension is absent or actively harmful (no rules file; agent feature shipped with zero evals; load-bearing decision with no ADR and no glossary term; a gate category the agent routinely needs is `missing` across all three surfaces **and** was not deliberately removed — a documented removal downgrades it to a tension Note per respectful-lens rule 2a).
 - **Warning** — dimension present but weak (rules file bloated with reference material; skills exist but defeat progressive disclosure; glossary missing domain terms; a gate category is covered on one surface but the agent routinely runs on another).
 - **Note** — minor / advisory (could tighten a description; ADR could be split).
 
