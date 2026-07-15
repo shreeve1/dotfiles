@@ -1,7 +1,9 @@
 ---
 id: 028
 title: Rename skills to harness-audit/harness-apply + shared handoff contract
-status: pending
+status: done
+updated: 2026-07-15
+actor: ralph
 blocked_by: []
 parent: null
 priority: 0
@@ -23,12 +25,12 @@ Reference (design context, absolute path, readable cross-repo): `/home/james/sym
 
 ## Acceptance criteria
 
-- [ ] `.claude/skills/harness-audit/SKILL.md` and `.claude/skills/harness-apply/SKILL.md` exist with matching frontmatter `name:`
-- [ ] old dirs `.claude/skills/audit-ai-readiness` and `.claude/skills/personalize-harness` no longer exist
-- [ ] each new SKILL.md carries a "formerly `<old-name>`" alias line
-- [ ] `.claude/skills/_shared/harness-gap-handoff.md` exists and documents the per-surface coverage schema (claude-global / claude-project / pi / missing + recommended scope)
-- [ ] `.pi/agent/settings.json.template` no longer references `personalize-harness-pi` or `rpiv-pi` (both entries gone), and the file is valid JSON
-- [ ] `harness-audit/SKILL.md` contains no `personalize-harness` reference (line ~131 updated to `harness-apply`)
+- [x] `.claude/skills/harness-audit/SKILL.md` and `.claude/skills/harness-apply/SKILL.md` exist with matching frontmatter `name:`
+- [x] old dirs `.claude/skills/audit-ai-readiness` and `.claude/skills/personalize-harness` no longer exist
+- [x] each new SKILL.md carries a "formerly `<old-name>`" alias line
+- [x] `.claude/skills/_shared/harness-gap-handoff.md` exists and documents the per-surface coverage schema (claude-global / claude-project / pi / missing + recommended scope)
+- [x] `.pi/agent/settings.json.template` no longer references `personalize-harness-pi` or `rpiv-pi` (both entries gone), and the file is valid JSON
+- [x] `harness-audit/SKILL.md` contains no `personalize-harness` reference (line ~131 updated to `harness-apply`)
 
 ## Verification
 
@@ -37,3 +39,13 @@ Reference (design context, absolute path, readable cross-repo): `/home/james/sym
 ## Blocked by
 
 None - can start immediately
+
+## Implementation Notes
+
+- `git mv` both skills; updated frontmatter `name:` and refreshed `description:` to reflect the paired audit/apply roles.
+- Added `# formerly: <old-name>` comment line in each frontmatter and adjusted the H1 title to "Harness Audit (formerly Audit AI-Readiness)" / "Harness Apply (formerly Personalize Harness)" for discoverability.
+- `harness-audit/SKILL.md` line 131 updated: `personalize-harness`'s → `harness-apply`'s.
+- `.claude/skills/_shared/harness-gap-handoff.md` authored (71 lines): YAML schema block per gate category with closed-set coverage `{claude-global, claude-project, pi, missing}`, optional `surface: [...]` array for multi-surface coverage, and `recommended_scope: project|global` to pre-fill the apply interview.
+- `.pi/agent/settings.json.template`: removed the dead `{source: "extensions/rpiv-pi", ...}` package entry AND the `"-extensions/rpiv-pi/extensions"` disabled extension entry. Confirmed `rpiv-pi` is absent from `~/.pi/agent/extensions/` and `.pi/agent/extensions/`; lives only in `.pi/agent/archive/`. JSON still valid (`jq -e .` passes).
+- In-body mentions of `personalize-harness` inside `harness-apply/SKILL.md` (5 echo strings + 2 vocabulary cross-refs + 1 script-repair note) intentionally NOT touched — those belong to issue #029 (gate-upgrades slice) per plan phase 2.5 / 5.2.
+- Verification command from `## Verification` runs green; fresh-session reviewer returned `RALPH_REVIEW: PASS`.
