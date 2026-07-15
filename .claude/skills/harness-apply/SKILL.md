@@ -1,11 +1,12 @@
 ---
-name: personalize-harness
-description: "Personalize Claude Code's hook harness for a project or global dotfiles. Builds a project profile from docs and manifests, optionally researches current stack best practices, runs a gap-driven interview, then generates idempotent hook scripts and settings merges. Use for edit-time formatters, validators, linters, Bash guardrails, protected-path blockers, pre-git project checks, e2e reminders, post-compact rule reinjection, or Stop-time self-review checkpoints."
+name: harness-apply
+description: "Read-write pair to harness-audit: personalize Claude Code's hook harness for a project or global dotfiles, then register the same gate scripts with Pi via the global harness-gates adapter so both runtimes enforce the same gates. Builds a project profile from docs and manifests, optionally researches current stack best practices, runs a gap-driven interview (or consumes a harness-audit gap handoff), then generates idempotent hook scripts and settings merges. Use for edit-time formatters, validators, linters, Bash guardrails, protected-path blockers, pre-git project checks, e2e reminders, post-compact rule reinjection, or Stop-time self-review checkpoints."
 argument-hint: "[--no-web] [<empty> = current project | global | <absolute-path>]"
 allowed-tools: Agent, Bash, Read, Edit, Write, Grep, Glob, AskUserQuestion
+# formerly: personalize-harness
 ---
 
-# Personalize Harness
+# Harness Apply (formerly Personalize Harness)
 
 Personalize the Claude Code hook harness. Two modes:
 
