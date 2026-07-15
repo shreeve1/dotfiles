@@ -1,7 +1,7 @@
 ---
 id: 031
 title: harness-audit Dimension 6 (harness gates) + gap handoff
-status: pending
+status: in-progress
 blocked_by: [028]
 parent: null
 priority: 0
