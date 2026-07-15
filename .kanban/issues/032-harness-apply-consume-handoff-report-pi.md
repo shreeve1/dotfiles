@@ -1,11 +1,12 @@
 ---
 id: 032
 title: harness-apply consume audit handoff + report Pi coverage
-status: pending
+status: in-progress
 blocked_by: [028, 029, 030]
 parent: null
 priority: 0
 created: 2026-07-14
+updated: 2026-07-15
 ---
 
 ## What to build

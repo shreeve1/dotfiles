@@ -71,9 +71,22 @@ Categories 4a/4b, 5, 8, 9 are the gap-driven additions over the original per-fil
 
 A `--no-web` flag may precede or follow any of the above. It skips Step 2.7 (web best-practice research) and relies on local repo/tool evidence only. Web research is on by default in project mode and skipped in global mode (no detected stack to research).
 
+### Handoff-consume input mode (paired with `harness-audit`)
+
+If the user pastes a `## Harness gap handoff` block in the conversation — the machine-readable spec emitted by `harness-audit`, schema v1 (see `.claude/skills/_shared/harness-gap-handoff.md`) — the skill **auto-detects** it on the first turn and switches into consume mode:
+
+- **Pre-fill `recommended_scope`** — the audit's `recommended_scope` (project | global) becomes the default for the scope decision; if the user already passed a scope token in `$ARGUMENTS`, that wins; otherwise the audit's pick is offered (no question asked unless the user wants to override).
+- **Pre-fill Step 3 answers** — for every gate category with `coverage: claude-global | claude-project | pi`, the corresponding interview question is **skipped** and the gate is reported in Step 5 as `already covered (<surface>)`. Only categories with `coverage: missing` get asked about. If a gate row is `coverage: pi` but `surfaces_present.pi: false`, treat it as `missing` for interview purposes — `pi` coverage requires the adapter actually being wired (Step 2.4 enforces this; see below).
+- **`surfaces_present` short-circuit** — if all three are `false` (nothing wired anywhere), the skill still proceeds normally (the interview is the source of truth), but Step 5 surfaces the "all surfaces missing — every gate in the audit came back `missing`" warning so the user knows the audit ran against an empty install.
+- **Honor `recommended_scope` even on first call** — if `$ARGUMENTS` is empty and the audit set `recommended_scope: global`, the skill switches to global mode without asking (global mode defaults to dotfiles anyway).
+
+Detection rule: a fenced block whose first non-comment line is `## Harness gap handoff` AND whose body contains a `recommended_scope:` key. The block is read on the first turn; anything else in the user's first message is treated as prose context.
+
+If the handoff block is malformed (missing `recommended_scope`, unparseable YAML), fall back to the normal flow and print a one-line warning naming the field that couldn't be parsed — do not abort.
+
 ## Flow
 
-1. Resolve scope → 2. Probe tools + existing settings → **2.5. Project profile (read project docs)** → **2.6. Repair check (heal pre-existing buggy hooks)** → **2.7. Research best-practice posture (web, project mode, optional)** → 3. Profile-driven interview → 4. Generate scripts + merge settings → 5. Verify
+1. Resolve scope (or pre-fill from handoff) → 2. Probe tools + existing settings → **2.4. Pi adapter wiring (ensure global `harness-gates` is installed + registered)** → **2.5. Project profile (read project docs)** → **2.6. Repair check (heal pre-existing buggy hooks)** → **2.7. Research best-practice posture (web, project mode, optional)** → 3. Profile-driven interview (skip answered-from-handoff questions) → 4. Generate scripts + merge settings → 5. Verify (report Pi coverage)
 
 ## Steps
 
@@ -226,6 +239,33 @@ done
 `jq` is mandatory — if `miss:jq` appears, abort with: "install jq (`brew install jq` / `apt install jq`) and re-run."
 
 Record sets: `TOOLS_HAVE` (incl. `have-local:*`), `LANGS_DETECTED`, `EXISTING_HOOKS` (per file, per event, per matcher, plus matcherless-event lines tagged `nomatcher`).
+
+### Step 2.4: Pi adapter wiring (ensure global `harness-gates` is installed + registered)
+
+The project hook scripts this skill writes must ALSO fire inside Pi — otherwise a Pi session in this project has zero gate coverage. The bridge is a single global Pi extension (`harness-gates`) that maps Pi tool-lifecycle events onto the same `.claude/hooks/*.sh` scripts and runs them. It is a dotfiles-level concern (one install per machine), not a per-project concern. **Never generate a per-project Pi extension** — that was the 2026-06-17 failure mode (duplicated wiring, drift, the user re-installed the same logic into every repo).
+
+This step is a **one-time machine setup check**, not per-call overhead:
+
+1. Detect the global Pi adapter location:
+   ```bash
+   PI_HOME="${PI_HOME:-$HOME/.pi/agent}"
+   ADAPTER_DIR="$PI_HOME/extensions/harness-gates"
+   PI_SETTINGS="$PI_HOME/settings.json"
+   ```
+2. Run three checks and record `PI_ADAPTER_STATE ∈ {wired, missing-extension, missing-settings-entry, both-missing}`:
+   - **adapter installed?** — `[ -f "$ADAPTER_DIR/package.json" ] && [ -f "$ADAPTER_DIR/index.js" ]`
+   - **settings entry present?** — `jq -e '.extensions // [] | map(select(. == "extensions/harness-gates")) | length > 0' "$PI_SETTINGS" 2>/dev/null` (positive entry, no `-` prefix; a `-extensions/harness-gates/...` negation does NOT count as wired)
+   - **dependency installed?** — `[ -d "$ADAPTER_DIR/node_modules" ]` (only relevant when the adapter is on disk; skip when it isn't)
+3. If `wired` — no action; print `Pi adapter: wired (extensions/harness-gates in $PI_HOME/settings.json)`. Set `PI_COVERAGE_REPORT=1` for Step 5.
+4. If any check fails — print the exact remediation and offer to apply it. **Always offer; never auto-install.** The offer is a single `AskUserQuestion` with lead `install + register (Recommended)`:
+   - **install + register** — `mkdir -p "$ADAPTER_DIR" && cp` from `${DOTFILES_DIR}/.pi/agent/extensions/harness-gates/{package.json,index.js,tests}` (the dotfiles repo is the source of truth for the adapter; symlinks into `~/.pi/agent/extensions/` are made by `install.sh`), then `jq '.extensions = ((.extensions // []) + ["extensions/harness-gates"] | unique)' "$PI_SETTINGS" > "$PI_SETTINGS.tmp" && mv "$PI_SETTINGS.tmp" "$PI_SETTINGS"`. Skip arms whose source file is absent in dotfiles.
+   - **register only** — adapter files already exist on disk; only edit `settings.json`.
+   - **skip** — user is in a Pi-less environment or explicitly opts out. `PI_COVERAGE_REPORT=0`; Step 5 prints `Pi adapter: not wired (opted out)`.
+5. If `$PI_HOME` itself is missing (`$PI_HOME/extensions` doesn't exist) — print `Pi not installed on this machine (no $PI_HOME). Skipping Pi adapter wiring.` and set `PI_COVERAGE_REPORT=0`. Don't try to install Pi.
+
+Record: `PI_ADAPTER_STATE` (for Step 2.6 repair scan), `PI_COVERAGE_REPORT` (for Step 5).
+
+**This step is ALWAYS run, even in project mode.** A project-mode call writes `.claude/hooks/*.sh` that the user will reasonably expect to fire in Pi too — the wiring check is the only place that guarantees that.
 
 ### Step 2.5: Project profile (project mode only)
 
@@ -525,6 +565,14 @@ One question at a time via `AskUserQuestion`. Lead option carries `(Recommended)
 2. AND the relevant `PROFILE` field is not `none-detected` (for project mode; global mode skips PROFILE check).
 
 **Additionally**, skip Qs whose hook is already wired in the target settings file (per `EXISTING_HOOKS` from Step 2) — surface those as "already configured" in the Step 5 summary, don't re-prompt.
+
+**Additionally, when handoff-consume mode is active (see `## Input` → `### Handoff-consume input mode`):** build a `HANDOFF_COVERED` set from the parsed `## Harness gap handoff` block — the `category` field of every gate row with `coverage ∈ {claude-global, claude-project, pi}` joins the set. **Skip** every interview question whose hook category is in `HANDOFF_COVERED` AND whose corresponding surface row is actually wired:
+
+- `coverage: claude-global` — require `EXISTING_HOOKS` to confirm the script is wired in `$DOTFILES_DIR/.claude/settings.json.template` (or the live `~/.claude/settings.json`). If NOT wired, demote to `missing` and ask.
+- `coverage: claude-project` — require `EXISTING_HOOKS` to confirm the script is wired in the project's settings file (`.claude/settings.json` or `.claude/settings.local.json`). If NOT wired, demote to `missing` and ask.
+- `coverage: pi` — require `PI_ADAPTER_STATE == wired` from Step 2.4. If the adapter isn't actually wired, demote to `missing` and ask (the audit assumed it was; we verify on the ground).
+
+The net effect: a clean audit short-circuits the interview down to only the `coverage: missing` categories. The Step 5 summary lists every skipped gate with the surface the audit claimed, plus the verification it ran (EXISTING_HOOKS match / PI_ADAPTER_STATE == wired).
 
 **Global mode** — auto-include Tier 1 + Tier 3, but confirm specifics:
 
@@ -1202,6 +1250,13 @@ Command-path conventions:
    - **Personal layer** (`.claude/settings.local.json` written) — print: "Personal layer. Add `.claude/settings.local.json` to project `.gitignore` if not already covered."
    - **Global layer** — remind: "Run `bash install.sh` from `$DOTFILES_DIR` to symlink hooks live (line 371 of install.sh handles `.claude/hooks`)."
 
+   **Pi coverage report** — always print, regardless of layer. Reflects Step 2.4's `PI_ADAPTER_STATE` + `PI_COVERAGE_REPORT`:
+   - `wired` — print: `Pi coverage: scripts in $HOOK_DIR also fire in Pi via the global harness-gates adapter (extensions/harness-gates wired in $PI_HOME/settings.json). One install per machine; no per-project Pi extension needed.`
+   - `missing-extension` / `missing-settings-entry` / `both-missing` — print: `Pi coverage: NOT wired (state=<PI_ADAPTER_STATE>). Scripts in $HOOK_DIR will NOT fire in Pi until the global harness-gates adapter is installed + registered. Run harness-apply again with scope=global, or: bash install.sh (dotfiles ships the adapter).`
+   - opted-out — print: `Pi coverage: not wired (opted out in Step 2.4). Re-run with the install + register option to enable Pi enforcement.`
+   - Pi not on machine — print: `Pi coverage: skipped (no $PI_HOME on this machine). Claude Code hooks fire normally; Pi is unrelated here.`
+   - `PI_COVERAGE_REPORT` was set in Step 2.4; if `0` (any non-wired state), the report line is preceded by `warn:` so the user can grep for it. The **dual-target reality** is always stated: one skill, one set of `.claude/hooks/*.sh` scripts, two thin adapters (Claude `settings.json` + the global Pi `harness-gates` extension). Never claim per-project Pi coverage — the adapter is dotfiles-global by design.
+
 6. Pretty-print the diff (added vs already-present) per settings file. Also print `jq '.hooks | keys' "$file"` so the final event set is visible.
 
 7. Print:
@@ -1266,3 +1321,5 @@ Command-path conventions:
 - **Scenario/e2e checks default to manual.** Expensive suites surface as a reminder line, never auto-run on every commit. Promote to `beforeGit` only when the suite is bounded and CI already treats it as normal pre-merge validation.
 - **Stop hook can run a real check now.** When opted in (Q11), `stop-quality-check.sh` runs the cheapest project command (gated on a dirty working tree) and folds failures into the re-injected self-review prompt — advisory, since `agentEnd` cannot block. Default still skip: per-Stop cost.
 - **Repair mode heals pre-existing buggy hooks.** Step 2.6 validates every existing hook + settings entry against the current template contract. If any fail (`"matcher": ""` on matcherless events, `cat <<'JSON'` in stop-quality-check.sh, naked `<<'EOF'` in reinject-rules.sh, or `bash -n` failures), the skill offers to repair before Step 3. Without this step, Step 3's "skip already-configured hooks" rule would leave inherited bugs in place forever. Repair backs up originals as `<name>.sh-bak-<UTC-stamp>` and re-runs the violation scan to confirm.
+- **Dual-target reality, one skill.** Claude Code and Pi share ONE source of hook truth (`.claude/hooks/*.sh`), wired into Claude via `settings.json(.template|.local.json)` and into Pi via the global `harness-gates` extension (issue #030). Two thin adapters, identical scripts. Step 2.4 enforces that the Pi adapter is installed + registered on this machine; Step 5 reports Pi coverage alongside Claude coverage so the user can see both targets landed.
+- **Never generate a per-project Pi extension.** The Pi adapter is dotfiles-global by design: one install per machine (`install.sh` ships it), every project on the machine inherits it. Generating a per-project extension was the 2026-06-17 failure mode (duplicated wiring, drift between repos, the user re-installed the same logic N times). The handoff-consume input mode + Step 5 Pi-coverage report exist precisely so the audit/apply pair can SEE and ENFORCE Pi coverage without re-creating it. If a future need arises (e.g. project-only gates that should not fire globally), solve it by per-project Claude settings (`team` layer) — Pi still uses the global adapter for whatever scripts the project makes available.
