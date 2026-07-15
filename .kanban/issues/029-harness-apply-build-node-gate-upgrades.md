@@ -1,7 +1,9 @@
 ---
 id: 029
 title: harness-apply build-node gate upgrades (changed-files static check)
-status: review
+status: done
+updated: 2026-07-15
+actor: ralph
 blocked_by: [028] 
 parent: null
 priority: 0
@@ -23,12 +25,12 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 
 ## Acceptance criteria
 
-- [ ] SKILL.md contains a `staged-static-check.sh` template block that diffs `git diff --cached` and also handles `-a`/`-am`
-- [ ] Q7 presents the changed-files static check as the recommended `beforeGit` default; whole-project checks are opt-in with a slow-warning
-- [ ] `lint-on-edit.sh` offers `--fix` autofix (fail-open) as the recommended posture
-- [ ] `staged-static-check.sh` appears in the hook-map table and a Step 5 dry-check
-- [ ] no `personalize-harness` string remains anywhere in `harness-apply/SKILL.md` except the single "formerly" alias line (echo labels now `harness-gate`)
-- [ ] `.claude/skills/harness-apply/tests/staged-static-check-smoke.sh` exists and passes the T.1 behavioral cases
+- [x] SKILL.md contains a `staged-static-check.sh` template block that diffs `git diff --cached` and also handles `-a`/`-am`
+- [x] Q7 presents the changed-files static check as the recommended `beforeGit` default; whole-project checks are opt-in with a slow-warning
+- [x] `lint-on-edit.sh` offers `--fix` autofix (fail-open) as the recommended posture
+- [x] `staged-static-check.sh` appears in the hook-map table and a Step 5 dry-check
+- [x] no `personalize-harness` string remains anywhere in `harness-apply/SKILL.md` except the single "formerly" alias line (echo labels now `harness-gate`)
+- [x] `.claude/skills/harness-apply/tests/staged-static-check-smoke.sh` exists and passes the T.1 behavioral cases
 
 ## Verification
 
@@ -37,3 +39,13 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 ## Blocked by
 
 - Blocked by #028
+
+## Implementation Notes
+
+- `staged-static-check.sh` template added (SKILL.md ~line 868): reads JSON `{tool_input:{command}}` on stdin; gates on git-detector regex for `commit`/`push`; computes `git diff --cached --name-only --diff-filter=ACM`; when `-a`/`-am` detected also pulls `git diff --name-only --diff-filter=ACM`; dedups via sort -u; runs `ruff check` + `mypy` on `*.py`, `eslint` + `tsc --noEmit` on JS/TS; per-check `timeout 60s`; `exit 2` blocks.
+- Q7 split into **Q7a** (cat 4a changed-files static — `yes (Recommended)`) and **Q7b** (cat 4b whole-project — `skip (Recommended)` with explicit "slow — prefer CI / `dev-test`" warning). Gap-category table row 4 now split into 4a/4b.
+- `lint-on-edit.sh` template defaults to `--fix` fail-open; added `--strict` opt-in mode. Q10 lead flipped to `autofix (fail-open, Recommended)`.
+- Hook-map table row added for `staged-static-check.sh` (`PreToolUse`/`Bash`). Step 5 dry-check 4c added (non-git passes; dirty blocks; clean passes — uses `mktemp -d`).
+- All five generated-script echo labels (`block-bash-pattern.sh`, `block-path-access.sh` ×3, `pre-git-checks.sh`) + the new staged-static-check label renamed to `harness-gate`. Final `personalize-harness` count: 1 (the intentional `# formerly: personalize-harness` alias line at line 6).
+- Smoke test: `tests/staged-static-check-smoke.sh` extracts the template via `awk`, `bash -n`s it, builds a `mktemp -d` git repo, and asserts the four T.1 cases. Skips ruff/mypy arms gracefully when tools absent. Verified locally with ruff=1, mypy=1 — all 4 cases pass.
+- Verification command from `## Verification` runs green; fresh-session reviewer returned `RALPH_REVIEW: PASS`.
