@@ -8,8 +8,21 @@ This file tracks implementation notes across Ralph iterations.
 - `.pi/agent/settings.json.template` is the source-of-truth JSON; the dead `rpiv-pi` package + extension entries (lines 17–20 and ~25 pre-clean) have been removed — `rpiv-pi` lives only in `.pi/agent/archive/` and is non-functional.
 - Shared contract convention: new cross-skill schemas live in `.claude/skills/_shared/<name>.md` with a YAML block + closed-set enum, not prose. Both producer and consumer skills cite the same file.
 - Pairing rule (harness-audit / harness-apply): auditor emits the gap handoff block, applier consumes it and skips already-answered questions. Schema v1 has 8 gate categories and the four-element coverage set `{claude-global, claude-project, pi, missing}`.
+- Dimension-6 finding vocabulary is fixed: every Dimension-6 finding must name the surface, the gate category, and the missing anchor. The four named patterns are recorded in `harness-audit/SKILL.md` Phase 3 ("build agent writes with no afterWrite format/lint gate", "no changed-files static gate before commit", "gates present in Claude, missing in Pi", "gate fires in Pi but scripts are missing on disk"). Downstream consumers of audit specs can pattern-match those phrases.
 
 # Iteration Log
+
+## #031 harness-audit Dimension 6 + gap handoff — 2026-07-15
+
+**What changed:** Added Dimension 6 to the audited-dimensions table; extended Phase 2 inventory to walk three surfaces (claude-global, claude-project, pi adapter) and emit per-category coverage; added a "build-node gap guidance" paragraph to Phase 3 with four named patterns; inserted the `## Harness gap handoff` block (per the shared contract schema v1) into the emitted spec template; added a `Run /harness-apply <scope>` next-step line alongside `/dev-plan`; expanded the glossary with `gate`, `build node`, and `surface`; added a "No `harness-apply` invocation" bullet to the NOT-do list so the detect-and-hand-off boundary is explicit.
+
+**Files:** `.claude/skills/harness-audit/SKILL.md`, `.kanban/issues/031-*.md`.
+
+**Decisions:** The spec template's `## Harness gap handoff` block is a fenced YAML-ish block with the same `category / coverage / surface` shape the shared contract defines, plus a `recommended_scope: <project|global>` so `harness-apply` can pre-fill its scope question. The `surfaces_present` field is emitted as a top-level key (separate from per-gate `surface` lists) so the consumer can short-circuit fast: if `pi: false` but Claude surfaces are true, the audit can still produce a meaningful "gates present in Claude, missing in Pi" finding. Glossary additions follow the existing "if a finding needs a term not in CONTEXT.md, propose adding it" rule. Caught and fixed one stale reference in the Phase 2 list: "conditional-4 triggered" → "conditional-5 triggered" (the conditional dimension was renumbered to 5 in #028).
+
+**Conventions established:** See top of this file. The Dimension-6 finding vocabulary is the durable one: every audit-spec Dimension-6 finding from this skill will use one of the four named patterns so downstream consumers can pattern-match.
+
+**Notes for next iteration:** #032 is now eligible (blocked_by 028 + 029 + 030, all done). The two paired skills are ready to be closed: harness-audit emits the handoff, harness-apply consumes it. A re-audit of *this* dotfiles repo against Dimension 6 would (per the actual on-disk state at this commit) report: most gate categories `coverage: missing` on every surface — the `~/.claude/hooks/*.sh` scripts from the harness-apply templates are not yet installed on this machine; the adapter wiring is in place but the gates it would invoke are absent. That's a follow-up issue, not in #031's scope.
 
 ## #030 global Pi adapter (harness-gates) — 2026-07-15
 
