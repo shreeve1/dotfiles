@@ -1,7 +1,7 @@
 ---
 id: 032
 title: harness-apply consume audit handoff + report Pi coverage
-status: in-progress
+status: review
 blocked_by: [028, 029, 030]
 parent: null
 priority: 0
