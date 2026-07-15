@@ -66,6 +66,20 @@ The auditor picks one of:
 
 `harness-apply` reads `recommended_scope` to pre-fill its "global vs project" interview question and skips confirmation.
 
+## Scope layering (multiple projects)
+
+The two surfaces compose without conflict — one machine, many repos:
+
+- **Discovery is `global → project`, project wins by filename.** The Pi adapter and Claude both look up each hook script in `~/.claude/hooks/` then `<projectRoot>/.claude/hooks/`; the project copy overrides a global of the same name, and repos with no copy inherit the global. Project root is resolved per tool-call from cwd, so concurrent sessions in different repos never cross.
+- **One Pi adapter per machine.** `extensions/harness-gates` is installed once (`install.sh`) and serves every repo. Never generate a per-project Pi extension (the 2026-06-17 failure mode).
+
+Placement heuristic when picking `recommended_scope` (or advising the apply interview):
+
+- **global** — gates that are safe and correct in *every* repo: `block-bash-pattern` (destructive-command guard), `block-path-access` (`.env`/secret/symlink-escape), `format-on-edit`, `stop-self-review`. Tool-based gates still degrade safely globally because every script skip-arms when its tool is absent (a Python gate is a no-op in a Go repo — it never blocks spuriously).
+- **project** — gates bound to a repo's own commands or stack conventions: `pre-git-checks` (project build/test/typecheck commands) and, when a repo needs a posture different from the global default, `staged-static-check` / `lint-on-edit` / `validate-syntax`. A project copy overrides the global of the same name.
+
+To mix layers, run `harness-apply` once per scope (e.g. a universal set at `global`, then stack-specific gates per repo at `project`).
+
 ## Versioning
 
 This is schema v1 (the four-element coverage set). Breaking changes bump the schema version in the comment header; consumers must ignore unknown keys.

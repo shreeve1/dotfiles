@@ -106,6 +106,8 @@ Each finding cites: dimension, severity, one-line gap, `file:line` evidence, and
 
 A finding that does not name the surface, the category, and the missing anchor is not a Dimension-6 finding and is not actionable.
 
+**Picking `recommended_scope`.** Universal, stack-agnostic gates (`block-bash-pattern`, `block-path-access`, `format-on-edit`, `stop-self-review`) lean `global` — they are safe in every repo and skip-arm when a tool is absent. Gates bound to the repo's own commands or stack posture (`pre-git-checks`, and any `staged-static-check` / `lint-on-edit` / `validate-syntax` needing a non-default posture) lean `project`. See `.claude/skills/_shared/harness-gap-handoff.md` → **Scope layering** for the full heuristic and how global/project compose across multiple repos.
+
 ### Phase 4 — Write the spec file
 
 **Resolve target dir.** If invoked with an absolute path argument, write into *that* repo's `artifacts/specs/` (the spec must travel with the project `/dev-plan` will run against, not orphan in cwd). If invoked with no argument, write to cwd's `artifacts/specs/`. Create the dir if missing. **Non-clobbering:** filename carries the date (`-<YYYY-MM-DD>`), so re-audits stack rather than overwrite.

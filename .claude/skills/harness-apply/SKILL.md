@@ -17,6 +17,8 @@ Hooks merge across layers; global + project both fire. The skill is **additive**
 
 **Per-call scope**: one call picks ONE scope and (for project) ONE layer (team vs personal). To mix — e.g. team-committed guardrails + personal-only formatters — invoke the skill twice with different answers.
 
+**Multiple projects**: global and project gates compose cleanly (discovery is `global → project`, project overrides by filename; one Pi adapter serves every repo). See `.claude/skills/_shared/harness-gap-handoff.md` → **Scope layering** for the placement heuristic (what belongs global vs project).
+
 ## Fowler split (orienting frame)
 
 - **Feedforward (guides)** — SessionStart / UserPromptSubmit injection. Steer the agent before it acts.
