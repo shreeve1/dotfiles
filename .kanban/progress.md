@@ -11,6 +11,18 @@ This file tracks implementation notes across Ralph iterations.
 
 # Iteration Log
 
+## #030 global Pi adapter (harness-gates) — 2026-07-15
+
+**What changed:** Added `.pi/agent/extensions/harness-gates/` (ESM `index.js` + `package.json` + smoke test). Registered `"extensions/harness-gates"` as a positive entry in both `.pi/agent/settings.json` and `.pi/agent/settings.json.template`.
+
+**Files:** `.pi/agent/extensions/harness-gates/{package.json,index.js,tests/harness-gates-smoke.sh}`, `.pi/agent/settings.json.template`.
+
+**Decisions:** Script discovery is `~/.claude/hooks/` → `<projectRoot>/.claude/hooks/` (project wins); missing scripts are silently skipped (opportunistic — never crashes the adapter). Result-side `format-on-edit.sh` and `lint-on-edit.sh` are fail-open by design (their stderr is surfaced as a notification but doesn't flip `isError`); `validate-syntax.sh` exit-2 DOES flip `isError=true`. Bash gates and the path gate both run sequentially; the FIRST exit-2 wins, others are short-circuited. Smoke test imports the adapter as ESM and drives the exported `runBashGates` / `runPathGate` / `findProjectRoot` directly via a tiny inline Node driver — no pi runner needed for verification.
+
+**Conventions established:** The synthesized stdin contract is documented in one place (top-of-file comment in `index.js`): bash gates read `{tool_input:{command}}`; the path gate reads `{tool_name, tool_input:{file_path}}`; result gates read `{tool_input:{file_path}}`. The script templates in `harness-apply/SKILL.md` and the Pi adapter MUST stay aligned through that comment — it's the only coupling point.
+
+**Notes for next iteration:** #032 (blocked by #028, #029, #030) is now eligible. #031 (blocked only by #028) was eligible earlier and still is — both can run in parallel. The `~/.claude/hooks/*.sh` files for the global gates (block-bash-pattern, block-path-access, pre-git-checks, staged-static-check, format-on-edit, validate-syntax, lint-on-edit) are still not installed on this machine; until they are, the adapter is a no-op (everything passes through) but the wiring is in place so any future `harness-apply` run that generates them lights up automatically.
+
 ## #029 harness-apply build-node gate upgrades (changed-files static check) — 2026-07-15
 
 **What changed:** Added `staged-static-check.sh` template (cat 4a, `beforeGit` blocking, fast lint+type on `git diff --cached` only — also handles `-a`/`-am`); split Q7 into Q7a (recommended changed-files static) + Q7b (opt-in whole-project with "slow — prefer CI" warning); switched `lint-on-edit.sh` default to `--fix` fail-open (kept `--strict` opt-in); added `staged-static-check.sh` row to the hook-map table + Step 5 dry-check 4c; renamed all five generated-script echo labels (`block-bash-pattern.sh`, `block-path-access.sh` ×3, `pre-git-checks.sh`) + the new staged-static-check label to `harness-gate`; authored the smoke test.
