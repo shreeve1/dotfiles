@@ -1,12 +1,13 @@
 ---
-name: audit-ai-readiness
-description: "Audit a repo against AI-assisted engineering best practices (harness, context split, skills, specs/ADRs, evals) and emit a fix spec to artifacts/specs/ that /dev-plan auto-discovers. Respectful lens: reads existing CLAUDE.md/CONTEXT.md/docs/adr/ as ground truth, never relitigates a recorded ADR, audits for gaps not overrides. Advisory-only — no hooks, no gates, writes one spec file. Use when user wants to check a project's AI-readiness, audit agent harness/context hygiene, or find what's missing before bringing a repo up to standard."
+name: harness-audit
+description: "Read-only pair to harness-apply: audit a repo against AI-assisted engineering best practices (harness, context split, skills, specs/ADRs, evals) and emit a fix spec to artifacts/specs/ that /dev-plan auto-discovers, plus a harness gap handoff (per-surface coverage: claude-global / claude-project / pi / missing) for harness-apply to consume. Respectful lens: reads existing CLAUDE.md/CONTEXT.md/docs/adr/ as ground truth, never relitigates a recorded ADR, audits for gaps not overrides. Advisory-only — no hooks, no gates, writes one spec file. Use when user wants to check a project's AI-readiness, audit agent harness/context hygiene, or find what's missing before bringing a repo up to standard."
 argument-hint: "[<empty> = current project | <absolute-path>]"
 allowed-tools: Agent, Bash, Read, Write, Glob, Grep
 # ponytail: Edit omitted (write-only skill — spec is always a new file, never an in-place edit). Allow-list kept explicit because cross-repo audits write outside cwd; the bound is worth the visibility.
+# formerly: audit-ai-readiness
 ---
 
-# Audit AI-Readiness
+# Harness Audit (formerly Audit AI-Readiness)
 
 Audit a repo against the principles in Google's *The New SDLC With Vibe Coding* (Osmani et al.), then emit a **fix spec** that `/dev-plan` consumes directly. Advisory-only. Never edits the repo. Never installs hooks or gates. The only side effect is one new spec file under `artifacts/specs/`.
 
@@ -128,7 +129,7 @@ Do not paste the spec into chat. The file is the deliverable.
 
 ## What this skill does NOT do
 
-- No hooks. No gates. No `settings.json` edits. No enforcement machinery. (That's `personalize-harness`'s job, and the user finds strict enforcement counterproductive — this skill stays advisory.)
+- No hooks. No gates. No `settings.json` edits. No enforcement machinery. (That's `harness-apply`'s job, and the user finds strict enforcement counterproductive — this skill stays advisory.)
 - No remediation. It writes a spec; `/dev-plan` + `/dev-build` do the work.
 - No ADR creation. If a finding implies a decision worth recording, the spec proposes it as a fix request; recording happens during the build, not here.
 - No re-audit loop. One pass, one spec. To re-check after fixes, re-invoke.
