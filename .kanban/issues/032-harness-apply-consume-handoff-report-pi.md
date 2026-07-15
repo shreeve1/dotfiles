@@ -33,3 +33,11 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 ## Blocked by
 
 - Blocked by #028, #029, #030
+
+## Implementation Notes
+
+- **Handoff-consume input mode** — added `### Handoff-consume input mode` under `## Input` (SKILL.md ~L74). Builds a `HANDOFF_COVERED` set from the parsed `## Harness gap handoff` block (every gate row with `coverage ∈ {claude-global, claude-project, pi}`) and skips the matching Step 3 interview question when the surface row is actually wired (SKILL.md ~L569). Cites `.claude/skills/_shared/harness-gap-handoff.md` as the shared contract.
+- **Pi adapter wiring** — added Step 2.4 (`### Step 2.4: Pi adapter wiring`, ~L243): probes `$PI_HOME/extensions/harness-gates` + the positive `extensions/harness-gates` settings entry, offers install+register / register-only / skip (never auto-installs), and handles the Pi-not-on-machine case. Records `PI_ADAPTER_STATE` + `PI_COVERAGE_REPORT`. Always runs, even in project mode.
+- **Step 5 Pi-coverage report** — always prints coverage reflecting `PI_ADAPTER_STATE`/`PI_COVERAGE_REPORT` (wired / not-wired / opted-out / Pi-absent), with a `warn:` prefix on any non-wired state (~L1253).
+- **Unified dual-target framing** — the report states the dual-target reality (one skill, one set of `.claude/hooks/*.sh` scripts, two thin adapters: Claude `settings.json` + the global Pi `harness-gates` extension). Added the explicit "Never generate a per-project Pi extension" guard citing the 2026-06-17 failure mode (~L1325). No stale `personalize-harness-pi` framing remains.
+- **Verification** — the `## Verification` command passes (all greps hit; `personalize-harness-pi` negative grep clean).

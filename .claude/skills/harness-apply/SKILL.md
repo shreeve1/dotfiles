@@ -6,7 +6,7 @@ allowed-tools: Agent, Bash, Read, Edit, Write, Grep, Glob, AskUserQuestion
 # formerly: personalize-harness
 ---
 
-# Harness Apply
+# Harness Apply (formerly Personalize Harness)
 
 Personalize the Claude Code hook harness. Two modes:
 
