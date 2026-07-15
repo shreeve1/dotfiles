@@ -6,7 +6,7 @@ allowed-tools: Agent, Bash, Read, Edit, Write, Grep, Glob, AskUserQuestion
 # formerly: personalize-harness
 ---
 
-# Harness Apply (formerly Personalize Harness)
+# Harness Apply
 
 Personalize the Claude Code hook harness. Two modes:
 
@@ -1206,7 +1206,7 @@ Command-path conventions:
 
 7. Print:
    ```
-   Personalize-harness done.
+   Harness-apply done.
 
    Scope: <global|project>
    Layer: <template+live | team | personal>
