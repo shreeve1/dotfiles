@@ -18,6 +18,7 @@
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [
+    "extensions/harness-gates",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts"
   ]
