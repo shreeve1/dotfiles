@@ -110,9 +110,9 @@ A finding that does not name the surface, the category, and the missing anchor i
 
 ### Phase 4 — Write the spec file
 
-**Resolve target dir.** If invoked with an absolute path argument, write into *that* repo's `artifacts/specs/` (the spec must travel with the project `/dev-plan` will run against, not orphan in cwd). If invoked with no argument, write to cwd's `artifacts/specs/`. Create the dir if missing. **Non-clobbering:** filename carries the date (`-<YYYY-MM-DD>`), so re-audits stack rather than overwrite.
+**Resolve target dir.** If invoked with an absolute path argument, write into *that* repo's `artifacts/specs/` (the spec must travel with the project `/dev-plan` will run against, not orphan in cwd). If invoked with no argument, write to cwd's `artifacts/specs/`. Create the dir if missing.
 
-Write to `<target>/artifacts/specs/ai-readiness-<reponame>-<YYYY-MM-DD>.md`. Structure:
+**Non-clobbering filename.** A date-only name collides when two audits run the same day (a re-audit, or two agents auditing in parallel — the second silently overwrites the first). Base name is `<target>/artifacts/specs/ai-readiness-<reponame>-<YYYY-MM-DD>.md`; **before writing, if that path already exists, append a `-<HHMMSS>` suffix** (`ai-readiness-<reponame>-<YYYY-MM-DD>-<HHMMSS>.md`) so runs stack rather than overwrite and still sort by day. Write to that resolved path. Structure:
 
 ```markdown
 # AI-Readiness Audit: <repo> (<date>)
