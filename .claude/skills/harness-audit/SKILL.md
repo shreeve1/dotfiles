@@ -182,8 +182,10 @@ One `### Phase N: <title>` block per gap cluster. Each block **must carry a requ
 - **Success criteria** — how to verify the fix closed the gap (deterministic where possible: "rules file < N lines", "skill descriptions < 100 chars", "eval suite runs and has ≥ M golden cases", "gate script is non-empty and wired in <surface> settings.json", "harness-gates entry is positive in `~/.pi/agent/settings.json`").
 
 ## Next step
-1. Run `/dev-plan` — it auto-discovers this spec in artifacts/specs/ (its Phase 2 looks there). Do NOT have this skill plan or build the fixes; that is dev-plan → /dev-build's job.
-2. Run `/harness-apply <scope>` with the value from `## Harness gap handoff` → `recommended_scope` above. `harness-apply` consumes the handoff block and skips interview questions already answered by the audit (it cites the same shared contract: `.claude/skills/_shared/harness-gap-handoff.md`).
+These are two **independent** paths into different parts of this spec — not a sequence. Neither requires the other; run whichever you need.
+
+- **To install the harness gates → run `/harness-apply <scope>`** with the value from `## Harness gap handoff` → `recommended_scope` above. It consumes the handoff block directly and writes the gate scripts. **It does NOT need `/dev-plan` first.** (Cites the same shared contract: `.claude/skills/_shared/harness-gap-handoff.md`.)
+- **To plan/build the non-gate fixes** (evals scaffold, doc trims, ADR stubs — the `### Phase N` blocks) **→ run `/dev-plan`**, which auto-discovers this spec in artifacts/specs/ (its Phase 2 looks there) and threads it into `/dev-build`. Do NOT have this skill plan or build the fixes.
 ```
 
 ### Phase 5 — Report (main thread, chat)
@@ -193,7 +195,7 @@ Tell the user, in plain text:
 - One-line readiness score per dimension.
 - Count of Critical / Warning / Note.
 - The single highest-leverage fix (if any), in one line.
-- The next-step line: run `/dev-plan`.
+- The two independent next-step doors: `/harness-apply <scope>` to install the gates (no `/dev-plan` needed), and/or `/dev-plan` to plan the non-gate fixes.
 
 Do not paste the spec into chat. The file is the deliverable.
 
