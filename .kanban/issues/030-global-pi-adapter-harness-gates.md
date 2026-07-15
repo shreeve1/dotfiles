@@ -1,11 +1,13 @@
 ---
 id: 030
 title: Global Pi adapter (harness-gates) — run Claude hook scripts in Pi
-status: review
+status: done
 blocked_by: [028]
 parent: null
 priority: 0
 created: 2026-07-14
+updated: 2026-07-15
+actor: ralph
 ---
 
 ## What to build
@@ -27,11 +29,11 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 
 ## Acceptance criteria
 
-- [ ] `index.js` is `node --check`-clean and `package.json` is present (ESM)
-- [ ] the extension loads offline in Pi without error
-- [ ] `harness-gates-smoke.sh` passes: block-on-dirty, pass-on-clean, pass-on-non-git
-- [ ] `"extensions/harness-gates"` is registered as a positive entry in both `settings.json` and `settings.json.template`
-- [ ] `index.js` top comment documents the per-script stdin contract, and the file contains no gate logic (only event→script mapping + spawning)
+- [x] `index.js` is `node --check`-clean and `package.json` is present (ESM)
+- [x] the extension loads offline in Pi without error
+- [x] `harness-gates-smoke.sh` passes: block-on-dirty, pass-on-clean, pass-on-non-git
+- [x] `"extensions/harness-gates"` is registered as a positive entry in both `settings.json` and `settings.json.template`
+- [x] `index.js` top comment documents the per-script stdin contract, and the file contains no gate logic (only event→script mapping + spawning)
 
 ## Verification
 
@@ -40,3 +42,13 @@ Reference: `/home/james/symphony/plans/harness-audit-apply-pairing-pi-gates.md`.
 ## Blocked by
 
 - Blocked by #028 — shares `.pi/agent/settings.json.template` (028 removes the dead `rpiv-pi` entries from the same `.extensions` array this issue appends to; serialized to avoid a merge conflict).
+
+## Implementation Notes
+
+Added `.pi/agent/extensions/harness-gates/` (ESM extension that maps Pi tool-lifecycle events onto `.claude/hooks/*.sh` gate scripts). Three exported handlers (`runBashGates`, `runPathGate`, `runResultGates`) plus the lower-level `runHook` and `findProjectRoot` are driven directly by the smoke test — no pi runner invocation needed. The top-of-file comment enumerates the exact synthesized stdin contract per script category so the script templates and this adapter stay aligned through one documented seam.
+
+Script discovery walks `~/.claude/hooks/` → `<projectRoot>/.claude/hooks/` (project wins), and any missing script is silently skipped — opportunistic, never crashes. Result-side `format-on-edit.sh` and `lint-on-edit.sh` are fail-open by design; `validate-syntax.sh` exit-2 flips `isError=true`.
+
+Smoke test (`tests/harness-gates-smoke.sh`) covers block-on-dirty (matched gate), pass-on-clean (benign command), pass-on-non-git (no scripts installed, "ls" not blocked), and a parallel pair for the path gate (protected-path write blocked, benign path passes). Also asserts `findProjectRoot` walks up to the temp git repo. Offline only.
+
+Verification command exits 0. Fresh-session reviewer returned `RALPH_REVIEW: PASS`.
