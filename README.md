@@ -62,6 +62,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 3. Run installer.
 4. Seed Claude settings: `cp ~/.claude/settings.json.template ~/.claude/settings.json` then fill in API keys.
 5. Seed Pi settings: `cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json` then edit provider/model per machine if needed.
+6. Install the graphify CLI (machine-local, needed for the codebase knowledge-graph skill + auto-refresh hook): `uv tool install graphifyy` (the command stays `graphify`). Then `uv tool update-shell` if `~/.local/bin` is not yet on PATH.
 
 ```bash
 git clone <dotfiles> ~/dotfiles
@@ -98,10 +99,12 @@ $env:DOTFILES_DIR = "C:\path\to\dotfiles"
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
 - links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1` (or not `0` on Windows)
+- links the synced global git hooks dir (`~/.config/git/hooks`) and points git's global `core.hooksPath` at it (only when unset or already ours) so the graphify commit hook fires in every repo
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
 ## Notes
 
+- graphify (codebase knowledge graph): the skill is synced (`~/.claude/skills/graphify`, `~/.pi/agent/skills/graphify`); the CLI is machine-local (`uv tool install graphifyy`). The synced global git hook `~/.config/git/hooks/post-commit` runs `graphify update .` in the background after each commit, but **only** in repos that already have a `graphify-out/` graph and only when the CLI is on PATH — it is a silent no-op everywhere else. Set up a project's graph once with `/graphify .` in your assistant. Verify wiring with `git config --global core.hooksPath` and `command -v graphify`.
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
 

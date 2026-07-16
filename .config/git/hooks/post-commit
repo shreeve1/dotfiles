@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Global post-commit hook (synced via dotfiles; wired with
+# `git config --global core.hooksPath ~/.config/git/hooks`).
+#
+# Purpose: keep a graphify knowledge graph fresh automatically in ANY repo that
+# has been set up with graphify, and do nothing (silently) everywhere else.
+#
+# A global core.hooksPath makes git ignore each repo's own .git/hooks, so this
+# script first delegates to the repo-local post-commit (if any) to preserve
+# existing per-repo hooks, then runs the graphify refresh behind two guards.
+
+set -eu
+
+# 1. Preserve the repo's own post-commit hook, if it has one. core.hooksPath
+#    overrides .git/hooks, so we invoke it explicitly. Guard against self-call.
+_git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+if [ -n "$_git_dir" ]; then
+	_local_hook="$_git_dir/hooks/post-commit"
+	_self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+	if [ -x "$_local_hook" ] && [ "$(cd "$(dirname "$_local_hook")" && pwd)/$(basename "$_local_hook")" != "$_self" ]; then
+		"$_local_hook" "$@" || true
+	fi
+fi
+
+# 2. Guard: only act when this repo was set up with graphify. No graph dir →
+#    silent no-op. This is the "silently do nothing if not set up" behavior.
+[ -d graphify-out ] || exit 0
+
+# 3. Guard: graphify CLI must be resolvable. Not installed on this machine →
+#    silent no-op (dotfiles puts uv-tool bins on PATH via ~/.local/bin).
+command -v graphify >/dev/null 2>&1 || exit 0
+
+# 4. Refresh the code graph in the background (AST-only, no LLM, no API cost) so
+#    `git commit` returns immediately. Logs to the same cache file graphify uses.
+_log="${HOME}/.cache/graphify-rebuild.log"
+mkdir -p "$(dirname "$_log")"
+( graphify update . >>"$_log" 2>&1 & ) >/dev/null 2>&1 || true
+
+exit 0
