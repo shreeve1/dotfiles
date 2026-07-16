@@ -205,6 +205,36 @@ link_path ".config/zellij" ".config/zellij"
 link_path "bin/rralph" ".local/bin/rralph"
 link_path "bin/osc52" ".local/bin/osc52"
 
+# ─── graphify (knowledge-graph skill + global commit hook) ─
+# graphify is the codebase knowledge-graph tool. The skill is synced with the
+# other skills (~/.claude/skills/graphify, ~/.pi/agent/skills/graphify — both
+# under dirs already linked below). The graphify CLI itself is machine-local
+# (install with: uv tool install graphifyy) and must be on PATH via ~/.local/bin.
+#
+# The synced global git hook (~/.config/git/hooks/post-commit) auto-refreshes
+# graphify-out/ after each commit in ANY repo set up with graphify, and is a
+# silent no-op in repos that are not (or on machines without the CLI). Wiring it
+# needs git's global core.hooksPath to point at the synced dir. We only set it
+# when unset (fresh machine) or already ours — never clobber a machine-local
+# choice you made deliberately.
+link_path ".config/git/hooks" ".config/git/hooks"
+if command -v git >/dev/null 2>&1; then
+	_gfy_hookdir="$HOME/.config/git/hooks"
+	_cur_hookpath="$(git config --global core.hooksPath 2>/dev/null || true)"
+	if [ -z "$_cur_hookpath" ]; then
+		git config --global core.hooksPath "$_gfy_hookdir"
+		printf 'ok: set git core.hooksPath -> %s (graphify auto-refresh)\n' "$_gfy_hookdir"
+	elif [ "$_cur_hookpath" = "$_gfy_hookdir" ]; then
+		printf 'ok: git core.hooksPath already -> %s\n' "$_gfy_hookdir"
+	else
+		printf 'warn: git core.hooksPath is %s (not the synced graphify dir).\n' "$_cur_hookpath"
+		printf '      graphify auto-refresh disabled. To enable: git config --global core.hooksPath %s\n' "$_gfy_hookdir"
+	fi
+	if ! command -v graphify >/dev/null 2>&1; then
+		printf 'warn: graphify CLI not found; hook is a no-op until installed: uv tool install graphifyy\n'
+	fi
+fi
+
 # ─── Opencode ──────────────────────────────────────────────
 # Symlinks the entire ~/.config/opencode directory, which contains:
 #   - opencode.json          (provider config + plugin[] registration)

@@ -96,6 +96,29 @@ commands).
       `index.js` requires were rewritten `../hooks/` → `./hooks/` because the
       hook files are vendored under the extension dir). Do not `pi install`.
   To repair on another machine: `bash install.sh` from the repo root.
+- `graphify` (codebase knowledge-graph tool, `github.com/Graphify-Labs/graphify`)
+  is split between a synced skill and a machine-local CLI. Surfaces:
+    - Skill: vendored (not `graphify install`-generated per machine) at
+      `.claude/skills/graphify/` (synced → Claude Code + OpenCode) and
+      `.pi/agent/skills/graphify/` (synced → Pi). Both parent dirs are already
+      symlinked by `install.sh`, so the skill needs no extra link. Refresh the
+      vendored copy after a CLI upgrade by re-running `graphify install` /
+      `graphify install --platform pi` into a throwaway `HOME` and copying the
+      generated `graphify/` dir back over the two vendored locations (avoids the
+      installer editing your real `~/.claude/CLAUDE.md`).
+    - CLI: machine-local, NOT synced. Install with `uv tool install graphifyy`
+      (PyPI package is `graphifyy` double-y; command stays `graphify`). Lands in
+      `~/.local/bin`, already on PATH via the shell rc files.
+    - Auto-refresh hook: synced global git hook
+      `.config/git/hooks/post-commit`, wired by `install.sh` pointing git's
+      global `core.hooksPath` at `~/.config/git/hooks` (only when unset or
+      already ours — it will not clobber a deliberate machine-local hooksPath).
+      Because a global `core.hooksPath` overrides every repo's `.git/hooks`, the
+      hook first delegates to any repo-local `post-commit`, then runs
+      `graphify update .` in the background — but only when the repo has a
+      `graphify-out/` graph AND the CLI is on PATH; otherwise it is a silent
+      no-op. Set up a project's graph once with `/graphify .`. To repair wiring
+      on another machine: `bash install.sh`.
 
 ## Editing rules
 
