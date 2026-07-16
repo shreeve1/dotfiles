@@ -1,6 +1,6 @@
 ---
 name: harness-audit
-description: "Read-only pair to harness-apply: audit a repo against AI-assisted engineering best practices (harness, context split, skills, specs/ADRs, evals) and emit a fix spec to artifacts/specs/ that /dev-plan auto-discovers, plus a harness gap handoff (per-surface coverage: claude-global / claude-project / pi / missing) for harness-apply to consume. Respectful lens: reads existing CLAUDE.md/CONTEXT.md/docs/adr/ as ground truth, never relitigates a recorded ADR, audits for gaps not overrides. Advisory-only — no hooks, no gates, writes one spec file. Use when user wants to check a project's AI-readiness, audit agent harness/context hygiene, or find what's missing before bringing a repo up to standard."
+description: "Read-only pair to harness-apply: audit a repo against AI-assisted engineering best practices (harness, context split, skills, specs/ADRs, evals) and emit a fix spec to artifacts/specs/ (implemented directly against its success criteria), plus a harness gap handoff (per-surface coverage: claude-global / claude-project / pi / missing) for harness-apply to consume. Respectful lens: reads existing CLAUDE.md/CONTEXT.md/docs/adr/ as ground truth, never relitigates a recorded ADR, audits for gaps not overrides. Advisory-only — no hooks, no gates, writes one spec file. Use when user wants to check a project's AI-readiness, audit agent harness/context hygiene, or find what's missing before bringing a repo up to standard."
 argument-hint: "[<empty> = current project | <absolute-path>]"
 allowed-tools: Agent, Bash, Read, Write, Glob, Grep
 # ponytail: Edit omitted (write-only skill — spec is always a new file, never an in-place edit). Allow-list kept explicit because cross-repo audits write outside cwd; the bound is worth the visibility.
@@ -9,7 +9,7 @@ allowed-tools: Agent, Bash, Read, Write, Glob, Grep
 
 # Harness Audit (formerly Audit AI-Readiness)
 
-Audit a repo against the principles in Google's *The New SDLC With Vibe Coding* (Osmani et al.), then emit a **fix spec** that `/dev-plan` consumes directly. Advisory-only. Never edits the repo. Never installs hooks or gates. The only side effect is one new spec file under `artifacts/specs/`.
+Audit a repo against the principles in Google's *The New SDLC With Vibe Coding* (Osmani et al.), then emit a **fix spec** whose `### Phase N` blocks are implemented directly against their stated success criteria. Advisory-only. Never edits the repo. Never installs hooks or gates. The only side effect is one new spec file under `artifacts/specs/`.
 
 > **The one rule that shapes everything else:** read what the project *declares* about itself first. `CLAUDE.md`, `AGENTS.md`, `CONTEXT.md`, `docs/adr/` are ground truth. **Never relitigate a recorded ADR.** Audit for *gaps*, not overrides. A repo that deliberately chose to be the way it is gets a clean bill on that point.
 
@@ -91,7 +91,7 @@ Pure detection, no judgment. Enumerate with sizes/counts and `file:line` pointer
 
 Compare Phase 1 (declared intent) vs Phase 2 (actual artifacts) vs the dimension table. Produce findings. Then write the spec.
 
-**Finding format** (severity matches dev-plan's reviewer vocabulary so the handoff reads naturally):
+**Finding format** (Critical / Warning / Note severity so the handoff reads naturally):
 
 - **Critical** — a dimension is absent or actively harmful (no rules file; agent feature shipped with zero evals; load-bearing decision with no ADR and no glossary term; a gate category the agent routinely needs is `missing` across all three surfaces **and** was not deliberately removed — a documented removal downgrades it to a tension Note per respectful-lens rule 2a).
 - **Warning** — dimension present but weak (rules file bloated with reference material; skills exist but defeat progressive disclosure; glossary missing domain terms; a gate category is covered on one surface but the agent routinely runs on another).
@@ -112,7 +112,7 @@ A finding that does not name the surface, the category, and the missing anchor i
 
 ### Phase 4 — Write the spec file
 
-**Resolve target dir.** If invoked with an absolute path argument, write into *that* repo's `artifacts/specs/` (the spec must travel with the project `/dev-plan` will run against, not orphan in cwd). If invoked with no argument, write to cwd's `artifacts/specs/`. Create the dir if missing.
+**Resolve target dir.** If invoked with an absolute path argument, write into *that* repo's `artifacts/specs/` (the spec must travel with the project it describes, not orphan in cwd). If invoked with no argument, write to cwd's `artifacts/specs/`. Create the dir if missing.
 
 **Non-clobbering filename.** A date-only name collides when two audits run the same day (a re-audit, or two agents auditing in parallel — the second silently overwrites the first). Base name is `<target>/artifacts/specs/ai-readiness-<reponame>-<YYYY-MM-DD>.md`; **before writing, if that path already exists, append a `-<HHMMSS>` suffix** (`ai-readiness-<reponame>-<YYYY-MM-DD>-<HHMMSS>.md`) so runs stack rather than overwrite and still sort by day. Write to that resolved path. Structure:
 
@@ -123,7 +123,7 @@ A finding that does not name the surface, the category, and the missing anchor i
 One-line score per dimension audited (Present / Weak / Missing / N/A). State which dimensions were skipped and why (e.g. "Evals: skipped — no agent feature detected").
 
 ## Ground truth (from project docs)
-3-6 bullets of what the project declares about itself. This section exists so /dev-plan doesn't relitigate settled decisions.
+3-6 bullets of what the project declares about itself. This section exists so whoever implements the fix doesn't relitigate settled decisions.
 
 ## Findings
 Severity-ranked table: | Severity | Dimension | Gap | Evidence (file:line) | Respectful check |
@@ -174,18 +174,18 @@ gates:
 recommended_scope: <project|global>
 
 ## Fix spec
-One `### Phase N: <title>` block per gap cluster. Each block **must carry a requirement tag** `#req-AR<m>` (AR = ai-readiness, m = sequential from 1) so `/dev-plan` threads it into task IDs `[N.M] ... #req-AR<m>` for traceability. Each block:
-- **Req tag** — `#req-AR<m>` (stable across the spec; cited by dev-plan tasks).
+One `### Phase N: <title>` block per gap cluster. Each block **must carry a requirement tag** `#req-AR<m>` (AR = ai-readiness, m = sequential from 1) for traceability. Each block:
+- **Req tag** — `#req-AR<m>` (stable across the spec).
 - **Gap** — what's missing/weak, with evidence.
 - **Fix request** — concrete deliverable (a slimmer CLAUDE.md, a new skill, an ADR stub, an eval scaffold, a gate script, a Pi adapter registration).
-- **Constraints** — do-not-touch list: recorded ADRs, declared canonical surfaces, intentional bloat. Phrased so dev-plan won't reverse them.
+- **Constraints** — do-not-touch list: recorded ADRs, declared canonical surfaces, intentional bloat. Phrased so the implementer won't reverse them.
 - **Success criteria** — how to verify the fix closed the gap (deterministic where possible: "rules file < N lines", "skill descriptions < 100 chars", "eval suite runs and has ≥ M golden cases", "gate script is non-empty and wired in <surface> settings.json", "harness-gates entry is positive in `~/.pi/agent/settings.json`").
 
 ## Next step
 These are two **independent** paths into different parts of this spec — not a sequence. Neither requires the other; run whichever you need.
 
-- **To install the harness gates → run `/harness-apply <scope>`** with the value from `## Harness gap handoff` → `recommended_scope` above. It consumes the handoff block directly and writes the gate scripts. **It does NOT need `/dev-plan` first.** (Cites the same shared contract: `.claude/skills/_shared/harness-gap-handoff.md`.)
-- **To plan/build the non-gate fixes** (evals scaffold, doc trims, ADR stubs — the `### Phase N` blocks) **→ run `/dev-plan`**, which auto-discovers this spec in artifacts/specs/ (its Phase 2 looks there) and threads it into `/dev-build`. Do NOT have this skill plan or build the fixes.
+- **To install the harness gates → run `/harness-apply <scope>`** with the value from `## Harness gap handoff` → `recommended_scope` above. It consumes the handoff block directly and writes the gate scripts.
+- **To close the non-gate fixes** (evals scaffold, doc trims, ADR stubs — the `### Phase N` blocks) **→ implement each Phase directly against its stated success criteria.** These blocks already carry the deliverable, constraints, and success criteria; implement them in a focused session (reach for a heavier planning pass only if a fix turns out to be cross-cutting or ambiguous). Do NOT have *this* skill implement them — it stays advisory.
 ```
 
 ### Phase 5 — Report (main thread, chat)
@@ -195,16 +195,16 @@ Tell the user, in plain text:
 - One-line readiness score per dimension.
 - Count of Critical / Warning / Note.
 - The single highest-leverage fix (if any), in one line.
-- The two independent next-step doors: `/harness-apply <scope>` to install the gates (no `/dev-plan` needed), and/or `/dev-plan` to plan the non-gate fixes.
+- The two independent next-step doors: `/harness-apply <scope>` to install the gates, and/or implement the non-gate `### Phase N` fixes directly against their success criteria.
 
 Do not paste the spec into chat. The file is the deliverable.
 
 ## What this skill does NOT do
 
 - No hooks. No gates. No `settings.json` edits. No enforcement machinery. (That's `harness-apply`'s job, and the user finds strict enforcement counterproductive — this skill stays advisory.)
-- No remediation. It writes a spec; `/dev-plan` + `/dev-build` do the work.
+- No remediation. It writes a spec; the non-gate `### Phase N` fixes are implemented separately (directly against their success criteria).
 - No ADR creation. If a finding implies a decision worth recording, the spec proposes it as a fix request; recording happens during the build, not here.
-- No `harness-apply` invocation. This skill **emits** the `## Harness gap handoff` block (per `.claude/skills/_shared/harness-gap-handoff.md`) so `harness-apply` can **consume** it and skip its interview; the user (or `dev-plan`) runs `harness-apply` separately. Detect-and-hand-off only, still no apply.
+- No `harness-apply` invocation. This skill **emits** the `## Harness gap handoff` block (per `.claude/skills/_shared/harness-gap-handoff.md`) so `harness-apply` can **consume** it and skip its interview; the user runs `harness-apply` separately. Detect-and-hand-off only, still no apply.
 - No re-audit loop. One pass, one spec. To re-check after fixes, re-invoke.
 
 ## ponytail: known ceilings
