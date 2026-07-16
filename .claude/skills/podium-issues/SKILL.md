@@ -29,7 +29,7 @@ Podium instead of Ralph's local kanban.
    - verification is a repo-correct runnable command, not prose — must be on a
      single line wrapped in a single pair of single backticks (`), never a fenced
      code block (```); slicer-created issues are stamped `auto_land=true`, and
-     review backstop re-runs this command;
+     the coding-binding review backstop re-runs this command;
      - **Refactor/move slices must use the full test suite**
        (`.venv/bin/python -m pytest -q`).  Relocating a function into a
        different module can silently break monkeypatches or imports in
@@ -116,9 +116,10 @@ Podium instead of Ralph's local kanban.
 
 - The live command creates `todo` Podium issues with `auto_land=true` and may make
   them dispatchable on the next scheduler poll. Dry-run first.
-- Slices are also stamped `worktree_active=true`, so each dispatches into its own
-  per-issue git worktree (the operator-authored worktree opt-out — `worktree_active=false`, main-checkout — does not apply to slices). Parallel
-  dispatch stays intact.
+- Slice `worktree_active` follows the binding's `worktree_default`: an explicit
+  value wins; otherwise coding bindings default true and infra bindings false.
+  Coding slices therefore use per-issue worktrees by default, while infra slices
+  normally commit directly in the binding checkout.
 - Dependencies are created blocker-first; dependent `blocked_by` uses the real
   Podium ids returned by earlier inserts.
 - The old `issues import-kanban` mirror is retired. If you need Ralph local
