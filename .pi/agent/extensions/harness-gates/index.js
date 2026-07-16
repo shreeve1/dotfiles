@@ -24,6 +24,7 @@
  *     lint-on-edit.sh         reads { tool_input:{ file_path } }  (fail-open)
  *
  * Exit code 2 from any script -> block the tool call / mark result as error.
+ * Non-empty Bash-gate stderr on a passing exit -> warning notification.
  * Scripts that don't exist on disk are skipped silently (script discovery is
  * opportunistic: any missing arm is treated as not configured).
  *
@@ -148,21 +149,25 @@ const RESULT_SCRIPTS = [
 const FAIL_OPEN = new Set(["format-on-edit.sh", "lint-on-edit.sh"]);
 
 /**
- * Run a list of blocking gate scripts sequentially; the FIRST exit-2 wins.
- * Returns `{ block, reason }` for the tool_call event result.
+ * Run Bash gate scripts sequentially; the FIRST exit-2 wins. Non-blocking
+ * stderr is reported through `onAdvisory` after all gates pass.
  */
-export async function runBashGates(payload, projectRoot) {
+export async function runBashGates(payload, projectRoot, onAdvisory) {
 	const scripts = discoverScripts(BASH_BLOCKING_SCRIPTS, projectRoot);
+	const advisories = [];
 	for (const name of BASH_BLOCKING_SCRIPTS) {
 		const scriptPath = scripts.get(name);
 		if (!scriptPath) continue;
 		const { code, stderr } = await runHook(scriptPath, payload, projectRoot);
+		const trimmed = stderr.trim();
 		if (code === 2)
 			return {
 				block: true,
-				reason: stderr.trim() || "blocked by harness-gate",
+				reason: trimmed || "blocked by harness-gate",
 			};
+		if (trimmed) advisories.push(trimmed);
 	}
+	if (advisories.length > 0) onAdvisory?.(advisories.join("\n"));
 	return undefined;
 }
 
@@ -223,7 +228,11 @@ export default function harnessGatesExtension(pi) {
 
 		if (toolName === "bash") {
 			const command = String(input.command || "");
-			return runBashGates({ tool_input: { command } }, projectRoot);
+			const notify = (message) => {
+				if (ctx.hasUI) ctx.ui.notify(message, "warning");
+				else console.warn(message);
+			};
+			return runBashGates({ tool_input: { command } }, projectRoot, notify);
 		}
 
 		if (toolName === "read") {
