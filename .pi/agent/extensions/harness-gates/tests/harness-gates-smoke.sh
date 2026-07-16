@@ -8,6 +8,7 @@
 #       in $CLAUDE_PROJECT_DIR/.claude/hooks/                 -> pass
 #   (3) bash tool_call carrying a non-git command (e.g. "ls")  -> pass
 #   (4) tool_call carrying a write to a protected path         -> block (exit 2)
+#   (5) bash tool_call with passing-gate stderr                 -> warn, don't block
 #
 # Drives the adapter by importing its exported functions (ESM) from Node,
 # then synthesizing tool_call event payloads. Offline only — never touches
@@ -59,7 +60,7 @@ project_root="$repo"
 # Heredoc with single-quoted sentinel disables ALL bash expansion so the JS
 # template literals stay intact; we sed-substitute the sentinels afterward.
 cat >"$driver" <<'DRIVER_EOF'
-import {
+import harnessGatesExtension, {
 	runBashGates,
 	runPathGate,
 	runResultGates,
@@ -73,6 +74,15 @@ const projectRoot = '__PROJECT_ROOT__';
 let result;
 if (mode === "bash") {
 	result = await runBashGates(payload, projectRoot);
+} else if (mode === "extension-bash") {
+	let handler;
+	harnessGatesExtension({ on: (event, callback) => { if (event === "tool_call") handler = callback; } });
+	const notifications = [];
+	const eventResult = await handler(
+		{ toolName: "bash", input: payload.tool_input },
+		{ cwd: projectRoot, hasUI: true, ui: { notify: (message, level) => notifications.push({ message, level }) } },
+	);
+	result = { eventResult, notifications };
 } else if (mode === "path") {
 	result = await runPathGate(payload.tool_name, payload.tool_input.file_path, projectRoot);
 } else if (mode === "result") {
@@ -120,6 +130,20 @@ esac
 out=$(node "$driver" bash '{"tool_input":{"command":"echo hi"}}')
 [ "$out" = "undefined" ] || fail "case 2: clean/benign command wrongly blocked (got '$out')"
 ok "case 2 (pass-on-clean/benign)"
+
+# Advisory stderr must surface without blocking.
+cat >"$hooks_dir/pre-git-checks.sh" <<'GATE_EOF'
+#!/usr/bin/env bash
+echo "Advisory boundary check failed" >&2
+exit 0
+GATE_EOF
+chmod +x "$hooks_dir/pre-git-checks.sh"
+out=$(node "$driver" extension-bash '{"tool_input":{"command":"git push"}}')
+case "$out" in
+	*'"message":"Advisory boundary check failed","level":"warning"'*) ok "bash-gate: advisory stderr surfaced" ;;
+	*) fail "bash-gate: advisory stderr was dropped (got '$out')" ;;
+esac
+rm -f "$hooks_dir/pre-git-checks.sh"
 
 # Case 4 (path gate): install block-path-access.sh that blocks writes whose
 # basename starts with a dot, mirroring the protected-path arm. A write
