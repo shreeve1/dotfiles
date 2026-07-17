@@ -1,7 +1,7 @@
 ---
 name: worker
 description: Implementation specialist. Executes a single, well-defined task — writing code, creating files, refactoring, or implementing a feature. Focused execution only, no planning or coordination.
-model: deepseek/deepseek-v4-flash
+model: openai-codex/gpt-5.6-sol
 tools: read,bash,grep,find,ls,write,edit
 DISPATCH: Execute a single, well-defined task. Describe what to build, write, or change and point to the relevant files or context. Worker executes directly — do not ask for confirmation on routine changes.
 ---

@@ -1,7 +1,7 @@
 ---
 name: Plan
 description: Software architect for implementation planning (read-only)
-model: deepseek/deepseek-v4-pro
+model: cliproxy/claude-opus-4-8
 tools: read, bash, grep, find, ls
 prompt_mode: replace
 enabled: true
