@@ -22,18 +22,31 @@ if [ -n "$_git_dir" ]; then
 	fi
 fi
 
-# 2. Guard: only act when this repo was set up with graphify. No graph dir →
+# 2. Skip during rebase/merge/cherry-pick. Without this, replaying N commits
+#    (e.g. `git rebase -i`) would spawn N background rebuilds. Mirrors the
+#    guards in graphify's own `graphify hook install` post-commit.
+_gd="${_git_dir:-$(git rev-parse --git-dir 2>/dev/null)}"
+if [ -n "$_gd" ]; then
+	[ -d "$_gd/rebase-merge" ] && exit 0
+	[ -d "$_gd/rebase-apply" ] && exit 0
+	[ -f "$_gd/MERGE_HEAD" ] && exit 0
+	[ -f "$_gd/CHERRY_PICK_HEAD" ] && exit 0
+fi
+
+# 3. Guard: only act when this repo was set up with graphify. No graph dir →
 #    silent no-op. This is the "silently do nothing if not set up" behavior.
 [ -d graphify-out ] || exit 0
 
-# 3. Guard: graphify CLI must be resolvable. Not installed on this machine →
+# 4. Guard: graphify CLI must be resolvable. Not installed on this machine →
 #    silent no-op (dotfiles puts uv-tool bins on PATH via ~/.local/bin).
 command -v graphify >/dev/null 2>&1 || exit 0
 
-# 4. Refresh the code graph in the background (AST-only, no LLM, no API cost) so
+# 5. Refresh the code graph in the background (AST-only, no LLM, no API cost) so
 #    `git commit` returns immediately. Logs to the same cache file graphify uses.
+#    PYTHONHASHSEED=0 pins Leiden/louvain community assignment so rebuilds are
+#    reproducible run-to-run (matches graphify's own hook).
 _log="${HOME}/.cache/graphify-rebuild.log"
 mkdir -p "$(dirname "$_log")"
-( graphify update . >>"$_log" 2>&1 & ) >/dev/null 2>&1 || true
+( PYTHONHASHSEED=0 graphify update . >>"$_log" 2>&1 & ) >/dev/null 2>&1 || true
 
 exit 0

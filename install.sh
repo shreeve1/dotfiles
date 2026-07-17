@@ -230,7 +230,10 @@ if command -v git >/dev/null 2>&1; then
 		printf 'warn: git core.hooksPath is %s (not the synced graphify dir).\n' "$_cur_hookpath"
 		printf '      graphify auto-refresh disabled. To enable: git config --global core.hooksPath %s\n' "$_gfy_hookdir"
 	fi
-	if ! command -v graphify >/dev/null 2>&1; then
+	# Check PATH and the canonical uv-tool bin dir: install.sh often runs in a
+	# non-interactive shell where ~/.local/bin is not yet on PATH, so a bare
+	# `command -v graphify` would false-warn even when it is installed.
+	if ! command -v graphify >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/graphify" ]; then
 		printf 'warn: graphify CLI not found; hook is a no-op until installed: uv tool install graphifyy\n'
 	fi
 fi
