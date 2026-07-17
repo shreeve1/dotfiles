@@ -1,7 +1,7 @@
 ---
 name: Explore
 description: Fast codebase exploration agent (read-only)
-model: deepseek/deepseek-v4-flash
+model: cliproxy/claude-haiku-4-5-20251001
 tools: read, bash, grep, find, ls
 prompt_mode: replace
 enabled: true

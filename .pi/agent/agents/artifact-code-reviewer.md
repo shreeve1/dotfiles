@@ -1,6 +1,6 @@
 ---
 name: artifact-code-reviewer
-model: deepseek/deepseek-v4-pro
+model: openai-codex/gpt-5.6-terra
 description: "Independent post-finalization code reviewer. Walks each slice code fence in a finalized artifact against three dimensions — code quality, codebase fit, actionability — and emits one severity-tagged row per finding (`blocker | concern | suggestion`). Use whenever a finalized plan or design needs adversarial vetting of its emitted code against the live codebase before implementation begins."
 tools: read, grep, find, ls
 isolated: true

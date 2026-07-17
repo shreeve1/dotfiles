@@ -1,7 +1,7 @@
 ---
 name: ui-reviewer
 description: Visual QA specialist for browser screenshots and screenshot-based UI analysis. Use when a task needs page captures, responsive screenshots, or quick visual review of a live URL or local app.
-model: deepseek/deepseek-v4-flash
+model: cliproxy/claude-sonnet-4-6
 tools: read,bash,write,edit
 DISPATCH: Review a UI via screenshots. Provide the URL or app path and describe what to check (layout, responsiveness, visual regressions, etc.). Do not paste screenshots — describe what to capture and analyze.
 ---

@@ -1,6 +1,6 @@
 ---
 name: codebase-analyzer
-model: deepseek/deepseek-v4-pro
+model: cliproxy/claude-sonnet-4-6
 description: Analyzes codebase implementation details. Call the codebase-analyzer agent when you need to find detailed information about specific components. As always, the more detailed your request prompt, the better! :)
 tools: read, grep, find, ls
 isolated: true
