@@ -37,6 +37,10 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
     switch-provider.sh
   .pi/
     agent/
+      APPEND_SYSTEM.md       (Pi delegation policy)
+      agents/                (Pi subagent definitions)
+      extensions/
+        @tintinweb/pi-subagents/  (vendored Agent runtime)
       settings.json.template
   .codex/
   install.sh
@@ -49,7 +53,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 |---|---|---|
 | Global agent guidance | `~/.claude/CLAUDE.md` | Claude Code reads natively; OpenCode reads via `opencode.json` `instructions[]`. |
 | Slash commands | `~/.claude/commands/` | Claude Code is canonical. Retired OpenCode commands live under `~/.config/opencode/archive/commands/`. |
-| Subagents | `~/.claude/agents/` | Claude Code reads natively; Pi uses `.pi/agent/agents/`. |
+| Subagents | Tool-specific | Claude Code uses `~/.claude/agents/`; Pi uses `~/.pi/agent/agents/` with the vendored `@tintinweb/pi-subagents` runtime. |
 | Reusable skills | `~/.claude/skills/` | Claude reads natively, OpenCode falls back to `~/.claude/skills/`. |
 | Hook scripts | `~/.claude/hooks/` | Claude-specific runtime. |
 | Provider/model config | tool-specific | Claude `~/.claude/settings*.json`; OpenCode `~/.config/opencode/opencode.json`. Schemas differ — no shared format. |
@@ -90,6 +94,27 @@ $env:DOTFILES_DIR = "C:\path\to\dotfiles"
 & "$env:DOTFILES_DIR\install-win.ps1"
 ```
 
+### Pi subagents on another system
+
+The repo already contains the Pi subagent runtime, agent definitions, and
+delegation policy. Install them together; do not install a second runtime:
+
+```bash
+git clone <dotfiles> ~/dotfiles
+cd ~/dotfiles
+INSTALL_PI_CLI=1 bash install.sh   # omit INSTALL_PI_CLI=1 when Pi already exists
+cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
+# edit provider/model settings, then restart Pi or run /reload
+```
+
+Use `/agents` in Pi to inspect the available agent types. To repair stale npm
+dependencies after a pull, run `INSTALL_PI_NPM=always bash install.sh`.
+
+This setup intentionally uses the vendored `@tintinweb/pi-subagents` `Agent`
+API. Do **not** install Nico Bailon's `npm:pi-subagents` alongside it; that
+package exposes an incompatible `subagent` API and requires a deliberate
+migration of the existing agents and skills.
+
 ## What Install Scripts Do
 
 - creates parent directories when needed
@@ -99,6 +124,7 @@ $env:DOTFILES_DIR = "C:\path\to\dotfiles"
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
 - links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1` (or not `0` on Windows)
+- links `~/.pi/agent`, installs the vendored `@tintinweb/pi-subagents` dependencies, and checks its runtime, agents, policy, and settings registration
 - links the synced global git hooks dir (`~/.config/git/hooks`) and points git's global `core.hooksPath` at it (only when unset or already ours) so the graphify commit hook fires in every repo
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
@@ -117,8 +143,17 @@ claude --version                       # Claude Code installed
 opencode --version                     # OpenCode installed
 opencode debug skill                   # OpenCode discovers canonical skills
 node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); console.log(c.instructions.includes('~/.claude/CLAUDE.md'))"
+
+# Pi delegation setup
+pi --version
+test -f ~/.pi/agent/APPEND_SYSTEM.md
+test -f ~/.pi/agent/extensions/@tintinweb/pi-subagents/package.json
+grep -F '"extensions/@tintinweb/pi-subagents"' ~/.pi/agent/settings.json ~/.pi/agent/settings.json.template
+find ~/.pi/agent/agents -type f -name '*.md' | wc -l
+npm --prefix ~/.pi/agent/extensions/@tintinweb/pi-subagents ls --depth=0
 ```
 
 In an interactive Claude Code session: `/memory`, `/skills`, `/hooks`, `/mcp`, `/doctor`.
+In Pi: run `/reload`, then `/agents` and confirm the custom agent list appears.
 
 If `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` or `OPENCODE_DISABLE_CLAUDE_CODE=1` is set, OpenCode will not see canonical skills. Unset to restore shared discovery.
