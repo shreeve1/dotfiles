@@ -256,7 +256,7 @@ link_path ".pi/README.md" ".pi/README.md"
 # custom agent definitions, and delegation policy travel together.
 _pi_subagents_ok=1
 [ -f "$HOME/.pi/agent/extensions/@tintinweb/pi-subagents/package.json" ] || _pi_subagents_ok=0
-[ -f "$HOME/.pi/agent/APPEND_SYSTEM.md" ] || _pi_subagents_ok=0
+grep -Fq '## Delegate Non-Trivial Work' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
 _pi_agent_found=0
 for _pi_agent_file in "$HOME"/.pi/agent/agents/*.md; do
 	if [ -f "$_pi_agent_file" ]; then
