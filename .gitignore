@@ -139,3 +139,6 @@ bin/*
 .pi/agent/extensions/**/.pi-lens/
 .autoagent-runs/
 .symphony-runs/
+
+# Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
+/tests/
