@@ -119,6 +119,17 @@ commands).
       `graphify-out/` graph AND the CLI is on PATH; otherwise it is a silent
       no-op. Set up a project's graph once with `/graphify .`. To repair wiring
       on another machine: `bash install.sh`.
+    - Pi "query-first" guard: `graphify claude install` registers a Claude Code
+      PreToolUse hook that injects a "query the graph before you grep/read" nudge
+      whenever `graphify-out/graph.json` exists. Pi has no per-tool
+      context-injection channel (its `ToolCallEventResult` only carries
+      block/reason), so the equivalent is a synced auto-discovered extension
+      `.pi/agent/extensions/graphify-guard/` that injects the same guidance into
+      the system prompt via `before_agent_start` (the always-on pattern ponytail
+      uses), gated on a graph existing — silent no-op otherwise. Registered
+      explicitly in `.pi/agent/settings.json{,.template}` `extensions`. Do not
+      `pi install`; it is vendored. Smoke test:
+      `bash .pi/agent/extensions/graphify-guard/tests/graphify-guard-smoke.sh`.
 
 ## Editing rules
 
