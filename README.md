@@ -146,7 +146,7 @@ node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); co
 
 # Pi delegation setup
 pi --version
-test -f ~/.pi/agent/APPEND_SYSTEM.md
+grep -F '## Delegate Non-Trivial Work' ~/.pi/agent/APPEND_SYSTEM.md
 test -f ~/.pi/agent/extensions/@tintinweb/pi-subagents/package.json
 grep -F '"extensions/@tintinweb/pi-subagents"' ~/.pi/agent/settings.json ~/.pi/agent/settings.json.template
 find ~/.pi/agent/agents -type f -name '*.md' | wc -l
