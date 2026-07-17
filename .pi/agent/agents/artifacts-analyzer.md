@@ -1,6 +1,6 @@
 ---
 name: artifacts-analyzer
-model: deepseek/deepseek-v4-flash
+model: cliproxy/claude-sonnet-4-6
 description: The research equivalent of codebase-analyzer. Use this subagent_type when wanting to deep dive on a research topic. Not commonly needed otherwise.
 tools: read, grep, find, ls
 isolated: true
