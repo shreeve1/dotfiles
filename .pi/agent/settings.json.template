@@ -19,6 +19,7 @@
   "doubleEscapeAction": "tree",
   "extensions": [
     "extensions/harness-gates",
+    "extensions/graphify-guard",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts"
   ]
