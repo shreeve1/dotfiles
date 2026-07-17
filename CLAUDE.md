@@ -33,6 +33,13 @@ commands).
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
+- Pi subagents use the synced vendored `@tintinweb/pi-subagents` runtime at
+  `.pi/agent/extensions/@tintinweb/pi-subagents`, registered in both Pi settings
+  files. It provides the `Agent`, `get_subagent_result`, and `steer_subagent`
+  tools used by `.pi/agent/agents/`. Do not also install Nico Bailon's
+  `npm:pi-subagents`; adopting its incompatible `subagent` API requires a
+  deliberate migration of agent definitions and dependent skills. Root Pi
+  delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
