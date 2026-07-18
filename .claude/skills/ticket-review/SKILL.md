@@ -1,6 +1,6 @@
 ---
 name: ticket-review
-description: "Review the last finished ticket for gaps, fix them, and leave a reviewer note. Works with local kanban or GitHub/GitLab tickets. Use when the user wants to gap-check, audit, or close out the most recently completed ticket. Skips tickets that already have a reviewer note."
+description: "Review the last finished ticket for gaps, fix them, and leave a reviewer note. Works with local kanban or GitHub/GitLab tickets. Use when the user wants to gap-check, audit, or close out the most recently completed ticket. Stops if that ticket already has a reviewer note."
 ---
 
 Review the most recently finished ticket for gaps, fix them, and leave a reviewer note.
@@ -12,11 +12,11 @@ Locate the most recently completed ticket from whatever tracker this repo uses:
 - **Local kanban** (`.kanban/issues/*.md` exists): the `status: done` issue with the latest `updated` date (tie-break: highest `id`).
 - **GitHub / GitLab** (per `docs/agents/issue-tracker.md`): the most recently closed issue.
 
-If no tracker is configured, ask the user which one to use.
+If `docs/agents/issue-tracker.md` is missing, run `/setup-matt-pocock-skills`. If no tracker is configured at all, ask the user which one to use.
 
 ## 2. Guard against re-review
 
-Check whether this ticket already carries a reviewer note (see step 5 for where it lives — `action_reviewed:` frontmatter for kanban, a `ticket-reviewed` marker comment for GitHub/GitLab). If it does, the ticket was already reviewed. Stop and report that — do not review or change anything.
+Check whether this ticket already carries a reviewer note (see step 5 for where it lives — `action_reviewed:` frontmatter for kanban, a `ticket-reviewed:` marker comment for GitHub/GitLab). If it does, the ticket was already reviewed. Stop and report that — do not review or change anything.
 
 ## 3. Review for gaps
 
@@ -31,7 +31,7 @@ Gaps are: unmet acceptance criteria, a failing verification command, or Standard
 
 ## 4. Fix the gaps
 
-Fix every gap found. Rerun the ticket's verification command; it must exit 0. Commit the fixes to the current branch with a message referencing the ticket.
+Fix every gap found. Rerun the ticket's verification command (the kanban issue's `## Verification` section, or the command named in the GitHub/GitLab ticket body); it must exit 0. Commit the fixes to the current branch with a message referencing the ticket.
 
 ## 5. Leave the reviewer note
 
