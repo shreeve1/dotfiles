@@ -55,9 +55,13 @@ Ask the user:
 
 Iterate until the user approves the breakdown.
 
-### 5. Publish the tickets to the configured tracker
+### 5. Verify each ticket before publishing
 
-Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured — the tickets are the same either way, only the shape of the blocking edges changes:
+Each ticket rests on repo claims: the prefactor it assumes, the seam it cuts, the blocking edges ("this genuinely can't start until #3 lands"), the prior-art its verification command points at. Those claims drift as you slice. Before you publish, extract each ticket's load-bearing repo claims and run an **independent verify (see `../_shared/verify-claims.md`)** — batch all tickets' claims into one call. Pay special attention to blocking edges (a wrong edge stalls the frontier) and to any verification command you wrote (it must name a path/test that actually exists). Correct any FALSE claim before publishing.
+
+### 6. Publish the tickets to the configured tracker
+
+Publish the verified, approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured — the tickets are the same either way, only the shape of the blocking edges changes:
 
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below — one ticket per file, never a single combined file.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.

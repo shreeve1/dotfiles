@@ -16,7 +16,11 @@ The issue tracker and triage label vocabulary should have been provided to you â
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below.
+
+4. **Verify the spec before publishing.** A spec asserts a pile of things about the current codebase â€” what modules exist, what the seams are, what prior art the tests have, what's already wired. Those claims drift as you synthesise. Before you publish, extract every load-bearing repo claim from the draft (Implementation Decisions, Testing Decisions, the seams from step 2) and run an **independent verify (see `../_shared/verify-claims.md`)** on them in one batched call. Correct any that come back FALSE, then publish. A spec that ships a wrong assumption sends every downstream ticket the wrong way.
+
+5. Publish the verified spec to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 
 <spec-template>
 
