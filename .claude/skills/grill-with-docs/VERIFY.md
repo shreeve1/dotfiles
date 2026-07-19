@@ -38,6 +38,7 @@ Run from the repo root:
 
 ```bash
 pi -p --no-session --no-skills --no-context-files \
+  --no-extensions --tools read,grep,find,ls \
   --model deepseek/deepseek-v4-pro \
   "You are fact-checking claims about THIS repository. For each claim, read the
    relevant files and reply on one line: VERIFIED | FALSE | UNSURE, then
@@ -49,6 +50,11 @@ pi -p --no-session --no-skills --no-context-files \
 
 Notes:
 
+- `--no-extensions --tools read,grep,find,ls` are **mandatory** and load-bearing:
+  they confine the checker to read-only file access. The three `--no-*` flags do
+  **not** restrict tools — they leave built-in `bash` available, so without the
+  allowlist a checker can run the repo's own commands (e.g. a Playwright suite
+  that starts servers), blow past the timeout, and mutate the worktree.
 - `--no-skills` is mandatory: it stops the checker reloading grill-with-docs and
   grilling itself (recursion guard).
 - `--no-session --no-context-files` keep the checker grounded only in the files
