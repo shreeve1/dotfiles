@@ -8,6 +8,10 @@ A loose idea has arrived — too big for one agent session, and wrapped in fog: 
 
 The destination varies per effort, and naming it is the first act of charting — it shapes every ticket. It might be a spec to hand off and iterate on, a decision to lock before planning starts, or a change made in place like a data-structure migration. The map is domain-agnostic — engineering work, course content, whatever fits the shape.
 
+## Ground, then verify — every turn
+
+Wayfinding runs long, and a mental model built while charting gets asserted as fact many tickets later, after the code beneath it has moved. So on every turn where you present a finding, ask a grill question, record a resolution, or wire a blocking edge: **first ground the claim in the actual files/tickets this turn depends on, then run an independent verify on it** — see **independent verify (`../_shared/verify-claims.md`)**. Order matters; the check is a second opinion on a claim you already grounded, not your researcher. This is the same discipline `grill-with-docs` runs turn by turn. It matters most for the two claims that steer the whole map: **blocking edges** (a wrong edge sends a session at a ticket that can't start) and **resolution answers** (a wrong answer gets indexed into Decisions-so-far and every later ticket trusts it). Batch a turn's claims into one call; surface the result inline before the question or edit it feeds.
+
 ## Plan, don't do
 
 Wayfinder is **planning** by default: each ticket resolves a decision, and the map is done when the way is clear — nothing left to decide before someone goes and does the thing. The pull to just do the work is usually the signal you've reached the edge of the map and it's time to hand off. An effort can override this in its **Notes** — carrying execution into the map itself — but absent that, produce decisions, not deliverables.

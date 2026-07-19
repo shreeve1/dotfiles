@@ -41,6 +41,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - Update indexes (root `wiki/index.md` candidate queue for candidates; destination directory `index.md` for promoted-page edits), `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md` whenever wiki content changes.
 - Mark session-derived claims with appropriate confidence; do not present them as stronger than the evidence supports.
 - Bounding is enforced by gates, not goodwill. Every claim write runs `gate.py check`; the run's Verification step runs `gate.py audit`. A write that bypassed the gate but violates budget or schema fails the audit and the run is not done. See `Workflows/SessionUpdate.md` §7a and §7b.
+- `gate.py` enforces budget and schema — it does **not** check whether a claim is *true*. Before an important factual claim enters `CLAIMS.md` or a promoted page, ground it in its cited source and run an **independent verify (see `../_shared/verify-claims.md`)** on the batch of load-bearing claims, checked against the cited files/sources rather than conversation memory. A claim that comes back FALSE must be corrected or dropped before the write; UNSURE means re-read the source before promoting. This complements the gate: the gate keeps the wiki bounded, the verify keeps it correct.
 
 ## Context Files
 

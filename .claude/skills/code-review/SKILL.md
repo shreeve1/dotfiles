@@ -73,7 +73,11 @@ Send a single message with two `Agent` tool calls. Use the `general-purpose` sub
 
 If the spec is missing, skip the Spec sub-agent and note this in the final report.
 
-### 5. Aggregate
+### 5. Verify the findings before reporting
+
+A reviewer sub-agent asserts things about the diff and about the standard or spec it cites — and some of those assertions are false positives (a "missing null check" that's handled one line up, a "violates standard X" that misreads the rule, a "spec requirement unmet" that another hunk covers). Before aggregating, take the concrete findings each sub-agent returned and run an **independent verify (see `../_shared/verify-claims.md`)** on them in one batched call — each finding is a claim of the form "the diff does D, which violates/misses C". Drop or downgrade any finding that comes back FALSE, and note the drop. This keeps the report from sending the user to chase a phantom.
+
+### 6. Aggregate
 
 Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings — the two axes are deliberately separate (see _Why two axes_).
 
