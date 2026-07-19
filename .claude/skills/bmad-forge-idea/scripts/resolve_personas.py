@@ -76,7 +76,7 @@ def load_agents(project_root: Path):
     The core resolver may emit agents as a dict keyed by code or as an array
     of tables (depending on how the layers merged); normalize both to a dict.
     """
-    script = project_root / "_bmad" / "scripts" / "resolve_config.py"
+    script = Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_config.py"
     data = _run_json([sys.executable, str(script), "--project-root", str(project_root), "--key", "agents"])
     if data is None:
         return {}, False
@@ -107,7 +107,7 @@ def find_party_skill(project_root: Path, skill_root: Path):
 
 def load_party_workflow(project_root: Path, party_skill: Path):
     """Merged [workflow] table for bmad-party-mode (base + user overrides)."""
-    resolver = project_root / "_bmad" / "scripts" / "resolve_customization.py"
+    resolver = Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_customization.py"
     data = _run_json([sys.executable, str(resolver), "--skill", str(party_skill), "--key", "workflow"])
     if data is not None and isinstance(data.get("workflow"), dict):
         return data["workflow"]

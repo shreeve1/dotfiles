@@ -17,17 +17,18 @@ Lead by questioning, not lecturing. Ask one question at a time, press on weak po
 
 ## Conventions
 
-- Scripts live in two places — run each from the exact path written, never assume co-location: the shared core scripts (`memlog.py`, `resolve_customization.py`, `resolve_config.py`) are installed by BMad core at `{project-root}/_bmad/scripts/` and are never bundled here; this skill's own `resolve_personas.py` is at `{skill-root}/scripts/`.
+- Shared scripts (`memlog.py`, `resolve_customization.py`, `resolve_config.py`) live at `{skill-root}/../_shared/scripts/` for all skills; this skill's `resolve_personas.py` lives at `{skill-root}/scripts/`.
 - `{workflow.<name>}` resolves to fields in the merged `customize.toml` `[workflow]` table.
 
 ## On Activation
 
-1. Resolve customization: `uv run {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly with defaults. Apply the resolved `{workflow.*}` values throughout.
+1. Resolve customization: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, read `{skill-root}/customize.toml` directly with defaults. Apply the resolved `{workflow.*}` values throughout.
 2. Run each `{workflow.activation_steps_prepend}` entry; treat each `{workflow.persistent_facts}` entry as foundational context (`file:` entries load their contents, `skill:` names a skill to consult, others are facts verbatim).
-3. Load `{project-root}/_bmad/core/config.yaml` (and `config.user.yaml` if present); resolve `{user_name}`, `{communication_language}`, `{output_folder}`. Missing → neutral defaults; never block. Greet `{user_name}` in `{communication_language}` and stay in it.
-4. Note whether a BMad persona is already active in this conversation — the user loaded one (e.g. the analyst, the storyteller) and invoked the forge from within it. If so, that persona leads the session, in voice, throughout.
-5. Resume: glob `{workflow.forge_output_path}/**/.memlog.md` (recursive, so it still finds sessions when `run_folder_pattern` is overridden to nest paths) and read only each match's frontmatter to find any whose `status` is not `complete`. Offer to resume one — then read its full memlog once to rebuild state and continue append-only — or to start fresh.
-6. Run each `{workflow.activation_steps_append}` entry.
+3. If `{project-root}/_bmad/core/config.yaml` exists, read it for `{user_name}`, `{communication_language}`, and `{output_folder}`; otherwise use neutral defaults (no name, English, and `{output_folder}` = `{project-root}/.bmad-output`). Never block. Greet `{user_name}` in `{communication_language}` and stay in it.
+4. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs.
+5. Note whether a BMad persona is already active in this conversation — the user loaded one (e.g. the analyst, the storyteller) and invoked the forge from within it. If so, that persona leads the session, in voice, throughout.
+6. Resume: glob `{workflow.forge_output_path}/**/.memlog.md` (recursive, so it still finds sessions when `run_folder_pattern` is overridden to nest paths) and read only each match's frontmatter to find any whose `status` is not `complete`. Offer to resume one — then read its full memlog once to rebuild state and continue append-only — or to start fresh.
+7. Run each `{workflow.activation_steps_append}` entry.
 
 ## Open the session
 
@@ -53,7 +54,7 @@ Tell the user they can say **"attack this"**, **"defend this"**, or **"switch ro
 ### Set up the session
 
 Derive a kebab-case `{slug}` for the idea and bind the session workspace `{workspace} = {workflow.forge_output_path}/{workflow.run_folder_pattern}` (the pattern fills with `{slug}`). Create the memlog once the goal is known:
-`uv run {project-root}/_bmad/scripts/memlog.py init --workspace {workspace} --field idea="<idea>" --field goal="<goal>"`
+`uv run {skill-root}/../_shared/scripts/memlog.py init --workspace {workspace} --field idea="<idea>" --field goal="<goal>"`
 
 Tell the user the path; state is on disk now, so the session survives interruption. If init fails, don't abort — run the forge in-conversation and tell the user state won't persist this session.
 
@@ -74,7 +75,7 @@ When a branch resolves, pause before moving on. Give the user a chance to raise 
 Do not use agreement or praise to make the interaction smoother; they lower pressure and lead to shallower thinking. Agreement is allowed only when it helps the user think better. Praise is noise. Continued engagement and ego-stroking are not objectives. In attack mode, never agree with the idea until the user ends the mode. For each answer, either challenge the weak point or build on the strong point, whichever helps the user think better.
 
 Capture as you go — each decision, assumption, crack, kill, and locked idea, one bullet in the user's meaning:
-`uv run {project-root}/_bmad/scripts/memlog.py append --workspace {workspace} --type <decision|assumption|crack|kill|direction|lock|note> --text "<gist>"`
+`uv run {skill-root}/../_shared/scripts/memlog.py append --workspace {workspace} --type <decision|assumption|crack|kill|direction|lock|note> --text "<gist>"`
 A `lock` is an idea the user hardens — settled, not to be reopened; locks are what `forged-idea.md` is distilled from. Don't read the memlog back except on resume. If the user raises a different branch, capture it and stay put — the loop and the stray insight both survive.
 
 ## The personas
@@ -103,5 +104,5 @@ The session can end in three valid states:
 
 Always render `{workspace}/forge-report.html` as a self-contained HTML file the user can open, with inline CSS and an inline-SVG seal or stamp. Summarize the outcome, the locked decisions, what was rejected and why, and the weak points that survived scrutiny, in the user's meaning. Credit the personas and parties that pressure-tested the idea by name, icon, and voice. Render a prominent wax-seal-style or stamped outcome mark, matched to the result: `HARDENED`, an `Idea Death Certificate` stamped `KILLED` with the cause of death, or `CLARIFIED`. Tell the user the path.
 
-Flip the status at the end: `uv run {project-root}/_bmad/scripts/memlog.py set --workspace {workspace} --key status --value complete`.
+Flip the status at the end: `uv run {skill-root}/../_shared/scripts/memlog.py set --workspace {workspace} --key status --value complete`.
 If `{workflow.on_complete}` is non-empty, run all instructions in order.
