@@ -57,6 +57,8 @@ When domain relationships are being discussed, stress-test them with specific sc
 
 When the user states how something works, check whether the code agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible — which is right?"
 
+Don't check from memory — a model of the code built early in a session goes stale as the discussion moves. Ground the claim in the actual files this turn, then run an **independent verify (see `../_shared/verify-claims.md`)** on it before you assert the contradiction. (`grill-with-docs`, which drives this skill, runs the same check turn by turn — when invoked from there, that pass already covers these claims; run it here for standalone domain-modeling sessions.)
+
 ### Update CONTEXT.md inline
 
 When a term is resolved, update `CONTEXT.md` right there. Don't batch these up — capture them as they happen. Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
