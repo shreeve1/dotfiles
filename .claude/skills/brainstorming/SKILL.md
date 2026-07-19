@@ -1,5 +1,5 @@
 ---
-name: bmad-brainstorming
+name: brainstorming
 description: Facilitate a brainstorming session using diverse creative techniques. Use when the user says 'help me brainstorm' or 'help me ideate'.
 ---
 
@@ -23,7 +23,7 @@ The session runs in one of three stances, chosen by the user — set explicitly 
 3. If `{project-root}/_bmad/core/config.yaml` exists, read it for `{user_name}`, `{communication_language}`, and `{output_folder}`; otherwise use neutral defaults (no name, English, and `{output_folder}` = `{project-root}/.bmad-output`). Never block.
 4. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs.
 5. **If launched headless** (a machine signal, not a human asking for output — `references/headless.md` lists them): load `references/headless.md` and follow it for the whole run. It is the *only* context where you generate ideas yourself; never load it otherwise.
-6. **Otherwise (interactive):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `bmad-party-mode` and `bmad-advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
+6. **Otherwise (interactive):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `party-mode` and `advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
 
 Run each `{workflow.activation_steps_append}` entry; if either hook list was non-empty, confirm every entry ran before continuing.
 
