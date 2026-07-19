@@ -2,9 +2,11 @@
 #
 # Workflow customization surface for forge-idea.
 #
-# Override files (not edited here):
-#   {project-root}/_bmad/custom/forge-idea.toml        (team)
-#   {project-root}/_bmad/custom/forge-idea.user.toml   (personal)
+# Override files (not edited here), lowest to highest precedence:
+#   ~/.bmad/custom/forge-idea.toml                 (global team)
+#   ~/.bmad/custom/forge-idea.user.toml            (global personal)
+#   {project-root}/_bmad/custom/forge-idea.toml        (project team)
+#   {project-root}/_bmad/custom/forge-idea.user.toml   (project personal)
 
 [workflow]
 
