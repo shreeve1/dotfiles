@@ -2,9 +2,11 @@
 #
 # Workflow customization surface for party-mode.
 #
-# Override files (not edited here):
-#   {project-root}/_bmad/custom/party-mode.toml         (team)
-#   {project-root}/_bmad/custom/party-mode.user.toml    (personal)
+# Override files (not edited here), lowest to highest precedence:
+#   ~/.bmad/custom/party-mode.toml                (global team)
+#   ~/.bmad/custom/party-mode.user.toml           (global personal)
+#   {project-root}/_bmad/custom/party-mode.toml         (project team)
+#   {project-root}/_bmad/custom/party-mode.user.toml    (project personal)
 
 [workflow]
 
