@@ -96,6 +96,17 @@ The end-to-end behaviour this ticket makes work, from the user's perspective —
 - [ ] Criterion 1
 - [ ] Criterion 2
 
+## Verification
+
+A single repo-correct runnable command that proves the ticket is done - not
+prose. Wrap it in single backticks inline (e.g. `uv run pytest
+path/to/test_thing.py -q`); chain multiple with the word and between inline
+commands. Do NOT use a fenced code block - only inline single-backtick
+commands are picked up by Symphony's auto-land gate (ADR-0042). Scope it to
+the ticket's own tests for an additive slice; use the full suite when the
+change is cross-cutting. Omit only when the ticket genuinely has no runnable
+check.
+
 ## Blocked by
 
 - A reference to each blocking ticket, or "None — can start immediately".
