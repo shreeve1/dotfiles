@@ -584,7 +584,7 @@ The net effect: a clean audit short-circuits the interview down to only the `cov
 - **Q3** — Add Bash guardrails? If yes, ask for patterns (default examples: `git commit --no-verify`, `git push --force`, `rm -rf /`). Lead = "yes (Recommended)".
 - **Q4** — Validate JSON / Python / Node / Bash syntax on write (`validate-syntax.sh`, exit-2 on parse errors)? Lead = "yes (Recommended)".
 - **Q5** — Add lint-on-edit (ESLint for JS/TS, Ruff for Python; exit-2 on errors)? Lead = "skip (Recommended)" — mid-refactor lint errors are common; blocking is invasive.
-- **Q6** — Protected-path safety (`block-path-access.sh`, cat 8)? Universal `.env*`-write + symlink-escape blocking is project-agnostic and safe globally. Lead = "writes only (Recommended)"; offer "writes + reads" and "skip". (Project checks (cat 4) and scenario checks (cat 5) are NOT offered in global mode — they need project-specific commands.)
+- **Q6** — Protected-path safety (`block-path-access.sh`, cat 8)? Block universal `.env*`/key writes globally, but allow ordinary writes outside the current project (agents may need `/tmp`, sibling repos, or user-requested absolute paths). Lead = "writes only (Recommended)"; offer "writes + reads" and "skip". Symlink/traversal escape blocking remains project-scope only. (Project checks (cat 4) and scenario checks (cat 5) are NOT offered in global mode — they need project-specific commands.)
 
 **Project mode** — profile-driven interview. Every question must reference the `PROFILE` block produced in Step 2.5, by name. Generic "format on edit?" is forbidden — frame it as "Detected `ruff format` (pyproject `[tool.ruff]`). Run it on Edit/Write/MultiEdit?".
 
@@ -811,7 +811,7 @@ done
 exit 0
 ```
 
-**`block-path-access.sh`** — PreToolUse, registered on BOTH matcher `Edit|Write|MultiEdit` AND matcher `Read` (cat 8). Branches on `tool_name` from stdin. Fail-closed (exit 2) on protected-path writes/reads and on writes whose realpath escapes the project root. Write globs and read globs substituted at write time as one quoted entry per line; **drop the `Read` registration entirely if the user chose "writes only"** (don't write an inert read arm):
+**`block-path-access.sh`** — PreToolUse, registered on BOTH matcher `Edit|Write|MultiEdit` AND matcher `Read` (cat 8). Branches on `tool_name` from stdin. Fail-closed (exit 2) on protected-path writes/reads. In **project scope only**, also fail-closed on writes whose realpath escapes the project root; in **global scope**, ordinary out-of-tree writes must pass. Write globs and read globs substituted at write time as one quoted entry per line; **drop the `Read` registration entirely if the user chose "writes only"** (don't write an inert read arm). When generating globally, omit `root`, `rootreal`, `resolve_real`, `real`, `rel`, and the outside-root `case`; match protected globs against `base` only. When generating for a project, retain the full template below:
 
 ```bash
 #!/usr/bin/env bash
@@ -1195,7 +1195,7 @@ Command-path conventions:
    fi
    ```
 
-4a. **Path-block dry check** — if `block-path-access.sh` was generated, confirm it blocks a protected write and a symlink escape, and PASSES a benign write. Never touch a real secret; use temp paths:
+4a. **Path-block dry check** — if `block-path-access.sh` was generated, confirm it blocks a protected write and PASSES a benign write. Project scope must block a symlink escape; global scope must allow it. Never touch a real secret; use temp paths:
 
    ```bash
    s="$HOOK_DIR/block-path-access.sh"
@@ -1204,8 +1204,13 @@ Command-path conventions:
      run() { CLAUDE_PROJECT_DIR="$tmp" bash "$s"; }   # feed stdin per case
      # protected write → expect exit 2
      printf '{"tool_name":"Write","tool_input":{"file_path":"%s/.env"}}' "$tmp" | run; [ $? -eq 2 ] || echo "warn: .env write not blocked"
-     # symlink escape → expect exit 2
-     printf '{"tool_name":"Write","tool_input":{"file_path":"%s/escape/x"}}' "$tmp" | run; [ $? -eq 2 ] || echo "warn: symlink escape not blocked"
+     # symlink escape → project blocks; global allows out-of-tree writes
+     printf '{"tool_name":"Write","tool_input":{"file_path":"%s/escape/x"}}' "$tmp" | run; rc=$?
+     if [ "$SCOPE_LABEL" = "project" ]; then
+       [ "$rc" -eq 2 ] || echo "warn: project symlink escape not blocked"
+     else
+       [ "$rc" -eq 0 ] || echo "warn: global out-of-tree write wrongly blocked"
+     fi
      # benign write → expect exit 0
      printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src.txt"}}' "$tmp" | run; [ $? -eq 0 ] || echo "warn: benign write wrongly blocked"
      # template variant → expect exit 0
@@ -1319,7 +1324,7 @@ Command-path conventions:
 - **Timing/posture vocabulary.** Every sensor is `afterWrite` (PostToolUse), `beforeGit` (PreToolUse Bash git-detector), `agentEnd` (Stop, advisory only), or `manual` (reminder text). `blocking` is honored at `afterWrite`/`beforeGit`; `agentEnd` always degrades to advisory because Stop cannot hard-stop the model. The global Pi `harness-gates` adapter uses the same vocabulary so both harnesses stay aligned (issue #030 covers the adapter itself).
 - **Web research is advisory, never authoritative.** Step 2.7 dispatches one `web-search-researcher` agent (project mode only, on by default, `--no-web` to skip) to recommend posture/timing for the detected stack. Local repo evidence still decides which commands are offered — research that names a tool the repo lacks is dropped, and where research and the skill's conservative defaults disagree the user is shown both. The skill works fully with `--no-web`; research is a lead-tuning input, not a dependency.
 - **Gap-driven coverage.** Evaluate all 10 categories even when absent (cat 4 splits into 4a + 4b). Categories with no hook get a one-line skip reason in the Step 5 summary — silent omission reads as "covered". The four gap-driven additions over the original per-file model are: changed-files static (cat 4a), project checks (cat 4b), scenario checks (cat 5), protected paths (cat 8), git preflight (cat 9).
-- **Protected-path safety (`block-path-access.sh`).** Blocks `Edit|Write|MultiEdit` to `.env*` (excluding `.example`/`.sample`/`.template`), key/secret globs, and inferred vendored/generated paths, plus any write whose realpath escapes the project root (symlink-escape hardening via deepest-existing-ancestor resolution). Optionally blocks `Read` of secret globs. Universal `.env`-write protection is the recommended default. Distinct from the **command** guardrail (`block-bash-pattern.sh`) — one guards paths, the other guards Bash strings.
+- **Protected-path safety (`block-path-access.sh`).** Blocks `Edit|Write|MultiEdit` to `.env*` (excluding `.example`/`.sample`/`.template`) and key/secret globs; project scope can also include inferred vendored/generated paths and blocks writes whose realpath escapes the project root (symlink-escape hardening via deepest-existing-ancestor resolution). Global scope deliberately allows ordinary writes outside cwd while retaining secret protection. Optionally blocks `Read` of secret globs. Distinct from the **command** guardrail (`block-bash-pattern.sh`) — one guards paths, the other guards Bash strings.
 - **Project checks run pre-git, not per-edit (`pre-git-checks.sh`).** Typecheck/build/test are project-level and too slow for every Edit, and Claude has no per-turn touched-file memory, so they are gated to `git commit`/`git push` where they run once and can hard-block a bad commit. Recommend a clean baseline before enabling a component as blocking — a red baseline blocks every commit. The skill verifies this for you: Step 2.5's **baseline verification + runner resolution** dry-runs each candidate, resolves the correct runner (e.g. bare `pytest`/`python3 -m pytest` → `uv run pytest` when `uv.lock` is present and the system interpreter lacks deps), offers to install missing deps through the build tool (never the system interpreter), and records the `VERIFIED_CMD` the gate actually uses. Compose fastest-first (typecheck → build → test), each time-boxed (`TIMEOUT_S`, default 180s) so a hung check cannot wedge the commit. **Coverage limit:** the gate only sees `git commit`/`git push` run through the **Bash tool** — a commit made another way (MCP git server, IDE, a pre-existing alias that doesn't match the regex) is not caught. It is a strong default, not an airtight gate; CI remains the backstop.
 - **Scenario/e2e checks default to manual.** Expensive suites surface as a reminder line, never auto-run on every commit. Promote to `beforeGit` only when the suite is bounded and CI already treats it as normal pre-merge validation.
 - **Stop hook can run a real check now.** When opted in (Q11), `stop-quality-check.sh` runs the cheapest project command (gated on a dirty working tree) and folds failures into the re-injected self-review prompt — advisory, since `agentEnd` cannot block. Default still skip: per-Stop cost.

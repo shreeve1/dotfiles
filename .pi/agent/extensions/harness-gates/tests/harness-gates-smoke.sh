@@ -17,9 +17,14 @@
 set -u
 script_dir=$(cd "$(dirname "$0")" && pwd)
 adapter="$script_dir/../index.js"
+global_path_hook="$script_dir/../../../../../.claude/hooks/block-path-access.sh"
 
 [ -f "$adapter" ] || {
 	echo "FAIL: adapter not found at $adapter" >&2
+	exit 1
+}
+[ -f "$global_path_hook" ] || {
+	echo "FAIL: global path hook not found at $global_path_hook" >&2
 	exit 1
 }
 
@@ -174,6 +179,26 @@ esac
 out=$(node "$driver" path '{"tool_name":"Write","tool_input":{"file_path":"$repo/src.txt"}}')
 [ "$out" = "undefined" ] || fail "case 4: benign path wrongly blocked (got '$out')"
 ok "case 4 (pass-on-benign-path)"
+
+# The real global policy is shared by Claude and Pi: ordinary out-of-tree
+# writes pass, but secret writes remain blocked. Remove the project override
+# and copy the tracked global hook into an isolated HOME for this check.
+rm -f "$hooks_dir/block-path-access.sh"
+global_home=$(mktemp -d)
+outside=$(mktemp -d)
+mkdir -p "$global_home/.claude/hooks"
+cp "$global_path_hook" "$global_home/.claude/hooks/block-path-access.sh"
+payload=$(jq -nc --arg path "$outside/src.txt" '{tool_name:"Write",tool_input:{file_path:$path}}')
+out=$(HOME="$global_home" node "$driver" path "$payload")
+[ "$out" = "undefined" ] || fail "global out-of-tree write wrongly blocked (got '$out')"
+ok "global path gate allows out-of-tree write"
+payload=$(jq -nc --arg path "$outside/.env" '{tool_name:"Write",tool_input:{file_path:$path}}')
+out=$(HOME="$global_home" node "$driver" path "$payload")
+case "$out" in
+	*"\"block\":true"*) ok "global path gate retains secret protection" ;;
+	*) fail "global protected out-of-tree write not blocked (got '$out')" ;;
+esac
+rm -rf "$global_home" "$outside"
 
 # --- (d.5) Result gates: fail-open vs fail-closed distinction -----------
 # format-on-edit.sh and lint-on-edit.sh are fail-open (notification only,
