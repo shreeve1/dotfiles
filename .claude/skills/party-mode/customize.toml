@@ -1,10 +1,10 @@
 # DO NOT EDIT -- overwritten on every update.
 #
-# Workflow customization surface for bmad-party-mode.
+# Workflow customization surface for party-mode.
 #
 # Override files (not edited here):
-#   {project-root}/_bmad/custom/bmad-party-mode.toml         (team)
-#   {project-root}/_bmad/custom/bmad-party-mode.user.toml    (personal)
+#   {project-root}/_bmad/custom/party-mode.toml         (team)
+#   {project-root}/_bmad/custom/party-mode.user.toml    (personal)
 
 [workflow]
 

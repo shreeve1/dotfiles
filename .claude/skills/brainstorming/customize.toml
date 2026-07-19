@@ -1,10 +1,10 @@
 # DO NOT EDIT -- overwritten on every update.
 #
-# Workflow customization surface for bmad-brainstorming.
+# Workflow customization surface for brainstorming.
 #
 # Override files (not edited here):
-#   {project-root}/_bmad/custom/bmad-brainstorming.toml         (team)
-#   {project-root}/_bmad/custom/bmad-brainstorming.user.toml    (personal)
+#   {project-root}/_bmad/custom/brainstorming.toml         (team)
+#   {project-root}/_bmad/custom/brainstorming.user.toml    (personal)
 
 [workflow]
 

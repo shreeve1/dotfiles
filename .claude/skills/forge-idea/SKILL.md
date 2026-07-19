@@ -1,5 +1,5 @@
 ---
-name: bmad-forge-idea
+name: forge-idea
 description: Pressure-test an idea through persona-driven interrogation until it hardens, proves out, or dies cheaply. Use when the user says 'forge an idea', 'pressure-test this idea', 'stress-test my thinking', or 'harden this idea'.
 ---
 
@@ -84,7 +84,7 @@ If a BMad persona was already active when the forge started, keep that persona a
 
 Resolve the available persona pool once, as soon as the goal is known:
 `uv run {skill-root}/scripts/resolve_personas.py --project-root {project-root} --skill {skill-root}`
-The script returns installed BMad agents (`agents`), user-defined personas (`members`), and saved parties (`parties`). Parties may include a `scene`; some are open-cast. This gives you the same roster information as `bmad-party-mode` without invoking it.
+The script returns installed BMad agents (`agents`), user-defined personas (`members`), and saved parties (`parties`). Parties may include a `scene`; some are open-cast. This gives you the same roster information as `party-mode` without invoking it.
 
 Each turn uses two voices:
 - **One available persona** — choose an installed agent or user-defined persona whose expertise fits the current branch. Vary this voice every few turns; do not let one voice dominate. If the user names a specific persona, use it. If the user calls a saved party, use the whole party and its scene. If the user asks to go one-on-one, use only the requested persona. If no pool is available, generate this voice yourself.

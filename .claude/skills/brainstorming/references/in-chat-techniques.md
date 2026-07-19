@@ -5,7 +5,7 @@ Loaded only when the user won't use the composer page (no browser, headless, or 
 - **Facilitator Chosen (default)** — from the goal, your `{workflow.favorite_techniques}`, and the `categories` map, name a batch of 3–4. Confirm exact names with a targeted `list --category` on only the categories you're drawing from; never enumerate the library to choose.
 - **Browse** — send them to the composer page after all (`## Run a Session` in `SKILL.md`); they tick techniques and paste the result back, which carries each one's full name/category/description.
 - **Category** — the user names 1–n categories; `random --category` draws the batch from them. No listing needed.
-- **Inventive Flow** — invent at least 3 techniques, announce the order before the first, touch no script. Log each one's name + description so you can offer to save a keeper to `{workflow.additional_techniques}` (via `bmad-customize`) at wrap-up.
+- **Inventive Flow** — invent at least 3 techniques, announce the order before the first, touch no script. Log each one's name + description so you can offer at wrap-up to save a keeper by appending it to `{workflow.additional_techniques}` in `~/.bmad/custom/brainstorming.user.toml` (create the directory and file if missing; show the exact TOML and wait for explicit confirmation before writing).
 
 The library is large — never pull it whole into context. The only way in is the helper, always passing `--file {workflow.brain_methods}`. Subcommands of `uv run {skill-root}/scripts/brain.py --file {workflow.brain_methods}`:
 

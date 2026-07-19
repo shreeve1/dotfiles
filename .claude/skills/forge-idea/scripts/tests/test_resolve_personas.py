@@ -123,10 +123,10 @@ class TestOverrideMergeFallback(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             custom = Path(d) / "_bmad" / "custom"
             custom.mkdir(parents=True)
-            (custom / "bmad-party-mode.toml").write_text(
+            (custom / "party-mode.toml").write_text(
                 '[workflow]\ndefault_party = "a"\n'
                 '[[workflow.party_members]]\ncode = "x"\nname = "X"\n')
-            (custom / "bmad-party-mode.user.toml").write_text(
+            (custom / "party-mode.user.toml").write_text(
                 '[workflow]\ndefault_party = "b"\n'
                 '[[workflow.party_members]]\ncode = "y"\nname = "Y"\n')
             wf = rp.load_party_overrides(Path(d))

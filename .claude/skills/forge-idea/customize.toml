@@ -1,10 +1,10 @@
 # DO NOT EDIT -- overwritten on every update.
 #
-# Workflow customization surface for bmad-forge-idea.
+# Workflow customization surface for forge-idea.
 #
 # Override files (not edited here):
-#   {project-root}/_bmad/custom/bmad-forge-idea.toml        (team)
-#   {project-root}/_bmad/custom/bmad-forge-idea.user.toml   (personal)
+#   {project-root}/_bmad/custom/forge-idea.toml        (team)
+#   {project-root}/_bmad/custom/forge-idea.user.toml   (personal)
 
 [workflow]
 
