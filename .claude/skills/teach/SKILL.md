@@ -27,6 +27,10 @@ To learn at a deep level, the user needs three things:
 
 Before the `RESOURCES.md` is well-populated, your focus should be to find high-quality resources which will help the user acquire knowledge. Never trust your parametric knowledge.
 
+### Verify before you teach
+
+"Never trust your parametric knowledge" has teeth: before a lesson or reference document ships a factual claim — a definition, an algorithm, an API detail, a citation — ground it in a `RESOURCES.md` source and run an **independent verify (see `../_shared/verify-claims.md`)** on the load-bearing claims, batched into one call, checked against those cited sources rather than your memory. A lesson that teaches a wrong fact is worse than no lesson, because the user learns it as true. Correct any FALSE claim before the lesson reaches the user; if a claim can't be grounded in a trusted source, don't teach it as fact — flag it as uncertain or go find a source first.
+
 Some topics may require more skills than knowledge. Learning more about theoretical physics might be more knowledge-based. For yoga, more skills-based.
 
 ## Lessons
