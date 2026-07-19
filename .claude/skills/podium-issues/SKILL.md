@@ -10,7 +10,7 @@ Turn an approved plan into Podium issues directly. This replaces the old
 
 ## When to use
 
-Use after `grill-me` / `dev-plan` when the operator wants the plan queued in
+Use after `grill-with-docs` / `dev-plan` when the operator wants the plan queued in
 Podium instead of Ralph's local kanban.
 
 ## Prerequisites
