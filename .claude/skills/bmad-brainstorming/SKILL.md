@@ -18,11 +18,12 @@ The session runs in one of three stances, chosen by the user — set explicitly 
 
 ## On Activation
 
-1. Resolve customization: `uv run {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, use a subagent to read `{skill-root}/customize.toml` directly with defaults.
+1. Resolve customization: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, use a subagent to read `{skill-root}/customize.toml` directly with defaults.
 2. Run each `{workflow.activation_steps_prepend}` entry. Treat each `{workflow.persistent_facts}` entry as foundational context (`file:`-prefixed entries are paths/globs under `{project-root}` — load their contents; others are facts verbatim).
-3. Load `{project-root}/_bmad/core/config.yaml` (and `config.user.yaml` if present); resolve `{user_name}`, `{communication_language}`, `{document_output_language}`, `{output_folder}`, `{project_name}`, `{date}`. Missing → neutral defaults; never block.
-4. **If launched headless** (a machine signal, not a human asking for output — `references/headless.md` lists them): load `references/headless.md` and follow it for the whole run. It is the *only* context where you generate ideas yourself; never load it otherwise.
-5. **Otherwise (interactive):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `bmad-party-mode` and `bmad-advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
+3. If `{project-root}/_bmad/core/config.yaml` exists, read it for `{user_name}`, `{communication_language}`, and `{output_folder}`; otherwise use neutral defaults (no name, English, and `{output_folder}` = `{project-root}/.bmad-output`). Never block.
+4. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs.
+5. **If launched headless** (a machine signal, not a human asking for output — `references/headless.md` lists them): load `references/headless.md` and follow it for the whole run. It is the *only* context where you generate ideas yourself; never load it otherwise.
+6. **Otherwise (interactive):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `bmad-party-mode` and `bmad-advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
 
 Run each `{workflow.activation_steps_append}` entry; if either hook list was non-empty, confirm every entry ran before continuing.
 
@@ -36,9 +37,9 @@ These fight your defaults, in every mode; hold them deliberately. The stance you
 
 **The memlog** is the session's memory: the single source every output builds from, and the file a resume reloads. Whatever isn't in it is gone. Log every idea, decision, question, and bit of user direction — anything you'd regret losing if the window closed — one line each, the gist in the user's meaning, in time order; never edit or reorder. Skip your prompts and small talk. All writes to memlog are atomic and use the script `memlog.py` invoked as follows:
 
-- `uv run {project-root}/_bmad/scripts/memlog.py init --workspace {doc_workspace} --field topic="<topic>" --field goal="<goal>" --field mode="<facilitator|partner|autonomous>"` — create it once topic, goal, and stance are known.
-- `uv run {project-root}/_bmad/scripts/memlog.py append --workspace {doc_workspace} --type <kind> --text "<one-line gist>"` — log one entry. `--type` ∈ `idea`/`insight`/`question`/`decision`/`direction`/`technique` (a switch: `--text "started <name>"`); omit for a plain note. Add `--by user`/`--by coach` to mark authorship — **required in Creative Partner mode** (renders `(idea by user)`); skip it otherwise.
-- `uv run {project-root}/_bmad/scripts/memlog.py set --workspace {doc_workspace} --key status --value complete` — flip status at wrap-up.
+- `uv run {skill-root}/../_shared/scripts/memlog.py init --workspace {doc_workspace} --field topic="<topic>" --field goal="<goal>" --field mode="<facilitator|partner|autonomous>"` — create it once topic, goal, and stance are known.
+- `uv run {skill-root}/../_shared/scripts/memlog.py append --workspace {doc_workspace} --type <kind> --text "<one-line gist>"` — log one entry. `--type` ∈ `idea`/`insight`/`question`/`decision`/`direction`/`technique` (a switch: `--text "started <name>"`); omit for a plain note. Add `--by user`/`--by coach` to mark authorship — **required in Creative Partner mode** (renders `(idea by user)`); skip it otherwise.
+- `uv run {skill-root}/../_shared/scripts/memlog.py set --workspace {doc_workspace} --key status --value complete` — flip status at wrap-up.
 
 ## Run a Session
 
