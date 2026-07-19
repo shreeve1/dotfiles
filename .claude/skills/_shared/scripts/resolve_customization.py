@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Resolve customization for a BMad skill using three-layer TOML merge.
+Resolve customization for a BMad skill using five-layer TOML merge.
 
-Reads customization from three layers (highest priority first):
-  1. {project-root}/_bmad/custom/{name}.user.toml  (personal, gitignored)
-  2. {project-root}/_bmad/custom/{name}.toml        (team/org, committed)
-  3. {skill-root}/customize.toml                    (skill defaults)
+Reads customization from five layers (highest priority first):
+  1. {project-root}/_bmad/custom/{name}.user.toml  (project personal)
+  2. {project-root}/_bmad/custom/{name}.toml        (project team/org)
+  3. ~/.bmad/custom/{name}.user.toml                (global personal)
+  4. ~/.bmad/custom/{name}.toml                     (global team/org)
+  5. {skill-root}/customize.toml                    (skill defaults)
 
 Skill name is derived from the basename of the skill directory.
 
@@ -189,7 +191,7 @@ def write_json_stdout(output):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Resolve customization for a BMad skill using three-layer TOML merge.",
+        description="Resolve customization for a BMad skill using five-layer TOML merge.",
         add_help=True,
     )
     parser.add_argument(
@@ -207,6 +209,9 @@ def main():
     defaults_path = skill_dir / "customize.toml"
 
     defaults = load_toml(defaults_path, required=True)
+    global_dir = Path.home() / ".bmad" / "custom"
+    global_team = load_toml(global_dir / f"{skill_name}.toml")
+    global_user = load_toml(global_dir / f"{skill_name}.user.toml")
 
     # Prefer the project that contains this skill. Only fall back to cwd if
     # the skill isn't inside a recognizable project tree (unusual but possible
@@ -221,7 +226,9 @@ def main():
         team = load_toml(custom_dir / f"{skill_name}.toml")
         user = load_toml(custom_dir / f"{skill_name}.user.toml")
 
-    merged = deep_merge(defaults, team)
+    merged = deep_merge(defaults, global_team)
+    merged = deep_merge(merged, global_user)
+    merged = deep_merge(merged, team)
     merged = deep_merge(merged, user)
 
     if args.key:

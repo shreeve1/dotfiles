@@ -209,7 +209,7 @@ def group_detail(g, collective, index):
 def main():
     ap = argparse.ArgumentParser(description="Resolve the party-mode roster, lazily.")
     ap.add_argument("--project-root", required=True)
-    ap.add_argument("--skill", required=True, help="Path to the bmad-party-mode skill dir")
+    ap.add_argument("--skill", required=True, help="Path to the party-mode skill dir")
     ap.add_argument("--party", help="Resolve full detail for this group id")
     ap.add_argument("--list-groups", action="store_true", help="Group names only")
     args = ap.parse_args()

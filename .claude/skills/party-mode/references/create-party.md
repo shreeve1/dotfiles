@@ -1,10 +1,10 @@
 # Creating a Party
 
-A guided authoring flow that turns an idea — a themed cast, a one-off persona, or a pile of raw profile data — into custom party members and groups, written to the user's customize.toml override. The output is configuration; `bmad-customize` does the actual write.
+A guided authoring flow that turns an idea — a themed cast, a one-off persona, or a pile of raw profile data — into custom party members and groups, written to the user's customize.toml override. The output is configuration; show it and write it only after confirmation.
 
 ## What you're producing
 
-Sparse `[workflow]` override entries for `bmad-party-mode`:
+Sparse `[workflow]` override entries for `party-mode`:
 
 - `[[workflow.party_members]]` — one per persona: `code`, `name`, `icon`, `title`, `persona`, optional `capabilities`, optional `model`.
 - `[[workflow.party_groups]]` — when the personas form a named room: `id`, `name`, an optional freeform `scene`, `members` (codes), and `memory` (`true`/`false`). `members` is optional: leave it off for an open-cast room whose `scene` names a pool the model casts from on the fly. `memory` is whether the group remembers across sessions; ask the user when they don't say, default `false`.
@@ -30,11 +30,11 @@ Ask which they're after if it isn't obvious, then proceed.
 
 ## Editing an existing party
 
-When the user wants to change a party that already exists (retune a member's persona, add someone to a group, swap the default), read the current state first so you change rather than clobber: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow` returns the merged `party_members`, `party_groups`, and `default_party`. Show the member or group being touched, capture only the delta with the user, and hand that sparse change to `bmad-customize` — it replaces a `party_members`/`party_groups` entry whose `code`/`id` matches and appends the rest, so an edit is just the changed entry, never a full rewrite.
+When the user wants to change a party that already exists (retune a member's persona, add someone to a group, swap the default), read the current state first so you change rather than clobber: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow` returns the merged `party_members`, `party_groups`, and `default_party`. Show the member or group being touched, capture only the delta with the user, and merge that sparse change into the override as described below — an edit is just the changed entry, never a full rewrite.
 
 ## Keeping new faces from a session
 
-At the end of a remembered party, the room offers to keep the faces that showed up but aren't in its roster — characters cast from an open-cast scene, or members the user added on the fly. They're already drafted and voiced, so don't re-interrogate: capture each as they played (`code`, `name`, `icon`, a one-line `title`, and a `persona` drawn from how they came across), then add them as `party_members`. For a fixed-roster group, also list their codes in the group's `members` so they return as regulars. For an open-cast room, leave `members` empty — listing any member turns the room into a fixed roster and kills its on-the-fly casting; the saved personas now live in the collective, so the scene still names them and they can return without locking the room down. Hand that sparse delta to `bmad-customize` — for a built-in party with no override yet it creates one; for an existing override it merges the new members in.
+At the end of a remembered party, the room offers to keep the faces that showed up but aren't in its roster — characters cast from an open-cast scene, or members the user added on the fly. They're already drafted and voiced, so don't re-interrogate: capture each as they played (`code`, `name`, `icon`, a one-line `title`, and a `persona` drawn from how they came across), then add them as `party_members`. For a fixed-roster group, also list their codes in the group's `members` so they return as regulars. For an open-cast room, leave `members` empty — listing any member turns the room into a fixed roster and kills its on-the-fly casting; the saved personas now live in the collective, so the scene still names them and they can return without locking the room down. Write that sparse delta through the override process below — create the override if needed, otherwise merge the new members in.
 
 ## Distill from source data (when provided)
 
@@ -61,10 +61,10 @@ Keep pushing for specificity. "Skeptical CFO" is a placeholder; "won't approve a
 - Ask whether **this party should remember across sessions** (unless the user already said). Yes → `memory = true` on the group; no → `memory = false`. One-offs with no group skip this — memory is a group setting.
 - Ask whether **this group should be the default party going forward**. Yes → set `default_party` to the group's id. One-offs with no group can't be a default; skip the ask.
 
-## Write via bmad-customize
+## Write the override
 
 **First, check for code collisions.** A custom member whose `code` matches an installed agent silently *overrides* that agent in the collective. Before composing, resolve the collective once — `uv run {skill-root}/scripts/resolve_party.py --project-root {project-root} --skill {skill-root}` — and check each new member's `code` against the returned members. On a collision, surface it ("`analyst` would override the installed Analyst — intended, or pick a different code?") and let the user confirm or rename. One check, not a gate.
 
-Compose the sparse override and hand it to `bmad-customize` to place, confirm, and write — target skill `bmad-party-mode`, `[workflow]` surface. Default to the **user** override (`bmad-party-mode.user.toml`); offer the **team** file when the party is meant to be shared. Hand it the exact entries: the `party_members` tables, any `party_groups` table (including its `memory` flag), and `default_party` if the user opted in. Keep it sparse — only the new entries, never a copy of the base customize.toml. `bmad-customize` shows the TOML, waits for an explicit yes, writes, and verifies the merge; don't write the file yourself.
+Compose the sparse `[workflow]` override, show the exact TOML, and wait for an explicit yes before writing it. Default to `~/.bmad/custom/party-mode.user.toml`, creating the directory and file when missing; use `~/.bmad/custom/party-mode.toml` only as the shared-across-a-team alternative. If the file exists, read it first and merge `party_members` by `code` and `party_groups` by `id`: replace matches, append new entries, preserve everything else, and never clobber the whole file. Include only the entries being changed, any supplied scalar fields such as `default_party`, and no copy of the base customize.toml.
 
 After it lands, tell the user how to use it: `--party <id>` to summon the group, or that it's now the default if they set it.

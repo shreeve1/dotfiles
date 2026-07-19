@@ -5,7 +5,7 @@
 """Resolve the personas and parties the forge can bring into the room.
 
 The forge cross-examines witnesses: the installed BMAD agents, plus any
-custom personas and party groups the user has authored for `bmad-party-mode`.
+custom personas and party groups the user has authored for `party-mode`.
 This surfaces all of them in one shot so the orchestrator never has to ask
 "who's available?" — it just intermixes whoever fits the branch, alongside
 any persona the user names on the fly.
@@ -21,7 +21,7 @@ What it returns (JSON, stdout):
 
 Discovery is best-effort and never blocks the forge. The installed roster
 comes from the core resolver; custom personas/parties come from
-`bmad-party-mode`'s resolved customization when that skill is found beside
+`party-mode`'s resolved customization when that skill is found beside
 this one, else from the user's override TOMLs read directly. Anything that
 can't be resolved is simply omitted and flagged, never fatal.
 
@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover - guarded for <3.11
     sys.stderr.write("error: Python 3.11+ is required (stdlib `tomllib`).\n")
     sys.exit(3)
 
-PARTY_SKILL = "bmad-party-mode"
+PARTY_SKILL = "party-mode"
 
 
 def _run_json(cmd):
@@ -89,7 +89,7 @@ def load_agents(project_root: Path):
 
 
 def find_party_skill(project_root: Path, skill_root: Path):
-    """Locate the installed bmad-party-mode skill dir, or None.
+    """Locate the installed party-mode skill dir, or None.
 
     Skills install as siblings, so the party skill is almost always next to
     this one. A couple of common install roots cover the rest.
@@ -106,7 +106,7 @@ def find_party_skill(project_root: Path, skill_root: Path):
 
 
 def load_party_workflow(project_root: Path, party_skill: Path):
-    """Merged [workflow] table for bmad-party-mode (base + user overrides)."""
+    """Merged [workflow] table for party-mode (base + user overrides)."""
     resolver = Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_customization.py"
     data = _run_json([sys.executable, str(resolver), "--skill", str(party_skill), "--key", "workflow"])
     if data is not None and isinstance(data.get("workflow"), dict):
@@ -119,20 +119,47 @@ def load_party_workflow(project_root: Path, party_skill: Path):
 def load_party_overrides(project_root: Path):
     """Custom personas/parties when party-mode itself isn't installed.
 
-    Reads only the user's override TOMLs (team then personal, personal wins on
-    scalars). No base roster exists in this path, so a shallow merge is enough.
+    Reads the user's override TOMLs from the global dir (~/.bmad/custom) and the
+    project dir ({project-root}/_bmad/custom), team then personal, project over
+    global. No base roster exists in this path, so a shallow merge is enough.
     """
-    custom = project_root / "_bmad" / "custom"
-    team = _load_toml(custom / f"{PARTY_SKILL}.toml").get("workflow", {})
-    user = _load_toml(custom / f"{PARTY_SKILL}.user.toml").get("workflow", {})
-    team = team if isinstance(team, dict) else {}
-    user = user if isinstance(user, dict) else {}
-    merged = dict(team)
-    for key, val in user.items():
-        if isinstance(val, list) and isinstance(merged.get(key), list):
-            merged[key] = merged[key] + val
-        else:
-            merged[key] = val
+    def _wf(path):
+        wf = _load_toml(path).get("workflow", {})
+        return wf if isinstance(wf, dict) else {}
+
+    global_custom = Path.home() / ".bmad" / "custom"
+    project_custom = project_root / "_bmad" / "custom"
+    layers = [
+        _wf(global_custom / f"{PARTY_SKILL}.toml"),
+        _wf(global_custom / f"{PARTY_SKILL}.user.toml"),
+        _wf(project_custom / f"{PARTY_SKILL}.toml"),
+        _wf(project_custom / f"{PARTY_SKILL}.user.toml"),
+    ]
+    def _merge_list(base, override):
+        # Merge keyed tables (party_members by code, party_groups by id) so a
+        # later layer replaces a matching entry instead of duplicating it.
+        key = next((k for k in ("code", "id")
+                    if all(isinstance(i, dict) and i.get(k) is not None
+                           for i in base + override)), None)
+        if key is None:
+            return base + override
+        out, idx = [], {}
+        for item in base + override:
+            k = item[key]
+            if k in idx:
+                out[idx[k]] = item
+            else:
+                idx[k] = len(out)
+                out.append(item)
+        return out
+
+    merged = {}
+    for layer in layers:
+        for key, val in layer.items():
+            if isinstance(val, list) and isinstance(merged.get(key), list):
+                merged[key] = _merge_list(merged[key], val)
+            else:
+                merged[key] = val
     return merged
 
 
@@ -231,7 +258,7 @@ def resolve_parties(groups, pool, index):
 def main():
     ap = argparse.ArgumentParser(description="Resolve forge personas and parties.")
     ap.add_argument("--project-root", required=True)
-    ap.add_argument("--skill", required=True, help="Path to the bmad-forge-idea skill dir")
+    ap.add_argument("--skill", required=True, help="Path to the forge-idea skill dir")
     args = ap.parse_args()
 
     project_root = Path(args.project_root).resolve()

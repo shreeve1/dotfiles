@@ -29,7 +29,7 @@ The test for every entry: *would this color a future session, or make a callback
 
 ## New faces
 
-When a character shows up who isn't in the party's roster — cast from an open-cast scene, or one the user adds on the fly — name them in the entry that captures the moment ("<name> turned up and …") so a recurring face can return next session. At wrap-up these are the faces the room offers to keep, saved into the party's roster through `references/create-party.md` (which writes via `bmad-customize`). Until saved they live only in the memlog, and the room re-conjures them from there.
+When a character shows up who isn't in the party's roster — cast from an open-cast scene, or one the user adds on the fly — name them in the entry that captures the moment ("<name> turned up and …") so a recurring face can return next session. At wrap-up these are the faces the room offers to keep, saved into the party's roster through the confirmed override write in `references/create-party.md`. Until saved they live only in the memlog, and the room re-conjures them from there.
 
 ## Write it
 
