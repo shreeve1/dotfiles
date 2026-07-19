@@ -47,6 +47,7 @@ Run from the repo root:
 
 ```bash
 pi -p --no-session --no-skills --no-context-files \
+  --no-extensions --tools read,grep,find,ls \
   --model deepseek/deepseek-v4-pro \
   "You are fact-checking claims against ground truth. For each claim, read the
    relevant files/sources and reply on one line: VERIFIED | FALSE | UNSURE,
@@ -58,6 +59,14 @@ pi -p --no-session --no-skills --no-context-files \
 
 Notes:
 
+- `--no-extensions --tools read,grep,find,ls` are **mandatory** and load-bearing:
+  they confine the checker to read-only file access. The three `--no-*` flags
+  below do **not** restrict tools — they only disable persistence, skills, and
+  context files, leaving built-in `bash` available. Without the tool allowlist a
+  checker has been observed to run the repo's own commands (e.g. a Playwright
+  suite that spins up API/Next.js servers), blowing past the verifier timeout
+  and mutating the worktree. The allowlist is what makes the check a *read-only
+  second opinion* rather than an actor.
 - `--no-skills` is mandatory: it stops the checker reloading this or any other
   skill and recursing.
 - `--no-session --no-context-files` keep the checker grounded only in the files
