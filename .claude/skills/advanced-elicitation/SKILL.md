@@ -35,13 +35,13 @@ When invoked from another prompt or process:
 
 ### Step 1: Method Registry Loading
 
-**Action:** Load `./methods.csv` for elicitation methods. If party-mode may participate, resolve the agent roster via:
+**Action:** Load `./methods.csv` for elicitation methods. Optionally — only when a full BMAD install is present (a `{project-root}/_bmad/` dir exists) and party-mode may participate — resolve the agent roster via:
 
 ```bash
 python3 {skill-root}/../_shared/scripts/resolve_config.py --project-root {project-root} --key agents
 ```
 
-The resolver merges four layers in order: `_bmad/config.toml` (installer base, team-scoped), `_bmad/config.user.toml` (installer base, user-scoped), `_bmad/custom/config.toml` (team overrides), and `_bmad/custom/config.user.toml` (personal overrides). Each entry under `agents` is keyed by the agent's `code` and carries `name`, `title`, `icon`, `description`, `module`, and `team`.
+This is best-effort: if there is no `_bmad/` install the command exits non-zero (missing base config) — that is expected, so just skip the roster and carry on with the methods alone; never block. When it succeeds, the resolver merges four layers in order: `_bmad/config.toml` (installer base, team-scoped), `_bmad/config.user.toml` (installer base, user-scoped), `_bmad/custom/config.toml` (team overrides), and `_bmad/custom/config.user.toml` (personal overrides). Each entry under `agents` is keyed by the agent's `code` and carries `name`, `title`, `icon`, `description`, `module`, and `team`.
 
 #### CSV Structure
 
