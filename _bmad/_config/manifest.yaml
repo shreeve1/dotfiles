@@ -10,14 +10,5 @@ modules:
     source: built-in
     npmPackage: null
     repoUrl: null
-  - name: bmb
-    version: v2.1.0
-    installDate: 2026-07-05T00:23:47.321Z
-    lastUpdated: 2026-07-05T00:23:47.374Z
-    source: external
-    npmPackage: bmad-builder
-    repoUrl: https://github.com/bmad-code-org/bmad-builder
-    channel: stable
-    sha: d54981a8ba3b990148256455ccf4e6c1cb4918f0
 ides:
   - claude-code
