@@ -75,8 +75,8 @@ The two surfaces compose without conflict — one machine, many repos:
 
 Placement heuristic when picking `recommended_scope` (or advising the apply interview):
 
-- **global** — gates that are safe and correct in *every* repo: `block-bash-pattern` (destructive-command guard), `block-path-access` (`.env`/secret/symlink-escape), `format-on-edit`, `stop-self-review`. Tool-based gates still degrade safely globally because every script skip-arms when its tool is absent (a Python gate is a no-op in a Go repo — it never blocks spuriously).
-- **project** — gates bound to a repo's own commands or stack conventions: `pre-git-checks` (project build/test/typecheck commands) and, when a repo needs a posture different from the global default, `staged-static-check` / `lint-on-edit` / `validate-syntax`. A project copy overrides the global of the same name.
+- **global** — gates that are safe and correct in *every* repo: `block-bash-pattern` (destructive-command guard), `block-path-access` (`.env`/secret protection, while allowing ordinary out-of-tree writes), `format-on-edit`, `stop-self-review`. Tool-based gates still degrade safely globally because every script skip-arms when its tool is absent (a Python gate is a no-op in a Go repo — it never blocks spuriously).
+- **project** — gates bound to a repo's own commands or stack conventions: `pre-git-checks` (project build/test/typecheck commands), symlink/traversal escape blocking, and, when a repo needs a posture different from the global default, `staged-static-check` / `lint-on-edit` / `validate-syntax`. A project copy overrides the global of the same name.
 
 To mix layers, run `harness-apply` once per scope (e.g. a universal set at `global`, then stack-specific gates per repo at `project`).
 
