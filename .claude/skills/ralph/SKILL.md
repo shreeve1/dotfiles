@@ -442,7 +442,7 @@ Immediately stop and escalate if:
 ## Full workflow context
 
 ```
-/grill-me → /to-prd → /to-issues → /kanban (board view) → Ralph (per-issue fresh-session loop)
+/grill-with-docs → /to-prd → /to-issues → /kanban (board view) → Ralph (per-issue fresh-session loop)
 ```
 
 `/to-issues` guarantees every slice is independently buildable and has an automated verification command. Ralph (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.
