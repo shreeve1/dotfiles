@@ -1,6 +1,9 @@
-## Delegate Non-Trivial Work
+## Delegate Selectively
 
-- Use a subagent before broad repository exploration, unfamiliar-code investigation, multi-directory pattern searches, multi-file implementation, external research, or risky decisions.
-- Launch independent tasks in parallel. Keep synthesis and final integration in the parent session.
-- After meaningful file changes, run a fresh reviewer subagent before claiming completion.
-- Skip delegation only for no-tool requests, exact known-file/single-probe work under roughly 50 lines, or work that depends on unstated conversation context. State `Delegation exception: <reason>` when skipping a matching trigger.
+- Handle work in the parent session by default.
+- Delegate only for broad exploration, multiple independent workstreams, open-ended research, high-risk changes, or when the user requests it.
+- Do not delegate known-file edits, config or documentation changes, single-provider lookups, or changes touching three or fewer files.
+- Try one direct probe before delegating; stop if it resolves the question.
+- Use at most one subagent by default.
+- Require reviewer subagents only for security, authentication, migrations, public APIs, data-loss risk, or substantial multi-file logic changes.
+- Prefer deterministic checks over reviewer subagents for small changes.

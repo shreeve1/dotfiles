@@ -48,16 +48,7 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
-## 4. Delegate Non-Trivial Work
-
-**Keep broad work and independent verification out of the primary context.**
-
-- Use a subagent before broad repository exploration, unfamiliar-code investigation, multi-directory pattern searches, multi-file implementation, external research, or risky decisions.
-- Launch independent tasks in parallel. The primary agent owns synthesis and final integration.
-- After meaningful file changes, run a fresh reviewer subagent before claiming completion.
-- Skip delegation only for no-tool requests, exact known-file/single-probe work under roughly 50 lines, or work that depends on unstated conversation context. State `Delegation exception: <reason>` when skipping a matching trigger.
-
-## 5. Goal-Driven Execution
+## 4. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 
