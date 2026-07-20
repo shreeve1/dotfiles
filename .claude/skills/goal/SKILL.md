@@ -94,6 +94,7 @@ Trigger script: `scripts/verify.sh <goal_dir>` writes the verdict to `<goal_dir>
 
 **Done-gate enforcement (the work agent MUST follow):**
 
+0. If `GOAL.md` has `Validation is read-only: no`, the verifier is disabled (see [workflows/set.md](workflows/set.md) §3a): do NOT run `verify.sh`. Instead require explicit user confirmation of the stopping condition, log a `user-confirmed` VERIFY entry, then set `Status: done`. Skip steps 1–5.
 1. Run `scripts/verify.sh "$GOAL_DIR"`. Check exit code.
 2. If exit != 0 → retry once with doubled timeout; if still fails, log `verifier-failed`, set `Status: blocked`.
 3. If exit == 0 → read `.verify-last.json`. Require ALL of: `verdict == "done"`, `goal_hash` matches current sha256 of `GOAL.md`, `timestamp` newer than last `PROGRESS.md` attempt entry, `validation_rerun.exit_code == 0`, `injection_flags` empty.
