@@ -38,8 +38,8 @@ Verify entry format (written by work.md §7 after invoking the verifier; never w
 
 ## <YYYY-MM-DD HH:MM> — VERIFY
 
-**Verdict:** <done | not-done | unclear>
-**Verifier model:** <provider/model from .verify-last.json>
+**Verdict:** <done | not-done | unclear | user-confirmed>  <!-- user-confirmed: verifier disabled because Validation is read-only: no; user explicitly confirmed the stopping condition -->
+**Verifier model:** <provider/model from .verify-last.json, or "n/a (verifier disabled)">
 **Reasoning:** <2-4 sentences from .verify-last.json>
 **Validation rerun:** `<command>` → exit <N>
 **Evidence checked:** <bullets from .verify-last.json>

@@ -17,7 +17,7 @@ The verifier re-runs the validation command. If validation mutates state (starts
 
 ## When to invoke
 
-1. **Auto, before `Status: done`** — `work.md §7` MUST call this workflow before flipping a goal to `done`. Do not write `Status: done` without a fresh `done` verdict whose `goal_hash` matches the current `GOAL.md`.
+1. **Auto, before `Status: done`** — when `GOAL.md` has `Validation is read-only: yes`, `work.md §7` MUST call this workflow before flipping a goal to `done`. Do not write `Status: done` without a fresh `done` verdict whose `goal_hash` matches the current `GOAL.md`. When `Validation is read-only: no`, the verifier is disabled (see Prerequisite above); `work.md §7` skips this workflow and requires explicit user confirmation for `Status: done` instead.
 2. **On user request** — when the user says "verify the goal", "is the goal done", "check if it's done", or similar.
 3. **Optional milestone gate** — if the goal's `Checkpoint strategy` lists `verify=true` on specific checkpoints (e.g. C5 final), invoke at those boundaries too.
 
