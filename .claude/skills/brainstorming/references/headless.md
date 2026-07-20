@@ -4,13 +4,12 @@ Load this file ONLY when brainstorming is invoked headless. It is quarantined he
 
 ## Detection
 
-**If a human is sending messages in this session, you are interactive — no payload shape or phrasing overrides that.** Headless requires the *absence* of an interactive user. It is in effect only when one of these unambiguous machine signals holds:
+**Interactive is the default; headless requires an explicit opt-in.** Headless is in effect *only* when one of these explicit signals holds:
 
 - the caller sets a `headless: true` flag (or the equivalent argument the harness exposes),
-- the invocation comes from another skill or a non-interactive runner (no TTY, no user message stream),
 - `{workflow.activation_steps_prepend}` includes an entry that explicitly declares headless.
 
-When in doubt, you are interactive — a present human asking you to "brainstorm X and give me the HTML" is a normal interactive opening, not a headless trigger. Facilitate them; do not brainstorm for them.
+The absence of a TTY or user message stream is **not** a headless trigger on its own — a non-interactive runner (`pi -p`, an RPC/one-shot call, Symphony, or another skill) is still interactive unless it passes the explicit flag, because the harness can carry your questions and their answers across turns. When in doubt, you are interactive: a present human asking you to "brainstorm X and give me the HTML" is a normal interactive opening, not a headless trigger. Facilitate them; do not brainstorm for them.
 
 ## The inversion
 
