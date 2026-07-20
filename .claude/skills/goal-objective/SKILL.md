@@ -1,5 +1,5 @@
 ---
-name: goal-objection
+name: goal-objective
 description: >
   Turn a rough intent into a well-formed goal prompt for the `goal` skill.
   Reads what the user actually wants, drafts a candidate objective + stopping
@@ -7,10 +7,10 @@ description: >
   when intent is genuinely unclear. Produces a ready-to-use goal contract draft
   and hands off to `goal` (set). Use when the user says "help me define a goal",
   "help me set up a goal", "draft a goal", "I want a goal for...", "what's a good
-  goal for this", or invokes /goal-objection. Companion front-end to `goal`.
+  goal for this", or invokes /goal-objective. Companion front-end to `goal`.
 ---
 
-# goal-objection — draft a goal from intent
+# goal-objective — draft a goal from intent
 
 Help the user shape a vague intent into a concrete, verifiable goal contract,
 then hand it to the `goal` skill to formally set. This skill does the *thinking*
@@ -24,7 +24,7 @@ output is a drafted contract the user approves, then you invoke `goal` (set).
 
 ## When to use this vs `goal` directly
 
-- Use **goal-objection** when the user has an intent but not a crisp objective /
+- Use **goal-objective** when the user has an intent but not a crisp objective /
   stopping condition yet ("I want to clean up the auth module", "make the tests
   reliable", "help me define a goal for X"). This skill infers and drafts.
 - Use **goal** (set) directly when the user already knows the exact objective,
@@ -60,7 +60,8 @@ Good reasons to ask:
 - You can't find a validation command and the user hasn't named one.
 
 Bad reasons to ask (infer or propose a default instead):
-- Slug/name (propose one).
+- Slug/name (propose one — validate it against `^[a-z0-9]+(-[a-z0-9]+)*$`, the slug
+  regex `set` enforces, so the handoff isn't reopened for a rename).
 - Checkpoint breakdown (draft it; the user edits).
 - Scope details you can reasonably assume from the request.
 
@@ -74,14 +75,14 @@ the `goal` skill's `set` expects (see `../goal/templates/GOAL.md`):
 ```
 Goal draft — <proposed-slug>
 
-Objective:          <one concrete sentence — the end state>
-Stopping condition: <verifiable signal that proves done>
-Validation:         <exact shell command that produces the signal>
-Read-only?          <yes | no — is the validation safe to re-run?>
-Inputs to read:     <files/docs to read first>
-Out of scope:       <what must NOT change>
-Checkpoints:        <C1..Cn, each with its own pass/fail signal>
-Notes:              <constraints, rollback/parity, anything to remember>
+Objective:                <one concrete sentence — the end state>
+Stopping condition:       <verifiable signal that proves done>
+Validation command:       <exact shell command that produces the signal>
+Validation is read-only:  <yes | no — is the validation safe to re-run?>
+Inputs to read first:     <files/docs to read first>
+Out of scope:             <what must NOT change>
+Checkpoint strategy:      <C1..Cn, each with its own pass/fail signal>
+Notes / Constraints:      <rollback/parity, anything to remember>
 ```
 
 Hold the draft to the same bar `goal`'s `set` audit enforces, so handoff is
@@ -89,7 +90,8 @@ clean:
 - Objective is one concrete end state, not a list of activities.
 - Stopping condition is machine-verifiable, not a judgment call.
 - Validation command is runnable and read-only / idempotent (the verifier
-  re-runs it). If it's not read-only, flag it — `goal` will disable the verifier.
+  re-runs it). If it's not read-only, flag it — `goal` skips the verify step and
+  makes `Status: done` require explicit user confirmation instead.
 - Scope and out-of-scope are explicit.
 - Scan the objective/stopping condition for load-bearing vague words ("clean",
   "better", "robust", "fix", "improve") and replace them with something
@@ -105,9 +107,17 @@ Show the draft. Ask the user to approve or edit. Once approved, hand off:
 > Ready. Invoking the `goal` skill to set this up.
 
 Then invoke the **goal** skill's **set** operation, passing the approved draft
-so its interview is pre-filled — `set` still runs its own sanity-check audit
-(hard gates + soft checks) and writes the state. Do not duplicate that audit
-here; your job was to get the draft to a state where `set` sails through it.
+so its interview is pre-filled — `set` still runs its own precheck and audit and
+writes the state. Do not duplicate that here; your job was to get the draft to a
+state where those steps sail through. Expect `set` to still handle, on its own:
+- its active-goal precheck (if another goal is already active, `set` asks whether
+  to pause/archive it or allow parallel goals);
+- the optional baseline run (whether to run the validation command once now to
+  record a starting point);
+- the final hard-gate/soft-check audit and PROCEED confirmation.
+
+These prompts come from `set`, not from a gap in the draft — don't pre-answer
+them here.
 
 ---
 
