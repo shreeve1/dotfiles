@@ -202,6 +202,36 @@ link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
 link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
+# ─── herdr binary ──────────────────────────────────────────
+# Stable channel: brew on macOS, the project's curl-pipe installer on Linux
+# (no apt/snap/dnf package exists). The installer places the binary at
+# ~/.local/bin/herdr; warns but does not fail if that dir is not on PATH —
+# the user must add it to their shell rc for interactive use. Idempotent:
+# skips when herdr is already on PATH.
+if command -v herdr >/dev/null 2>&1; then
+	printf 'ok: herdr available: '
+	herdr --version 2>&1 | head -n 1 || true
+elif [ "$(uname -s)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+	printf 'install: herdr via brew\n'
+	if brew install herdr; then
+		printf 'ok: herdr installed via brew\n'
+	else
+		printf 'warn: brew install herdr failed; falling back to upstream installer\n'
+		curl -fsSL https://herdr.dev/install.sh | sh
+	fi
+else
+	printf 'install: herdr via upstream curl-pipe installer\n'
+	if curl -fsSL https://herdr.dev/install.sh | sh; then
+		printf 'ok: herdr installed to ~/.local/bin/herdr\n'
+	else
+		printf 'warn: herdr install failed; run: curl -fsSL https://herdr.dev/install.sh | sh\n'
+	fi
+	if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+		printf 'warn: ~/.local/bin is not on PATH; add to your shell rc:\n'
+		printf '      export PATH="$HOME/.local/bin:$PATH"\n'
+	fi
+fi
+
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
 link_path "bin/rralph" ".local/bin/rralph"
 link_path "bin/osc52" ".local/bin/osc52"
