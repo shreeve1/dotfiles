@@ -9,6 +9,18 @@ Append entries with this format:
 - Outputs: changed pages
 - Notes: key decisions or unresolved questions
 
+## 2026-07-21 session-update | Two-layer verification — grounding gate (pi-duo) + completeness review (gap-review)
+
+- Actor: Pi (grill-with-docs session)
+- Inputs: James's question on whether the constant-verifier sidekick should become a Pi extension (like pi-duo) for automated tasks; `~/symphony` as the test project; `.pi/agent/extensions/pi-duo/{extensions/pi-duo.ts,src/duo-core.ts}`, `.pi/agent/extensions/pi-subagents/`, `.claude/skills/v2-pane-orch/`.
+- Outputs: `docs/adr/0001-verification-two-layers.md`, `CONTEXT.md`, `.pi/agent/extensions/gap-review/{index.js,package.json,tests/gap-review-smoke.sh}`, `.pi/agent/settings.json{,.template}`, `.gitignore`, `CLAUDE.md`, `wiki/raw/sessions/2026-07-21-gap-review-completeness-layer.md`, `wiki/CLAIMS.md` (C-0119..C-0122 via gate.py ADMIT), `wiki/index.md`, `wiki/log.md`.
+- Notes: Distinguished grounding failure (false claim) from completeness failure (material omission). pi-duo's verifier is a tool-less (completeSimple) in-band grounding gate — competent at false claims (synthetic probes passed) but structurally unable to catch omissions (prompt forbids demanding extra work). Reproduced the real pain on `~/symphony/contract_gate.py`: pi-duo shipped a correct answer omitting ~13 behaviors; a fresh tooled reviewer found them. Decision = two layers (pi-duo grounding + on-demand completeness review). gap-review extension automates the completeness layer at `turn_end` (detached fresh `pi -p` reviewer, async, always-on). The comparison confounded stance/context/tools, so no single lever was isolated. Claims-only update — no promoted wiki page, since the model is authoritative in the ADR + CONTEXT.md + CLAUDE.md (matches the ponytail precedent). `gate.py audit` clean. Unresolved: which lever (freshness/tools/stance) is decisive for completeness; `PI_GAP_MIN_CHARS=200` is an unconfirmed default; bash-touched files are invisible to gap-review.
+
+- Actor: Claude Code
+- Inputs: James request to update wiki after removing pi-moa (`@duyviet1804/pi-moa`) from the Pi harness during the @tintinweb→nicobailon/pi-subagents migration. pi-moa extension dir, `moa.json`, `moa-fast.json`, and all settings/CLAUDE.md references are gone from the repo.
+- Outputs: `wiki/CLAIMS.md` (removed C-0119..C-0123), `wiki/ROUTING.md` (removed pi-moa section), `wiki/index.md` (removed candidate row), deleted `wiki/candidates/analysis-session-pi-moa-fusion.md` and `wiki/eval/pi-moa.eval`, `wiki/log.md`.
+- Notes: Discard, not supersede — the subject system no longer exists in the repo, so the pi-moa runbook/claims describe a removed extension. `raw/sessions/2026-07-11-pi-moa-*.md` retained per the immutable-raw rule (historical record of the install/tuning sessions). Candidate was never promoted, so no promoted page to retire. `gate.py audit` clean after (13 active, budget 40). Unrelated `source-opencode-subagents` candidate still awaits promote/discard.
+
 ## 2026-06-04 session-update | RPIV pipeline driver and companion skills
 
 - Actor: Claude Code

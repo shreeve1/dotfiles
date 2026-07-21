@@ -4,8 +4,8 @@
     "model": "MiniMax-M3"
   },
   "verifier": {
-    "provider": "cliproxy",
-    "model": "claude-opus-4-8"
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash"
   },
   "actorTemperature": 0.1,
   "verifierTemperature": 0,
@@ -19,4 +19,3 @@
   "enableVerifier": true,
   "enableFullTrace": true
 }
-

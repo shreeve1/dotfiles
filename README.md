@@ -38,9 +38,9 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
   .pi/
     agent/
       APPEND_SYSTEM.md       (Pi delegation policy)
-      agents/                (Pi subagent definitions)
+      agents/                (empty; builtins ship in pi-subagents)
       extensions/
-        @tintinweb/pi-subagents/  (vendored Agent runtime)
+        pi-subagents/        (vendored nicobailon subagent runtime)
       settings.json.template
   .codex/
   install.sh
@@ -53,7 +53,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 |---|---|---|
 | Global agent guidance | `~/.claude/CLAUDE.md` | Claude Code reads natively; OpenCode reads via `opencode.json` `instructions[]`. |
 | Slash commands | `~/.claude/commands/` | Claude Code is canonical. Retired OpenCode commands live under `~/.config/opencode/archive/commands/`. |
-| Subagents | Tool-specific | Claude Code uses `~/.claude/agents/`; Pi uses `~/.pi/agent/agents/` with the vendored `@tintinweb/pi-subagents` runtime. |
+| Subagents | Tool-specific | Claude Code uses `~/.claude/agents/`; Pi uses the vendored `pi-subagents` (nicobailon) runtime with its builtin agents. |
 | Reusable skills | `~/.claude/skills/` | Claude reads natively, OpenCode falls back to `~/.claude/skills/`. |
 | Hook scripts | `~/.claude/hooks/` | Claude-specific runtime. |
 | Provider/model config | tool-specific | Claude `~/.claude/settings*.json`; OpenCode `~/.config/opencode/opencode.json`. Schemas differ — no shared format. |
@@ -110,10 +110,11 @@ cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
 Use `/agents` in Pi to inspect the available agent types. To repair stale npm
 dependencies after a pull, run `INSTALL_PI_NPM=always bash install.sh`.
 
-This setup intentionally uses the vendored `@tintinweb/pi-subagents` `Agent`
-API. Do **not** install Nico Bailon's `npm:pi-subagents` alongside it; that
-package exposes an incompatible `subagent` API and requires a deliberate
-migration of the existing agents and skills.
+This setup uses the vendored `pi-subagents` (nicobailon) runtime, which spawns
+each subagent as a fresh child `pi` process with its own model (worker →
+`minimax/MiniMax-M3`, reviewer → `deepseek/deepseek-v4-flash`; set in
+`settings.json` `subagents.agentOverrides`). Do **not** `pi install
+npm:pi-subagents`; use the repo copy so it syncs.
 
 ## What Install Scripts Do
 
@@ -124,7 +125,7 @@ migration of the existing agents and skills.
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
 - links selected Claude Code files under `~/.claude` when `INSTALL_CLAUDE_CODE=1` (or not `0` on Windows)
-- links `~/.pi/agent`, installs the vendored `@tintinweb/pi-subagents` dependencies, and checks its runtime, agents, policy, and settings registration
+- links `~/.pi/agent`, installs the vendored `pi-subagents` dependencies, and checks its runtime, policy, and settings registration
 - links the synced global git hooks dir (`~/.config/git/hooks`) and points git's global `core.hooksPath` at it (only when unset or already ours) so the graphify commit hook fires in every repo
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
@@ -147,10 +148,9 @@ node -e "const c=require(process.env.HOME+'/.config/opencode/opencode.json'); co
 # Pi delegation setup
 pi --version
 grep -F '## Delegate Non-Trivial Work' ~/.pi/agent/APPEND_SYSTEM.md
-test -f ~/.pi/agent/extensions/@tintinweb/pi-subagents/package.json
-grep -F '"extensions/@tintinweb/pi-subagents"' ~/.pi/agent/settings.json ~/.pi/agent/settings.json.template
-find ~/.pi/agent/agents -type f -name '*.md' | wc -l
-npm --prefix ~/.pi/agent/extensions/@tintinweb/pi-subagents ls --depth=0
+test -f ~/.pi/agent/extensions/pi-subagents/package.json
+grep -F '"extensions/pi-subagents"' ~/.pi/agent/settings.json ~/.pi/agent/settings.json.template
+npm --prefix ~/.pi/agent/extensions/pi-subagents ls --depth=0
 ```
 
 In an interactive Claude Code session: `/memory`, `/skills`, `/hooks`, `/mcp`, `/doctor`.

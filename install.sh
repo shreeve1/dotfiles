@@ -283,24 +283,17 @@ link_path ".config/opencode" ".config/opencode"
 link_path ".pi/agent" ".pi/agent"
 link_path ".pi/README.md" ".pi/README.md"
 
-# The whole agent directory is linked, so the vendored subagent runtime,
-# custom agent definitions, and delegation policy travel together.
+# The whole agent directory is linked, so the vendored subagent runtime
+# (nicobailon/pi-subagents) and delegation policy travel together. Builtin
+# agents ship inside the extension; .pi/agent/agents/ is intentionally empty.
 _pi_subagents_ok=1
-[ -f "$HOME/.pi/agent/extensions/@tintinweb/pi-subagents/package.json" ] || _pi_subagents_ok=0
+[ -f "$HOME/.pi/agent/extensions/pi-subagents/package.json" ] || _pi_subagents_ok=0
 grep -Fq '## Delegate Non-Trivial Work' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
-_pi_agent_found=0
-for _pi_agent_file in "$HOME"/.pi/agent/agents/*.md; do
-	if [ -f "$_pi_agent_file" ]; then
-		_pi_agent_found=1
-		break
-	fi
-done
-[ "$_pi_agent_found" = "1" ] || _pi_subagents_ok=0
 for _pi_settings in "$HOME/.pi/agent/settings.json" "$HOME/.pi/agent/settings.json.template"; do
-	grep -Fq '"extensions/@tintinweb/pi-subagents"' "$_pi_settings" 2>/dev/null || _pi_subagents_ok=0
+	grep -Fq '"extensions/pi-subagents"' "$_pi_settings" 2>/dev/null || _pi_subagents_ok=0
 done
 if [ "$_pi_subagents_ok" = "1" ]; then
-	printf 'ok: Pi subagent runtime, agents, policy, and settings present\n'
+	printf 'ok: Pi subagent runtime, policy, and settings present\n'
 else
 	printf 'warn: Pi subagent setup incomplete; pull latest dotfiles and rerun bash install.sh\n'
 fi
@@ -360,12 +353,12 @@ fi
 if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 	install_npm_deps_if_needed "$HOME/.pi/agent"
 
-	# @tintinweb/pi-subagents is vendored so its Agent API, custom agent
-	# definitions, and delegation policy sync together. Do not also install
-	# Nico Bailon's incompatible npm:pi-subagents runtime.
+	# pi-subagents (nicobailon) is vendored so its runtime, builtin agents, and
+	# delegation policy sync together, not installed via `pi install npm:pi-subagents`.
+	# Builtin agents ship in the extension; .pi/agent/agents/ stays empty.
 	# Fresh-system / AI-session repair command:
-	#   cd ~/.pi/agent/extensions/@tintinweb/pi-subagents && npm install --omit=dev --omit=peer
-	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/@tintinweb/pi-subagents" --omit=dev --omit=peer
+	#   cd ~/.pi/agent/extensions/pi-subagents && npm install --omit=dev --omit=peer
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/pi-subagents" --omit=dev --omit=peer
 
 	# rpiv-todo is vendored so it syncs with dotfiles, not installed via
 	# `pi install npm:@juicesharp/rpiv-todo`. Its package imports Pi SDK packages
@@ -405,7 +398,7 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 	for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
 		[ -f "$package_json" ] || continue
 		case "$(dirname "$package_json")" in
-		"$HOME/.pi/agent/extensions/@tintinweb/pi-subagents") continue ;;
+		"$HOME/.pi/agent/extensions/pi-subagents") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
 		esac

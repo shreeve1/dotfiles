@@ -7,7 +7,7 @@
   "packages": [
     "npm:lsp-pi",
     "extensions/pi-lens",
-    "extensions/@tintinweb/pi-subagents",
+    "extensions/pi-subagents",
     "extensions/rpiv-advisor",
     "extensions/rpiv-todo",
     "extensions/@juicesharp/rpiv-i18n",
@@ -21,11 +21,26 @@
       ]
     }
   ],
+  "subagents": {
+    "agentOverrides": {
+      "worker": {
+        "model": "minimax/MiniMax-M3",
+        "thinking": "low",
+        "tools": ["read", "write", "edit", "bash", "grep", "find", "ls"]
+      },
+      "reviewer": {
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "low",
+        "tools": ["read", "bash", "grep", "find", "ls"]
+      }
+    }
+  },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [
     "extensions/harness-gates",
     "extensions/graphify-guard",
+    "extensions/gap-review",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts"
   ]
