@@ -1,0 +1,54 @@
+# herdr config — synced across machines via ~/dotfiles (home/herdr/config.toml).
+# Symlinked to ~/.config/herdr/config.toml by install.sh.
+# Runtime state (socket, worktrees, logs, agent-detection cache) is NOT synced;
+# only this file is.
+
+# PREREQUISITE for prefix = "ctrl+s":
+#   macOS terminals intercept ctrl+s/ctrl+q for software flow control (XOFF/XON)
+#   before any application sees them. Run `stty -ixon` in your shell rc (e.g.
+#   ~/.zshrc) once per machine, otherwise herdr's prefix will silently freeze
+#   your terminal instead of entering prefix mode.
+[keys]
+prefix = "ctrl+s"
+previous_workspace = "prefix+comma"
+next_workspace = "prefix+period"
+
+[theme]
+# name = "catppuccin"  # default; override per-machine in ~/.config/herdr/local.toml if you want
+
+[terminal]
+# new_cwd = "follow"   # default; "home" pins new panes to $HOME
+# default_shell = ""   # default; empty means $SHELL then /bin/sh
+
+[update]
+# channel = "stable"   # Homebrew/mise/Nix installs ignore this; "preview" for opt-in builds
+
+[ui]
+# agent_panel_sort = "spaces"  # grouped by workspace; "priority" = attention queue
+# accent = "cyan"
+
+# Notifications when agents finish or need input.
+# delivery = "terminal" asks the outer terminal for a desktop notification.
+# "herdr" shows in-app toasts. "system" hits the OS notification service directly.
+[ui.toast]
+delivery = "terminal"
+delay_seconds = 2
+
+[ui.sound]
+# enabled = true  # default; set false to mute agent-state sounds
+
+[session]
+# resume_agents_on_restore = true  # default; resume native pi/claude/codex sessions on server restart
+
+[remote]
+# manage_ssh_config = true  # default; herdr --remote adds ServerAliveInterval fallbacks
+
+[experimental]
+# Reveal focused-pane cursor to outer terminal so macOS CJK IME tracks
+# the candidate window for pi, claude, codex. Trade-off: extra cursor
+# visible for apps that hide without painting a replacement (vim normal mode).
+reveal_hidden_cursor_for_cjk_ime = true
+cjk_ime_agents = ["pi", "claude", "codex"]
+
+[advanced]
+# scrollback_limit_bytes = 10000000  # default 10MB; bump if you need deeper history
