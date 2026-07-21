@@ -16,19 +16,29 @@
  * the user (interactive only; automated / no-UI runs get the file silently).
  *
  * This is an asynchronous AUDIT, not an acceptance gate: it never blocks the
- * turn, and a detached reviewer can be killed if the host (CI/container) exits
- * before it finishes — the review file is the durable artifact either way.
+ * turn. Durability note: a detached reviewer that gets killed because the host
+ * (CI/container) exited before it finishes leaves NO review behind; otherwise
+ * the `.md` is the durable artifact. The `.input.md` is deleted by the runner
+ * after the reviewer consumes it (D7) to keep the sensitive-data retention
+ * surface tight.
  *
  * File paths come from `tool_call` events (read/write/edit only). Files created
  * or modified via `bash` are NOT captured (the bash tool's args are a command,
- * not a path) — a known blind spot. The original request is captured from
- * `before_agent_start` (event.prompt).
+ * not a path) — a known blind spot. The original request is captured from the
+ * FIRST `before_agent_start` of the turn (that event fires per agent-step, so
+ * later steps must not overwrite the original user request). Captured file
+ * paths are resolved absolute against `ctx.cwd` before being handed to the
+ * reviewer (D5): the reviewer itself runs from the git root, so a relative
+ * path captured from a subdir would otherwise resolve to the wrong file under
+ * the reviewer.
  *
  * Env:
  *   PI_GAP_REVIEW=0    disable (default: on)
  *   PI_GAP_MODEL        reviewer model        (default deepseek/deepseek-v4-flash)
  *   PI_GAP_THINKING     reviewer thinking     (default low)
  *   PI_GAP_MIN_CHARS    min answer chars      (default 200)
+ *   PI_GAP_RETAIN_DAYS  prune age (days)      (default 14)
+ *   PI_GAP_TIMEOUT_MS   stale-reviewer reap   (default 300000 = 5 min)
  */
 
 import { spawn } from "node:child_process";
@@ -42,12 +52,13 @@ import {
 	unlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 const DEFAULT_THINKING = "low";
 const DEFAULT_MIN_CHARS = 200;
 const DEFAULT_RETAIN_DAYS = 14;
+const DEFAULT_TIMEOUT_MS = 300000; // D4: reap a hung reviewer after 5 min
 const REVIEW_DIRNAME = ".gap-reviews";
 const MAX_PENDING = 3; // backpressure: don't pile up detached reviewers
 const FILE_TOOLS = new Set(["read", "write", "edit"]);
@@ -116,10 +127,12 @@ export function pendingCount(dir) {
 		.filter((n) => !finished.has(n.slice(0, -".input.md".length))).length;
 }
 
-// Delete completed-and-notified reviews older than `retainDays` (all their
-// sibling files: .input.md, .md, .err, .done, .notified). Bounds growth of the
-// review dir for always-on / unattended use. Only prunes .notified (already
-// surfaced) reviews — never a pending or unnotified one.
+// Delete completed reviews older than `retainDays` (all their sibling files:
+// .input.md, .md, .err, .done, .notified). Bounds growth of the review dir
+// for always-on / unattended use. A review is prune-eligible when its marker
+// file (`.notified` for interactive runs, `.done` for headless `pi -p` runs)
+// is older than the cutoff. Headless runs never create `.notified`, so they
+// were unbounded before D2 — this fix targets the unattended regime.
 export function pruneOldReviews(dir, retainDays) {
 	if (!existsSync(dir)) return 0;
 	let names = [];
@@ -131,15 +144,23 @@ export function pruneOldReviews(dir, retainDays) {
 	const cutoff = Date.now() - retainDays * 86400000;
 	const bases = new Set();
 	for (const n of names) {
-		if (!n.endsWith(".notified")) continue;
-		const p = join(dir, n);
+		let base, marker;
+		if (n.endsWith(".notified")) {
+			base = n.slice(0, -".notified".length);
+			marker = ".notified";
+		} else if (n.endsWith(".done")) {
+			base = n.slice(0, -".done".length);
+			marker = ".done";
+		} else {
+			continue;
+		}
 		let st;
 		try {
-			st = statSync(p);
+			st = statSync(join(dir, base + marker));
 		} catch {
 			continue;
 		}
-		if (st.mtimeMs < cutoff) bases.add(n.slice(0, -".notified".length));
+		if (st.mtimeMs < cutoff) bases.add(base);
 	}
 	for (const base of bases) {
 		for (const ext of [".input.md", ".md", ".err", ".done", ".notified"]) {
@@ -151,6 +172,58 @@ export function pruneOldReviews(dir, retainDays) {
 		}
 	}
 	return bases.size;
+}
+
+// Reap reviewers whose `.input.md` is older than `timeoutMs` and that have
+// no `.done`/`.notified` sibling. Without this, a hung detached reviewer
+// never finishes and pins `pendingCount` at `MAX_PENDING`, which silently
+// disables the layer forever — fatal for unattended use. We mtime-check
+// (not a shell `timeout`, which macOS lacks) so this is cross-platform and
+// survives host restarts. Writing an ERROR `.md` + a `.done` marker frees
+// the pending slot and surfaces the failure visibly on the next turn.
+export function reapStaleReviews(dir, timeoutMs) {
+	if (!existsSync(dir)) return 0;
+	let names = [];
+	try {
+		names = readdirSync(dir);
+	} catch {
+		return 0;
+	}
+	const cutoff = Date.now() - timeoutMs;
+	const finished = new Set();
+	for (const n of names) {
+		if (n.endsWith(".done")) finished.add(n.slice(0, -5));
+		else if (n.endsWith(".notified"))
+			finished.add(n.slice(0, -".notified".length));
+	}
+	let reaped = 0;
+	for (const n of names) {
+		if (!n.endsWith(".input.md")) continue;
+		const base = n.slice(0, -".input.md".length);
+		if (finished.has(base)) continue;
+		let st;
+		try {
+			st = statSync(join(dir, n));
+		} catch {
+			continue;
+		}
+		if (st.mtimeMs >= cutoff) continue;
+		try {
+			writeFileSync(
+				join(dir, `${base}.md`),
+				`ERROR: gap-review reviewer timed out after ${timeoutMs}ms; no completion marker.\n`,
+			);
+		} catch {
+			// non-fatal — keep going
+		}
+		try {
+			writeFileSync(join(dir, `${base}.done`), "done");
+		} catch {
+			// non-fatal
+		}
+		reaped++;
+	}
+	return reaped;
 }
 
 export function reviewPrompt(answer, files, request) {
@@ -188,7 +261,7 @@ export function reviewPrompt(answer, files, request) {
 // `cat` and never re-parsed by the shell.
 const RUNNER_SCRIPT = [
 	"pi -p --no-extensions --no-skills --no-session --tools read,grep,find,ls",
-	'--model "$GR_MODEL" --thinking "$GR_THINK" "$(cat "$GR_IN")"',
+	'--model "$GR_MODEL" --thinking "$GR_THINKING" "$(cat "$GR_IN")"',
 	'> "$GR_OUT" 2> "$GR_ERR"',
 	"; rc=$?",
 	'; if [ $rc -ne 0 ] || [ ! -s "$GR_OUT" ]; then',
@@ -196,22 +269,76 @@ const RUNNER_SCRIPT = [
 	'    echo "STDERR:"; cat "$GR_ERR" 2>/dev/null; } > "$GR_OUT"',
 	"; fi",
 	'; rm -f "$GR_ERR"',
+	'; rm -f "$GR_IN"', // D7: drop .input.md after consumption to reduce retention surface
 	'; printf done > "$GR_DONE"',
 ].join(" ");
+
+// Decide + prepare everything for a single terminal-turn review EXCEPT the
+// detached spawn itself (which is exercised in `turn_end` so it can stay
+// wrapped in its own try/catch). Returns the spawn params object or `null`
+// to skip. Pure-ish: takes `cwd` and `env` as inputs (so tests can drive it
+// offline with a tmpdir + a stub process.env). Any throw here is the caller's
+// problem — the wrap in `turn_end` swallows it so a FS error never disrupts
+// the turn (D3).
+export function prepareReview({ message, files, request, cwd, env }) {
+	const procEnv = env || process.env;
+	// D5: resolved against `cwd` (the actor's cwd at turn_end), not against
+	// `process.cwd()` — the detached reviewer runs from the git root.
+	const absFiles = (files || []).map((f) =>
+		isAbsolute(f) ? f : resolve(cwd || process.cwd(), f),
+	);
+	if (!message || !isTerminal(message)) return null;
+	const root = findProjectRoot(cwd);
+	const dir = join(root, REVIEW_DIRNAME);
+	if (absFiles.length === 0) return null;
+	const answer = answerText(message);
+	const minChars = Number(procEnv.PI_GAP_MIN_CHARS || DEFAULT_MIN_CHARS);
+	if (answer.length < minChars) return null;
+	mkdirSync(dir, { recursive: true });
+	pruneOldReviews(
+		dir,
+		Number(procEnv.PI_GAP_RETAIN_DAYS || DEFAULT_RETAIN_DAYS),
+	);
+	reapStaleReviews(
+		dir,
+		Number(procEnv.PI_GAP_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
+	);
+	if (pendingCount(dir) >= MAX_PENDING) return null;
+	const base = join(dir, `${Date.now()}`);
+	if (existsSync(`${base}.done`) || existsSync(`${base}.notified`)) return null;
+	const inFile = `${base}.input.md`;
+	const outFile = `${base}.md`;
+	const errFile = `${base}.err`;
+	const doneFile = `${base}.done`;
+	writeFileSync(inFile, reviewPrompt(answer, absFiles, request));
+	const reviewEnv = {
+		...procEnv,
+		GR_MODEL: procEnv.PI_GAP_MODEL || DEFAULT_MODEL,
+		GR_THINKING: procEnv.PI_GAP_THINKING || DEFAULT_THINKING,
+		GR_IN: inFile,
+		GR_OUT: outFile,
+		GR_ERR: errFile,
+		GR_DONE: doneFile,
+	};
+	return { root, inFile, outFile, errFile, doneFile, env: reviewEnv };
+}
 
 export default function gapReviewExtension(pi) {
 	const enabled = () => process.env.PI_GAP_REVIEW !== "0";
 
-	// Per-user-turn state. Reset at before_agent_start (reliable user-turn
-	// boundary); turnFiles also cleared after the terminal turn_end consumes it.
+	// Per-user-turn state. Cleared together at the terminal `turn_end` (D6):
+	// `currentRequest` so the NEXT user turn's before_agent_start captures
+	// fresh, `turnFiles` so the next turn accumulates from zero.
 	let currentRequest = "";
 	const turnFiles = new Set();
 
 	pi.on("before_agent_start", (event) => {
-		// Capture the original request. NOTE: this event fires per agent-step,
-		// not per user-turn, so we must NOT clear turnFiles here — doing so wipes
-		// files accumulated during the tool step before the terminal turn_end
-		// consumes them. turnFiles is cleared only at the terminal turn_end.
+		// Capture the original request: only the FIRST before_agent_start of a
+		// turn carries the user's prompt (later per-agent-step fires — retries,
+		// follow-ups — would overwrite it with a non-user prompt and cause the
+		// reviewer to be judged against the wrong request, D6). turnFiles is
+		// accumulated across the whole turn and cleared at the terminal turn_end.
+		if (currentRequest) return;
 		currentRequest = (event && event.prompt) || "";
 	});
 
@@ -226,55 +353,40 @@ export default function gapReviewExtension(pi) {
 		const message = event && event.message;
 		if (!message || !isTerminal(message)) return; // only final answers
 
-		const root = findProjectRoot(ctx && ctx.cwd);
-		const dir = join(root, REVIEW_DIRNAME);
-
 		// pi fires turn_end per assistant step, so a tool step (turnIndex N) and
 		// the terminal answer (turnIndex N+1) are separate events. Consume +
 		// clear here so files accumulated across the whole user turn are reviewed
-		// with the final answer.
+		// with the final answer. currentRequest is cleared in lockstep (D6) so
+		// the next user-turn's before_agent_start captures fresh.
 		const files = [...turnFiles];
 		turnFiles.clear();
-		if (files.length === 0) return; // nothing to check the work against
+		const request = currentRequest;
+		currentRequest = "";
 
-		const answer = answerText(message);
-		const minChars = Number(process.env.PI_GAP_MIN_CHARS || DEFAULT_MIN_CHARS);
-		if (answer.length < minChars) return; // trivial turn
+		let params;
+		try {
+			// prepareReview can throw (mkdir / writeFile on a read-only root or
+			// a parent-is-a-file blocker, full disk, etc.). Wrap the whole
+			// decide-and-prepare phase in ONE try/catch so nothing leaks into
+			// pi's turn_end dispatcher — the turn has already completed (D3).
+			params = prepareReview({
+				message,
+				files,
+				request,
+				cwd: ctx && ctx.cwd,
+				env: process.env,
+			});
+		} catch {
+			return;
+		}
+		if (!params) return;
 
-		mkdirSync(dir, { recursive: true });
-		pruneOldReviews(
-			dir,
-			Number(process.env.PI_GAP_RETAIN_DAYS || DEFAULT_RETAIN_DAYS),
-		);
-		if (pendingCount(dir) >= MAX_PENDING) return; // backpressure
-
-		const base = join(
-			dir,
-			`${event.turnIndex != null ? event.turnIndex : "t"}-${Date.now()}`,
-		);
-		if (existsSync(`${base}.done`) || existsSync(`${base}.notified`)) return;
-
-		const inFile = `${base}.input.md`;
-		const outFile = `${base}.md`;
-		const errFile = `${base}.err`;
-		const doneFile = `${base}.done`;
-		writeFileSync(inFile, reviewPrompt(answer, files, currentRequest));
-
-		const env = {
-			...process.env,
-			GR_MODEL: process.env.PI_GAP_MODEL || DEFAULT_MODEL,
-			GR_THINKING: process.env.PI_GAP_THINKING || DEFAULT_THINKING,
-			GR_IN: inFile,
-			GR_OUT: outFile,
-			GR_ERR: errFile,
-			GR_DONE: doneFile,
-		};
 		try {
 			const child = spawn("sh", ["-c", RUNNER_SCRIPT], {
-				env,
+				env: params.env,
 				detached: true,
 				stdio: "ignore",
-				cwd: root,
+				cwd: params.root,
 			});
 			child.unref();
 		} catch {

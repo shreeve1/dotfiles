@@ -148,7 +148,9 @@ commands).
   `pi install`, no install.sh step. Gotcha: files created/modified via `bash`
   are invisible (only read/write/edit tool calls contribute paths), and pi fires
   `turn_end`/`before_agent_start` per agent-STEP so per-turn accumulators must
-  clear at the terminal `turn_end`, not at `turn_start`. Smoke test:
+  clear at the terminal `turn_end`, not at `turn_start`. The runner deletes
+  `<turn>-<ts>.input.md` after the reviewer consumes it (transient, to keep
+  retention of the original request + answer tight). Smoke test:
   `bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh`.
 
 ## Editing rules
