@@ -1,5 +1,11 @@
 export PATH="$PATH:/snap/bin"
 
+# Free ctrl+s/ctrl+q from TTY flow control so tools that use them as a prefix
+# (herdr prefix=ctrl+s, tmux prefix=C-s) actually receive the keystroke.
+# Skip in non-interactive contexts (scp, scripts, IDE shells) where stdin is
+# not a TTY — stty would error out.
+[[ -t 0 ]] && stty -ixon
+
 # Platform detection
 case "$(uname -s)" in
   Darwin) IS_MACOS=1; IS_LINUX=0 ;;
@@ -321,9 +327,6 @@ export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslm
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
 
-# Auto-Warpify
-[[ "$-" == *i* ]] && printf 'P$f{"hook": "SourcedRcFileForWarp", "value": { "shell": "zsh", "uname": "Linux" }}�' 
-[[ -d "$HOME/.temporalio/bin" ]] && export PATH="$PATH:$HOME/.temporalio/bin"
 
 # OpenWork endpoint env
 [ -f "/Users/james/.config/openwork/aidev.env" ] && . "/Users/james/.config/openwork/aidev.env"
