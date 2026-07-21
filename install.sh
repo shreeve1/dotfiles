@@ -200,6 +200,7 @@ link_path ".config/nvim" ".config/nvim"
 link_path ".config/tmux" ".config/tmux"
 link_path ".config/yazi" ".config/yazi"
 link_path ".config/zellij" ".config/zellij"
+link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
 link_path "bin/rralph" ".local/bin/rralph"
