@@ -1,3 +1,4 @@
+onboarding = false
 # herdr config — synced across machines via ~/dotfiles (home/herdr/config.toml).
 # Symlinked to ~/.config/herdr/config.toml by install.sh.
 # Runtime state (socket, worktrees, logs, agent-detection cache) is NOT synced;
@@ -16,6 +17,8 @@ next_workspace = "prefix+period"
 [theme]
 # name = "catppuccin"  # default; override per-machine in ~/.config/herdr/local.toml if you want
 
+name = "catppuccin"
+auto_switch = false
 [terminal]
 # new_cwd = "follow"   # default; "home" pins new panes to $HOME
 # default_shell = ""   # default; empty means $SHELL then /bin/sh
@@ -30,6 +33,7 @@ next_workspace = "prefix+period"
 # Notifications when agents finish or need input.
 # delivery = "terminal" asks the outer terminal for a desktop notification.
 # "herdr" shows in-app toasts. "system" hits the OS notification service directly.
+show_agent_labels_on_pane_borders = true
 [ui.toast]
 delivery = "terminal"
 delay_seconds = 2
@@ -50,5 +54,6 @@ delay_seconds = 2
 reveal_hidden_cursor_for_cjk_ime = true
 cjk_ime_agents = ["pi", "claude", "codex"]
 
+pane_history = false
 [advanced]
 # scrollback_limit_bytes = 10000000  # default 10MB; bump if you need deeper history

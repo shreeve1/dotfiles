@@ -140,5 +140,11 @@ bin/*
 .autoagent-runs/
 .symphony-runs/
 
+# gap-review extension output (completeness reviews written at turn end)
+.gap-reviews/
+
+# Pi subagent run-history logs (machine-local runtime state)
+.pi/agent/run-history.jsonl
+
 # Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
 /tests/

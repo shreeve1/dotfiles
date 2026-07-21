@@ -27,19 +27,25 @@ commands).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
-  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at `^0.80.6` (bumped from
-  0.75.5 so vendored `pi-moa` can import `@earendil-works/pi-ai/compat`, which
-  only exists in 0.80.6+). Install globally with
+  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at `^0.80.6`. Install globally with
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
-- Pi subagents use the synced vendored `@tintinweb/pi-subagents` runtime at
-  `.pi/agent/extensions/@tintinweb/pi-subagents`, registered in both Pi settings
-  files. It provides the `Agent`, `get_subagent_result`, and `steer_subagent`
-  tools used by `.pi/agent/agents/`. Do not also install Nico Bailon's
-  `npm:pi-subagents`; adopting its incompatible `subagent` API requires a
-  deliberate migration of agent definitions and dependent skills. Root Pi
-  delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
+- Pi subagents use the synced vendored `pi-subagents` runtime
+  (nicobailon/pi-subagents) at `.pi/agent/extensions/pi-subagents`, registered in
+  both Pi settings files as `extensions/pi-subagents`. It spawns each subagent as
+  a fresh child `pi` process (real isolation, per-role model) and provides the
+  `subagent`, `subagent_wait`, and `subagent_supervisor` tools. It ships builtin
+  agents (worker, reviewer, scout, researcher, planner, oracle, context-builder,
+  delegate) — `.pi/agent/agents/` is intentionally empty (custom agent files
+  there would shadow builtins by name). Per-role models are set in
+  `.pi/agent/settings.json` `subagents.agentOverrides` (worker →
+  `minimax/MiniMax-M3`, reviewer → `deepseek/deepseek-v4-flash`), NOT in agent
+  frontmatter — a frontmatter `model:` pin silently shadows settings overrides.
+  Auth split: minimax uses env `MINIMAX_API_KEY` (portable); deepseek uses
+  `~/.pi/agent/auth.json` (dir-bound). Vendored deps (`jiti`, `yaml`) install via
+  `bash install.sh`. Do not `pi install npm:pi-subagents`; use the repo copy.
+  Root Pi delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
@@ -50,22 +56,6 @@ commands).
   `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
   `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
   stale. Do not use `pi install npm:@juicesharp/rpiv-advisor`; use the repo copy.
-- Pi `pi-moa` (Mixture-of-Agents Fusion provider, `@duyviet1804/pi-moa`) is a
-  synced vendored extension at `.pi/agent/extensions/pi-moa`, registered in
-  `.pi/agent/settings.json` `packages` as `extensions/pi-moa` and in
-  `enabledModels` as `pi-moa/Fusion` + `pi-moa/Fusion Fast`. Do not
-  `pi install npm:@duyviet1804/pi-moa`; use the repo copy (repair with
-  `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` if deps stale).
-  It reads per-variant config from `.pi/agent/moa.json` (Fusion) and
-  `.pi/agent/moa-fast.json` (Fusion Fast) — both git-tracked at the agent-dir
-  root, so they sync. Current config: advisors `deepseek/deepseek-v4-flash` +
-  `deepseek/deepseek-v4-pro`, aggregator `cliproxy/claude-opus-4-8`; Fusion runs
-  the verifier (aggregator ~2-3×/turn), Fusion Fast is 1 advisor with
-  `enableVerifier:false`. Requires pi-ai 0.80.6+ (see rename bullet). The
-  `advisor` tool (`rpiv-advisor`) is auto-stripped when a `pi-moa` model drives,
-  via `disabledForModels: ["pi-moa:Fusion", "pi-moa:Fusion Fast"]` in
-  `~/.config/rpiv-advisor/advisor.json` — that file is machine-local and NOT
-  synced, so re-add the blocklist on each machine.
 - Pi `rpiv-web-tools` is a synced vendored extension at
   `.pi/agent/extensions/rpiv-web-tools` and registered in `.pi/agent/settings.json`
   as `extensions/rpiv-web-tools`. Install/repair it with `bash install.sh`, or
@@ -137,6 +127,29 @@ commands).
       explicitly in `.pi/agent/settings.json{,.template}` `extensions`. Do not
       `pi install`; it is vendored. Smoke test:
       `bash .pi/agent/extensions/graphify-guard/tests/graphify-guard-smoke.sh`.
+- `gap-review` (Pi completeness-review layer) is a synced vendored extension at
+  `.pi/agent/extensions/gap-review/`, registered in `.pi/agent/settings.json{,.template}`
+  `extensions`. It is the COMPLETENESS layer companion to pi-duo (the GROUNDING
+  gate): pi-duo catches false/unsupported claims but, by prompt design ("do not
+  demand extra work"), cannot catch material omissions — see
+  `docs/adr/0001-verification-two-layers.md` and the glossary in `CONTEXT.md`.
+  At each terminal turn (final text answer, ≥ `PI_GAP_MIN_CHARS` (default 200)
+  chars, that touched ≥1 file via read/write/edit), it spawns a DETACHED fresh
+  `pi -p --no-extensions --no-skills --no-session --tools read,grep,find,ls
+  --model deepseek/deepseek-v4-flash` reviewer that reads the touched files +
+  the original request (captured from `before_agent_start`) and writes
+  `OMISSIONS:` findings to `<project>/.gap-reviews/<turn>-<ts>.md`; the next
+  `turn_start` surfaces them via `ctx.ui.notify` (interactive only). Async and
+  non-blocking — the detached reviewer outlives the turn; a CI/container exit
+  can still kill it (the `.md` is the durable artifact). Always-on; env knobs:
+  `PI_GAP_REVIEW=0` (disable), `PI_GAP_MODEL`, `PI_GAP_THINKING`,
+  `PI_GAP_MIN_CHARS`, `PI_GAP_RETAIN_DAYS` (default 14; prunes notified
+  reviews). Zero-dependency plain JS (auto-discovered, like graphify-guard); no
+  `pi install`, no install.sh step. Gotcha: files created/modified via `bash`
+  are invisible (only read/write/edit tool calls contribute paths), and pi fires
+  `turn_end`/`before_agent_start` per agent-STEP so per-turn accumulators must
+  clear at the terminal `turn_end`, not at `turn_start`. Smoke test:
+  `bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh`.
 
 ## Editing rules
 
