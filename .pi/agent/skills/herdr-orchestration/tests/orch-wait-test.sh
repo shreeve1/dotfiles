@@ -43,7 +43,7 @@ git -C "$WORKDIR" config user.name t
 printf 'base\n' >"$WORKDIR/README.md"
 git -C "$WORKDIR" add README.md
 git -C "$WORKDIR" commit -q -m base
-printf 'def f(): pass\n' >"$WORKDIR/worker_output.py"   # uncommitted worker work
+printf 'def f(): pass\n' >"$WORKDIR/worker_output.py" # uncommitted worker work
 BIN="$TMP/bin"
 mkdir -p "$BIN"
 
