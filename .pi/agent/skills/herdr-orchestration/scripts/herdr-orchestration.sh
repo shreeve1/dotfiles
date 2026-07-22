@@ -235,11 +235,20 @@ pick_model() {
 	local list="$1" role="${2:-model}" chosen="" model
 	local IFS=','
 	for model in $list; do
-		model="${model//$'\r'/}"; model="${model// /}"
+		model="${model//$'\r'/}"
+		model="${model// /}"
 		[[ -z "$model" ]] && continue
-		if [[ "$probe_on" != "1" ]]; then chosen="$model"; log "$role model (probe off): $model"; break; fi
+		if [[ "$probe_on" != "1" ]]; then
+			chosen="$model"
+			log "$role model (probe off): $model"
+			break
+		fi
 		log "probing $role model: $model"
-		if probe_model "$model"; then chosen="$model"; log "$role model OK: $model"; break; fi
+		if probe_model "$model"; then
+			chosen="$model"
+			log "$role model OK: $model"
+			break
+		fi
 		log "$role model UNAVAILABLE: $model — trying next"
 	done
 	[[ -n "$chosen" ]] || die "no usable $role model in list: ${list:-(empty)}"
