@@ -222,11 +222,16 @@ its cycles without LGTM).
      - On conflict → `git merge --abort`, keep branch + worktree + logs, comment
        the conflict on the issue, **leave it open**, add `N` to the excluded set.
        Do not pick a side.
-     - If `HERDR_FRONTIER_TEST_CMD` is set, run it now against the staged merge
-       (e.g. `uv run pytest -q`). Non-zero → `git merge --abort` (clean undo; the
-       branch retains the commits so nothing is lost), comment the failing command
-       + output, **leave it open**, add `N` to the excluded set.
-     - Otherwise commit the merge: `git commit -m "merge(#$N): <subject>"`.
+     - Run the merge-time full-suite gate (DEFAULT-ON) against the staged merge:
+       `bash "$SKILL_DIR/scripts/full-gate.sh"` (same dir as `wave.sh`). It
+       resolves the command from `HERDR_FRONTIER_TEST_CMD` → `./.herdr-frontier-gate`
+       → auto-detect (`uv run pytest -q` / `npm test` / `go test ./...`); opt out
+       with `HERDR_FRONTIER_NO_GATE=1`. Non-zero → `git merge --abort` (clean undo;
+       the branch retains the commits so nothing is lost), comment the failing
+       command + output, **leave it open**, add `N` to the excluded set. Default-ON
+       because an issue's narrow ## Verification misses cross-cutting impacts — an
+       opt-in gate shipped a broken #32.
+     - Gate green (or opted out) → commit the merge: `git commit -m "merge(#$N): <subject>"`.
   4. After a committed merge → `gh issue close $N -c "Implemented + reviewed via herdr panes (LGTM). Merged into $BASE_BRANCH."`, then `git worktree remove "$wt"` and
      `git branch -d "$branch"`.
   - **Close happens only after the merge lands.** Never close on LGTM alone.

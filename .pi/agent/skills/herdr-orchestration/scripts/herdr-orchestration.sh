@@ -390,6 +390,24 @@ log "reviewer_pane=$reviewer_pane"
 wait_ready "$worker_pane" 180000 || die "worker pane never became ready"
 wait_ready "$reviewer_pane" 180000 || die "reviewer pane never became ready"
 
+# commit_worker_state: snapshot the worker's working tree so the reviewer always
+# sees a committed implementation. Defeats the no-commit pattern (models that
+# write files but end the turn before `git commit`, which otherwise loops
+# forever on reviewer criterion 5 "uncommitted work"). No-op if the worker
+# already committed or there is nothing new. Orchestration artifacts are never
+# committed.
+commit_worker_state() {
+	git -C "$abs_workdir" add -A >/dev/null 2>&1 || true
+	git -C "$abs_workdir" reset -q -- \
+		.pi-orch-logs .herdr-orch-sessions \
+		.herdr-issue.md .herdr-worker-task.md .herdr-reviewer-task.md >/dev/null 2>&1 || true
+	if ! git -C "$abs_workdir" diff --cached --quiet 2>/dev/null; then
+		git -C "$abs_workdir" commit -q \
+			-m "wip: herdr-orchestration auto-commit (cycle $cycle) — worker state for review" >/dev/null 2>&1 || true
+		log "auto-committed worker state (cycle $cycle)"
+	fi
+}
+
 # --- Cycle loop -------------------------------------------------------------
 verdict=""
 cycle=0
@@ -411,6 +429,7 @@ for cycle in $(seq 1 "$max_cycles"); do
 	fi
 
 	log "worker done (cycle $cycle); sending to reviewer"
+	commit_worker_state   # ensure the reviewer sees committed work (no-commit guard)
 
 	run_turn "$reviewer_pane" "$abs_reviewer_task" || die "reviewer turn failed (cycle $cycle)"
 
