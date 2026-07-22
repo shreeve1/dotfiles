@@ -150,10 +150,10 @@ wait_ready() {
 # fix, made wait_working return instantly and cut every cycle-2+ turn to ~0s.
 # (revision was tried as an extra guard but is inert in this build — see
 # poll_status.) Generous 60s budget: herdr agent send + first inference can take
-# 20-30s to surface `working` in a cold pane.
+# 20-30s to surface `working` in a cold pane. Override via HERDR_ORCH_START_MS.
 wait_started() {
 	local pane=$1
-	local settle_ms=60000
+	local settle_ms=${HERDR_ORCH_START_MS:-60000}
 	local end=$(($(date +%s000) + settle_ms)) s
 	while (($(date +%s000) < end)); do
 		s=$(poll_status "$pane")
