@@ -181,9 +181,12 @@ export HERDR_ORCH_WORKER_SKILLS="${HERDR_FRONTIER_WORKER_SKILLS-$HOME/.claude/sk
 # Real implementation (edits + slow test suites) blows past the primitive's 15-min
 # per-cycle default and gets killed mid-work. Default to 30 min for frontier waves.
 export HERDR_ORCH_WAIT_MS="${HERDR_ORCH_WAIT_MS:-1800000}"
-# Ordered model lists -> the primitive probes each and uses the first that's
-# usable, so a quota/auth failure on the primary falls back. Set a list blank to
-# skip the probe and fall back to the singular HERDR_ORCH_*_MODEL default.
+# Model tiers come from an editable file (the source of truth): a project-local
+# .herdr-frontier-models if present, else the skill's synced models.conf. The
+# file sets HERDR_FRONTIER_*_MODELS; the primitive then probes each (first that's
+# usable wins, so a quota/auth failure falls back). Edit the FILE, not these lines.
+if [[ -f .herdr-frontier-models ]]; then source .herdr-frontier-models
+elif [[ -f "$SKILL_DIR/models.conf" ]]; then source "$SKILL_DIR/models.conf"; fi
 export HERDR_ORCH_WORKER_MODELS="${HERDR_FRONTIER_WORKER_MODELS-minimax/MiniMax-M3,deepseek/deepseek-v4-flash}"
 export HERDR_ORCH_REVIEWER_MODELS="${HERDR_FRONTIER_REVIEWER_MODELS-deepseek/deepseek-v4-flash,minimax/MiniMax-M3}"
 bash "$SKILL_DIR/scripts/wave.sh" "$STATE_DIR/wave.manifest" "$STATE_DIR"
@@ -366,8 +369,8 @@ VERDICT: BLOCKING
 | `HERDR_FRONTIER_WORKER_SKILLS` | `~/.claude/skills/implement` | skill path(s) loaded into each worker pane (exported to `HERDR_ORCH_WORKER_SKILLS`); set blank to disable |
 | `HERDR_FRONTIER_TEST_CMD` | unset | if set (e.g. `uv run pytest -q`), run after each staged merge; fail → abort merge, leave issue open |
 | `HERDR_ORCH_SCRIPT` | `<skills_dir>/herdr-orchestration/scripts/herdr-orchestration.sh` (harness-relative) | override (`V2_SCRIPT` still works) |
-| `HERDR_FRONTIER_WORKER_MODELS` | `minimax/MiniMax-M3,deepseek/deepseek-v4-flash` | ordered worker models; first that **probes usable** is used (quota/auth fallback). Exported to `HERDR_ORCH_WORKER_MODELS`; set blank to skip the probe |
-| `HERDR_FRONTIER_REVIEWER_MODELS` | `deepseek/deepseek-v4-flash,minimax/MiniMax-M3` | ordered reviewer models; same probe + fallback |
+| `HERDR_FRONTIER_WORKER_MODELS` | `minimax/MiniMax-M3,deepseek/deepseek-v4-flash` | **edit in `models.conf`** (or project `.herdr-frontier-models`); ordered, first that probes usable wins |
+| `HERDR_FRONTIER_REVIEWER_MODELS` | `deepseek/deepseek-v4-flash,minimax/MiniMax-M3` | same — edit in `models.conf` |
 | `HERDR_ORCH_MODEL_PROBE` | `1` | probe each model before use; `0` = take the first, skip probing |
 | `HERDR_ORCH_WAIT_MS` | `1800000` (30 min; frontier default — primitive default is `900000`) | per-cycle budget; raise for slow suites |
 | `HERDR_ORCH_MAX_CYCLES` | `3` | worker→reviewer iterations per issue |
