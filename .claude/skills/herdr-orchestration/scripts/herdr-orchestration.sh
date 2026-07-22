@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # herdr-orchestration — live-pane orchestration primitive.
 # Opens a tab, splits into worker + reviewer panes running `pi` interactively,
-# sends prompts by file (dodges TUI paste issues), polls pane status until
-# idle/working/done transitions complete, parses VERDICT, loops on BLOCKING,
-# tears down. No sleep loops on agent-list or pane-read output; only current
-# pane status is polled.
+# sends prompts by file (dodges TUI paste issues), polls pane STATUS until THIS
+# turn starts (working|blocked — never the stale between-turn `done`) and
+# settles (done|idle stable across two reads), parses VERDICT, loops on
+# BLOCKING, tears down. Status-gating (NOT revision — empirically inert in this
+# herdr/pi build) defeats the stale-`done` race that cut every cycle-2+ turn to
+# ~0s.
 #
 # Usage:
 #   herdr-orchestration.sh <workdir> <worker-task-file> <reviewer-task-file>
@@ -107,11 +109,13 @@ die() {
 	exit 1
 }
 
-# Poll pane status. herdr wait agent-status can return on a previously-fired
-# matching event rather than the next one, so we poll the current state.
+# Poll pane status (current state). herdr's wait agent-status can return on a
+# previously-fired matching event rather than the next one, so we poll current
+# state. NB: the pane's `revision` field is NOT a reliable per-turn counter in
+# this herdr/pi build (it holds flat across turns in live 2-turn validation),
+# so the wait state machine below gates on STATUS only.
 poll_status() {
-	local pane=$1
-	local raw
+	local pane=$1 raw
 	if raw=$(herdr pane get "$pane" 2>/dev/null); then
 		printf '%s' "$raw" | jq -r '.result.pane.agent_status // "?"' 2>/dev/null || echo "?"
 	else
@@ -140,43 +144,68 @@ wait_ready() {
 	return 1
 }
 
-# wait_working: poll pane status until it leaves idle. Proves Enter registered
-# and pi picked up the message. Short overall budget so a broken pane fails
-# fast rather than hanging the loop.
-wait_working() {
+# wait_started: prove THIS turn's message registered and the model began work —
+# poll until status is working|blocked. NEVER accept `done`: between turns pi
+# rests in `done`, so a bare `done` here is the stale leftover that, before this
+# fix, made wait_working return instantly and cut every cycle-2+ turn to ~0s.
+# (revision was tried as an extra guard but is inert in this build — see
+# poll_status.) Generous 60s budget: herdr agent send + first inference can take
+# 20-30s to surface `working` in a cold pane.
+wait_started() {
 	local pane=$1
-	local settle_ms=20000
-	log "wait_working: $pane (timeout ${settle_ms}ms)"
-	local end=$(($(date +%s000) + settle_ms))
+	local settle_ms=60000
+	local end=$(($(date +%s000) + settle_ms)) s
 	while (($(date +%s000) < end)); do
-		local s
 		s=$(poll_status "$pane")
-		if [[ "$s" == "working" || "$s" == "blocked" || "$s" == "done" ]]; then
-			log "$pane status=$s"
+		if [[ "$s" == "working" || "$s" == "blocked" ]]; then
+			log "$pane started (status=$s)"
 			return 0
 		fi
-		sleep 0.5
+		sleep 0.3
 	done
-	log "$pane never left idle after send+Enter (last status=$s)"
+	log "$pane never started (last status=${s:-?})"
 	return 1
 }
 
-# wait_idle: poll pane status until idle OR done. herdr fires 'done' (not
-# 'idle') when pi finishes a turn — both are completion signals.
-wait_idle() {
+# wait_settled: prove the turn finished — poll until status is done|idle AND has
+# been stable for two consecutive 1s reads. The debounce defeats a transient
+# inter-step `done` so a worker is not declared done mid-work (the other half of
+# the cut-off race) and avoids racing the working→done transition itself.
+wait_settled() {
 	local pane=$1
-	local end=$(($(date +%s000) + wait_ms))
+	local end=$(($(date +%s000) + wait_ms)) s prev="" quiet=0
 	while (($(date +%s000) < end)); do
-		local s
 		s=$(poll_status "$pane")
-		if [[ "$s" == "idle" || "$s" == "done" ]]; then
-			log "$pane status=$s (completed)"
-			return 0
+		if [[ "$s" == "done" || "$s" == "idle" ]]; then
+			if [[ "$s" == "$prev" ]]; then
+				quiet=$((quiet + 1))
+				if ((quiet >= 2)); then
+					log "$pane settled (status=$s stable x$quiet)"
+					return 0
+				fi
+			else
+				quiet=1
+				prev="$s"
+			fi
+		else
+			quiet=0
+			prev=""
 		fi
 		sleep 1
 	done
-	log "$pane did not finish within ${wait_ms}ms (last status=$s)"
+	log "$pane never settled (last status=${s:-?})"
 	return 1
+}
+
+# run_turn: send a task and wait for the pane to fully finish THIS turn.
+# wait_started skips the stale between-turn `done`; wait_settled confirms a real,
+# debounced completion. Together they defeat the cut-off race.
+run_turn() {
+	local pane=$1 task_file=$2
+	send_task "$pane" "$task_file"
+	wait_started "$pane" || return 1
+	wait_settled "$pane" || return 1
+	return 0
 }
 
 # send_task: file-based prompt to dodge TUI paste and quote-escaping. The 1s
@@ -219,6 +248,7 @@ probe_model() {
 	local model="$1" out rc
 	set +e
 	out=$(timeout "$probe_to" pi -p --no-tools --no-skills --no-extensions --no-session \
+		${ext_args[@]+"${ext_args[@]}"} \
 		--model "$model" "Reply with exactly: OK" 2>&1)
 	rc=$?
 	set -e
@@ -264,6 +294,14 @@ command -v jq >/dev/null || die "jq not on PATH"
 [[ -f "$abs_worker_task" ]] || die "worker task not found: $abs_worker_task"
 [[ -f "$abs_reviewer_task" ]] || die "reviewer task not found: $abs_reviewer_task"
 
+# Explicit extension loads (honored under --no-extensions). Computed here, before
+# model resolution, so probe_model can reach extension-provided models (e.g.
+# pi-duo/Duo, which is invisible without its extension loaded).
+ext_args=()
+while IFS= read -r _ex; do
+	[[ -n "$_ex" ]] && ext_args+=(--extension "$_ex")
+done <<<"${HERDR_ORCH_EXTENSIONS:-}"
+
 # --- Model resolution (probe + fallback) ------------------------------------
 # A comma-separated *_MODELS list enables probing: try each in order, use the
 # first that's usable, so a quota/auth failure on the primary falls back to the
@@ -279,6 +317,10 @@ log "workdir=$abs_workdir worker_model=$worker_model reviewer_model=$reviewer_mo
 
 # --- Common pi args ---------------------------------------------------------
 # -a: no project-trust prompt stalls the panes.
+# --no-context-files (-nc): do NOT load the project CLAUDE.md/AGENTS.md into
+#                task panes. Each pane gets a self-contained task file; the
+#                repo's operator-grade instructions (e.g. an aggressive wiki-
+#                maintenance obligation) must not hijack a worker/reviewer turn.
 # --session-dir: sessions land in workdir, NOT ~/.pi/agent/sessions (avoids
 #                polluting synced dotfiles session history).
 # --no-skills / --no-extensions: child panes are task-focused — no discovery.
@@ -286,14 +328,20 @@ log "workdir=$abs_workdir worker_model=$worker_model reviewer_model=$reviewer_mo
 #                /implement) passes it via HERDR_ORCH_WORKER_SKILLS, which adds
 #                an explicit --skill <path> below; discovery stays off so ONLY
 #                that skill loads (verified: --no-skills honors explicit --skill).
+#                Likewise HERDR_ORCH_EXTENSIONS adds explicit --extension <path>s
+#                (still honored under --no-extensions) — use this to load an
+#                extension-provided model such as pi-duo/Duo.
 # --thinking: override the global default (high) which would be overkill.
+# (ext_args from HERDR_ORCH_EXTENSIONS is computed above, before model resolution.)
 common_pi_args=(
 	-a
+	--no-context-files
 	--session-dir "$session_dir"
 	--no-session false
 	--no-skills
 	--no-extensions
 	--thinking "$thinking"
+	${ext_args[@]+"${ext_args[@]}"}
 )
 
 # Per-pane skill allowlist (see HERDR_ORCH_*_SKILLS above). Empty by default.
@@ -348,9 +396,7 @@ cycle=0
 for cycle in $(seq 1 "$max_cycles"); do
 	log "=== cycle $cycle ==="
 
-	send_task "$worker_pane" "$abs_worker_task"
-	wait_working "$worker_pane" || die "worker never started (Enter dropped? cycle $cycle)"
-	wait_idle "$worker_pane" || die "worker never finished (cycle $cycle)"
+	run_turn "$worker_pane" "$abs_worker_task" || die "worker turn failed (cycle $cycle)"
 
 	# Sentinel contract: a worker that emits `IMPL_STUCK: <why>` is signaling a
 	# hard blocker (no implementation, missing capability, etc.). Honor it —
@@ -366,9 +412,7 @@ for cycle in $(seq 1 "$max_cycles"); do
 
 	log "worker done (cycle $cycle); sending to reviewer"
 
-	send_task "$reviewer_pane" "$abs_reviewer_task"
-	wait_working "$reviewer_pane" || die "reviewer never started (cycle $cycle)"
-	wait_idle "$reviewer_pane" || die "reviewer never finished (cycle $cycle)"
+	run_turn "$reviewer_pane" "$abs_reviewer_task" || die "reviewer turn failed (cycle $cycle)"
 
 	reviewer_out=$(read_recent "$reviewer_pane" 600)
 	printf '%s\n' "$reviewer_out" >"$abs_workdir/.pi-orch-logs/${cycle}-reviewer-recent.txt"
