@@ -27,7 +27,7 @@ pi-duo's in-band, tool-less verifier caught two synthetic false-claim probes
 (including a subtle side-effect falsehood with the full file visible in the
 transcript), so freshness is not needed to catch false claims. (Note: this says
 nothing about completeness — see below.)
-- **Build a watched-pane extension / generalize `v2-pane-orch` for verification.**
+- **Build a watched-pane extension / generalize `herdr-orchestration` for verification.**
 Rejected — the gap is not architectural. What found the omissions was a review
 *tasked to look for omissions*; whether freshness, tool access, or prompt stance
 was the decisive factor was NOT isolated (the contract_gate comparison changed
