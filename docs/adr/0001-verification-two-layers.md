@@ -37,6 +37,22 @@ tooled review surfaced omissions that pi-duo's grounding gate cannot.
 - **Run the completeness review constantly, like pi-duo.** Rejected — it re-reads
 the repo, so it is expensive; constant is infeasible. It is a task-boundary
 pass, not a per-turn gate.
+- **Augment pi-duo's existing in-band verifier with an omission criterion
+(a second cheap in-band pass), instead of adding a separate fresh-session
+reviewer.** Rejected as *insufficient*, not valueless. The in-band verifier
+is tool-less (`pi-duo/src/duo-core.ts:59`: "You cannot run tools and you are
+not being asked to fix anything") and sees only a flattened transcript of
+tool calls/results — it cannot *discover* omissions absent from the
+transcript, so an omission criterion would either hallucinate ("you omitted
+X") without being able to verify X exists, or it would silently never fire
+because the transcript already lacks evidence. And being in-band, it
+inherits the actor's blind spots: the same reason the actor omitted a
+behavior is the reason the verifier would accept the omission. The
+`contract_gate` experiment changed freshness + tools + prompt stance at
+once, so it did not isolate which lever mattered — but the structural
+argument above does not depend on isolating them: tool access + fresh
+context are independently sufficient to enable omission-discovery in a
+way the in-band tool-less verifier cannot be made to.
 
 ## Consequences
 

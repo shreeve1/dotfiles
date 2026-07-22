@@ -24,6 +24,12 @@
 #                              worker pane (e.g. ~/.claude/skills/implement).
 #                              --no-skills stays on, so ONLY these load.
 #   HERDR_ORCH_REVIEWER_SKILLS same, for the reviewer pane. Default: none.
+#   HERDR_ORCH_WORKER_MODELS   comma-separated ordered worker models; the first
+#                              that PROBES usable is used (quota/auth fallback).
+#                              Overrides HERDR_ORCH_WORKER_MODEL. Plural = probe.
+#   HERDR_ORCH_REVIEWER_MODELS same, for the reviewer pane.
+#   HERDR_ORCH_MODEL_PROBE     1 (default) probe each model before use; 0 = skip.
+#   HERDR_ORCH_MODEL_PROBE_TIMEOUT  per-model probe timeout seconds (default 20).
 #
 # Requires: herdr 0.7.4+, HERDR_ENV=1 (running inside a herdr session),
 # pi 0.80.6+, bash 4+, jq. Tested shapes only — not a general library.
@@ -42,6 +48,10 @@ reviewer_model=${HERDR_ORCH_REVIEWER_MODEL:-${PI_V2_REVIEWER_MODEL:-deepseek/dee
 thinking=${HERDR_ORCH_THINKING:-${PI_V2_THINKING:-low}}
 wait_ms=${HERDR_ORCH_WAIT_MS:-${PI_V2_WAIT_MS:-900000}}
 max_cycles=${HERDR_ORCH_MAX_CYCLES:-${PI_V2_MAX_CYCLES:-3}}
+worker_models="${HERDR_ORCH_WORKER_MODELS:-}"
+reviewer_models="${HERDR_ORCH_REVIEWER_MODELS:-}"
+probe_on=${HERDR_ORCH_MODEL_PROBE:-1}
+probe_to=${HERDR_ORCH_MODEL_PROBE_TIMEOUT:-20}
 
 abs_workdir=$(cd "$workdir" && pwd)
 # Agent names are workspace-global in herdr; hardcoded "worker"/"reviewer"
@@ -187,6 +197,55 @@ read_recent() {
 	herdr agent read "$pane" --source recent --lines "$lines" 2>/dev/null
 }
 
+# read_stuck_reason: pull the worker's IMPL_STUCK: <why> line out of recent
+# pane output, if present. Prints the reason (one line) and returns 0; returns
+# 1 if no IMPL_STUCK line is seen. Used to honor the sentinel contract (see
+# SKILL.md:150-151) — a worker that hits a hard blocker should NOT be sent to
+# the reviewer for a no-op review cycle.
+read_stuck_reason() {
+	local pane=$1
+	local recent
+	recent=$(read_recent "$pane" 200) || return 1
+	local reason
+	reason=$(printf '%s\n' "$recent" | grep -oE '^[[:space:]]*IMPL_STUCK:[[:space:]]*.+' | head -1 | sed -E 's/^[[:space:]]*IMPL_STUCK:[[:space:]]*//') || true
+	[[ -n "$reason" ]] || return 1
+	printf '%s' "$reason"
+}
+
+# probe_model: is <model> usable right now? One tiny non-interactive call. pi -p
+# exits 0 even on model/quota errors, so we key off OUTPUT not exit code (a bogus
+# model prints "Error: Model ... not found" yet exits 0). Returns 0 usable / 1 not.
+probe_model() {
+	local model="$1" out rc
+	set +e
+	out=$(timeout "$probe_to" pi -p --no-tools --no-skills --no-extensions --no-session \
+		--model "$model" "Reply with exactly: OK" 2>&1)
+	rc=$?
+	set -e
+	if [[ $rc -eq 124 ]]; then return 1; fi # probe timed out -> unusable
+	if printf '%s' "$out" | grep -qiE 'error[: ]|not found|not available|quota|rate[ -]?limit|429|insufficient|balance|credit|exceeded|unauthor|forbidden|401|403|invalid.+key|unavailable|overload'; then
+		return 1
+	fi
+	return 0
+}
+
+# pick_model: first model in the comma-separated list that probes usable. If
+# HERDR_ORCH_MODEL_PROBE != 1, skip the probe and take the first. Dies if none.
+pick_model() {
+	local list="$1" role="${2:-model}" chosen="" model
+	local IFS=','
+	for model in $list; do
+		model="${model//$'\r'/}"; model="${model// /}"
+		[[ -z "$model" ]] && continue
+		if [[ "$probe_on" != "1" ]]; then chosen="$model"; log "$role model (probe off): $model"; break; fi
+		log "probing $role model: $model"
+		if probe_model "$model"; then chosen="$model"; log "$role model OK: $model"; break; fi
+		log "$role model UNAVAILABLE: $model — trying next"
+	done
+	[[ -n "$chosen" ]] || die "no usable $role model in list: ${list:-(empty)}"
+	printf '%s' "$chosen"
+}
+
 # --- Sanity -----------------------------------------------------------------
 [[ "${HERDR_ENV:-}" == "1" ]] || die "HERDR_ENV != 1 — must run inside a herdr session"
 command -v herdr >/dev/null || die "herdr not on PATH"
@@ -195,6 +254,17 @@ command -v jq >/dev/null || die "jq not on PATH"
 [[ -d "$abs_workdir" ]] || die "workdir does not exist: $abs_workdir"
 [[ -f "$abs_worker_task" ]] || die "worker task not found: $abs_worker_task"
 [[ -f "$abs_reviewer_task" ]] || die "reviewer task not found: $abs_reviewer_task"
+
+# --- Model resolution (probe + fallback) ------------------------------------
+# A comma-separated *_MODELS list enables probing: try each in order, use the
+# first that's usable, so a quota/auth failure on the primary falls back to the
+# next. The singular *_MODEL default (no probe) is unchanged for backward compat.
+if [[ -n "$worker_models" ]]; then
+	worker_model=$(pick_model "$worker_models" worker)
+fi
+if [[ -n "$reviewer_models" ]]; then
+	reviewer_model=$(pick_model "$reviewer_models" reviewer)
+fi
 
 log "workdir=$abs_workdir worker_model=$worker_model reviewer_model=$reviewer_model"
 
@@ -272,6 +342,19 @@ for cycle in $(seq 1 "$max_cycles"); do
 	send_task "$worker_pane" "$abs_worker_task"
 	wait_working "$worker_pane" || die "worker never started (Enter dropped? cycle $cycle)"
 	wait_idle "$worker_pane" || die "worker never finished (cycle $cycle)"
+
+	# Sentinel contract: a worker that emits `IMPL_STUCK: <why>` is signaling a
+	# hard blocker (no implementation, missing capability, etc.). Honor it —
+	# do not send a blocked worker to the reviewer for a wasted cycle. The
+	# reason is emitted as `STUCK_REASON:` on stdout and the verdict is STUCK,
+	# which wave.sh / herdr-issue-frontier can disambiguate from BLOCKING.
+	if stuck_reason=$(read_stuck_reason "$worker_pane"); then
+		log "worker STUCK (cycle $cycle): $stuck_reason"
+		verdict="STUCK"
+		echo "STUCK_REASON: $stuck_reason"
+		break
+	fi
+
 	log "worker done (cycle $cycle); sending to reviewer"
 
 	send_task "$reviewer_pane" "$abs_reviewer_task"
@@ -298,10 +381,15 @@ for cycle in $(seq 1 "$max_cycles"); do
 done
 
 # --- Teardown ---------------------------------------------------------------
+# When KEEP is unset: disarm the EXIT trap and run the explicit teardown so the
+# log line is emitted. When KEEP is set: ONLY disarm the EXIT trap — cleanup()
+# must NOT run, or the debug-pane inspection the user asked for is lost on exit.
 if [[ -z "${HERDR_ORCH_KEEP:-${PI_V2_KEEP:-}}" ]]; then
 	log "tearing down"
 	trap - EXIT INT TERM
 	cleanup
+else
+	trap - EXIT INT TERM
 fi
 
 # --- Final report -----------------------------------------------------------

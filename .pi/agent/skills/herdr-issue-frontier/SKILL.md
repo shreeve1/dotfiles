@@ -103,18 +103,40 @@ the Bookend both surface them). A `ready-for-agent` issue blocked by an open
 `ready-for-human` issue deadlocks the loop — step 3 reports it and names the
 human action that unblocks it.
 
-### 3. Empty-frontier gate (deadlock OR hand-off terminal)
+### 3. Empty-frontier gate (classify BEFORE declaring deadlock)
 
-If the frontier is empty but open children remain, decide WHICH before stopping:
+If the frontier is empty but open children remain, classify every remaining
+child into ONE of these buckets before deciding to stop. The old dichotomy
+(`ready-for-human` hand-off vs `ready-for-agent` blocked) is incomplete:
+several real failure modes look like an "empty frontier with open children"
+but are NOT dependency deadlocks, and reporting them as such misleads the
+human into hunting for a blocking graph that doesn't exist.
 
-- **All remaining open children are `ready-for-human`** → this is the **hand-off
+For each open child not in the excluded-this-run set:
+
+| Bucket | Diagnosis | What to report |
+|---|---|---|
+| **`ready-for-human`** | Human-only child (physical endpoint, sign-off) | List as a hand-off |
+| **Unlabeled** | Open, no `ready-for-agent` AND no `ready-for-human` label | "Needs triage: apply `ready-for-agent` or `ready-for-human`" |
+| **Assigned to someone else** | `assignees` is non-empty and not `@me` | "Claimed by @<user> — wait or reassign" |
+| **Excluded this run** | Already in the excluded set (prior wave's BLOCKING/STUCK/conflict/timeout) | "Already failed this run — see prior waves' result files" |
+| **Blocked on an open issue** | Open blocker(s) remain (native dep or body `Blocked by:`) | The blocking graph; for each blocker, name its label (`ready-for-agent` → next wave clears it; `ready-for-human` → human action) |
+
+Terminal rules:
+
+- **All remaining open children are `ready-for-human`** → **hand-off
   terminal**, not a failure. Go straight to the Bookend (report the hand-off
   list; `/finish-spec` is skipped because those children are still open).
-- **Otherwise** (a `ready-for-agent` child is blocked by an open issue) →
-  **deadlock. Stop.** Report the blocking graph (who blocks whom). For each open
-  blocker, say whether it is `ready-for-agent` (will clear next wave once closed)
-  or `ready-for-human` (a hand-off — name the human action needed). Do
-  **not** run `/finish-spec` — the feature is not fully landed.
+- **Otherwise (at least one `ready-for-agent` child is blocked by an open
+  issue, and no other bucket dominates)** → **deadlock. Stop.** Report the
+  blocking graph and the human action for each open blocker. Do **not** run
+  `/finish-spec` — the feature is not fully landed.
+- **Otherwise (unlabeled, assigned-elsewhere, or excluded-this-run children
+  dominate, with no ready-for-agent blocker chain)** → **soft-stop, not
+  deadlock.** Report each non-blocker bucket with the per-child table above
+  (e.g. "3 unlabeled — apply a label to proceed; 2 claimed by @alice —
+  wait"). The loop can resume after a label is applied or an assignee is
+  cleared; nothing in the blocking graph explains the stall.
 
 ### 4. Cap the wave (throttle)
 
@@ -159,6 +181,11 @@ export HERDR_ORCH_WORKER_SKILLS="${HERDR_FRONTIER_WORKER_SKILLS-$HOME/.claude/sk
 # Real implementation (edits + slow test suites) blows past the primitive's 15-min
 # per-cycle default and gets killed mid-work. Default to 30 min for frontier waves.
 export HERDR_ORCH_WAIT_MS="${HERDR_ORCH_WAIT_MS:-1800000}"
+# Ordered model lists -> the primitive probes each and uses the first that's
+# usable, so a quota/auth failure on the primary falls back. Set a list blank to
+# skip the probe and fall back to the singular HERDR_ORCH_*_MODEL default.
+export HERDR_ORCH_WORKER_MODELS="${HERDR_FRONTIER_WORKER_MODELS-minimax/MiniMax-M3,deepseek/deepseek-v4-flash}"
+export HERDR_ORCH_REVIEWER_MODELS="${HERDR_FRONTIER_REVIEWER_MODELS-deepseek/deepseek-v4-flash,minimax/MiniMax-M3}"
 bash "$SKILL_DIR/scripts/wave.sh" "$STATE_DIR/wave.manifest" "$STATE_DIR"
 ```
 
@@ -206,6 +233,13 @@ its cycles without LGTM).
   the reviewer's findings (and any fix-prompt drafts) on the issue, **leave it
   open**, add `N` to the excluded set. Do not retry `N` this run — surfacing the
   blocker for a human is the correct outcome.
+- **`VERDICT: STUCK`** — the worker hit a hard blocker and emitted
+  `IMPL_STUCK: <why>`; the primitive short-circuited to skip the reviewer
+  cycle. Preserve the worktree + logs, comment the worker's own reason (the
+  `STUCK_REASON:` line in the result file is the worker's verbatim
+  explanation — surface it as the headline, not "reviewer said BLOCKING"),
+  **leave it open**, add `N` to the excluded set. STUCK is the worker's
+  own self-classification of the blocker; honor it instead of looping.
 
 After every issue in the wave is processed, **go to step 1** (re-scan). Closing
 issues may unblock dependents → a larger next frontier.
@@ -251,6 +285,11 @@ ticket in `.herdr-issue.md`.
 independent reviewer pane does the review out-of-band. If `/code-review` is
 reported not found, that is EXPECTED — stop; do not retry or improvise a review.
 (`/tdd` is also not loaded — apply TDD directly at the seams if you want test-first.)
+
+**Also override `/implement`'s "independent verify" step.** If `/implement`
+references an "independent verify" via subagents (e.g. `../_shared/verify-claims.md`),
+SKIP IT. You have no subagent tools in this pane — attempting it will silently fail
+or burn cycles. The reviewer pane is the verification gate; trust it.
 
 Additional rule `/implement` does not encode:
 - Run the issue's exact ## Verification command (the backtick-quoted one) — it MUST exit 0.
@@ -327,8 +366,9 @@ VERDICT: BLOCKING
 | `HERDR_FRONTIER_WORKER_SKILLS` | `~/.claude/skills/implement` | skill path(s) loaded into each worker pane (exported to `HERDR_ORCH_WORKER_SKILLS`); set blank to disable |
 | `HERDR_FRONTIER_TEST_CMD` | unset | if set (e.g. `uv run pytest -q`), run after each staged merge; fail → abort merge, leave issue open |
 | `HERDR_ORCH_SCRIPT` | `<skills_dir>/herdr-orchestration/scripts/herdr-orchestration.sh` (harness-relative) | override (`V2_SCRIPT` still works) |
-| `HERDR_ORCH_WORKER_MODEL` | `minimax/MiniMax-M3` | passed through to herdr-orchestration |
-| `HERDR_ORCH_REVIEWER_MODEL` | `deepseek/deepseek-v4-flash` | passed through (opposite family) |
+| `HERDR_FRONTIER_WORKER_MODELS` | `minimax/MiniMax-M3,deepseek/deepseek-v4-flash` | ordered worker models; first that **probes usable** is used (quota/auth fallback). Exported to `HERDR_ORCH_WORKER_MODELS`; set blank to skip the probe |
+| `HERDR_FRONTIER_REVIEWER_MODELS` | `deepseek/deepseek-v4-flash,minimax/MiniMax-M3` | ordered reviewer models; same probe + fallback |
+| `HERDR_ORCH_MODEL_PROBE` | `1` | probe each model before use; `0` = take the first, skip probing |
 | `HERDR_ORCH_WAIT_MS` | `1800000` (30 min; frontier default — primitive default is `900000`) | per-cycle budget; raise for slow suites |
 | `HERDR_ORCH_MAX_CYCLES` | `3` | worker→reviewer iterations per issue |
 
