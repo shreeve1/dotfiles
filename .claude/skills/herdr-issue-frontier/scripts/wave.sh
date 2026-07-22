@@ -23,10 +23,14 @@
 #                      thinking, wait, cycles, *_SKILLS). PI_V2_* also still work.
 #   HERDR_ENV          must be 1 (inherited from the orchestrator's herdr session).
 #
+# Requires: bash 4+ (associative arrays). Tested on bash 5.x.
+#
 # ponytail: deliberately synchronous and per-wave stateless. A BLOCKING verdict
 # is a normal exit 0 here — the caller keys off the VERDICT: line in each result
 # file, not this script's exit status. Exit status is non-zero only if a
 # herdr-orchestration.sh invocation itself crashed (script error, not a review fail).
+# VERDICT: STUCK is the worker-sentinel short-circuit (see herdr-orchestration.sh:
+# the primitive honors `IMPL_STUCK: <why>` and skips the reviewer cycle).
 set -euo pipefail
 
 manifest=${1:?manifest required}
@@ -87,7 +91,7 @@ for pid in "${pids[@]}"; do
 		status="CRASH(rc=$rc)"
 		fail=1
 	fi
-	verdict=$(grep -oE 'VERDICT: *(LGTM|BLOCKING|NONE)' "$state_dir/$issue.result" 2>/dev/null | tail -1 || true)
+	verdict=$(grep -oE 'VERDICT: *(LGTM|BLOCKING|STUCK|NONE)' "$state_dir/$issue.result" 2>/dev/null | tail -1 || true)
 	printf 'ISSUE %s\t%s\t%s\n' "$issue" "$status" "${verdict:-(no verdict)}"
 	printf '  result: %s/%s.result\n' "$state_dir" "$issue"
 done
