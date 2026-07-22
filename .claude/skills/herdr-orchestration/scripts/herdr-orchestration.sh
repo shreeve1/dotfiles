@@ -429,7 +429,7 @@ for cycle in $(seq 1 "$max_cycles"); do
 	fi
 
 	log "worker done (cycle $cycle); sending to reviewer"
-	commit_worker_state   # ensure the reviewer sees committed work (no-commit guard)
+	commit_worker_state # ensure the reviewer sees committed work (no-commit guard)
 
 	run_turn "$reviewer_pane" "$abs_reviewer_task" || die "reviewer turn failed (cycle $cycle)"
 
