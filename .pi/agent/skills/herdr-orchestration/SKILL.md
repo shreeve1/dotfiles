@@ -82,6 +82,11 @@ deprecated fallback, so existing callers don't break.
 | `HERDR_ORCH_WORKER_SKILLS`    | unset                            | newline-separated skill **paths** to load into |
 |                               |                                  | the worker pane (e.g. `~/.claude/skills/implement`) |
 | `HERDR_ORCH_REVIEWER_SKILLS`  | unset                            | same, for the reviewer pane                    |
+| `HERDR_ORCH_WORKER_MODELS`    | unset                            | comma-separated ordered worker models; the first |
+|                               |                                  | that **probes usable** is used (quota/auth fallback). Overrides `_MODEL |
+| `HERDR_ORCH_REVIEWER_MODELS`  | unset                            | same, for the reviewer pane                    |
+| `HERDR_ORCH_MODEL_PROBE`      | `1`                              | probe each model before use; `0` = take first  |
+| `HERDR_ORCH_MODEL_PROBE_TIMEOUT` | `20`                          | per-model probe timeout, seconds               |
 
 **Skills are off by default** (panes start `--no-skills`). Setting
 `HERDR_ORCH_*_SKILLS` keeps discovery off but loads ONLY the named skills via
@@ -89,6 +94,13 @@ explicit `--skill <path>` — so a worker can run `/implement` without dragging
 all 50 repo skills into its context. Verified: `--no-skills` honors an explicit
 `--skill`. Extensions stay off (`--no-extensions`) regardless, so the panes
 can't delegate or escape the tool allowlist.
+
+**Model fallback.** A singular `HERDR_ORCH_*_MODEL` is used as-is (no probe). A
+plural `HERDR_ORCH_*_MODELS` list enables a probe: each model gets one tiny
+non-interactive call, and the first that responds cleanly is used — so a
+quota/auth/unavailable primary falls back to the next. The probe keys off the
+response text (not exit code: `pi -p` exits 0 even on `Error: Model not found`).
+Disable with `HERDR_ORCH_MODEL_PROBE=0` (takes the first model, no call).
 
 ### Invocation
 
@@ -151,11 +163,21 @@ Other artifacts written to `<workdir>`:
 | `IMPL_STUCK: <why>` | worker pane  | Worker hit a blocker; orchestrator should re-prompt or escalate |
 | `VERDICT: LGTM`     | reviewer     | All checks pass; orchestrator should accept   |
 | `VERDICT: BLOCKING` | reviewer     | One or more checks failed; orchestrator should loop with a fix prompt |
+| `VERDICT: STUCK`    | primitive    | Worker emitted `IMPL_STUCK`; orchestrator should surface the reason and not loop |
 
 A reviewer pane that returns no `VERDICT:` line (asks for clarification, gets
 confused, times out) is treated as BLOCKING by the script — it loops. This is
 deliberate: a confused reviewer is the same as a failing reviewer for the
 purpose of the orchestrator's decision.
+
+**`IMPL_STUCK` is honored, not ignored.** Before sending the worker's output
+to the reviewer, the script greps the worker's recent pane output for an
+`IMPL_STUCK: <why>` line. If found, the cycle loop `break`s with
+`VERDICT: STUCK` and a `STUCK_REASON: <why>` line in stdout — a blocked
+worker is NOT sent for a wasted reviewer cycle. The `IMPL_DONE` sentinel is
+NOT actively checked (the reviewer backstops incomplete work), but the
+protocol table still documents it because worker templates emit it as a
+positive completion signal.
 
 ## How other skills compose with herdr-orchestration
 
