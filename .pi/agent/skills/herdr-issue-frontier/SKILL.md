@@ -324,24 +324,25 @@ You are a READ-ONLY reviewer for GitHub issue #$N: <title>. You lack write/edit 
 modify files.
 
 Read `.herdr-issue.md` in your cwd for acceptance criteria + ## Verification.
-Review the implementation. Diff the WORKING TREE (committed AND uncommitted — the
-worker sometimes forgets to commit, and uncommitted work must still be visible to
-you), excluding orchestration artifacts:
+Review the implementation. The primitive auto-commits the worker's working tree
+before each review (so the work is committed even if the worker forgot to `git
+commit`). Diff committed work vs REVIEW_BASE, excluding orchestration artifacts:
 `git diff $REVIEW_BASE -- . ':(exclude).pi-orch-logs' ':(exclude).herdr-orch-sessions' ':(exclude).herdr-issue.md' ':(exclude).herdr-worker-task.md' ':(exclude).herdr-reviewer-task.md'`
-Then read every changed file. If the only changes are uncommitted, that is criterion
-5 failing — say so explicitly ("implementation is uncommitted — worker must commit")
-so the next cycle's fix-prompt is actionable.
+Then read every changed file. An empty diff means NO implementation — say so
+("no implementation produced") so the next cycle re-engages the worker; it is
+NOT a commit problem (the primitive handles commits).
 
 Mechanically verify:
 1. Every acceptance-criterion checkbox is objectively satisfied.
 2. The issue's ## Verification command passes (exit 0).
 3. Lint/typecheck pass for touched files.
 4. No unrelated or scope-creep changes in the diff.
-5. No uncommitted ISSUE work left. The worktree holds orchestration artifacts
-   (`.pi-orch-logs/`, `.herdr-orch-sessions/`, `.herdr-*.md`) that are NOT issue work —
-   exclude them:
+5. Implementation is committed (the primitive auto-commits before review, so this
+   should always hold — flag only if something looks wrong). The worktree also holds
+   orchestration artifacts (`.pi-orch-logs/`, `.herdr-orch-sessions/`, `.herdr-*.md`)
+   that are NOT issue work — exclude them:
    `git status --porcelain -- . ':(exclude).pi-orch-logs' ':(exclude).herdr-orch-sessions' ':(exclude).herdr-issue.md' ':(exclude).herdr-worker-task.md' ':(exclude).herdr-reviewer-task.md`
-   must be empty.
+   should show only orchestration artifacts.
 
 Output reasoning per criterion, then end with EXACTLY ONE of these on its own line:
 VERDICT: LGTM
