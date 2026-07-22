@@ -380,6 +380,7 @@ VERDICT: BLOCKING
 | `HERDR_FRONTIER_REVIEWER_MODELS` | `deepseek/deepseek-v4-flash,minimax/MiniMax-M3` | same — edit in `models.conf` |
 | `HERDR_ORCH_MODEL_PROBE` | `1` | probe each model before use; `0` = take the first, skip probing |
 | `HERDR_ORCH_WAIT_MS` | `1800000` (30 min; frontier default — primitive default is `900000`) | per-cycle budget; raise for slow suites |
+| `HERDR_ORCH_START_MS` | `60000` | per-turn budget for the pane to reach `working` after send (cold-start / send latency); raise if a model is slow to engage |
 | `HERDR_ORCH_MAX_CYCLES` | `3` | worker→reviewer iterations per issue |
 
 ## Sharp edges
