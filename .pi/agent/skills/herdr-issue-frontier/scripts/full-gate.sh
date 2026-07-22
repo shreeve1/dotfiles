@@ -5,7 +5,7 @@
 # it — from the base repo root. A failure here means the issue's narrow
 # ## Verification command missed a cross-cutting impact (e.g. a migration that
 # should have updated a schema-stamp test outside its verification set). That is
-# exactly how a reviewed-LGTM #32 shipped a regression when this gate was opt-in.
+# exactly how a reviewed-LGTM merge can ship a regression when this gate is opt-in.
 #
 # DEFAULT-ON. Opt out with HERDR_FRONTIER_NO_GATE=1 (you accept the regression
 # risk for speed).

@@ -230,7 +230,7 @@ its cycles without LGTM).
        the branch retains the commits so nothing is lost), comment the failing
        command + output, **leave it open**, add `N` to the excluded set. Default-ON
        because an issue's narrow ## Verification misses cross-cutting impacts — an
-       opt-in gate shipped a broken #32.
+       opt-in gate lets a reviewed-but-broken merge ship.
      - Gate green (or opted out) → commit the merge: `git commit -m "merge(#$N): <subject>"`.
   4. After a committed merge → `gh issue close $N -c "Implemented + reviewed via herdr panes (LGTM). Merged into $BASE_BRANCH."`, then `git worktree remove "$wt"` and
      `git branch -d "$branch"`.
@@ -372,7 +372,8 @@ VERDICT: BLOCKING
 | `HERDR_FRONTIER_MAX` | `3` | hard cap: max issues provisioned per wave; excess defers to the next wave |
 | `HERDR_FRONTIER_LABEL` | `ready-for-agent` | agent-ready label; `ready-for-human` issues are handed off, never worked |
 | `HERDR_FRONTIER_WORKER_SKILLS` | `~/.claude/skills/implement` | skill path(s) loaded into each worker pane (exported to `HERDR_ORCH_WORKER_SKILLS`); set blank to disable |
-| `HERDR_FRONTIER_TEST_CMD` | unset | if set (e.g. `uv run pytest -q`), run after each staged merge; fail → abort merge, leave issue open |
+| `HERDR_FRONTIER_TEST_CMD` | unset | explicit merge-gate command (highest priority); overrides `./.herdr-frontier-gate` + auto-detect. **Per-project, prefer committing `./.herdr-frontier-gate`** (first line = command, e.g. `uv run pytest -q` or a fast scoped subset) so each repo declares its own gate. If neither is set, `full-gate.sh` auto-detects the full suite (`uv run pytest -q` / `npm test` / `go test ./...`) — correct but can be slow on big suites. Fail → abort merge, leave issue open. |
+| `HERDR_FRONTIER_NO_GATE` | unset | `1` disables the merge gate entirely (you accept regression risk for speed) |
 | `HERDR_ORCH_SCRIPT` | `<skills_dir>/herdr-orchestration/scripts/herdr-orchestration.sh` (harness-relative) | override (`V2_SCRIPT` still works) |
 | `HERDR_FRONTIER_WORKER_MODELS` | `minimax/MiniMax-M3,deepseek/deepseek-v4-flash` | **edit in `models.conf`** (or project `.herdr-frontier-models`); ordered, first that probes usable wins |
 | `HERDR_FRONTIER_REVIEWER_MODELS` | `deepseek/deepseek-v4-flash,minimax/MiniMax-M3` | same — edit in `models.conf` |
