@@ -1,32 +1,51 @@
 #!/usr/bin/env bash
-# orch-wait-test — regression test for the status-gated wait state machine in
-# herdr-orchestration.sh.
+# orch-wait-test — regression test for herdr-orchestration.sh: the status-gated
+# wait state machine AND commit_worker_state (auto-commit-before-review).
 #
 # It runs the REAL script against a fake `herdr` that replays a scripted
 # "<status>" scene per pane (revision is ignored — empirically inert in this
 # herdr/pi build). The worker scene deliberately leads with a STALE `done`
 # before `working` — the exact shape that, before the fix, made wait_working
 # return instantly and cut every cycle-2+ turn to ~0s. The assertions prove
-# wait_started now returns ONLY on working|blocked (never done) and wait_settled
-# requires a stable done.
+# wait_started returns ONLY on working|blocked (never done), wait_settled
+# requires a stable done, and commit_worker_state commits the worker's
+# uncommitted issue work while EXCLUDING orchestration artifacts.
 #
 # Run: bash orch-wait-test.sh
 # Exits 0 on pass, 1 on fail. Self-contained; cleans up its temp dir.
 set -euo pipefail
 
 SCRIPT="$(cd "$(dirname "$0")/.." && pwd)/scripts/herdr-orchestration.sh"
-[[ -f "$SCRIPT" ]] || { echo "FAIL: script not found at $SCRIPT" >&2; exit 1; }
+[[ -f "$SCRIPT" ]] || {
+	echo "FAIL: script not found at $SCRIPT" >&2
+	exit 1
+}
 
 # Syntax gate first.
-bash -n "$SCRIPT" || { echo "FAIL: bash -n on herdr-orchestration.sh" >&2; exit 1; }
+bash -n "$SCRIPT" || {
+	echo "FAIL: bash -n on herdr-orchestration.sh" >&2
+	exit 1
+}
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-SCENE="$TMP/scene"; mkdir -p "$SCENE"
-WORKDIR="$TMP/wt"; mkdir -p "$WORKDIR"
+SCENE="$TMP/scene"
+mkdir -p "$SCENE"
+WORKDIR="$TMP/wt"
+mkdir -p "$WORKDIR"
 printf 'worker task body\n' >"$WORKDIR/.herdr-worker-task.md"
 printf 'reviewer task body\n' >"$WORKDIR/.herdr-reviewer-task.md"
-BIN="$TMP/bin"; mkdir -p "$BIN"
+# Make WORKDIR a real git repo so commit_worker_state is exercised: it must
+# commit uncommitted issue work and EXCLUDE orchestration artifacts.
+git -C "$WORKDIR" init -q
+git -C "$WORKDIR" config user.email t@t
+git -C "$WORKDIR" config user.name t
+printf 'base\n' >"$WORKDIR/README.md"
+git -C "$WORKDIR" add README.md
+git -C "$WORKDIR" commit -q -m base
+printf 'def f(): pass\n' >"$WORKDIR/worker_output.py"   # uncommitted worker work
+BIN="$TMP/bin"
+mkdir -p "$BIN"
 
 # --- Worker pane scene ------------------------------------------------------
 # wait_ready    -> idle
@@ -119,29 +138,47 @@ OUT=$(PATH="$BIN:$PATH" HERDR_ENV=1 \
 	ORCH_TEST_SCENE="$SCENE" \
 	bash "$SCRIPT" "$WORKDIR" "$WORKDIR/.herdr-worker-task.md" "$WORKDIR/.herdr-reviewer-task.md" 2>&1) || true
 
-fail() { echo "FAIL: $*" >&2; echo "----- script output -----" >&2; printf '%s\n' "$OUT" >&2; exit 1; }
+fail() {
+	echo "FAIL: $*" >&2
+	echo "----- script output -----" >&2
+	printf '%s\n' "$OUT" >&2
+	exit 1
+}
 
 # 1. Full cycle completed and reviewer verdict propagated.
 grep -q '^VERDICT: LGTM$' <<<"$OUT" || fail "expected final verdict VERDICT: LGTM"
 
 # 2. wait_started returned on working (the only status it accepts), proving it
 #    walked past the leading stale `done` rather than false-starting on it.
-grep -q 'wp started (status=working)' <<<"$OUT" \
-	|| fail "wait_started did not start on working (status-only gate broken)"
+grep -q 'wp started (status=working)' <<<"$OUT" ||
+	fail "wait_started did not start on working (status-only gate broken)"
 
 # 3. wait_started NEVER logs a start on done/idle (stale-done regression guard).
-! grep -qE 'wp started \(status=(done|idle)\)' <<<"$OUT" \
-	|| fail "wait_started accepted done/idle — stale-done regression"
+! grep -qE 'wp started \(status=(done|idle)\)' <<<"$OUT" ||
+	fail "wait_started accepted done/idle — stale-done regression"
 
 # 4. wait_settled debounced: settled on stable done (two consecutive reads).
-grep -q 'wp settled (status=done stable' <<<"$OUT" \
-	|| fail "wait_settled did not debounce to stable done"
+grep -q 'wp settled (status=done stable' <<<"$OUT" ||
+	fail "wait_settled did not debounce to stable done"
 
 # 5. Worker turn completed into the reviewer cycle; reviewer also gated.
-grep -q 'worker done (cycle 1); sending to reviewer' <<<"$OUT" \
-	|| fail "worker turn did not complete into the reviewer cycle"
-grep -q 'rp started (status=working)' <<<"$OUT" \
-	|| fail "reviewer wait_started did not start on working"
+grep -q 'worker done (cycle 1); sending to reviewer' <<<"$OUT" ||
+	fail "worker turn did not complete into the reviewer cycle"
+grep -q 'rp started (status=working)' <<<"$OUT" ||
+	fail "reviewer wait_started did not start on working"
 
-echo "PASS: status-only wait state machine defeats the stale-done race."
+# 6. commit_worker_state (auto-commit-before-review): the worker's uncommitted
+#    issue work got committed; orchestration artifacts did NOT.
+git -C "$WORKDIR" log --oneline | grep -q 'auto-commit' ||
+	fail "commit_worker_state did not auto-commit uncommitted worker work"
+git -C "$WORKDIR" show --name-only --format='' HEAD | grep -q 'worker_output.py' ||
+	fail "auto-commit did not include the worker's issue work (worker_output.py)"
+if git -C "$WORKDIR" ls-files | grep -q '^\.pi-orch-logs/'; then
+	fail "auto-commit committed an orchestration artifact (.pi-orch-logs/)"
+fi
+if git -C "$WORKDIR" ls-files | grep -q '^\.herdr-worker-task\.md'; then
+	fail "auto-commit committed .herdr-worker-task.md (orch artifact)"
+fi
+
+echo "PASS: status-gated waits + auto-commit-before-review."
 exit 0
