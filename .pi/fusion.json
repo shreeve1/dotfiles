@@ -1,0 +1,6 @@
+{
+  "allowedCommands": [
+    "bash .pi/agent/extensions/fusion/tests/fusion-smoke.sh",
+    "bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh"
+  ]
+}

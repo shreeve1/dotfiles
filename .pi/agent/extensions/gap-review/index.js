@@ -117,7 +117,11 @@ const SIG_IGNORED_NAMES = new Set([".pi-subagents", "tmp", "node_modules"]);
 export function computeRepoChangeSignature(cwd) {
 	const gitRoot = (() => {
 		try {
-			const out = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+			const out = spawnSync(
+				"git",
+				["-C", cwd, "rev-parse", "--show-toplevel"],
+				{ encoding: "utf8" },
+			);
 			return out.status === 0 ? out.stdout.trim() : undefined;
 		} catch {
 			return undefined;
@@ -128,7 +132,14 @@ export function computeRepoChangeSignature(cwd) {
 		try {
 			const out = spawnSync(
 				"git",
-				["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+				[
+					"-C",
+					gitRoot,
+					"status",
+					"--porcelain=v1",
+					"-z",
+					"--untracked-files=all",
+				],
 				{ encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
 			);
 			return out.status === 0 ? out.stdout : undefined;
@@ -328,7 +339,14 @@ const RUNNER_SCRIPT = [
 // offline with a tmpdir + a stub process.env). Any throw here is the caller's
 // problem — the wrap in `turn_end` swallows it so a FS error never disrupts
 // the turn (D3).
-export function prepareReview({ message, files, request, cwd, env, allowEmptyFiles = false }) {
+export function prepareReview({
+	message,
+	files,
+	request,
+	cwd,
+	env,
+	allowEmptyFiles = false,
+}) {
 	const procEnv = env || process.env;
 	// D5: resolved against `cwd` (the actor's cwd at turn_end), not against
 	// `process.cwd()` — the detached reviewer runs from the git root.
@@ -348,13 +366,24 @@ export function prepareReview({ message, files, request, cwd, env, allowEmptyFil
 	if (absFiles.length === 0 && cwd && !allowEmptyFiles) {
 		try {
 			const gitRoot = (() => {
-				const o = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+				const o = spawnSync(
+					"git",
+					["-C", cwd, "rev-parse", "--show-toplevel"],
+					{ encoding: "utf8" },
+				);
 				return o.status === 0 ? o.stdout.trim() : undefined;
 			})();
 			if (gitRoot) {
 				const o = spawnSync(
 					"git",
-					["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+					[
+						"-C",
+						gitRoot,
+						"status",
+						"--porcelain=v1",
+						"-z",
+						"--untracked-files=all",
+					],
 					{ encoding: "utf8" },
 				);
 				if (o.status === 0) {
@@ -422,13 +451,13 @@ export default function gapReviewExtension(pi) {
 	// fresh, `turnFiles` so the next turn accumulates from zero.
 	let currentRequest = "";
 	const turnFiles = new Set();
-	let startSigKey ; // git porcelain key captured at turn_start
-	let startSigRoot ;
+	let startSigKey; // git porcelain key captured at turn_start
+	let startSigRoot;
 
 	// Latest non-trivial terminal-turn candidate retained for one revision so
 	// the manual /gap-review command can re-review read-only architecture /
 	// design turns after the user asked.
-	let lastCandidate ;
+	let lastCandidate;
 
 	function spawnReviewFor(params) {
 		try {
@@ -543,8 +572,15 @@ export default function gapReviewExtension(pi) {
 		// read-only architecture analysis" without rerunning the whole turn.
 		if (request && request.trim() && answer.length >= minChars) {
 			const cwdAbs = ctx && ctx.cwd ? ctx.cwd : process.cwd();
-			const absFiles = files.map((f) => (isAbsolute(f) ? f : resolve(cwdAbs, f)));
-			lastCandidate = { request: request, answer, files: absFiles, root: startSigRoot || cwdAbs };
+			const absFiles = files.map((f) =>
+				isAbsolute(f) ? f : resolve(cwdAbs, f),
+			);
+			lastCandidate = {
+				request: request,
+				answer,
+				files: absFiles,
+				root: startSigRoot || cwdAbs,
+			};
 		}
 
 		if (!shouldAutoReview) return;
@@ -573,14 +609,20 @@ export default function gapReviewExtension(pi) {
 	// (read-only architecture / design analysis, a turn that did not mutate
 	// anything). Notifies plainly when there is nothing eligible.
 	pi.registerCommand("gap-review", {
-		description: "Review the latest non-trivial turn for completeness (manual trigger; auto only fires on repo mutation).",
+		description:
+			"Review the latest non-trivial turn for completeness (manual trigger; auto only fires on repo mutation).",
 		handler: async (_args, ctx) => {
 			if (!enabled()) {
-				if (ctx.hasUI) ctx.ui.notify("gap-review: disabled (PI_GAP_REVIEW=0)", "info");
+				if (ctx.hasUI)
+					ctx.ui.notify("gap-review: disabled (PI_GAP_REVIEW=0)", "info");
 				return;
 			}
 			if (!lastCandidate) {
-				if (ctx.hasUI) ctx.ui.notify("gap-review: no eligible latest turn (answer < min chars or no request captured yet)", "info");
+				if (ctx.hasUI)
+					ctx.ui.notify(
+						"gap-review: no eligible latest turn (answer < min chars or no request captured yet)",
+						"info",
+					);
 				return;
 			}
 			const cwd = ctx.cwd || lastCandidate.root;
@@ -588,7 +630,8 @@ export default function gapReviewExtension(pi) {
 			// so don't reject for short answers. We still enforce answer>=1 char
 			// (otherwise there is nothing to review).
 			if (!lastCandidate.answer || lastCandidate.answer.length < 1) {
-				if (ctx.hasUI) ctx.ui.notify("gap-review: latest candidate is empty", "info");
+				if (ctx.hasUI)
+					ctx.ui.notify("gap-review: latest candidate is empty", "info");
 				return;
 			}
 			const params = prepareReview({
@@ -600,12 +643,16 @@ export default function gapReviewExtension(pi) {
 				allowEmptyFiles: true,
 			});
 			if (!params) {
-				if (ctx.hasUI) ctx.ui.notify("gap-review: latest candidate not eligible (no files / no git context to anchor the review on)", "info");
+				if (ctx.hasUI)
+					ctx.ui.notify(
+						"gap-review: latest candidate not eligible (no files / no git context to anchor the review on)",
+						"info",
+					);
 				return;
 			}
 			spawnReviewFor(params);
-			if (ctx.hasUI) ctx.ui.notify("gap-review: manual review launched", "info");
+			if (ctx.hasUI)
+				ctx.ui.notify("gap-review: manual review launched", "info");
 		},
 	});
 }
-
