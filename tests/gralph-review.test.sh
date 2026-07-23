@@ -54,6 +54,10 @@ if printf '%s\n' "$@" | grep -Fx 'read,grep,find,ls' >/dev/null; then
     contradictory) printf '%s\n' '{"status":"approved","criticalCount":0,"blockerCount":0,"findings":[{"severity":"critical","message":"hidden critical"}]}' ;;
     process-failure) exit 73 ;;
     timeout) sleep 5 ;;
+    timeout-approved)
+      trap 'printf '\''%s\n'\'' '\''{"status":"approved","criticalCount":0,"blockerCount":0,"findings":[]}'\''; exit 0' TERM
+      sleep 5
+      ;;
     *) exit 91 ;;
   esac
   exit 0
@@ -153,9 +157,11 @@ expect_rejected() {
 }
 
 # Every non-approved, unsafe, malformed, failed, or timed-out result fails closed.
-for scenario in changes critical blocker malformed contradictory process-failure timeout; do
+for scenario in changes critical blocker malformed contradictory process-failure timeout timeout-approved; do
   expect_rejected "$scenario"
 done
-jq -e '.children[0].review.timedOut == true' "$TMPDIR/timeout/.gralph/runs/42/manifest.json" >/dev/null
+for scenario in timeout timeout-approved; do
+  jq -e '.children[0].review.timedOut == true' "$TMPDIR/$scenario/.gralph/runs/42/manifest.json" >/dev/null
+done
 
 printf '%s\n' 'gralph review tests passed'

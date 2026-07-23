@@ -288,7 +288,7 @@ execute_one_child() {
     cat "$verification_log"
   } >"$review_prompt"
 
-  local review_pid watchdog_pid timed_out="$run_dir/.reviewer-$child-timed-out"
+  local review_pid watchdog_pid review_timed_out timed_out="$run_dir/.reviewer-$child-timed-out"
   rm -f "$timed_out"
   set +e
   (cd "$worktree" && exec env HOME="$review_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
@@ -312,14 +312,16 @@ execute_one_child() {
   wait "$watchdog_pid" 2>/dev/null
   set -e
 
+  review_timed_out="$([ -f "$timed_out" ] && printf true || printf false)"
   write_manifest "$manifest" \
     --argjson child "$child" --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
-    --argjson processExitCode "$rc" --argjson timedOut "$([ -f "$timed_out" ] && printf true || printf false)" '
+    --argjson processExitCode "$rc" --argjson timedOut "$review_timed_out" '
       (.children[] | select(.number == $child)).review = {
         artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"
       }
     ' || fail_execution "could not record reviewer result"
   rm -f "$timed_out"
+  [ "$review_timed_out" = false ] || fail_execution "independent reviewer timed out"
   [ "$rc" -eq 0 ] || fail_execution "independent reviewer process failed with exit $rc"
 
   if ! jq -e '
