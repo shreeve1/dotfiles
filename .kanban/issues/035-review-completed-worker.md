@@ -1,7 +1,7 @@
 ---
 id: 035
 title: Independently review a completed worker
-status: review
+status: done
 blocked_by: [034]
 parent: null
 priority: 0
@@ -18,12 +18,12 @@ A review is accepted only when its declared status is `approved`, its critical f
 
 ## Acceptance criteria
 
-- [ ] Each mechanically complete worker launches exactly one separate `pi -p --no-session` reviewer with file mutation and network-changing commands disabled.
-- [ ] The review input identifies the requested behavior, acceptance criteria, base SHA, full committed diff, and worker verification output.
-- [ ] The reviewer writes a parseable artifact containing `status`, critical count, blocker count, and findings.
-- [ ] Only `status: approved`, zero critical findings, and zero blockers passes the gate; missing, malformed, timed-out, or contradictory artifacts fail closed.
-- [ ] A failed review updates the manifest and preserves the worker branch and worktree without attempting a merge.
-- [ ] Fixture tests cover approval, requested changes, critical findings, blockers, malformed output, and reviewer process failure.
+- [x] Each mechanically complete worker launches exactly one separate `pi -p --no-session` reviewer with file mutation and network-changing commands disabled.
+- [x] The review input identifies the requested behavior, acceptance criteria, base SHA, full committed diff, and worker verification output.
+- [x] The reviewer writes a parseable artifact containing `status`, critical count, blocker count, and findings.
+- [x] Only `status: approved`, zero critical findings, and zero blockers passes the gate; missing, malformed, timed-out, or contradictory artifacts fail closed.
+- [x] A failed review updates the manifest and preserves the worker branch and worktree without attempting a merge.
+- [x] Fixture tests cover approval, requested changes, critical findings, blockers, malformed output, and reviewer process failure.
 
 ## Verification
 
@@ -32,3 +32,7 @@ A review is accepted only when its declared status is `approved`, its critical f
 ## Blocked by
 
 - Blocked by #034
+
+## Implementation Notes
+
+Added one bounded fresh read-only Pi review after mechanical completion. The coordinator captures the full evidence prompt and strict JSON artifact, rejects every non-approved or inconsistent result, records the gate in the manifest, and preserves failed worker state. Added approval, rejection, malformed, contradiction, process-failure, and timeout fixtures.
