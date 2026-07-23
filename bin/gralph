@@ -219,7 +219,10 @@ execute_one_child() {
         "$(cat "$prompt_file")") >"$output_file" 2>&1
     rc=$?
     set -e
-    if [ "$rc" -eq 0 ] && grep -qx "RALPH_RESULT: DONE #$child" "$output_file"; then
+    local final_status status_count
+    final_status="$(awk 'NF { line=$0 } END { print line }' "$output_file")"
+    status_count="$(grep -c '^RALPH_RESULT:' "$output_file" || true)"
+    if [ "$rc" -eq 0 ] && [ "$status_count" -eq 1 ] && [ "$final_status" = "RALPH_RESULT: DONE #$child" ]; then
       done=1
       break
     fi
@@ -231,7 +234,8 @@ execute_one_child() {
   local -a scrubbed_env=(env)
   local env_name
   while IFS= read -r env_name; do
-    if [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
+    if [ "$env_name" = PI_CODING_AGENT_DIR ] || \
+      [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
       scrubbed_env+=(-u "$env_name")
     fi
   done < <(compgen -e)

@@ -26,11 +26,13 @@ elif [ "${1-} ${2-}" = "api graphql" ]; then
 {"data":{"repository":{"issue":{"number":42,"title":"Parent","state":"OPEN","subIssues":{"pageInfo":{"hasNextPage":false},"nodes":[{"number":101,"title":"Implement fixture","state":"OPEN","labels":{"nodes":[{"name":"ready-for-agent"}]},"blockedBy":{"pageInfo":{"hasNextPage":false},"nodes":[]}}]}}}}}
 JSON
 elif [ "${1-} ${2-}" = "issue view" ]; then
-  jq -n --arg verify "${FAKE_CHILD_VERIFY:-test -f worker-output.txt}" '{
-    number:101,title:"Implement fixture",state:"OPEN",
-    body:("## What to build\n\nCreate worker-output.txt.\n\n## Acceptance criteria\n\n- [ ] output exists\n\n## Verification\n\n`" + $verify + "`"),
-    labels:[{name:"ready-for-agent"}]
-  }'
+  jq -n \
+    --arg verify "${FAKE_CHILD_VERIFY:-test -f worker-output.txt}" \
+    --arg claimed "${FAKE_CHILD_CLAIMED:-false}" '{
+      number:101,title:"Implement fixture",state:"OPEN",
+      body:("## What to build\n\nCreate worker-output.txt.\n\n## Acceptance criteria\n\n- [ ] output exists\n\n## Verification\n\n`" + $verify + "`"),
+      labels:([{name:"ready-for-agent"}] + if $claimed == "true" then [{name:"gralph:claimed"}] else [] end)
+    }'
 elif [ "${1-} ${2-}" = "label create" ] || [ "${1-} ${2-}" = "issue edit" ]; then
   :
 else
@@ -43,7 +45,8 @@ chmod +x "$FAKE_BIN/gh"
 cat >"$FAKE_BIN/pi" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "HOME=$HOME" "PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-}" >>"$PI_LOG"
+calls="$(grep -c '^FAKE_PI_CALL$' "$PI_LOG" 2>/dev/null || true)"
+printf '%s\n' 'FAKE_PI_CALL' "HOME=$HOME" "PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-}" >>"$PI_LOG"
 printf '%s\n' "$@" >>"$PI_LOG"
 printf '%s' "${!#}" >"$PROMPT_LOG"
 case "${FAKE_PI_SCENARIO:-success}" in
@@ -51,9 +54,21 @@ case "${FAKE_PI_SCENARIO:-success}" in
     printf '%s\n' implemented >worker-output.txt
     printf '%s\n' 'RALPH_RESULT: DONE #101'
     ;;
+  retry)
+    if [ "$calls" -eq 0 ]; then
+      printf '%s\n' 'still working'
+    else
+      printf '%s\n' implemented >worker-output.txt
+      printf '%s\n' 'RALPH_RESULT: DONE #101'
+    fi
+    ;;
   no-status)
     printf '%s\n' implemented >worker-output.txt
     printf '%s\n' 'still working'
+    ;;
+  conflicting-status)
+    printf '%s\n' implemented >worker-output.txt
+    printf '%s\n' 'RALPH_RESULT: DONE #101' 'RALPH_RESULT: BLOCKED #101'
     ;;
   no-diff)
     printf '%s\n' 'RALPH_RESULT: DONE #101'
@@ -85,7 +100,7 @@ run_gralph() {
   (cd "$repo" && PATH="$FAKE_BIN:$PATH" GH_LOG="$GH_LOG" PI_LOG="$PI_LOG" PROMPT_LOG="$PROMPT_LOG" \
     GRALPH_RALPH_SKILL="$RALPH_SKILL" GRALPH_MAX_ITERATIONS="${GRALPH_MAX_ITERATIONS:-1}" \
     FAKE_PI_SCENARIO="${FAKE_PI_SCENARIO:-success}" FAKE_CHILD_VERIFY="${FAKE_CHILD_VERIFY:-test -f worker-output.txt}" \
-    "$GRALPH" "$@")
+    FAKE_CHILD_CLAIMED="${FAKE_CHILD_CLAIMED:-false}" "$GRALPH" "$@")
 }
 
 plan_repo() {
@@ -144,15 +159,25 @@ grep -E '^HOME=.*/\.gralph/runs/42/home-' "$PI_LOG" >/dev/null
 grep -E '^PI_CODING_AGENT_DIR=.+/\.pi/agent$' "$PI_LOG" >/dev/null
 ! grep -E '^PI_CODING_AGENT_DIR=.*/\.gralph/' "$PI_LOG" >/dev/null
 
+# Coordinator verification receives neither credential values nor Pi's auth-directory locator.
+REPO="$TMPDIR/coordinator-env"
+new_repo "$REPO"
+FAKE_CHILD_VERIFY='test -z "${GH_TOKEN-}" && test -z "${PI_CODING_AGENT_DIR-}" && test -f worker-output.txt' \
+  GH_TOKEN=secret PI_CODING_AGENT_DIR=/real/pi/agent plan_repo "$REPO"
+FAKE_CHILD_VERIFY='test -z "${GH_TOKEN-}" && test -z "${PI_CODING_AGENT_DIR-}" && test -f worker-output.txt' \
+  GH_TOKEN=secret PI_CODING_AGENT_DIR=/real/pi/agent run_gralph "$REPO" 42 --verify 'bash verify-integration.sh' >/dev/null
+
 # Worker guard blocks escape and secret paths and runs only its admitted no-arg check.
 GUARD_ROOT="$TMPDIR/guard-root"
 OUTSIDE="$TMPDIR/outside"
 mkdir -p "$GUARD_ROOT/safe" "$OUTSIDE"
 printf secret >"$GUARD_ROOT/.env"
+printf 'gitdir: elsewhere\n' >"$GUARD_ROOT/.git"
 ln -s "$OUTSIDE" "$GUARD_ROOT/escape"
 cp "$GUARD" "$TMPDIR/guard.mjs"
-GRALPH_WORKTREE="$GUARD_ROOT" GRALPH_VERIFY_COMMAND='test -z "${GH_TOKEN-}" && test -z "${SSH_AUTH_SOCK-}" && printf guard-ok' \
-  GH_TOKEN=secret SSH_AUTH_SOCK=/tmp/agent.sock node --input-type=module <<EOF
+GRALPH_WORKTREE="$GUARD_ROOT" \
+  GRALPH_VERIFY_COMMAND='test -z "${GH_TOKEN-}" && test -z "${SSH_AUTH_SOCK-}" && test -z "${PI_CODING_AGENT_DIR-}" && printf guard-ok' \
+  GH_TOKEN=secret SSH_AUTH_SOCK=/tmp/agent.sock PI_CODING_AGENT_DIR=/real/pi/agent node --input-type=module <<EOF
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 const handlers = {};
@@ -166,6 +191,7 @@ guard(pi);
 assert.equal(handlers.tool_call({ toolName: "read", input: { path: "safe" } }), undefined);
 assert.equal(handlers.tool_call({ toolName: "write", input: { path: "escape/new.txt" } }).block, true);
 assert.equal(handlers.tool_call({ toolName: "read", input: { path: ".env" } }).block, true);
+assert.equal(handlers.tool_call({ toolName: "write", input: { path: ".git" } }).block, true);
 assert.deepEqual(check.parameters.properties, {});
 assert.equal(check.parameters.additionalProperties, false);
 const result = await check.execute("id", {}, undefined);
@@ -173,11 +199,21 @@ assert.equal(result.details.exitCode, 0);
 assert.match(result.content[0].text, /guard-ok/);
 EOF
 
+# A bounded retry receives the prior iteration status and can complete.
+repo="$TMPDIR/retry"
+new_repo "$repo"
+plan_repo "$repo"
+: >"$PI_LOG"
+GRALPH_MAX_ITERATIONS=2 FAKE_PI_SCENARIO=retry run_gralph "$repo" 42 --verify 'bash verify-integration.sh' >/dev/null
+[ "$(grep -c '^FAKE_PI_CALL$' "$PI_LOG")" -eq 2 ]
+grep -F 'still working' "$PROMPT_LOG" >/dev/null
+
 # Mechanical failures fail closed and preserve worktrees for inspection.
-for scenario in no-status no-diff; do
+for scenario in no-status conflicting-status no-diff; do
   repo="$TMPDIR/$scenario"
   new_repo "$repo"
   plan_repo "$repo"
+  : >"$PI_LOG"
   FAKE_PI_SCENARIO="$scenario" expect_execution_failure "$scenario" "$repo"
   [ -n "$(git -C "$repo" branch --list 'gralph/42/issue-101')" ]
   [ -d "$(jq -r '.children[0].execution.worktree' "$repo/.gralph/runs/42/manifest.json")" ]
@@ -188,6 +224,35 @@ new_repo "$repo"
 FAKE_CHILD_VERIFY=false plan_repo "$repo"
 FAKE_CHILD_VERIFY=false expect_execution_failure verify-fail "$repo"
 grep -q 'issue verification failed' "$TMPDIR/verify-fail.err"
+
+# Git commit and post-commit cleanliness gates fail closed.
+repo="$TMPDIR/commit-fail"
+new_repo "$repo"
+mkdir "$repo/hooks"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$repo/hooks/pre-commit"
+chmod +x "$repo/hooks/pre-commit"
+git -C "$repo" config core.hooksPath "$repo/hooks"
+plan_repo "$repo"
+expect_execution_failure commit-fail "$repo"
+grep -q 'coordinator could not commit worker diff' "$TMPDIR/commit-fail.err"
+
+repo="$TMPDIR/dirty-after-commit"
+new_repo "$repo"
+mkdir "$repo/hooks"
+printf '%s\n' '#!/usr/bin/env bash' 'touch post-commit-dirty.txt' >"$repo/hooks/post-commit"
+chmod +x "$repo/hooks/post-commit"
+git -C "$repo" config core.hooksPath "$repo/hooks"
+plan_repo "$repo"
+expect_execution_failure dirty-after-commit "$repo"
+grep -q 'worker worktree is not clean after commit' "$TMPDIR/dirty-after-commit.err"
+
+# A GitHub claim refuses execution before branch creation or issue mutation.
+repo="$TMPDIR/github-claim"
+new_repo "$repo"
+plan_repo "$repo"
+FAKE_CHILD_CLAIMED=true expect_execution_failure github-claim "$repo"
+[ -z "$(git -C "$repo" branch --list 'gralph/42/issue-101')" ]
+! grep -q '^issue edit ' "$GH_LOG"
 
 # A live coordinator lock refuses duplicate execution before GitHub mutation.
 repo="$TMPDIR/live-claim"
