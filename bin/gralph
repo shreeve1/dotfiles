@@ -5,10 +5,11 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: gralph <parent> --dry-run [--verify <command>]
+usage: gralph <parent> [--dry-run] [--verify <command>]
 
-Plan the direct ready-for-agent children of an open GitHub parent issue.
-Mutating execution is not available yet and will require --verify.
+Plan the direct ready-for-agent children of an open GitHub parent issue, or
+execute the first eligible child from a saved plan. Mutating runs require
+--verify.
 EOF
 }
 
@@ -47,14 +48,236 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
 
 PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+write_manifest() {
+  local manifest="$1"
+  shift
+  local tmp="$manifest.tmp.$$"
+  jq "$@" "$manifest" >"$tmp" && mv "$tmp" "$manifest"
+}
+
+verification_from_body() {
+  awk '
+    { sub(/\r$/, "") }
+    /^##[[:space:]]+Verification[[:space:]]*$/ { section=1; next }
+    section && /^##[[:space:]]+/ { section=0 }
+    section && /^`[^`]+`[[:space:]]*$/ {
+      line=$0
+      sub(/^`/, "", line)
+      sub(/`[[:space:]]*$/, "", line)
+      command=line
+      count++
+    }
+    END { if (count == 1) print command; else exit 1 }
+  '
+}
+
+execute_one_child() {
+  local manifest="$REPO_ROOT/.gralph/runs/$PARENT/manifest.json"
+  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; exit 1; }
+  jq -e --argjson parent "$PARENT" '
+    .schemaVersion == 1 and .parent == $parent and (.baseSha | type == "string")
+    and (.children | type == "array")
+  ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
+
+  local child base_sha run_dir lock_dir lock_owned=0 run_id host
+  child="$(jq -r '[.children[] | select(.classification == "eligible")] | sort_by(.number) | .[0].number // empty' "$manifest")"
+  [ -n "$child" ] || { echo "error: saved frontier has no eligible child" >&2; exit 1; }
+  base_sha="$(jq -r '.baseSha' "$manifest")"
+  git -C "$REPO_ROOT" cat-file -e "$base_sha^{commit}" 2>/dev/null || {
+    echo "error: saved base SHA is unavailable: $base_sha" >&2
+    exit 1
+  }
+
+  run_dir="$(dirname "$manifest")"
+  lock_dir="$run_dir/.coordinator-lock"
+  host="$(hostname)"
+  run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    local owner_pid owner_host
+    owner_pid="$(jq -r '.pid // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
+    owner_host="$(jq -r '.host // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
+    if [ "$owner_host" = "$host" ] && [ -n "$owner_pid" ] && kill -0 "$owner_pid" 2>/dev/null; then
+      echo "error: another live Gralph run owns child #$child" >&2
+    else
+      echo "error: an unresolved Gralph claim exists at $lock_dir" >&2
+    fi
+    exit 1
+  fi
+  lock_owned=1
+  jq -n --arg runId "$run_id" --arg host "$host" --argjson pid "$$" \
+    '{runId:$runId,host:$host,pid:$pid}' >"$lock_dir/owner.json"
+  trap '[ "$lock_owned" -eq 0 ] || rm -rf "$lock_dir"' EXIT
+
+  fail_execution() {
+    local reason="$1"
+    write_manifest "$manifest" --argjson child "$child" --arg reason "$reason" --arg runId "$run_id" '
+      .dryRun = false
+      | .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason})
+      | (.children[] | select(.number == $child) | .execution) |=
+          ((. // {}) + {status:"failed", reason:$reason, runId:$runId})
+    ' || true
+    echo "error: $reason" >&2
+    exit 1
+  }
+
+  local issue_json issue_body issue_title issue_verify
+  if ! issue_json="$(gh issue view "$child" --json number,title,state,body,labels 2>&1)"; then
+    fail_execution "cannot read admitted child #$child: $issue_json"
+  fi
+  if ! printf '%s\n' "$issue_json" | jq -e --argjson child "$child" '
+    .number == $child and .state == "OPEN" and (.body | type == "string")
+    and any(.labels[]?; .name == "ready-for-agent")
+  ' >/dev/null 2>&1; then
+    fail_execution "admitted child #$child is no longer open and ready-for-agent"
+  fi
+  if printf '%s\n' "$issue_json" | jq -e 'any(.labels[]?; .name == "gralph:claimed")' >/dev/null; then
+    fail_execution "child #$child is already claimed by another run"
+  fi
+  issue_body="$(printf '%s\n' "$issue_json" | jq -r '.body')"
+  issue_title="$(printf '%s\n' "$issue_json" | jq -r '.title')"
+  if ! issue_verify="$(printf '%s\n' "$issue_body" | verification_from_body)"; then
+    fail_execution "child #$child must contain exactly one backtick-quoted command under ## Verification"
+  fi
+
+  write_manifest "$manifest" \
+    --argjson child "$child" --arg body "$issue_body" --arg verify "$issue_verify" \
+    --arg integration "$VERIFY" --arg runId "$run_id" --arg host "$host" --argjson pid "$$" '
+      .dryRun = false
+      | .integrationCommand = $integration
+      | .execution = {runId:$runId, status:"claiming", child:$child}
+      | (.children[] | select(.number == $child)) += {
+          body:$body,
+          verificationCommand:$verify,
+          claim:{label:"gralph:claimed",runId:$runId,host:$host,pid:$pid,status:"claiming"}
+        }
+    ' || fail_execution "could not record claim intent"
+
+  gh label create 'gralph:claimed' --color 6f42c1 --description 'Claimed by a Gralph coordinator' --force >/dev/null 2>&1 \
+    || fail_execution "could not ensure gralph:claimed label"
+  gh issue edit "$child" --add-label 'gralph:claimed' >/dev/null 2>&1 \
+    || fail_execution "could not claim child #$child"
+  write_manifest "$manifest" --argjson child "$child" '
+    .execution.status = "claimed"
+    | (.children[] | select(.number == $child)).claim.status = "claimed"
+  ' || fail_execution "could not persist claim for child #$child"
+
+  local branch="gralph/$PARENT/issue-$child"
+  local worktree="$run_dir/worktrees/issue-$child-$run_id"
+  if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+    fail_execution "worker branch already exists: $branch"
+  fi
+  mkdir -p "$(dirname "$worktree")"
+  git -C "$REPO_ROOT" worktree add -b "$branch" "$worktree" "$base_sha" >/dev/null \
+    || fail_execution "could not create worker branch and worktree"
+  local start_sha
+  start_sha="$(git -C "$worktree" rev-parse HEAD)"
+  write_manifest "$manifest" \
+    --argjson child "$child" --arg branch "$branch" --arg worktree "$worktree" --arg start "$start_sha" '
+      .execution.status = "running"
+      | (.children[] | select(.number == $child)).execution = {
+          status:"running", branch:$branch, worktree:$worktree, startingSha:$start
+        }
+    ' || fail_execution "could not record worker worktree"
+
+  local ralph_skill="${GRALPH_RALPH_SKILL:-$HOME/.claude/skills/ralph/SKILL.md}"
+  local guard="$SCRIPT_ROOT/lib/gralph-worker-guard.js"
+  [ -f "$ralph_skill" ] || fail_execution "Ralph skill not found: $ralph_skill"
+  [ -f "$guard" ] || fail_execution "worker guard not found: $guard"
+  ralph_skill="$(realpath "$ralph_skill")"
+  guard="$(realpath "$guard")"
+
+  local max_iterations="${GRALPH_MAX_ITERATIONS:-3}"
+  case "$max_iterations" in ''|*[!0-9]*|0) fail_execution "GRALPH_MAX_ITERATIONS must be a positive integer" ;; esac
+  local temp_home="$run_dir/home-$run_id"
+  local pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+  local prompt_file="$run_dir/worker-$child-prompt.md"
+  local output_file previous_status='none' iteration done=0 rc
+  mkdir -p "$temp_home"
+
+  for ((iteration=1; iteration<=max_iterations; iteration++)); do
+    output_file="$run_dir/worker-$child-iteration-$iteration.log"
+    {
+      printf '%s\n' 'You are an isolated Gralph worker executing one GitHub child issue under the Ralph protocol.'
+      printf '%s\n' 'Do not run Git, mutate GitHub, edit local .kanban state, or commit; the coordinator owns those actions.'
+      printf '%s\n' 'Use only guarded file tools and gralph_check. Implement only this issue in the stated worktree.'
+      printf 'Worktree: %s\nIssue: #%s %s\nIteration: %s of %s\nPrior iteration status:\n%s\n\nIssue body and acceptance criteria:\n%s\n\n' \
+        "$worktree" "$child" "$issue_title" "$iteration" "$max_iterations" "$previous_status" "$issue_body"
+      printf 'When complete, end with exactly: RALPH_RESULT: DONE #%s\n' "$child"
+      printf 'If genuinely impossible, end with exactly: RALPH_RESULT: BLOCKED #%s\n' "$child"
+    } >"$prompt_file"
+
+    set +e
+    (cd "$worktree" && \
+      HOME="$temp_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
+      GRALPH_WORKTREE="$worktree" GRALPH_VERIFY_COMMAND="$issue_verify" \
+      pi -p --no-session --no-extensions -e "$guard" \
+        --no-skills --skill "$ralph_skill" --no-context-files --no-prompt-templates --no-themes \
+        --tools read,write,edit,grep,find,ls,gralph_check \
+        "$(cat "$prompt_file")") >"$output_file" 2>&1
+    rc=$?
+    set -e
+    if [ "$rc" -eq 0 ] && grep -qx "RALPH_RESULT: DONE #$child" "$output_file"; then
+      done=1
+      break
+    fi
+    previous_status="$(tail -40 "$output_file" 2>/dev/null || printf 'pi exited %s' "$rc")"
+  done
+  [ "$done" -eq 1 ] || fail_execution "worker did not report bounded Ralph completion after $max_iterations iteration(s)"
+
+  local verification_log="$run_dir/worker-$child-verification.log"
+  local -a scrubbed_env=(env)
+  local env_name
+  while IFS= read -r env_name; do
+    if [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
+      scrubbed_env+=(-u "$env_name")
+    fi
+  done < <(compgen -e)
+  set +e
+  (cd "$worktree" && "${scrubbed_env[@]}" \
+    HOME="$temp_home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+    GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=Never GIT_SSH_COMMAND=false \
+    /bin/sh -c "$issue_verify") >"$verification_log" 2>&1
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || fail_execution "issue verification failed with exit $rc"
+
+  [ -n "$(git -C "$worktree" status --porcelain)" ] || fail_execution "worker reported completion without a diff"
+  git -C "$worktree" add -A
+  git -C "$worktree" commit -m "feat(#$child): implement GitHub child" >/dev/null \
+    || fail_execution "coordinator could not commit worker diff"
+  [ -z "$(git -C "$worktree" status --porcelain)" ] || fail_execution "worker worktree is not clean after commit"
+  local commit_sha commit_count
+  commit_sha="$(git -C "$worktree" rev-parse HEAD)"
+  commit_count="$(git -C "$worktree" rev-list --count "$start_sha..$commit_sha")"
+  [ "$commit_count" -ge 1 ] || fail_execution "worker branch has no commit beyond its starting SHA"
+
+  write_manifest "$manifest" \
+    --argjson child "$child" --arg commit "$commit_sha" --arg verificationLog "$verification_log" '
+      .execution.status = "complete"
+      | (.children[] | select(.number == $child)).execution += {
+          status:"complete", commitSha:$commit, verificationExitCode:0,
+          verificationLog:$verificationLog, ralphComplete:true, clean:true
+        }
+    ' || fail_execution "could not record completed worker"
+
+  rm -rf "$temp_home"
+  lock_owned=0
+  rm -rf "$lock_dir"
+  trap - EXIT
+  printf 'Completed child #%s on %s (%s)\n' "$child" "$branch" "$commit_sha"
+}
 
 if [ "$DRY_RUN" -ne 1 ]; then
   [ "$VERIFY_SET" -eq 1 ] && [ -n "$VERIFY" ] || {
     echo "error: mutating runs require --verify <command>" >&2
     exit 2
   }
-  echo "error: mutating execution is not implemented yet" >&2
-  exit 2
+  execute_one_child
+  exit 0
 fi
 
 REPO_SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {

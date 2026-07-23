@@ -1,7 +1,7 @@
 ---
 id: 034
 title: Execute one child in an isolated Pi worktree
-status: pending
+status: in-progress
 blocked_by: [033]
 parent: null
 priority: 0

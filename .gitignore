@@ -8,6 +8,7 @@ MEMORY/
 
 # Machine-local kanban/runtime logs
 .kanban/*.log
+.gralph/
 
 # Machine-local plan artifacts (per-machine)
 Plans/
