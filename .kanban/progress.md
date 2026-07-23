@@ -17,3 +17,12 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** GitHub values cross the shell boundary as GraphQL variables, never interpolated commands.
 **Notes for next iteration:** `.gralph/` runtime state is not ignored yet; decide its retention policy when execution artifacts arrive in #034.
 **Actionable review:** Re-read the base-to-HEAD diff and every changed file; all criteria passed, the exact verification command exited 0, and shell-file diagnostics reported no errors.
+
+## #034 Execute one child in an isolated Pi worktree — 2026-07-23
+
+**What changed:** Added atomic local claims plus GitHub claim labels, isolated child branches/worktrees, bounded ephemeral Pi workers, a confined worker guard, and coordinator-owned verification and commits.
+**Files:** `.gitignore`, `bin/gralph`, `lib/gralph-worker-guard.js`, `tests/gralph-single-child.test.sh`
+**Decisions:** Child issue verification is admitted from exactly one backtick command under `## Verification`; workers receive file tools plus only the no-argument `gralph_check` process tool.
+**Conventions established:** Gralph runtime state lives under ignored `.gralph/`; workers use temporary HOME directories while Pi core retains its configured agent directory for authentication.
+**Notes for next iteration:** #035 can consume the recorded base/start/commit SHAs, verification log, branch, worktree, and Ralph completion fields for independent review.
+**Actionable review:** Fresh reviewer diffed `b3ef4763bb18cb17d2f940307568cdc232a60ced..HEAD`, read every changed file, reran `bash tests/gralph-single-child.test.sh`, and passed all criteria with no findings.
