@@ -1,11 +1,13 @@
 ---
 id: 036
 title: Land one accepted child on a batch branch
-status: pending
+status: blocked
 blocked_by: [035]
 parent: null
 priority: 0
 created: 2026-07-22
+updated: 2026-07-23
+actor: ralph
 ---
 
 ## What to build
@@ -28,3 +30,7 @@ Land one reviewed child onto a dedicated `gralph/<parent>` batch branch. Create 
 ## Blocked by
 
 - Blocked by #035
+
+## Blocker
+
+The required local branch names cannot coexist in Git. Issue #034 requires and currently creates `gralph/<parent>/issue-<child>`, while this issue requires `gralph/<parent>`. Git refs are path-shaped: the worker branch needs `refs/heads/gralph/<parent>/` to be a directory, but the batch branch needs that same path to be a file. Git rejects creation with `cannot lock ref`. Resolve the naming contract (for example, choose `gralph/<parent>/batch` or rename the worker namespace) before implementation.
