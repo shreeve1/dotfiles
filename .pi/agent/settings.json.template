@@ -23,21 +23,32 @@
   ],
   "subagents": {
     "agentOverrides": {
+      "scout": {
+        "model": "minimax/MiniMax-M3",
+        "thinking": "low",
+        "tools": ["read", "grep", "find", "ls"]
+      },
+      "researcher": {
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "medium",
+        "tools": ["read", "web_search", "fetch_content", "get_search_content"]
+      },
       "worker": {
         "model": "minimax/MiniMax-M3",
         "thinking": "low",
-        "tools": ["read", "write", "edit", "bash", "grep", "find", "ls"]
+        "tools": ["read", "grep", "find", "ls", "bash", "edit", "write"]
       },
       "reviewer": {
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "low",
-        "tools": ["read", "bash", "grep", "find", "ls"]
+        "tools": ["read", "grep", "find", "ls"]
       }
     }
   },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [
+    "extensions/fusion",
     "extensions/harness-gates",
     "extensions/graphify-guard",
     "extensions/gap-review",

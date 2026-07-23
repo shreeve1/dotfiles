@@ -41,7 +41,8 @@
  *   PI_GAP_TIMEOUT_MS   stale-reviewer reap   (default 300000 = 5 min)
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
 	existsSync,
 	mkdirSync,
@@ -102,6 +103,53 @@ export function extractFilePath(toolName, input) {
 	const arg = input && typeof input === "object" ? input : {};
 	const p = arg.file_path || arg.path;
 	return typeof p === "string" && p.length ? p : null;
+}
+
+// Cheap git-porcelain-derived signature of repo state. The auto-review
+// uses start-vs-end delta to detect worker mutation; the same comparison
+// can produce zero diff for read-only turns, plain chat, and design
+// analysis (those fall through to the manual /gap-review command).
+// Mirrors the same shape used by .pi/agent/extensions/pi-subagents/
+// src/watchdog/change-signature.ts so the comparison semantics agree.
+const SIG_IGNORED_PREFIXES = [".pi-subagents/", "tmp/", "node_modules/"];
+const SIG_IGNORED_NAMES = new Set([".pi-subagents", "tmp", "node_modules"]);
+
+export function computeRepoChangeSignature(cwd) {
+	const gitRoot = (() => {
+		try {
+			const out = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+			return out.status === 0 ? out.stdout.trim() : undefined;
+		} catch {
+			return undefined;
+		}
+	})();
+	if (!gitRoot) return undefined;
+	const status = (() => {
+		try {
+			const out = spawnSync(
+				"git",
+				["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+				{ encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+			);
+			return out.status === 0 ? out.stdout : undefined;
+		} catch {
+			return undefined;
+		}
+	})();
+	if (status == null) return undefined;
+	const filtered = status
+		.split("\0")
+		.filter(Boolean)
+		.filter((tok) => {
+			if (tok.length < 4) return false;
+			const p = tok.slice(3);
+			if (SIG_IGNORED_NAMES.has(p)) return false;
+			return !SIG_IGNORED_PREFIXES.some((pre) => p.startsWith(pre));
+		})
+		.sort()
+		.join("\0");
+	const key = createHash("sha256").update(filtered).digest("hex");
+	return { root: gitRoot, key };
 }
 
 // Count spawned-but-not-finished reviewers. A review is "finished" once it has
@@ -280,17 +328,60 @@ const RUNNER_SCRIPT = [
 // offline with a tmpdir + a stub process.env). Any throw here is the caller's
 // problem — the wrap in `turn_end` swallows it so a FS error never disrupts
 // the turn (D3).
-export function prepareReview({ message, files, request, cwd, env }) {
+export function prepareReview({ message, files, request, cwd, env, allowEmptyFiles = false }) {
 	const procEnv = env || process.env;
 	// D5: resolved against `cwd` (the actor's cwd at turn_end), not against
 	// `process.cwd()` — the detached reviewer runs from the git root.
-	const absFiles = (files || []).map((f) =>
+	let absFiles = (files || []).map((f) =>
 		isAbsolute(f) ? f : resolve(cwd || process.cwd(), f),
 	);
+
+	// Repo-mutation-only flow: when the caller has no per-file hook data
+	// (Fusion worker mutations live inside child subprocesses), fall back to
+	// the changed paths reported by `git status`. The signature diff is
+	// checked at the call site; here we just supply a representative file
+	// list when none was captured. Without a changed-paths list the
+	// reviewer has nothing to anchor on. `allowEmptyFiles` (used by the
+	// manual /gap-review command) skips this fallback so read-only
+	// architecture / design turns can still be reviewed against the
+	// capture-time files + the answer alone.
+	if (absFiles.length === 0 && cwd && !allowEmptyFiles) {
+		try {
+			const gitRoot = (() => {
+				const o = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+				return o.status === 0 ? o.stdout.trim() : undefined;
+			})();
+			if (gitRoot) {
+				const o = spawnSync(
+					"git",
+					["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+					{ encoding: "utf8" },
+				);
+				if (o.status === 0) {
+					const paths = o.stdout
+						.split("\0")
+						.filter(Boolean)
+						.filter((tok) => {
+							if (tok.length < 4) return false;
+							const p = tok.slice(3);
+							if (SIG_IGNORED_NAMES.has(p)) return false;
+							return !SIG_IGNORED_PREFIXES.some((pre) => p.startsWith(pre));
+						})
+						.map((tok) => join(gitRoot, tok.slice(3)));
+					if (paths.length > 0) {
+						absFiles = absFiles.concat(paths);
+					}
+				}
+			}
+		} catch {
+			// signature fallback failure: keep absFiles empty; prepareReview
+			// returns null below and the caller skips the spawn.
+		}
+	}
+	if (!allowEmptyFiles && absFiles.length === 0) return null;
 	if (!message || !isTerminal(message)) return null;
 	const root = findProjectRoot(cwd);
 	const dir = join(root, REVIEW_DIRNAME);
-	if (absFiles.length === 0) return null;
 	const answer = answerText(message);
 	const minChars = Number(procEnv.PI_GAP_MIN_CHARS || DEFAULT_MIN_CHARS);
 	if (answer.length < minChars) return null;
@@ -331,6 +422,27 @@ export default function gapReviewExtension(pi) {
 	// fresh, `turnFiles` so the next turn accumulates from zero.
 	let currentRequest = "";
 	const turnFiles = new Set();
+	let startSigKey ; // git porcelain key captured at turn_start
+	let startSigRoot ;
+
+	// Latest non-trivial terminal-turn candidate retained for one revision so
+	// the manual /gap-review command can re-review read-only architecture /
+	// design turns after the user asked.
+	let lastCandidate ;
+
+	function spawnReviewFor(params) {
+		try {
+			const child = spawn("sh", ["-c", RUNNER_SCRIPT], {
+				env: params.env,
+				detached: true,
+				stdio: "ignore",
+				cwd: params.root,
+			});
+			child.unref();
+		} catch {
+			// spawn failure is non-fatal — the turn already completed.
+		}
+	}
 
 	pi.on("before_agent_start", (event) => {
 		// Capture the original request: only the FIRST before_agent_start of a
@@ -348,53 +460,16 @@ export default function gapReviewExtension(pi) {
 		if (p) turnFiles.add(p);
 	});
 
-	pi.on("turn_end", async (event, ctx) => {
-		if (!enabled()) return;
-		const message = event && event.message;
-		if (!message || !isTerminal(message)) return; // only final answers
-
-		// pi fires turn_end per assistant step, so a tool step (turnIndex N) and
-		// the terminal answer (turnIndex N+1) are separate events. Consume +
-		// clear here so files accumulated across the whole user turn are reviewed
-		// with the final answer. currentRequest is cleared in lockstep (D6) so
-		// the next user-turn's before_agent_start captures fresh.
-		const files = [...turnFiles];
-		turnFiles.clear();
-		const request = currentRequest;
-		currentRequest = "";
-
-		let params;
-		try {
-			// prepareReview can throw (mkdir / writeFile on a read-only root or
-			// a parent-is-a-file blocker, full disk, etc.). Wrap the whole
-			// decide-and-prepare phase in ONE try/catch so nothing leaks into
-			// pi's turn_end dispatcher — the turn has already completed (D3).
-			params = prepareReview({
-				message,
-				files,
-				request,
-				cwd: ctx && ctx.cwd,
-				env: process.env,
-			});
-		} catch {
-			return;
-		}
-		if (!params) return;
-
-		try {
-			const child = spawn("sh", ["-c", RUNNER_SCRIPT], {
-				env: params.env,
-				detached: true,
-				stdio: "ignore",
-				cwd: params.root,
-			});
-			child.unref();
-		} catch {
-			// spawn failure is non-fatal — the turn already completed.
-		}
-	});
-
 	pi.on("turn_start", async (_event, ctx) => {
+		// Snapshot the repo change signature so the terminal turn_end can
+		// detect worker mutation that happened via child subprocess (Fusion's
+		// default — parent is read-only, worker writes). Outside git the
+		// signature is undefined and the gate degrades to the legacy file-path
+		// check only (legacy non-Fusion with parent write tools).
+		const sig = computeRepoChangeSignature(ctx && ctx.cwd);
+		startSigKey = sig ? sig.key : undefined;
+		startSigRoot = sig ? sig.root : undefined;
+
 		// Surface any completed reviews from prior turns (interactive only).
 		// Automated / no-UI runs get the review file silently.
 		if (!enabled() || !ctx || !ctx.hasUI) return;
@@ -425,4 +500,112 @@ export default function gapReviewExtension(pi) {
 			}
 		}
 	});
+
+	pi.on("turn_end", async (event, ctx) => {
+		if (!enabled()) return;
+		const message = event && event.message;
+		if (!message || !isTerminal(message)) return; // only final answers
+
+		// pi fires turn_end per assistant step, so a tool step (turnIndex N) and
+		// the terminal answer (turnIndex N+1) are separate events. Consume +
+		// clear here so files accumulated across the whole user turn are reviewed
+		// with the final answer. currentRequest is cleared in lockstep (D6) so
+		// the next user-turn's before_agent_start captures fresh.
+		const files = [...turnFiles];
+		const request = currentRequest;
+		const answer = answerText(message);
+		const minChars = Number(process.env.PI_GAP_MIN_CHARS || DEFAULT_MIN_CHARS);
+		turnFiles.clear();
+		currentRequest = "";
+
+		// Decide whether the AUTOMATIC review should fire. Trigger only on
+		// repo state change during the turn (worker mutation signature, OR
+		// legacy parent direct write via tool_call) — never on plain chat /
+		// design / read-only turns.
+		let repoChanged = false;
+		try {
+			const endSig = computeRepoChangeSignature(ctx && ctx.cwd);
+			if (startSigKey !== undefined && endSig) {
+				repoChanged = endSig.key !== startSigKey;
+			} else if (files.length > 0 && startSigKey === undefined) {
+				// Outside git: fall back to the legacy file-path trigger so
+				// non-Fusion / non-repo sessions still get reviewed.
+				repoChanged = true;
+			}
+		} catch {
+			// signature failure: don't break the turn
+		}
+		const shouldAutoReview = repoChanged && answer.length >= minChars;
+
+		// Retain the latest candidate for manual /gap-review invocation
+		// regardless of whether the automatic review fired. Stashing the
+		// candidate after terminal turn_end lets a user ask "now review my
+		// read-only architecture analysis" without rerunning the whole turn.
+		if (request && request.trim() && answer.length >= minChars) {
+			const cwdAbs = ctx && ctx.cwd ? ctx.cwd : process.cwd();
+			const absFiles = files.map((f) => (isAbsolute(f) ? f : resolve(cwdAbs, f)));
+			lastCandidate = { request: request, answer, files: absFiles, root: startSigRoot || cwdAbs };
+		}
+
+		if (!shouldAutoReview) return;
+
+		let params;
+		try {
+			// prepareReview can throw (mkdir / writeFile on a read-only root or
+			// a parent-is-a-file blocker, full disk, etc.). Wrap the whole
+			// decide-and-prepare phase in ONE try/catch so nothing leaks into
+			// pi's turn_end dispatcher — the turn has already completed (D3).
+			params = prepareReview({
+				message,
+				files,
+				request,
+				cwd: ctx && ctx.cwd,
+				env: process.env,
+			});
+		} catch {
+			return;
+		}
+		if (!params) return;
+		spawnReviewFor(params);
+	});
+
+	// Manual /gap-review command. Replay the latest retained candidate
+	// (read-only architecture / design analysis, a turn that did not mutate
+	// anything). Notifies plainly when there is nothing eligible.
+	pi.registerCommand("gap-review", {
+		description: "Review the latest non-trivial turn for completeness (manual trigger; auto only fires on repo mutation).",
+		handler: async (_args, ctx) => {
+			if (!enabled()) {
+				if (ctx.hasUI) ctx.ui.notify("gap-review: disabled (PI_GAP_REVIEW=0)", "info");
+				return;
+			}
+			if (!lastCandidate) {
+				if (ctx.hasUI) ctx.ui.notify("gap-review: no eligible latest turn (answer < min chars or no request captured yet)", "info");
+				return;
+			}
+			const cwd = ctx.cwd || lastCandidate.root;
+			// For the manual trigger, low the size gate: the user explicitly asked,
+			// so don't reject for short answers. We still enforce answer>=1 char
+			// (otherwise there is nothing to review).
+			if (!lastCandidate.answer || lastCandidate.answer.length < 1) {
+				if (ctx.hasUI) ctx.ui.notify("gap-review: latest candidate is empty", "info");
+				return;
+			}
+			const params = prepareReview({
+				message: { role: "assistant", content: lastCandidate.answer },
+				files: lastCandidate.files,
+				request: lastCandidate.request,
+				cwd,
+				env: process.env,
+				allowEmptyFiles: true,
+			});
+			if (!params) {
+				if (ctx.hasUI) ctx.ui.notify("gap-review: latest candidate not eligible (no files / no git context to anchor the review on)", "info");
+				return;
+			}
+			spawnReviewFor(params);
+			if (ctx.hasUI) ctx.ui.notify("gap-review: manual review launched", "info");
+		},
+	});
 }
+
