@@ -1,7 +1,7 @@
 ---
 id: 035
 title: Independently review a completed worker
-status: in-progress
+status: review
 blocked_by: [034]
 parent: null
 priority: 0
