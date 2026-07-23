@@ -268,11 +268,104 @@ execute_one_child() {
         }
     ' || fail_execution "could not record completed worker"
 
-  rm -rf "$temp_home"
+  local review_prompt="$run_dir/reviewer-$child-prompt.md"
+  local review_artifact="$run_dir/reviewer-$child.json"
+  local review_home="$run_dir/reviewer-home-$run_id"
+  local review_timeout="${GRALPH_REVIEW_TIMEOUT:-600}"
+  case "$review_timeout" in ''|*[!0-9]*|0) fail_execution "GRALPH_REVIEW_TIMEOUT must be a positive integer" ;; esac
+  mkdir -p "$review_home"
+  {
+    printf '%s\n' 'You are an independent, read-only reviewer. Do not modify files or make network-changing commands.'
+    printf '%s\n' 'Review the committed worker result only from the evidence below and any read-only repository inspection needed.'
+    printf '%s\n' 'Return exactly one JSON object and no markdown or commentary, using this schema:'
+    printf '%s\n' '{"status":"approved|changes_requested","criticalCount":0,"blockerCount":0,"findings":[{"severity":"info|warning|critical|blocker","message":"..."}]}'
+    printf '%s\n' 'Counts must exactly match findings severities. Approve only when the requested behavior and every acceptance criterion are satisfied.'
+    printf '\nIssue #%s: %s\nBase SHA: %s\nCommitted SHA: %s\n\nRequested behavior and acceptance criteria:\n%s\n' \
+      "$child" "$issue_title" "$start_sha" "$commit_sha" "$issue_body"
+    printf '\nFull committed diff (%s..%s):\n' "$start_sha" "$commit_sha"
+    git -C "$worktree" diff --no-ext-diff "$start_sha" "$commit_sha"
+    printf '\nWorker verification command:\n%s\n\nWorker verification output (exit 0):\n' "$issue_verify"
+    cat "$verification_log"
+  } >"$review_prompt"
+
+  local review_pid watchdog_pid timed_out="$run_dir/.reviewer-$child-timed-out"
+  rm -f "$timed_out"
+  set +e
+  (cd "$worktree" && exec env HOME="$review_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
+    pi -p --no-session --no-extensions --no-skills --no-context-files \
+      --no-prompt-templates --no-themes --tools read,grep,find,ls \
+      "$(cat "$review_prompt")") >"$review_artifact" 2>&1 &
+  review_pid=$!
+  (
+    sleep "$review_timeout"
+    if kill -0 "$review_pid" 2>/dev/null; then
+      : >"$timed_out"
+      kill -TERM "$review_pid" 2>/dev/null
+      sleep 1
+      kill -KILL "$review_pid" 2>/dev/null
+    fi
+  ) &
+  watchdog_pid=$!
+  wait "$review_pid"
+  rc=$?
+  kill "$watchdog_pid" 2>/dev/null
+  wait "$watchdog_pid" 2>/dev/null
+  set -e
+
+  write_manifest "$manifest" \
+    --argjson child "$child" --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+    --argjson processExitCode "$rc" --argjson timedOut "$([ -f "$timed_out" ] && printf true || printf false)" '
+      (.children[] | select(.number == $child)).review = {
+        artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"
+      }
+    ' || fail_execution "could not record reviewer result"
+  rm -f "$timed_out"
+  [ "$rc" -eq 0 ] || fail_execution "independent reviewer process failed with exit $rc"
+
+  if ! jq -e '
+    type == "object"
+    and (.status == "approved" or .status == "changes_requested")
+    and (.criticalCount | type == "number") and .criticalCount >= 0 and .criticalCount == (.criticalCount | floor)
+    and (.blockerCount | type == "number") and .blockerCount >= 0 and .blockerCount == (.blockerCount | floor)
+    and (.findings | type == "array")
+    and all(.findings[];
+      type == "object"
+      and (.severity == "info" or .severity == "warning" or .severity == "critical" or .severity == "blocker")
+      and (.message | type == "string") and (.message | length > 0)
+    )
+    and .criticalCount == ([.findings[] | select(.severity == "critical")] | length)
+    and .blockerCount == ([.findings[] | select(.severity == "blocker")] | length)
+  ' "$review_artifact" >/dev/null 2>&1; then
+    fail_execution "independent reviewer returned a malformed or contradictory artifact"
+  fi
+
+  local review_status critical_count blocker_count findings
+  review_status="$(jq -r '.status' "$review_artifact")"
+  critical_count="$(jq -r '.criticalCount' "$review_artifact")"
+  blocker_count="$(jq -r '.blockerCount' "$review_artifact")"
+  findings="$(jq -c '.findings' "$review_artifact")"
+  write_manifest "$manifest" \
+    --argjson child "$child" --arg status "$review_status" \
+    --argjson criticalCount "$critical_count" --argjson blockerCount "$blocker_count" \
+    --argjson findings "$findings" '
+      (.children[] | select(.number == $child)).review += {
+        status:$status, criticalCount:$criticalCount, blockerCount:$blockerCount, findings:$findings
+      }
+    ' || fail_execution "could not persist reviewer artifact"
+
+  if [ "$review_status" != approved ] || [ "$critical_count" -ne 0 ] || [ "$blocker_count" -ne 0 ]; then
+    fail_execution "independent review rejected child #$child"
+  fi
+  write_manifest "$manifest" --argjson child "$child" '
+    .execution.status = "reviewed"
+    | (.children[] | select(.number == $child)).review.gate = "accepted"
+  ' || fail_execution "could not record accepted review"
+
+  rm -rf "$temp_home" "$review_home"
   lock_owned=0
   rm -rf "$lock_dir"
   trap - EXIT
-  printf 'Completed child #%s on %s (%s)\n' "$child" "$branch" "$commit_sha"
+  printf 'Completed and reviewed child #%s on %s (%s)\n' "$child" "$branch" "$commit_sha"
 }
 
 if [ "$DRY_RUN" -ne 1 ]; then
