@@ -16,3 +16,4 @@ This file tracks implementation notes across Ralph iterations.
 **Decisions:** Fail rather than silently truncate after 100 children or blockers; non-dry-run execution remains unavailable until later slices.
 **Conventions established:** GitHub values cross the shell boundary as GraphQL variables, never interpolated commands.
 **Notes for next iteration:** `.gralph/` runtime state is not ignored yet; decide its retention policy when execution artifacts arrive in #034.
+**Actionable review:** Re-read the base-to-HEAD diff and every changed file; all criteria passed, the exact verification command exited 0, and shell-file diagnostics reported no errors.
