@@ -6,6 +6,7 @@ This file tracks implementation notes across Ralph iterations.
 
 - Gralph reads GitHub issue data through GraphQL variables and validates response structure before writing run state.
 - Frontier manifests sort children, labels, blockers, and dependency edges for deterministic output.
+- Mechanically complete workers advance only after a fresh read-only Pi review returns `approved` with zero critical findings and blockers.
 
 # Iteration Log
 
@@ -26,3 +27,12 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** Gralph runtime state lives under ignored `.gralph/`; workers use temporary HOME directories while Pi core retains its configured agent directory for authentication.
 **Notes for next iteration:** #035 can consume the recorded base/start/commit SHAs, verification log, branch, worktree, and Ralph completion fields for independent review.
 **Actionable review:** Diffed `b3ef4763bb18cb17d2f940307568cdc232a60ced..HEAD` and read every changed file. Tightened the completion sentinel gate, blocked worker access to `.git`, removed Pi's auth-directory locator from verification environments, and added retry, existing-claim, contradictory-status, commit-failure, post-commit-dirty, and credential-scrubbing coverage. Exact verification passed; critical diagnostics were clean (shell LSP unavailable).
+
+## #035 Independently review a completed worker — 2026-07-23
+
+**What changed:** Added a bounded fresh read-only Pi review phase, evidence prompt and strict JSON artifact, fail-closed gate, and fixture coverage for every acceptance and failure outcome.
+**Files:** `bin/gralph`, `tests/gralph-review.test.sh`, `tests/gralph-single-child.test.sh`
+**Decisions:** The coordinator captures reviewer stdout as the artifact; only `approved` with internally consistent zero critical and blocker counts advances.
+**Conventions established:** Review artifacts and prompts live with other durable run evidence under `.gralph/runs/<parent>/`.
+**Notes for next iteration:** #036 can require child execution `complete` plus review gate `accepted` before merging onto the batch branch.
+**Fresh review:** Reviewed `git diff 939e8a1521255f1d27b9cf1e5ef13984d3e2d244 HEAD` in an independent session; exact verification passed and the review returned `RALPH_REVIEW: PASS`. Shell LSP was unavailable for `bin/gralph`; test scripts reported no critical diagnostics.
