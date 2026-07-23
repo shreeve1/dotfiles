@@ -38,9 +38,11 @@ This file tracks implementation notes across Ralph iterations.
 **Fresh review:** Reviewed `git diff 939e8a1521255f1d27b9cf1e5ef13984d3e2d244 HEAD` in an independent session; exact verification passed and the review returned `RALPH_REVIEW: PASS`. Shell LSP was unavailable for `bin/gralph`; test scripts reported no critical diagnostics.
 **Actionable review:** Re-read the required base-to-HEAD diff and every changed file. Fixed a timeout race that could accept an `approved` artifact when a reviewer handled `TERM` and exited zero after the deadline; added a regression fixture. Exact verification and the related single-child suite passed; critical diagnostics were clean (shell LSP unavailable).
 
-## #036 Land one accepted child on a batch branch — 2026-07-23 (blocked)
+## #036 Land one accepted child on a batch branch — 2026-07-23
 
-**Attempted:** Added the landing path and merge fixtures, then reproduced Git rejecting the required batch ref.
-**Blocker:** `gralph/<parent>` cannot coexist with #034's required `gralph/<parent>/issue-<child>` branch because one Git ref path cannot be both a file and a directory.
-**Preserved:** Reverted the incomplete implementation and tests; only the issue status and blocker record remain.
-**Resolution:** Batch branches use `gralph/<parent>/batch`; #036 returned to pending on 2026-07-23.
+**What changed:** Extended `execute_one_child` to land a reviewed child onto a dedicated `gralph/<parent>/batch` branch starting from the manifest's recorded base SHA, run the operator-supplied integration command against the merged tree, and record merged, integration exit code, and landed SHAs. Extracted the merge step into `merge_one_child` so the rejection/conflict/integration/stale-base paths can be tested directly.
+**Files:** `bin/gralph`, `tests/gralph-merge.test.sh`, `tests/gralph-single-child.test.sh`, `tests/gralph-review.test.sh`
+**Decisions:** The merge step demands `execution.status == "complete"` AND `review.gate == "accepted"` before creating a batch worktree, performs a `--no-ff --no-edit` merge, aborts with `git merge --abort` on conflict, and runs the integration command from the merged batch worktree with credentials/SSH-agent/Pi-auth scrubbed. Failure paths record a machine-readable `reason` (`not_reviewed`, `merge_conflict`, `integration_failed`, `stale_base_sha`) and preserve both branches and worktrees.
+**Conventions established:** The terminal execution status advances from `reviewed` to `landed` once the merge and integration command succeed; manifest children gain a `merge` subobject that records `batchBranch`, `mergedSha`, `integrationExitCode`, `integrationLog`, and `landedSha`.
+**Notes for next iteration:** #037 parallel waves must reuse this serial landing path through a single merge queue; #038 resume must recognise `merge.status == "landed"` and the recorded `landedSha`; the merge test extracts `merge_one_child` and `write_manifest` from the script (parser stripped) so future slices can test merge regressions without invoking gh.
+**Actionable review:** Reviewed `git diff 5be7d0978f8587ccb729c370c38d009df51aceaf HEAD` and read every changed file. All criteria satisfied, exact verification (`bash tests/gralph-merge.test.sh`) exited 0, and shell LSP reported no critical diagnostics.
