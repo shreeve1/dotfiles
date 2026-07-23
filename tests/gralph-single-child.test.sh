@@ -49,6 +49,10 @@ calls="$(grep -c '^FAKE_PI_CALL$' "$PI_LOG" 2>/dev/null || true)"
 printf '%s\n' 'FAKE_PI_CALL' "HOME=$HOME" "PI_CODING_AGENT_DIR=${PI_CODING_AGENT_DIR-}" >>"$PI_LOG"
 printf '%s\n' "$@" >>"$PI_LOG"
 printf '%s' "${!#}" >"$PROMPT_LOG"
+if printf '%s\n' "$@" | grep -Fx 'read,grep,find,ls' >/dev/null; then
+  printf '%s\n' '{"status":"approved","criticalCount":0,"blockerCount":0,"findings":[]}'
+  exit 0
+fi
 case "${FAKE_PI_SCENARIO:-success}" in
   success)
     printf '%s\n' implemented >worker-output.txt
@@ -131,7 +135,7 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 WORKTREE="$(jq -r '.children[0].execution.worktree' "$MANIFEST")"
 COMMIT="$(jq -r '.children[0].execution.commitSha' "$MANIFEST")"
 jq -e --arg base "$BASE_SHA" --arg commit "$COMMIT" '
-  .baseSha == $base and .dryRun == false and .execution.status == "complete"
+  .baseSha == $base and .dryRun == false and .execution.status == "reviewed"
   and .children[0].claim.label == "gralph:claimed"
   and .children[0].claim.status == "claimed"
   and .children[0].verificationCommand == "test -f worker-output.txt"
@@ -152,9 +156,10 @@ for flag in -p --no-session --no-extensions -e --no-skills --skill --no-context-
 done
 grep -Fx 'read,write,edit,grep,find,ls,gralph_check' "$PI_LOG" >/dev/null
 ! grep -Fx bash "$PI_LOG" >/dev/null
-grep -F "Worktree: $WORKTREE" "$PROMPT_LOG" >/dev/null
-grep -F 'Issue body and acceptance criteria:' "$PROMPT_LOG" >/dev/null
-grep -F 'Prior iteration status:' "$PROMPT_LOG" >/dev/null
+WORKER_PROMPT="$REPO/.gralph/runs/42/worker-101-prompt.md"
+grep -F "Worktree: $WORKTREE" "$WORKER_PROMPT" >/dev/null
+grep -F 'Issue body and acceptance criteria:' "$WORKER_PROMPT" >/dev/null
+grep -F 'Prior iteration status:' "$WORKER_PROMPT" >/dev/null
 grep -E '^HOME=.*/\.gralph/runs/42/home-' "$PI_LOG" >/dev/null
 grep -E '^PI_CODING_AGENT_DIR=.+/\.pi/agent$' "$PI_LOG" >/dev/null
 ! grep -E '^PI_CODING_AGENT_DIR=.*/\.gralph/' "$PI_LOG" >/dev/null
@@ -205,8 +210,8 @@ new_repo "$repo"
 plan_repo "$repo"
 : >"$PI_LOG"
 GRALPH_MAX_ITERATIONS=2 FAKE_PI_SCENARIO=retry run_gralph "$repo" 42 --verify 'bash verify-integration.sh' >/dev/null
-[ "$(grep -c '^FAKE_PI_CALL$' "$PI_LOG")" -eq 2 ]
-grep -F 'still working' "$PROMPT_LOG" >/dev/null
+[ "$(grep -c '^FAKE_PI_CALL$' "$PI_LOG")" -eq 3 ]
+grep -F 'still working' "$repo/.gralph/runs/42/worker-101-prompt.md" >/dev/null
 
 # Mechanical failures fail closed and preserve worktrees for inspection.
 for scenario in no-status conflicting-status no-diff; do

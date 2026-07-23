@@ -1,11 +1,13 @@
 ---
 id: 035
 title: Independently review a completed worker
-status: pending
+status: in-progress
 blocked_by: [034]
 parent: null
 priority: 0
 created: 2026-07-22
+updated: 2026-07-23
+actor: ralph
 ---
 
 ## What to build
