@@ -1,7 +1,7 @@
 ---
 id: 033
 title: Plan the eligible GitHub child frontier
-status: in-progress
+status: review
 blocked_by: []
 parent: null
 priority: 0
