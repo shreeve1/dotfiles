@@ -113,7 +113,7 @@ plan_repo "$REPO"
 FAKE_REVIEW_SCENARIO=approved run_gralph "$REPO" 42 --verify 'bash integration.sh' >/dev/null
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 jq -e '
-  .execution.status == "reviewed"
+  .execution.status == "landed"
   and .children[0].execution.status == "complete"
   and .children[0].review.status == "approved"
   and .children[0].review.criticalCount == 0
@@ -122,6 +122,9 @@ jq -e '
   and .children[0].review.gate == "accepted"
   and .children[0].review.processExitCode == 0
   and .children[0].review.timedOut == false
+  and .children[0].merge.batchBranch == "gralph/42/batch"
+  and .children[0].merge.status == "landed"
+  and .children[0].merge.integrationExitCode == 0
 ' "$MANIFEST" >/dev/null
 [ "$(grep -c '^CALL$' "$PI_LOG")" -eq 2 ]
 [ "$(grep -c '^--tools$' "$PI_LOG")" -eq 2 ]
