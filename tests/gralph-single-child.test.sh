@@ -135,7 +135,7 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 WORKTREE="$(jq -r '.children[0].execution.worktree' "$MANIFEST")"
 COMMIT="$(jq -r '.children[0].execution.commitSha' "$MANIFEST")"
 jq -e --arg base "$BASE_SHA" --arg commit "$COMMIT" '
-  .baseSha == $base and .dryRun == false and .execution.status == "reviewed"
+  .baseSha == $base and .dryRun == false and .execution.status == "landed"
   and .children[0].claim.label == "gralph:claimed"
   and .children[0].claim.status == "claimed"
   and .children[0].verificationCommand == "test -f worker-output.txt"
@@ -145,6 +145,10 @@ jq -e --arg base "$BASE_SHA" --arg commit "$COMMIT" '
   and .children[0].execution.ralphComplete == true
   and .children[0].execution.clean == true
   and .children[0].execution.verificationExitCode == 0
+  and .children[0].merge.batchBranch == "gralph/42/batch"
+  and (.children[0].merge.mergedSha | type == "string")
+  and .children[0].merge.status == "landed"
+  and .children[0].merge.integrationExitCode == 0
 ' "$MANIFEST" >/dev/null
 [ "$(git -C "$WORKTREE" rev-parse HEAD)" = "$COMMIT" ]
 [ "$(git -C "$WORKTREE" rev-list --count "$BASE_SHA..$COMMIT")" -ge 1 ]
