@@ -1,21 +1,47 @@
-## Delegate Non-Trivial Work
+## Delegation guidance is mode-aware
 
-Delegation runs through the `subagent` tool (nicobailon/pi-subagents). Each
-subagent is a fresh child `pi` process with its own model, so a reviewer never
-shares the worker's context or model family.
+This guidance is mode-neutral. The active orchestration mode
+(defaults to Fusion on this machine — see `docs/adr/0002-fusion-mode.md`)
+inverts which side of the parent/child split owns discovery and
+execution. None of the rules below apply uniformly across modes;
+each rule names the mode it applies to.
+
+### In normal mode (Fusion is off)
 
 - Handle work in the parent session by default.
-- Delegate only for broad exploration, multiple independent workstreams,
-  open-ended research, high-risk changes, or when the user requests it.
+- Delegate through the `subagent` tool (nicobailon/pi-subagents) only
+  for broad exploration, multiple independent workstreams, open-ended
+  research, high-risk changes, or when the user requests it.
 - Do not delegate known-file edits, config or documentation changes,
   single-provider lookups, or changes touching three or fewer files.
-- Try one direct probe before delegating; stop if it resolves the question.
+- Try one direct probe before delegating; stop if it resolves the
+  question.
 - Use at most one subagent by default.
-- Builtin roles: `worker` (implement) runs `minimax/MiniMax-M3`, `reviewer`
-  (review-only) runs `deepseek/deepseek-v4-flash` — opposite families by design.
-  Also available: `scout`, `researcher`, `planner`, `oracle`, `context-builder`,
-  `delegate`. Model/tool overrides live in `settings.json` `subagents.agentOverrides`,
-  never in agent frontmatter (frontmatter model pins shadow settings overrides).
-- Require a `reviewer` subagent only for security, authentication, migrations,
-  public APIs, data-loss risk, or substantial multi-file logic changes.
-- Prefer deterministic checks over reviewer subagents for small changes.
+
+### In Fusion mode (default on this machine)
+
+The Fusion extension overrides the parent tool surface at every turn
+and injects its own delegation guidance (`[FUSION MODE ACTIVE]`
+context). Follow Fusion's injected guidance in preference to anything
+in this file. The two-liner summary:
+
+- The parent's tool surface is intentionally small (read, bash
+  restricted, subagent, todo, lsp_diagnostics, subagent_wait,
+  subagent_supervisor, advisor-only). Discovery and execution flow
+  through `scout`, `researcher`, `worker`, and `reviewer` (when
+  risk-based). Worker delegation MUST carry Objective / Files /
+  Interfaces / Constraints / Verification.
+
+### Role models and tools in both modes
+
+Model/tool overrides for subagents live in `settings.json`
+`subagents.agentOverrides`, never in agent frontmatter (a frontmatter
+`model:` pin silently shadows settings overrides). Builtin roles:
+
+- `scout` — fast read-only codebase recon.
+- `researcher` — web/docs research with sources.
+- `worker` — single writer in a cwd.
+- `reviewer` — risk-based code review (security, auth, migrations,
+  public APIs, data loss, substantial multi-file logic).
+
+Prefer deterministic checks over reviewer subagents for small changes.

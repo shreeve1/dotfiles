@@ -36,8 +36,8 @@ node --check "$ext" || {
 	echo "FAIL: node --check" >&2
 	exit 1
 }
-for sym in isTerminal answerText extractFilePath pendingCount pruneOldReviews reapStaleReviews findProjectRoot reviewPrompt prepareReview \
-	'pi.on("turn_end"' 'pi.on("turn_start"' 'pi.on("tool_call"' 'pi.on("before_agent_start"' \
+for sym in isTerminal answerText extractFilePath pendingCount pruneOldReviews reapStaleReviews findProjectRoot reviewPrompt prepareReview computeRepoChangeSignature \
+	'pi.on("turn_end"' 'pi.on("turn_start"' 'pi.on("tool_call"' 'pi.on("before_agent_start"' 'pi.registerCommand("gap-review"' \
 	'rm -f "$GR_IN"' '$GR_THINKING'; do
 	grep -qF "$sym" "$ext" || {
 		echo "FAIL: missing $sym" >&2
@@ -69,6 +69,7 @@ import {
 	mkdtempSync, mkdirSync, writeFileSync, readFileSync,
 	readdirSync, utimesSync, existsSync as pathExists,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -174,13 +175,38 @@ check("reapStaleReviews: missing dir -> 0 (no throw)",
 // (8) Wave-0 handler harness — drives prepareReview indirectly via turn_end.
 const newHarness = () => {
 	const handlers = {};
-	const pi = { on(name, fn) { handlers[name] = fn; } };
+	const commands = {};
+	const pi = {
+		on(name, fn) { handlers[name] = fn; },
+		registerCommand(name, opts) { commands[name] = { opts, calls: [] }; },
+	};
 	gap.default(pi);
-	return handlers;
+	const harness = {
+		cwd: process.cwd(),
+		hasUI: true,
+		ui: {
+			notify: (msg, level) => { harness.lastNotify = { msg, level }; },
+			setStatus: () => undefined,
+			setWidget: () => undefined,
+		},
+		before_agent_start: (e) => handlers.before_agent_start && handlers.before_agent_start(e),
+		tool_call: (e) => handlers.tool_call && handlers.tool_call(e),
+		turn_start: async (e, ctx) => handlers.turn_start && handlers.turn_start(e, ctx || harness),
+		turn_end: async (e, ctx) => handlers.turn_end && handlers.turn_end(e, ctx || harness),
+		command: async (name, args) => {
+			const c = commands[name];
+			if (!c) throw new Error("command not registered: " + name);
+			await c.opts.handler(args || "", harness);
+		},
+	};
+	return harness;
 };
 const makeRepo = () => {
 	const d = mkdtempSync(join(tmpdir(), "gap-h-"));
-	writeFileSync(join(d, ".git"), "gitdir: nope\n");
+	// Run `git init` so rev-parse and porcelain work. Avoid auto-creating
+	// commits — the test starts with an empty working tree.
+	const r = spawnSync("git", ["init", "-q"], { cwd: d });
+	if (r.status !== 0) throw new Error("git init failed in " + d);
 	return d;
 };
 const longAns = "x".repeat(300);
@@ -259,6 +285,79 @@ const longAns = "x".repeat(300);
 	const second = readFileSync(join(reviewsDir, ins2[ins2.length - 1]), "utf8");
 	check("D6: after terminal turn_end, next before_agent_start captures fresh",
 		second.includes("THIRD_REQ"));
+}
+
+// (8b) Auto gate — read-only turn (no repo change): no review spawned.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "design-review" });
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	check("auto gate: read-only design turn does NOT spawn a review",
+		ins.length === 0);
+}
+
+// (8c) Auto gate — repo state changed: review IS spawned.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "implement-this" });
+	// simulate a worker mutation by touching a tracked file
+	writeFileSync(join(root, "a.py"), "x = 1\n");
+	const longAns2 = "y".repeat(300);
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns2 }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	check("auto gate: repo-changed turn DOES spawn a review",
+		ins.length === 1);
+}
+
+// (8d) Manual /gap-review command revives a retained candidate.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "manual-trigger-req" });
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const before = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md")).length
+		: 0;
+	check("manual: no review yet (read-only turn)", before === 0);
+	await h.command("gap-review", "");
+	const after = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md")).length
+		: 0;
+	check("manual: /gap-review spawns a review from the retained candidate",
+		after >= 1);
+	check("manual: harness recorded notify", h.lastNotify && /manual review launched/.test(h.lastNotify.msg));
+}
+
+// (8e) /gap-review with no retained candidate notifies plainly and spawns nothing.
+{
+	const h = newHarness();
+	await h.command("gap-review", "");
+	check("manual: no candidate => nothing spawned", h.lastNotify && /no eligible/.test(h.lastNotify.msg));
 }
 
 // (9) D1: \$GR_<X> tokens in the source match GR_<X> keys built by prepareReview.
