@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# gralph — coordinate trusted GitHub child issues through isolated Pi workers.
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage: gralph <parent> --dry-run [--verify <command>]
+
+Plan the direct ready-for-agent children of an open GitHub parent issue.
+Mutating execution is not available yet and will require --verify.
+EOF
+}
+
+PARENT_ARG="${1-}"
+if [ -z "$PARENT_ARG" ]; then
+  echo "error: parent issue number is required" >&2
+  usage >&2
+  exit 2
+fi
+shift
+
+case "$PARENT_ARG" in
+  *[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 2 ;;
+esac
+
+DRY_RUN=0
+VERIFY_SET=0
+VERIFY=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1 ;;
+    --verify)
+      [ "$#" -ge 2 ] || { echo "error: --verify requires a command" >&2; exit 2; }
+      VERIFY="$2"
+      VERIFY_SET=1
+      shift
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
+
+PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+
+if [ "$DRY_RUN" -ne 1 ]; then
+  [ "$VERIFY_SET" -eq 1 ] && [ -n "$VERIFY" ] || {
+    echo "error: mutating runs require --verify <command>" >&2
+    exit 2
+  }
+  echo "error: mutating execution is not implemented yet" >&2
+  exit 2
+fi
+
+REPO_SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {
+  echo "error: cannot resolve the current GitHub repository" >&2
+  exit 1
+}
+IFS=/ read -r OWNER REPO EXTRA <<<"$REPO_SLUG"
+[ -n "${OWNER:-}" ] && [ -n "${REPO:-}" ] && [ -z "${EXTRA:-}" ] || {
+  echo "error: gh returned an invalid repository name" >&2
+  exit 1
+}
+
+read -r -d '' GRAPHQL_QUERY <<'GRAPHQL' || true
+query GralphFrontier($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      number
+      title
+      state
+      subIssues(first: 100) {
+        pageInfo { hasNextPage }
+        nodes {
+          number
+          title
+          state
+          labels(first: 100) { nodes { name } }
+          blockedBy(first: 100) {
+            pageInfo { hasNextPage }
+            nodes { number state }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL
+
+if ! RESPONSE="$(gh api graphql \
+  -f query="$GRAPHQL_QUERY" \
+  -F owner="$OWNER" \
+  -F name="$REPO" \
+  -F number="$PARENT" 2>&1)"; then
+  echo "error: parent issue #$PARENT is inaccessible: $RESPONSE" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$RESPONSE" | jq -e . >/dev/null 2>&1; then
+  echo "error: GitHub returned malformed JSON for parent issue #$PARENT" >&2
+  exit 1
+fi
+
+if [ "$(printf '%s\n' "$RESPONSE" | jq -r '(.errors // []) | length')" -ne 0 ]; then
+  echo "error: GitHub could not read parent issue #$PARENT" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$RESPONSE" | jq -e '.data.repository.issue | type == "object"' >/dev/null; then
+  echo "error: parent issue #$PARENT was not found or is inaccessible" >&2
+  exit 1
+fi
+
+PARENT_STATE="$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.state')"
+if [ "$PARENT_STATE" != OPEN ]; then
+  echo "error: parent issue #$PARENT is not open" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$RESPONSE" | jq -e '
+  .data.repository.issue as $parent
+  | ($parent.number | type == "number")
+    and ($parent.title | type == "string")
+    and ($parent.subIssues.nodes | type == "array")
+    and ($parent.subIssues.pageInfo.hasNextPage | type == "boolean")
+    and all($parent.subIssues.nodes[];
+      (.number | type == "number")
+      and (.title | type == "string")
+      and (.state == "OPEN" or .state == "CLOSED")
+      and (.labels.nodes | type == "array")
+      and all(.labels.nodes[]; .name | type == "string")
+      and (.blockedBy.nodes | type == "array")
+      and (.blockedBy.pageInfo.hasNextPage | type == "boolean")
+      and all(.blockedBy.nodes[];
+        (.number | type == "number") and (.state == "OPEN" or .state == "CLOSED")
+      )
+    )
+' >/dev/null; then
+  echo "error: GitHub returned malformed issue data for parent issue #$PARENT" >&2
+  exit 1
+fi
+
+if [ "$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.subIssues.pageInfo.hasNextPage')" = true ]; then
+  echo "error: parent issue #$PARENT has more than 100 direct children" >&2
+  exit 1
+fi
+if printf '%s\n' "$RESPONSE" | jq -e 'any(.data.repository.issue.subIssues.nodes[]; .blockedBy.pageInfo.hasNextPage)' >/dev/null; then
+  echo "error: a child of parent issue #$PARENT has more than 100 blockers" >&2
+  exit 1
+fi
+
+CHILDREN="$(printf '%s\n' "$RESPONSE" | jq -c '
+  [.data.repository.issue.subIssues.nodes[]
+    | ([.labels.nodes[].name] | sort | unique) as $labels
+    | ([.blockedBy.nodes[] | {number, state}] | sort_by(.number)) as $blockers
+    | {
+        number,
+        title,
+        state,
+        labels: $labels,
+        blockedBy: [$blockers[].number],
+        classification: (
+          if .state != "OPEN" then "excluded"
+          elif ($labels | index("ready-for-agent")) == null then "excluded"
+          elif any($blockers[]; .state != "CLOSED") then "blocked"
+          else "eligible"
+          end
+        ),
+        reason: (
+          if .state != "OPEN" then "child_not_open"
+          elif ($labels | index("ready-for-agent")) == null then "missing_ready_for_agent_label"
+          elif any($blockers[]; .state != "CLOSED") then "open_blockers"
+          else null
+          end
+        )
+      }
+  ] | sort_by(.number)
+')"
+
+BASE_SHA="$(git rev-parse HEAD)"
+RUN_DIR=".gralph/runs/$PARENT"
+mkdir -p "$RUN_DIR"
+TMP_MANIFEST="$RUN_DIR/.manifest.json.tmp.$$"
+trap 'rm -f "$TMP_MANIFEST"' EXIT
+
+jq -n \
+  --argjson parent "$PARENT" \
+  --arg baseSha "$BASE_SHA" \
+  --arg verify "$VERIFY" \
+  --argjson verifySet "$VERIFY_SET" \
+  --argjson children "$CHILDREN" '
+  {
+    schemaVersion: 1,
+    parent: $parent,
+    baseSha: $baseSha,
+    dryRun: true,
+    children: $children,
+    dependencies: (
+      [$children[] as $child
+        | $child.blockedBy[]
+        | {issue: $child.number, blockedBy: .}
+      ] | sort_by([.issue, .blockedBy])
+    )
+  }
+  + (if $verifySet == 1 then {integrationCommand: $verify} else {} end)
+' >"$TMP_MANIFEST"
+mv "$TMP_MANIFEST" "$RUN_DIR/manifest.json"
+trap - EXIT
+
+printf 'Planned parent #%s: %s eligible, %s blocked, %s excluded\n' \
+  "$PARENT" \
+  "$(printf '%s' "$CHILDREN" | jq '[.[] | select(.classification == "eligible")] | length')" \
+  "$(printf '%s' "$CHILDREN" | jq '[.[] | select(.classification == "blocked")] | length')" \
+  "$(printf '%s' "$CHILDREN" | jq '[.[] | select(.classification == "excluded")] | length')"
+printf 'Manifest: %s\n' "$RUN_DIR/manifest.json"
