@@ -1,7 +1,7 @@
 ---
 id: 036
 title: Land one accepted child on a batch branch
-status: in-progress
+status: review
 blocked_by: [035]
 parent: null
 priority: 0
