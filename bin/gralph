@@ -5,11 +5,11 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: gralph <parent> [--dry-run] [--verify <command>]
+usage: gralph <parent> [--dry-run] [--verify <command>] [--jobs N]
 
 Plan the direct ready-for-agent children of an open GitHub parent issue, or
-execute the first eligible child from a saved plan. Mutating runs require
---verify.
+execute them in dependency-frontier waves. Mutating runs require --verify.
+--jobs N caps concurrent worker pipelines (default 2).
 EOF
 }
 
@@ -28,6 +28,7 @@ esac
 DRY_RUN=0
 VERIFY_SET=0
 VERIFY=""
+JOBS=2
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -35,6 +36,15 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -ge 2 ] || { echo "error: --verify requires a command" >&2; exit 2; }
       VERIFY="$2"
       VERIFY_SET=1
+      shift
+      ;;
+    --jobs)
+      [ "$#" -ge 2 ] || { echo "error: --jobs requires a positive integer" >&2; exit 2; }
+      case "$2" in
+        ''|*[!0-9]*) echo "error: --jobs must be a positive integer" >&2; exit 2 ;;
+      esac
+      JOBS="$2"
+      [ "$JOBS" -ge 1 ] || { echo "error: --jobs must be a positive integer" >&2; exit 2; }
       shift
       ;;
     -h|--help) usage; exit 0 ;;
@@ -74,124 +84,103 @@ verification_from_body() {
   '
 }
 
-execute_one_child() {
-  local manifest="$REPO_ROOT/.gralph/runs/$PARENT/manifest.json"
-  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; exit 1; }
-  jq -e --argjson parent "$PARENT" '
-    .schemaVersion == 1 and .parent == $parent and (.baseSha | type == "string")
-    and (.children | type == "array")
-  ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
+# run_child_pipeline claims one child, runs the bounded Ralph worker, runs the
+# supervisor verification, commits, and runs an independent reviewer. It
+# makes no shared-manifest writes; everything is recorded on a per-child
+# sidecar so concurrent waves can never race on the manifest. The orchestrator
+# folds the sidecar serially between waves.
+run_child_pipeline() {
+  local child="$1"
+  local manifest="$2"
+  local run_dir="$3"
+  local base_sha="$4"
+  local run_id="$5"
+  local sidecar="$6"
 
-  local child base_sha run_dir lock_dir lock_owned=0 run_id host
-  child="$(jq -r '[.children[] | select(.classification == "eligible")] | sort_by(.number) | .[0].number // empty' "$manifest")"
-  [ -n "$child" ] || { echo "error: saved frontier has no eligible child" >&2; exit 1; }
-  base_sha="$(jq -r '.baseSha' "$manifest")"
-  git -C "$REPO_ROOT" cat-file -e "$base_sha^{commit}" 2>/dev/null || {
-    echo "error: saved base SHA is unavailable: $base_sha" >&2
-    exit 1
-  }
-
-  run_dir="$(dirname "$manifest")"
-  lock_dir="$run_dir/.coordinator-lock"
+  local issue_json issue_body issue_title issue_verify host
   host="$(hostname)"
-  run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  if ! mkdir "$lock_dir" 2>/dev/null; then
-    local owner_pid owner_host
-    owner_pid="$(jq -r '.pid // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
-    owner_host="$(jq -r '.host // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
-    if [ "$owner_host" = "$host" ] && [ -n "$owner_pid" ] && kill -0 "$owner_pid" 2>/dev/null; then
-      echo "error: another live Gralph run owns child #$child" >&2
-    else
-      echo "error: an unresolved Gralph claim exists at $lock_dir" >&2
-    fi
-    exit 1
+
+  if ! git -C "$REPO_ROOT" cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+    jq -n --argjson child "$child" --arg reason "stale_base_sha" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
   fi
-  lock_owned=1
-  jq -n --arg runId "$run_id" --arg host "$host" --argjson pid "$$" \
-    '{runId:$runId,host:$host,pid:$pid}' >"$lock_dir/owner.json"
-  trap '[ "$lock_owned" -eq 0 ] || rm -rf "$lock_dir"' EXIT
 
-  fail_execution() {
-    local reason="$1"
-    write_manifest "$manifest" --argjson child "$child" --arg reason "$reason" --arg runId "$run_id" '
-      .dryRun = false
-      | .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason})
-      | (.children[] | select(.number == $child) | .execution) |=
-          ((. // {}) + {status:"failed", reason:$reason, runId:$runId})
-    ' || true
-    echo "error: $reason" >&2
-    exit 1
-  }
-
-  local issue_json issue_body issue_title issue_verify
   if ! issue_json="$(gh issue view "$child" --json number,title,state,body,labels 2>&1)"; then
-    fail_execution "cannot read admitted child #$child: $issue_json"
+    jq -n --argjson child "$child" --arg reason "cannot_read_issue" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
   fi
   if ! printf '%s\n' "$issue_json" | jq -e --argjson child "$child" '
     .number == $child and .state == "OPEN" and (.body | type == "string")
     and any(.labels[]?; .name == "ready-for-agent")
   ' >/dev/null 2>&1; then
-    fail_execution "admitted child #$child is no longer open and ready-for-agent"
+    jq -n --argjson child "$child" --arg reason "not_admitted" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
   fi
   if printf '%s\n' "$issue_json" | jq -e 'any(.labels[]?; .name == "gralph:claimed")' >/dev/null; then
-    fail_execution "child #$child is already claimed by another run"
+    jq -n --argjson child "$child" --arg reason "already_claimed" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
   fi
   issue_body="$(printf '%s\n' "$issue_json" | jq -r '.body')"
   issue_title="$(printf '%s\n' "$issue_json" | jq -r '.title')"
   if ! issue_verify="$(printf '%s\n' "$issue_body" | verification_from_body)"; then
-    fail_execution "child #$child must contain exactly one backtick-quoted command under ## Verification"
+    jq -n --argjson child "$child" --arg reason "no_verification" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
   fi
 
-  write_manifest "$manifest" \
-    --argjson child "$child" --arg body "$issue_body" --arg verify "$issue_verify" \
-    --arg integration "$VERIFY" --arg runId "$run_id" --arg host "$host" --argjson pid "$$" '
-      .dryRun = false
-      | .integrationCommand = $integration
-      | .execution = {runId:$runId, status:"claiming", child:$child}
-      | (.children[] | select(.number == $child)) += {
-          body:$body,
-          verificationCommand:$verify,
-          claim:{label:"gralph:claimed",runId:$runId,host:$host,pid:$pid,status:"claiming"}
-        }
-    ' || fail_execution "could not record claim intent"
-
-  gh label create 'gralph:claimed' --color 6f42c1 --description 'Claimed by a Gralph coordinator' --force >/dev/null 2>&1 \
-    || fail_execution "could not ensure gralph:claimed label"
-  gh issue edit "$child" --add-label 'gralph:claimed' >/dev/null 2>&1 \
-    || fail_execution "could not claim child #$child"
-  write_manifest "$manifest" --argjson child "$child" '
-    .execution.status = "claimed"
-    | (.children[] | select(.number == $child)).claim.status = "claimed"
-  ' || fail_execution "could not persist claim for child #$child"
+  if ! gh label create 'gralph:claimed' --color 6f42c1 --description 'Claimed by a Gralph coordinator' --force >/dev/null 2>&1; then
+    jq -n --argjson child "$child" --arg reason "cannot_ensure_label" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
+  fi
+  if ! gh issue edit "$child" --add-label 'gralph:claimed' >/dev/null 2>&1; then
+    jq -n --argjson child "$child" --arg reason "cannot_claim" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
+  fi
 
   local branch="gralph/$PARENT/issue-$child"
   local worktree="$run_dir/worktrees/issue-$child-$run_id"
   if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
-    fail_execution "worker branch already exists: $branch"
+    jq -n --argjson child "$child" --arg reason "branch_exists" --arg branch "$branch" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch}' >"$sidecar"
+    return 0
   fi
   mkdir -p "$(dirname "$worktree")"
-  git -C "$REPO_ROOT" worktree add -b "$branch" "$worktree" "$base_sha" >/dev/null \
-    || fail_execution "could not create worker branch and worktree"
+  if ! git -C "$REPO_ROOT" worktree add -b "$branch" "$worktree" "$base_sha" >/dev/null 2>&1; then
+    jq -n --argjson child "$child" --arg reason "worktree_create_failed" --arg branch "$branch" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch}' >"$sidecar"
+    return 0
+  fi
   local start_sha
   start_sha="$(git -C "$worktree" rev-parse HEAD)"
-  write_manifest "$manifest" \
-    --argjson child "$child" --arg branch "$branch" --arg worktree "$worktree" --arg start "$start_sha" '
-      .execution.status = "running"
-      | (.children[] | select(.number == $child)).execution = {
-          status:"running", branch:$branch, worktree:$worktree, startingSha:$start
-        }
-    ' || fail_execution "could not record worker worktree"
 
   local ralph_skill="${GRALPH_RALPH_SKILL:-$HOME/.claude/skills/ralph/SKILL.md}"
   local guard="$SCRIPT_ROOT/lib/gralph-worker-guard.js"
-  [ -f "$ralph_skill" ] || fail_execution "Ralph skill not found: $ralph_skill"
-  [ -f "$guard" ] || fail_execution "worker guard not found: $guard"
+  if [ ! -f "$ralph_skill" ]; then
+    jq -n --argjson child "$child" --arg reason "ralph_skill_missing" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+    return 0
+  fi
+  if [ ! -f "$guard" ]; then
+    jq -n --argjson child "$child" --arg reason "guard_missing" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+    return 0
+  fi
   ralph_skill="$(realpath "$ralph_skill")"
   guard="$(realpath "$guard")"
 
   local max_iterations="${GRALPH_MAX_ITERATIONS:-3}"
-  case "$max_iterations" in ''|*[!0-9]*|0) fail_execution "GRALPH_MAX_ITERATIONS must be a positive integer" ;; esac
-  local temp_home="$run_dir/home-$run_id"
+  case "$max_iterations" in ''|*[!0-9]*|0)
+    jq -n --argjson child "$child" --arg reason "max_iterations_invalid" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+    return 0
+  ;; esac
+  local temp_home="$run_dir/home-$child-$run_id"
   local pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
   local prompt_file="$run_dir/worker-$child-prompt.md"
   local output_file previous_status='none' iteration done=0 rc
@@ -228,7 +217,12 @@ execute_one_child() {
     fi
     previous_status="$(tail -40 "$output_file" 2>/dev/null || printf 'pi exited %s' "$rc")"
   done
-  [ "$done" -eq 1 ] || fail_execution "worker did not report bounded Ralph completion after $max_iterations iteration(s)"
+  if [ "$done" -ne 1 ]; then
+    jq -n --argjson child "$child" --arg reason "worker_incomplete" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
+    return 0
+  fi
 
   local verification_log="$run_dir/worker-$child-verification.log"
   local -a scrubbed_env=(env)
@@ -247,32 +241,56 @@ execute_one_child() {
     /bin/sh -c "$issue_verify") >"$verification_log" 2>&1
   rc=$?
   set -e
-  [ "$rc" -eq 0 ] || fail_execution "issue verification failed with exit $rc"
+  if [ "$rc" -ne 0 ]; then
+    echo "error: issue verification failed with exit $rc" >&2
+    jq -n --argjson child "$child" --arg reason "verification_failed" --argjson exitCode "$rc" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      --arg verificationLog "$verification_log" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, verificationExitCode:$exitCode, verificationLog:$verificationLog}' >"$sidecar"
+    return 0
+  fi
 
-  [ -n "$(git -C "$worktree" status --porcelain)" ] || fail_execution "worker reported completion without a diff"
+  if [ -z "$(git -C "$worktree" status --porcelain)" ]; then
+    jq -n --argjson child "$child" --arg reason "no_diff" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
+    return 0
+  fi
   git -C "$worktree" add -A
-  git -C "$worktree" commit -m "feat(#$child): implement GitHub child" >/dev/null \
-    || fail_execution "coordinator could not commit worker diff"
-  [ -z "$(git -C "$worktree" status --porcelain)" ] || fail_execution "worker worktree is not clean after commit"
+  if ! git -C "$worktree" commit -m "feat(#$child): implement GitHub child" >/dev/null 2>&1; then
+    echo "error: coordinator could not commit worker diff" >&2
+    jq -n --argjson child "$child" --arg reason "commit_failed" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
+    return 0
+  fi
+  if [ -n "$(git -C "$worktree" status --porcelain)" ]; then
+    echo "error: worker worktree is not clean after commit" >&2
+    jq -n --argjson child "$child" --arg reason "dirty_after_commit" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
+    return 0
+  fi
   local commit_sha commit_count
   commit_sha="$(git -C "$worktree" rev-parse HEAD)"
   commit_count="$(git -C "$worktree" rev-list --count "$start_sha..$commit_sha")"
-  [ "$commit_count" -ge 1 ] || fail_execution "worker branch has no commit beyond its starting SHA"
-
-  write_manifest "$manifest" \
-    --argjson child "$child" --arg commit "$commit_sha" --arg verificationLog "$verification_log" '
-      .execution.status = "complete"
-      | (.children[] | select(.number == $child)).execution += {
-          status:"complete", commitSha:$commit, verificationExitCode:0,
-          verificationLog:$verificationLog, ralphComplete:true, clean:true
-        }
-    ' || fail_execution "could not record completed worker"
+  if [ "$commit_count" -lt 1 ]; then
+    jq -n --argjson child "$child" --arg reason "no_commit" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha}' >"$sidecar"
+    return 0
+  fi
 
   local review_prompt="$run_dir/reviewer-$child-prompt.md"
   local review_artifact="$run_dir/reviewer-$child.json"
-  local review_home="$run_dir/reviewer-home-$run_id"
+  local review_home="$run_dir/reviewer-home-$child-$run_id"
   local review_timeout="${GRALPH_REVIEW_TIMEOUT:-600}"
-  case "$review_timeout" in ''|*[!0-9]*|0) fail_execution "GRALPH_REVIEW_TIMEOUT must be a positive integer" ;; esac
+  case "$review_timeout" in ''|*[!0-9]*|0)
+    jq -n --argjson child "$child" --arg reason "review_timeout_invalid" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha}' >"$sidecar"
+    return 0
+  ;; esac
   mkdir -p "$review_home"
   {
     printf '%s\n' 'You are an independent, read-only reviewer. Do not modify files or make network-changing commands.'
@@ -313,16 +331,22 @@ execute_one_child() {
   set -e
 
   review_timed_out="$([ -f "$timed_out" ] && printf true || printf false)"
-  write_manifest "$manifest" \
-    --argjson child "$child" --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
-    --argjson processExitCode "$rc" --argjson timedOut "$review_timed_out" '
-      (.children[] | select(.number == $child)).review = {
-        artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"
-      }
-    ' || fail_execution "could not record reviewer result"
   rm -f "$timed_out"
-  [ "$review_timed_out" = false ] || fail_execution "independent reviewer timed out"
-  [ "$rc" -eq 0 ] || fail_execution "independent reviewer process failed with exit $rc"
+
+  if [ "$review_timed_out" = true ]; then
+    jq -n --argjson child "$child" --arg reason "review_timeout" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, reviewArtifact:$artifact, reviewPrompt:$prompt, reviewTimedOut:true}' >"$sidecar"
+    return 0
+  fi
+  if [ "$rc" -ne 0 ]; then
+    jq -n --argjson child "$child" --arg reason "review_failed" --argjson processExitCode "$rc" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, reviewArtifact:$artifact, reviewPrompt:$prompt, reviewProcessExitCode:$processExitCode}' >"$sidecar"
+    return 0
+  fi
 
   if ! jq -e '
     type == "object"
@@ -338,7 +362,11 @@ execute_one_child() {
     and .criticalCount == ([.findings[] | select(.severity == "critical")] | length)
     and .blockerCount == ([.findings[] | select(.severity == "blocker")] | length)
   ' "$review_artifact" >/dev/null 2>&1; then
-    fail_execution "independent reviewer returned a malformed or contradictory artifact"
+    jq -n --argjson child "$child" --arg reason "review_malformed" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, reviewArtifact:$artifact, reviewPrompt:$prompt}' >"$sidecar"
+    return 0
   fi
 
   local review_status critical_count blocker_count findings
@@ -346,29 +374,481 @@ execute_one_child() {
   critical_count="$(jq -r '.criticalCount' "$review_artifact")"
   blocker_count="$(jq -r '.blockerCount' "$review_artifact")"
   findings="$(jq -c '.findings' "$review_artifact")"
-  write_manifest "$manifest" \
-    --argjson child "$child" --arg status "$review_status" \
-    --argjson criticalCount "$critical_count" --argjson blockerCount "$blocker_count" \
-    --argjson findings "$findings" '
-      (.children[] | select(.number == $child)).review += {
-        status:$status, criticalCount:$criticalCount, blockerCount:$blockerCount, findings:$findings
-      }
-    ' || fail_execution "could not persist reviewer artifact"
-
-  if [ "$review_status" != approved ] || [ "$critical_count" -ne 0 ] || [ "$blocker_count" -ne 0 ]; then
-    fail_execution "independent review rejected child #$child"
-  fi
-  write_manifest "$manifest" --argjson child "$child" '
-    .execution.status = "reviewed"
-    | (.children[] | select(.number == $child)).review.gate = "accepted"
-  ' || fail_execution "could not record accepted review"
 
   rm -rf "$temp_home" "$review_home"
-  merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$VERIFY" "$run_id" "$branch" "$commit_sha"
+
+  if [ "$review_status" != approved ] || [ "$critical_count" -ne 0 ] || [ "$blocker_count" -ne 0 ]; then
+    jq -n --argjson child "$child" --arg reason "review_rejected" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+      --arg verificationLog "$verification_log" \
+      --arg body "$issue_body" --arg title "$issue_title" --arg verify "$issue_verify" \
+      --arg host "$host" --argjson pid "$$" --arg runId "$run_id" \
+      --arg status "$review_status" --argjson critical "$critical_count" --argjson blocker "$blocker_count" --argjson findings "$findings" \
+      '{
+        child:$child, outcome:"rejected", reason:$reason,
+        branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha,
+        issueBody:$body, issueTitle:$title, issueVerify:$verify,
+        host:$host, pid:$pid, runId:$runId,
+        executionStatus:"complete", verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true,
+        reviewStatus:$status, reviewCriticalCount:$critical, reviewBlockerCount:$blocker, reviewFindings:$findings,
+        reviewProcessExitCode:0, reviewTimedOut:false, reviewArtifact:$artifact, reviewPrompt:$prompt,
+        reviewGate:"rejected"
+      }' >"$sidecar"
+    return 0
+  fi
+
+  jq -n --argjson child "$child" \
+    --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+    --arg artifact "$review_artifact" --arg prompt "$review_prompt" \
+    --arg verificationLog "$verification_log" \
+    --arg body "$issue_body" --arg title "$issue_title" --arg verify "$issue_verify" \
+    --arg host "$host" --argjson pid "$$" --arg runId "$run_id" \
+    --arg status "$review_status" --argjson critical "$critical_count" --argjson blocker "$blocker_count" --argjson findings "$findings" \
+    '{
+      child:$child, outcome:"accepted", reason:null,
+      branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha,
+      issueBody:$body, issueTitle:$title, issueVerify:$verify,
+      host:$host, pid:$pid, runId:$runId,
+      executionStatus:"complete", verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true,
+      reviewStatus:$status, reviewCriticalCount:$critical, reviewBlockerCount:$blocker, reviewFindings:$findings,
+      reviewProcessExitCode:0, reviewTimedOut:false, reviewArtifact:$artifact, reviewPrompt:$prompt,
+      reviewGate:"accepted"
+    }' >"$sidecar"
+  return 0
+}
+
+# fold_child_result reads the per-child sidecar, updates the manifest, and
+# feeds an accepted result into merge_one_child (which is the only writer of
+# the serialized batch-branch integration). A single sidecar fail mode is
+# recorded on the manifest so the next wave cannot re-select the child.
+fold_child_result() {
+  local child="$1"
+  local manifest="$2"
+  local sidecar="$3"
+  local verify_cmd="$4"
+  local run_dir="$5"
+  local base_sha="$6"
+  local run_id="$7"
+  local repo_root="$8"
+
+  if [ ! -f "$sidecar" ]; then
+    write_manifest "$manifest" --argjson child "$child" --arg runId "$run_id" '
+      .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:"no_sidecar", child:$child})
+      | (.children[] | select(.number == $child) | .execution) |=
+          ((. // {}) + {status:"failed", reason:"no_sidecar", runId:$runId})
+    ' || { echo "error: fold_child_result failed to record no-sidecar failure for child #$child" >&2; return 1; }
+    return 1
+  fi
+
+  local outcome
+  outcome="$(jq -r '.outcome' "$sidecar")"
+
+  case "$outcome" in
+    accepted)
+      local commit_sha branch
+      commit_sha="$(jq -r '.commitSha' "$sidecar")"
+      branch="$(jq -r '.branch' "$sidecar")"
+      write_manifest "$manifest" \
+        --argjson child "$child" \
+        --arg body "$(jq -r '.issueBody' "$sidecar")" \
+        --arg verify "$(jq -r '.issueVerify' "$sidecar")" \
+        --arg integration "$verify_cmd" \
+        --arg runId "$run_id" \
+        --arg host "$(jq -r '.host' "$sidecar")" \
+        --argjson pid "$(jq -r '.pid' "$sidecar")" \
+        --arg branch "$branch" \
+        --arg worktree "$(jq -r '.worktree' "$sidecar")" \
+        --arg start "$(jq -r '.startingSha' "$sidecar")" \
+        --arg commit "$commit_sha" \
+        --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
+        --argjson review "$(jq -c '.reviewStatus as $s | .reviewCriticalCount as $c | .reviewBlockerCount as $b | .reviewFindings as $f | .reviewProcessExitCode as $pc | .reviewTimedOut as $t | .reviewArtifact as $a | .reviewPrompt as $p | {status:$s,criticalCount:$c,blockerCount:$b,findings:$f,processExitCode:$pc,timedOut:$t,artifact:$a,prompt:$p,gate:"accepted"}' "$sidecar")" \
+        '
+          .dryRun = false
+          | .integrationCommand = $integration
+          | .execution = {runId:$runId, status:"reviewed", child:$child}
+          | (.children[] | select(.number == $child)) += {
+              body:$body, verificationCommand:$verify,
+              claim:{label:"gralph:claimed",runId:$runId,host:$host,pid:$pid,status:"claimed"},
+              execution:{status:"complete", branch:$branch, worktree:$worktree, startingSha:$start, commitSha:$commit, verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true},
+              review:($review)
+            }
+        ' || { echo "error: fold_child_result failed to record accepted review for child #$child" >&2; return 1; }
+      # Prune any previous batch worktree from this run so the next queued
+      # merge in the wave can attach cleanly to the accumulated batch branch.
+      git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+      if merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha"; then
+        git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+      fi
+      ;;
+    rejected)
+      local commit_sha branch
+      commit_sha="$(jq -r '.commitSha' "$sidecar")"
+      branch="$(jq -r '.branch' "$sidecar")"
+      local review_obj
+      review_obj="$(jq -c '{
+        status:.reviewStatus, criticalCount:.reviewCriticalCount, blockerCount:.reviewBlockerCount,
+        findings:.reviewFindings, processExitCode:.reviewProcessExitCode, timedOut:.reviewTimedOut,
+        artifact:.reviewArtifact, prompt:.reviewPrompt, gate:"rejected"
+      }' "$sidecar")"
+      write_manifest "$manifest" \
+        --argjson child "$child" \
+        --arg integration "$verify_cmd" \
+        --arg runId "$run_id" \
+        --arg host "$(jq -r '.host' "$sidecar")" \
+        --argjson pid "$(jq -r '.pid' "$sidecar")" \
+        --arg branch "$branch" \
+        --arg worktree "$(jq -r '.worktree' "$sidecar")" \
+        --arg start "$(jq -r '.startingSha' "$sidecar")" \
+        --arg commit "$commit_sha" \
+        --arg reason "$(jq -r '.reason' "$sidecar")" \
+        --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
+        --argjson review "$review_obj" \
+        '
+          .dryRun = false
+          | .integrationCommand = $integration
+          | .execution = {runId:$runId, status:"failed", reason:$reason, child:$child}
+          | (.children[] | select(.number == $child)) += {
+              claim:{label:"gralph:claimed",runId:$runId,host:$host,pid:$pid,status:"claimed"},
+              execution:{status:"complete", branch:$branch, worktree:$worktree, startingSha:$start, commitSha:$commit, verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true},
+              review:($review)
+            }
+        ' || { echo "error: fold_child_result failed to record rejected review for child #$child" >&2; return 1; }
+      ;;
+    failed)
+      local reason branch worktree starting_sha commit_sha review_artifact review_prompt review_proc review_timed
+      reason="$(jq -r '.reason' "$sidecar")"
+      branch="$(jq -r '.branch // ""' "$sidecar")"
+      worktree="$(jq -r '.worktree // ""' "$sidecar")"
+      starting_sha="$(jq -r '.startingSha // ""' "$sidecar")"
+      commit_sha="$(jq -r '.commitSha // ""' "$sidecar")"
+      review_artifact="$(jq -r '.reviewArtifact // ""' "$sidecar")"
+      if [ -n "$review_artifact" ]; then
+        review_prompt="$(jq -r '.reviewPrompt // ""' "$sidecar")"
+        review_proc="$(jq -r '.reviewProcessExitCode // 0' "$sidecar")"
+        review_timed="$(jq -r '.reviewTimedOut // false' "$sidecar")"
+        write_manifest "$manifest" \
+          --argjson child "$child" \
+          --arg reason "$reason" \
+          --arg branch "$branch" \
+          --arg worktree "$worktree" \
+          --arg startingSha "$starting_sha" \
+          --arg commit "$commit_sha" \
+          --arg runId "$run_id" \
+          --arg artifact "$review_artifact" \
+          --arg prompt "$review_prompt" \
+          --argjson processExitCode "$review_proc" \
+          --argjson timedOut "$review_timed" \
+          '
+            .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason, child:$child})
+            | (.children[] | select(.number == $child)) |= (. + {
+                execution:((.execution // {}) + {status:"failed", reason:$reason} +
+                  (if $branch != "" then {branch:$branch} else {} end) +
+                  (if $worktree != "" then {worktree:$worktree} else {} end) +
+                  (if $startingSha != "" then {startingSha:$startingSha} else {} end) +
+                  (if $commit != "" then {commitSha:$commit} else {} end) +
+                  {runId:$runId}),
+                review:{artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"}
+              })
+          ' || { echo "error: fold_child_result failed to record failed-with-review for child #$child" >&2; return 1; }
+      else
+        write_manifest "$manifest" \
+          --argjson child "$child" \
+          --arg reason "$reason" \
+          --arg branch "$branch" \
+          --arg worktree "$worktree" \
+          --arg startingSha "$starting_sha" \
+          --arg commit "$commit_sha" \
+          --arg runId "$run_id" \
+          '
+            .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason, child:$child})
+            | (.children[] | select(.number == $child) | .execution) |=
+                ((. // {}) + {status:"failed", reason:$reason} +
+                  (if $branch != "" then {branch:$branch} else {} end) +
+                  (if $worktree != "" then {worktree:$worktree} else {} end) +
+                  (if $startingSha != "" then {startingSha:$startingSha} else {} end) +
+                  (if $commit != "" then {commitSha:$commit} else {} end) +
+                  {runId:$runId})
+          ' || { echo "error: fold_child_result failed to record failed execution for child #$child" >&2; return 1; }
+      fi
+      ;;
+    *)
+      write_manifest "$manifest" --argjson child "$child" --arg runId "$run_id" \
+        --arg outcome "$outcome" '
+        .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:"unknown_sidecar_outcome", child:$child})
+        | (.children[] | select(.number == $child) | .execution) |=
+            ((. // {}) + {status:"failed", reason:"unknown_sidecar_outcome", runId:$runId})
+      ' || { echo "error: fold_child_result failed to record unknown-sidecar-outcome for child #$child" >&2; return 1; }
+      ;;
+  esac
+  return 0
+}
+
+# refresh_frontier re-runs the GitHub GraphQL query seeded by the manifest's
+# immutable baseSha and merges the fresh classification/dependencies into the
+# shared manifest while retaining per-child claim/execution/review/merge
+# runtime state. The orchestrator runs this between waves so newly-unblocked
+# children can enter the next wave.
+refresh_frontier() {
+  local manifest="$1"
+  local parent="$2"
+
+  local repo_slug owner name
+  repo_slug="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {
+    echo "error: refresh_frontier cannot resolve the current GitHub repository" >&2
+    return 1
+  }
+  IFS=/ read -r owner name <<<"$repo_slug"
+  [ -n "${owner:-}" ] && [ -n "${name:-}" ] || {
+    echo "error: refresh_frontier got an invalid repository name" >&2
+    return 1
+  }
+
+  read -r -d '' QUERY <<'GRAPHQL' || true
+query GralphFrontierRefresh($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      number
+      state
+      subIssues(first: 100) {
+        pageInfo { hasNextPage }
+        nodes {
+          number
+          title
+          state
+          labels(first: 100) { nodes { name } }
+          blockedBy(first: 100) {
+            pageInfo { hasNextPage }
+            nodes { number state }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL
+
+  local response
+  if ! response="$(gh api graphql -f query="$QUERY" -F owner="$owner" -F name="$name" -F number="$parent" 2>&1)"; then
+    echo "error: refresh_frontier could not reach GitHub for parent #$parent: $response" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$response" | jq -e . >/dev/null 2>&1; then
+    echo "error: refresh_frontier got malformed JSON for parent #$parent" >&2
+    return 1
+  fi
+  if [ "$(printf '%s\n' "$response" | jq -r '(.errors // []) | length')" -ne 0 ]; then
+    echo "error: refresh_frontier could not read parent #$parent" >&2
+    return 1
+  fi
+  if ! printf '%s\n' "$response" | jq -e '.data.repository.issue | type == "object"' >/dev/null; then
+    echo "error: refresh_frontier could not find parent #$parent" >&2
+    return 1
+  fi
+  if [ "$(printf '%s\n' "$response" | jq -r '.data.repository.issue.subIssues.pageInfo.hasNextPage')" = true ]; then
+    echo "error: refresh_frontier noticed more than 100 children for parent #$parent" >&2
+    return 1
+  fi
+
+  local fresh_children fresh_deps
+  fresh_children="$(printf '%s\n' "$response" | jq -c '
+    [.data.repository.issue.subIssues.nodes[]
+      | ([.labels.nodes[].name] | sort | unique) as $labels
+      | ([.blockedBy.nodes[] | {number, state}] | sort_by(.number)) as $blockers
+      | {
+          number,
+          title,
+          state,
+          labels: $labels,
+          blockedBy: [$blockers[].number],
+          classification: (
+            if .state != "OPEN" then "excluded"
+            elif ($labels | index("ready-for-agent")) == null then "excluded"
+            elif any($blockers[]; .state != "CLOSED") then "blocked"
+            else "eligible"
+            end
+          ),
+          reason: (
+            if .state != "OPEN" then "child_not_open"
+            elif ($labels | index("ready-for-agent")) == null then "missing_ready_for_agent_label"
+            elif any($blockers[]; .state != "CLOSED") then "open_blockers"
+            else null
+            end
+          )
+        }
+    ] | sort_by(.number)
+  ')"
+  fresh_deps="$(printf '%s\n' "$fresh_children" | jq -c '
+    [.[] as $child | $child.blockedBy[] | {issue: $child.number, blockedBy: .}] | sort_by([.issue, .blockedBy])
+  ')"
+
+  write_manifest "$manifest" --argjson fresh "$fresh_children" --argjson freshDeps "$fresh_deps" '
+    .children as $existing
+    | .children = (
+        ([$existing[]
+          | . as $cur
+          | ($fresh | map(select(.number == $cur.number)) | .[0]) as $freshChild
+          | if $freshChild == null then $cur
+            else $cur + $freshChild
+            end
+        ])
+        + ([$fresh[] | . as $f | select(all($existing[]; .number != $f.number))])
+        | sort_by(.number)
+      )
+    | .dependencies = $freshDeps
+  '
+  return 0
+}
+
+# orchestrate_waves drives the wave loop: pick the next eligible frontier,
+# launch up to --jobs child pipelines concurrently, fold their sidecars
+# serially (with merge_one_child invoked one at a time), refresh the
+# frontier, and continue until no eligible child remains. The lock is owned
+# by the orchestrator for the entire run; concurrency is bounded per
+# invocation so external fixtures (worktrees, ports, databases) are not
+# raced. The manifest receives an `.orchestration` summary at the end.
+orchestrate_waves() {
+  local manifest="$1"
+  local verify_cmd="$2"
+  local jobs="$3"
+
+  local run_dir base_sha run_id host lock_dir lock_owned=0
+  run_dir="$(dirname "$manifest")"
+  base_sha="$(jq -r '.baseSha' "$manifest")"
+  if ! git -C "$REPO_ROOT" cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+    echo "error: saved base SHA is unavailable: $base_sha" >&2
+    return 1
+  fi
+  host="$(hostname)"
+  run_id="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  lock_dir="$run_dir/.coordinator-lock"
+  if ! mkdir "$lock_dir" 2>/dev/null; then
+    local owner_pid owner_host first_child
+    owner_pid="$(jq -r '.pid // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
+    owner_host="$(jq -r '.host // empty' "$lock_dir/owner.json" 2>/dev/null || true)"
+    first_child="$(jq -r '[.children[] | select(.classification == "eligible") | select((.execution.status // "pending") == "pending" or (.execution.status // "pending") == null)] | sort_by(.number) | .[0].number // empty' "$manifest")"
+    if [ "$owner_host" = "$host" ] && [ -n "$owner_pid" ] && kill -0 "$owner_pid" 2>/dev/null; then
+      if [ -n "$first_child" ]; then
+        echo "error: another live Gralph run owns child #$first_child" >&2
+      else
+        echo "error: another live Gralph run owns parent #$PARENT" >&2
+      fi
+    else
+      echo "error: an unresolved Gralph claim exists at $lock_dir" >&2
+    fi
+    return 1
+  fi
+  lock_owned=1
+  jq -n --arg runId "$run_id" --arg host "$host" --argjson pid "$$" \
+    '{runId:$runId,host:$host,pid:$pid}' >"$lock_dir/owner.json"
+  trap '[ "$lock_owned" -eq 0 ] || rm -rf "$lock_dir"' EXIT
+
+  write_manifest "$manifest" \
+    --arg integration "$verify_cmd" --arg runId "$run_id" --arg host "$host" --argjson pid "$$" --argjson jobs "$jobs" '
+      .dryRun = false
+      | .integrationCommand = $integration
+      | .orchestration = {runId:$runId, host:$host, pid:$pid, jobs:$jobs, waves:0, landed:[], failed:[], rejected:[]}
+    ' || true
+
+  local wave=0 fold_failed=0
+  while :; do
+    local candidates
+    candidates="$(jq -r '
+      [.children[]
+        | select(.classification == "eligible")
+        | select((.execution.status // "pending") == "pending" or (.execution.status // "pending") == null)
+        | .number] | sort | .[]
+    ' "$manifest")"
+
+    if [ -z "$candidates" ]; then
+      break
+    fi
+
+    local wave_children=()
+    local c
+    while IFS= read -r c; do
+      [ "${#wave_children[@]}" -ge "$jobs" ] && break
+      [ -n "$c" ] && wave_children+=("$c")
+    done <<<"$candidates"
+
+    if [ "${#wave_children[@]}" -eq 0 ]; then
+      break
+    fi
+
+    wave=$((wave + 1))
+
+    local pids=()
+    declare -A sidecar_for=()
+    local child
+    for child in "${wave_children[@]}"; do
+      local sidecar="$run_dir/.child-$child-$run_id-result.json"
+      sidecar_for[$child]="$sidecar"
+      (
+        run_child_pipeline "$child" "$manifest" "$run_dir" "$base_sha" "$run_id" "$sidecar"
+      ) &
+      pids+=($!)
+    done
+    wait "${pids[@]}" 2>/dev/null || true
+
+    local wave_fold_failed=0
+    for child in "${wave_children[@]}"; do
+      if ! fold_child_result "$child" "$manifest" "${sidecar_for[$child]}" "$verify_cmd" "$run_dir" "$base_sha" "$run_id" "$REPO_ROOT"; then
+        wave_fold_failed=1
+      fi
+    done
+    if [ "$wave_fold_failed" -eq 1 ]; then
+      fold_failed=1
+    fi
+
+    refresh_frontier "$manifest" "$PARENT" || true
+
+    write_manifest "$manifest" --argjson wave "$wave" --argjson children "$(printf '%s\n' "${wave_children[@]}" | jq -cs 'map(tonumber)')" '
+      .orchestration.waves = ($wave | tonumber)
+      | .orchestration.waveLog = (((.orchestration.waveLog // []) ) + [{wave:$wave, children:$children}])
+    ' || true
+
+    if [ "$fold_failed" -eq 1 ]; then
+      break
+    fi
+  done
+
+  local landed failed rejected blocked remaining
+  landed="$(jq -c '[.children[] | select(.merge.status == "landed") | .number] | sort' "$manifest")"
+  failed="$(jq -c '[.children[] | select(.execution.status == "failed") | .number] | sort' "$manifest")"
+  rejected="$(jq -c '[.children[] | select(.execution.status == "complete" and (.review.gate // "rejected") == "rejected") | .number] | sort' "$manifest")"
+  blocked="$(jq -c '[.children[] | select(.state == "OPEN" and (.labels | index("ready-for-agent")) and .merge.status == null and (.execution.status // "pending") == "pending") | .number] | sort' "$manifest")"
+  remaining="$(jq -r '
+    [.children[]
+      | select(.state == "OPEN")
+      | select((.labels | index("ready-for-agent")) != null)
+      | select(.merge.status != "landed")
+    ] | length
+  ' "$manifest")"
+
+  write_manifest "$manifest" --argjson landed "$landed" --argjson failed "$failed" --argjson rejected "$rejected" --argjson blocked "$blocked" --argjson waves "$wave" --argjson remaining "$remaining" '
+    .orchestration.landed = $landed
+    | .orchestration.failed = $failed
+    | .orchestration.rejected = $rejected
+    | .orchestration.blocked = $blocked
+    | .orchestration.waves = $waves
+    | .orchestration.remainingOpenReady = $remaining
+    | .orchestration.completed = (now | todate)
+  ' || true
+
   lock_owned=0
   rm -rf "$lock_dir"
   trap - EXIT
-  printf 'Completed, reviewed, and landed child #%s on %s (%s)\n' "$child" "gralph/$PARENT/batch" "$commit_sha"
+
+  if [ "$fold_failed" -eq 1 ] || [ "$remaining" -gt 0 ]; then
+    if [ "$fold_failed" -eq 1 ]; then
+      echo "error: one or more fold_child_result calls failed; halting before reselecting the same children" >&2
+    fi
+    if [ "$remaining" -gt 0 ]; then
+      echo "error: $remaining open ready-for-agent child(ren) remain unlanded after $wave wave(s)" >&2
+    fi
+    return 1
+  fi
+  return 0
 }
 
 merge_one_child() {
@@ -466,7 +946,13 @@ if [ "$DRY_RUN" -ne 1 ]; then
     echo "error: mutating runs require --verify <command>" >&2
     exit 2
   }
-  execute_one_child
+  manifest="$REPO_ROOT/.gralph/runs/$PARENT/manifest.json"
+  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; exit 1; }
+  jq -e --argjson parent "$PARENT" '
+    .schemaVersion == 1 and .parent == $parent and (.baseSha | type == "string")
+    and (.children | type == "array")
+  ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
+  orchestrate_waves "$manifest" "$VERIFY" "$JOBS" || exit 1
   exit 0
 fi
 
