@@ -1,7 +1,7 @@
 ---
 id: 037
 title: Process frontier waves in parallel
-status: pending
+status: blocked
 blocked_by: [036]
 parent: null
 priority: 0
@@ -31,3 +31,24 @@ Default to two workers because worktrees do not isolate ports, databases, Docker
 ## Blocked by
 
 - Blocked by #036
+
+## Blocker
+
+The scope of #037 requires non-trivial refactoring of `bin/gralph` to add
+`--jobs`, `run_child_pipeline`, `orchestrate_waves`, and `refresh_frontier`
+while preserving the existing single-child, merge, and review contracts. The
+unattended Ralph worker scope is bounded to one issue per invocation and the
+refactor touches the coordinator's atomic claim/manifest/state machine. Per
+the operator's standing scope policy ("Stop modifying bin/gralph. If the user
+wants it modified, they will ask."), the refactor is parked here for an
+operator-driven session. Re-pick after the operator confirms the refactor
+should proceed.
+
+## Notes for next iteration
+
+- The wave orchestrator must reuse `merge_one_child` unchanged for serial
+  landing; only the claim/worker/review path is parallelized.
+- Frontier refresh between waves re-runs the GraphQL query from the recorded
+  `baseSha` so newly-unblocked children become eligible in the next wave.
+- Per-child sidecar result files (`.child-<N>-<runId>-result.json`) avoid
+  concurrent manifest writes; the parent (serial) folds results in.
