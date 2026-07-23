@@ -43,3 +43,46 @@ A separate process with no inherited conversation that re-derives from the repo.
 Its independence comes from re-derivation + stance, not merely from process
 isolation.
 _Avoid_: isolated verifier, sandboxed checker.
+
+## Orchestration mode — Fusion
+
+**Fusion mode** is an opt-in (machine-default-on) Pi extension that shrinks
+the parent's tool surface so a strong parent owns intent / architecture /
+spec / diff review / verification while cheap fresh-context children do
+discovery and execution. Activation: `/fusion on|off|status`,
+`/fusion default on|off`, CLI flag `pi --fusion`. State restored from the
+latest session entry on resume; otherwise `--fusion`; otherwise the
+machine-global config (`$XDG_CONFIG_HOME/fusion/config.json`,
+`defaultMode: "on|off"`); otherwise off. See `docs/adr/0002-fusion-mode.md`.
+
+**Roles under Fusion** (per-role models/tools live in
+`settings.json` `subagents.agentOverrides`):
+
+- `scout` — fast pre-work code discovery (read-only).
+- `researcher` — current external facts (web; read-only).
+- `worker` — the single writer in a cwd; receives
+  Objective / Files / Interfaces / Constraints / Verification.
+- `reviewer` — risk-based review only (security, auth, migrations,
+  public APIs, data loss, substantial multi-file logic); no Bash.
+
+**Parent allowed tools while Fusion is active**: `read`, `bash`
+(restricted; see ADR), `lsp_diagnostics`, `subagent`, `subagent_wait`,
+`subagent_supervisor`, `todo`, `advisor` (exception only).
+
+**Worker delegation contract** (every worker delegation carries all five):
+1. **Objective** — one sentence; what success looks like.
+2. **Files** — exact paths the worker may read and may write.
+3. **Interfaces** — schemas, types, function signatures.
+4. **Constraints** — what to avoid, what "smallest correct change" means here.
+5. **Verification** — the deterministic check the parent will run after.
+
+**Retry ladder** (no blind loops, no model switching inside a task):
+1. First miss → `resume` the same persisted worker session with precise correction.
+2. Second miss → parent supplies the exact verbatim patch; worker applies it.
+3. Dictated patch still fails → stop retrying and revise the parent's plan.
+
+**Completeness review under Fusion**: automatic completeness review runs only
+when repo state changed during the user turn (worker mutation), not on
+plain chat / design-only / read-only turns. Read-only architecture or
+design analysis requires manual `/gap-review`. See
+`docs/adr/0002-fusion-mode.md` and `docs/adr/0001-verification-two-layers.md`.
