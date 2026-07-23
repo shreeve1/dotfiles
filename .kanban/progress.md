@@ -37,3 +37,10 @@ This file tracks implementation notes across Ralph iterations.
 **Notes for next iteration:** #036 can require child execution `complete` plus review gate `accepted` before merging onto the batch branch.
 **Fresh review:** Reviewed `git diff 939e8a1521255f1d27b9cf1e5ef13984d3e2d244 HEAD` in an independent session; exact verification passed and the review returned `RALPH_REVIEW: PASS`. Shell LSP was unavailable for `bin/gralph`; test scripts reported no critical diagnostics.
 **Actionable review:** Re-read the required base-to-HEAD diff and every changed file. Fixed a timeout race that could accept an `approved` artifact when a reviewer handled `TERM` and exited zero after the deadline; added a regression fixture. Exact verification and the related single-child suite passed; critical diagnostics were clean (shell LSP unavailable).
+
+## #036 Land one accepted child on a batch branch — 2026-07-23 (blocked)
+
+**Attempted:** Added the landing path and merge fixtures, then reproduced Git rejecting the required batch ref.
+**Blocker:** `gralph/<parent>` cannot coexist with #034's required `gralph/<parent>/issue-<child>` branch because one Git ref path cannot be both a file and a directory.
+**Preserved:** Reverted the incomplete implementation and tests; only the issue status and blocker record remain.
+**Needed next:** Amend one branch-naming contract, then rerun #036.
