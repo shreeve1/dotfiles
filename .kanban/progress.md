@@ -43,4 +43,4 @@ This file tracks implementation notes across Ralph iterations.
 **Attempted:** Added the landing path and merge fixtures, then reproduced Git rejecting the required batch ref.
 **Blocker:** `gralph/<parent>` cannot coexist with #034's required `gralph/<parent>/issue-<child>` branch because one Git ref path cannot be both a file and a directory.
 **Preserved:** Reverted the incomplete implementation and tests; only the issue status and blocker record remain.
-**Needed next:** Amend one branch-naming contract, then rerun #036.
+**Resolution:** Batch branches use `gralph/<parent>/batch`; #036 returned to pending on 2026-07-23.

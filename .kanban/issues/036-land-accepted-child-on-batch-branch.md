@@ -1,7 +1,7 @@
 ---
 id: 036
 title: Land one accepted child on a batch branch
-status: blocked
+status: pending
 blocked_by: [035]
 parent: null
 priority: 0
@@ -12,7 +12,7 @@ actor: ralph
 
 ## What to build
 
-Land one reviewed child onto a dedicated `gralph/<parent>` batch branch. Create the batch branch from the immutable base SHA recorded during frontier planning, merge the accepted worker serially, and run the operator-supplied integration verification command against the combined tree. This slice stops before pushing or opening a pull request.
+Land one reviewed child onto a dedicated `gralph/<parent>/batch` branch. Create the batch branch from the immutable base SHA recorded during frontier planning, merge the accepted worker serially, and run the operator-supplied integration verification command against the combined tree. This slice stops before pushing or opening a pull request.
 
 ## Acceptance criteria
 
@@ -30,7 +30,3 @@ Land one reviewed child onto a dedicated `gralph/<parent>` batch branch. Create 
 ## Blocked by
 
 - Blocked by #035
-
-## Blocker
-
-The required local branch names cannot coexist in Git. Issue #034 requires and currently creates `gralph/<parent>/issue-<child>`, while this issue requires `gralph/<parent>`. Git refs are path-shaped: the worker branch needs `refs/heads/gralph/<parent>/` to be a directory, but the batch branch needs that same path to be a file. Git rejects creation with `cannot lock ref`. Resolve the naming contract (for example, choose `gralph/<parent>/batch` or rename the worker namespace) before implementation.
