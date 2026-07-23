@@ -59,19 +59,30 @@ The extension intercepts events and blocks at the tool boundary:
   Top-level and nested `model`/`thinking` overrides are rejected (role
   models come from settings). `output` is forced to `false` for
   non-`worker` calls so the built-in `context.md` / `research.md`
-  output files do not pollute repo roots. Management actions that
-  mutate agent definitions/models are blocked while Fusion is active
-  (`create`, `update`, `delete`, `eject`, `enable` / `disable`,
-  `reset`, `watchdog.configure`).
+  output files do not pollute repo roots. `chain.parallel` may be an
+  array of static tasks or a single dynamic fanout template object
+  (with `expand` + `collect`); both shapes are validated recursively.
+  Async-control actions on existing children are allowed: `interrupt`,
+  `stop`, `resume`, `steer`. `append-step` is execution-shaped
+  (`{action: "append-step", id/runId, chain: [oneStep]}`) and is
+  validated using the same role + context + output + model-pinning
+  rules. Management actions that mutate agent definitions/models are
+  blocked while Fusion is active (`create`, `update`, `delete`,
+  `eject`, `enable` / `disable`, `reset`, `watchdog.configure`,
+  `grant-spawn-budget`, `schedule`, `schedule-cancel`).
 - **Bash policy** purpose is role enforcement, not a child sandbox.
   Bash must not recreate disabled parent discovery or write tools.
   - **Globally permitted** (read-only Git: `git status`, `git diff`,
-    `git show`, `git log`; deterministic verification: `bash -lc`,
-    `cargo test`, `cargo build`, `go test`, `go build`, `go vet`,
-    `make test`, `make build`, `make lint`, `npm test`, `npm run`,
-    `pnpm test`, `pnpm run`, `yarn test`, `yarn run`, `pytest`,
-    `python -m pytest`, `ruff check`, `mypy`, `tsc`, `eslint`,
-    `biome`, `prettier --check`).
+    `git show`, `git log`; deterministic verification: `cargo test`,
+    `cargo build`, `go test`, `go build`, `go vet`, `make test`,
+    `make build`, `make lint`, `npm test`, `npm run`, `pnpm test`,
+    `pnpm run`, `yarn test`, `yarn run`, `pytest`, `python -m pytest`,
+    `ruff check`, `mypy`, `tsc`, `eslint`, `biome`, `prettier --check`).
+    No `bash -lc` / `sh -c` style wrappers — only the actual
+    verification command is matched, and the trailing-token discipline
+    is strict (every token after the head must be in an explicit
+    allowlist of flags/revs/paths; generic `--name=value` is
+    rejected).
   - **Always rejected**: shell chaining (any of `;`, `&&`, `||`,
     `|`, `&`, redirection, command / process substitution, newline);
     `>`, `>>`, `<`; package install/update/publish; formatter/linter
