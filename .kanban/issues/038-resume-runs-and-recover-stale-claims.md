@@ -1,11 +1,12 @@
 ---
 id: 038
 title: Resume runs and recover stale claims
-status: in-progress
+status: review
 blocked_by: [037]
 parent: null
 priority: 0
 created: 2026-07-22
+updated: 2026-07-24
 ---
 
 ## What to build
