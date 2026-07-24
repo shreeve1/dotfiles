@@ -1,7 +1,7 @@
 ---
 id: 038
 title: Resume runs and recover stale claims
-status: pending
+status: in-progress
 blocked_by: [037]
 parent: null
 priority: 0

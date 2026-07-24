@@ -743,11 +743,13 @@ orchestrate_waves() {
     '{runId:$runId,host:$host,pid:$pid}' >"$lock_dir/owner.json"
   trap '[ "$lock_owned" -eq 0 ] || rm -rf "$lock_dir"' EXIT
 
+  recover_state "$manifest" "$verify_cmd" "$run_id" "$base_sha" || true
+
   write_manifest "$manifest" \
     --arg integration "$verify_cmd" --arg runId "$run_id" --arg host "$host" --argjson pid "$$" --argjson jobs "$jobs" '
       .dryRun = false
       | .integrationCommand = $integration
-      | .orchestration = {runId:$runId, host:$host, pid:$pid, jobs:$jobs, waves:0, landed:[], failed:[], rejected:[]}
+      | .orchestration = (.orchestration // {}) + {runId:$runId, host:$host, pid:$pid, jobs:$jobs, waves:0, landed:[], failed:[], rejected:[]}
     ' || true
 
   local wave=0 fold_failed=0
@@ -854,6 +856,11 @@ orchestrate_waves() {
 merge_one_child() {
   local child="$1" manifest="$2" run_dir="$3" base_sha="$4" verify_cmd="$5" run_id="$6" child_branch="$7" child_commit="$8"
 
+  # Idempotent: skip if already landed or merged (recovery may call this twice).
+  if jq -e --argjson child "$child" '.children[] | select(.number == $child) | (.merge.status == "landed" or .merge.status == "merged")' "$manifest" >/dev/null 2>&1; then
+    return 0
+  fi
+
   jq -e --argjson child "$child" '
     .children[] as $c | select($c.number == $child)
     | ($c.execution.status == "complete")
@@ -939,6 +946,118 @@ merge_one_child() {
 
   printf 'Landed child #%s onto %s as %s\n' "$child" "$batch_branch" "$merged_sha"
   return 0
+}
+
+# recover_state reconciles durable manifest state before launching workers.
+# For each child it classifies the durable state and:
+#   - merge.status == "landed"      → adopted (no action, merge_one_child is idempotent)
+#   - execution.status == "failed"  → failed_left, repair hint logged
+#   - review.gate == "accepted"     → resumes merge via merge_one_child
+#   - execution.status == "complete"→ needs_review (no review re-run path → repair hint)
+#   - claim.status == "claimed"     → clears when the recorded pid is dead, leaves alive claims alone
+# The recovery report is written to .orchestration.recovery before any
+# pipeline runs and the function is safe to call repeatedly.
+recover_state() {
+  local manifest="$1"
+  local verify_cmd="$2"
+  local run_id="$3"
+  local base_sha="$4"
+
+  local run_dir host decisions_file
+  run_dir="$(dirname "$manifest")"
+  host="$(hostname)"
+  decisions_file="$run_dir/.recovery-decisions-$$.json"
+  : >"$decisions_file"
+
+  local adopted=0 resumed_merge=0 needs_review=0 stale_cleared=0
+  local foreign_left=0 failed_left=0 inconsistent=0
+
+  while IFS= read -r child; do
+    [ -z "$child" ] && continue
+
+    local merge_status exec_status review_gate claim_status branch commit_sha
+    merge_status="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .merge.status // ""' "$manifest")"
+    exec_status="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .execution.status // ""' "$manifest")"
+    review_gate="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .review.gate // ""' "$manifest")"
+    claim_status="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .claim.status // ""' "$manifest")"
+    branch="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .execution.branch // ""' "$manifest")"
+    commit_sha="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .execution.commitSha // ""' "$manifest")"
+
+    if [ "$merge_status" = "landed" ] || [ "$merge_status" = "merged" ]; then
+      adopted=$((adopted+1))
+      jq -nc --argjson child "$child" --arg mergeStatus "$merge_status" \
+        '{child:$child, action:"adopted", reason:"merge_complete", mergeStatus:$mergeStatus}' >>"$decisions_file"
+    elif [ "$exec_status" = "failed" ]; then
+      failed_left=$((failed_left+1))
+      jq -nc --argjson child "$child" '{child:$child, action:"failed_left", reason:"execution_failed"}' >>"$decisions_file"
+    elif [ "$review_gate" = "accepted" ]; then
+      if [ -n "$branch" ] && [ -n "$commit_sha" ] && \
+         git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
+        resumed_merge=$((resumed_merge+1))
+        jq -nc --argjson child "$child" --arg branch "$branch" --arg commitSha "$commit_sha" \
+          '{child:$child, action:"resumed_merge", reason:"review_accepted_merge_pending", branch:$branch, commitSha:$commitSha}' >>"$decisions_file"
+        merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" 2>/dev/null || true
+      else
+        inconsistent=$((inconsistent+1))
+        jq -nc --argjson child "$child" '{child:$child, action:"inconsistent", reason:"accepted_review_branch_missing"}' >>"$decisions_file"
+      fi
+    elif [ "$exec_status" = "complete" ]; then
+      needs_review=$((needs_review+1))
+      jq -nc --argjson child "$child" '{child:$child, action:"needs_review", reason:"worker_complete_review_missing"}' >>"$decisions_file"
+    elif [ "$claim_status" = "claimed" ]; then
+      local claim_pid claim_host claim_runid
+      claim_pid="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .claim.pid // ""' "$manifest")"
+      claim_host="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .claim.host // ""' "$manifest")"
+      claim_runid="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .claim.runId // ""' "$manifest")"
+
+      if [ "$claim_host" != "$host" ]; then
+        # Foreign host — we cannot verify liveness across machines, leave alone.
+        foreign_left=$((foreign_left+1))
+        jq -nc --argjson child "$child" --arg ownerHost "$claim_host" --arg ownerRunId "$claim_runid" \
+          '{child:$child, action:"live_owner_left", reason:"foreign_host_claim_untouched", ownerHost:$ownerHost, ownerRunId:$ownerRunId}' >>"$decisions_file"
+      elif [ -n "$claim_pid" ] && kill -0 "$claim_pid" 2>/dev/null; then
+        foreign_left=$((foreign_left+1))
+        jq -nc --argjson child "$child" --argjson ownerPid "$claim_pid" --arg ownerHost "$claim_host" --arg ownerRunId "$claim_runid" \
+          '{child:$child, action:"live_owner_left", reason:"owner_pid_alive", ownerPid:$ownerPid, ownerHost:$ownerHost, ownerRunId:$ownerRunId}' >>"$decisions_file"
+      elif gh issue edit "$child" --remove-label 'gralph:claimed' >/dev/null 2>&1; then
+        stale_cleared=$((stale_cleared+1))
+        write_manifest "$manifest" --argjson child "$child" --arg claimRunId "$claim_runid" --arg reason "stale_claim_recovered" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+          (.children[] | select(.number == $child)).claim = ((.children[] | select(.number == $child)).claim // {}) + {status:"recovered", reason:$reason, recoveredAt:$recoveredAt}
+        ' >/dev/null 2>&1 || true
+        jq -nc --argjson child "$child" --arg previousRunId "$claim_runid" \
+          '{child:$child, action:"stale_cleared", reason:"owner_pid_dead", previousRunId:$previousRunId}' >>"$decisions_file"
+      else
+        inconsistent=$((inconsistent+1))
+        jq -nc --argjson child "$child" '{child:$child, action:"stale_clear_failed", reason:"gh_remove_label_failed"}' >>"$decisions_file"
+      fi
+    fi
+  done < <(jq -r '.children[].number' "$manifest" | sort -n)
+
+  local decisions_array='[]'
+  if [ -s "$decisions_file" ]; then
+    decisions_array="$(jq -cs '.' "$decisions_file")"
+  fi
+  rm -f "$decisions_file"
+
+  printf 'Recovery: %d adopted, %d resumed merge, %d needs review, %d stale cleared, %d live left, %d failed left, %d inconsistent\n' \
+    "$adopted" "$resumed_merge" "$needs_review" "$stale_cleared" "$foreign_left" "$failed_left" "$inconsistent" >&2
+
+  write_manifest "$manifest" \
+    --argjson decisions "$decisions_array" \
+    --argjson adopted "$adopted" --argjson resumedMerge "$resumed_merge" \
+    --argjson needsReview "$needs_review" --argjson staleCleared "$stale_cleared" \
+    --argjson foreignLeft "$foreign_left" --argjson failedLeft "$failed_left" \
+    --argjson inconsistent "$inconsistent" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+    .orchestration = (.orchestration // {}) + {
+      recovery:{
+        recoveredAt:$recoveredAt,
+        adopted:$adopted, resumedMerge:$resumedMerge, needsReview:$needsReview,
+        staleCleared:$staleCleared, foreignLeft:$foreignLeft, failedLeft:$failedLeft,
+        inconsistent:$inconsistent,
+        decisions:$decisions
+      }
+    }
+  ' >/dev/null 2>&1 || true
 }
 
 if [ "$DRY_RUN" -ne 1 ]; then
