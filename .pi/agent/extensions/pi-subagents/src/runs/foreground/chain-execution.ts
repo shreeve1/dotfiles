@@ -351,7 +351,7 @@ async function runParallelChainTasks(input: ParallelChainRunInput): Promise<Sing
 					? (result) => input.onDetachedExit?.(input.globalTaskIndex + taskIndex, result)
 					: undefined,
 				toolBudget: toolBudget.toolBudget,
-				completionGuard: task.completionGuard ?? input.completionGuard,
+				completionGuard: task.completionGuard ?? input.step.completionGuard ?? input.completionGuard,
 				onUpdate: input.onUpdate
 					? (progressUpdate) => {
 						const stepResults = progressUpdate.details?.results || [];

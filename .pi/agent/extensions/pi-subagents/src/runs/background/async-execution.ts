@@ -711,7 +711,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 							}
 						}
 						const staticStep = nextFlatStep();
-						const tWithDefault: SequentialStep = { ...t, completionGuard: t.completionGuard ?? params.completionGuard };
+						const tWithDefault: SequentialStep = { ...t, completionGuard: t.completionGuard ?? s.completionGuard ?? params.completionGuard };
 						return buildSeqStep(tWithDefault, staticStep.sessionFile, behaviorCwd, progressPrecreated, parallelBehaviors[taskIndex], staticStep.index, { stepIndex, taskIndex });
 					}),
 					concurrency: s.concurrency,
@@ -739,6 +739,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 					failFast: s.failFast,
 					phase: s.phase,
 					label: s.label,
+					...(s.completionGuard !== undefined ? { completionGuard: s.completionGuard } : {}),
 					sessionFiles: dynamicFlatSteps.map((step) => step.sessionFile),
 					thinkingOverrides: dynamicFlatSteps.map((step) => step.thinkingOverride),
 					effectiveAcceptance: resolveEffectiveAcceptance({

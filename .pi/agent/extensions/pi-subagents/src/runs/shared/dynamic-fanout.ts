@@ -255,6 +255,7 @@ export function materializeDynamicParallelStep(step: DynamicParallelStep, output
 		return {
 			...step.parallel,
 			task,
+			...(step.completionGuard !== undefined ? { completionGuard: step.completionGuard } : {}),
 			...(label !== undefined ? { label } : {}),
 		};
 	});
