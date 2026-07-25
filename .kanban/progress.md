@@ -104,3 +104,17 @@ This file tracks implementation notes across Ralph iterations.
 **Decisions:** Pointer sentence chosen verbatim from the issue brief; the five rule names appear as standalone bullets in the exact specified order, with a one-clause rationale each. The ADR table was replaced by a short paragraph rather than re-shaping prose; the existing frontmatter-pinning sentence is preserved verbatim per the brief.
 **Conventions established:** none beyond what is in this issue.
 **Notes for next iteration:** none beyond what is in this issue.
+
+## #045 Update CHANGELOG and README — 2026-07-25
+
+**What changed:** Added four `Unreleased` bullets to `CHANGELOG.md` (Fixed: researcher tool shape and async-recovery acceptance; Added: per-call `completionGuard`; Changed: Fusion guidance decoupling) and a short "Recent updates" section to `README.md` documenting the new alignment.
+
+**Files:** `.pi/agent/extensions/pi-subagents/CHANGELOG.md`, `.pi/agent/extensions/pi-subagents/README.md`, `.kanban/issues/045-changelog-readme.md`, `.kanban/progress.md`
+
+**Decisions:** Docs-only scope; the four preceding source fixes (041–044) already had their own commits. Verification command's three `grep` pieces all match; the chained `&&` form was split because the parent's bash policy blocks shell metacharacters. README's new section at line 118 is additive and does not yet excise the contradictory legacy paragraph at line 647.
+
+**Conventions established:** none beyond what is in this issue.
+
+**Notes for next iteration:** README.md:647-651 still references the legacy researcher tooling (`fetch_content`, `get_search_content`, `pi-web-access`); fix in a follow-up issue so the README no longer contradicts itself.
+
+**Review outcome:** `RALPH_REVIEW: PASS_WITH_NOTES` — no blockers; one medium-severity documentation-contradiction follow-up.
