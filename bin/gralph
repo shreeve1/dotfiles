@@ -1131,12 +1131,36 @@ finish_parent() {
     return 1
   fi
 
-  local pr_number pr_state
+  local pr_number default_branch pr_view_json pr_state pr_base pr_oid batch_branch
   pr_number="$(jq -r '.orchestration.publication.prNumber' "$manifest")"
-  if ! pr_state="$(gh pr view "$pr_number" --json state --jq .state)" || [ "$pr_state" != "MERGED" ]; then
-    echo "error: batch PR #$pr_number is not merged" >&2
+  if ! default_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')" || [ -z "$default_branch" ]; then
+    echo "error: could not resolve default branch" >&2
     return 1
   fi
+  if ! pr_view_json="$(gh pr view "$pr_number" --json state,baseRefName,mergeCommit 2>&1)" || \
+     ! printf '%s\n' "$pr_view_json" | jq -e . >/dev/null 2>&1; then
+    echo "error: could not read batch PR #$pr_number metadata" >&2
+    return 1
+  fi
+  pr_state="$(printf '%s\n' "$pr_view_json" | jq -r '.state // ""')"
+  pr_base="$(printf '%s\n' "$pr_view_json" | jq -r '.baseRefName // ""')"
+  pr_oid="$(printf '%s\n' "$pr_view_json" | jq -r '.mergeCommit.oid // ""')"
+  if [ "$pr_state" != MERGED ]; then
+    echo "error: batch PR #$pr_number is not merged (state=${pr_state:-MISSING})" >&2
+    return 1
+  fi
+  if [ -z "$pr_base" ] || [ "$pr_base" != "$default_branch" ]; then
+    echo "error: batch PR #$pr_number base is '${pr_base:-MISSING}', current default branch is '$default_branch'" >&2
+    return 1
+  fi
+  case "$pr_oid" in
+    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+      ;;
+    *)
+      echo "error: batch PR #$pr_number mergeCommit.oid is missing or malformed: '${pr_oid:-MISSING}'" >&2
+      return 1
+      ;;
+  esac
 
   local children child child_state
   children="$(jq -r '[.children[] | select(.merge.status == "landed" or .merge.status == "merged") | .number] | sort | .[]' "$manifest")"
@@ -1148,19 +1172,14 @@ finish_parent() {
     fi
   done <<<"$children"
 
-  local default_branch batch_branch
-  if ! default_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')" || [ -z "$default_branch" ]; then
-    echo "error: could not resolve default branch" >&2
-    return 1
-  fi
   batch_branch="$(jq -r '.orchestration.publication.batchBranch // empty' "$manifest")"
   [ -n "$batch_branch" ] || batch_branch="gralph/$parent/batch"
   if ! git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1; then
     echo "error: could not fetch origin/$default_branch" >&2
     return 1
   fi
-  if ! git -C "$repo_root" merge-base --is-ancestor "$batch_branch" "origin/$default_branch" >/dev/null 2>&1; then
-    echo "error: origin/$default_branch does not contain $batch_branch" >&2
+  if ! git -C "$repo_root" merge-base --is-ancestor "$pr_oid" "origin/$default_branch" >/dev/null 2>&1; then
+    echo "error: PR #$pr_number merge commit $pr_oid is not contained in origin/$default_branch" >&2
     return 1
   fi
   local current_branch
@@ -1173,7 +1192,7 @@ finish_parent() {
     echo "error: local $default_branch is behind origin/$default_branch; pull first" >&2
     return 1
   fi
-  if [ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]; then
+  if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
     echo "error: checkout is dirty" >&2
     return 1
   fi
