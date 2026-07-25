@@ -21,7 +21,8 @@ new_case() {
     git -C "$REPO" config user.name test
     git -C "$REPO" config user.email test@example.com
     printf 'base\n' >"$REPO/README"
-    git -C "$REPO" add README
+    printf '.gralph/\n' >"$REPO/.gitignore"
+    git -C "$REPO" add README .gitignore
     git -C "$REPO" commit -qm base
     git init -q --bare "$CASE/origin.git"
     git -C "$REPO" remote add origin "$CASE/origin.git"
@@ -40,12 +41,29 @@ new_case() {
 JSON
     : >"$GH_LOG"
     : >"$PI_LOG"
+    FAKE_PR_BASE="main"
+    FAKE_PR_MERGE_OID="$(git -C "$REPO" rev-parse main)"
 
     cat >"$FAKE_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$GH_LOG"
-if [ "${1-} ${2-}" = "pr view" ]; then printf '%s\n' "${FAKE_PR_STATE:-MERGED}"; exit 0; fi
+if [ "${1-} ${2-}" = "pr view" ]; then
+    args="$*"
+    if [[ "$args" == *"state,baseRefName,mergeCommit"* ]]; then
+        state="${FAKE_PR_STATE:-MERGED}"
+        base="${FAKE_PR_BASE:-main}"
+        oid="${FAKE_PR_MERGE_OID:-}"
+        if [ -z "$oid" ]; then
+            oid="0000000000000000000000000000000000000000"
+        fi
+        jq -n --arg state "$state" --arg base "$base" --arg oid "$oid" \
+            '{state:$state, baseRefName:$base, mergeCommit:{oid:$oid}}'
+        exit 0
+    fi
+    printf '%s\n' "${FAKE_PR_STATE:-MERGED}"
+    exit 0
+fi
 if [ "${1-} ${2-}" = "issue view" ]; then
     child_num="${3-}"
     if [ "$child_num" = "42" ]; then printf '%s\n' "${FAKE_PARENT_STATE:-CLOSED}"; exit 0; fi
@@ -70,7 +88,9 @@ EOF
 
 run_finish() {
     (cd "$REPO" && HOME="$HOME_DIR" PATH="$FAKE_BIN:$REAL_PATH" GH_LOG="$GH_LOG" PI_LOG="$PI_LOG" \
-        FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
+        FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_PR_BASE="${FAKE_PR_BASE:-main}" \
+        FAKE_PR_MERGE_OID="${FAKE_PR_MERGE_OID:-}" \
+        FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
         FAKE_PI_RC="${FAKE_PI_RC:-0}" "$GRALPH" finish 42)
 }
 
@@ -101,7 +121,7 @@ unset FAKE_OPEN_CHILD
 
 new_case default-lacks-merge
 git -C "$REPO" push -q --force origin "$(git -C "$REPO" rev-list --max-parents=0 HEAD):main"
-expect_fail default-lacks-merge 'does not contain gralph/42/batch'
+expect_fail default-lacks-merge 'is not contained in origin/main'
 
 new_case wrong-branch
 git -C "$REPO" checkout -qb not-main
@@ -116,6 +136,20 @@ git -C "$REPO" merge -q --no-ff origin/main -m merge
 new_case dirty
 printf 'dirty\n' >>"$REPO/README"
 expect_fail dirty 'checkout is dirty'
+
+new_case untracked-file
+touch "$REPO/new-untracked-file"
+expect_fail untracked-file 'checkout is dirty'
+
+new_case pr-base-mismatch
+FAKE_PR_BASE=other-branch
+expect_fail pr-base-mismatch "base is 'other-branch', current default branch is 'main'"
+unset FAKE_PR_BASE
+
+new_case pr-merge-not-contained
+FAKE_PR_MERGE_OID=0000000000000000000000000000000000000001
+expect_fail pr-merge-not-contained 'is not contained in origin/main'
+unset FAKE_PR_MERGE_OID
 
 new_case missing-skill
 rm "$HOME_DIR/.claude/skills/finish-spec/SKILL.md"
