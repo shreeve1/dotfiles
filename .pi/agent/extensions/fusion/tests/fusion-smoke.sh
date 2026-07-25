@@ -1176,6 +1176,64 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
 echo "OK:   lifecycle (persisted-off>CLI-on, CLI-on>global, fallback off, subagent handler nested normalize, mutate=false deep copy)"
 rm -rf "$isolated"
 
+# --- (13) FUSION_GUIDANCE_BODY decoupled from model labels -------------
+# After the guidance-body refactor the role bullets no longer hardcode
+# provider/model names; the body must reference settings.json as the
+# source of truth and carry the five session-efficiency rule names
+# verbatim, in order.
+node --input-type=module -e "
+const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
+const mod = await import(url);
+const { FUSION_GUIDANCE_BODY } = mod;
+
+if (typeof FUSION_GUIDANCE_BODY !== 'string' || FUSION_GUIDANCE_BODY.length === 0) {
+  console.log('FAIL: FUSION_GUIDANCE_BODY missing or empty'); process.exit(1);
+}
+
+// hardcoded provider/model labels must NOT appear
+const bt = String.fromCharCode(96);
+const forbidden = [
+  'minimax/MiniMax-M3',
+  'deepseek/deepseek-v4-flash',
+];
+for (const needle of forbidden) {
+  if (FUSION_GUIDANCE_BODY.includes(needle)) {
+    console.log('FAIL: FUSION_GUIDANCE_BODY still contains hardcoded label ' + JSON.stringify(needle)); process.exit(1);
+  }
+}
+
+// canonical pointer sentence must appear literally (greppable substring)
+const pointer =
+  'Per-role model and thinking come from ' + bt + 'settings.json' + bt + ' ' + bt + 'subagents.agentOverrides' + bt + '; this extension never hardcodes them.';
+if (!FUSION_GUIDANCE_BODY.includes(pointer)) {
+  console.log('FAIL: FUSION_GUIDANCE_BODY missing canonical pointer sentence'); process.exit(1);
+}
+
+// five session-efficiency rule names, in order, as standalone substrings
+const rules = [
+  'no duplicate parent discovery',
+  'scout repo-only',
+  'stop after bash-policy block',
+  'bounded child budgets',
+  'return control for long async',
+];
+let lastIdx = -1;
+for (const name of rules) {
+  const idx = FUSION_GUIDANCE_BODY.indexOf(name);
+  if (idx === -1) {
+    console.log('FAIL: FUSION_GUIDANCE_BODY missing rule name ' + JSON.stringify(name)); process.exit(1);
+  }
+  if (idx <= lastIdx) {
+    console.log('FAIL: rule name ' + JSON.stringify(name) + ' out of order'); process.exit(1);
+  }
+  lastIdx = idx;
+}
+" || {
+	echo 'FAIL: guidance body decoupling' >&2
+	exit 1
+}
+echo "OK:   guidance body decoupled (no hardcoded labels; pointer + five rules present)"
+
 rm -rf "$tmpdir"
 echo
 echo 'All fusion smoke tests passed.'

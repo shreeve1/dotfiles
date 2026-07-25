@@ -1,11 +1,12 @@
 ---
 id: 044
 title: Decouple Fusion guidance from hardcoded model labels
-status: pending
+status: in-progress
 blocked_by: []
 parent: null
 priority: 0
 created: 2026-07-25
+updated: 2026-07-25
 ---
 
 ## What to build
