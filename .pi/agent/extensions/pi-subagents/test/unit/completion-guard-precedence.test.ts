@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import * as path from "node:path";
 import test from "node:test";
 import { resolveCompletionGuard } from "../../src/runs/shared/completion-guard.ts";
 import { buildAsyncRunnerSteps } from "../../src/runs/background/async-execution.ts";
+import { applySteeringRecoveryAgentConfig, readAsyncRecoveryDescriptor } from "../../src/runs/background/async-resume.ts";
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
+import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
+import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
 	assert.equal(resolveCompletionGuard(undefined, false), false);
@@ -89,4 +95,97 @@ test("completionGuard: dynamic group override reaches materialization", () => {
 	const dynamic = steps[0] as { completionGuard?: boolean; parallel: { completionGuard?: boolean } };
 	assert.equal(dynamic.completionGuard, false);
 	assert.equal(dynamic.parallel.completionGuard, false);
+});
+
+test("completionGuard: delegation request parses optional boolean and forwards it", () => {
+	const baseRequest = {
+		version: 1,
+		requestId: "delegation-completion-guard-1",
+		agent: "writer",
+		task: "draft",
+		context: "fresh",
+		cwd: "/tmp",
+	};
+	const off = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: false });
+	assert.ok(off.ok, off.ok ? "" : off.error);
+	if (off.ok) {
+		assert.equal(off.request.completionGuard, false);
+		assert.equal(toSubagentDelegationExecutionParams(off.request).completionGuard, false);
+	}
+
+	const on = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: true });
+	assert.ok(on.ok, on.ok ? "" : on.error);
+	if (on.ok) {
+		assert.equal(on.request.completionGuard, true);
+		assert.equal(toSubagentDelegationExecutionParams(on.request).completionGuard, true);
+	}
+
+	const omitted = parseSubagentDelegationRequest({ ...baseRequest });
+	assert.ok(omitted.ok, omitted.ok ? "" : omitted.error);
+	if (omitted.ok) {
+		assert.equal(omitted.request.completionGuard, undefined);
+		assert.equal(toSubagentDelegationExecutionParams(omitted.request).completionGuard, undefined);
+	}
+
+	const malformed = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: "yes" });
+	assert.equal(malformed.ok, false);
+	if (!malformed.ok) assert.match(malformed.error, /completionGuard/);
+});
+
+test("completionGuard: recovery descriptor retains original call override, not agent default", () => {
+	const agentBase = {
+		name: "writer",
+		description: "",
+		systemPrompt: "",
+		systemPromptMode: "append" as const,
+		inheritProjectContext: false,
+		inheritSkills: false,
+		source: "user" as const,
+		filePath: "",
+		completionGuard: true,
+	};
+	const descriptorOff = {
+		...agentBase,
+		version: 1 as const,
+		sourceRunId: "src",
+		agent: "writer",
+		cwd: "/tmp",
+		systemPromptMode: "append" as const,
+		inheritProjectContext: false,
+		inheritSkills: false,
+		outputMode: "inline" as const,
+		maxSubagentDepth: 2,
+		share: false,
+		completionGuard: false,
+	};
+	const recovered = applySteeringRecoveryAgentConfig(agentBase, descriptorOff);
+	assert.equal(recovered.completionGuard, false, "descriptor call override must override agent default");
+
+	const descriptorOn = { ...descriptorOff, completionGuard: true };
+	const recoveredOn = applySteeringRecoveryAgentConfig(agentBase, descriptorOn);
+	assert.equal(recoveredOn.completionGuard, true);
+});
+
+test("completionGuard: async recovery descriptor round-trip accepts boolean field", () => {
+	const asyncDir = mkdtempSync(path.join(tmpdir(), "pi-subagents-completion-guard-"));
+	try {
+		writeFileSync(path.join(asyncDir, "recovery-descriptor.json"), JSON.stringify({
+			version: 1,
+			sourceRunId: "src",
+			agent: "writer",
+			cwd: "/tmp",
+			systemPromptMode: "append",
+			inheritProjectContext: false,
+			inheritSkills: false,
+			outputMode: "inline",
+			maxSubagentDepth: 2,
+			share: false,
+			completionGuard: false,
+		}));
+		const descriptor = readAsyncRecoveryDescriptor(asyncDir);
+		assert.ok(descriptor);
+		assert.equal(descriptor?.completionGuard, false);
+	} finally {
+		rmSync(asyncDir, { recursive: true, force: true });
+	}
 });
