@@ -96,3 +96,11 @@ This file tracks implementation notes across Ralph iterations.
 **What changed:** Mandatory fresh review returned `RALPH_REVIEW: FAIL` after f6d1b5e set status to review. No implementation retry in this pass.
 **Findings:** Four routing blockers recorded in `.kanban/issues/043-per-call-completionguard.md` Blocker section — foreground `executeChain` omits top-level `completionGuard` at `subagent-executor.ts` ~3361-3414; foreground dynamic group ignores `step.completionGuard` at `chain-execution.ts` ~1395; async top-level parallel reconstruction drops per-task `completionGuard` at `subagent-executor.ts` ~3135-3154 and ~4107-4140; async recovery persists agent setting instead of effective call override at `async-execution.ts` ~1681-1683. Existing helper test covers only `resolveCompletionGuard` precedence, not the routing paths.
 **Decisions:** Status set to blocked, actor `ralph-reviewer`, updated `2026-07-25`. Worker must fix all four routing gaps, add coverage for the missing paths, then resubmit.
+
+## #044 Decouple Fusion guidance from hardcoded model labels — 2026-07-25
+
+**What changed:** Stripped `minimax/MiniMax-M3` and `deepseek/deepseek-v4-flash` labels out of `FUSION_GUIDANCE_BODY` and the ADR 0002 model table; both now point at `settings.json` `subagents.agentOverrides` as the source of truth and append the five session-efficiency rules (no duplicate parent discovery, scout repo-only, stop after bash-policy block, bounded child budgets, return control for long async). `fusion-smoke.sh` section (13) asserts the body contains the canonical pointer sentence and the five rule names in order, and never contains the forbidden provider labels.
+**Files:** .pi/agent/extensions/fusion/index.ts, docs/adr/0002-fusion-mode.md, .pi/agent/extensions/fusion/tests/fusion-smoke.sh, .kanban/issues/044-fusion-guidance-model-labels.md
+**Decisions:** Pointer sentence chosen verbatim from the issue brief; the five rule names appear as standalone bullets in the exact specified order, with a one-clause rationale each. The ADR table was replaced by a short paragraph rather than re-shaping prose; the existing frontmatter-pinning sentence is preserved verbatim per the brief.
+**Conventions established:** none beyond what is in this issue.
+**Notes for next iteration:** none beyond what is in this issue.
