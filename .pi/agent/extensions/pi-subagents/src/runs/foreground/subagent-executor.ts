@@ -1973,6 +1973,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 			...(task.progress !== undefined ? { progress: task.progress } : {}),
 			...(task.toolBudget !== undefined ? { toolBudget: task.toolBudget } : {}),
 			...(task.acceptance !== undefined ? { acceptance: task.acceptance } : {}),
+			...(task.completionGuard !== undefined ? { completionGuard: task.completionGuard } : {}),
 		}));
 		return executeAsyncChain(id, {
 			chain: [{
@@ -2697,6 +2698,7 @@ async function runParallelPath(data: ExecutionContextData, deps: ExecutorDeps): 
 					...(progress !== undefined ? { progress } : {}),
 					...(t.toolBudget !== undefined ? { toolBudget: t.toolBudget } : {}),
 					...(t.acceptance !== undefined ? { acceptance: t.acceptance } : {}),
+					...(t.completionGuard !== undefined ? { completionGuard: t.completionGuard } : {}),
 				};
 			});
 			return executeAsyncChain(id, {

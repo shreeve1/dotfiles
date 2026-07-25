@@ -118,6 +118,7 @@ export interface ParallelStep {
 	failFast?: boolean;
 	worktree?: boolean;
 	cwd?: string;
+	completionGuard?: boolean;
 }
 
 /** Union type for chain steps */
