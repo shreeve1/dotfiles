@@ -46,7 +46,7 @@ const DYNAMIC_STEP_KEYS = new Set(["expand", "parallel", "collect", "concurrency
 const RUNNER_DYNAMIC_STEP_KEYS = new Set([...DYNAMIC_STEP_KEYS, "effectiveAcceptance", "acceptanceInput", "acceptanceRole", "sessionFiles", "thinkingOverrides"]);
 const DYNAMIC_EXPAND_KEYS = new Set(["from", "item", "key", "maxItems", "onEmpty"]);
 const DYNAMIC_EXPAND_FROM_KEYS = new Set(["output", "path"]);
-const DYNAMIC_PARALLEL_KEYS = new Set(["agent", "task", "phase", "label", "outputSchema", "cwd", "output", "outputMode", "reads", "progress", "skill", "model", "toolBudget", "acceptance"]);
+const DYNAMIC_PARALLEL_KEYS = new Set(["agent", "task", "phase", "label", "outputSchema", "cwd", "output", "outputMode", "reads", "progress", "skill", "model", "toolBudget", "acceptance", "completionGuard"]);
 const RUNNER_DYNAMIC_PARALLEL_KEYS = new Set([
 	...DYNAMIC_PARALLEL_KEYS,
 	"outputName", "structured", "inheritProjectContext", "inheritSkills", "skills", "outputPath", "namespaceOutputPath", "maxSubagentDepth", "waitToolEnabled",
@@ -94,7 +94,7 @@ export function resolveJsonPointer(value: unknown, pointer: string, label: strin
 			throw new DynamicFanoutError(`${label} does not exist.`);
 		}
 		const record = current as Record<string, unknown>;
-		if (!Object.prototype.hasOwnProperty.call(record, segment)) {
+		if (!Object.hasOwn(record, segment)) {
 			throw new DynamicFanoutError(`${label} does not exist.`);
 		}
 		current = record[segment];
@@ -177,7 +177,7 @@ export function assertNoUnresolvedItemReferences(template: string, itemName: str
 
 export function hasDynamicFanoutFields(step: unknown): boolean {
 	return !!step && typeof step === "object" && !Array.isArray(step)
-		&& (Object.prototype.hasOwnProperty.call(step, "expand") || Object.prototype.hasOwnProperty.call(step, "collect"));
+		&& (Object.hasOwn(step, "expand") || Object.hasOwn(step, "collect"));
 }
 
 export function validateDynamicStepShape(step: DynamicParallelStep, stepIndex: number, config: DynamicFanoutConfig = {}): void {

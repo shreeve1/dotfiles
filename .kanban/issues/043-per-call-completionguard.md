@@ -1,7 +1,7 @@
 ---
 id: 043
 title: Add per-call completionGuard override
-status: pending
+status: review
 blocked_by: []
 parent: null
 priority: 0

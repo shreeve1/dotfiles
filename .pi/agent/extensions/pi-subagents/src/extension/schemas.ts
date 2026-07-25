@@ -105,6 +105,7 @@ const TaskItem = Type.Object({
 	skill: Type.Optional(SkillOverride),
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
+	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
 });
 
 // Parallel task item (within a parallel step)
@@ -125,6 +126,7 @@ export const ParallelTaskSchema = Type.Object({
 	model: Type.Optional(Type.String({ description: "Override model for this task" })),
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
+	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
 });
 
 export const DynamicExpandSchema = Type.Object({
@@ -153,6 +155,7 @@ export const DynamicParallelTemplateSchema = Type.Object({
 	model: Type.Optional(Type.String({ description: "Override model for this task" })),
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
+	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
 }, { additionalProperties: false });
 
 export const DynamicCollectSchema = Type.Object({
@@ -193,6 +196,7 @@ export const ChainItem = Type.Object({
 	worktree: Type.Optional(Type.Boolean({
 		description: "Create isolated git worktrees for each parallel task."
 	})),
+	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
 }, {
 	description: "Chain step: use {agent, task?, ...} for sequential, {parallel: [...]} for static concurrent execution, or {expand, parallel: {...}, collect} for dynamic fanout.",
 	additionalProperties: false,
@@ -293,6 +297,7 @@ const SubagentParamsSchema = Type.Object({
 	skill: Type.Optional(SkillOverride),
 	model: Type.Optional(Type.String({ description: "Override model for single agent (e.g. 'anthropic/claude-sonnet-4')" })),
 	acceptance: Type.Optional(AcceptanceOverride),
+	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
 });
 
 export const SubagentParams = keepTopLevelParameterDescriptions(SubagentParamsSchema);
