@@ -26,6 +26,7 @@ const supportedFields = new Set([
 	"outputMode",
 	"acceptance",
 	"artifacts",
+	"completionGuard",
 ]);
 
 function nonEmptyString(value: unknown): value is string {
@@ -98,6 +99,9 @@ export function parseSubagentDelegationRequest(data: unknown): SubagentDelegatio
 	if (acceptanceErrors.length > 0) return { ok: false, requestId, error: acceptanceErrors.join(" ") };
 	if (value.artifacts !== undefined && typeof value.artifacts !== "boolean") {
 		return { ok: false, requestId, error: "artifacts must be a boolean." };
+	}
+	if (value.completionGuard !== undefined && typeof value.completionGuard !== "boolean") {
+		return { ok: false, requestId, error: "completionGuard must be a boolean." };
 	}
 	return { ok: true, request: value as unknown as SubagentDelegationRequest };
 }
