@@ -43,4 +43,4 @@ All four routing gaps fixed and routed through `resolveCompletionGuard`: foregro
 
 ## Reviewer Note
 
-Plan acceptance criteria and Standards/Spec checked. Review found single-use, test-only exported seams masking the production paths; removed those exports, used direct assignments/conditional spreads at the real write sites, and updated `completion-guard-precedence.test.ts` to check production routing and precedence. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps.
+Plan acceptance criteria and Standards/Spec checked. Review found single-use, test-only exported seams masking the production paths; removed those exports, used direct assignments/conditional spreads at the real write sites, and updated `completion-guard-precedence.test.ts` to check production routing and precedence. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps. Follow-up cleanup of `chain-execution.ts` restored 6fae743^ formatting while retaining the inline `dynamicParallelStep` construction at the single call site (no exported `buildDynamicParallelStep` seam).
