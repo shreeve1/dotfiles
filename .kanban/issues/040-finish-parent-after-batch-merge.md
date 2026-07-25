@@ -1,9 +1,9 @@
 ---
 id: 040
 title: Finish the parent after the batch PR merges
-status: blocked
+status: done
 blocked_by: [039]
-previous_status: done
+previous_status: blocked
 updated: 2026-07-25
 actor: human
 action_reviewed: 2026-07-25
@@ -41,6 +41,6 @@ This command must refuse to finish a partially merged spec. If `finish-spec` ide
 
 **Actionable review:** The mandated `git diff 88836ffa51425373a9eabe037b5a439a7922f256 HEAD` was empty; audited current implementation directly. Added fail-closed validation for missing/empty `.integrationCommand` and guaranteed a parent closed by a nonzero Pi is reopened. Exact verification passed.
 
-## Blocker
+## Resolution
 
-Blocked pending final review: successful-Pi reconciliation previously overwrote reopen diagnostics; this patch preserves them and adds whitespace/query regressions.
+Approved at `330bb270`. Focused 25-case finish suite and seven prior Gralph suites passed; all remote/reopen safety findings resolved.
