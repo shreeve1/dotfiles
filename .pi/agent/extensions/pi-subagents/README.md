@@ -115,6 +115,12 @@ The extension ships with builtin agents you can use immediately.
 
 A simple rule of thumb: use `scout` before you understand the code, `researcher` before you trust external facts, `planner` before a bigger change, `worker` to implement, `reviewer` to check, and `oracle` when the decision itself feels risky.
 
+## Recent updates
+
+The per-call `completionGuard?: boolean` override threads through direct parameters, tasks, chain and sequential/dynamic steps, parallel and dynamic runner groups, and run options. `resolveCompletionGuard(call?, agent?)` applies the precedence `call > agent > default`.
+
+The `researcher` role now uses the rpiv-web-tools shapes `web_search({query, max_results?})` and `web_fetch({url, raw?})`. Legacy `fetch_content` and `get_search_content` remain only in the read-only classifier for pi-web-access compatibility, not as active researcher tools.
+
 ## Changing an agent's model
 
 Builtin agents inherit your current Pi default model by default. This keeps new installs from depending on a provider you may not have configured. If you want every subagent without its own model to use a different default, set `subagents.defaultModel`. If you want a role to use a specific model, set an override instead of copying the bundled agent file.

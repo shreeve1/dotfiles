@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+- Researcher role tools and prompt now use the rpiv-web-tools API shapes (`web_search({query, max_results?})`, `web_fetch({url, raw?})`); legacy `fetch_content`/`get_search_content` are retained only in the read-only classifier for pi-web-access compatibility.
+- Async-recovery descriptor now persists raw `params.acceptance` (`AcceptanceInput`) instead of the resolved config, gated on `params.acceptance !== undefined`, so resume re-infers acceptance correctly.
+
+### Added
+- Added a per-call `completionGuard?: boolean` override across `SubagentParams`, `TaskItem`, `ChainItem`, `ParallelTaskSchema`, `DynamicParallelTemplateSchema`, sequential/dynamic step types, parallel/dynamic runner groups, `RunSyncOptions`, and execution paths, with precedence `call > agent > default`. Exported the new `resolveCompletionGuard(call?, agent?)` helper from `completion-guard.ts`.
+
+### Changed
+- Fusion guidance body and ADR 0002 no longer hardcode specific model/thinking labels; both now point at `settings.json` `subagents.agentOverrides` as the source of truth and append the five session-efficiency rules.
+
 ## [0.35.1] - 2026-07-17
 
 ### Fixed
