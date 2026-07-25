@@ -14,6 +14,7 @@ import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fa
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
 import { buildForegroundChainCompletionGuardFields } from "../../src/runs/foreground/subagent-executor.ts";
+import { buildDynamicParallelStep } from "../../src/runs/foreground/chain-execution.ts";
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
 	assert.equal(resolveCompletionGuard(undefined, false), false);
@@ -233,6 +234,46 @@ test("completionGuard: foreground chain forwards top-level call value", () => {
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), { completionGuard: false });
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), { completionGuard: true });
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), { completionGuard: undefined });
+});
+
+test("completionGuard: foreground dynamic group honors step.completionGuard on ParallelStep seam", () => {
+	const dynamicStep = {
+		expand: { from: { output: "items", path: "" }, maxItems: 2 },
+		parallel: { agent: "writer", task: "edit {item}" },
+		collect: { as: "results" },
+		completionGuard: false,
+	};
+	const materialized = materializeDynamicParallelStep(
+		dynamicStep as never,
+		{
+			items: {
+				text: "items",
+				structured: ["a", "b"],
+				agent: "writer",
+				stepIndex: 0,
+			},
+		},
+		1,
+	);
+	const off = buildDynamicParallelStep(dynamicStep as never, materialized);
+	assert.equal(off.completionGuard, false);
+	assert.equal(off.parallel.length, 2);
+
+	const on = buildDynamicParallelStep(
+		{ ...dynamicStep, completionGuard: true } as never,
+		materialized,
+	);
+	assert.equal(on.completionGuard, true);
+
+	const noGuard = { ...dynamicStep } as Record<string, unknown>;
+	delete noGuard.completionGuard;
+	const omitted = buildDynamicParallelStep(noGuard as never, materialized);
+	assert.equal(
+		omitted.completionGuard,
+		undefined,
+		"omitted step-level value must not be set on the ParallelStep",
+	);
+	assert.ok(!("completionGuard" in omitted), "omitted value must not be present as a key");
 });
 
 test("completionGuard: async recovery descriptor round-trip accepts boolean field", () => {

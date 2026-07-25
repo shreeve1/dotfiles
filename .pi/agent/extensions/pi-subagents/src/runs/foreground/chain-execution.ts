@@ -22,6 +22,7 @@ import {
 	aggregateParallelOutputs,
 	isDynamicParallelStep,
 	isParallelStep,
+	type DynamicParallelStep,
 	type StepOverrides,
 	type ChainStep,
 	type ParallelStep,
@@ -69,7 +70,7 @@ import { injectSingleOutputInstruction, validateFileOnlyOutputMode } from "../sh
 import { buildWorkflowGraphSnapshot } from "../shared/workflow-graph.ts";
 import { ChainOutputValidationError, outputEntryFromResult, resolveOutputReferences, validateChainOutputBindings } from "../shared/chain-outputs.ts";
 import { createStructuredOutputRuntime } from "../shared/structured-output.ts";
-import { collectDynamicResults, DynamicFanoutError, materializeDynamicParallelStep, validateDynamicCollection, type DynamicCollectedResult } from "../shared/dynamic-fanout.ts";
+import { collectDynamicResults, DynamicFanoutError, materializeDynamicParallelStep, validateDynamicCollection, type DynamicCollectedResult, type DynamicMaterializedGroup } from "../shared/dynamic-fanout.ts";
 import { acceptanceFailureMessage, aggregateAcceptanceReport, evaluateAcceptance, resolveEffectiveAcceptance } from "../shared/acceptance.ts";
 import type { ChainOutputMap } from "../../shared/types.ts";
 import { validateToolBudgetConfig } from "../shared/tool-budget.ts";
@@ -154,6 +155,26 @@ interface ParallelChainRunInput {
 	globalSemaphore?: Semaphore;
 	dynamic?: boolean;
 	completionGuard?: boolean;
+}
+
+// ponytail: production seam for the foreground dynamic group → ParallelStep conversion so the
+// step-level completionGuard is threaded onto the materialized ParallelStep alongside the per-task
+// template values. Without this seam, the precedence inside runParallelChainTasks falls through to
+// the call-level value (step.completionGuard is the middle tier of `task → step → call`), and a
+// dynamic step with an explicit override silently degrades to the call default. The helper preserves
+// the explicit false/true value and omits the key entirely when undefined so the precedence chain
+// can fall through cleanly. Upgrade path: extend the helper to also forward dynamic-only fields
+// (e.g. phase, label) if other per-step knobs need the same treatment.
+export function buildDynamicParallelStep(
+	step: DynamicParallelStep,
+	materialized: DynamicMaterializedGroup,
+): ParallelStep {
+	return {
+		parallel: materialized.parallel,
+		concurrency: step.concurrency,
+		failFast: step.failFast,
+		...(step.completionGuard !== undefined ? { completionGuard: step.completionGuard } : {}),
+	};
 }
 
 function buildChainExecutionDetails(input: ChainExecutionDetailsInput): Details {
@@ -910,11 +931,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 				continue;
 			}
 
-			const dynamicParallelStep: ParallelStep = {
-				parallel: materialized.parallel,
-				concurrency: step.concurrency,
-				failFast: step.failFast,
-			};
+			const dynamicParallelStep = buildDynamicParallelStep(step, materialized);
 			const parallelTemplates = materialized.parallel.map((task) => task.task ?? "{previous}");
 			const parallelBehaviors = resolveParallelBehaviors(dynamicParallelStep.parallel, agents, stepIndex, chainSkills)
 				.map((behavior, taskIndex) => suppressProgressForReadOnlyTask(behavior, parallelTemplates[taskIndex] ?? dynamicParallelStep.parallel[taskIndex]?.task, originalTask));
