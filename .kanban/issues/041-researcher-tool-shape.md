@@ -1,7 +1,7 @@
 ---
 id: 041
 title: Fix researcher role tool shape
-status: in-progress
+status: review
 blocked_by: []
 parent: null
 priority: 0

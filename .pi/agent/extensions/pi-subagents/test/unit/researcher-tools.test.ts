@@ -3,13 +3,19 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const settingsPath = new URL("../../../../settings.json", import.meta.url);
-const templatePath = new URL("../../../../settings.json.template", import.meta.url);
+const templatePath = new URL(
+	"../../../../settings.json.template",
+	import.meta.url,
+);
 
 async function readResearcherTools(path: URL) {
 	const raw = await readFile(path, "utf8");
 	const settings = JSON.parse(raw);
 	const tools = settings.subagents.agentOverrides.researcher.tools;
-	assert.ok(Array.isArray(tools), `researcher.tools present in ${path.pathname}`);
+	assert.ok(
+		Array.isArray(tools),
+		`researcher.tools present in ${path.pathname}`,
+	);
 	return tools as string[];
 }
 
