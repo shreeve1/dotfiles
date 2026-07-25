@@ -1,10 +1,12 @@
 ---
 id: 043
 title: Add per-call completionGuard override
-status: review
+status: blocked
 blocked_by: []
 parent: null
 priority: 0
+updated: 2026-07-25
+actor: ralph-reviewer
 created: 2026-07-25
 ---
 
@@ -32,3 +34,15 @@ created: 2026-07-25
 ## Blocked by
 
 None — can start immediately
+
+## Blocker
+
+Fresh review (RALPH_REVIEW: FAIL) found:
+
+1. **Missing runner group fields** — `ParallelStepGroup` and `DynamicRunnerGroup` in `src/runs/shared/parallel-utils.ts` lack `completionGuard?: boolean`.
+2. **Foreground task/step overrides ignored** — `subagent-executor.ts` and `chain-execution.ts` foreground paths pass only top-level `completionGuard`, ignoring per-task/per-step overrides.
+3. **Dynamic step rejection** — `DYNAMIC_STEP_KEYS` in `dynamic-fanout.ts` omits `completionGuard`, so dynamic group-level overrides are rejected by shape validation.
+4. **Async dynamic group-level not propagated** — `async-execution.ts` dynamic group path ignores `s.completionGuard` in favor of `s.parallel.completionGuard`.
+5. **Formatting churn** — ~6k insertions include broad formatter noise, violating scope constraint.
+
+Resolve all five before re-review.
