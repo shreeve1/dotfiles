@@ -1,7 +1,8 @@
 ---
 id: 040
 title: Finish the parent after the batch PR merges
-status: in-progress
+status: review
+updated: 2026-07-25
 blocked_by: [039]
 parent: null
 priority: 0
