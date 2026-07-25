@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { type AgentConfig, type AgentScope } from "../../agents/agents.ts";
+import type { AgentConfig, AgentScope } from "../../agents/agents.ts";
 import { getArtifactsDir, getProjectChainRunsDir } from "../../shared/artifacts.ts";
 import { ChainClarifyComponent, type ChainClarifyResult } from "./chain-clarify.ts";
 import { toModelInfo, type ModelInfo } from "../../shared/model-info.ts";
@@ -174,6 +174,7 @@ export interface SubagentParamsLike {
 	schedule?: string;
 	scheduleName?: string;
 	additional?: number;
+	completionGuard?: boolean;
 }
 
 interface ExecutorDeps {
@@ -826,6 +827,7 @@ function appendStepToAsyncChain(input: {
 		waitToolEnabled: input.deps.waitToolEnabled,
 		asyncDir: resolved.location.asyncDir,
 		validateOutputBindings: false,
+		completionGuard: input.params.completionGuard,
 	});
 	if ("error" in built) {
 		return {
@@ -2005,6 +2007,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 			toolBudget: data.toolBudget,
 			configToolBudget: data.configToolBudget,
 			globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
+			completionGuard: params.completionGuard,
 		});
 	}
 
@@ -2044,6 +2047,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 			toolBudget: data.toolBudget,
 			configToolBudget: data.configToolBudget,
 			globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
+			completionGuard: params.completionGuard,
 		});
 	}
 
@@ -2097,6 +2101,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 			turnBudget: data.turnBudget,
 			toolBudget: data.toolBudget,
 			configToolBudget: data.configToolBudget,
+			completionGuard: params.completionGuard,
 		});
 	}
 
@@ -2225,6 +2230,7 @@ async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Pro
 			toolBudget: data.toolBudget,
 			configToolBudget: data.configToolBudget,
 			globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
+			completionGuard: params.completionGuard,
 		});
 	}
 
@@ -2296,6 +2302,7 @@ interface ForegroundParallelRunInput {
 	liveProgress: (AgentProgress | undefined)[];
 	onUpdate?: (r: AgentToolResult<Details>) => void;
 	worktreeSetup?: WorktreeSetup;
+	completionGuard?: boolean;
 	timeoutMs?: number;
 	deadlineAt?: number;
 	turnBudget?: ResolvedTurnBudget;
@@ -2484,6 +2491,7 @@ async function runForegroundParallelTasks(input: ForegroundParallelRunInput): Pr
 			deadlineAt: input.deadlineAt,
 			turnBudget: input.turnBudget,
 			toolBudget: input.toolBudgets[index],
+			completionGuard: input.completionGuard,
 			onUpdate: input.onUpdate
 				? (progressUpdate) => {
 					const stepResults = progressUpdate.details?.results || [];
@@ -2717,6 +2725,7 @@ async function runParallelPath(data: ExecutionContextData, deps: ExecutorDeps): 
 				timeoutMs: data.timeoutMs,
 				turnBudget: data.turnBudget,
 				globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
+				completionGuard: params.completionGuard,
 			});
 		}
 	}
@@ -2807,6 +2816,7 @@ async function runParallelPath(data: ExecutionContextData, deps: ExecutorDeps): 
 			deadlineAt,
 			turnBudget: data.turnBudget,
 			toolBudgets,
+			completionGuard: params.completionGuard,
 		});
 		for (let i = 0; i < results.length; i++) {
 			const run = results[i]!;
@@ -3026,6 +3036,7 @@ async function runSinglePath(data: ExecutionContextData, deps: ExecutorDeps): Pr
 				timeoutMs: data.timeoutMs,
 				turnBudget: data.turnBudget,
 				toolBudget: effectiveToolBudget.toolBudget,
+				completionGuard: params.completionGuard,
 			});
 		}
 	}
@@ -3122,6 +3133,7 @@ async function runSinglePath(data: ExecutionContextData, deps: ExecutorDeps): Pr
 		deadlineAt,
 		turnBudget: data.turnBudget,
 		toolBudget: effectiveToolBudget.toolBudget,
+		completionGuard: params.completionGuard,
 	});
 	if (foregroundControl?.currentIndex === 0) {
 		foregroundControl.interrupt = undefined;

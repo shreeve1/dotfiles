@@ -27,6 +27,7 @@ import { buildWorkflowGraphSnapshot } from "../shared/workflow-graph.ts";
 import { ChainOutputValidationError, validateChainOutputBindings } from "../shared/chain-outputs.ts";
 import { createStructuredOutputRuntime } from "../shared/structured-output.ts";
 import { resolveEffectiveAcceptance } from "../shared/acceptance.ts";
+import { resolveCompletionGuard } from "../shared/completion-guard.ts";
 import {
 	type AcceptanceInput,
 	type ArtifactConfig,
@@ -152,6 +153,7 @@ interface AsyncChainParams {
 	configToolBudget?: ResolvedToolBudget;
 	/** Global cap on simultaneously-running subagent tasks within the async run. */
 	globalConcurrencyLimit?: number;
+	completionGuard?: boolean;
 }
 
 interface AsyncSingleParams {
@@ -192,6 +194,7 @@ interface AsyncSingleParams {
 	turnBudget?: ResolvedTurnBudget;
 	toolBudget?: ResolvedToolBudget;
 	configToolBudget?: ResolvedToolBudget;
+	completionGuard?: boolean;
 }
 
 interface AsyncExecutionResult {
@@ -222,6 +225,7 @@ export interface AsyncRunnerStepBuildParams {
 	validateOutputBindings?: boolean;
 	toolBudget?: ResolvedToolBudget;
 	configToolBudget?: ResolvedToolBudget;
+	completionGuard?: boolean;
 }
 
 export type AsyncRunnerStepBuildResult =
@@ -642,7 +646,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			extensions: a.extensions,
 			subagentOnlyExtensions: a.subagentOnlyExtensions,
 			mcpDirectTools: a.mcpDirectTools,
-			completionGuard: a.completionGuard,
+			completionGuard: resolveCompletionGuard(s.completionGuard, a.completionGuard),
 			systemPrompt,
 			systemPromptMode: a.systemPromptMode,
 			inheritProjectContext: a.inheritProjectContext,
@@ -707,7 +711,8 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 							}
 						}
 						const staticStep = nextFlatStep();
-						return buildSeqStep(t, staticStep.sessionFile, behaviorCwd, progressPrecreated, parallelBehaviors[taskIndex], staticStep.index, { stepIndex, taskIndex });
+						const tWithDefault: SequentialStep = { ...t, completionGuard: t.completionGuard ?? params.completionGuard };
+						return buildSeqStep(tWithDefault, staticStep.sessionFile, behaviorCwd, progressPrecreated, parallelBehaviors[taskIndex], staticStep.index, { stepIndex, taskIndex });
 					}),
 					concurrency: s.concurrency,
 					failFast: s.failFast,
@@ -724,7 +729,8 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 				}
 				const maxItems = s.expand.maxItems ?? params.dynamicFanoutMaxItems ?? 0;
 				const dynamicFlatSteps = Array.from({ length: maxItems }, () => nextFlatStep());
-				const parallel = buildSeqStep(s.parallel as SequentialStep, undefined, undefined, progressPrecreated, behavior, undefined, { stepIndex });
+				const parallelTemplateWithDefault: SequentialStep = { ...s.parallel, completionGuard: s.parallel.completionGuard ?? params.completionGuard };
+				const parallel = buildSeqStep(parallelTemplateWithDefault, undefined, undefined, progressPrecreated, behavior, undefined, { stepIndex });
 				return {
 					expand: s.expand,
 					parallel,
@@ -749,7 +755,8 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 				};
 			}
 			const staticStep = nextFlatStep();
-			return buildSeqStep(s as SequentialStep, staticStep.sessionFile, undefined, false, undefined, staticStep.index);
+			const sWithDefault: SequentialStep = { ...(s as SequentialStep), completionGuard: (s as SequentialStep).completionGuard ?? params.completionGuard };
+			return buildSeqStep(sWithDefault, staticStep.sessionFile, undefined, false, undefined, staticStep.index);
 		});
 		const steps = params.attachRoot
 			? [{
@@ -853,6 +860,7 @@ export function executeAsyncChain(
 		asyncDir,
 		toolBudget: params.toolBudget,
 		configToolBudget: params.configToolBudget,
+		completionGuard: params.completionGuard,
 	});
 	if ("error" in built) {
 		try {
@@ -1195,7 +1203,7 @@ export function executeAsyncSingle(
 						extensions: agentConfig.extensions,
 						subagentOnlyExtensions: agentConfig.subagentOnlyExtensions,
 						mcpDirectTools: agentConfig.mcpDirectTools,
-						completionGuard: agentConfig.completionGuard,
+						completionGuard: resolveCompletionGuard(params.completionGuard, agentConfig.completionGuard),
 						systemPrompt,
 						systemPromptMode: agentConfig.systemPromptMode,
 						inheritProjectContext: agentConfig.inheritProjectContext,

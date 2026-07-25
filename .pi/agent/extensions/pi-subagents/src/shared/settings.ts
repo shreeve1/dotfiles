@@ -57,6 +57,7 @@ export interface SequentialStep {
 	model?: string;
 	toolBudget?: ToolBudgetConfig;
 	acceptance?: AcceptanceInput;
+	completionGuard?: boolean;
 }
 
 /** Parallel task item within a parallel step */
@@ -77,6 +78,7 @@ export interface ParallelTaskItem {
 	model?: string;
 	toolBudget?: ToolBudgetConfig;
 	acceptance?: AcceptanceInput;
+	completionGuard?: boolean;
 }
 
 export interface DynamicExpandSpec {
@@ -106,6 +108,7 @@ export interface DynamicParallelStep {
 	phase?: string;
 	label?: string;
 	acceptance?: AcceptanceInput;
+	completionGuard?: boolean;
 }
 
 /** Parallel step: multiple agents running concurrently */

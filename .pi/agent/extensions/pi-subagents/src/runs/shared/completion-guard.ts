@@ -83,3 +83,10 @@ export function evaluateCompletionMutationGuard(
 		triggered: expectedMutation && !attemptedMutation,
 	};
 }
+
+/** Resolve completionGuard with precedence: call > agent > default true. */
+export function resolveCompletionGuard(call?: boolean, agent?: boolean): boolean {
+	if (call !== undefined) return call;
+	if (agent !== undefined) return agent;
+	return true;
+}
