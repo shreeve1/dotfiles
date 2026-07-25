@@ -16,6 +16,7 @@ test("researcher prompt uses rpiv-web-tools API", async () => {
 
 	assert.ok(tools.includes("web_search"));
 	assert.ok(tools.includes("web_fetch"));
+	assert.ok(!tools.includes("write"));
 	assert.ok(!tools.includes("fetch_content"));
 	assert.ok(!tools.includes("get_search_content"));
 	assert.match(body, /web_search\(\{query, max_results\?\}\)/);

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { resolveCompletionGuard } from "../../src/runs/shared/completion-guard.ts";
 import { buildAsyncRunnerSteps } from "../../src/runs/background/async-execution.ts";
-import { buildCompletionGuardRecoveryFields } from "../../src/runs/background/async-execution.ts";
 import {
 	applySteeringRecoveryAgentConfig,
 	readAsyncRecoveryDescriptor,
@@ -13,11 +14,17 @@ import {
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
-import {
-	buildAsyncParallelCompletionGuardFields,
-	buildForegroundChainCompletionGuardFields,
-} from "../../src/runs/foreground/subagent-executor.ts";
-import { buildDynamicParallelStep } from "../../src/runs/foreground/chain-execution.ts";
+
+// Resolve vendored source paths via import.meta.url so the test is independent of cwd.
+const here = dirname(fileURLToPath(import.meta.url));
+const chainExecutionPath = resolve(
+	here,
+	"../../src/runs/foreground/chain-execution.ts",
+);
+const asyncExecutionPath = resolve(
+	here,
+	"../../src/runs/background/async-execution.ts",
+);
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
 	assert.equal(resolveCompletionGuard(undefined, false), false);
@@ -167,6 +174,10 @@ test("completionGuard: delegation request parses optional boolean and forwards i
 	if (on.ok) {
 		assert.equal(on.request.completionGuard, true);
 		assert.equal(
+			toSubagentDelegationExecutionParams(off.request).completionGuard,
+			false,
+		);
+		assert.equal(
 			toSubagentDelegationExecutionParams(on.request).completionGuard,
 			true,
 		);
@@ -188,11 +199,6 @@ test("completionGuard: delegation request parses optional boolean and forwards i
 	});
 	assert.equal(malformed.ok, false);
 	if (!malformed.ok) assert.match(malformed.error, /completionGuard/);
-});
-
-test("completionGuard: async launch recovery persists omitted call with agent default", () => {
-	const fields = buildCompletionGuardRecoveryFields(undefined, false);
-	assert.equal(fields.completionGuard, false);
 });
 
 test("completionGuard: recovery descriptor retains original call override, not agent default", () => {
@@ -233,68 +239,114 @@ test("completionGuard: recovery descriptor retains original call override, not a
 	assert.equal(recoveredOn.completionGuard, true);
 });
 
-test("completionGuard: foreground chain forwards top-level call value", () => {
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), {
-		completionGuard: false,
-	});
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), {
-		completionGuard: true,
-	});
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), {
-		completionGuard: undefined,
-	});
+test("completionGuard: foreground chain call-level override threads through buildAsyncRunnerSteps", () => {
+	// Top-level call value falls through onto every sequential step.
+	const offSteps = buildTestSteps([{ agent: "writer", task: "t" }], false);
+	const offStep = offSteps[0] as { completionGuard?: boolean };
+	assert.equal(offStep.completionGuard, false);
+
+	const onSteps = buildTestSteps([{ agent: "writer", task: "t" }], true);
+	const onStep = onSteps[0] as { completionGuard?: boolean };
+	assert.equal(onStep.completionGuard, true);
+
+	// When the call-level value is undefined, the runner step resolves
+	// precedence from agent default (testAgent has no completionGuard,
+	// so resolveCompletionGuard returns true).
+	const noCallSteps = buildTestSteps(
+		[{ agent: "writer", task: "t" }],
+		undefined,
+	);
+	const noCallStep = noCallSteps[0] as { completionGuard?: boolean };
+	assert.equal(
+		noCallStep.completionGuard,
+		true,
+		"undefined call value falls back to agent default (true)",
+	);
 });
 
 test("completionGuard: async parallel reconstruction omits field when call is undefined", () => {
-	assert.deepEqual(buildAsyncParallelCompletionGuardFields(false), {
-		completionGuard: false,
-	});
-	assert.deepEqual(buildAsyncParallelCompletionGuardFields(true), {
-		completionGuard: true,
-	});
-	assert.deepEqual(buildAsyncParallelCompletionGuardFields(undefined), {});
+	// Inline production seam: each parallel task gets `completionGuard`
+	// only when task.completionGuard is defined.
+	const withFalse = buildTestSteps(
+		[{ parallel: [{ agent: "writer", task: "t" }], completionGuard: false }],
+		undefined,
+	);
+	const falseStep = withFalse[0] as {
+		parallel: Array<{ completionGuard?: boolean }>;
+	};
+	assert.equal(falseStep.parallel[0]?.completionGuard, false);
+
+	const withTrue = buildTestSteps(
+		[{ parallel: [{ agent: "writer", task: "t" }], completionGuard: true }],
+		undefined,
+	);
+	const trueStep = withTrue[0] as {
+		parallel: Array<{ completionGuard?: boolean }>;
+	};
+	assert.equal(trueStep.parallel[0]?.completionGuard, true);
+
+	// When the task-level and step-level values are both undefined, the
+	// runner step resolves precedence from the agent default (true).
+	const withUndefined = buildTestSteps(
+		[{ parallel: [{ agent: "writer", task: "t" }] }],
+		undefined,
+	);
+	const undefStep = withUndefined[0] as {
+		parallel: Array<{ completionGuard?: boolean }>;
+	};
+	assert.equal(
+		undefStep.parallel[0]?.completionGuard,
+		true,
+		"undefined call value resolves to agent default (true) on the runner step",
+	);
 });
 
-test("completionGuard: foreground dynamic group honors step.completionGuard on ParallelStep seam", () => {
-	const dynamicStep = {
-		expand: { from: { output: "items", path: "" }, maxItems: 2 },
-		parallel: { agent: "writer", task: "edit {item}" },
-		collect: { as: "results" },
-		completionGuard: false,
-	};
-	const materialized = materializeDynamicParallelStep(
-		dynamicStep as never,
-		{
-			items: {
-				text: "items",
-				structured: ["a", "b"],
-				agent: "writer",
-				stepIndex: 0,
-			},
-		},
-		1,
+test("completionGuard: foreground dynamic group inlines step.completionGuard onto ParallelStep", () => {
+	// No higher-level public path is runnable in this unit test (executeChain requires
+	// ExtensionContext). The conversion is now inlined in chain-execution.ts: confirm
+	// the inline conditional spread for completionGuard and the per-task template forwarding.
+	const source = readFileSync(chainExecutionPath, "utf8");
+	assert.match(
+		source,
+		/parallel:\s*materialized\.parallel/,
+		"chain-execution.ts must forward materialized.parallel onto the ParallelStep",
 	);
-	const off = buildDynamicParallelStep(dynamicStep as never, materialized);
-	assert.equal(off.completionGuard, false);
-	assert.equal(off.parallel.length, 2);
+	assert.match(
+		source,
+		/concurrency:\s*step\.concurrency/,
+		"chain-execution.ts must forward step.concurrency onto the ParallelStep",
+	);
+	assert.match(
+		source,
+		/failFast:\s*step\.failFast/,
+		"chain-execution.ts must forward step.failFast onto the ParallelStep",
+	);
+	assert.match(
+		source,
+		/step\.completionGuard\s*!==\s*undefined/,
+		"chain-execution.ts must gate step.completionGuard forwarding on !== undefined",
+	);
+	assert.match(
+		source,
+		/completionGuard:\s*step\.completionGuard/,
+		"chain-execution.ts must forward the explicit step.completionGuard value",
+	);
+});
 
-	const on = buildDynamicParallelStep(
-		{ ...dynamicStep, completionGuard: true } as never,
-		materialized,
+test("completionGuard: async recovery descriptor write site forwards resolved precedence", () => {
+	// The recovery descriptor write site is the only place the async single path persists
+	// completionGuard; after seam removal it must call resolveCompletionGuard directly
+	// (not a single-use helper) and write the boolean.
+	const source = readFileSync(asyncExecutionPath, "utf8");
+	assert.match(
+		source,
+		/completionGuard:\s*resolveCompletionGuard\(\s*params\.completionGuard,\s*agentConfig\.completionGuard/,
+		"async-execution.ts must call resolveCompletionGuard directly with params and agent",
 	);
-	assert.equal(on.completionGuard, true);
-
-	const noGuard = { ...dynamicStep } as Record<string, unknown>;
-	delete noGuard.completionGuard;
-	const omitted = buildDynamicParallelStep(noGuard as never, materialized);
-	assert.equal(
-		omitted.completionGuard,
-		undefined,
-		"omitted step-level value must not be set on the ParallelStep",
-	);
-	assert.ok(
-		!("completionGuard" in omitted),
-		"omitted value must not be present as a key",
+	assert.doesNotMatch(
+		source,
+		/buildCompletionGuardRecoveryFields/,
+		"async-execution.ts must not export the removed recovery-fields helper",
 	);
 });
 

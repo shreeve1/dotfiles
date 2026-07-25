@@ -98,7 +98,7 @@ The extension intercepts events and blocks at the tool boundary:
 
 ## Models and tools
 
-Per-role model and thinking come from `settings.json` `subagents.agentOverrides`; this extension never hardcodes them.
+Role models and thinking levels are configured in `settings.json` `subagents.agentOverrides`; this extension never hardcodes them.
 
 Agent frontmatter does not pin models — a frontmatter pin silently shadows settings overrides.
 
@@ -115,8 +115,8 @@ actor — not free).
 Five rules every Fusion session follows so the parent's small context and tool surface stay bounded; a session that breaks any of these re-creates the cost the mode exists to remove.
 
 - no duplicate parent discovery: parent never redoes discovery scout already produced.
-- scout repo-only: scout reads the repo only; external facts are researcher's job.
-- stop after bash-policy block: a deny is a deny; parent does not retry around it.
+- scout repo-only and worker for remote operations: scout reads the repo only; external facts and remote operations flow through researcher/worker, never through the parent.
+- stop after first Bash-policy block or known role-config failure: a deny is a deny; parent does not retry around it.
 - bounded child budgets: every delegation carries a verifiable scope/budget up front.
 - return control for long async: parent returns with status, never blocks on long children.
 

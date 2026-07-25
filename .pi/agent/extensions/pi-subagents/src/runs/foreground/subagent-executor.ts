@@ -3154,7 +3154,9 @@ function runAsyncPath(
 			...(task.progress !== undefined ? { progress: task.progress } : {}),
 			...(task.toolBudget !== undefined ? { toolBudget: task.toolBudget } : {}),
 			...(task.acceptance !== undefined ? { acceptance: task.acceptance } : {}),
-			...buildAsyncParallelCompletionGuardFields(task.completionGuard),
+			...(task.completionGuard !== undefined
+				? { completionGuard: task.completionGuard }
+				: {}),
 		}));
 		return executeAsyncChain(id, {
 			chain: [
@@ -3326,24 +3328,6 @@ function runAsyncPath(
 	return null;
 }
 
-// ponytail: production seam for the foreground runChainPath → executeChain call so the top-level
-// completion-guard value is forwarded through a dedicated helper rather than inlined. The helper
-// preserves explicit false (off) and undefined (defer to agent default) — call-level overrides must
-// remain intact because async/recovery paths use buildCompletionGuardRecoveryFields for the agent
-// default and only the foreground call site uses this passthrough. Upgrade path: extend the helper
-// to thread additional executeChain-only fields when precedence rules need a second axis.
-export function buildForegroundChainCompletionGuardFields(
-	completionGuard?: boolean,
-): { completionGuard?: boolean } {
-	return { completionGuard };
-}
-
-export function buildAsyncParallelCompletionGuardFields(
-	completionGuard?: boolean,
-): { completionGuard?: boolean } {
-	return completionGuard !== undefined ? { completionGuard } : {};
-}
-
 async function runChainPath(
 	data: ExecutionContextData,
 	deps: ExecutorDeps,
@@ -3434,7 +3418,7 @@ async function runChainPath(
 		toolBudget: data.toolBudget,
 		configToolBudget: data.configToolBudget,
 		globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
-		...buildForegroundChainCompletionGuardFields(params.completionGuard),
+		completionGuard: params.completionGuard,
 	});
 
 	if (chainResult.requestedAsync) {
@@ -4155,7 +4139,9 @@ async function runParallelPath(
 					...(progress !== undefined ? { progress } : {}),
 					...(t.toolBudget !== undefined ? { toolBudget: t.toolBudget } : {}),
 					...(t.acceptance !== undefined ? { acceptance: t.acceptance } : {}),
-					...buildAsyncParallelCompletionGuardFields(t.completionGuard),
+					...(t.completionGuard !== undefined
+						? { completionGuard: t.completionGuard }
+						: {}),
 				};
 			});
 			return executeAsyncChain(id, {
