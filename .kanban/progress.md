@@ -55,3 +55,15 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** Recovery is a read-mostly reconcile that runs before any wave launches and is safe to invoke repeatedly. The recovery report is the single auditable record of every per-child decision (action, reason, owner host/pid/runId, branch, commitSha, mergeStatus).
 **Notes for next iteration:** A future iteration may add an explicit integration-resume path so children stuck at `merge.status == "merged"` (post-merge integration interruption) can complete the `--verify` run automatically; the current iteration adopts that state and surfaces it via the recovery report so the user can re-run with `--verify` to finish it. The recovery report is also a natural anchor for the orchestrator's terminal exit message in #037.
 **Actionable review:** Re-read `git diff 92ee3cf..cac9d21` and every changed file. All criteria satisfied, exact verification (`bash tests/gralph-recovery.test.sh`) exited 0, and the five prior gralph test suites continued to pass under the new recovery preamble. Reviewer returned `RALPH_REVIEW: PASS_WITH_NOTES`; the noted `merge.status == "merged"` adoption without re-running integration is a tested design choice/risk that the recovery report makes visible to the user.
+
+## #039 Publish one child-closing batch PR — 2026-07-25
+
+**What changed:** Added `publish_pr` function that fails closed on unlanded children, runs final integration verification, pushes the batch branch, and creates/updates a single PR with `Closes #N` references. Idempotent via PR discovery and manifest early return.
+
+**Files:** `bin/gralph`, `tests/gralph-pr.test.sh`, `tests/gralph-parallel.test.sh`, `tests/gralph-review.test.sh`, `tests/gralph-single-child.test.sh`
+
+**Decisions:** Publish runs in the coordinator (not a child worker). PR idempotency is double-layered: manifest publication record + `gh pr list` discovery.
+
+**Conventions established:** Existing test fakes must now support `gh repo view --json defaultBranchRef`, `gh pr list/create/edit`, and a local bare `origin` remote for push. The coordinator owns publication; workers and reviewers never push or create PRs.
+
+**Fresh review:** `RALPH_REVIEW: PASS` — exact verification exited 0, all 7 criteria satisfied.
