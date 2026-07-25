@@ -13,7 +13,10 @@ import {
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
-import { buildAsyncParallelCompletionGuardFields, buildForegroundChainCompletionGuardFields } from "../../src/runs/foreground/subagent-executor.ts";
+import {
+	buildAsyncParallelCompletionGuardFields,
+	buildForegroundChainCompletionGuardFields,
+} from "../../src/runs/foreground/subagent-executor.ts";
 import { buildDynamicParallelStep } from "../../src/runs/foreground/chain-execution.ts";
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
@@ -231,14 +234,24 @@ test("completionGuard: recovery descriptor retains original call override, not a
 });
 
 test("completionGuard: foreground chain forwards top-level call value", () => {
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), { completionGuard: false });
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), { completionGuard: true });
-	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), { completionGuard: undefined });
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), {
+		completionGuard: false,
+	});
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), {
+		completionGuard: true,
+	});
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), {
+		completionGuard: undefined,
+	});
 });
 
 test("completionGuard: async parallel reconstruction omits field when call is undefined", () => {
-	assert.deepEqual(buildAsyncParallelCompletionGuardFields(false), { completionGuard: false });
-	assert.deepEqual(buildAsyncParallelCompletionGuardFields(true), { completionGuard: true });
+	assert.deepEqual(buildAsyncParallelCompletionGuardFields(false), {
+		completionGuard: false,
+	});
+	assert.deepEqual(buildAsyncParallelCompletionGuardFields(true), {
+		completionGuard: true,
+	});
 	assert.deepEqual(buildAsyncParallelCompletionGuardFields(undefined), {});
 });
 
@@ -279,7 +292,10 @@ test("completionGuard: foreground dynamic group honors step.completionGuard on P
 		undefined,
 		"omitted step-level value must not be set on the ParallelStep",
 	);
-	assert.ok(!("completionGuard" in omitted), "omitted value must not be present as a key");
+	assert.ok(
+		!("completionGuard" in omitted),
+		"omitted value must not be present as a key",
+	);
 });
 
 test("completionGuard: async recovery descriptor round-trip accepts boolean field", () => {
