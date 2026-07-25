@@ -1198,7 +1198,7 @@ finish_parent() {
 
   set +e
   (cd "$repo_root" && pi --no-session --no-extensions --no-skills --skill "$skill" \
-    --tools read,write,edit,grep,find,ls -p "$(cat "$prompt_file")")
+    --tools read,write,edit,grep,find,ls,bash -p "$(cat "$prompt_file")")
   rc=$?
   set -e
 
