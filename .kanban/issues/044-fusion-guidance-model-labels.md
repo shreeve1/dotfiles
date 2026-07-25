@@ -1,7 +1,7 @@
 ---
 id: 044
 title: Decouple Fusion guidance from hardcoded model labels
-status: in-progress
+status: review
 blocked_by: []
 parent: null
 priority: 0
@@ -15,17 +15,24 @@ updated: 2026-07-25
 
 ## Acceptance criteria
 
-- [ ] `FUSION_GUIDANCE_BODY` in `fusion/index.ts` keeps role semantics but strips model/thinking labels
-- [ ] A single sentence references `settings.json` `subagents.agentOverrides` as the source of truth for model/thinking
-- [ ] Five session-efficiency rules appended to the guidance body
-- [ ] `docs/adr/0002-fusion-mode.md` hardcoded model table replaced with pointer to `settings.json`
-- [ ] ADR gains a "Session-efficiency rules" section with the same five rules
-- [ ] `fusion-smoke.sh` asserts `FUSION_GUIDANCE_BODY` contains the canonical pointer sentence and efficiency rule keywords
+- [x] `FUSION_GUIDANCE_BODY` in `fusion/index.ts` keeps role semantics but strips model/thinking labels
+- [x] A single sentence references `settings.json` `subagents.agentOverrides` as the source of truth for model/thinking
+- [x] Five session-efficiency rules appended to the guidance body
+- [x] `docs/adr/0002-fusion-mode.md` hardcoded model table replaced with pointer to `settings.json`
+- [x] ADR gains a "Session-efficiency rules" section with the same five rules
+- [x] `fusion-smoke.sh` asserts `FUSION_GUIDANCE_BODY` contains the canonical pointer sentence and efficiency rule keywords
 
 ## Verification
 
-`bash .pi/agent/extensions/fusion/tests/fusion-smoke.sh`
+`bash .pi/agent/extensions/fusion/tests/fusion-smoke.sh` → exit 0, including new `OK: guidance body decoupled ...` line.
 
 ## Blocked by
 
-None — can start immediately
+None
+
+## Implementation Notes
+
+- `FUSION_GUIDANCE_BODY`: removed the four role bullets and replaced with the canonical pointer sentence (verbatim) + a `Session-efficiency rules:` block listing the five rule names verbatim, one bullet each, one-clause rationale. Worker delegation contract, retry ladder, advisor paragraph, and "One writer per cwd" line kept verbatim.
+- ADR 0002 (Models and tools): removed the Role/Model/Thinking/Tools table; the section now opens with the canonical pointer sentence, keeps the existing frontmatter-pinning sentence verbatim, and keeps the parent-model + pi-duo paragraphs intact. Added a new `## Session-efficiency rules` H2 immediately after `Models and tools` with the same five bullets, same order.
+- Smoke test: added section (13) that imports the extension, loads `FUSION_GUIDANCE_BODY`, asserts neither `minimax/MiniMax-M3` nor `deepseek/deepseek-v4-flash` appear, asserts the canonical pointer sentence substring (built via `String.fromCharCode(96)` for backticks, matching the surrounding pattern), and asserts the five rule names as standalone substrings whose indices increase monotonically.
+- Two commits: feature + review-status flip.
