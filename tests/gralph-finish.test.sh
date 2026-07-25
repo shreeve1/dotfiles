@@ -43,11 +43,16 @@ JSON
     : >"$PI_LOG"
     FAKE_PR_BASE="main"
     FAKE_PR_MERGE_OID="$(git -C "$REPO" rev-parse main)"
+    FAKE_GH_STATE_DIR="$CASE/gh-state"
+    mkdir -p "$FAKE_GH_STATE_DIR"
 
     cat >"$FAKE_BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$GH_LOG"
+state_dir="${FAKE_GH_STATE_DIR:-$HOME}"
+mkdir -p "$state_dir"
+parent_state_file="$state_dir/issue-42-state"
 if [ "${1-} ${2-}" = "pr view" ]; then
     args="$*"
     if [[ "$args" == *"state,baseRefName,mergeCommit"* ]]; then
@@ -66,11 +71,26 @@ if [ "${1-} ${2-}" = "pr view" ]; then
 fi
 if [ "${1-} ${2-}" = "issue view" ]; then
     child_num="${3-}"
-    if [ "$child_num" = "42" ]; then printf '%s\n' "${FAKE_PARENT_STATE:-CLOSED}"; exit 0; fi
+    if [ "$child_num" = "42" ]; then
+        if [ -f "$parent_state_file" ]; then
+            cat "$parent_state_file"
+        else
+            printf '%s\n' "${FAKE_PARENT_STATE:-CLOSED}"
+        fi
+        exit 0
+    fi
     if [ "${FAKE_OPEN_CHILD:-}" = "$child_num" ]; then printf '%s\n' OPEN; else printf '%s\n' CLOSED; fi
     exit 0
 fi
-if [ "${1-} ${2-}" = "issue reopen" ]; then exit 0; fi
+if [ "${1-} ${2-}" = "issue reopen" ]; then
+    if [ "${3-}" = "42" ]; then
+        rc="${FAKE_REOPEN_RC:-0}"
+        if [ "$rc" -ne 0 ]; then exit "$rc"; fi
+        if [ "${FAKE_REOPEN_KEEP_CLOSED:-0}" = 1 ]; then exit 0; fi
+        printf 'OPEN\n' >"$parent_state_file"
+    fi
+    exit 0
+fi
 if [ "${1-} ${2-}" = "repo view" ]; then printf '%s\n' main; exit 0; fi
 echo "unexpected gh: $*" >&2
 exit 90
@@ -87,6 +107,9 @@ if [ "${FAKE_PI_LOCAL_COMMIT:-0}" = 1 ]; then
     git add finish-fix
     git commit -qm 'finish fix'
 fi
+if [ "${FAKE_PI_BREAK_REMOTE:-0}" = 1 ]; then
+    git remote remove origin
+fi
 exit "${FAKE_PI_RC:-0}"
 EOF
     chmod +x "$FAKE_BIN/pi"
@@ -97,7 +120,10 @@ run_finish() {
         FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_PR_BASE="${FAKE_PR_BASE:-main}" \
         FAKE_PR_MERGE_OID="${FAKE_PR_MERGE_OID:-}" \
         FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
-        FAKE_PI_LOCAL_COMMIT="${FAKE_PI_LOCAL_COMMIT:-0}" FAKE_PI_RC="${FAKE_PI_RC:-0}" "$GRALPH" finish 42)
+        FAKE_REOPEN_RC="${FAKE_REOPEN_RC:-}" FAKE_REOPEN_KEEP_CLOSED="${FAKE_REOPEN_KEEP_CLOSED:-}" \
+        FAKE_GH_STATE_DIR="${FAKE_GH_STATE_DIR:-}" \
+        FAKE_PI_LOCAL_COMMIT="${FAKE_PI_LOCAL_COMMIT:-0}" FAKE_PI_RC="${FAKE_PI_RC:-0}" \
+        FAKE_PI_BREAK_REMOTE="${FAKE_PI_BREAK_REMOTE:-0}" "$GRALPH" finish 42)
 }
 
 expect_fail() {
@@ -226,6 +252,51 @@ grep -q '^issue reopen 42 --comment Reopened: finish-spec left local commits not
 jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 if jq -e '.orchestration.finish.status == "completed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null; then
     echo 'FAIL: combined failure must not mark finish completed' >&2
+    exit 1
+fi
+
+new_case reopen-command-failure
+FAKE_PI_RC=9
+FAKE_REOPEN_RC=1
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: reopen command failure should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PI_RC FAKE_REOPEN_RC
+grep -q 'gh issue reopen failed for parent #42' "$CASE/err"
+grep -q '^issue reopen 42 --comment Reopened: finish-spec Pi process exited 9.$' "$GH_LOG"
+# pi_failed retains precedence in the manifest; reopen_command_failed is recorded as the sub-reason.
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+jq -e '.orchestration.finish.reopenStatus == "failed" and .orchestration.finish.reopenReason == "reopen_command_failed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
+new_case reopen-still-closed
+FAKE_PI_RC=9
+FAKE_REOPEN_KEEP_CLOSED=1
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: reopen-still-closed should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PI_RC FAKE_REOPEN_KEEP_CLOSED
+grep -q 'parent #42 still reports state CLOSED after reopen' "$CASE/err"
+grep -q '^issue reopen 42 --comment Reopened: finish-spec Pi process exited 9.$' "$GH_LOG"
+# The reopen "succeeded" (exit 0) but the post-state query showed CLOSED; pi_failed is still the primary reason.
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+jq -e '.orchestration.finish.reopenStatus == "failed" and .orchestration.finish.reopenReason == "reopen_state_not_open" and .orchestration.finish.reopenPostState == "CLOSED"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
+new_case remote-refresh-failure
+FAKE_PI_BREAK_REMOTE=1
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: remote refresh failure should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PI_BREAK_REMOTE
+grep -q 'could not refresh origin/main to verify HEAD' "$CASE/err"
+# The post-Pi reconcile block still attempts to reopen even when the fetch failed.
+grep -q '^issue reopen 42 --comment Reopened: finish-spec left local commits not shipped to origin/main.$' "$GH_LOG"
+# A fetch failure must be distinguished from a HEAD mismatch: recorded as remote_refresh_failed, not head_not_remote_default.
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "remote_refresh_failed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+if jq -e '.orchestration.finish.reason == "head_not_remote_default"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null; then
+    echo 'FAIL: fetch failure must not be reported as head_not_remote_default' >&2
     exit 1
 fi
 
