@@ -8,6 +8,7 @@ parent: null
 priority: 0
 created: 2026-07-25
 updated: 2026-07-25
+action_reviewed: 2026-07-25
 actor: human
 ---
 
@@ -51,3 +52,7 @@ Review reported DONE but the driver verification gate failed: `node --experiment
 ## Resolution
 
 Deterministic re-verification on 2026-07-25: `node --experimental-strip-types --test test/unit/researcher-prompt.test.ts test/unit/researcher-tools.test.ts` exits 0 (3/3 tests pass: researcher prompt uses rpiv-web-tools API; agent/settings.json researcher.tools references web_search and web_fetch only; agent/settings.json.template researcher.tools references web_search and web_fetch only). Acceptance criteria satisfied; promoted blocked→done.
+
+## Reviewer Note
+
+Plan acceptance criteria and Standards/Spec checked. Review found the researcher still exposed `write` and its regression test did not assert read-only tool shape; both were fixed in `agents/researcher.md` and `test/unit/researcher-prompt.test.ts`. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps.

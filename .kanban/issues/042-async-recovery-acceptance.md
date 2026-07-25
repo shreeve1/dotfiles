@@ -8,6 +8,7 @@ blocked_by: []
 parent: null
 priority: 0
 updated: 2026-07-25
+action_reviewed: 2026-07-25
 created: 2026-07-25
 ---
 
@@ -46,3 +47,7 @@ Review reported DONE but the driver verification gate failed: `node --experiment
 ## Resolution
 
 Deterministic re-verification on 2026-07-25: `node --experimental-strip-types --test test/unit/recovery-acceptance.test.ts` exits 0 (4/4 tests pass: shorthand values round-trip; object descriptors round-trip; validation rejects reviewed and malformed descriptors; undefined acceptance is omitted from the recovery descriptor). Acceptance criteria satisfied; promoted blocked→done.
+
+## Reviewer Note
+
+Plan acceptance criteria and Standards/Spec checked. Review found the production write site in `executeAsyncSingle` had no direct unit test for the descriptor assignment and gating; added a `recovery-acceptance.test.ts` case that asserts `recoveryDescriptor.acceptance = params.acceptance` and the `params.acceptance !== undefined` gate, and that `resolvedAcceptance` is still computed for run evaluation. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps.
