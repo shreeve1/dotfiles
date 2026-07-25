@@ -1,7 +1,7 @@
 ---
 id: 045
 title: Update CHANGELOG and README
-status: pending
+status: in-progress
 blocked_by: [041, 042, 043, 044]
 parent: null
 priority: 0
