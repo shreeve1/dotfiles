@@ -98,17 +98,9 @@ The extension intercepts events and blocks at the tool boundary:
 
 ## Models and tools
 
-Per-role model/thinking/tools come from `settings.json`
-`subagents.agentOverrides` (live + tracked template). Agent frontmatter
-does not pin models — a frontmatter pin silently shadows settings
-overrides.
+Per-role model and thinking come from `settings.json` `subagents.agentOverrides`; this extension never hardcodes them.
 
-| Role | Model | Thinking | Tools |
-|---|---|---|---|
-| `scout` | `minimax/MiniMax-M3` | low | `read`, `grep`, `find`, `ls` |
-| `researcher` | `deepseek/deepseek-v4-flash` | medium | existing read/web research tools minus `write` and coordination mutation |
-| `worker` | `minimax/MiniMax-M3` | low | existing `read`, search, `bash`, `edit`, `write` |
-| `reviewer` | `deepseek/deepseek-v4-flash` | low | `read`, `grep`, `find`, `ls` (no `bash`; parent verifies) |
+Agent frontmatter does not pin models — a frontmatter pin silently shadows settings overrides.
 
 The machine's default parent model is `openai-codex/gpt-5.6-sol` (high
 thinking). Fusion never silently switches models. If Fusion is active
@@ -117,6 +109,16 @@ extension warns at `session_start` (no block). Fusion does not stack
 Duo initially; a future GPT-actor Duo profile is opt-in only if measured
 grounding failures justify the verifier cost (Duo `REVISE` reruns the
 actor — not free).
+
+## Session-efficiency rules
+
+Five rules every Fusion session follows so the parent's small context and tool surface stay bounded; a session that breaks any of these re-creates the cost the mode exists to remove.
+
+- no duplicate parent discovery: parent never redoes discovery scout already produced.
+- scout repo-only: scout reads the repo only; external facts are researcher's job.
+- stop after bash-policy block: a deny is a deny; parent does not retry around it.
+- bounded child budgets: every delegation carries a verifiable scope/budget up front.
+- return control for long async: parent returns with status, never blocks on long children.
 
 ## Worker delegation contract
 
