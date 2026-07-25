@@ -1,8 +1,9 @@
 ---
 id: 042
 title: Fix async-recovery acceptance round-trip
-status: blocked
-actor: ralph
+status: done
+previous_status: blocked
+actor: human
 blocked_by: []
 parent: null
 priority: 0
@@ -41,3 +42,7 @@ None — can start immediately
 ## Blocker
 
 Review reported DONE but the driver verification gate failed: `node --experimental-strip-types --test test/unit/recovery-acceptance.test.ts` (exit nonzero). Auto-parked done→blocked; see the loop log for output.
+
+## Resolution
+
+Deterministic re-verification on 2026-07-25: `node --experimental-strip-types --test test/unit/recovery-acceptance.test.ts` exits 0 (4/4 tests pass: shorthand values round-trip; object descriptors round-trip; validation rejects reviewed and malformed descriptors; undefined acceptance is omitted from the recovery descriptor). Acceptance criteria satisfied; promoted blocked→done.
