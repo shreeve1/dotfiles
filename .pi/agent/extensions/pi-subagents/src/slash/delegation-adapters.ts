@@ -131,6 +131,7 @@ export interface DelegatedSubagentExecutionParams {
 	outputMode?: "inline" | "file-only";
 	acceptance?: AcceptanceInput;
 	artifacts?: boolean;
+	completionGuard?: boolean;
 	async: false;
 	foregroundOnly: true;
 	clarify: false;
@@ -349,6 +350,7 @@ export function toSubagentDelegationExecutionParams(request: SubagentDelegationR
 		outputMode: request.outputMode,
 		acceptance: request.acceptance,
 		artifacts: request.artifacts,
+		completionGuard: request.completionGuard,
 		async: false,
 		foregroundOnly: true,
 		clarify: false,

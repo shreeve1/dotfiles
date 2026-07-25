@@ -1292,6 +1292,7 @@ async function resumeAsyncRun(input: {
 		...(input.absoluteDeadlineAt !== undefined ? { absoluteDeadlineAt: input.absoluteDeadlineAt } : {}),
 		...(input.params.turnBudget !== undefined ? { turnBudget: input.params.turnBudget } : {}),
 		...(input.params.toolBudget !== undefined ? { toolBudget: input.params.toolBudget } : {}),
+		completionGuard: input.params.completionGuard ?? recoveryDescriptor?.completionGuard,
 	});
 	if (result.isError) return result;
 
@@ -2177,6 +2178,7 @@ async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Pro
 		toolBudget: data.toolBudget,
 		configToolBudget: data.configToolBudget,
 		globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
+		completionGuard: params.completionGuard,
 	});
 
 	if (chainResult.requestedAsync) {

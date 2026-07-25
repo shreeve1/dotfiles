@@ -89,6 +89,7 @@ export interface SubagentDelegationRequest {
 	outputMode?: "inline" | "file-only";
 	acceptance?: SubagentDelegationAcceptance;
 	artifacts?: boolean;
+	completionGuard?: boolean;
 }
 
 export interface SubagentDelegationStarted {
