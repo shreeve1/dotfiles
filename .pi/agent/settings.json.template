@@ -31,7 +31,7 @@
       "researcher": {
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "medium",
-        "tools": ["read", "web_search", "fetch_content", "get_search_content"]
+        "tools": ["read", "web_search", "web_fetch"]
       },
       "worker": {
         "model": "minimax/MiniMax-M3",

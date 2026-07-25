@@ -1,11 +1,12 @@
 ---
 id: 041
 title: Fix researcher role tool shape
-status: pending
+status: in-progress
 blocked_by: []
 parent: null
 priority: 0
 created: 2026-07-25
+updated: 2026-07-25
 ---
 
 ## What to build
