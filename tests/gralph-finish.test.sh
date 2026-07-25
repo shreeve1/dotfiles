@@ -108,6 +108,11 @@ git -C "$REPO" checkout -qb not-main
 expect_fail wrong-branch "current checkout is 'not-main', expected 'main'"
 git -C "$REPO" checkout -q main
 
+new_case stale-local
+git -C "$REPO" reset -q --hard HEAD~1
+expect_fail stale-local 'local main is behind origin/main'
+git -C "$REPO" merge -q --no-ff origin/main -m merge
+
 new_case dirty
 printf 'dirty\n' >>"$REPO/README"
 expect_fail dirty 'checkout is dirty'
