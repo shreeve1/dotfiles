@@ -82,3 +82,11 @@ This file tracks implementation notes across Ralph iterations.
 **Files:** settings.json.template, settings.json (gitignored), researcher.md, completion-guard.ts, test/unit/researcher-prompt.test.ts, test/unit/researcher-tools.test.ts
 **Decisions:** Single-query-per-call search strategy replaces multi-query web_search({queries}). Legacy tool names retained in read-only classifier only.
 **Notes for next iteration:** #043, #044, #042 unblocked; #045 blocked_by all four.
+
+## #042 Async-recovery acceptance round-trip — 2026-07-25
+
+**What changed:** Fixed async-execution.ts recovery descriptor to persist raw `params.acceptance` (AcceptanceInput) instead of resolved `ResolvedAcceptanceConfig`. Gated on `params.acceptance !== undefined`.
+**Files:** src/runs/background/async-execution.ts, test/unit/recovery-acceptance.test.ts
+**Decisions:** When acceptance is undefined, the field is omitted from the descriptor entirely so resume re-infers. No conversion helper, no acceptance.ts edits.
+**Conventions established:** Test exercises the descriptor spread pattern directly; a future refiner might test through executeAsyncSingle.
+**Notes for next iteration:** #043, #044 unblocked; #045 still blocked_by all four (needs #041 too).
