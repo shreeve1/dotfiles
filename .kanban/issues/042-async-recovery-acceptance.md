@@ -1,7 +1,7 @@
 ---
 id: 042
 title: Fix async-recovery acceptance round-trip
-status: done
+status: blocked
 actor: ralph
 blocked_by: []
 parent: null
@@ -37,3 +37,7 @@ RALPH_REVIEW: PASS_WITH_NOTES. Test duplicates the descriptor spread instead of 
 ## Blocked by
 
 None — can start immediately
+
+## Blocker
+
+Review reported DONE but the driver verification gate failed: `node --experimental-strip-types --test test/unit/recovery-acceptance.test.ts` (exit nonzero). Auto-parked done→blocked; see the loop log for output.
