@@ -36,3 +36,4 @@ None
 - ADR 0002 (Models and tools): removed the Role/Model/Thinking/Tools table; the section now opens with the canonical pointer sentence, keeps the existing frontmatter-pinning sentence verbatim, and keeps the parent-model + pi-duo paragraphs intact. Added a new `## Session-efficiency rules` H2 immediately after `Models and tools` with the same five bullets, same order.
 - Smoke test: added section (13) that imports the extension, loads `FUSION_GUIDANCE_BODY`, asserts neither `minimax/MiniMax-M3` nor `deepseek/deepseek-v4-flash` appear, asserts the canonical pointer sentence substring (built via `String.fromCharCode(96)` for backticks, matching the surrounding pattern), and asserts the five rule names as standalone substrings whose indices increase monotonically.
 - Two commits: feature + review-status flip.
+- review cycle: restored role-semantic bullets per FAIL feedback.
