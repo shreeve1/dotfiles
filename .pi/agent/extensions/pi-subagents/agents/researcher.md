@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: Autonomous web researcher — searches, evaluates, and synthesizes a focused research brief
-tools: read, write, web_search, web_fetch, intercom
+tools: read, web_search, web_fetch, intercom
 thinking: medium
 systemPromptMode: replace
 inheritProjectContext: true

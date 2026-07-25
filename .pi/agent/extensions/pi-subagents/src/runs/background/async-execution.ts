@@ -655,13 +655,6 @@ const UNAVAILABLE_SUBAGENT_SKILL_ERROR = "Skills not found: pi-subagents";
 class UnavailableSubagentSkillError extends Error {}
 class AsyncStartValidationError extends Error {}
 
-export function buildCompletionGuardRecoveryFields(
-	call?: boolean,
-	agent?: boolean,
-): Pick<SteeringRecoveryDescriptor, "completionGuard"> {
-	return { completionGuard: resolveCompletionGuard(call, agent) };
-}
-
 export function buildAsyncRunnerSteps(
 	id: string,
 	params: AsyncRunnerStepBuildParams,
@@ -1691,16 +1684,13 @@ export function executeAsyncSingle(
 			: {}),
 		...(agentConfig.skillPath ? { skillPath: [...agentConfig.skillPath] } : {}),
 		...(agentConfig.filePath ? { agentFilePath: agentConfig.filePath } : {}),
-		...buildCompletionGuardRecoveryFields(
+		completionGuard: resolveCompletionGuard(
 			params.completionGuard,
 			agentConfig.completionGuard,
 		),
 		...(agentConfig.memory ? { memory: { ...agentConfig.memory } } : {}),
 		...(outputPath ? { outputPath } : {}),
 		outputMode,
-		...(params.acceptance !== undefined
-			? { acceptance: params.acceptance }
-			: {}),
 		...(controlConfig ? { controlConfig } : {}),
 		...(deadlineAt !== undefined ? { absoluteDeadlineAt: deadlineAt } : {}),
 		...(params.turnBudget ? { initialTurnBudget: params.turnBudget } : {}),
@@ -1717,6 +1707,9 @@ export function executeAsyncSingle(
 		...(artifactsDir ? { artifactsDir } : {}),
 		artifactConfig,
 	};
+	if (params.acceptance !== undefined) {
+		recoveryDescriptor.acceptance = params.acceptance;
+	}
 	try {
 		writePrivateAtomicJson(
 			path.join(asyncDir, "recovery-descriptor.json"),

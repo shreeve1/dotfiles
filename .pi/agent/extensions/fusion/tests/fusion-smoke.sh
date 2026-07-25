@@ -1184,36 +1184,36 @@ rm -rf "$isolated"
 node --input-type=module -e "
 const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
 const mod = await import(url);
-const { FUSION_GUIDANCE_BODY } = mod;
+const { FUSION_GUIDANCE_BODY, FUSION_GUIDANCE_HEADER } = mod;
 
 if (typeof FUSION_GUIDANCE_BODY !== 'string' || FUSION_GUIDANCE_BODY.length === 0) {
   console.log('FAIL: FUSION_GUIDANCE_BODY missing or empty'); process.exit(1);
 }
-
-// hardcoded provider/model labels must NOT appear
-const bt = String.fromCharCode(96);
-const forbidden = [
-  'minimax/MiniMax-M3',
-  'deepseek/deepseek-v4-flash',
-];
-for (const needle of forbidden) {
-  if (FUSION_GUIDANCE_BODY.includes(needle)) {
-    console.log('FAIL: FUSION_GUIDANCE_BODY still contains hardcoded label ' + JSON.stringify(needle)); process.exit(1);
-  }
+if (typeof FUSION_GUIDANCE_HEADER !== 'string' || !FUSION_GUIDANCE_HEADER.includes('FUSION MODE ACTIVE')) {
+  console.log('FAIL: FUSION_GUIDANCE_HEADER missing the FUSION MODE ACTIVE banner'); process.exit(1);
 }
 
-// canonical pointer sentence must appear literally (greppable substring)
+// canonical pointer sentence must appear literally (greppable substring).
+// Per the plan we positively assert the source-of-truth sentence rather
+// than scan for specific provider/model IDs — those can legitimately appear
+// in comments, examples, or rationale text without violating decoupling.
+const bt = String.fromCharCode(96);
 const pointer =
-  'Per-role model and thinking come from ' + bt + 'settings.json' + bt + ' ' + bt + 'subagents.agentOverrides' + bt + '; this extension never hardcodes them.';
+  'Role models and thinking levels are configured in ' + bt + 'settings.json' + bt + ' ' + bt + 'subagents.agentOverrides' + bt + '; this extension never hardcodes them.';
 if (!FUSION_GUIDANCE_BODY.includes(pointer)) {
   console.log('FAIL: FUSION_GUIDANCE_BODY missing canonical pointer sentence'); process.exit(1);
+}
+
+// dedicated 'Session-efficiency rules' header for the five rules
+if (!FUSION_GUIDANCE_BODY.includes('Session-efficiency rules')) {
+  console.log('FAIL: FUSION_GUIDANCE_BODY missing Session-efficiency rules header'); process.exit(1);
 }
 
 // five session-efficiency rule names, in order, as standalone substrings
 const rules = [
   'no duplicate parent discovery',
   'scout repo-only',
-  'stop after bash-policy block',
+  'stop after first Bash-policy block or known role-config failure',
   'bounded child budgets',
   'return control for long async',
 ];
@@ -1232,7 +1232,7 @@ for (const name of rules) {
 	echo 'FAIL: guidance body decoupling' >&2
 	exit 1
 }
-echo "OK:   guidance body decoupled (no hardcoded labels; pointer + five rules present)"
+echo "OK:   guidance body decoupled (canonical pointer + header + five rule semantics present)"
 
 rm -rf "$tmpdir"
 echo
