@@ -69,7 +69,9 @@ This file tracks implementation notes across Ralph iterations.
 
 ## #040 Finish the parent after the batch PR merges — 2026-07-25
 
-**What changed:** Added standalone `gralph finish <parent>` validation for merged publication, closed landed children, default-branch ancestry, clean checkout, and resolved finish-spec skill; launches ephemeral Pi and records success/failure under `.orchestration.finish`.
+**What changed:** Added `gralph finish <parent>` with 9 fail-closed precondition gates and ephemeral finish-spec Pi invocation. Post-Pi parent-closure verification via `gh issue view` records `completed` or `parent_left_open` with observed state.
 **Files:** `bin/gralph`, `tests/gralph-finish.test.sh`, `.kanban/issues/040-finish-parent-after-batch-merge.md`
-**Decisions:** Finish delegates integration, acceptance review, permitted fixes, and parent closure entirely to finish-spec. Precondition failures never launch Pi; Pi process failures record `pi_failed` and preserve the parent for retry.
-**Verification:** New finish suite and all seven existing Gralph suites passed.
+**Decisions:** finish_parent delegates closure, integration, and acceptance review entirely to finish-spec; Gralph validates mechanical preconditions and observes outcome. Post-Pi parent-state check prevents false completion from a Pi exit 0 that left the parent open.
+**Conventions established:** Finish is a standalone subcommand (not part of orchestrate_waves). Precondition failures never launch Pi; Pi process failures and parent_left_open both exit non-zero and record structured reasons.
+**Verification:** New finish suite (12 cases) and all seven existing Gralph suites passed.
+**Fresh review:** Three independent review cycles resolved blockers for bash tool access, current-branch verification, and stale-local-default detection. Parent_left_open reason granularity is a structural boundary: Gralph observes state, finish-spec owns intent.
