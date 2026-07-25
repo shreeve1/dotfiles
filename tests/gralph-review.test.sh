@@ -19,6 +19,16 @@ cat >"$FAKE_BIN/gh" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$*" >>"$GH_LOG"
 if [ "${1-} ${2-}" = "repo view" ]; then
+  for arg in "$@"; do
+    if [ "$arg" = "defaultBranchRef" ]; then
+      printf '%s\n' main
+      exit 0
+    fi
+    if [ "$arg" = "nameWithOwner" ]; then
+      printf '%s\n' owner/repo
+      exit 0
+    fi
+  done
   printf '%s\n' owner/repo
 elif [ "${1-} ${2-}" = "api graphql" ]; then
   cat <<'JSON'
@@ -31,6 +41,13 @@ elif [ "${1-} ${2-}" = "issue view" ]; then
     labels:[{name:"ready-for-agent"}]
   }'
 elif [ "${1-} ${2-}" = "label create" ] || [ "${1-} ${2-}" = "issue edit" ]; then
+  :
+elif [ "${1-}" = "pr" ] && [ "${2-}" = "list" ]; then
+  if [ -s "$GRALPH_FAKE_TMPDIR/pr-state" ]; then cat "$GRALPH_FAKE_TMPDIR/pr-state"; fi
+elif [ "${1-}" = "pr" ] && [ "${2-}" = "create" ]; then
+  echo "https://github.com/owner/repo/pull/7"
+  printf '%s' "7" >"$GRALPH_FAKE_TMPDIR/pr-state"
+elif [ "${1-}" = "pr" ] && [ "${2-}" = "edit" ]; then
   :
 else
   echo "unexpected gh call: $*" >&2
@@ -87,6 +104,11 @@ EOF
   chmod +x "$dir/integration.sh"
   git -C "$dir" add child-verify.sh integration.sh
   git -C "$dir" commit -qm init
+  # Per-test local bare remote so publish_pr's `git push origin ...` succeeds.
+  local remote_dir="$TMPDIR/remote-$(basename "$dir")"
+  rm -rf "$remote_dir"
+  git init -q --bare "$remote_dir/repo.git"
+  git -C "$dir" remote add origin "$remote_dir/repo.git"
 }
 
 run_gralph() {
@@ -95,6 +117,7 @@ run_gralph() {
   (cd "$repo" && PATH="$FAKE_BIN:$PATH" GH_LOG="$GH_LOG" PI_LOG="$PI_LOG" REVIEW_PROMPT="$REVIEW_PROMPT" \
     GRALPH_RALPH_SKILL="$RALPH_SKILL" GRALPH_MAX_ITERATIONS=1 \
     GRALPH_REVIEW_TIMEOUT="${GRALPH_REVIEW_TIMEOUT:-10}" \
+    GRALPH_FAKE_TMPDIR="$TMPDIR" \
     FAKE_REVIEW_SCENARIO="${FAKE_REVIEW_SCENARIO:-approved}" \
     "$GRALPH" "$@")
 }

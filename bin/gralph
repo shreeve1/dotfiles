@@ -948,6 +948,139 @@ merge_one_child() {
   return 0
 }
 
+# publish_pr ships a single batch PR for an already-landed parent. It fails
+# closed if any eligible child is anything other than landed+accepted, runs
+# the integration command on the batch tip in a temporary worktree, pushes
+# the batch branch, and creates-or-updates the PR. It is idempotent: a
+# previously-recorded publication is left untouched.
+publish_pr() {
+  local manifest="$1"
+  local verify_cmd="$2"
+
+  local parent batch_branch
+  parent="$(jq -r '.parent' "$manifest")"
+  batch_branch="gralph/$parent/batch"
+
+  # Idempotent: already-published is a no-op.
+  if jq -e --argjson parent "$parent" '.orchestration.publication != null' "$manifest" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Fail closed if any eligible child is failed, blocked, unreviewed, or not landed.
+  if ! jq -e --argjson parent "$parent" '
+    [.children[] | select(.classification == "eligible")] as $elig
+    | ($elig | length > 0)
+    and all($elig[];
+      ((.execution.status // "pending") != "failed")
+      and (.review.gate == "accepted")
+      and (.merge.status == "landed" or .merge.status == "merged")
+    )
+  ' "$manifest" >/dev/null 2>&1; then
+    echo "error: not all eligible children are landed and accepted for parent #${parent}" >&2
+    return 1
+  fi
+
+  # Resolve the PR base branch.
+  local base_branch
+  if ! base_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')"; then
+    echo "error: could not resolve default branch for parent #${parent}" >&2
+    return 1
+  fi
+  [ -n "$base_branch" ] || { echo "error: gh returned an empty default branch" >&2; return 1; }
+
+  # Re-run integration on the batch tip in a temporary worktree (same
+  # credential-scrubbing envelope as merge_one_child).
+  local pub_dir pub_worktree
+  pub_dir="$(dirname "$manifest")/publication"
+  pub_worktree="$pub_dir/worktree"
+  mkdir -p "$pub_dir"
+  git -C "$REPO_ROOT" worktree add -f "$pub_worktree" "$batch_branch" >/dev/null 2>&1 || {
+    echo "error: could not attach to batch branch $batch_branch" >&2
+    return 1
+  }
+  local integration_log="$pub_dir/integration.log"
+  local -a integration_env=(env)
+  local env_name
+  while IFS= read -r env_name; do
+    if [ "$env_name" = PI_CODING_AGENT_DIR ] || \
+      [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
+      integration_env+=(-u "$env_name")
+    fi
+  done < <(compgen -e)
+  set +e
+  (cd "$pub_worktree" && "${integration_env[@]}" \
+    HOME="/tmp/gralph-empty-home" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+    GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=Never GIT_SSH_COMMAND=false \
+    /bin/sh -c "$verify_cmd") >"$integration_log" 2>&1
+  local integration_rc=$?
+  set -e
+  git -C "$REPO_ROOT" worktree remove --force "$pub_worktree" >/dev/null 2>&1 || true
+  if [ "$integration_rc" -ne 0 ]; then
+    echo "error: integration command exited $integration_rc" >&2
+    return 1
+  fi
+
+  # Push the batch branch.
+  if ! git -C "$REPO_ROOT" push origin "$batch_branch" >/dev/null 2>&1; then
+    echo "error: could not push batch branch $batch_branch" >&2
+    return 1
+  fi
+
+  # Build PR body: one "Closes #N" per landed eligible child, sorted, no other text.
+  local nums_sorted pr_body="" n first=1
+  nums_sorted="$(jq -r '
+    [.children[]
+      | select(.classification == "eligible")
+      | select((.merge.status == "landed" or .merge.status == "merged")
+               and .review.gate == "accepted")
+      | .number] | sort | .[]
+  ' "$manifest")"
+  while IFS= read -r n; do
+    [ -z "$n" ] && continue
+    if [ "$first" -eq 1 ]; then
+      pr_body="Closes #$n"
+      first=0
+    else
+      pr_body="${pr_body}
+Closes #$n"
+    fi
+  done <<<"$nums_sorted"
+
+  # Idempotent PR discovery.
+  local pr_number
+  if ! pr_number="$(gh pr list --head "$batch_branch" --json number --jq '.[0].number // empty')"; then
+    echo "error: could not list PRs for branch $batch_branch" >&2
+    return 1
+  fi
+  if [ -n "$pr_number" ]; then
+    if ! gh pr edit "$pr_number" --body "$pr_body" >/dev/null; then
+      echo "error: could not update existing PR #${pr_number}" >&2
+      return 1
+    fi
+  else
+    local pr_url
+    if ! pr_url="$(gh pr create --base "$base_branch" --head "$batch_branch" \
+      --title "Gralph batch for parent #${parent}" --body "$pr_body")"; then
+      echo "error: could not create batch PR for parent #${parent}" >&2
+      return 1
+    fi
+    pr_number="${pr_url##*/}"
+    case "$pr_number" in
+      ''|*[!0-9]*) echo "error: gh returned an unparseable PR URL: $pr_url" >&2; return 1 ;;
+    esac
+  fi
+
+  write_manifest "$manifest" --argjson prNumber "$pr_number" \
+    --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg batchBranch "$batch_branch" '
+    .orchestration.publication = {prNumber:$prNumber, publishedAt:$publishedAt, batchBranch:$batchBranch}
+  ' || { echo "error: could not record publication" >&2; return 1; }
+
+  printf 'Published batch PR #%s for parent #%s on %s\n' "$pr_number" "$parent" "$batch_branch"
+  return 0
+}
+
 # recover_state reconciles durable manifest state before launching workers.
 # For each child it classifies the durable state and:
 #   - merge.status == "landed"      → adopted (no action, merge_one_child is idempotent)
@@ -1072,6 +1205,7 @@ if [ "$DRY_RUN" -ne 1 ]; then
     and (.children | type == "array")
   ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
   orchestrate_waves "$manifest" "$VERIFY" "$JOBS" || exit 1
+  publish_pr "$manifest" "$VERIFY" || exit 1
   exit 0
 fi
 
