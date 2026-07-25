@@ -5,7 +5,10 @@ import * as path from "node:path";
 import test from "node:test";
 import { resolveCompletionGuard } from "../../src/runs/shared/completion-guard.ts";
 import { buildAsyncRunnerSteps } from "../../src/runs/background/async-execution.ts";
-import { applySteeringRecoveryAgentConfig, readAsyncRecoveryDescriptor } from "../../src/runs/background/async-resume.ts";
+import {
+	applySteeringRecoveryAgentConfig,
+	readAsyncRecoveryDescriptor,
+} from "../../src/runs/background/async-resume.ts";
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
@@ -64,17 +67,35 @@ function buildTestSteps(chain: unknown[], completionGuard?: boolean) {
 }
 
 test("completionGuard: async chain task and step values remain narrow", () => {
-	const steps = buildTestSteps([{
-		parallel: [{ agent: "writer", task: "task", completionGuard: false }],
-		completionGuard: true,
-	}], true);
-	assert.equal((steps[0] as { parallel: Array<{ completionGuard?: boolean }> }).parallel[0]?.completionGuard, false);
+	const steps = buildTestSteps(
+		[
+			{
+				parallel: [{ agent: "writer", task: "task", completionGuard: false }],
+				completionGuard: true,
+			},
+		],
+		true,
+	);
+	assert.equal(
+		(steps[0] as { parallel: Array<{ completionGuard?: boolean }> }).parallel[0]
+			?.completionGuard,
+		false,
+	);
 
-	const stepOnly = buildTestSteps([{
-		parallel: [{ agent: "writer", task: "step" }],
-		completionGuard: false,
-	}], true);
-	assert.equal((stepOnly[0] as { parallel: Array<{ completionGuard?: boolean }> }).parallel[0]?.completionGuard, false);
+	const stepOnly = buildTestSteps(
+		[
+			{
+				parallel: [{ agent: "writer", task: "step" }],
+				completionGuard: false,
+			},
+		],
+		true,
+	);
+	assert.equal(
+		(stepOnly[0] as { parallel: Array<{ completionGuard?: boolean }> })
+			.parallel[0]?.completionGuard,
+		false,
+	);
 });
 
 test("completionGuard: dynamic group override reaches materialization", () => {
@@ -86,13 +107,26 @@ test("completionGuard: dynamic group override reaches materialization", () => {
 	};
 	const materialized = materializeDynamicParallelStep(
 		dynamicStep as never,
-		{ items: { text: "items", structured: ["a", "b"], agent: "writer", stepIndex: 0 } },
+		{
+			items: {
+				text: "items",
+				structured: ["a", "b"],
+				agent: "writer",
+				stepIndex: 0,
+			},
+		},
 		1,
 	);
-	assert.deepEqual(materialized.parallel.map((task) => task.completionGuard), [false, false]);
+	assert.deepEqual(
+		materialized.parallel.map((task) => task.completionGuard),
+		[false, false],
+	);
 
 	const steps = buildTestSteps([dynamicStep], true);
-	const dynamic = steps[0] as { completionGuard?: boolean; parallel: { completionGuard?: boolean } };
+	const dynamic = steps[0] as {
+		completionGuard?: boolean;
+		parallel: { completionGuard?: boolean };
+	};
 	assert.equal(dynamic.completionGuard, false);
 	assert.equal(dynamic.parallel.completionGuard, false);
 });
@@ -106,30 +140,56 @@ test("completionGuard: delegation request parses optional boolean and forwards i
 		context: "fresh",
 		cwd: "/tmp",
 	};
-	const off = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: false });
+	const off = parseSubagentDelegationRequest({
+		...baseRequest,
+		completionGuard: false,
+	});
 	assert.ok(off.ok, off.ok ? "" : off.error);
 	if (off.ok) {
 		assert.equal(off.request.completionGuard, false);
-		assert.equal(toSubagentDelegationExecutionParams(off.request).completionGuard, false);
+		assert.equal(
+			toSubagentDelegationExecutionParams(off.request).completionGuard,
+			false,
+		);
 	}
 
-	const on = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: true });
+	const on = parseSubagentDelegationRequest({
+		...baseRequest,
+		completionGuard: true,
+	});
 	assert.ok(on.ok, on.ok ? "" : on.error);
 	if (on.ok) {
 		assert.equal(on.request.completionGuard, true);
-		assert.equal(toSubagentDelegationExecutionParams(on.request).completionGuard, true);
+		assert.equal(
+			toSubagentDelegationExecutionParams(on.request).completionGuard,
+			true,
+		);
 	}
 
 	const omitted = parseSubagentDelegationRequest({ ...baseRequest });
 	assert.ok(omitted.ok, omitted.ok ? "" : omitted.error);
 	if (omitted.ok) {
 		assert.equal(omitted.request.completionGuard, undefined);
-		assert.equal(toSubagentDelegationExecutionParams(omitted.request).completionGuard, undefined);
+		assert.equal(
+			toSubagentDelegationExecutionParams(omitted.request).completionGuard,
+			undefined,
+		);
 	}
 
-	const malformed = parseSubagentDelegationRequest({ ...baseRequest, completionGuard: "yes" });
+	const malformed = parseSubagentDelegationRequest({
+		...baseRequest,
+		completionGuard: "yes",
+	});
 	assert.equal(malformed.ok, false);
 	if (!malformed.ok) assert.match(malformed.error, /completionGuard/);
+});
+
+test("completionGuard: async launch recovery persists omitted call with agent default", () => {
+	const agentCompletionGuard = false;
+	const descriptor = {
+		completionGuard: resolveCompletionGuard(undefined, agentCompletionGuard),
+	};
+	assert.equal(descriptor.completionGuard, false);
 });
 
 test("completionGuard: recovery descriptor retains original call override, not agent default", () => {
@@ -159,7 +219,11 @@ test("completionGuard: recovery descriptor retains original call override, not a
 		completionGuard: false,
 	};
 	const recovered = applySteeringRecoveryAgentConfig(agentBase, descriptorOff);
-	assert.equal(recovered.completionGuard, false, "descriptor call override must override agent default");
+	assert.equal(
+		recovered.completionGuard,
+		false,
+		"descriptor call override must override agent default",
+	);
 
 	const descriptorOn = { ...descriptorOff, completionGuard: true };
 	const recoveredOn = applySteeringRecoveryAgentConfig(agentBase, descriptorOn);
@@ -167,21 +231,26 @@ test("completionGuard: recovery descriptor retains original call override, not a
 });
 
 test("completionGuard: async recovery descriptor round-trip accepts boolean field", () => {
-	const asyncDir = mkdtempSync(path.join(tmpdir(), "pi-subagents-completion-guard-"));
+	const asyncDir = mkdtempSync(
+		path.join(tmpdir(), "pi-subagents-completion-guard-"),
+	);
 	try {
-		writeFileSync(path.join(asyncDir, "recovery-descriptor.json"), JSON.stringify({
-			version: 1,
-			sourceRunId: "src",
-			agent: "writer",
-			cwd: "/tmp",
-			systemPromptMode: "append",
-			inheritProjectContext: false,
-			inheritSkills: false,
-			outputMode: "inline",
-			maxSubagentDepth: 2,
-			share: false,
-			completionGuard: false,
-		}));
+		writeFileSync(
+			path.join(asyncDir, "recovery-descriptor.json"),
+			JSON.stringify({
+				version: 1,
+				sourceRunId: "src",
+				agent: "writer",
+				cwd: "/tmp",
+				systemPromptMode: "append",
+				inheritProjectContext: false,
+				inheritSkills: false,
+				outputMode: "inline",
+				maxSubagentDepth: 2,
+				share: false,
+				completionGuard: false,
+			}),
+		);
 		const descriptor = readAsyncRecoveryDescriptor(asyncDir);
 		assert.ok(descriptor);
 		assert.equal(descriptor?.completionGuard, false);
