@@ -1,6 +1,15 @@
 {
   "allowedCommands": [
     "bash .pi/agent/extensions/fusion/tests/fusion-smoke.sh",
-    "bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh"
+    "bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh",
+    "git add -A",
+    "git commit -m feat(#043): add per-call completionGuard override",
+    "git commit -m review(#043): set status to review",
+    "node --experimental-strip-types --test .pi/agent/extensions/pi-subagents/test/unit/completion-guard-precedence.test.ts",
+    "git log --oneline -5",
+    "git status --porcelain",
+    "git diff --stat HEAD",
+    "cd .pi/agent/extensions/pi-subagents && node --experimental-strip-types --test test/unit/completion-guard-precedence.test.ts",
+    "node --experimental-strip-types --test .pi/agent/extensions/pi-subagents/test/unit/completion-guard-precedence.test.ts"
   ]
 }
