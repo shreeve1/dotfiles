@@ -7,6 +7,7 @@ parent: null
 priority: 0
 created: 2026-07-25
 updated: 2026-07-25
+action_reviewed: 2026-07-25
 ---
 
 ## What to build
@@ -37,3 +38,7 @@ None
 - Smoke test: added section (13) that imports the extension, loads `FUSION_GUIDANCE_BODY`, asserts neither `minimax/MiniMax-M3` nor `deepseek/deepseek-v4-flash` appear, asserts the canonical pointer sentence substring (built via `String.fromCharCode(96)` for backticks, matching the surrounding pattern), and asserts the five rule names as standalone substrings whose indices increase monotonically.
 - Two commits: feature + review-status flip.
 - review cycle: restored role-semantic bullets per FAIL feedback.
+
+## Reviewer Note
+
+Plan acceptance criteria and Standards/Spec checked. Review found Fusion guidance body omitted the complete set of session-efficiency semantics and the smoke script's assertion shape missed those; updated `FUSION_GUIDANCE_BODY` and ADR 0002 to add the full set (no duplicate parent discovery, scout repo-only / worker for remote ops, stop after first Bash-policy block or known role-config failure, bounded child budgets, return control for long async) and tightened `fusion-smoke.sh` (new section 13) accordingly. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps.
