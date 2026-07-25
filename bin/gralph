@@ -1131,6 +1131,12 @@ finish_parent() {
     return 1
   fi
 
+  local integration
+  if ! integration="$(jq -er '.integrationCommand | select(type == "string" and length > 0)' "$manifest" 2>/dev/null)"; then
+    echo "error: manifest integrationCommand must be a non-empty string" >&2
+    return 1
+  fi
+
   local pr_number default_branch pr_view_json pr_state pr_base pr_oid batch_branch
   pr_number="$(jq -r '.orchestration.publication.prNumber' "$manifest")"
   if ! default_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')" || [ -z "$default_branch" ]; then
@@ -1205,8 +1211,7 @@ finish_parent() {
     return 1
   fi
 
-  local integration prompt_file rc
-  integration="$(jq -r '.integrationCommand // empty' "$manifest")"
+  local prompt_file rc
   prompt_file="$(dirname "$manifest")/finish-prompt.md"
   {
     printf '%s\n' 'Run the explicitly loaded finish-spec workflow for this completed Gralph batch.'
@@ -1221,7 +1226,26 @@ finish_parent() {
   rc=$?
   set -e
 
+  # Always reconcile post-Pi remote equality + parent open state, even when Pi
+  # exited nonzero, so a closed parent left by a failing Pi is reopened with a
+  # causal comment before this function returns. Child issues stay query-only.
+  local parent_state head_matches_remote=0
+  if git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1 &&
+     [ "$(git -C "$repo_root" rev-parse HEAD)" = "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
+    head_matches_remote=1
+  fi
+  if [ "$head_matches_remote" -ne 1 ]; then
+    parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
+    if [ "$parent_state" = "CLOSED" ]; then
+      gh issue reopen "$parent" --comment "Reopened: finish-spec left local commits not shipped to origin/$default_branch." >/dev/null 2>&1 || true
+    fi
+  fi
+
   if [ "$rc" -ne 0 ]; then
+    parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
+    if [ "$parent_state" = "CLOSED" ]; then
+      gh issue reopen "$parent" --comment "Reopened: finish-spec Pi process exited $rc." >/dev/null 2>&1 || true
+    fi
     write_manifest "$manifest" --arg status "failed" --arg reason "pi_failed" --argjson prNumber "$pr_number" --argjson exitCode "$rc" \
       --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
       .orchestration.finish = {status:$status, reason:$reason, prNumber:$prNumber, piExitCode:$exitCode, completedAt:$completedAt}
@@ -1235,16 +1259,7 @@ finish_parent() {
     .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
   '
 
-  local parent_state head_matches_remote=0
-  if git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1 &&
-     [ "$(git -C "$repo_root" rev-parse HEAD)" = "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
-    head_matches_remote=1
-  fi
   if [ "$head_matches_remote" -ne 1 ]; then
-    parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
-    if [ "$parent_state" = "CLOSED" ]; then
-      gh issue reopen "$parent" --comment "Reopened: finish-spec left local commits not shipped to origin/$default_branch." >/dev/null 2>&1 || true
-    fi
     write_manifest "$manifest" --arg reason "head_not_remote_default" --arg parentState "${parent_state:-unknown}" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
       .orchestration.finish += {status:"failed", reason:$reason, parentState:$parentState, completedAt:$completedAt}
     '

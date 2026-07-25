@@ -1,10 +1,10 @@
 ---
 id: 040
 title: Finish the parent after the batch PR merges
-status: blocked
+status: done
 updated: 2026-07-25
 actor: ralph
-blocked_by: [039]
+action_reviewed: 2026-07-25
 parent: null
 priority: 0
 created: 2026-07-22
@@ -29,18 +29,12 @@ This command must refuse to finish a partially merged spec. If `finish-spec` ide
 
 `bash tests/gralph-finish.test.sh`
 
-## Blocked by
-
-- Blocked by #039
-
 ## Implementation Notes
 
-**What changed:** Added standalone `gralph finish <parent>` subcommand with 9 precondition gates (manifest, publication, PR state, child closure, ancestry, current branch, up-to-date local, clean checkout, skill present) before launching a fresh ephemeral Pi process with the finish-spec skill. After Pi exit, verifies parent closure via `gh issue view` and records either `completed` or `parent_left_open` with reason.
+**What changed:** Added standalone `gralph finish <parent>` subcommand with 9 precondition gates (manifest, publication, non-empty integration command, PR state, child closure, ancestry, current branch, up-to-date local, clean checkout, skill present) before launching a fresh ephemeral Pi process with the finish-spec skill. After Pi exit, verifies parent closure and remote equality, reopens a parent closed by a failing Pi, and records the structured finish result.
 
-**Files:** `bin/gralph` (+finish_parent function, +finish subcommand parsing), `tests/gralph-finish.test.sh` (new, 12 test cases covering all preconditions, Pi failure, Pi success, parent-left-open)
+**Files:** `bin/gralph` (`finish_parent` function and `finish` subcommand parsing), `tests/gralph-finish.test.sh` (regression coverage for preconditions, exact Pi invocation, failure reopening, and success)
 
 **Decisions:** finish_parent delegates closure, integration, and acceptance review entirely to finish-spec; Gralph only validates mechanical preconditions and observes the outcome. The `parent_left_open` status records the observed state (parent still open after Pi success) rather than introspecting finish-spec's internal reasoning.
 
-## Blocker
-
-Auto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff 4f6603e86b6c07532fe7f00739b40a8f5bf64024 HEAD` before marking done.
+**Actionable review:** The mandated `git diff 88836ffa51425373a9eabe037b5a439a7922f256 HEAD` was empty; audited current implementation directly. Added fail-closed validation for missing/empty `.integrationCommand` and guaranteed a parent closed by a nonzero Pi is reopened. Exact verification passed.
