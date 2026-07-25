@@ -1,7 +1,7 @@
 ---
 id: 043
 title: Add per-call completionGuard override
-status: blocked
+status: in-progress
 blocked_by: []
 parent: null
 priority: 0
