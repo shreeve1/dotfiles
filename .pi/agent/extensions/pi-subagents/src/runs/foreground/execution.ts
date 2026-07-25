@@ -46,7 +46,7 @@ import {
 } from "../../shared/utils.ts";
 import { buildSkillInjection, resolveSkillsWithFallback } from "../../agents/skills.ts";
 import { buildAgentMemoryInjection } from "../../agents/agent-memory.ts";
-import { evaluateCompletionMutationGuard } from "../shared/completion-guard.ts";
+import { evaluateCompletionMutationGuard, resolveCompletionGuard } from "../shared/completion-guard.ts";
 import { getPiSpawnCommand } from "../shared/pi-spawn.ts";
 import { createJsonlWriter } from "../../shared/jsonl-writer.ts";
 import { attachPostExitStdioGuard, trySignalChild } from "../../shared/post-exit-stdio-guard.ts";
@@ -1086,7 +1086,7 @@ async function runSingleAttempt(
 		const note = turnBudgetSoftNote(result.turnBudget, result.turnBudget.wrapUpRequestedAtTurn ?? result.turnBudget.turnCount);
 		fullOutput = fullOutput.trim() ? `${note}\n\n${fullOutput}` : note;
 	}
-	const completionGuard = result.exitCode === 0 && !result.error && agent.completionGuard !== false
+	const completionGuard = result.exitCode === 0 && !result.error && resolveCompletionGuard(options.completionGuard, agent.completionGuard) !== false
 		? evaluateCompletionMutationGuard({
 			agent: agent.name,
 			task: shared.originalTask ?? task,

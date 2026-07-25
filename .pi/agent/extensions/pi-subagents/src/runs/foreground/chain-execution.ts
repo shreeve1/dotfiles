@@ -153,6 +153,7 @@ interface ParallelChainRunInput {
 	configToolBudget?: ToolBudgetConfig;
 	globalSemaphore?: Semaphore;
 	dynamic?: boolean;
+	completionGuard?: boolean;
 }
 
 function buildChainExecutionDetails(input: ChainExecutionDetailsInput): Details {
@@ -350,6 +351,7 @@ async function runParallelChainTasks(input: ParallelChainRunInput): Promise<Sing
 					? (result) => input.onDetachedExit?.(input.globalTaskIndex + taskIndex, result)
 					: undefined,
 				toolBudget: toolBudget.toolBudget,
+				completionGuard: input.completionGuard,
 				onUpdate: input.onUpdate
 					? (progressUpdate) => {
 						const stepResults = progressUpdate.details?.results || [];
@@ -464,6 +466,7 @@ interface ChainExecutionParams {
 	configToolBudget?: ToolBudgetConfig;
 	/** Global cap on simultaneously-running tasks within this chain. Defaults to DEFAULT_GLOBAL_CONCURRENCY_LIMIT. */
 	globalConcurrencyLimit?: number;
+	completionGuard?: boolean;
 }
 
 interface ChainExecutionResult {
@@ -756,6 +759,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 					toolBudget: params.toolBudget,
 					configToolBudget: params.configToolBudget,
 					globalSemaphore,
+					completionGuard: params.completionGuard,
 				});
 				globalTaskIndex += step.parallel.length;
 
@@ -977,6 +981,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 				configToolBudget: params.configToolBudget,
 				globalSemaphore,
 				dynamic: true,
+				completionGuard: params.completionGuard,
 			});
 			globalTaskIndex = dynamicStartIndex + reservedDynamicItems;
 
@@ -1219,6 +1224,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 					? (result) => onDetachedExit(childIndex, result)
 					: undefined,
 				toolBudget: toolBudget.toolBudget,
+				completionGuard: params.completionGuard,
 				onUpdate: onUpdate
 					? (p) => {
 						const stepResults = p.details?.results || [];

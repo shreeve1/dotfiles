@@ -1141,6 +1141,7 @@ export interface RunSyncOptions {
 		dynamic?: boolean;
 		dynamicGroup?: boolean;
 	};
+	completionGuard?: boolean;
 }
 
 export type IntercomBridgeMode = "off" | "fork-only" | "always";
