@@ -1,13 +1,14 @@
 ---
 id: 041
 title: Fix researcher role tool shape
-status: blocked
+status: done
+previous_status: blocked
 blocked_by: []
 parent: null
 priority: 0
 created: 2026-07-25
 updated: 2026-07-25
-actor: ralph
+actor: human
 ---
 
 ## What to build
@@ -46,3 +47,7 @@ None — can start immediately
 ## Blocker
 
 Review reported DONE but the driver verification gate failed: `node --experimental-strip-types --test test/unit/researcher-prompt.test.ts test/unit/researcher-tools.test.ts` (exit nonzero). Auto-parked done→blocked; see the loop log for output.
+
+## Resolution
+
+Deterministic re-verification on 2026-07-25: `node --experimental-strip-types --test test/unit/researcher-prompt.test.ts test/unit/researcher-tools.test.ts` exits 0 (3/3 tests pass: researcher prompt uses rpiv-web-tools API; agent/settings.json researcher.tools references web_search and web_fetch only; agent/settings.json.template researcher.tools references web_search and web_fetch only). Acceptance criteria satisfied; promoted blocked→done.
