@@ -1101,6 +1101,43 @@ Closes #$n"
   return 0
 }
 
+# reopen_parent_with_comment reopens $1 with $comment, verifying the reopen
+# command succeeded and the post-state is OPEN. On any mutation or query
+# failure it records a precise reopen reason in the manifest and returns
+# nonzero so the caller can surface the failure. Child issues stay query-only;
+# this helper only ever touches the parent.
+reopen_parent_with_comment() {
+  local reopen_parent="$1"
+  local reopen_comment="$2"
+  local reopen_manifest="$3"
+  if ! gh issue reopen "$reopen_parent" --comment "$reopen_comment" >/dev/null 2>&1; then
+    echo "error: gh issue reopen failed for parent #$reopen_parent" >&2
+    write_manifest "$reopen_manifest" --arg reason "reopen_command_failed" --arg comment "$reopen_comment" \
+      --arg attemptedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish = (.orchestration.finish // {}) + {reopenStatus:"failed", reopenReason:$reason, reopenComment:$comment, reopenAttemptedAt:$attemptedAt}
+    ' || true
+    return 1
+  fi
+  local post_state
+  if ! post_state="$(gh issue view "$reopen_parent" --json state --jq .state 2>/dev/null)"; then
+    echo "error: gh issue view failed after reopen for parent #$reopen_parent" >&2
+    write_manifest "$reopen_manifest" --arg reason "reopen_state_query_failed" --arg comment "$reopen_comment" \
+      --arg attemptedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish = (.orchestration.finish // {}) + {reopenStatus:"failed", reopenReason:$reason, reopenComment:$comment, reopenAttemptedAt:$attemptedAt}
+    ' || true
+    return 1
+  fi
+  if [ "$post_state" != "OPEN" ]; then
+    echo "error: parent #$reopen_parent still reports state $post_state after reopen" >&2
+    write_manifest "$reopen_manifest" --arg reason "reopen_state_not_open" --arg postState "$post_state" --arg comment "$reopen_comment" \
+      --arg attemptedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish = (.orchestration.finish // {}) + {reopenStatus:"failed", reopenReason:$reason, reopenPostState:$postState, reopenComment:$comment, reopenAttemptedAt:$attemptedAt}
+    ' || true
+    return 1
+  fi
+  return 0
+}
+
 # finish_parent is the explicit post-merge phase. It validates all durable
 # and remote preconditions before starting a fresh Pi process with only the
 # finish-spec skill and bounded file tools. Pi owns integration, acceptance
@@ -1132,7 +1169,7 @@ finish_parent() {
   fi
 
   local integration
-  if ! integration="$(jq -er '.integrationCommand | select(type == "string" and length > 0)' "$manifest" 2>/dev/null)"; then
+  if ! integration="$(jq -er '.integrationCommand | select(type == "string" and test("[^[:space:]]"))' "$manifest" 2>/dev/null)"; then
     echo "error: manifest integrationCommand must be a non-empty string" >&2
     return 1
   fi
@@ -1229,26 +1266,40 @@ finish_parent() {
   # Always reconcile post-Pi remote equality + parent open state, even when Pi
   # exited nonzero, so a closed parent left by a failing Pi is reopened with a
   # causal comment before this function returns. Child issues stay query-only.
-  local parent_state head_matches_remote=0
-  if git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1 &&
-     [ "$(git -C "$repo_root" rev-parse HEAD)" = "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
-    head_matches_remote=1
+  local parent_state fetch_ok=0 head_matches_remote=0 remote_refresh_failed=0
+  if git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1; then
+    fetch_ok=1
+    if [ "$(git -C "$repo_root" rev-parse HEAD)" = "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
+      head_matches_remote=1
+    fi
   fi
+  remote_refresh_failed=$([ "$fetch_ok" -eq 0 ] && printf 1 || printf 0)
+
+  # If heads diverge (or fetch failed), reopen the parent so the next operator
+  # can reconcile manually; the helper records a precise reopen failure when
+  # the reopen cannot be confirmed.
   if [ "$head_matches_remote" -ne 1 ]; then
     parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
     if [ "$parent_state" = "CLOSED" ]; then
-      gh issue reopen "$parent" --comment "Reopened: finish-spec left local commits not shipped to origin/$default_branch." >/dev/null 2>&1 || true
+      if ! reopen_parent_with_comment "$parent" "Reopened: finish-spec left local commits not shipped to origin/$default_branch." "$manifest"; then
+        echo "error: could not reopen parent #$parent after head/fetch divergence" >&2
+      fi
     fi
   fi
 
   if [ "$rc" -ne 0 ]; then
     parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
     if [ "$parent_state" = "CLOSED" ]; then
-      gh issue reopen "$parent" --comment "Reopened: finish-spec Pi process exited $rc." >/dev/null 2>&1 || true
+      if ! reopen_parent_with_comment "$parent" "Reopened: finish-spec Pi process exited $rc." "$manifest"; then
+        echo "error: could not reopen parent #$parent after Pi failure" >&2
+      fi
     fi
+    # pi_failed takes precedence over remote_refresh_failed / head_not_remote_default
+    # so the next run sees the causal repair path even when reconciliation
+    # (reopen, fetch) also failed.
     write_manifest "$manifest" --arg status "failed" --arg reason "pi_failed" --argjson prNumber "$pr_number" --argjson exitCode "$rc" \
       --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-      .orchestration.finish = {status:$status, reason:$reason, prNumber:$prNumber, piExitCode:$exitCode, completedAt:$completedAt}
+      .orchestration.finish = (.orchestration.finish // {}) + {status:$status, reason:$reason, prNumber:$prNumber, piExitCode:$exitCode, completedAt:$completedAt}
     '
     echo "error: finish-spec Pi process exited $rc" >&2
     return 1
@@ -1259,11 +1310,18 @@ finish_parent() {
     .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
   '
 
+  if [ "$remote_refresh_failed" -eq 1 ]; then
+    write_manifest "$manifest" --arg reason "remote_refresh_failed" --arg parentState "${parent_state:-unknown}" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish += {status:"failed", reason:$reason, parentState:$parentState, completedAt:$completedAt}
+    '
+    echo "error: finish-spec could not refresh origin/$default_branch to verify HEAD; parent #$parent reopen attempted" >&2
+    return 1
+  fi
   if [ "$head_matches_remote" -ne 1 ]; then
     write_manifest "$manifest" --arg reason "head_not_remote_default" --arg parentState "${parent_state:-unknown}" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
       .orchestration.finish += {status:"failed", reason:$reason, parentState:$parentState, completedAt:$completedAt}
     '
-    echo "error: finish-spec left HEAD unequal to fetched origin/$default_branch; parent #$parent reopened if necessary" >&2
+    echo "error: finish-spec left HEAD unequal to fetched origin/$default_branch; parent #$parent reopen attempted" >&2
     return 1
   fi
   if parent_state="$(gh issue view "$parent" --json state --jq .state)" && [ "$parent_state" = "CLOSED" ]; then
