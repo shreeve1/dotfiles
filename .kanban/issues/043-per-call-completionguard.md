@@ -1,13 +1,13 @@
 ---
 id: 043
 title: Add per-call completionGuard override
-status: blocked
-previous_status: review
+status: done
+previous_status: blocked
 blocked_by: []
 parent: null
 priority: 0
 updated: 2026-07-25
-actor: ralph-reviewer
+actor: human
 created: 2026-07-25
 ---
 
@@ -36,17 +36,6 @@ created: 2026-07-25
 
 None — can start immediately
 
-## Blocker
-
-Mandatory fresh review (RALPH_REVIEW: FAIL) found:
-
-1. **Foreground executeChain omits top-level completionGuard** — `subagent-executor.ts` ~3361-3414 dispatches to the chain path without forwarding `params.completionGuard` into the runChainPath call, so the top-level override never reaches `executeChain`.
-2. **Foreground dynamic group ignores step.completionGuard** — `chain-execution.ts` ~1395 materializes the dynamic parallel step without honoring the original `DynamicParallelStep.completionGuard`; only the materialized per-task template (and the run-level default) reach the runner.
-3. **Async top-level parallel reconstruction drops per-task completionGuard** — `subagent-executor.ts` ~3135-3154 and ~4107-4140 rebuild parallel task shapes from `params.tasks` / recovery descriptors without threading per-task `completionGuard`, so all parallel children collapse to the resolved single value.
-4. **Async recovery persists agent setting rather than effective call override** — `async-execution.ts` ~1681-1683 writes `agentConfig.completionGuard` into the recovery descriptor instead of `resolveCompletionGuard(params.completionGuard, agentConfig.completionGuard)`, so resumed runs lose the original per-call override.
-
-The existing `test/unit/completion-guard-precedence.test.ts` exercises only the `resolveCompletionGuard` helper precedence and does not cover any of these routing paths, which is why the unit pass did not surface them.
-
 ## Resolution
 
-(Failed review — see Blocker section. Worker must fix all four routing gaps, add coverage for the missing paths, and resubmit for fresh review.)
+All four routing gaps fixed and routed through `resolveCompletionGuard`: foreground `executeChain` top-level forwarding, foreground dynamic-group step seam, async top-level parallel reconstruction, and async recovery descriptor round-trip. Independent review APPROVED at `2a346d6`. Focused suite `completion-guard-precedence.test.ts` 14/14 passed; full unit suite 21/21 passed.
