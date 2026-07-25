@@ -6,10 +6,16 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 usage: gralph <parent> [--dry-run] [--verify <command>] [--jobs N]
+       gralph finish <parent>
 
 Plan the direct ready-for-agent children of an open GitHub parent issue, or
 execute them in dependency-frontier waves. Mutating runs require --verify.
 --jobs N caps concurrent worker pipelines (default 2).
+
+The finish subcommand validates the recorded batch PR is merged, every
+recorded child is closed, the local default branch contains the merge, and
+the checkout is clean, then launches the finish-spec skill in an ephemeral
+Pi process to run integration and close the parent.
 EOF
 }
 
@@ -19,16 +25,27 @@ if [ -z "$PARENT_ARG" ]; then
   usage >&2
   exit 2
 fi
-shift
 
-case "$PARENT_ARG" in
-  *[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 2 ;;
-esac
+if [ "$PARENT_ARG" = "finish" ]; then
+  shift
+  FINISH_PARENT_ARG="${1-}"
+  case "$FINISH_PARENT_ARG" in
+    ''|*[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 1 ;;
+  esac
+  [ "$#" -eq 1 ] || { echo "error: finish requires exactly one parent issue number" >&2; exit 1; }
+else
+  shift
+
+  case "$PARENT_ARG" in
+    *[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 2 ;;
+  esac
+fi
 
 DRY_RUN=0
 VERIFY_SET=0
 VERIFY=""
 JOBS=2
+if [ "$PARENT_ARG" != "finish" ]; then
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -52,12 +69,15 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+fi
 
 command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
 
-PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+if [ "$PARENT_ARG" != "finish" ]; then
+  PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -1080,6 +1100,119 @@ Closes #$n"
   printf 'Published batch PR #%s for parent #%s on %s\n' "$pr_number" "$parent" "$batch_branch"
   return 0
 }
+
+# finish_parent is the explicit post-merge phase. It validates all durable
+# and remote preconditions before starting a fresh Pi process with only the
+# finish-spec skill and bounded file tools. Pi owns integration, acceptance
+# review, any permitted small fixes, and parent closure.
+finish_parent() {
+  [ "$#" -eq 1 ] || { echo "error: finish requires exactly one parent issue number" >&2; return 1; }
+  local parent="$1"
+  case "$parent" in
+    ''|*[!0-9]*) echo "error: parent issue must be numeric" >&2; return 1 ;;
+  esac
+
+  command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; return 1; }
+  command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; return 1; }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; return 1; }
+
+  local repo_root manifest
+  repo_root="$(git rev-parse --show-toplevel)"
+  manifest="$repo_root/.gralph/runs/$parent/manifest.json"
+  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; return 1; }
+
+  if ! jq -e --argjson parent "$parent" '
+    .schemaVersion == 1 and .parent == $parent
+    and (.children | type == "array")
+    and (.orchestration.publication | type == "object")
+    and (.orchestration.publication.prNumber | type == "number")
+  ' "$manifest" >/dev/null 2>&1; then
+    echo "error: manifest has no valid publication for parent #$parent" >&2
+    return 1
+  fi
+
+  local pr_number pr_state
+  pr_number="$(jq -r '.orchestration.publication.prNumber' "$manifest")"
+  if ! pr_state="$(gh pr view "$pr_number" --json state --jq .state)" || [ "$pr_state" != "MERGED" ]; then
+    echo "error: batch PR #$pr_number is not merged" >&2
+    return 1
+  fi
+
+  local children child child_state
+  children="$(jq -r '[.children[] | select(.merge.status == "landed" or .merge.status == "merged") | .number] | sort | .[]' "$manifest")"
+  while IFS= read -r child; do
+    [ -n "$child" ] || continue
+    if ! child_state="$(gh issue view "$child" --json state --jq .state)" || [ "$child_state" != "CLOSED" ]; then
+      echo "error: landed child #$child is not closed" >&2
+      return 1
+    fi
+  done <<<"$children"
+
+  local default_branch batch_branch
+  if ! default_branch="$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')" || [ -z "$default_branch" ]; then
+    echo "error: could not resolve default branch" >&2
+    return 1
+  fi
+  batch_branch="$(jq -r '.orchestration.publication.batchBranch // empty' "$manifest")"
+  [ -n "$batch_branch" ] || batch_branch="gralph/$parent/batch"
+  if ! git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1; then
+    echo "error: could not fetch origin/$default_branch" >&2
+    return 1
+  fi
+  if ! git -C "$repo_root" merge-base --is-ancestor "$batch_branch" "origin/$default_branch" >/dev/null 2>&1; then
+    echo "error: origin/$default_branch does not contain $batch_branch" >&2
+    return 1
+  fi
+  if [ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]; then
+    echo "error: checkout is dirty" >&2
+    return 1
+  fi
+
+  local skill source_skill="$HOME/.claude/skills/finish-spec/SKILL.md"
+  [ -f "$source_skill" ] || { echo "error: finish-spec skill missing: $source_skill" >&2; return 1; }
+  command -v pi >/dev/null 2>&1 || { echo "error: pi not found" >&2; return 1; }
+  if ! skill="$(realpath "$source_skill")" || [ ! -f "$skill" ]; then
+    echo "error: could not resolve finish-spec skill: $source_skill" >&2
+    return 1
+  fi
+
+  local integration prompt_file rc
+  integration="$(jq -r '.integrationCommand // empty' "$manifest")"
+  prompt_file="$(dirname "$manifest")/finish-prompt.md"
+  {
+    printf '%s\n' 'Run the explicitly loaded finish-spec workflow for this completed Gralph batch.'
+    printf 'Parent issue: #%s\nBatch PR: #%s\nLanded children: %s\nIntegration command: %s\nRun manifest: %s\n\n' \
+      "$parent" "$pr_number" "$(printf '%s\n' "$children" | paste -sd, -)" "$integration" "$manifest"
+    printf '%s\n' 'Follow finish-spec completely: run the integration suite, walk every parent acceptance criterion, make only permitted small integration fixes, and close the parent last. If the suite fails, a material gap exists, or a new child is needed, leave the parent open and report the reason.'
+  } >"$prompt_file"
+
+  set +e
+  (cd "$repo_root" && pi --no-session --no-extensions --no-skills --skill "$skill" \
+    --tools read,write,edit,grep,find,ls -p "$(cat "$prompt_file")")
+  rc=$?
+  set -e
+
+  if [ "$rc" -ne 0 ]; then
+    write_manifest "$manifest" --arg status "failed" --arg reason "pi_failed" --argjson exitCode "$rc" \
+      --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish = {status:$status, reason:$reason, piExitCode:$exitCode, completedAt:$completedAt}
+    '
+    echo "error: finish-spec Pi process exited $rc" >&2
+    return 1
+  fi
+
+  write_manifest "$manifest" --arg status "completed" --argjson prNumber "$pr_number" \
+    --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+    .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
+  '
+  printf 'Finished parent #%s via batch PR #%s\n' "$parent" "$pr_number"
+  return 0
+}
+
+if [ "$PARENT_ARG" = "finish" ]; then
+  finish_parent "$FINISH_PARENT_ARG"
+  exit $?
+fi
 
 # recover_state reconciles durable manifest state before launching workers.
 # For each child it classifies the durable state and:
