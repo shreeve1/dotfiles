@@ -1307,7 +1307,7 @@ finish_parent() {
 
   write_manifest "$manifest" --arg status "pi_succeeded" --argjson prNumber "$pr_number" \
     --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-    .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
+    .orchestration.finish = (.orchestration.finish // {}) + {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
   '
 
   if [ "$remote_refresh_failed" -eq 1 ]; then
