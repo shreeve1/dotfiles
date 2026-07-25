@@ -7,6 +7,7 @@ blocked_by: []
 parent: null
 priority: 0
 updated: 2026-07-25
+action_reviewed: 2026-07-25
 actor: human
 created: 2026-07-25
 ---
@@ -39,3 +40,7 @@ None — can start immediately
 ## Resolution
 
 All four routing gaps fixed and routed through `resolveCompletionGuard`: foreground `executeChain` top-level forwarding, foreground dynamic-group step seam, async top-level parallel reconstruction, and async recovery descriptor round-trip. Independent review APPROVED at `2a346d6`. Focused suite `completion-guard-precedence.test.ts` 14/14 passed; full unit suite 21/21 passed.
+
+## Reviewer Note
+
+Plan acceptance criteria and Standards/Spec checked. Review found single-use, test-only exported seams masking the production paths; removed those exports, used direct assignments/conditional spreads at the real write sites, and updated `completion-guard-precedence.test.ts` to check production routing and precedence. Final validation: full unit glob 22/22, Fusion smoke pass, plan Node preflight `preflight OK`. No remaining gaps.
