@@ -1,7 +1,7 @@
 ---
 id: 042
 title: Fix async-recovery acceptance round-trip
-status: pending
+status: in-progress
 blocked_by: []
 parent: null
 priority: 0
