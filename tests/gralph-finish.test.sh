@@ -72,6 +72,7 @@ fi
 if [ "${1-} ${2-}" = "issue view" ]; then
     child_num="${3-}"
     if [ "$child_num" = "42" ]; then
+        if [ -f "$state_dir/reopen-attempted" ] && [ "${FAKE_REOPEN_STATE_QUERY_RC:-0}" -ne 0 ]; then exit "${FAKE_REOPEN_STATE_QUERY_RC}"; fi
         if [ -f "$parent_state_file" ]; then
             cat "$parent_state_file"
         else
@@ -84,6 +85,7 @@ if [ "${1-} ${2-}" = "issue view" ]; then
 fi
 if [ "${1-} ${2-}" = "issue reopen" ]; then
     if [ "${3-}" = "42" ]; then
+        touch "$state_dir/reopen-attempted"
         rc="${FAKE_REOPEN_RC:-0}"
         if [ "$rc" -ne 0 ]; then exit "$rc"; fi
         if [ "${FAKE_REOPEN_KEEP_CLOSED:-0}" = 1 ]; then exit 0; fi
@@ -120,7 +122,7 @@ run_finish() {
         FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_PR_BASE="${FAKE_PR_BASE:-main}" \
         FAKE_PR_MERGE_OID="${FAKE_PR_MERGE_OID:-}" \
         FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
-        FAKE_REOPEN_RC="${FAKE_REOPEN_RC:-}" FAKE_REOPEN_KEEP_CLOSED="${FAKE_REOPEN_KEEP_CLOSED:-}" \
+        FAKE_REOPEN_RC="${FAKE_REOPEN_RC:-}" FAKE_REOPEN_KEEP_CLOSED="${FAKE_REOPEN_KEEP_CLOSED:-}" FAKE_REOPEN_STATE_QUERY_RC="${FAKE_REOPEN_STATE_QUERY_RC:-}" \
         FAKE_GH_STATE_DIR="${FAKE_GH_STATE_DIR:-}" \
         FAKE_PI_LOCAL_COMMIT="${FAKE_PI_LOCAL_COMMIT:-0}" FAKE_PI_RC="${FAKE_PI_RC:-0}" \
         FAKE_PI_BREAK_REMOTE="${FAKE_PI_BREAK_REMOTE:-0}" "$GRALPH" finish 42)
@@ -150,6 +152,11 @@ new_case empty-integration-command
 jq '.integrationCommand = ""' "$REPO/.gralph/runs/42/manifest.json" >"$CASE/manifest.tmp"
 mv "$CASE/manifest.tmp" "$REPO/.gralph/runs/42/manifest.json"
 expect_fail empty-integration-command 'integrationCommand must be a non-empty string'
+
+new_case whitespace-integration-command
+jq '.integrationCommand = "   "' "$REPO/.gralph/runs/42/manifest.json" >"$CASE/manifest.tmp"
+mv "$CASE/manifest.tmp" "$REPO/.gralph/runs/42/manifest.json"
+expect_fail whitespace-integration-command 'integrationCommand must be a non-empty string'
 
 new_case unmerged-pr
 FAKE_PR_STATE=OPEN
@@ -256,18 +263,26 @@ if jq -e '.orchestration.finish.status == "completed"' "$REPO/.gralph/runs/42/ma
 fi
 
 new_case reopen-command-failure
-FAKE_PI_RC=9
 FAKE_REOPEN_RC=1
+FAKE_PI_LOCAL_COMMIT=1
 if run_finish >"$CASE/out" 2>"$CASE/err"; then
     echo 'FAIL: reopen command failure should exit non-zero' >&2
     exit 1
 fi
-unset FAKE_PI_RC FAKE_REOPEN_RC
+unset FAKE_REOPEN_RC FAKE_PI_LOCAL_COMMIT
 grep -q 'gh issue reopen failed for parent #42' "$CASE/err"
-grep -q '^issue reopen 42 --comment Reopened: finish-spec Pi process exited 9.$' "$GH_LOG"
-# pi_failed retains precedence in the manifest; reopen_command_failed is recorded as the sub-reason.
-jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
-jq -e '.orchestration.finish.reopenStatus == "failed" and .orchestration.finish.reopenReason == "reopen_command_failed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "head_not_remote_default" and .orchestration.finish.reopenReason == "reopen_command_failed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
+new_case reopen-state-query-failure
+FAKE_PI_RC=9
+FAKE_REOPEN_STATE_QUERY_RC=7
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: reopen state query failure should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PI_RC FAKE_REOPEN_STATE_QUERY_RC
+grep -q 'gh issue view failed after reopen for parent #42' "$CASE/err"
+jq -e '.orchestration.finish.reason == "pi_failed" and .orchestration.finish.reopenReason == "reopen_state_query_failed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
 new_case reopen-still-closed
 FAKE_PI_RC=9
