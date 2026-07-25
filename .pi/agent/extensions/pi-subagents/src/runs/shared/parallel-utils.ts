@@ -51,6 +51,7 @@ export interface ParallelStepGroup {
 	concurrency?: number;
 	failFast?: boolean;
 	worktree?: boolean;
+	completionGuard?: boolean;
 }
 
 export interface DynamicRunnerGroup {
@@ -61,6 +62,7 @@ export interface DynamicRunnerGroup {
 	failFast?: boolean;
 	phase?: string;
 	label?: string;
+	completionGuard?: boolean;
 	sessionFiles?: (string | undefined)[];
 	thinkingOverrides?: (string | undefined)[];
 	effectiveAcceptance?: import("../../shared/types.ts").ResolvedAcceptanceConfig;
