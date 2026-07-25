@@ -1,7 +1,7 @@
 ---
 id: 039
 title: Publish one child-closing batch PR
-status: pending
+status: review
 blocked_by: [037, 038]
 parent: null
 priority: 0
