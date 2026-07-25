@@ -31,8 +31,16 @@ interface CompletionMutationGuardResult {
 	triggered: boolean;
 }
 
-export function hasMutationToolCapability(tools: string[] | undefined, mcpDirectTools: string[] | undefined): boolean {
-	if (tools === undefined || tools.length === 0 || (mcpDirectTools?.length ?? 0) > 0) return true;
+export function hasMutationToolCapability(
+	tools: string[] | undefined,
+	mcpDirectTools: string[] | undefined,
+): boolean {
+	if (
+		tools === undefined ||
+		tools.length === 0 ||
+		(mcpDirectTools?.length ?? 0) > 0
+	)
+		return true;
 	return !tools.every((tool) => READ_ONLY_BUILTIN_TOOLS.has(tool));
 }
 
@@ -43,17 +51,29 @@ export function hasMutationToolCall(messages: Message[]): boolean {
 			if (part.type !== "toolCall") continue;
 			if (part.name === "edit" || part.name === "write") return true;
 			if (part.name !== "bash") continue;
-			const args = typeof part.arguments === "object" && part.arguments !== null && !Array.isArray(part.arguments)
-				? part.arguments as Record<string, unknown>
-				: {};
-			if (typeof args.command === "string" && isMutatingBashCommand(args.command)) return true;
+			const args =
+				typeof part.arguments === "object" &&
+				part.arguments !== null &&
+				!Array.isArray(part.arguments)
+					? (part.arguments as Record<string, unknown>)
+					: {};
+			if (
+				typeof args.command === "string" &&
+				isMutatingBashCommand(args.command)
+			)
+				return true;
 		}
 	}
 	return false;
 }
 
-export function evaluateCompletionMutationGuard(input: CompletionMutationGuardInput): CompletionMutationGuardResult {
-	const expectedMutation = hasMutationToolCapability(input.tools, input.mcpDirectTools)
+export function evaluateCompletionMutationGuard(
+	input: CompletionMutationGuardInput,
+): CompletionMutationGuardResult {
+	const expectedMutation = hasMutationToolCapability(
+		input.tools,
+		input.mcpDirectTools,
+	)
 		? expectsImplementationMutation(input.agent, input.task)
 		: false;
 	const attemptedMutation = hasMutationToolCall(input.messages);

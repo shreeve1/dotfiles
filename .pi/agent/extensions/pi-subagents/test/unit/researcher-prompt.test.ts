@@ -20,5 +20,8 @@ test("researcher prompt uses rpiv-web-tools API", async () => {
 	assert.ok(!tools.includes("get_search_content"));
 	assert.match(body, /web_search\(\{query, max_results\?\}\)/);
 	assert.match(body, /web_fetch\(\{url, raw\?\}\)/);
-	assert.doesNotMatch(body, /fetch_content|get_search_content|workflow: "none"/);
+	assert.doesNotMatch(
+		body,
+		/fetch_content|get_search_content|workflow: "none"/,
+	);
 });
