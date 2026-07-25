@@ -115,6 +115,16 @@ new_case missing-manifest
 rm "$REPO/.gralph/runs/42/manifest.json"
 expect_fail missing-manifest 'saved frontier missing'
 
+new_case missing-integration-command
+jq 'del(.integrationCommand)' "$REPO/.gralph/runs/42/manifest.json" >"$CASE/manifest.tmp"
+mv "$CASE/manifest.tmp" "$REPO/.gralph/runs/42/manifest.json"
+expect_fail missing-integration-command 'integrationCommand must be a non-empty string'
+
+new_case empty-integration-command
+jq '.integrationCommand = ""' "$REPO/.gralph/runs/42/manifest.json" >"$CASE/manifest.tmp"
+mv "$CASE/manifest.tmp" "$REPO/.gralph/runs/42/manifest.json"
+expect_fail empty-integration-command 'integrationCommand must be a non-empty string'
+
 new_case unmerged-pr
 FAKE_PR_STATE=OPEN
 expect_fail unmerged-pr 'batch PR #7 is not merged'
@@ -175,6 +185,7 @@ if run_finish >"$CASE/out" 2>"$CASE/err"; then
 fi
 unset FAKE_PI_RC
 grep -q 'finish-spec Pi process exited 9' "$CASE/err"
+grep -q '^issue reopen 42 --comment Reopened: finish-spec Pi process exited 9.$' "$GH_LOG"
 jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
 new_case parent-left-open
@@ -197,6 +208,26 @@ unset FAKE_PI_LOCAL_COMMIT
 grep -q 'HEAD unequal to fetched origin/main' "$CASE/err"
 grep -q '^issue reopen 42 --comment Reopened: finish-spec left local commits not shipped to origin/main.$' "$GH_LOG"
 jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "head_not_remote_default"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
+new_case pi-fail-with-unshipped
+FAKE_PARENT_STATE=CLOSED
+FAKE_PI_RC=9
+FAKE_PI_LOCAL_COMMIT=1
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: Pi failure plus unshipped commits should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PARENT_STATE FAKE_PI_RC FAKE_PI_LOCAL_COMMIT
+grep -q 'finish-spec Pi process exited 9' "$CASE/err"
+# A failing Pi must still trigger the unshipped-commits reopen; the parent must
+# not remain closed on the way out.
+grep -q '^issue reopen 42 --comment Reopened: finish-spec left local commits not shipped to origin/main.$' "$GH_LOG"
+# pi_failed takes precedence in the manifest so the next run sees a repair path.
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+if jq -e '.orchestration.finish.status == "completed"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null; then
+    echo 'FAIL: combined failure must not mark finish completed' >&2
+    exit 1
+fi
 
 new_case success
 run_finish >"$CASE/out" 2>"$CASE/err"

@@ -75,6 +75,7 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** Finish is a standalone subcommand (not part of orchestrate_waves). Precondition failures never launch Pi; Pi process failures and parent_left_open both exit non-zero and record structured reasons.
 **Verification:** New finish suite (12 cases) and all seven existing Gralph suites passed.
 **Fresh review:** Three independent review cycles resolved blockers for bash tool access, current-branch verification, and stale-local-default detection. Parent_left_open reason granularity is a structural boundary: Gralph observes state, finish-spec owns intent.
+**Actionable review (2026-07-25):** Audit found two objective gaps not covered by existing tests: (1) Pi nonzero exit could leave a parent closed, and (2) a missing/empty `.integrationCommand` would still reach Pi. Added precondition gate for non-empty `integrationCommand` before Pi launch, and reordered the post-Pi reconciliation so a closed parent is reopened with a causal comment whenever Pi exits nonzero, regardless of remote equality. Test suite extended with `missing-integration-command`, `empty-integration-command`, `pi-fail-with-unshipped`, and a `pi-failure` assertion that the reopen comment is emitted. Exact verification (`bash tests/gralph-finish.test.sh`) exited 0.
 
 ## #041 Fix researcher role tool shape — 2026-07-25
 
