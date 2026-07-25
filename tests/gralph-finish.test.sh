@@ -155,6 +155,7 @@ grep -q -- 'edit' "$PI_LOG"
 grep -q -- 'grep' "$PI_LOG"
 grep -q -- 'find' "$PI_LOG"
 grep -q -- 'ls' "$PI_LOG"
+grep -q -- 'bash' "$PI_LOG"
 # Prompts are shell-escaped in the fake log; assert the stable content tokens.
 grep -q 'Parent.*issue.*#42' "$PI_LOG"
 grep -q 'Batch.*PR.*#7' "$PI_LOG"
