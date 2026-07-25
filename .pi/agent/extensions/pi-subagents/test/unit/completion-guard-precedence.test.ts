@@ -13,6 +13,7 @@ import {
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
+import { buildForegroundChainCompletionGuardFields } from "../../src/runs/foreground/subagent-executor.ts";
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
 	assert.equal(resolveCompletionGuard(undefined, false), false);
@@ -226,6 +227,12 @@ test("completionGuard: recovery descriptor retains original call override, not a
 	const descriptorOn = { ...descriptorOff, completionGuard: true };
 	const recoveredOn = applySteeringRecoveryAgentConfig(agentBase, descriptorOn);
 	assert.equal(recoveredOn.completionGuard, true);
+});
+
+test("completionGuard: foreground chain forwards top-level call value", () => {
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), { completionGuard: false });
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), { completionGuard: true });
+	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), { completionGuard: undefined });
 });
 
 test("completionGuard: async recovery descriptor round-trip accepts boolean field", () => {
