@@ -90,3 +90,9 @@ This file tracks implementation notes across Ralph iterations.
 **Decisions:** When acceptance is undefined, the field is omitted from the descriptor entirely so resume re-infers. No conversion helper, no acceptance.ts edits.
 **Conventions established:** Test exercises the descriptor spread pattern directly; a future refiner might test through executeAsyncSingle.
 **Notes for next iteration:** #043, #044 unblocked; #045 still blocked_by all four (needs #041 too).
+
+## #043 Per-call completionGuard override — failed review — 2026-07-25
+
+**What changed:** Mandatory fresh review returned `RALPH_REVIEW: FAIL` after f6d1b5e set status to review. No implementation retry in this pass.
+**Findings:** Four routing blockers recorded in `.kanban/issues/043-per-call-completionguard.md` Blocker section — foreground `executeChain` omits top-level `completionGuard` at `subagent-executor.ts` ~3361-3414; foreground dynamic group ignores `step.completionGuard` at `chain-execution.ts` ~1395; async top-level parallel reconstruction drops per-task `completionGuard` at `subagent-executor.ts` ~3135-3154 and ~4107-4140; async recovery persists agent setting instead of effective call override at `async-execution.ts` ~1681-1683. Existing helper test covers only `resolveCompletionGuard` precedence, not the routing paths.
+**Decisions:** Status set to blocked, actor `ralph-reviewer`, updated `2026-07-25`. Worker must fix all four routing gaps, add coverage for the missing paths, then resubmit.
