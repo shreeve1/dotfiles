@@ -1,7 +1,7 @@
 ---
 id: 041
 title: Fix researcher role tool shape
-status: done
+status: blocked
 blocked_by: []
 parent: null
 priority: 0
@@ -42,3 +42,7 @@ None — can start immediately
 **Decisions:** Kept fetch_content/get_search_content in completion-guard.ts READ_ONLY_BUILTIN_TOOLS for pi-web-access backward compat. Settings.json (gitignored) tool-list only; model/thinking preserved.
 
 **Notes for next iteration:** completion-guard.ts picked up behavior-neutral signature line-wrapping (formatting only, no regression risk). Reviewer noted this as low-severity diff noise.
+
+## Blocker
+
+Review reported DONE but the driver verification gate failed: `node --experimental-strip-types --test test/unit/researcher-prompt.test.ts test/unit/researcher-tools.test.ts` (exit nonzero). Auto-parked done→blocked; see the loop log for output.
