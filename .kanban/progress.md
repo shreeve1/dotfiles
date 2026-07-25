@@ -66,4 +66,10 @@ This file tracks implementation notes across Ralph iterations.
 
 **Conventions established:** Existing test fakes must now support `gh repo view --json defaultBranchRef`, `gh pr list/create/edit`, and a local bare `origin` remote for push. The coordinator owns publication; workers and reviewers never push or create PRs.
 
-**Fresh review:** `RALPH_REVIEW: PASS` — exact verification exited 0, all 7 criteria satisfied.
+
+## #040 Finish the parent after the batch PR merges — 2026-07-25
+
+**What changed:** Added standalone `gralph finish <parent>` validation for merged publication, closed landed children, default-branch ancestry, clean checkout, and resolved finish-spec skill; launches ephemeral Pi and records success/failure under `.orchestration.finish`.
+**Files:** `bin/gralph`, `tests/gralph-finish.test.sh`, `.kanban/issues/040-finish-parent-after-batch-merge.md`
+**Decisions:** Finish delegates integration, acceptance review, permitted fixes, and parent closure entirely to finish-spec. Precondition failures never launch Pi; Pi process failures record `pi_failed` and preserve the parent for retry.
+**Verification:** New finish suite and all seven existing Gralph suites passed.
