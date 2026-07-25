@@ -70,6 +70,7 @@ if [ "${1-} ${2-}" = "issue view" ]; then
     if [ "${FAKE_OPEN_CHILD:-}" = "$child_num" ]; then printf '%s\n' OPEN; else printf '%s\n' CLOSED; fi
     exit 0
 fi
+if [ "${1-} ${2-}" = "issue reopen" ]; then exit 0; fi
 if [ "${1-} ${2-}" = "repo view" ]; then printf '%s\n' main; exit 0; fi
 echo "unexpected gh: $*" >&2
 exit 90
@@ -81,6 +82,11 @@ EOF
 set -euo pipefail
 printf '%q ' "$@" >"$PI_LOG"
 printf '\n' >>"$PI_LOG"
+if [ "${FAKE_PI_LOCAL_COMMIT:-0}" = 1 ]; then
+    printf 'finish fix\n' >finish-fix
+    git add finish-fix
+    git commit -qm 'finish fix'
+fi
 exit "${FAKE_PI_RC:-0}"
 EOF
     chmod +x "$FAKE_BIN/pi"
@@ -91,7 +97,7 @@ run_finish() {
         FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_PR_BASE="${FAKE_PR_BASE:-main}" \
         FAKE_PR_MERGE_OID="${FAKE_PR_MERGE_OID:-}" \
         FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
-        FAKE_PI_RC="${FAKE_PI_RC:-0}" "$GRALPH" finish 42)
+        FAKE_PI_LOCAL_COMMIT="${FAKE_PI_LOCAL_COMMIT:-0}" FAKE_PI_RC="${FAKE_PI_RC:-0}" "$GRALPH" finish 42)
 }
 
 expect_fail() {
@@ -130,8 +136,14 @@ git -C "$REPO" checkout -q main
 
 new_case stale-local
 git -C "$REPO" reset -q --hard HEAD~1
-expect_fail stale-local 'local main is behind origin/main'
-git -C "$REPO" merge -q --no-ff origin/main -m merge
+expect_fail stale-local 'local main does not equal origin/main'
+
+git -C "$REPO" reset -q --hard origin/main
+new_case local-ahead
+touch "$REPO/local-ahead"
+git -C "$REPO" add local-ahead
+git -C "$REPO" commit -qm local-ahead
+expect_fail local-ahead 'local main does not equal origin/main'
 
 new_case dirty
 printf 'dirty\n' >>"$REPO/README"
@@ -175,6 +187,17 @@ unset FAKE_PARENT_STATE
 grep -q 'parent #42 remained OPEN' "$CASE/err"
 jq -e '.orchestration.finish.status == "parent_left_open" and .orchestration.finish.parentState == "OPEN"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
+new_case unshipped-finish-fix
+FAKE_PI_LOCAL_COMMIT=1
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: unshipped finish fix should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PI_LOCAL_COMMIT
+grep -q 'HEAD unequal to fetched origin/main' "$CASE/err"
+grep -q '^issue reopen 42 --comment Reopened: finish-spec left local commits not shipped to origin/main.$' "$GH_LOG"
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "head_not_remote_default"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
 new_case success
 run_finish >"$CASE/out" 2>"$CASE/err"
 grep -q '^Finished parent #42 via batch PR #7$' "$CASE/out"
@@ -197,6 +220,9 @@ grep -q 'Landed.*children.*101,102' "$PI_LOG"
 grep -q 'Integration.*command.*bash.*tests/integration.sh' "$PI_LOG"
 grep -q 'Run.*manifest.*.gralph/runs/42/manifest.json' "$PI_LOG"
 grep -q 'run.*integration.*suite' "$PI_LOG"
+grep -q 'Immediately.*before.*closing.*parent' "$PI_LOG"
+grep -q 'freshly.*fetch.*origin/.*default_branch' "$PI_LOG"
+grep -q 'exact.*HEAD.*origin/.*default_branch' "$PI_LOG"
 jq -e '.orchestration.finish.status == "completed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 0' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 # Finish delegates closure; it never mutates issues directly.
 if grep -Eq '^issue (close|edit)' "$GH_LOG"; then
