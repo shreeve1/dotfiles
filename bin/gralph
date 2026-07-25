@@ -1163,6 +1163,12 @@ finish_parent() {
     echo "error: origin/$default_branch does not contain $batch_branch" >&2
     return 1
   fi
+  local current_branch
+  current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD)"
+  if [ "$current_branch" != "$default_branch" ]; then
+    echo "error: current checkout is '$current_branch', expected '$default_branch'" >&2
+    return 1
+  fi
   if [ -n "$(git -C "$repo_root" status --porcelain --untracked-files=no)" ]; then
     echo "error: checkout is dirty" >&2
     return 1
@@ -1193,19 +1199,32 @@ finish_parent() {
   set -e
 
   if [ "$rc" -ne 0 ]; then
-    write_manifest "$manifest" --arg status "failed" --arg reason "pi_failed" --argjson exitCode "$rc" \
+    write_manifest "$manifest" --arg status "failed" --arg reason "pi_failed" --argjson prNumber "$pr_number" --argjson exitCode "$rc" \
       --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-      .orchestration.finish = {status:$status, reason:$reason, piExitCode:$exitCode, completedAt:$completedAt}
+      .orchestration.finish = {status:$status, reason:$reason, prNumber:$prNumber, piExitCode:$exitCode, completedAt:$completedAt}
     '
     echo "error: finish-spec Pi process exited $rc" >&2
     return 1
   fi
 
-  write_manifest "$manifest" --arg status "completed" --argjson prNumber "$pr_number" \
+  write_manifest "$manifest" --arg status "pi_succeeded" --argjson prNumber "$pr_number" \
     --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
     .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
   '
-  printf 'Finished parent #%s via batch PR #%s\n' "$parent" "$pr_number"
+
+  local parent_state
+  if parent_state="$(gh issue view "$parent" --json state --jq .state)" && [ "$parent_state" = "CLOSED" ]; then
+    write_manifest "$manifest" --argjson prNumber "$pr_number" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish = {status:"completed", prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
+    '
+    printf 'Finished parent #%s via batch PR #%s\n' "$parent" "$pr_number"
+  else
+    write_manifest "$manifest" --arg reason "parent_left_open" --arg parentState "${parent_state:-unknown}" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish += {status:"parent_left_open", reason:$reason, parentState:$parentState, completedAt:$completedAt}
+    '
+    echo "error: finish-spec Pi completed but parent #$parent remained ${parent_state:-unknown}" >&2
+    return 1
+  fi
   return 0
 }
 

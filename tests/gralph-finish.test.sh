@@ -47,7 +47,9 @@ set -euo pipefail
 printf '%s\n' "$*" >>"$GH_LOG"
 if [ "${1-} ${2-}" = "pr view" ]; then printf '%s\n' "${FAKE_PR_STATE:-MERGED}"; exit 0; fi
 if [ "${1-} ${2-}" = "issue view" ]; then
-    if [ "${FAKE_OPEN_CHILD:-}" = "${3-}" ]; then printf '%s\n' OPEN; else printf '%s\n' CLOSED; fi
+    child_num="${3-}"
+    if [ "$child_num" = "42" ]; then printf '%s\n' "${FAKE_PARENT_STATE:-CLOSED}"; exit 0; fi
+    if [ "${FAKE_OPEN_CHILD:-}" = "$child_num" ]; then printf '%s\n' OPEN; else printf '%s\n' CLOSED; fi
     exit 0
 fi
 if [ "${1-} ${2-}" = "repo view" ]; then printf '%s\n' main; exit 0; fi
@@ -68,8 +70,8 @@ EOF
 
 run_finish() {
     (cd "$REPO" && HOME="$HOME_DIR" PATH="$FAKE_BIN:$REAL_PATH" GH_LOG="$GH_LOG" PI_LOG="$PI_LOG" \
-        FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PI_RC="${FAKE_PI_RC:-0}" \
-        "$GRALPH" finish 42)
+        FAKE_PR_STATE="${FAKE_PR_STATE:-MERGED}" FAKE_OPEN_CHILD="${FAKE_OPEN_CHILD:-}" FAKE_PARENT_STATE="${FAKE_PARENT_STATE:-CLOSED}" \
+        FAKE_PI_RC="${FAKE_PI_RC:-0}" "$GRALPH" finish 42)
 }
 
 expect_fail() {
@@ -101,6 +103,11 @@ new_case default-lacks-merge
 git -C "$REPO" push -q --force origin "$(git -C "$REPO" rev-list --max-parents=0 HEAD):main"
 expect_fail default-lacks-merge 'does not contain gralph/42/batch'
 
+new_case wrong-branch
+git -C "$REPO" checkout -qb not-main
+expect_fail wrong-branch "current checkout is 'not-main', expected 'main'"
+git -C "$REPO" checkout -q main
+
 new_case dirty
 printf 'dirty\n' >>"$REPO/README"
 expect_fail dirty 'checkout is dirty'
@@ -117,7 +124,17 @@ if run_finish >"$CASE/out" 2>"$CASE/err"; then
 fi
 unset FAKE_PI_RC
 grep -q 'finish-spec Pi process exited 9' "$CASE/err"
-jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+jq -e '.orchestration.finish.status == "failed" and .orchestration.finish.reason == "pi_failed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 9' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
+
+new_case parent-left-open
+FAKE_PARENT_STATE=OPEN
+if run_finish >"$CASE/out" 2>"$CASE/err"; then
+    echo 'FAIL: parent left open should exit non-zero' >&2
+    exit 1
+fi
+unset FAKE_PARENT_STATE
+grep -q 'parent #42 remained OPEN' "$CASE/err"
+jq -e '.orchestration.finish.status == "parent_left_open" and .orchestration.finish.parentState == "OPEN"' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
 new_case success
 run_finish >"$CASE/out" 2>"$CASE/err"
