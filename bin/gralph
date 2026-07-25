@@ -1188,8 +1188,8 @@ finish_parent() {
     echo "error: current checkout is '$current_branch', expected '$default_branch'" >&2
     return 1
   fi
-  if ! git -C "$repo_root" merge-base --is-ancestor "origin/$default_branch" HEAD >/dev/null 2>&1; then
-    echo "error: local $default_branch is behind origin/$default_branch; pull first" >&2
+  if [ "$(git -C "$repo_root" rev-parse HEAD)" != "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
+    echo "error: local $default_branch does not equal origin/$default_branch; sync it exactly first" >&2
     return 1
   fi
   if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
@@ -1212,7 +1212,7 @@ finish_parent() {
     printf '%s\n' 'Run the explicitly loaded finish-spec workflow for this completed Gralph batch.'
     printf 'Parent issue: #%s\nBatch PR: #%s\nLanded children: %s\nIntegration command: %s\nRun manifest: %s\n\n' \
       "$parent" "$pr_number" "$(printf '%s\n' "$children" | paste -sd, -)" "$integration" "$manifest"
-    printf '%s\n' 'Follow finish-spec completely: run the integration suite, walk every parent acceptance criterion, make only permitted small integration fixes, and close the parent last. If the suite fails, a material gap exists, or a new child is needed, leave the parent open and report the reason.'
+    printf '%s\n' 'Follow finish-spec completely: run the integration suite, walk every parent acceptance criterion, and make only permitted small integration fixes. Immediately before closing the parent, freshly fetch origin/$default_branch and require exact HEAD == origin/$default_branch. If integration fixes created unshipped commits, or the suite fails, a material gap exists, or a new child is needed, leave the parent open and report the reason.'
   } >"$prompt_file"
 
   set +e
@@ -1235,7 +1235,22 @@ finish_parent() {
     .orchestration.finish = {status:$status, prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
   '
 
-  local parent_state
+  local parent_state head_matches_remote=0
+  if git -C "$repo_root" fetch origin "$default_branch" >/dev/null 2>&1 &&
+     [ "$(git -C "$repo_root" rev-parse HEAD)" = "$(git -C "$repo_root" rev-parse "origin/$default_branch")" ]; then
+    head_matches_remote=1
+  fi
+  if [ "$head_matches_remote" -ne 1 ]; then
+    parent_state="$(gh issue view "$parent" --json state --jq .state 2>/dev/null || true)"
+    if [ "$parent_state" = "CLOSED" ]; then
+      gh issue reopen "$parent" --comment "Reopened: finish-spec left local commits not shipped to origin/$default_branch." >/dev/null 2>&1 || true
+    fi
+    write_manifest "$manifest" --arg reason "head_not_remote_default" --arg parentState "${parent_state:-unknown}" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+      .orchestration.finish += {status:"failed", reason:$reason, parentState:$parentState, completedAt:$completedAt}
+    '
+    echo "error: finish-spec left HEAD unequal to fetched origin/$default_branch; parent #$parent reopened if necessary" >&2
+    return 1
+  fi
   if parent_state="$(gh issue view "$parent" --json state --jq .state)" && [ "$parent_state" = "CLOSED" ]; then
     write_manifest "$manifest" --argjson prNumber "$pr_number" --arg completedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
       .orchestration.finish = {status:"completed", prNumber:$prNumber, piExitCode:0, completedAt:$completedAt}
