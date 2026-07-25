@@ -75,3 +75,10 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** Finish is a standalone subcommand (not part of orchestrate_waves). Precondition failures never launch Pi; Pi process failures and parent_left_open both exit non-zero and record structured reasons.
 **Verification:** New finish suite (12 cases) and all seven existing Gralph suites passed.
 **Fresh review:** Three independent review cycles resolved blockers for bash tool access, current-branch verification, and stale-local-default detection. Parent_left_open reason granularity is a structural boundary: Gralph observes state, finish-spec owns intent.
+
+## #041 Fix researcher role tool shape — 2026-07-25
+
+**What changed:** Aligned researcher role tools and prompt with rpiv-web-tools actual API shapes: web_search({query, max_results?}) and web_fetch({url, raw?}). Replaced fetch_content/get_search_content in settings.json{.template} and researcher.md frontmatter. Added web_fetch to completion-guard READ_ONLY_BUILTIN_TOOLS (legacy tools retained for pi-web-access compat). Created two focused regression tests.
+**Files:** settings.json.template, settings.json (gitignored), researcher.md, completion-guard.ts, test/unit/researcher-prompt.test.ts, test/unit/researcher-tools.test.ts
+**Decisions:** Single-query-per-call search strategy replaces multi-query web_search({queries}). Legacy tool names retained in read-only classifier only.
+**Notes for next iteration:** #043, #044, #042 unblocked; #045 blocked_by all four.
