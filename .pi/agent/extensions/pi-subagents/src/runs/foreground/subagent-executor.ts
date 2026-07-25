@@ -1974,7 +1974,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 			...(task.progress !== undefined ? { progress: task.progress } : {}),
 			...(task.toolBudget !== undefined ? { toolBudget: task.toolBudget } : {}),
 			...(task.acceptance !== undefined ? { acceptance: task.acceptance } : {}),
-			...(task.completionGuard !== undefined ? { completionGuard: task.completionGuard } : {}),
+			...buildAsyncParallelCompletionGuardFields(task.completionGuard),
 		}));
 		return executeAsyncChain(id, {
 			chain: [{
@@ -2119,6 +2119,10 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 // to thread additional executeChain-only fields when precedence rules need a second axis.
 export function buildForegroundChainCompletionGuardFields(completionGuard?: boolean): { completionGuard?: boolean } {
 	return { completionGuard };
+}
+
+export function buildAsyncParallelCompletionGuardFields(completionGuard?: boolean): { completionGuard?: boolean } {
+	return completionGuard !== undefined ? { completionGuard } : {};
 }
 
 async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Promise<AgentToolResult<Details>> {
@@ -2710,7 +2714,7 @@ async function runParallelPath(data: ExecutionContextData, deps: ExecutorDeps): 
 					...(progress !== undefined ? { progress } : {}),
 					...(t.toolBudget !== undefined ? { toolBudget: t.toolBudget } : {}),
 					...(t.acceptance !== undefined ? { acceptance: t.acceptance } : {}),
-					...(t.completionGuard !== undefined ? { completionGuard: t.completionGuard } : {}),
+					...buildAsyncParallelCompletionGuardFields(t.completionGuard),
 				};
 			});
 			return executeAsyncChain(id, {

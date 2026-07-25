@@ -13,7 +13,7 @@ import {
 import { materializeDynamicParallelStep } from "../../src/runs/shared/dynamic-fanout.ts";
 import { parseSubagentDelegationRequest } from "../../src/slash/delegation-request.ts";
 import { toSubagentDelegationExecutionParams } from "../../src/slash/delegation-adapters.ts";
-import { buildForegroundChainCompletionGuardFields } from "../../src/runs/foreground/subagent-executor.ts";
+import { buildAsyncParallelCompletionGuardFields, buildForegroundChainCompletionGuardFields } from "../../src/runs/foreground/subagent-executor.ts";
 import { buildDynamicParallelStep } from "../../src/runs/foreground/chain-execution.ts";
 
 test("resolveCompletionGuard: undefined call falls back to agent", () => {
@@ -234,6 +234,12 @@ test("completionGuard: foreground chain forwards top-level call value", () => {
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(false), { completionGuard: false });
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(true), { completionGuard: true });
 	assert.deepEqual(buildForegroundChainCompletionGuardFields(undefined), { completionGuard: undefined });
+});
+
+test("completionGuard: async parallel reconstruction omits field when call is undefined", () => {
+	assert.deepEqual(buildAsyncParallelCompletionGuardFields(false), { completionGuard: false });
+	assert.deepEqual(buildAsyncParallelCompletionGuardFields(true), { completionGuard: true });
+	assert.deepEqual(buildAsyncParallelCompletionGuardFields(undefined), {});
 });
 
 test("completionGuard: foreground dynamic group honors step.completionGuard on ParallelStep seam", () => {
