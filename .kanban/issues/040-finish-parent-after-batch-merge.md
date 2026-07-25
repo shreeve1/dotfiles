@@ -1,7 +1,7 @@
 ---
 id: 040
 title: Finish the parent after the batch PR merges
-status: done
+status: blocked
 updated: 2026-07-25
 actor: ralph
 blocked_by: [039]
@@ -40,3 +40,7 @@ This command must refuse to finish a partially merged spec. If `finish-spec` ide
 **Files:** `bin/gralph` (+finish_parent function, +finish subcommand parsing), `tests/gralph-finish.test.sh` (new, 12 test cases covering all preconditions, Pi failure, Pi success, parent-left-open)
 
 **Decisions:** finish_parent delegates closure, integration, and acceptance review entirely to finish-spec; Gralph only validates mechanical preconditions and observes the outcome. The `parent_left_open` status records the observed state (parent still open after Pi success) rather than introspecting finish-spec's internal reasoning.
+
+## Blocker
+
+Auto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff 4f6603e86b6c07532fe7f00739b40a8f5bf64024 HEAD` before marking done.
