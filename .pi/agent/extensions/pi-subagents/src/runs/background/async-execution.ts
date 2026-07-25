@@ -655,6 +655,13 @@ const UNAVAILABLE_SUBAGENT_SKILL_ERROR = "Skills not found: pi-subagents";
 class UnavailableSubagentSkillError extends Error {}
 class AsyncStartValidationError extends Error {}
 
+export function buildCompletionGuardRecoveryFields(
+	call?: boolean,
+	agent?: boolean,
+): Pick<SteeringRecoveryDescriptor, "completionGuard"> {
+	return { completionGuard: resolveCompletionGuard(call, agent) };
+}
+
 export function buildAsyncRunnerSteps(
 	id: string,
 	params: AsyncRunnerStepBuildParams,
@@ -1684,7 +1691,7 @@ export function executeAsyncSingle(
 			: {}),
 		...(agentConfig.skillPath ? { skillPath: [...agentConfig.skillPath] } : {}),
 		...(agentConfig.filePath ? { agentFilePath: agentConfig.filePath } : {}),
-		completionGuard: resolveCompletionGuard(
+		...buildCompletionGuardRecoveryFields(
 			params.completionGuard,
 			agentConfig.completionGuard,
 		),

@@ -5,6 +5,7 @@ import * as path from "node:path";
 import test from "node:test";
 import { resolveCompletionGuard } from "../../src/runs/shared/completion-guard.ts";
 import { buildAsyncRunnerSteps } from "../../src/runs/background/async-execution.ts";
+import { buildCompletionGuardRecoveryFields } from "../../src/runs/background/async-execution.ts";
 import {
 	applySteeringRecoveryAgentConfig,
 	readAsyncRecoveryDescriptor,
@@ -185,11 +186,8 @@ test("completionGuard: delegation request parses optional boolean and forwards i
 });
 
 test("completionGuard: async launch recovery persists omitted call with agent default", () => {
-	const agentCompletionGuard = false;
-	const descriptor = {
-		completionGuard: resolveCompletionGuard(undefined, agentCompletionGuard),
-	};
-	assert.equal(descriptor.completionGuard, false);
+	const fields = buildCompletionGuardRecoveryFields(undefined, false);
+	assert.equal(fields.completionGuard, false);
 });
 
 test("completionGuard: recovery descriptor retains original call override, not agent default", () => {
