@@ -2111,6 +2111,16 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 	return null;
 }
 
+// ponytail: production seam for the foreground runChainPath → executeChain call so the top-level
+// completion-guard value is forwarded through a dedicated helper rather than inlined. The helper
+// preserves explicit false (off) and undefined (defer to agent default) — call-level overrides must
+// remain intact because async/recovery paths use buildCompletionGuardRecoveryFields for the agent
+// default and only the foreground call site uses this passthrough. Upgrade path: extend the helper
+// to thread additional executeChain-only fields when precedence rules need a second axis.
+export function buildForegroundChainCompletionGuardFields(completionGuard?: boolean): { completionGuard?: boolean } {
+	return { completionGuard };
+}
+
 async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Promise<AgentToolResult<Details>> {
 	const {
 		params,
@@ -2178,7 +2188,7 @@ async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Pro
 		toolBudget: data.toolBudget,
 		configToolBudget: data.configToolBudget,
 		globalConcurrencyLimit: deps.config.globalConcurrencyLimit,
-		completionGuard: params.completionGuard,
+		...buildForegroundChainCompletionGuardFields(params.completionGuard),
 	});
 
 	if (chainResult.requestedAsync) {
