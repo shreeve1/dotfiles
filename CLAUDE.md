@@ -133,7 +133,8 @@ commands).
   `github-dark-default` theme is vendored under `.pi/agent/themes/`. Upstream
   `subagents`, `ask-user`, and `firecrawl-search` are intentionally omitted:
   native `pi-subagents`, inline questions, and `rpiv-web-tools` remain canonical.
-  `subagent-bridge` exposes native subagent activity in the shared footer and `/fleet` overlay.
+  `subagent-bridge` exposes native subagent activity in the shared footer, `/fleet` overlay, and the `/btw` side-question channel (bare `/btw` opens a Q&A overlay to ask/review mid-run, `/btw <q>` quick-fires; spawns an async `delegate` via pi-subagents' RPC bridge, answers shown in the overlay from the completion payload while chat delivery stays with pi-subagents' notify — never delivered twice by the bridge).
+  `.pi/agent/extensions/hub-kit/` is our own shared library dir (NOT an extension — no top-level `index.ts`, so pi auto-discovery skips it; consumers import relatively like `shared/`): panel/list-detail/deliver UI kit + the activity-provider registry that `subagent-bridge` wires `/fleet` (multi-provider hub) and the footer onto, with per-run stop/interrupt (pi-subagents RPC) and steer/resume (slash-bridge event channel) actions.
   Repair extension dependencies on another machine with `bash install.sh`.
 - `gap-review` (Pi completeness-review layer) is a synced vendored extension at
   `.pi/agent/extensions/gap-review/`, registered in `.pi/agent/settings.json{,.template}`
