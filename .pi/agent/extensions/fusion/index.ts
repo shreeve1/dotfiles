@@ -167,6 +167,10 @@ export const PARENT_ALLOWED_TOOLS = [
 	"subagent_supervisor",
 	"todo",
 	"advisor",
+	"bg_start",
+	"bg_status",
+	"bg_list",
+	"bg_kill",
 ] as const;
 
 export type ParentAllowedTool = (typeof PARENT_ALLOWED_TOOLS)[number];
@@ -1165,6 +1169,35 @@ export default function fusionExtension(pi: ExtensionAPI): void {
 			return {
 				block: true,
 				reason: `fusion bash policy: ${verdict.reason}. Add an exact-match entry to .pi/fusion.json if this is a legit project-level command.`,
+			};
+		}
+	});
+
+	// --- bg_start tool_call: reuse bash policy on the command ----------
+	// bg_start (background-terminals) accepts a single `command` string with
+	// no separate args/shell option, so validating that field is identical
+	// to validating a bash invocation. Same precedence as bash:
+	// dangerous-mode deny > metachar/redirect deny > global allowlist >
+	// project allowedCommands exact match. bg_status/bg_list/bg_kill take
+	// no command and pass through unblocked.
+
+	pi.on("tool_call", async (event, ctx) => {
+		if (!enabled) return;
+		const toolName = event && (event as { toolName?: string }).toolName;
+		if (toolName !== "bg_start") return;
+		const input = (event as { input?: unknown }).input;
+		const command =
+			input && typeof input === "object" && "command" in input
+				? String((input as Record<string, unknown>).command ?? "")
+				: "";
+		const projectAllowed = loadProjectBashOverride(ctx.cwd, {
+			trusted: !!ctx.isProjectTrusted && ctx.isProjectTrusted(),
+		});
+		const verdict = isSafeBash(command, { projectAllowed });
+		if (!verdict.ok) {
+			return {
+				block: true,
+				reason: `fusion bash policy (bg_start): ${verdict.reason}. Add an exact-match entry to .pi/fusion.json if this is a legit project-level command.`,
 			};
 		}
 	});
