@@ -395,12 +395,27 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 	#   cd ~/.pi/agent/extensions/rpiv-web-tools && npm install --omit=dev --omit=peer
 	#   restart Pi, then run /web-search-config
 
+	# my-pi-setup extensions are vendored with extension-local runtime manifests.
+	# Install runtime-only dependencies explicitly where upstream prepare scripts
+	# require omitted development tools; the generic loop handles the rest.
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/file-search" --omit=dev --omit=peer --ignore-scripts
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/git-info" --omit=dev --omit=peer --ignore-scripts
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/summaries" --omit=dev --omit=peer --ignore-scripts
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/background-terminals" --omit=dev --omit=peer --ignore-scripts
+	# Repair all vendored Pi dependencies with: bash install.sh
+
 	for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
 		[ -f "$package_json" ] || continue
 		case "$(dirname "$package_json")" in
 		"$HOME/.pi/agent/extensions/pi-subagents") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
+		"$HOME/.pi/agent/extensions/file-search") continue ;;
+		"$HOME/.pi/agent/extensions/git-info") continue ;;
+		"$HOME/.pi/agent/extensions/summaries") continue ;;
+		"$HOME/.pi/agent/extensions/background-terminals") continue ;;
+		"$HOME/.pi/agent/extensions/model-info") continue ;;
+		"$HOME/.pi/agent/extensions/ui-customization") continue ;;
 		esac
 		install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
 	done
