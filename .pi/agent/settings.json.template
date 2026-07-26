@@ -1,7 +1,7 @@
 {
   "quietStartup": true,
   "skills": [],
-  "theme": "catppuccin-mocha",
+  "theme": "github-dark-default",
   "hideThinkingBlock": false,
   "transport": "sse",
   "packages": [
@@ -52,6 +52,14 @@
     "extensions/harness-gates",
     "extensions/graphify-guard",
     "extensions/gap-review",
+    "extensions/ui-customization",
+    "extensions/summaries",
+    "extensions/model-info",
+    "extensions/git-info",
+    "extensions/background-terminals",
+    "extensions/file-search",
+    "extensions/workflows",
+    "extensions/subagent-bridge",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts"
   ]
