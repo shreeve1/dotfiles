@@ -1,0 +1,8 @@
+{
+  "name": "workflows",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "acorn": "^8.15.0"
+  }
+}
