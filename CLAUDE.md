@@ -127,6 +127,14 @@ commands).
       explicitly in `.pi/agent/settings.json{,.template}` `extensions`. Do not
       `pi install`; it is vendored. Smoke test:
       `bash .pi/agent/extensions/graphify-guard/tests/graphify-guard-smoke.sh`.
+- `my-pi-setup` UI/tooling is vendored under `.pi/agent/extensions/`: `ui-customization`,
+  `summaries`, `model-info`, `git-info`, `background-terminals`, `file-search`, and
+  `workflows`, with their shared modules under `extensions/shared/`. The
+  `github-dark-default` theme is vendored under `.pi/agent/themes/`. Upstream
+  `subagents`, `ask-user`, and `firecrawl-search` are intentionally omitted:
+  native `pi-subagents`, inline questions, and `rpiv-web-tools` remain canonical.
+  `subagent-bridge` exposes native subagent activity in the shared footer and `/fleet` overlay.
+  Repair extension dependencies on another machine with `bash install.sh`.
 - `gap-review` (Pi completeness-review layer) is a synced vendored extension at
   `.pi/agent/extensions/gap-review/`, registered in `.pi/agent/settings.json{,.template}`
   `extensions`. It is the COMPLETENESS layer companion to pi-duo (the GROUNDING
