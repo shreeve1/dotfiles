@@ -130,7 +130,10 @@ commands).
 - `my-pi-setup` UI/tooling is vendored under `.pi/agent/extensions/`: `ui-customization`,
   `summaries`, `model-info`, `git-info`, `background-terminals`, `file-search`, and
   `workflows`, with their shared modules under `extensions/shared/`. The
-  `github-dark-default` theme is vendored under `.pi/agent/themes/`. Upstream
+  `github-dark-default` theme is vendored under `.pi/agent/themes/`. `summaries` (the session-recap
+  renderer) stays vendored but is disabled by the `-extensions/summaries/index.ts`
+  exclusion in both Pi settings files (removal from `extensions` alone is
+  insufficient — pi auto-discovers `extensions/*/index.ts`). Upstream
   `subagents`, `ask-user`, and `firecrawl-search` are intentionally omitted:
   native `pi-subagents`, inline questions, and `rpiv-web-tools` remain canonical.
   `subagent-bridge` exposes native subagent activity in the shared footer, `/fleet` overlay, and the `/btw` side-question channel (bare `/btw` opens a Q&A overlay to ask/review mid-run, `/btw <q>` quick-fires; spawns an async `delegate` via pi-subagents' RPC bridge, answers shown in the overlay from the completion payload while chat delivery stays with pi-subagents' notify — never delivered twice by the bridge). Foreground (sync) spawns — incl. fusion-gated ones — are tracked from the parent's own `tool_execution_start/end` events because pi-subagents emits NO lifecycle event for plain sync runs (`SUBAGENT_FOREGROUND_COMPLETE_EVENT` only fires for detached exits); entries key by toolCallId while running, re-key to the run's real runId at completion, skip `action:` management calls and `async:true` (a run that went async via config default is dropped at end when its result carries asyncDir), and get no stop/steer/resume actions (no asyncDir); the tool result's finalOutput tail is kept for the /fleet detail view. Smoke test (offline, via pi-subagents' vendored jiti): `bash .pi/agent/extensions/subagent-bridge/tests/subagent-bridge-smoke.sh`.
