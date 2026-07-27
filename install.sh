@@ -476,6 +476,10 @@ else
 fi
 
 # ─── Codex ─────────────────────────────────────────────────
+# config.toml accumulates machine-local state (project trust, hook-trust
+# hashes), so the tracked file is a template; seed the gitignored real file
+# once, then link it like before.
+[ -f "$DOTFILES_DIR/.codex/config.toml" ] || cp "$DOTFILES_DIR/.codex/config.toml.template" "$DOTFILES_DIR/.codex/config.toml"
 link_path ".codex/config.toml" ".codex/config.toml"
 link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
