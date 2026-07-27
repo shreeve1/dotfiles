@@ -124,7 +124,7 @@ node --input-type=module -e "
 const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
 const { PARENT_ALLOWED_TOOLS, parentToolAllowlist, applyParentAllowlist, isParentAllowedTool } = await import(url);
 
-const expected = ['read','bash','lsp_diagnostics','subagent','subagent_wait','subagent_supervisor','todo','advisor'];
+const expected = ['read','bash','lsp_diagnostics','subagent','subagent_wait','subagent_supervisor','todo','advisor','bg_start','bg_status','bg_list','bg_kill'];
 if (PARENT_ALLOWED_TOOLS.length !== expected.length) { console.log('FAIL: allowed tool length'); process.exit(1); }
 for (const t of expected) {
   if (!PARENT_ALLOWED_TOOLS.includes(t)) { console.log('FAIL: missing tool ' + t); process.exit(1); }
@@ -137,7 +137,7 @@ for (const t of ['grep','find','ls','edit','write','web_search','web_fetch','lsp
 // Union with extras does not replace base
 const merged = parentToolAllowlist(['extra_tool']);
 if (!merged.includes('read') || !merged.includes('extra_tool')) { console.log('FAIL: extras union'); process.exit(1); }
-if (parentToolAllowlist(['read']).length !== 8) { console.log('FAIL: dedup'); process.exit(1); }
+if (parentToolAllowlist(['read']).length !== expected.length) { console.log('FAIL: dedup'); process.exit(1); }
 
 // applyParentAllowlist goes through getActiveTools / setActiveTools
 const calls = { active: ['read','grep','write'], set: [] };
@@ -145,7 +145,7 @@ applyParentAllowlist({
   getActiveTools: () => calls.active,
   setActiveTools: (n) => { calls.set = n; },
 });
-if (calls.set.length !== 8 || calls.set.includes('grep')) { console.log('FAIL: apply'); process.exit(1); }
+if (calls.set.length !== expected.length || calls.set.includes('grep')) { console.log('FAIL: apply'); process.exit(1); }
 " || {
 	echo 'FAIL: parent allowlist' >&2
 	exit 1
@@ -404,10 +404,10 @@ const { validateAndNormalizeSubagentCall, ALLOWED_EXECUTION_ROLES } = await impo
 }
 
 // ALLOWED_EXECUTION_ROLES set
-for (const r of ['scout','researcher','worker','reviewer']) {
+for (const r of ['scout','researcher','worker','reviewer','planner']) {
   if (!ALLOWED_EXECUTION_ROLES.has(r)) { console.log('FAIL: missing role ' + r); process.exit(1); }
 }
-for (const r of ['planner','oracle','context-builder','delegate']) {
+for (const r of ['oracle','context-builder','delegate']) {
   if (ALLOWED_EXECUTION_ROLES.has(r)) { console.log('FAIL: extra role ' + r); process.exit(1); }
 }
 " || {
@@ -1086,8 +1086,8 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
   if (!bad || !bad.block) { console.log('FAIL: (f) npm install should be blocked'); process.exit(1); }
 }
 
-// (g) tool_call: subagent handler (the SECOND tool_call registration;
-//     first is bash) nests-normalizes event.input in place. Mutate=true
+// (g) tool_call: subagent handler (the THIRD tool_call registration;
+//     first is bash, second is bg_start) nests-normalizes event.input in place. Mutate=true
 //     coerces context=fresh and output=false for non-worker.
 {
   const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor']);
@@ -1096,7 +1096,7 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
     { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
-  const subagentHandler = h.handlers.tool_call[1];
+  const subagentHandler = h.handlers.tool_call[2];
   if (!subagentHandler) { console.log('FAIL: (g) subagent handler not registered'); process.exit(1); }
   // build nested input with NO model/thinking overrides (those would be
   // rejected by execution). Verify nested output coercion + context: fresh.
@@ -1134,7 +1134,7 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
     { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
-  const subagentHandler = h.handlers.tool_call[1];
+  const subagentHandler = h.handlers.tool_call[2];
   if (!subagentHandler) { console.log('FAIL: (g2) subagent handler not registered'); process.exit(1); }
   const event = {
     toolName: 'subagent',

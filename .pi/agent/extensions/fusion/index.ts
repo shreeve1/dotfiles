@@ -473,12 +473,13 @@ export function loadProjectBashOverride(
 
 // --- subagent interception -----------------------------------------------
 
-/** Execution modes allowed by Fusion: scout / researcher / worker / reviewer. */
+/** Execution modes allowed by Fusion: scout / researcher / worker / reviewer / planner. */
 export const ALLOWED_EXECUTION_ROLES = new Set([
 	"scout",
 	"researcher",
 	"worker",
 	"reviewer",
+	"planner",
 ]);
 
 /** Read-only management actions the parent can keep using while Fusion is active. */
@@ -580,7 +581,7 @@ function validateExecStep(step: unknown, path: string, errors: string[]): void {
 	const agent = step.agent;
 	if (typeof agent !== "string" || !ALLOWED_EXECUTION_ROLES.has(agent)) {
 		errors.push(
-			`${path}: agent must be one of scout|researcher|worker|reviewer (got ${JSON.stringify(agent)})`,
+			`${path}: agent must be one of scout|researcher|worker|reviewer|planner (got ${JSON.stringify(agent)})`,
 		);
 	}
 	const offending = disallowedModelOrThinkingKeys(step);
@@ -962,6 +963,9 @@ export const FUSION_GUIDANCE_BODY = [
 	"- researcher: current external facts. Read-only.",
 	"- worker: the single writer in a cwd. Receives Objective / Files / Interfaces / Constraints / Verification.",
 	"- reviewer: risk-based review only (security, auth, migrations, public APIs, data loss, substantial logic). Read-only — no bash; the parent verifies.",
+	"- planner: OPTIONAL, narrowly triggered. Use only for complex multi-file, architectural,",
+	"  migration, cross-system, or explicitly requested planning. Routine task decomposition",
+	"  stays in the parent. Never auto-invoked.",
 	"",
 	"Session-efficiency rules:",
 	"- no duplicate parent discovery: parent never redoes discovery scout already produced.",
