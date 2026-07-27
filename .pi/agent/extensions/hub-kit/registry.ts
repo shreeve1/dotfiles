@@ -57,8 +57,22 @@ export interface ActivityProvider {
 	onChange(cb: () => void): () => void;
 }
 
-const providers = new Map<string, ActivityProvider>();
-const listeners = new Set<() => void>();
+// globalThis-keyed: pi's extension loader does not guarantee module-cache
+// identity across separately loaded extensions (a probe loaded via -e gets a
+// fresh module instance), so a plain module-level Map would silently split
+// the registry per consumer. The singleton makes cross-extension providers
+// and external probes see the same state regardless of loader internals.
+interface RegistryState {
+	providers: Map<string, ActivityProvider>;
+	listeners: Set<() => void>;
+}
+const state: RegistryState = ((
+	globalThis as { __piHubKitRegistry?: RegistryState }
+).__piHubKitRegistry ??= {
+	providers: new Map(),
+	listeners: new Set(),
+});
+const { providers, listeners } = state;
 
 function fanout() {
 	for (const listener of [...listeners]) {

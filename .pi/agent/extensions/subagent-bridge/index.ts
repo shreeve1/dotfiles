@@ -54,6 +54,9 @@ interface Run {
 	state: RunState;
 	finishedAt?: number;
 	steps?: AsyncStatus["steps"];
+	/** Foreground (sync) runs have no asyncDir/output file; the tool result's
+	 * finalOutput tail is kept here so /fleet detail can still show output. */
+	outputTail?: string[];
 }
 
 interface BtwRun {
@@ -138,7 +141,10 @@ function readOutputSnapshot(
 	run: Run,
 	status: AsyncStatus | undefined,
 ): OutputSnapshot {
-	if (!run.asyncDir) return { lines: [] };
+	if (!run.asyncDir)
+		return run.outputTail?.length
+			? { source: "foreground result", lines: run.outputTail }
+			: { lines: [] };
 	const configured = status?.outputFile
 		? path.isAbsolute(status.outputFile)
 			? status.outputFile
@@ -187,7 +193,9 @@ function buildDetailSections(run: Run): DetailSection[] {
 	if (status?.cwd) metaLines.push(safeLine(`Cwd ${status.cwd}`));
 	if (!run.asyncDir) {
 		metaLines.push(
-			`Foreground completion${finishedAt ? ` · finishedAt ${new Date(finishedAt).toISOString()}` : ""}`,
+			isActive(run.state)
+				? "Foreground (sync) run — tracked from this session's tool call"
+				: `Foreground completion${finishedAt ? ` · finishedAt ${new Date(finishedAt).toISOString()}` : ""}`,
 			"Artifact/output path not tracked for this foreground run",
 		);
 	} else if (!status) {
@@ -695,6 +703,108 @@ export default function (pi: ExtensionAPI) {
 		refreshRuns();
 	};
 
+	// --- foreground (sync) spawn tracking ---
+	// pi-subagents emits NO lifecycle event for plain sync runs (verified:
+	// SUBAGENT_FOREGROUND_COMPLETE_EVENT is only emitted from onDetachedExit
+	// call sites), so fusion-gated and other foreground spawns were invisible
+	// here while running. Track them from this session's own subagent tool
+	// executions. Management/control calls carry args.action and are skipped;
+	// async runs stay owned by the async events (explicit async:true skipped
+	// at start; a run that went async via agent/config default is dropped at
+	// end when its result carries asyncDir/asyncId).
+	const foregroundCalls = new Set<string>();
+
+	const spawnInfo = (
+		args: Record<string, unknown>,
+	): { mode: string; agents: string[] } | undefined => {
+		if (args.action !== undefined) return undefined;
+		if (typeof args.agent === "string" && args.agent)
+			return { mode: "single", agents: [args.agent] };
+		const tasks = Array.isArray(args.tasks) ? args.tasks : undefined;
+		const chain = Array.isArray(args.chain) ? args.chain : undefined;
+		const list = tasks ?? chain;
+		if (!list?.length) return undefined;
+		return {
+			mode: tasks ? "parallel" : "chain",
+			agents: list
+				.map((entry) => payload(entry).agent)
+				.filter(
+					(agent): agent is string =>
+						typeof agent === "string" && agent.length > 0,
+				),
+		};
+	};
+
+	pi.on("tool_execution_start", (event) => {
+		if (event.toolName !== "subagent") return;
+		const args = payload(event.args);
+		if (args.async === true) return;
+		const info = spawnInfo(args);
+		if (!info) return;
+		foregroundCalls.add(event.toolCallId);
+		runs.set(event.toolCallId, {
+			runId: event.toolCallId,
+			mode: info.mode,
+			agents: info.agents,
+			startedAt: Date.now(),
+			state: "running",
+		});
+		refreshRuns();
+	});
+
+	pi.on("tool_execution_end", (event) => {
+		if (event.toolName !== "subagent") return;
+		if (!foregroundCalls.delete(event.toolCallId)) return;
+		const run = runs.get(event.toolCallId);
+		if (!run) return;
+		const details = payload(payload(event.result).details);
+		if (details.asyncDir || details.asyncId) {
+			runs.delete(event.toolCallId);
+			refreshRuns();
+			return;
+		}
+		const results = Array.isArray(details.results)
+			? details.results.map(payload)
+			: [];
+		const detached = results.some((result) => result.detached === true);
+		const failed =
+			event.isError === true ||
+			results.some(
+				(result) =>
+					(typeof result.exitCode === "number" && result.exitCode !== 0) ||
+					(typeof result.error === "string" && result.error.length > 0),
+			);
+		// Re-key to the real runId so a later detached-exit
+		// SUBAGENT_FOREGROUND_COMPLETE (complete() keys by runId) merges into
+		// this entry instead of duplicating it.
+		const runId =
+			typeof details.runId === "string" && details.runId
+				? details.runId
+				: run.runId;
+		const outputTail = results
+			.flatMap((result) =>
+				typeof result.finalOutput === "string" && result.finalOutput
+					? [
+							...(results.length > 1 && typeof result.agent === "string"
+								? [`— ${result.agent}`]
+								: []),
+							...result.finalOutput.split(/\r?\n/),
+						]
+					: [],
+			)
+			.slice(-OUTPUT_TAIL_LINES)
+			.map(safeLine);
+		runs.delete(event.toolCallId);
+		runs.set(runId, {
+			...run,
+			runId,
+			state: detached && !failed ? "running" : failed ? "failed" : "complete",
+			finishedAt: detached && !failed ? undefined : Date.now(),
+			...(outputTail.length ? { outputTail } : {}),
+		});
+		refreshRuns();
+	});
+
 	const eventUnsubscribes = [
 		pi.events.on(SUBAGENT_ASYNC_STARTED_EVENT, (value) => {
 			if (!value || typeof value !== "object") return;
@@ -945,6 +1055,7 @@ export default function (pi: ExtensionAPI) {
 		safely(() => ctx?.ui.setStatus(STATUS_KEY, undefined));
 		runs.clear();
 		btwRuns.clear();
+		foregroundCalls.clear();
 		ctx = context;
 		refreshRuns();
 	});
@@ -955,6 +1066,7 @@ export default function (pi: ExtensionAPI) {
 		ctx = undefined;
 		runs.clear();
 		btwRuns.clear();
+		foregroundCalls.clear();
 		changeListeners.clear();
 		try {
 			unregisterProvider();
