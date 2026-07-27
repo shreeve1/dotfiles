@@ -40,6 +40,7 @@ entry before global config is consulted.
 | **researcher** | current external facts; primary sources only | file mutations; agent definitions |
 | **worker** | the single writer in a cwd | sub-delegation; tasks broader than the spec; writing uncommitted code outside the request |
 | **reviewer** | risk-based review (security, auth, migrations, public APIs, data loss, substantial logic) | file mutations; bash; agent definitions |
+| **planner** (optional) | complex multi-file, architectural, migration, cross-system, or explicitly requested planning | file mutations; bash; routine task decomposition (parent-owned); auto-invocation |
 
 One writer per cwd. Parallel writers require isolated git worktrees.
 
@@ -54,7 +55,7 @@ The extension intercepts events and blocks at the tool boundary:
   `lsp_navigation`, generic `lsp`, AST search/replace, web
   search/fetch, `intercom`.
 - **Subagent interception** at `tool_call`: new execution allowed only
-  for `scout` / `researcher` / `worker` / `reviewer`. All new executions
+  for `scout` / `researcher` / `worker` / `reviewer` / `planner`. All new executions
   are coerced to `context: "fresh"`; explicit `fork` is overridden.
   Top-level and nested `model`/`thinking` overrides are rejected (role
   models come from settings). `output` is forced to `false` for
@@ -165,7 +166,10 @@ review).
 1. Receive request. Restate intent in one sentence.
 2. Decide the smallest needed delegation: `scout` (code discovery),
    `researcher` (external facts), `worker` (mutation), `reviewer`
-   (risk-based review only).
+   (risk-based review only). `planner` is optional and narrowly
+   triggered (complex multi-file, architectural, migration,
+   cross-system, or explicitly requested planning) — routine task
+   decomposition stays in the parent and is never auto-invoked.
 3. Bundle each delegation with Objective / Files / Interfaces /
    Constraints / Verification.
 4. Review the returned diff and changed files yourself.

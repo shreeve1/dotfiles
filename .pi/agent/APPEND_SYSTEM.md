@@ -43,6 +43,9 @@ Model/tool overrides for subagents live in `settings.json`
 - `worker` — single writer in a cwd.
 - `reviewer` — risk-based code review (security, auth, migrations,
   public APIs, data loss, substantial multi-file logic).
+- `planner` — optional; only for complex multi-file, architectural,
+  migration, cross-system, or explicitly requested planning. Routine
+  task decomposition stays in the parent.
 
 Prefer deterministic checks over reviewer subagents for small changes.
 
