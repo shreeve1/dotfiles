@@ -45,3 +45,8 @@ Model/tool overrides for subagents live in `settings.json`
   public APIs, data loss, substantial multi-file logic).
 
 Prefer deterministic checks over reviewer subagents for small changes.
+
+Follow-up on work a child just did? Resume it (`action: "resume", id,
+message`) instead of spawning fresh — its session keeps what it read
+and concluded. Spawn fresh when you need an independent look (e.g. a
+final review verdict).
