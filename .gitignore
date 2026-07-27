@@ -147,5 +147,12 @@ bin/*
 # Pi subagent run-history logs (machine-local runtime state)
 .pi/agent/run-history.jsonl
 
+# Pi model catalog cache — self-refreshing runtime state, never commit
+.pi/agent/models-store.json
+
+# Codex config accumulates machine-local trust hashes; seeded from
+# .codex/config.toml.template by install.sh
+.codex/config.toml
+
 # Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
 /tests/
