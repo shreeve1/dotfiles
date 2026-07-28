@@ -16,8 +16,6 @@ esac
 # OPENSPEC:START
 # OpenSpec shell completions configuration
 fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
-autoload -Uz compinit
-compinit
 # OPENSPEC:END
 
 # If you come from bash you might have to change your $PATH.
@@ -97,6 +95,9 @@ if [[ $IS_MACOS -eq 1 ]]; then
 else
   plugins=(git z docker npm node python pip zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search)
 fi
+
+# Disable Oh My Zsh automatic update check (manual `omz update` still works)
+zstyle ':omz:update' mode disabled
 
 source $ZSH/oh-my-zsh.sh
 
