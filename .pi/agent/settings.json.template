@@ -61,6 +61,7 @@
     "extensions/subagent-bridge",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts",
-    "-extensions/summaries/index.ts"
+    "-extensions/summaries/index.ts",
+    "-extensions/rpiv-advisor/index.ts"
   ]
 }
