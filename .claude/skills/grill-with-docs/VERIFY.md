@@ -34,6 +34,12 @@ repo claims (rare — pure external/library question), skip the check and say so
 
 ## The call
 
+Two routes — pick the one your current harness takes. Both keep the checker
+read-only and grounded only in the files it reads this call, and both return
+the same VERIFIED / FALSE / UNSURE + file:line format.
+
+### Default — Fusion not active
+
 Run from the repo root:
 
 ```bash
@@ -48,22 +54,57 @@ pi -p --no-session --no-skills --no-context-files \
    2. <claim>"
 ```
 
+### When Fusion is active
+
+Fusion caps the parent's tool surface, so spawning `pi -p` from `bash` is
+denied — that's a harness restriction, **not** the `pi unavailable` condition
+(see *Fallback when `pi` is unavailable* below). Use one fresh `subagent`
+call instead. The `reviewer` role in `settings.json` already pins a read-only
+tool set (`read`, `grep`, `find`, `ls`) and the model/thinking — do not
+override either per-call:
+
+```text
+subagent(
+  agent: "reviewer",
+  task: "You are fact-checking claims about THIS repository. For each
+   claim, read the relevant files and reply on one line: VERIFIED | FALSE |
+   UNSURE, then file:line evidence, then a one-line correction if FALSE. Do
+   not speculate — if you cannot find evidence, say UNSURE. Claims:
+   1. <claim>
+   2. <claim>",
+  context: "fresh",
+  output: false,
+  skill: false,
+)
+```
+
+The reviewer runs as a fresh child with no parent conversation state and no
+inherited skills, and its read-only tool set comes from settings — so file
+evidence is required, not remembered context.
+
 Notes:
 
-- `--no-extensions --tools read,grep,find,ls` are **mandatory** and load-bearing:
-  they confine the checker to read-only file access. The three `--no-*` flags do
-  **not** restrict tools — they leave built-in `bash` available, so without the
-  allowlist a checker can run the repo's own commands (e.g. a Playwright suite
-  that starts servers), blow past the timeout, and mutate the worktree.
-- `--no-skills` is mandatory: it stops the checker reloading grill-with-docs and
-  grilling itself (recursion guard).
-- `--no-session --no-context-files` keep the checker grounded only in the files
-  it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md` bias.
-- `deepseek/deepseek-v4-pro` is the fixed checker model. It is independent of
-  whatever model is driving the grill session.
-- The checker has no memory of the conversation — spell each claim out in full,
-  self-contained (name the term, the file, the behavior). "The thing we
-  discussed" verifies nothing.
+- `--no-extensions --tools read,grep,find,ls` are **mandatory** and load-bearing
+  on the direct `pi -p` route: they confine the checker to read-only file
+  access. The three `--no-*` flags do **not** restrict tools — they leave
+  built-in `bash` available, so without the allowlist a checker can run the
+  repo's own commands (e.g. a Playwright suite that starts servers), blow past
+  the timeout, and mutate the worktree. On the Fusion route the `reviewer`
+  role's tool allowlist in `settings.json` (`read`, `grep`, `find`, `ls`)
+  plays the same role — don't widen it.
+- `--no-skills` is mandatory on the direct route: it stops the checker
+  reloading grill-with-docs and grilling itself (recursion guard). On the
+  Fusion route the reviewer inherits no parent skills by design.
+- `--no-session --no-context-files` keep the direct checker grounded only in
+  the files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
+  bias. The Fusion reviewer has no parent session either.
+- `deepseek/deepseek-v4-pro` is the fixed checker model on the direct route.
+  It is independent of whatever model is driving the grill session. On the
+  Fusion route the reviewer's model and thinking come from `settings.json` —
+  pick the `reviewer` role precisely so you do not have to pin them here.
+- The checker has no memory of the conversation on either route — spell each
+  claim out in full, self-contained (name the term, the file, the behavior).
+  "The thing we discussed" verifies nothing.
 
 ## Fallback when `pi` is unavailable
 
@@ -73,6 +114,11 @@ yourself: re-read the specific files each claim depends on **this turn** — do
 not trust your earlier reading — and confirm file:line evidence before you
 assert. Say you're using the fallback so I know the check wasn't independent.
 The independent `pi -p` check is preferred whenever `pi` is available.
+
+A Fusion Bash denial is **not** this condition — on Fusion the parent cannot
+spawn `pi -p` from `bash` by design; that's what the reviewer-subagent route
+exists for. The fallback only applies when the `subagent` route itself is
+unavailable (no `reviewer` role, or `pi-subagents` not loaded).
 
 ## Acting on the result
 
