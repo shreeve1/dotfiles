@@ -126,6 +126,9 @@ bin/*
 .claude.bak/
 .config/opencode-pre-reset-*/
 
+# Pi live-settings timestamped backups (machine-local snapshots, never commit)
+.pi/agent/settings.json.bak.*
+
 # Personal (non-dotfiles) content — not synced
 /personal/
 
@@ -134,6 +137,9 @@ bin/*
 
 # Machine-local scratch (non-dotfiles)
 /baseten/
+
+# Machine-local research output (transient per-machine scratch, never commit)
+/research/
 
 # Pi-lens runtime state/cache (nested per-machine install)
 .pi/agent/.pi-lens/
