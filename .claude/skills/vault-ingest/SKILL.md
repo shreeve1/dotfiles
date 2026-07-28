@@ -3,7 +3,7 @@ name: vault-ingest
 description: Extract notes, decisions, and knowledge from meeting-transcription summaries in the Obsidian vault's Transcriptions/ folder (or any file the user points at). Use when the user says "ingest transcriptions", "process transcriptions", or "extract notes from this transcript".
 ---
 
-Vault root: `/home/james/ob`. Read `/home/james/ob/CLAUDE.md` first — it owns the filing rules. Transcriptions land in `Transcriptions/` as `Title - YYYY-MM-DD_HH-MM-SS.md`, written by an external app: **never move, rename, or edit files in that folder.**
+Vault root: `~/ob` (resolve `~` from the current user's home directory; do not hardcode `/home/...` or `/Users/...`). Read `~/ob/CLAUDE.md` first — it owns the filing rules. Transcriptions land in `Transcriptions/` as `Title - YYYY-MM-DD_HH-MM-SS.md`, written by an external app: **never move, rename, or edit files in that folder.**
 
 File quirks: some files append the full raw transcript below the summary with no section marker (check size first — summaries are ~2KB); extract from the summary only. Heading styles vary between files (`**Bold:**` vs `1. Numbered`) — never rely on exact headers.
 
