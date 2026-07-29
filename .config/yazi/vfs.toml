@@ -1,0 +1,23 @@
+# Yazi SFTP VFS — browse remote hosts from LOCAL yazi, then yank remote / paste
+# local to download. Yazi does NOT read ~/.ssh/config, so HostName/User/key must
+# be duplicated here from the matching Host block in ~/.ssh/config.
+# Jump to these with `g a` / `g n` (see keymap.toml), or `yazi sftp://aidev`.
+#
+# key_file is set explicitly because there is no ssh-agent on this machine
+# ($SSH_AUTH_SOCK unset), and yazi's default agent auth fails with
+# "Identity agent not provided". A non-empty key_file takes the key-auth branch
+# instead. The key is unencrypted, so no key_passphrase is required.
+
+[services.aidev]
+type = "sftp"
+host = "100.95.230.15"
+user = "james"
+port = 22
+key_file = "~/.ssh/id_ed25519"
+
+[services.itan8n]
+type = "sftp"
+host = "100.95.224.218"
+user = "itadmin"
+port = 22
+key_file = "~/.ssh/id_ed25519"
