@@ -173,13 +173,15 @@ alias ll='eza -l --icons --no-user --group-directories-first --time-style long-i
 alias la='eza -la --icons --no-user --group-directories-first --time-style long-iso'
 alias cat='bat'
 
-# ── Machine identity (portable: Linux primary, macOS fallback) ──
-# THIS_IP: this box's primary egress IPv4 (Linux via default route, macOS via en0).
-# YAZI_PULL_HOST: host for scp-pull commands emitted by yazi — prefer the exact
-# IP the current SSH client reached (guaranteed routable back), else THIS_IP.
-export THIS_IP="$(ipconfig getifaddr en0 2>/dev/null || echo)"
-export YAZI_PULL_HOST="${SSH_CONNECTION:+$(awk '{print $3}' <<<"$SSH_CONNECTION")}"
-export YAZI_PULL_HOST="${YAZI_PULL_HOST:-$THIS_IP}"
+# ── Machine identity ──
+# YAZI_PULL_HOST: host for the scp-pull command emitted by yazi's `c c` binding.
+# Derived only from SSH_CONNECTION (pure string parsing, no subprocess) — the IP
+# the current SSH client actually reached, so it is guaranteed routable back.
+# When not in an SSH session it stays unset and pull.yazi falls back to
+# ya.host_name(). Deliberately does NOT probe the local interface: the old
+# `ipconfig getifaddr en0` ran on every shell startup, blocked when networking
+# was flaky, and returned empty on Linux anyway.
+export YAZI_PULL_HOST="${SSH_CONNECTION:+${${(z)SSH_CONNECTION}[3]}}"
 
 # bun completions
 [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
