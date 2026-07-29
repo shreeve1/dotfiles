@@ -10,6 +10,7 @@
     "git status --porcelain",
     "git diff --stat HEAD",
     "cd .pi/agent/extensions/pi-subagents && node --experimental-strip-types --test test/unit/completion-guard-precedence.test.ts",
-    "node --experimental-strip-types --test .pi/agent/extensions/pi-subagents/test/unit/completion-guard-precedence.test.ts"
+    "node --experimental-strip-types --test .pi/agent/extensions/pi-subagents/test/unit/completion-guard-precedence.test.ts",
+    "mktemp -t handoff-XXXXXX.md"
   ]
 }
