@@ -18,4 +18,14 @@ prepend_keymap = [
     "c",
     "c",
   ], run = "plugin pull -- scp", desc = "Copy scp pull command to clipboard" },
+  # Browse a remote host over SFTP in this local yazi (see vfs.toml).
+  # Yank a remote file here, switch to a local tab, paste → downloads it.
+  { on = [
+    "g",
+    "a",
+  ], run = "cd sftp://aidev", desc = "Go to aidev (SFTP)" },
+  { on = [
+    "g",
+    "n",
+  ], run = "cd sftp://itan8n", desc = "Go to itan8n (SFTP)" },
 ]
