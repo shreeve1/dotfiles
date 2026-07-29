@@ -173,6 +173,18 @@ alias ll='eza -l --icons --no-user --group-directories-first --time-style long-i
 alias la='eza -la --icons --no-user --group-directories-first --time-style long-iso'
 alias cat='bat'
 
+# ── ssh-agent socket ──
+# macOS runs an ssh-agent via launchd, but its SSH_AUTH_SOCK is not always
+# inherited (launchctl getenv returns empty), so tools that need an agent —
+# yazi's SFTP VFS, for one — fail with "Identity agent not provided" even
+# though the agent is running with keys loaded. Recover the socket from the
+# launchd job. The path contains a per-boot random component, so it must be
+# resolved at runtime, never hardcoded. Does NOT spawn a second agent.
+if [[ $IS_MACOS -eq 1 && -z "$SSH_AUTH_SOCK" ]]; then
+  SSH_AUTH_SOCK="$(launchctl print "gui/$(id -u)/com.openssh.ssh-agent" 2>/dev/null | awk '/SSH_AUTH_SOCK =>/ {print $3; exit}')"
+  [[ -S "$SSH_AUTH_SOCK" ]] && export SSH_AUTH_SOCK || unset SSH_AUTH_SOCK
+fi
+
 # ── Machine identity ──
 # YAZI_PULL_HOST: host for the scp-pull command emitted by yazi's `c c` binding.
 # Derived only from SSH_CONNECTION (pure string parsing, no subprocess) — the IP
