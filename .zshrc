@@ -177,7 +177,7 @@ alias cat='bat'
 # THIS_IP: this box's primary egress IPv4 (Linux via default route, macOS via en0).
 # YAZI_PULL_HOST: host for scp-pull commands emitted by yazi — prefer the exact
 # IP the current SSH client reached (guaranteed routable back), else THIS_IP.
-export THIS_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+' || ipconfig getifaddr en0 2>/dev/null || echo)"
+export THIS_IP="$(ipconfig getifaddr en0 2>/dev/null || echo)"
 export YAZI_PULL_HOST="${SSH_CONNECTION:+$(awk '{print $3}' <<<"$SSH_CONNECTION")}"
 export YAZI_PULL_HOST="${YAZI_PULL_HOST:-$THIS_IP}"
 
