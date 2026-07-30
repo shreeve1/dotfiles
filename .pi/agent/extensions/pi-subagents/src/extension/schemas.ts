@@ -127,6 +127,7 @@ export const ParallelTaskSchema = Type.Object({
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 });
 
 export const DynamicExpandSchema = Type.Object({
@@ -156,6 +157,7 @@ export const DynamicParallelTemplateSchema = Type.Object({
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 }, { additionalProperties: false });
 
 export const DynamicCollectSchema = Type.Object({
@@ -197,6 +199,7 @@ export const ChainItem = Type.Object({
 		description: "Create isolated git worktrees for each parallel task."
 	})),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 }, {
 	description: "Chain step: use {agent, task?, ...} for sequential, {parallel: [...]} for static concurrent execution, or {expand, parallel: {...}, collect} for dynamic fanout.",
 	additionalProperties: false,

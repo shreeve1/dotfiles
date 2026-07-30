@@ -1134,6 +1134,7 @@ export interface RunSyncOptions {
 		schemaPath: string;
 		outputPath: string;
 	};
+	salvage?: boolean;
 	acceptance?: AcceptanceInput;
 	acceptanceContext?: {
 		mode?: SubagentRunMode;
