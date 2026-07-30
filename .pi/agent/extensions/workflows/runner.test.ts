@@ -6,6 +6,8 @@ import type {
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { recordBackgroundRunFailure, recordFlushFailure } from "./index.ts";
+import type { WorkflowDetails } from "./model.ts";
 import {
   createFirstResponseWatchdog,
   guardWorkflowChildTools,
@@ -316,4 +318,89 @@ test("isJsonSchema accepts shared subschemas but still rejects cycles", () => {
   assert.equal(isJsonSchema(JSON.parse('{"__proto__":{"x":1}}')), false);
   assert.equal(isJsonSchema([{ type: "string" }]), false);
   assert.equal(isJsonSchema(null), false);
+});
+
+function failureDetails(status: WorkflowDetails["status"]): WorkflowDetails {
+  return {
+    runId: "wf_test",
+    sessionId: "session_test",
+    background: false,
+    status,
+    startedAt: 1,
+    finishedAt: 2,
+    phases: [],
+    agents: [],
+  };
+}
+
+test("artifact flush failure preserves truthful run status on both paths", () => {
+  // The real bug: persistence.flush() throws after a successful run was
+  // committed at details.status = "completed". The inner catch (used by both
+  // blocking and background) and the background catch must NOT clobber
+  // details.status — the truthful "completed" must survive so
+  // recordSettledRun counts it as a success and the dashboard reports it
+  // correctly. Genuine failures ("failed"/"aborted") must still be reported.
+  for (const startingStatus of ["completed", "failed", "aborted"] as const) {
+    const details = failureDetails(startingStatus);
+
+    // === Blocking path: runScript() inner catch ===
+    // runScript() commits the truthful status at details.status = status,
+    // then runs the flush tail. The real recordFlushFailure() must not
+    // overwrite status — only details.error.
+    let thrown: Error | undefined;
+    try {
+      recordFlushFailure(details, new Error("disk full"));
+    } catch (error) {
+      thrown = error as Error;
+    }
+    assert.match(
+      thrown?.message ?? "",
+      /^Artifact persistence failed: disk full$/,
+    );
+    assert.equal(details.status, startingStatus, `flush: ${startingStatus}`);
+    assert.match(details.error ?? "", /^Artifact persistence failed:/);
+
+    // === Background path: completion.catch ===
+    // After runScript() rethrows, the background catch fires. The real
+    // recordBackgroundRunFailure() must preserve a truthful "completed"
+    // or "aborted" status (both already committed by runScript before it
+    // rethrew). Only a status that never made it past "running" (genuine
+    // mid-flight crash) is marked "failed".
+    recordBackgroundRunFailure(details, thrown ?? new Error("disk full"));
+    assert.equal(
+      details.status,
+      startingStatus,
+      `background: ${startingStatus}`,
+    );
+  }
+});
+
+test("background catch marks a genuine mid-flight crash as failed", () => {
+  // Inverse of the preservation test: status === "running" was never
+  // committed (a real mid-flight crash). The background catch must mark
+  // the run "failed", record finishedAt, and surface the error.
+  const details = failureDetails("running");
+  const startedAt = details.startedAt;
+  recordBackgroundRunFailure(details, new Error("disk full"));
+  assert.equal(details.status, "failed");
+  assert.ok(
+    typeof details.finishedAt === "number" && details.finishedAt >= startedAt,
+    "finishedAt must be set",
+  );
+  assert.match(details.error ?? "", /disk full/);
+});
+
+test("background catch keeps an already-recorded flush error instead of overwriting it", () => {
+  // recordFlushFailure() tags its error with "Artifact persistence failed:";
+  // recordBackgroundRunFailure() must not clobber that prefix when the same
+  // details bubble through both layers.
+  const details = failureDetails("completed");
+  let thrown: Error | undefined;
+  try {
+    recordFlushFailure(details, new Error("disk full"));
+  } catch (error) {
+    thrown = error as Error;
+  }
+  recordBackgroundRunFailure(details, thrown ?? new Error("disk full"));
+  assert.equal(details.error, "Artifact persistence failed: disk full");
 });
