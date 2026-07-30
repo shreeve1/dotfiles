@@ -8,7 +8,6 @@ const MAX_SOURCE_BYTES = 512 * 1024;
 const MAX_ARGS_BYTES = 256 * 1024;
 const MAX_RESULT_BYTES = 1024 * 1024;
 const MAX_AGENT_MESSAGE_BYTES = 512 * 1024;
-const MAX_AGENT_REQUESTS = 32;
 
 export interface SandboxAgentOptions {
   label?: unknown;
@@ -127,7 +126,6 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
     const token = randomBytes(24).toString("hex");
     const requestIds = new Set<number>();
     const activeAgentRequests = new Map<number, AbortController>();
-    let requestCount = 0;
     let finished = false;
 
     const cleanup = () => {
@@ -221,10 +219,8 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
           finish(new Error("Workflow sandbox sent an invalid agent request"));
           return;
         }
-        if (requestIds.has(payload.id) || ++requestCount > MAX_AGENT_REQUESTS) {
-          finish(
-            new Error("Workflow sandbox exceeded its agent request budget"),
-          );
+        if (requestIds.has(payload.id)) {
+          finish(new Error("Workflow sandbox reused an agent request id"));
           return;
         }
         requestIds.add(payload.id);
