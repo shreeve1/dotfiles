@@ -12,7 +12,10 @@
  *   args                                          // parsed JSON args passed with the tool call
  *
  * `agent()` always resolves to `{ ok, output, structured?, error? }` — it
- * never throws into the script. Scripts branch on `ok` explicitly.
+ * never throws into the script. Scripts branch on `ok` explicitly. `output`
+ * holds the agent's final text on every outcome, `ok:false` included, so a
+ * script can degrade to prose instead of discarding a result whose only fault
+ * was skipping `structured_output`.
  *
  * Runs are blocking by default (live progress in the tool block). Pass
  * `background: true` to return immediately and get a follow-up message when
