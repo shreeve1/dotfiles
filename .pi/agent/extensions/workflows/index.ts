@@ -496,27 +496,14 @@ export default function workflows(pi: ExtensionAPI) {
       // aborted and settled during session shutdown.
       const controller = new RunController(background ? undefined : signal);
 
-      // Each concurrent child gets its own extension runtime. All children use
-      // the parent cwd and live trust decision; a per-agent `cwd` opts one
-      // child into a different directory (with trust re-derived for that dir).
+      // Each concurrent child gets its own extension runtime. A previous
+      // version cached `createWorkflowResources` per (cwd,variant,trusted)
+      // and shared one runtime across children, so the first child finishing
+      // (`AgentSession.dispose()` invalidates its extension runner) poisoned
+      // every still-running sibling — observed in run wf_d10a2148948f.
+      // Trust and cwd resolution are still per-agent; only resources are
+      // freshly built each call.
       const parentTrusted = ctx.isProjectTrusted();
-      const resourcesCache = new Map<
-        string,
-        Promise<Awaited<ReturnType<typeof createWorkflowResources>>>
-      >();
-      const resolveAgentResources = (
-        resolvedCwd: string,
-        structured: boolean,
-        trusted: boolean,
-      ) => {
-        const variant = structured ? "structured" : "plain";
-        const key = `${resolvedCwd}\u0000${variant}\u0000${trusted}`;
-        const cached = resourcesCache.get(key);
-        if (cached) return cached;
-        const pending = createWorkflowResources(resolvedCwd, variant, trusted);
-        resourcesCache.set(key, pending);
-        return pending;
-      };
 
       // Throttled progress: tool-block updates when blocking. Background
       // runs are covered by the below-editor indicator and /workflows.
@@ -678,9 +665,9 @@ export default function workflows(pi: ExtensionAPI) {
               return fail(`agent "${label}": ${errorText(error)}`);
             }
 
-            const resources = await resolveAgentResources(
+            const resources = await createWorkflowResources(
               resolution.cwd,
-              opts.schema !== undefined,
+              opts.schema !== undefined ? "structured" : "plain",
               resolution.trusted,
             );
             const outcome = await runAgent({
