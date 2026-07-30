@@ -1,0 +1,9 @@
+# pi-lens formats each edited .ts with `biome format --write`, but its
+# hasEditorConfig() check (pi-lens/clients/formatters.ts:317) looks only in the
+# edited file's own directory and never walks up to the repo root. Without a
+# sibling .editorconfig it omits --use-editorconfig=true and Biome falls back to
+# its built-in indent_style = tab, re-tabbing these files on every agent edit.
+
+[*]
+indent_style = space
+indent_size = 2
