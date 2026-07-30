@@ -74,6 +74,7 @@ import {
   type ThinkingLevel,
   type WorkflowModel,
 } from "./runner.ts";
+import { resolveStandaloneChildProjectTrust } from "../shared/child-session.ts";
 import { runWorkflowSandbox } from "./sandbox.ts";
 import { safeStringify, writeFileAtomic } from "./serialization.ts";
 
@@ -106,6 +107,7 @@ interface AgentCallOptions {
   provider?: unknown;
   effort?: unknown;
   writable?: unknown;
+  cwd?: unknown;
 }
 
 const WorkflowParams = Type.Object({
@@ -131,6 +133,52 @@ function errorText(error: unknown): string {
     0,
     16 * 1024,
   );
+}
+
+export interface AgentCwdResolution {
+  cwd: string;
+  trusted: boolean;
+}
+
+/** Resolve a per-agent cwd and the trust that must accompany it. Exported so the
+ * trust invariant is testable: an alternate cwd must never inherit the parent's
+ * trust bit. Throws on a missing / non-directory cwd; the caller maps that to a
+ * failed agent call. */
+export function resolveAgentCwdAndTrust(options: {
+  requested: unknown;
+  parentCwd: string;
+  parentTrusted: boolean;
+  agentDir?: string;
+}): AgentCwdResolution {
+  const requestedCwd =
+    typeof options.requested === "string" && options.requested.trim()
+      ? options.requested.trim()
+      : undefined;
+  const resolvedCwd = requestedCwd
+    ? path.resolve(options.parentCwd, requestedCwd)
+    : options.parentCwd;
+  let resolvedTrusted = options.parentTrusted;
+  if (requestedCwd && resolvedCwd !== options.parentCwd) {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(resolvedCwd);
+    } catch {
+      throw new Error(
+        `cwd does not exist or is not a directory: ${resolvedCwd}`,
+      );
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`cwd is not a directory: ${resolvedCwd}`);
+    }
+    resolvedTrusted = resolveStandaloneChildProjectTrust({
+      parentCwd: options.parentCwd,
+      childCwd: resolvedCwd,
+      parentTrusted: options.parentTrusted,
+      ...(options.agentDir !== undefined ? { agentDir: options.agentDir } : {}),
+    });
+  }
+
+  return { cwd: resolvedCwd, trusted: resolvedTrusted };
 }
 
 function summaryLine(details: WorkflowDetails): string {
@@ -418,14 +466,26 @@ export default function workflows(pi: ExtensionAPI) {
       const controller = new RunController(background ? undefined : signal);
 
       // Each concurrent child gets its own extension runtime. All children use
-      // the parent cwd and live trust decision.
-      const projectTrusted = ctx.isProjectTrusted();
-      const getResources = (structured: boolean) =>
-        createWorkflowResources(
-          ctx.cwd,
-          structured ? "structured" : "plain",
-          projectTrusted,
-        );
+      // the parent cwd and live trust decision; a per-agent `cwd` opts one
+      // child into a different directory (with trust re-derived for that dir).
+      const parentTrusted = ctx.isProjectTrusted();
+      const resourcesCache = new Map<
+        string,
+        Promise<Awaited<ReturnType<typeof createWorkflowResources>>>
+      >();
+      const resolveAgentResources = (
+        resolvedCwd: string,
+        structured: boolean,
+        trusted: boolean,
+      ) => {
+        const variant = structured ? "structured" : "plain";
+        const key = `${resolvedCwd}\u0000${variant}\u0000${trusted}`;
+        const cached = resourcesCache.get(key);
+        if (cached) return cached;
+        const pending = createWorkflowResources(resolvedCwd, variant, trusted);
+        resourcesCache.set(key, pending);
+        return pending;
+      };
 
       // Throttled progress: tool-block updates when blocking. Background
       // runs are covered by the below-editor indicator and /workflows.
@@ -568,13 +628,31 @@ export default function workflows(pi: ExtensionAPI) {
               thinkingLevel = effort as ThinkingLevel;
             }
 
-            const resources = await getResources(opts.schema !== undefined);
+            // Per-agent cwd: relative paths resolve against the parent cwd;
+            // missing or non-directory paths fail the call. Trust is re-derived
+            // for the target dir so untrusted dirs load no project extensions.
+            let resolution: AgentCwdResolution;
+            try {
+              resolution = resolveAgentCwdAndTrust({
+                requested: opts.cwd,
+                parentCwd: ctx.cwd,
+                parentTrusted,
+              });
+            } catch (error) {
+              return fail(`agent "${label}": ${errorText(error)}`);
+            }
+
+            const resources = await resolveAgentResources(
+              resolution.cwd,
+              opts.schema !== undefined,
+              resolution.trusted,
+            );
             const outcome = await runAgent({
               prompt,
               schema: opts.schema,
               model,
               thinkingLevel,
-              cwd: ctx.cwd,
+              cwd: resolution.cwd,
               loader: resources.loader,
               settingsManager: resources.settingsManager,
               modelRegistry: ctx.modelRegistry,
