@@ -1,5 +1,5 @@
-const DEFAULT_CONCURRENCY = 4;
-export const MAX_AGENT_CALLS = 32;
+import { resolveConcurrency, resolveMaxAgentCalls } from "./config.ts";
+
 export const RUN_SHUTDOWN_TIMEOUT_MS = 8_000;
 
 function abortError(signal: AbortSignal) {
@@ -77,6 +77,7 @@ class Semaphore {
 /** Owns every agent task and the run-wide fanout/abort budget. */
 export class RunController {
   private readonly abortController = new AbortController();
+  private readonly maxCalls: number;
   private readonly semaphore: Semaphore;
   private readonly tasks = new Set<Promise<unknown>>();
   private callCount = 0;
@@ -84,10 +85,13 @@ export class RunController {
   private parentAbort?: () => void;
   private parentSignal?: AbortSignal;
 
-  constructor(parentSignal?: AbortSignal, concurrency = DEFAULT_CONCURRENCY) {
-    this.semaphore = new Semaphore(
-      Math.max(1, Math.min(DEFAULT_CONCURRENCY, Math.floor(concurrency))),
-    );
+  constructor(
+    parentSignal?: AbortSignal,
+    concurrency = resolveConcurrency(),
+    maxCalls = resolveMaxAgentCalls(),
+  ) {
+    this.maxCalls = Math.max(1, Math.floor(maxCalls));
+    this.semaphore = new Semaphore(Math.max(1, Math.floor(concurrency)));
     if (parentSignal) {
       this.parentSignal = parentSignal;
       this.parentAbort = () => this.abort("Parent operation was aborted");
@@ -107,16 +111,20 @@ export class RunController {
     return this.callCount;
   }
 
+  get maxAgentCalls() {
+    return this.maxCalls;
+  }
+
   schedule<T>(
     task: (signal: AbortSignal) => Promise<T>,
     invocationSignal?: AbortSignal,
   ): Promise<T> {
     if (this.sealed) return Promise.reject(new Error("Workflow is settling"));
     if (this.signal.aborted) return Promise.reject(abortError(this.signal));
-    if (this.callCount >= MAX_AGENT_CALLS) {
+    if (this.callCount >= this.maxCalls) {
       return Promise.reject(
         new Error(
-          `Workflow exceeded the limit of ${MAX_AGENT_CALLS} agent calls`,
+          `Workflow exceeded the limit of ${this.maxCalls} agent calls`,
         ),
       );
     }

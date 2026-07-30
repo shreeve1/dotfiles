@@ -108,7 +108,8 @@ const BOOTSTRAP = String.raw`
     if (!Number.isFinite(requested) || requested < 1) {
       throw new Error("parallel(): concurrency must be a positive integer");
     }
-    const concurrency = Math.min(4, requested);
+    // The host controller enforces the real concurrency limit.
+    const concurrency = requested;
     return mapLimited(items, concurrency, (item) => {
       if (typeof item !== "function") {
         throw new Error("parallel() items must be zero-argument functions");
