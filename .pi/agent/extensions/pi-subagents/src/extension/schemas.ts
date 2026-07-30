@@ -139,6 +139,11 @@ export const DynamicExpandSchema = Type.Object({
 	key: Type.Optional(Type.String({ description: "JSON Pointer relative to each item for stable child ids." })),
 	maxItems: Type.Optional(Type.Integer({ minimum: 0, description: "Required fanout bound unless configured globally." })),
 	onEmpty: Type.Optional(Type.String({ enum: ["skip", "fail"], description: "Empty input behavior. Defaults to skip." })),
+	filter: Type.Optional(Type.Object({
+		path: Type.Optional(Type.String({ description: "JSON Pointer relative to each item, e.g. /severity. Omit to match the whole item." })),
+		equals: Type.Optional(Type.Union([Type.String(), Type.Number(), Type.Boolean()], { description: "Keep items whose value strictly equals this scalar." })),
+		in: Type.Optional(Type.Array(Type.Union([Type.String(), Type.Number(), Type.Boolean()]), { description: "Keep items whose value is one of these scalars." })),
+	}, { additionalProperties: false, description: "Fan out only over items matching this predicate. Provide exactly one of equals or in." })),
 }, { additionalProperties: false });
 
 export const DynamicParallelTemplateSchema = Type.Object({

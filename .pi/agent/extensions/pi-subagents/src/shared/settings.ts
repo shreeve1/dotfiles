@@ -115,6 +115,12 @@ export function applySalvage(input: {
 	return { salvaged: false };
 }
 
+export interface DynamicFilterSpec {
+	path?: string;
+	equals?: string | number | boolean;
+	in?: Array<string | number | boolean>;
+}
+
 export interface DynamicExpandSpec {
 	from: {
 		output: string;
@@ -122,6 +128,7 @@ export interface DynamicExpandSpec {
 	};
 	item?: string;
 	key?: string;
+	filter?: DynamicFilterSpec;
 	maxItems?: number;
 	onEmpty?: "skip" | "fail";
 }
