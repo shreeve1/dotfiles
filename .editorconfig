@@ -1,0 +1,24 @@
+; Keeps pi-lens's `biome format --write` from re-indenting files on every agent
+; edit. Biome defaults to indent_style = tab; pi-lens only passes
+; --use-editorconfig=true when this file exists (see
+; .pi/agent/extensions/pi-lens/clients/formatters.ts hasEditorConfig). Without
+; it, every edited .ts came back tab-indented, producing whole-file diffs
+; against the 2-space vendored extensions and breaking upstream re-syncs.
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[.config/git/hooks/*]
+indent_style = tab
