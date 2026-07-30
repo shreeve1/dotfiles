@@ -2,6 +2,9 @@
   "name": "workflows",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test --experimental-strip-types *.test.ts"
+  },
   "dependencies": {
     "acorn": "^8.15.0"
   }

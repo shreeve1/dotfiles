@@ -12,10 +12,10 @@
 
 import {
   createAgentSession,
-  DefaultResourceLoader,
+  type DefaultResourceLoader,
   defineTool,
   SessionManager,
-  SettingsManager,
+  type SettingsManager,
   type AgentSession,
   type AgentSessionEvent,
   type AgentSessionEventListener,
@@ -96,6 +96,8 @@ export interface RunAgentOptions {
   toolCallTimeoutMs?: number;
   /** Test-only override for the first assistant response-event timeout. */
   firstResponseTimeoutMs?: number;
+  /** Opt this child back into `write`/`edit` (default: read-only). */
+  writable?: boolean;
 }
 
 /** Build a fresh extension runtime for each concurrent workflow child. */
@@ -452,7 +454,7 @@ export async function runAgent(
       settingsManager: options.settingsManager,
       sessionManager: SessionManager.inMemory(options.cwd),
       ...(customTools ? { customTools } : {}),
-      ...childToolPolicy(),
+      ...childToolPolicy({ writable: options.writable }),
     }));
     await bindChildSessionExtensions(session);
     unsubscribeToolTimeout = guardWorkflowChildTools(
