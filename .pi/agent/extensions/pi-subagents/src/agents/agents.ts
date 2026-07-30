@@ -172,6 +172,7 @@ export interface ChainStepConfig {
 	model?: string;
 	skills?: string[] | false;
 	progress?: boolean;
+	salvage?: boolean;
 	parallel?: unknown;
 	expand?: unknown;
 	collect?: unknown;
