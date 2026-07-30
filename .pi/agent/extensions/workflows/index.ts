@@ -7,7 +7,7 @@
  *
  *   export const meta = { name, description, phases: [{ title, detail? }] }
  *   phase(title)                                  // mark runtime phase progression
- *   await agent(prompt, { label?, phase?, schema?, model?, provider?, effort? })
+ *   await agent(prompt, { label?, phase?, schema?, model?, provider?, effort?, writable? })
  *   await parallel([() => agent(...), ...], { concurrency? })
  *   args                                          // parsed JSON args passed with the tool call
  *
@@ -105,6 +105,7 @@ interface AgentCallOptions {
   model?: unknown;
   provider?: unknown;
   effort?: unknown;
+  writable?: unknown;
 }
 
 const WorkflowParams = Type.Object({
@@ -577,6 +578,7 @@ export default function workflows(pi: ExtensionAPI) {
               loader: resources.loader,
               settingsManager: resources.settingsManager,
               modelRegistry: ctx.modelRegistry,
+              writable: opts.writable === true,
               signal: runSignal,
               onProgress: (progress) => {
                 record.preview = progress.preview.slice(0, PREVIEW_LENGTH);
