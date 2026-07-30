@@ -81,6 +81,7 @@ export class RunController {
   private readonly semaphore: Semaphore;
   private readonly tasks = new Set<Promise<unknown>>();
   private callCount = 0;
+  private overBudgetCalls = 0;
   private sealed = false;
   private parentAbort?: () => void;
   private parentSignal?: AbortSignal;
@@ -111,6 +112,10 @@ export class RunController {
     return this.callCount;
   }
 
+  get refusedCalls() {
+    return this.overBudgetCalls;
+  }
+
   get maxAgentCalls() {
     return this.maxCalls;
   }
@@ -122,7 +127,16 @@ export class RunController {
     if (this.sealed) return Promise.reject(new Error("Workflow is settling"));
     if (this.signal.aborted) return Promise.reject(abortError(this.signal));
     if (this.callCount >= this.maxCalls) {
-      this.abort("Workflow exceeded the agent-call budget");
+      // Reject the individual call so a script can still reduce what it has
+      // and return. But a script that ignores the rejections (a runaway
+      // `while (true) await agent()`) would spin forever, so once the number
+      // of refused calls exceeds the budget itself the run is aborted. The
+      // grace is deliberately far wider than any legitimate fan-out: a script
+      // that fans out N thunks past the cap sees N ordinary failed results.
+      this.overBudgetCalls++;
+      if (this.overBudgetCalls > this.maxCalls) {
+        this.abort("Workflow ignored the agent-call budget");
+      }
       return Promise.reject(
         new Error(
           `Workflow exceeded the limit of ${this.maxCalls} agent calls`,
