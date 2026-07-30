@@ -147,6 +147,10 @@ bin/*
 .autoagent-runs/
 .symphony-runs/
 
+# Workflow run artifacts (machine-local: workflow.json / transcripts.json /
+# result.json / script.js per run, written under ~/.pi/agent/workflows/)
+.pi/agent/workflows/
+
 # gap-review extension output (completeness reviews written at turn end)
 .gap-reviews/
 
