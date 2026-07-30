@@ -17,6 +17,7 @@ export interface SandboxAgentOptions {
   provider?: unknown;
   effort?: unknown;
   writable?: unknown;
+  cwd?: unknown;
 }
 
 export interface SandboxAgentResult {
@@ -61,7 +62,7 @@ function terminateChild(child: ChildProcess) {
   force.unref?.();
 }
 
-function sanitizeAgentOptions(value: unknown): SandboxAgentOptions {
+export function sanitizeAgentOptions(value: unknown): SandboxAgentOptions {
   if (!isRecord(value)) return {};
   return {
     ...(value.label !== undefined ? { label: value.label } : {}),
@@ -71,6 +72,7 @@ function sanitizeAgentOptions(value: unknown): SandboxAgentOptions {
     ...(value.provider !== undefined ? { provider: value.provider } : {}),
     ...(value.effort !== undefined ? { effort: value.effort } : {}),
     ...(value.writable !== undefined ? { writable: value.writable } : {}),
+    ...(value.cwd !== undefined ? { cwd: value.cwd } : {}),
   };
 }
 
