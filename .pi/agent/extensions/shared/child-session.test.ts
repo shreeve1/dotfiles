@@ -38,6 +38,7 @@ const REAL_DANGEROUS_TOOL_NAMES = [
   "bg_start", // background-terminals/index.ts
   "bg_kill", // background-terminals/index.ts
   "ask_user_question", // rpiv-ask-user-question
+  "advisor", // rpiv-advisor issues its own completeSimple model request
 ] as const;
 
 async function withTempDir(run: (directory: string) => Promise<void>) {

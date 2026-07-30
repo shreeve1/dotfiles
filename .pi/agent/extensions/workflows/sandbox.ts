@@ -148,7 +148,12 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
       if (error) reject(error);
       else resolve(value);
     };
-    const onAbort = () => finish(new Error("Workflow was aborted"));
+    const onAbort = () =>
+      finish(
+        options.signal.reason instanceof Error
+          ? options.signal.reason
+          : new Error("Workflow was aborted"),
+      );
 
     options.signal.addEventListener("abort", onAbort, { once: true });
     if (options.signal.aborted) {
@@ -230,6 +235,7 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
         const abortController = new AbortController();
         const sendResult = (result: SandboxAgentResult) => {
           if (!activeAgentRequests.delete(id)) return;
+          requestIds.delete(id);
           if (finished || !child.connected) return;
           const normalized = toSerializable(result, {
             maxDepth: 16,

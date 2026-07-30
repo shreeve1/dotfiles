@@ -33,6 +33,10 @@ export const CHILD_EXCLUDED_TOOL_NAMES = [
   "bg_kill",
   // headless children have no interactive question channel — rpiv-ask-user-question
   "ask_user_question",
+  // rpiv-advisor issues its own model request via completeSimple — bypasses
+  // the workflow agent-call/concurrency budget, so a child could otherwise
+  // exhaust the parent's account unbounded — extensions/rpiv-advisor/advisor.ts
+  "advisor",
 ] as const;
 
 /** File-mutation tools denied by default; a workflow step opts back in via
@@ -46,7 +50,7 @@ export const CHILD_WRITABLE_GATED_TOOLS = [
 /**
  * Fresh SDK options avoid turning the denylist into an accidental allowlist.
  *
- * Children are read-only by default: the file-mutation tools in
+ * Children have a default read-only file-mutation policy: the tools in
  * `CHILD_WRITABLE_GATED_TOOLS` are denied unless a workflow step opts in via
  * `{ writable: true }`. Spawn / process-control / parent-RPC tools in
  * `CHILD_EXCLUDED_TOOL_NAMES` are always denied.

@@ -83,8 +83,17 @@ test("RunController enforces call budget and aborts queued tasks", async () => {
     /exceeded the limit of 3 agent calls/,
   );
   assert.equal(controller.maxAgentCalls, 3);
-  controller.abort();
-  await blocker;
+  // Schedule calls past the budget must abort the run, not just reject the
+  // call. A rejected-only behavior would let a runaway `while(true) await
+  // agent()` loop forever — the controller must hard-abort so the parent
+  // loop sees the aborted signal.
+  assert.equal(controller.signal.aborted, true);
+  assert.match(String(controller.signal.reason), /agent-call budget/);
+  // The blocker IIFE was in flight when the budget aborted synchronously
+  // inside schedule(); its task never starts, so the schedule promise
+  // rejects with the abort reason rather than hanging. Queued tasks reject
+  // the same way via the cleared semaphore.
+  await assert.rejects(blocker, /agent-call budget/);
   const results = await Promise.allSettled(queued);
   assert.ok(results.every((result) => result.status === "rejected"));
   assert.equal(await controller.settle({ abort: true }), true);

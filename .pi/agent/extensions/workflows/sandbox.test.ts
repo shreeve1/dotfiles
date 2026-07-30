@@ -130,6 +130,29 @@ test("workflow cancellation aborts a pending agent request", async () => {
 
   await started;
   controller.abort(new Error("cancel fixture"));
-  await assert.rejects(pending, /Workflow was aborted/);
+  await assert.rejects(pending, /cancel fixture/);
   assert.equal(requestAborted, true);
+});
+
+// Regression guard for the pre-6997387 runaway: a script's `while (true)
+// await agent(...)` must not hang the sandbox once the parent aborts the
+// run's AbortSignal (mimicking the controller overshooting the agent-call
+// budget). The sandbox must surface the abort reason on its returned
+// promise.
+test("runaway agent loop terminates when the run's signal aborts", async () => {
+  const abort = new AbortController();
+  let calls = 0;
+  await assert.rejects(
+    run(`while (true) { await agent("x"); }`, {
+      signal: abort.signal,
+      onAgent: async () => {
+        calls++;
+        if (calls >= 3) {
+          abort.abort(new Error("Workflow exceeded the agent-call budget"));
+        }
+        return { ok: false, output: "", error: "aborted" };
+      },
+    }),
+    /agent-call budget/,
+  );
 });

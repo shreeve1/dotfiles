@@ -552,9 +552,6 @@ export default function workflows(pi: ExtensionAPI) {
           usage: emptyUsage(),
           transcript: [],
         };
-        details.agents.push(record);
-        persistence.checkpoint({ immediate: true });
-        emit(false);
 
         const fail = (error: string): ScriptAgentResult => {
           record.state = "error";
@@ -576,6 +573,14 @@ export default function workflows(pi: ExtensionAPI) {
 
         return controller
           .schedule(async (runSignal) => {
+            // Record is allocated in agentFn but only published (and the
+            // initial checkpoint written) once schedule has accepted the call
+            // and acquired the semaphore. A budget-exhausted schedule
+            // rejection must never append to details.agents or checkpoint.
+            details.agents.push(record);
+            persistence.checkpoint({ immediate: true });
+            emit(false);
+
             // Model/provider resolution: default to the parent session's model.
             let model: WorkflowModel | undefined = ctx.model;
             if (opts.model !== undefined || opts.provider !== undefined) {
@@ -696,7 +701,11 @@ export default function workflows(pi: ExtensionAPI) {
               ...(outcome.error !== undefined ? { error: outcome.error } : {}),
             };
           }, invocationSignal)
-          .catch((error) => fail(errorText(error)));
+          .catch((error) => ({
+            ok: false,
+            output: "",
+            error: errorText(error),
+          }));
       };
 
       const runScript = async () => {

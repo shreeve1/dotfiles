@@ -122,6 +122,7 @@ export class RunController {
     if (this.sealed) return Promise.reject(new Error("Workflow is settling"));
     if (this.signal.aborted) return Promise.reject(abortError(this.signal));
     if (this.callCount >= this.maxCalls) {
+      this.abort("Workflow exceeded the agent-call budget");
       return Promise.reject(
         new Error(
           `Workflow exceeded the limit of ${this.maxCalls} agent calls`,
