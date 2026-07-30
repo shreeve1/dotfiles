@@ -46,6 +46,17 @@ commands).
   `~/.pi/agent/auth.json` (dir-bound). Vendored deps (`jiti`, `yaml`) install via
   `bash install.sh`. Do not `pi install npm:pi-subagents`; use the repo copy.
   Root Pi delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
+  `.pi/agent/extensions/pi-subagents/biome.json` (`{"formatter":{"enabled":false}}`)
+  is a LOCAL-only file with no upstream counterpart — keep it across re-syncs.
+  pi-lens auto-runs `biome format` on every edited file with cwd set to the
+  file's own dir; since neither a `biome.json` nor a same-dir `.editorconfig`
+  exists for deeply-nested `src/` files, biome fell back to its default 80-col
+  wrapping and reflowed the wide-authored upstream files into multi-thousand-line
+  diffs on every edit (the repo-root `.editorconfig` is too far up to be seen,
+  and `.editorconfig` has no line-width knob anyway). Upstream ships no formatter
+  config and enforces none, so disabling the formatter is upstream-faithful and
+  keeps edits churn-free. If a re-sync drops it, edits to this extension will
+  churn again — re-add it.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
