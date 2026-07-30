@@ -189,8 +189,8 @@ test("resolveAgentCwdAndTrust keeps cwd and trust coupled", async () => {
   });
 });
 
-// Covers the index.ts invariant that resolveAgentResources receives re-derived
-// trust, not parentTrusted; the paired loads show why the distinction matters.
+// Covers the index.ts invariant that per-agent resource creation receives
+// re-derived trust, not parentTrusted; the paired loads show why it matters.
 test("alternate-cwd resources gate project extensions by re-derived trust", async () => {
   await withTempDir(async (directory) => {
     const parentCwd = path.join(directory, "parent");

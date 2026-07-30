@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import type {
   AgentSession,
@@ -479,4 +480,48 @@ test("guardWorkflowChildTools re-activates customTools after a mid-run refresh",
     "custom tool must be re-activated at agent_start",
   );
   unsubscribe();
+});
+
+test("workflow agent resources are built per call, never cached across children", () => {
+  // Regression guard for run wf_d10a2148948f: index.ts cached
+  // createWorkflowResources per (cwd,variant,trusted), so all four concurrent
+  // children shared ONE extension runtime. The first child to finish disposed
+  // it (AgentSession.dispose() -> _extensionRunner.invalidate()), and every
+  // still-running sibling then failed each tool call with "This extension ctx
+  // is stale after session replacement or reload". Only the first-finishing
+  // agent survived: 1/4.
+  //
+  // The cache lived inside the per-run workflows() closure, so it cannot be
+  // reached from a unit test without standing up four concurrent AgentSessions
+  // (~7s each, cold). This asserts on the source instead — crude, but it fails
+  // if anyone reintroduces sharing, which a helper-level test would not catch.
+  const source = readFileSync(
+    new URL("./index.ts", import.meta.url),
+    "utf8",
+  );
+  // Name-independent: catches a cache under ANY identifier by requiring that
+  // createWorkflowResources' result is never stored in a Map (how the original
+  // cache memoized it), and that the call sits at the per-agent call site.
+  assert.equal(
+    /resourcesCache|resolveAgentResources/.test(source),
+    false,
+    "index.ts must not cache/share agent resources across concurrent children",
+  );
+  assert.equal(
+    /new Map<[^>]*ReturnType<typeof createWorkflowResources>/.test(source),
+    false,
+    "createWorkflowResources results must not be memoized in a Map",
+  );
+  assert.match(
+    source,
+    /const resources = await createWorkflowResources\(/,
+    "each agent() call must build its own resources",
+  );
+  // Variant mapping must not invert: schema present => structured (which is
+  // what adds STRUCTURED_OUTPUT_SYSTEM_INSTRUCTION).
+  assert.match(
+    source,
+    /opts\.schema !== undefined \? "structured" : "plain"/,
+    "schema presence must map to the structured variant",
+  );
 });
