@@ -16,12 +16,29 @@ import { Type } from "typebox";
 import {
   bindChildSessionExtensions,
   CHILD_EXCLUDED_TOOL_NAMES,
+  CHILD_WRITABLE_GATED_TOOLS,
   childToolPolicy,
   createChildResources,
   resolveStandaloneChildProjectTrust,
   shutdownAndDisposeChildSession,
   type DisposableChildSession,
 } from "./child-session.ts";
+
+/** Independent oracle: the REAL dangerous tool names a headless child must be
+ *  denied, each annotated with where it is registered. Asserted against
+ *  CHILD_EXCLUDED_TOOL_NAMES so the deny-list cannot silently drift to
+ *  phantoms or drop a real name. */
+const REAL_DANGEROUS_TOOL_NAMES = [
+  "subagent", // pi-subagents/src/extension/index.ts
+  "subagent_wait", // pi-subagents/src/runs/background/wait-tool.ts
+  "subagent_supervisor", // pi-subagents/src/intercom/native-supervisor-channel.ts
+  "contact_supervisor", // pi-subagents/src/intercom/native-supervisor-channel.ts
+  "intercom", // pi-subagents/src/intercom/native-supervisor-channel.ts
+  "workflow", // workflows/index.ts
+  "bg_start", // background-terminals/index.ts
+  "bg_kill", // background-terminals/index.ts
+  "ask_user_question", // rpiv-ask-user-question
+] as const;
 
 async function withTempDir(run: (directory: string) => Promise<void>) {
   const directory = await mkdtemp(path.join(tmpdir(), "pi-child-policy-"));
@@ -53,7 +70,7 @@ test("child denylist keeps extension and workflow structured tools available", a
           });
           for (const name of [
             "fixture_extension_tool",
-            ...CHILD_EXCLUDED_TOOL_NAMES,
+            ...REAL_DANGEROUS_TOOL_NAMES,
           ]) {
             pi.registerTool({
               name,
@@ -92,22 +109,10 @@ test("child denylist keeps extension and workflow structured tools available", a
       settingsManager,
       sessionManager: SessionManager.inMemory(directory),
       customTools: [structuredOutput],
-      ...childToolPolicy(),
+      ...childToolPolicy({ writable: true }),
     });
     await bindChildSessionExtensions(session);
 
-    assert.deepEqual(
-      [...CHILD_EXCLUDED_TOOL_NAMES],
-      [
-        "subagent_spawn",
-        "subagent_wait",
-        "subagent_cancel",
-        "subagent_check",
-        "subagent_list",
-        "workflow",
-        "ask_user",
-      ],
-    );
     const allTools = new Set(session.getAllTools().map((tool) => tool.name));
     const activeTools = new Set(session.getActiveToolNames());
     assert.equal(starts, 1);
@@ -115,7 +120,20 @@ test("child denylist keeps extension and workflow structured tools available", a
     assert.equal(activeTools.has("fixture_extension_tool"), true);
     assert.equal(allTools.has("structured_output"), true);
     assert.equal(activeTools.has("structured_output"), true);
-    for (const denied of CHILD_EXCLUDED_TOOL_NAMES) {
+    // Bidirectional: the constant must equal the oracle exactly. Catches both a
+    // dropped real name (oracle ⊄ constant) and an added phantom (constant ⊄ oracle).
+    const constantSet = new Set<string>(CHILD_EXCLUDED_TOOL_NAMES);
+    const oracleSet = new Set<string>(REAL_DANGEROUS_TOOL_NAMES);
+    for (const name of REAL_DANGEROUS_TOOL_NAMES) {
+      assert.ok(constantSet.has(name), `${name} must be denied (in constant)`);
+    }
+    for (const name of CHILD_EXCLUDED_TOOL_NAMES) {
+      assert.ok(
+        oracleSet.has(name),
+        `${name} is in the constant but not the test oracle — phantom or stale?`,
+      );
+    }
+    for (const denied of REAL_DANGEROUS_TOOL_NAMES) {
       assert.equal(allTools.has(denied), false, `${denied} should be denied`);
       assert.equal(
         activeTools.has(denied),
@@ -137,6 +155,21 @@ test("child denylist keeps extension and workflow structured tools available", a
     ]);
     assert.equal(shutdowns, 1);
   });
+});
+
+test("child tool policy gates file mutation by default while read/bash stay allowed", async () => {
+  const defaultExcluded = new Set(childToolPolicy().excludeTools);
+  const writableExcluded = new Set(
+    childToolPolicy({ writable: true }).excludeTools,
+  );
+  for (const name of CHILD_WRITABLE_GATED_TOOLS) {
+    assert.equal(defaultExcluded.has(name), true);
+    assert.equal(writableExcluded.has(name), false);
+  }
+  for (const name of ["read", "bash"]) {
+    assert.equal(defaultExcluded.has(name), false);
+    assert.equal(writableExcluded.has(name), false);
+  }
 });
 
 test("resource loading gates project extensions but retains global extensions", async () => {
