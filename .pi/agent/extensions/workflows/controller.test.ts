@@ -67,15 +67,12 @@ test("RunController propagates invocation cancellation without aborting the run"
   assert.equal(await controller.settle(), true);
 });
 
-test("RunController enforces call budget and aborts queued tasks", async () => {
-  const controller = new RunController(undefined, 1, 3);
-  const blocker = controller.schedule(
-    (signal) =>
-      new Promise<void>((resolve) =>
-        signal.addEventListener("abort", () => resolve(), { once: true }),
-      ),
-  );
-  const queued = Array.from({ length: 2 }, () =>
+test("RunController refuses over-budget calls without aborting the run", async () => {
+  const controller = new RunController(undefined, 2, 3);
+  // Work scheduled while the budget still had room must survive: the whole
+  // point of a soft refusal is that a script can reduce what it already has.
+  const early = controller.schedule(async () => "early");
+  const alsoEarly = Array.from({ length: 2 }, () =>
     controller.schedule(async () => "queued"),
   );
   await assert.rejects(
@@ -83,18 +80,52 @@ test("RunController enforces call budget and aborts queued tasks", async () => {
     /exceeded the limit of 3 agent calls/,
   );
   assert.equal(controller.maxAgentCalls, 3);
-  // Schedule calls past the budget must abort the run, not just reject the
-  // call. A rejected-only behavior would let a runaway `while(true) await
-  // agent()` loop forever — the controller must hard-abort so the parent
-  // loop sees the aborted signal.
+  assert.equal(controller.refusedCalls, 1);
+  // The regression guard: an over-budget call rejects on its own; it must not
+  // take the run down with it.
+  assert.equal(controller.signal.aborted, false);
+  assert.equal(await early, "early");
+  assert.deepEqual(await Promise.all(alsoEarly), ["queued", "queued"]);
+  assert.equal(await controller.settle({ abort: true }), true);
+});
+
+test("RunController aborts a script that ignores the budget refusals", async () => {
+  const controller = new RunController(undefined, 2, 3);
+  for (let i = 0; i < 3; i++) {
+    assert.equal(await controller.schedule(async () => "ok"), "ok");
+  }
+
+  const blocker = controller.schedule(
+    (signal) =>
+      new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true }),
+      ),
+  );
+  await assert.rejects(blocker, /exceeded the limit of 3 agent calls/);
+
+  // Refusals up to and including maxCalls leave the run alive.
+  for (let i = 2; i <= 3; i++) {
+    await assert.rejects(
+      controller.schedule(async () => "refused"),
+      /exceeded the limit of 3 agent calls/,
+    );
+    assert.equal(controller.refusedCalls, i);
+    assert.equal(controller.signal.aborted, false);
+  }
+
+  // One past the grace window trips the runaway guard.
+  await assert.rejects(
+    controller.schedule(async () => "refused"),
+    /exceeded the limit of 3 agent calls/,
+  );
+  assert.equal(controller.refusedCalls, 4);
   assert.equal(controller.signal.aborted, true);
-  assert.match(String(controller.signal.reason), /agent-call budget/);
-  // The blocker IIFE was in flight when the budget aborted synchronously
-  // inside schedule(); its task never starts, so the schedule promise
-  // rejects with the abort reason rather than hanging. Queued tasks reject
-  // the same way via the cleared semaphore.
-  await assert.rejects(blocker, /agent-call budget/);
-  const results = await Promise.allSettled(queued);
+  assert.match(String(controller.signal.reason), /ignored the agent-call budget/);
+
+  // Once aborted, queued work rejects via the cleared semaphore.
+  const results = await Promise.allSettled([
+    controller.schedule(async () => "after abort"),
+  ]);
   assert.ok(results.every((result) => result.status === "rejected"));
   assert.equal(await controller.settle({ abort: true }), true);
 });
