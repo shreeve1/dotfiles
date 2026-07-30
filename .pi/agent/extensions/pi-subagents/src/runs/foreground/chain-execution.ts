@@ -352,6 +352,7 @@ async function runParallelChainTasks(input: ParallelChainRunInput): Promise<Sing
 					: undefined,
 				toolBudget: toolBudget.toolBudget,
 				completionGuard: task.completionGuard ?? input.step.completionGuard ?? input.completionGuard,
+				salvage: task.salvage,
 				onUpdate: input.onUpdate
 					? (progressUpdate) => {
 						const stepResults = progressUpdate.details?.results || [];
@@ -1226,6 +1227,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 					: undefined,
 				toolBudget: toolBudget.toolBudget,
 				completionGuard: seqStep.completionGuard ?? params.completionGuard,
+				salvage: seqStep.salvage,
 				onUpdate: onUpdate
 					? (p) => {
 						const stepResults = p.details?.results || [];

@@ -81,6 +81,11 @@ function parseStepBody(agent: string, sectionBody: string): ChainStepConfig {
 			else if (rawValue === "false") step.progress = false;
 			continue;
 		}
+		if (key === "salvage") {
+			if (rawValue === "true") step.salvage = true;
+			else if (rawValue === "false") step.salvage = false;
+			continue;
+		}
 		if (key === "toolbudget") {
 			let parsed: unknown;
 			try {
