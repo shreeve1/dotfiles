@@ -121,15 +121,54 @@ interface WorkflowToolSession {
   subscribe(listener: AgentSessionEventListener): () => void;
 }
 
+interface ActiveToolSession {
+  getActiveToolNames(): string[];
+  setActiveToolsByName(names: string[]): void;
+}
+
+/**
+ * Re-activate SDK-injected `customTools` after extension binding.
+ *
+ * `bindExtensions` emits `session_start`, and an extension loaded in the child
+ * may replace the ACTIVE tool set wholesale. Fusion does exactly that: its
+ * `session_start` handler calls `setActiveTools(parentToolAllowlist())`
+ * (`extensions/fusion/index.ts`), which knows nothing about a workflow's
+ * `structured_output`, so the tool is dropped from the active set while
+ * surviving in the registry. The agent loop resolves against the active set, so
+ * the call returns `Tool <name> not found` and the agent's finished work is
+ * discarded — observed in run wf_4cb67e93508c, where 3 of 4 agents called the
+ * tool with valid payloads and every call was rejected.
+ *
+ * Registry presence is not activation: `getAllTools()` still lists the tool,
+ * which is why this hid behind a plausible "the model ignored the schema".
+ *
+ * Only the named custom tools are re-added, and the SDK intersects the active
+ * list against the registry, so `childToolPolicy` denials stand.
+ */
+export function reactivateCustomTools(
+  session: ActiveToolSession,
+  customTools: ReadonlyArray<{ name: string }>,
+) {
+  const names = customTools.map((tool) => tool.name);
+  const active = session.getActiveToolNames();
+  if (names.every((name) => active.includes(name))) return;
+  session.setActiveToolsByName([...new Set([...active, ...names])]);
+}
+
 /** Guard current tools and tools registered by extensions at later agent starts. */
 export function guardWorkflowChildTools(
-  session: WorkflowToolSession,
+  session: WorkflowToolSession & ActiveToolSession,
   timeoutMs?: number,
+  customTools?: ReadonlyArray<{ name: string }>,
 ) {
   const guard = createToolCallTimeoutGuard(timeoutMs);
   guard.apply(session);
   return session.subscribe((event) => {
-    if (event.type === "agent_start") guard.apply(session);
+    if (event.type !== "agent_start") return;
+    guard.apply(session);
+    // Fusion reapplies its allowlist before every agent start, so the custom
+    // tool must be re-asserted each time, not just once after binding.
+    if (customTools) reactivateCustomTools(session, customTools);
   });
 }
 
@@ -466,9 +505,11 @@ export async function runAgent(
       ...childToolPolicy({ writable: options.writable }),
     }));
     await bindChildSessionExtensions(session);
+    if (customTools) reactivateCustomTools(session, customTools);
     unsubscribeToolTimeout = guardWorkflowChildTools(
       session,
       options.toolCallTimeoutMs,
+      customTools,
     );
   } catch (error) {
     unsubscribeToolTimeout?.();
