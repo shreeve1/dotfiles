@@ -12,6 +12,7 @@ import {
   createFirstResponseWatchdog,
   guardWorkflowChildTools,
   isJsonSchema,
+  reactivateCustomTools,
   recordToolExecutionTiming,
   transcriptFromMessages,
   type ToolExecutionTiming,
@@ -242,9 +243,14 @@ test("workflow children guard structured, normal, and dynamically registered too
     [structured.name, structured],
   ]);
   let listener: AgentSessionEventListener | undefined;
+  let active = [...definitions.keys()];
   const session = {
     getAllTools: () => [...definitions.keys()].map((name) => ({ name })),
     getToolDefinition: (name: string) => definitions.get(name),
+    getActiveToolNames: () => [...active],
+    setActiveToolsByName: (names: string[]) => {
+      active = [...names];
+    },
     subscribe(next: AgentSessionEventListener) {
       listener = next;
       return () => {
@@ -403,4 +409,74 @@ test("background catch keeps an already-recorded flush error instead of overwrit
   }
   recordBackgroundRunFailure(details, thrown ?? new Error("disk full"));
   assert.equal(details.error, "Artifact persistence failed: disk full");
+});
+
+test("reactivateCustomTools restores customTools dropped from the active set", () => {
+  // Regression, observed in run wf_4cb67e93508c: an extension loaded in the
+  // child replaces the ACTIVE tool set at session_start — Fusion calls
+  // setActiveTools(parentToolAllowlist()), which does not know about a
+  // workflow's structured_output. The tool survives in the REGISTRY but leaves
+  // the active set, so the agent loop's lookup misses and returns
+  // `Tool <name> not found` (pi-agent-core agent-loop.js:394-398) — discarding
+  // work the agent already completed. Registry presence is not activation.
+  const custom = [{ name: "structured_output" }];
+  // Post-refresh active set: policy-filtered built-ins, custom tool gone.
+  let active = ["read", "bash", "lsp_diagnostics", "todo"];
+  const session = {
+    getActiveToolNames: () => [...active],
+    setActiveToolsByName: (names: string[]) => {
+      active = [...names];
+    },
+  };
+
+  reactivateCustomTools(session, custom);
+  assert.ok(
+    session.getActiveToolNames().includes("structured_output"),
+    "custom tool must be re-activated",
+  );
+  // Re-activation must not widen the policy: denied tools stay denied.
+  assert.equal(session.getActiveToolNames().includes("write"), false);
+  assert.equal(session.getActiveToolNames().includes("edit"), false);
+  assert.equal(session.getActiveToolNames().includes("subagent"), false);
+  // Built-ins that were active stay active.
+  assert.ok(session.getActiveToolNames().includes("read"));
+  assert.equal(session.getActiveToolNames().length, 5);
+
+  // Idempotent: a second call must not duplicate or reorder-thrash.
+  const before = session.getActiveToolNames();
+  reactivateCustomTools(session, custom);
+  assert.deepEqual(session.getActiveToolNames(), before);
+});
+
+test("guardWorkflowChildTools re-activates customTools after a mid-run refresh", () => {
+  // Fusion reapplies its allowlist before every agent start, dropping the
+  // custom tool from the active set again, so the guard's existing agent_start
+  // subscription must re-assert it every turn — not just once after binding.
+  const custom = [{ name: "structured_output" }];
+  let active = ["read", "structured_output"];
+  let listener: AgentSessionEventListener | undefined;
+  const session = {
+    getAllTools: () => active.map((name) => ({ name })),
+    getToolDefinition: () => undefined,
+    getActiveToolNames: () => [...active],
+    setActiveToolsByName: (names: string[]) => {
+      active = [...names];
+    },
+    subscribe(next: AgentSessionEventListener) {
+      listener = next;
+      return () => {
+        listener = undefined;
+      };
+    },
+  };
+
+  const unsubscribe = guardWorkflowChildTools(session, 10, custom);
+  // Simulate the mid-run refresh that strips the custom tool.
+  active = ["read"];
+  listener?.({ type: "agent_start" } as never);
+  assert.ok(
+    session.getActiveToolNames().includes("structured_output"),
+    "custom tool must be re-activated at agent_start",
+  );
+  unsubscribe();
 });
