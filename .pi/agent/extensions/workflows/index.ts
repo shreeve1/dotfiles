@@ -135,6 +135,34 @@ function errorText(error: unknown): string {
   );
 }
 
+/** Records a flush-failure after runScript() already committed details.status.
+ *  Does not touch details.status — overwrites details.error with a typed
+ *  prefix and rethrows so callers (blocking awaiter or background catch) see
+ *  a tagged failure. Exported so the "do not clobber a truthful terminal
+ *  status" invariant is regression-tested. */
+export function recordFlushFailure(
+  details: WorkflowDetails,
+  error: unknown,
+): never {
+  details.error = `Artifact persistence failed: ${errorText(error)}`;
+  throw new Error(details.error);
+}
+
+/** Records a background-run completion error. Preserves a truthful "completed"
+ *  or "aborted" status; only marks "failed" when status never advanced past
+ *  "running" (genuine mid-flight crash). Sets finishedAt and keeps any
+ *  already-recorded error (e.g. the "Artifact persistence failed:" prefix
+ *  set by recordFlushFailure). Exported so the === "running" guard is
+ *  regression-tested. */
+export function recordBackgroundRunFailure(
+  details: WorkflowDetails,
+  error: unknown,
+): void {
+  if (details.status === "running") details.status = "failed";
+  details.finishedAt = Date.now();
+  details.error = details.error ?? errorText(error);
+}
+
 export interface AgentCwdResolution {
   cwd: string;
   trusted: boolean;
@@ -746,9 +774,11 @@ export default function workflows(pi: ExtensionAPI) {
         try {
           persistence.flush();
         } catch (error) {
-          details.status = "failed";
-          details.error = `Artifact persistence failed: ${errorText(error)}`;
-          throw new Error(details.error);
+          // recordFlushFailure() does not touch details.status — runScript
+          // already committed the truthful status above. The error message
+          // is the only thing worth recording, and it is rethrown so the
+          // background catch (or the blocking awaiter) sees a tagged failure.
+          recordFlushFailure(details, error);
         } finally {
           flushNow();
         }
@@ -770,9 +800,7 @@ export default function workflows(pi: ExtensionAPI) {
       if (background) {
         void completion
           .catch((error) => {
-            details.status = "failed";
-            details.finishedAt = Date.now();
-            details.error = details.error ?? errorText(error);
+            recordBackgroundRunFailure(details, error);
           })
           .finally(() => {
             activeRuns.delete(runId);
