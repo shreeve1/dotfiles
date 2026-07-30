@@ -120,7 +120,10 @@ test("RunController aborts a script that ignores the budget refusals", async () 
   );
   assert.equal(controller.refusedCalls, 4);
   assert.equal(controller.signal.aborted, true);
-  assert.match(String(controller.signal.reason), /ignored the agent-call budget/);
+  assert.match(
+    String(controller.signal.reason),
+    /ignored the agent-call budget/,
+  );
 
   // Once aborted, queued work rejects via the cleared semaphore.
   const results = await Promise.allSettled([
