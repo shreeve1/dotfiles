@@ -9,6 +9,7 @@ import { Type } from "typebox";
 import {
   createFirstResponseWatchdog,
   guardWorkflowChildTools,
+  isJsonSchema,
   recordToolExecutionTiming,
   transcriptFromMessages,
   type ToolExecutionTiming,
@@ -279,4 +280,40 @@ test("workflow children guard structured, normal, and dynamically registered too
   );
   assert.equal(dynamicSignal?.aborted, true);
   unsubscribe();
+});
+
+test("isJsonSchema accepts shared subschemas but still rejects cycles", () => {
+  // Regression: `seen` was tracked for the whole walk, so reusing one
+  // subschema object across sibling fields — a DAG, not a cycle, and the
+  // idiomatic way to hand-write JSON Schema — was rejected. Callers lost
+  // structured output entirely with "must be a bounded JSON object".
+  const str = { type: "string" };
+  assert.equal(
+    isJsonSchema({ type: "object", properties: { a: str, b: str } }),
+    true,
+  );
+  const sharedEnum = ["high", "low"];
+  assert.equal(
+    isJsonSchema({
+      type: "object",
+      properties: { a: { enum: sharedEnum }, b: { enum: sharedEnum } },
+    }),
+    true,
+  );
+
+  // Genuine cycles must still fail, at the root and when nested.
+  const selfCycle: Record<string, unknown> = { type: "object" };
+  selfCycle.self = selfCycle;
+  assert.equal(isJsonSchema(selfCycle), false);
+  const nestedCycle: Record<string, unknown> = {
+    type: "object",
+    properties: {} as Record<string, unknown>,
+  };
+  (nestedCycle.properties as Record<string, unknown>).back = nestedCycle;
+  assert.equal(isJsonSchema(nestedCycle), false);
+
+  // Prototype-pollution keys and non-object roots stay rejected.
+  assert.equal(isJsonSchema(JSON.parse('{"__proto__":{"x":1}}')), false);
+  assert.equal(isJsonSchema([{ type: "string" }]), false);
+  assert.equal(isJsonSchema(null), false);
 });
