@@ -133,7 +133,8 @@ export function guardWorkflowChildTools(
   });
 }
 
-function isJsonSchema(value: unknown): value is TSchema {
+/** Exported so the shared-subschema / cycle boundary is asserted directly. */
+export function isJsonSchema(value: unknown): value is TSchema {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const seen = new WeakSet<object>();
   let nodes = 0;
@@ -151,14 +152,22 @@ function isJsonSchema(value: unknown): value is TSchema {
       return current.every((item) => validate(item, depth + 1));
     }
     if (typeof current !== "object") return false;
+    // Cycle detection must be scoped to the CURRENT PATH, not the whole walk.
+    // A shared subschema (`const STR = { type: "string" }` reused across
+    // fields) is a DAG, not a cycle, and is idiomatic hand-written JSON
+    // Schema. Tracking `seen` globally rejected it, so the caller got
+    // "schema must be a bounded JSON object" and lost structured output.
+    // The node/depth caps above still bound a wide DAG.
     if (seen.has(current)) return false;
     seen.add(current);
-    return Object.keys(current).every((key) => {
+    const ok = Object.keys(current).every((key) => {
       if (key === "__proto__" || key === "constructor" || key === "prototype") {
         return false;
       }
       return validate((current as Record<string, unknown>)[key], depth + 1);
     });
+    seen.delete(current);
+    return ok;
   };
   return validate(value, 0);
 }
