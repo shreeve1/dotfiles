@@ -121,6 +121,14 @@ export interface DynamicFilterSpec {
 	in?: Array<string | number | boolean>;
 }
 
+export interface DynamicJoinSpec {
+	output: string;
+	path: string;
+	on: string;
+	match?: string;
+	as: string;
+}
+
 export interface DynamicExpandSpec {
 	from: {
 		output: string;
@@ -128,6 +136,7 @@ export interface DynamicExpandSpec {
 	};
 	item?: string;
 	key?: string;
+	join?: DynamicJoinSpec[];
 	filter?: DynamicFilterSpec;
 	maxItems?: number;
 	onEmpty?: "skip" | "fail";

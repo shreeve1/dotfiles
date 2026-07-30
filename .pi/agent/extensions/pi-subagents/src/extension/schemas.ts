@@ -137,6 +137,13 @@ export const DynamicExpandSchema = Type.Object({
 	}, { additionalProperties: false }),
 	item: Type.Optional(Type.String({ description: "Template variable name for each item. Defaults to item." })),
 	key: Type.Optional(Type.String({ description: "JSON Pointer relative to each item for stable child ids." })),
+	join: Type.Optional(Type.Array(Type.Object({
+		output: Type.String({ description: "Prior named structured output to join from." }),
+		path: Type.String({ description: "JSON Pointer into that output to the secondary array, e.g. /items." }),
+		on: Type.String({ description: "JSON Pointer into each primary item (left key). Must resolve to a scalar." }),
+		match: Type.Optional(Type.String({ description: "JSON Pointer into each secondary element (right key). Defaults to on." })),
+		as: Type.String({ description: "Field name the matched secondary element binds to on each item (null when unmatched). Overwrites any existing field of the same name." }),
+	}, { additionalProperties: false }), { description: "Enrich each item with a matching element from prior outputs (left join, first match wins). Applied in order, before filter." })),
 	maxItems: Type.Optional(Type.Integer({ minimum: 0, description: "Required fanout bound unless configured globally." })),
 	onEmpty: Type.Optional(Type.String({ enum: ["skip", "fail"], description: "Empty input behavior. Defaults to skip." })),
 	filter: Type.Optional(Type.Object({
