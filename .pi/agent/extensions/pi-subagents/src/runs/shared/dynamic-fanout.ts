@@ -1,4 +1,4 @@
-import type { DynamicFilterSpec, DynamicJoinSpec, DynamicParallelStep, ParallelTaskItem } from "../../shared/settings.ts";
+import type { DynamicFilterSpec, DynamicJoinSpec, DynamicSortSpec, DynamicParallelStep, ParallelTaskItem } from "../../shared/settings.ts";
 import type { ArtifactPaths, ChainOutputMap, JsonSchemaObject, SingleResult } from "../../shared/types.ts";
 import { getSingleResultOutput } from "../../shared/utils.ts";
 import { validateStructuredOutputValue } from "./structured-output.ts";
@@ -44,9 +44,10 @@ const ITEM_REF_PATTERN = /\{([A-Za-z_][A-Za-z0-9_]*)(?:\.([^{}]+))?\}/g;
 const RESERVED_TEMPLATE_NAMES = new Set(["task", "previous", "chain_dir", "outputs"]);
 const DYNAMIC_STEP_KEYS = new Set(["expand", "parallel", "collect", "concurrency", "failFast", "phase", "label", "acceptance", "completionGuard"]);
 const RUNNER_DYNAMIC_STEP_KEYS = new Set([...DYNAMIC_STEP_KEYS, "effectiveAcceptance", "acceptanceInput", "acceptanceRole", "sessionFiles", "thinkingOverrides"]);
-const DYNAMIC_EXPAND_KEYS = new Set(["from", "item", "key", "join", "maxItems", "onEmpty", "filter"]);
+const DYNAMIC_EXPAND_KEYS = new Set(["from", "item", "key", "join", "maxItems", "onEmpty", "filter", "sort", "top"]);
 const DYNAMIC_FILTER_KEYS = new Set(["path", "equals", "in"]);
 const DYNAMIC_JOIN_KEYS = new Set(["output", "path", "on", "match", "as"]);
+const DYNAMIC_SORT_KEYS = new Set(["by", "order"]);
 const DYNAMIC_EXPAND_FROM_KEYS = new Set(["output", "path"]);
 const DYNAMIC_PARALLEL_KEYS = new Set(["agent", "task", "phase", "label", "outputSchema", "cwd", "output", "outputMode", "reads", "progress", "skill", "model", "toolBudget", "acceptance", "completionGuard", "salvage"]);
 const RUNNER_DYNAMIC_PARALLEL_KEYS = new Set([
@@ -120,6 +121,43 @@ export function evaluateDynamicFilter(filter: DynamicFilterSpec, item: unknown):
 
 function isScalarValue(value: unknown): value is string | number | boolean {
 	return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function resolveSortKey(item: unknown, pointer: string): string | number | boolean | undefined {
+	let value: unknown;
+	try {
+		value = resolveJsonPointer(item, pointer, "Dynamic sort key");
+	} catch {
+		return undefined;
+	}
+	return isScalarValue(value) ? value : undefined;
+}
+
+function compareDynamicSortKeys(a: string | number | boolean, b: string | number | boolean): number {
+	if (typeof a === typeof b) {
+		if (typeof a === "number" && typeof b === "number") return a - b;
+		if (typeof a === "boolean" && typeof b === "boolean") return (a ? 1 : 0) - (b ? 1 : 0);
+		return a < b ? -1 : a > b ? 1 : 0;
+	}
+	const sa = String(a);
+	const sb = String(b);
+	return sa < sb ? -1 : sa > sb ? 1 : 0;
+}
+
+export function sortDynamicItems(sort: DynamicSortSpec, items: unknown[]): unknown[] {
+	const order = sort.order ?? "asc";
+	const present: Array<{ item: unknown; key: string | number | boolean }> = [];
+	const missing: unknown[] = [];
+	for (const item of items) {
+		const key = resolveSortKey(item, sort.by);
+		if (key === undefined) missing.push(item);
+		else present.push({ item, key });
+	}
+	present.sort((a, b) => {
+		const cmp = compareDynamicSortKeys(a.key, b.key);
+		return order === "desc" ? -cmp : cmp;
+	});
+	return [...present.map((entry) => entry.item), ...missing];
 }
 
 export function enrichItemWithJoin(join: DynamicJoinSpec, item: Record<string, unknown>, secondary: unknown[]): Record<string, unknown> {
@@ -289,6 +327,19 @@ export function validateDynamicStepShape(step: DynamicParallelStep, stepIndex: n
 			throw new DynamicFanoutError(`${prefix} expand.filter.equals must be a scalar.`);
 		}
 	}
+	if (step.expand.sort !== undefined) {
+		const sort = step.expand.sort;
+		assertOnlyKeys(sort, DYNAMIC_SORT_KEYS, `${prefix} expand.sort`);
+		if (typeof sort.by !== "string") throw new DynamicFanoutError(`${prefix} expand.sort requires string by.`);
+		if (sort.by === "") throw new DynamicFanoutError(`${prefix} expand.sort.by must not be empty.`);
+		assertJsonPointer(sort.by, `${prefix} expand.sort.by`);
+		if (sort.order !== undefined && sort.order !== "asc" && sort.order !== "desc") {
+			throw new DynamicFanoutError(`${prefix} expand.sort.order must be 'asc' or 'desc'.`);
+		}
+	}
+	if (step.expand.top !== undefined && (!Number.isInteger(step.expand.top) || step.expand.top < 1)) {
+		throw new DynamicFanoutError(`${prefix} expand.top must be an integer >= 1.`);
+	}
 	if (!step.parallel || Array.isArray(step.parallel)) throw new DynamicFanoutError(`${prefix} requires a single parallel template object and cannot mix dynamic expand/collect with static parallel arrays.`);
 	assertOnlyKeys(step.parallel, config.allowRunnerFields ? RUNNER_DYNAMIC_PARALLEL_KEYS : DYNAMIC_PARALLEL_KEYS, `${prefix} parallel`);
 	if ("expand" in (step.parallel as object)) throw new DynamicFanoutError(`${prefix} does not support nested dynamic fanout.`);
@@ -332,12 +383,14 @@ export function resolveDynamicFanoutItems(step: DynamicParallelStep, outputs: Ch
 		});
 	}
 	const filtered = step.expand.filter ? enriched.filter((item) => evaluateDynamicFilter(step.expand.filter!, item)) : enriched;
+	let ranked: unknown[] = step.expand.sort ? sortDynamicItems(step.expand.sort, filtered) : filtered;
+	if (step.expand.top !== undefined) ranked = ranked.slice(0, step.expand.top);
 	const maxItems = step.expand.maxItems ?? config.maxItems;
 	if (maxItems === undefined) throw new DynamicFanoutError(`Dynamic chain step ${stepIndex + 1} requires an effective maxItems.`);
-	if (filtered.length > maxItems) throw new DynamicFanoutError(`Dynamic chain step ${stepIndex + 1} resolved ${filtered.length} items, exceeding maxItems ${maxItems}.`);
+	if (ranked.length > maxItems) throw new DynamicFanoutError(`Dynamic chain step ${stepIndex + 1} resolved ${ranked.length} items, exceeding maxItems ${maxItems}.`);
 	const seen = new Set<string>();
 	const seenIds = new Set<string>();
-	return filtered.map((item, index) => {
+	return ranked.map((item, index) => {
 		const key = step.expand.key === undefined
 			? String(index)
 			: scalarToKey(resolveJsonPointer(item, step.expand.key, `Dynamic chain step ${stepIndex + 1} expand.key`), `Dynamic chain step ${stepIndex + 1} expand.key`);

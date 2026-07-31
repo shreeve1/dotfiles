@@ -129,6 +129,11 @@ export interface DynamicJoinSpec {
 	as: string;
 }
 
+export interface DynamicSortSpec {
+	by: string;
+	order?: "asc" | "desc";
+}
+
 export interface DynamicExpandSpec {
 	from: {
 		output: string;
@@ -138,6 +143,8 @@ export interface DynamicExpandSpec {
 	key?: string;
 	join?: DynamicJoinSpec[];
 	filter?: DynamicFilterSpec;
+	sort?: DynamicSortSpec;
+	top?: number;
 	maxItems?: number;
 	onEmpty?: "skip" | "fail";
 }
