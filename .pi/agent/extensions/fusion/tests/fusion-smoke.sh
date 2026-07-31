@@ -23,8 +23,8 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 ext="$script_dir/../index.ts"
 
 [ -f "$ext" ] || {
-	echo "FAIL: extension not found at $ext" >&2
-	exit 1
+  echo "FAIL: extension not found at $ext" >&2
+  exit 1
 }
 
 # --- (1) static checks ---------------------------------------------------
@@ -35,31 +35,31 @@ ext="$script_dir/../index.ts"
 # a transient loader). Easiest: confirm required exported symbols exist by
 # grepping the file (string-equality with the actual code surface).
 for sym in \
-	"SUBAGENT_CHILD_ENV" \
-	"isChildProcess" \
-	"FUSION_STATE_CUSTOM" \
-	"globalConfigPath" \
-	"readGlobalDefaultMode" \
-	"writeGlobalDefaultMode" \
-	"PARENT_ALLOWED_TOOLS" \
-	"parentToolAllowlist" \
-	"applyParentAllowlist" \
-	"GLOBAL_BASH_ALLOWLIST" \
-	"isSafeBash" \
-	"loadProjectBashOverride" \
-	"ALLOWED_EXECUTION_ROLES" \
-	"validateAndNormalizeSubagentCall" \
-	"readLatestFusionState" \
-	"FUSION_GUIDANCE_FULL" \
-	'pi.registerCommand("fusion"' \
-	'pi.on("session_start"' \
-	'pi.on("before_agent_start"' \
-	'pi.on("tool_call"' \
-	"fusion-state"; do
-	grep -qF "$sym" "$ext" || {
-		echo "FAIL: missing $sym in extension" >&2
-		exit 1
-	}
+  "SUBAGENT_CHILD_ENV" \
+  "isChildProcess" \
+  "FUSION_STATE_CUSTOM" \
+  "globalConfigPath" \
+  "readGlobalDefaultMode" \
+  "writeGlobalDefaultMode" \
+  "PARENT_ALLOWED_TOOLS" \
+  "parentToolAllowlist" \
+  "applyParentAllowlist" \
+  "GLOBAL_BASH_ALLOWLIST" \
+  "isSafeBash" \
+  "loadProjectBashOverride" \
+  "ALLOWED_EXECUTION_ROLES" \
+  "validateAndNormalizeSubagentCall" \
+  "readLatestFusionState" \
+  "FUSION_GUIDANCE_FULL" \
+  'pi.registerCommand("fusion"' \
+  'pi.on("session_start"' \
+  'pi.on("before_agent_start"' \
+  'pi.on("tool_call"' \
+  "fusion-state"; do
+  grep -qF "$sym" "$ext" || {
+    echo "FAIL: missing $sym in extension" >&2
+    exit 1
+  }
 done
 echo "OK:   static checks (exports + handlers + state types)"
 
@@ -72,8 +72,8 @@ if (!mod.isChildProcess(process.env)) { console.log('FAIL: child env'); process.
 delete process.env.PI_SUBAGENT_CHILD;
 if (mod.isChildProcess(process.env)) { console.log('FAIL: non-child env'); process.exit(1); }
 " || {
-	echo 'FAIL: child env detection' >&2
-	exit 1
+  echo 'FAIL: child env detection' >&2
+  exit 1
 }
 echo "OK:   child-env detection"
 
@@ -114,8 +114,8 @@ if (!writeGlobalDefaultMode('off', cfg) || readGlobalDefaultMode(cfg) !== 'off')
   console.log('FAIL: write off'); process.exit(1);
 }
 " || {
-	echo 'FAIL: global config round-trip' >&2
-	exit 1
+  echo 'FAIL: global config round-trip' >&2
+  exit 1
 }
 echo "OK:   global config (absent/malformed/valid/round-trip)"
 
@@ -147,8 +147,8 @@ applyParentAllowlist({
 });
 if (calls.set.length !== expected.length || calls.set.includes('grep')) { console.log('FAIL: apply'); process.exit(1); }
 " || {
-	echo 'FAIL: parent allowlist' >&2
-	exit 1
+  echo 'FAIL: parent allowlist' >&2
+  exit 1
 }
 echo "OK:   parent tool allowlist (set + apply)"
 
@@ -253,8 +253,8 @@ if (v5.ok) { console.log('FAIL: dangerous mode should win over project allow'); 
 const v6 = isSafeBash('ls; rm x', { projectAllowed: ['ls; rm x'] });
 if (v6.ok) { console.log('FAIL: shell metachar should win over project allow'); process.exit(1); }
 " || {
-	echo 'FAIL: bash policy' >&2
-	exit 1
+  echo 'FAIL: bash policy' >&2
+  exit 1
 }
 echo "OK:   bash policy (allowed / metachar / dangerous / project-override / deny-wins)"
 
@@ -312,8 +312,8 @@ for (const c of commitDeny) {
 if (isSafeGitCommit('git status')) { console.log('FAIL: recognizer should not match git status'); process.exit(1); }
 if (isSafeGitCommit('git commit --amend')) { console.log('FAIL: recognizer should not match --amend'); process.exit(1); }
 " || {
-	echo 'FAIL: parent commit exception' >&2
-	exit 1
+  echo 'FAIL: parent commit exception' >&2
+  exit 1
 }
 echo "OK:   parent commit exception (git add / commit -m allowed; injection + other verbs denied)"
 
@@ -359,8 +359,8 @@ for (const c of allowed) {
   if (!v.ok) { console.log('FAIL: explicit flag should allow [' + c + '] -> ' + v.reason); process.exit(1); }
 }
 " || {
-	echo 'FAIL: generic --name=value rejection' >&2
-	exit 1
+  echo 'FAIL: generic --name=value rejection' >&2
+  exit 1
 }
 echo "OK:   generic --name=value rejected; explicit flags still pass"
 
@@ -471,8 +471,8 @@ for (const r of ['oracle','context-builder','delegate']) {
   if (ALLOWED_EXECUTION_ROLES.has(r)) { console.log('FAIL: extra role ' + r); process.exit(1); }
 }
 " || {
-	echo 'FAIL: subagent validation' >&2
-	exit 1
+  echo 'FAIL: subagent validation' >&2
+  exit 1
 }
 echo "OK:   subagent validation (roles/context/output/chain/parallel/actions)"
 
@@ -533,8 +533,8 @@ const { validateAndNormalizeSubagentCall } = await import(url);
   if (args.chain[0].output !== false) { console.log('FAIL: append-step scout output not forced false -> ' + JSON.stringify(args.chain[0].output)); process.exit(1); }
 }
 " || {
-	echo 'FAIL: append-step shape' >&2
-	exit 1
+  echo 'FAIL: append-step shape' >&2
+  exit 1
 }
 echo "OK:   append-step shape (real schema, id/runId, chain validation, output)"
 
@@ -574,8 +574,8 @@ for (const action of ['interrupt', 'stop', 'resume', 'steer']) {
   if (v.ok) { console.log('FAIL: unknown action should be rejected'); process.exit(1); }
 }
 " || {
-	echo 'FAIL: allowed control actions' >&2
-	exit 1
+  echo 'FAIL: allowed control actions' >&2
+  exit 1
 }
 echo "OK:   allowed control actions (interrupt/stop/resume/steer) + strip model/thinking"
 
@@ -623,8 +623,8 @@ const { validateAndNormalizeSubagentCall } = await import(url);
   if (args.chain[0].parallel.output !== 'progress.md') { console.log('FAIL: dynamic parallel worker output should be preserved'); process.exit(1); }
 }
 " || {
-	echo 'FAIL: dynamic parallel' >&2
-	exit 1
+  echo 'FAIL: dynamic parallel' >&2
+  exit 1
 }
 echo "OK:   dynamic parallel (single object, role/output/model rules)"
 
@@ -670,8 +670,8 @@ const { validateAndNormalizeSubagentCall } = await import(url);
   if (args.chain[0].output !== 'progress.md') { console.log('FAIL: worker nested output should be preserved -> ' + JSON.stringify(args.chain[0].output)); process.exit(1); }
 }
 " || {
-	echo 'FAIL: nested output:false' >&2
-	exit 1
+  echo 'FAIL: nested output:false' >&2
+  exit 1
 }
 echo "OK:   nested output:false (static + dynamic + chain, worker preserved)"
 
@@ -701,8 +701,8 @@ const { validateAndNormalizeSubagentCall } = await import(url);
   if (v.ok) { console.log('FAIL: dynamic parallel non-allowed role'); process.exit(1); }
 }
 " || {
-	echo 'FAIL: dynamic parallel forbidden' >&2
-	exit 1
+  echo 'FAIL: dynamic parallel forbidden' >&2
+  exit 1
 }
 echo "OK:   dynamic parallel forbidden agent/model/thinking"
 
@@ -769,8 +769,8 @@ const { validateAndNormalizeSubagentCall } = await import(url);
   if (!/model/.test(v.reason) || !/thinking/.test(v.reason)) { console.log('FAIL: reject reason should mention model+thinking -> ' + v.reason); process.exit(1); }
 }
 " || {
-	echo 'FAIL: management in-place normalize' >&2
-	exit 1
+  echo 'FAIL: management in-place normalize' >&2
+  exit 1
 }
 echo "OK:   management in-place normalization (mutate=true strips from original)"
 
@@ -804,8 +804,8 @@ const c = readLatestFusionState([
 ]);
 if (!c || c.enabled !== true) { console.log('FAIL: malformed skip'); process.exit(1); }
 " || {
-	echo 'FAIL: readLatestFusionState' >&2
-	exit 1
+  echo 'FAIL: readLatestFusionState' >&2
+  exit 1
 }
 echo "OK:   readLatestFusionState (latest wins / filter / malformed skip)"
 
@@ -877,8 +877,8 @@ const { readLatestFusionState } = await import(url);
   if (s.toolsBeforeFusion !== undefined) { console.log('FAIL: missing field should yield undefined snapshot'); process.exit(1); }
 }
 " || {
-	echo 'FAIL: corrupt snapshot handling' >&2
-	exit 1
+  echo 'FAIL: corrupt snapshot handling' >&2
+  exit 1
 }
 echo "OK:   corrupt snapshot wholesale rejection (no partial subset; clean pass-through)"
 
@@ -910,8 +910,8 @@ fs.unlinkSync(path.join(tmp, '.pi', 'fusion.json'));
 const d = loadProjectBashOverride(tmp, { trusted: true, readFile: (p) => fs.readFileSync(p, 'utf8') });
 if (d.length !== 0) { console.log('FAIL: missing should be []'); process.exit(1); }
 " || {
-	echo 'FAIL: loadProjectBashOverride' >&2
-	exit 1
+  echo 'FAIL: loadProjectBashOverride' >&2
+  exit 1
 }
 echo "OK:   loadProjectBashOverride (trusted / untrusted / malformed / missing)"
 
@@ -942,8 +942,8 @@ for (const [cmd, want] of cases) {
   }
 }
 " || {
-	echo 'FAIL: trailing-tail discipline' >&2
-	exit 1
+  echo 'FAIL: trailing-tail discipline' >&2
+  exit 1
 }
 echo "OK:   trailing-tail discipline"
 
@@ -972,8 +972,8 @@ for (const [cmd, want] of cases) {
   }
 }
 " || {
-	echo 'FAIL: quote/env edge cases' >&2
-	exit 1
+  echo 'FAIL: quote/env edge cases' >&2
+  exit 1
 }
 echo "OK:   quote-escape and env-prefix cases (conservative rejection)"
 
@@ -1000,8 +1000,8 @@ if (calls.on.length !== 0) { console.log('FAIL: child should register no handler
 if (calls.flags.length !== 0) { console.log('FAIL: child should register no flags'); process.exit(1); }
 if (calls.commands.length !== 0) { console.log('FAIL: child should register no commands'); process.exit(1); }
 " || {
-	echo 'FAIL: child no-op' >&2
-	exit 1
+  echo 'FAIL: child no-op' >&2
+  exit 1
 }
 echo "OK:   child no-op (PI_SUBAGENT_CHILD=1 registers nothing)"
 
@@ -1230,8 +1230,8 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
   if (r.args.tasks[0].output !== false) { console.log('FAIL: (g3) returned args.tasks[0].output should be false'); process.exit(1); }
 }
 " || {
-	echo 'FAIL: lifecycle test' >&2
-	exit 1
+  echo 'FAIL: lifecycle test' >&2
+  exit 1
 }
 echo "OK:   lifecycle (persisted-off>CLI-on, CLI-on>global, fallback off, subagent handler nested normalize, mutate=false deep copy)"
 rm -rf "$isolated"
@@ -1289,8 +1289,8 @@ for (const name of rules) {
   lastIdx = idx;
 }
 " || {
-	echo 'FAIL: guidance body decoupling' >&2
-	exit 1
+  echo 'FAIL: guidance body decoupling' >&2
+  exit 1
 }
 echo "OK:   guidance body decoupled (canonical pointer + header + five rule semantics present)"
 
