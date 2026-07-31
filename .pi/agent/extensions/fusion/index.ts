@@ -406,9 +406,7 @@ export function isSafeGitCommit(cmd: string): boolean {
 		const rest = cmd.slice("git add".length).trim();
 		if (rest === "") return false; // bare `git add` is a no-op; require targets
 		const tokens = rest.split(/[ \t]+/);
-		return tokens.every(
-			(t) => SAFE_ADD_FLAGS.test(t) || ARG_PATH_REV.test(t),
-		);
+		return tokens.every((t) => SAFE_ADD_FLAGS.test(t) || ARG_PATH_REV.test(t));
 	}
 	return false;
 }
