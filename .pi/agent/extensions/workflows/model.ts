@@ -42,7 +42,11 @@ export type AgentState = "running" | "done" | "error";
 export type WorkflowStatus = "running" | "completed" | "failed" | "aborted";
 
 export type TranscriptRole =
-  "user" | "assistant" | "thinking" | "tool" | "toolResult";
+  | "user"
+  | "assistant"
+  | "thinking"
+  | "tool"
+  | "toolResult";
 
 export interface TranscriptEntry {
   role: TranscriptRole;
@@ -75,6 +79,8 @@ export interface AgentRecord {
   usage: AgentUsage;
   /** Normalized, serializable subagent conversation shown by /workflows. */
   transcript: TranscriptEntry[];
+  /** True when this record was satisfied from a prior run's journal. */
+  replayed?: boolean;
 }
 
 export interface WorkflowDetails {
@@ -83,6 +89,10 @@ export interface WorkflowDetails {
   sessionId?: string;
   name?: string;
   description?: string;
+  /** Repo-relative POSIX path of the script file, when loaded from disk. */
+  scriptPath?: string;
+  /** sha256 of the executed script source, for resume validation. */
+  scriptHash?: string;
   background: boolean;
   status: WorkflowStatus;
   startedAt: number;
@@ -94,6 +104,18 @@ export interface WorkflowDetails {
   resultArtifact?: string;
   transcriptArtifact?: string;
   error?: string;
+  /** runId this run was resumed from, when applicable. */
+  resumedFrom?: string;
+  /** Count of agent calls satisfied from the prior run's journal. */
+  replayedCount?: number;
+  /** Canonical absolute cwd the run was launched in; resume must match it. */
+  launchCwd?: string;
+  /** Parent session model provider at launch, part of the replay key context. */
+  launchProvider?: string;
+  /** Parent session model id at launch, part of the replay key context. */
+  launchModelId?: string;
+  /** Parent session thinking level at launch, part of the replay key context. */
+  launchThinking?: string;
 }
 
 /** Colored square state indicator (no emojis/glyphs). */
@@ -196,16 +218,28 @@ export interface PhaseGroup {
   agents: AgentRecord[];
 }
 
+/** A copy of `details.agents` sorted by `AgentRecord.index`. Use this at every
+ *  persistence / render boundary so replayed records (pushed immediately) and
+ *  executed records (pushed after the semaphore acquires) interleave in index
+ *  order. Index stays unique and transcript keying (keyed by index) is
+ *  unaffected by the sort. */
+export function sortedAgents(details: WorkflowDetails): AgentRecord[] {
+  return [...details.agents].sort((a, b) => a.index - b.index);
+}
+
 /**
  * Group agents by phase in declared phase order. With `includeEmpty`, phases
  * that have no agents yet are still listed (used by the dashboard sidebar).
+ *
+ * Each phase's agents are sorted by `AgentRecord.index` so replayed and
+ * executed records interleave in index order rather than insert order.
  */
 export function phaseGroups(
   details: WorkflowDetails,
   includeEmpty = false,
 ): PhaseGroup[] {
   const byPhase = new Map<string, AgentRecord[]>();
-  for (const agent of details.agents) {
+  for (const agent of sortedAgents(details)) {
     const key = agent.phase ?? "(unphased)";
     const list = byPhase.get(key) ?? [];
     list.push(agent);

@@ -24,7 +24,7 @@
  * transcripts use separate artifacts, and there is no resume.
  */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
@@ -41,6 +41,12 @@ import { createWorkflowPersistence, persistWorkflowJson } from "./artifacts.ts";
 import { RunController } from "./controller.ts";
 import { sessionWorkflowRunIds, showWorkflowDashboard } from "./dashboard.ts";
 import {
+  agentCallKey,
+  appendJournalEntry,
+  createReplayIndex,
+  type AgentKeyContext,
+} from "./journal.ts";
+import {
   extractMeta,
   prepareWorkflowScript,
   type WorkflowMeta,
@@ -54,6 +60,7 @@ import {
   formatUsage,
   phaseGroups,
   resultJson,
+  sortedAgents,
   stateSquare,
   statusColor,
   statusWord,
@@ -78,6 +85,8 @@ import {
   type WorkflowModel,
 } from "./runner.ts";
 import { resolveStandaloneChildProjectTrust } from "../shared/child-session.ts";
+import { prepareResume } from "./resume.ts";
+import { resolveScriptSource } from "./script-source.ts";
 import { runWorkflowSandbox } from "./sandbox.ts";
 import { safeStringify, writeFileAtomic } from "./serialization.ts";
 
@@ -114,9 +123,16 @@ interface AgentCallOptions {
 }
 
 const WorkflowParams = Type.Object({
-  script: Type.String({
-    description: WORKFLOW_PARAMETER_DESCRIPTIONS.script,
-  }),
+  script: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.script,
+    }),
+  ),
+  scriptPath: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.scriptPath,
+    }),
+  ),
   args: Type.Optional(
     Type.String({
       description: WORKFLOW_PARAMETER_DESCRIPTIONS.args,
@@ -125,6 +141,11 @@ const WorkflowParams = Type.Object({
   background: Type.Optional(
     Type.Boolean({
       description: WORKFLOW_PARAMETER_DESCRIPTIONS.background,
+    }),
+  ),
+  resume: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.resume,
     }),
   ),
 });
@@ -234,7 +255,12 @@ function compactToolDetails(details: WorkflowDetails): WorkflowDetails {
           ),
         }
       : {}),
-    agents: details.agents.map((agent) => ({ ...agent, transcript: [] })),
+    // Sorted view so the tool-block rendering sees index order even when
+    // replayed records interleaved with executed records mid-run.
+    agents: sortedAgents(details).map((agent) => ({
+      ...agent,
+      transcript: [],
+    })),
   };
 }
 
@@ -453,9 +479,54 @@ export default function workflows(pi: ExtensionAPI) {
     parameters: WorkflowParams,
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const runsRoot = path.join(getAgentDir(), "workflows");
+
+      // Resume branch: hoist the early decision so the script/args path
+      //   below stays unchanged for fresh runs. Mutual exclusion with
+      //   `script`/`scriptPath` is checked here only; `resume` + `args` is
+      //   allowed (an explicit args string overrides the prior args).
+      const resumeRequested = params.resume?.trim();
+      if (resumeRequested) {
+        const scriptProvided = params.script !== undefined;
+        const scriptPathProvided =
+          params.scriptPath !== undefined && params.scriptPath.trim() !== "";
+        if (scriptProvided || scriptPathProvided) {
+          throw new Error(
+            "workflow `resume` is mutually exclusive with `script` and `scriptPath` — provide at most one",
+          );
+        }
+        if (activeRuns.has(resumeRequested)) {
+          throw new Error(
+            `workflow resume: run ${resumeRequested} is still active; wait for it to settle or pick a different run`,
+          );
+        }
+      }
+
+      let resolved: ReturnType<typeof resolveScriptSource>;
+      let resumeSource: ReturnType<typeof prepareResume> | undefined;
+      // Canonical absolute cwd of this run. Used both to guard cross-project
+      // resumes and to salt every replay key; realpath falls back to
+      // resolve when the cwd is already canonical or its symlinks vanish.
+      let launchCwd: string;
+      try {
+        launchCwd = fs.realpathSync(ctx.cwd);
+      } catch {
+        launchCwd = path.resolve(ctx.cwd);
+      }
+      if (resumeRequested) {
+        resumeSource = prepareResume(runsRoot, resumeRequested, launchCwd);
+        resolved = {
+          source: resumeSource.source,
+          ...(resumeSource.priorDetails.scriptPath !== undefined
+            ? { scriptPath: resumeSource.priorDetails.scriptPath }
+            : {}),
+        };
+      } else {
+        resolved = resolveScriptSource(params, ctx.cwd);
+      }
       let prepared: ReturnType<typeof prepareWorkflowScript>;
       try {
-        prepared = prepareWorkflowScript(params.script);
+        prepared = prepareWorkflowScript(resolved.source);
       } catch (error) {
         throw new Error(`Workflow script failed to parse: ${errorText(error)}`);
       }
@@ -467,28 +538,75 @@ export default function workflows(pi: ExtensionAPI) {
         } catch {
           args = params.args;
         }
+      } else if (resumeSource?.argsJson !== undefined) {
+        // Reuse the prior run's args unless the caller explicitly overrode.
+        try {
+          args = JSON.parse(resumeSource.argsJson);
+        } catch {
+          args = resumeSource.argsJson;
+        }
       }
 
       const meta = prepared.meta;
       const runId = `wf_${randomBytes(6).toString("hex")}`;
-      const runDir = path.join(getAgentDir(), "workflows", runId);
+      const runDir = path.join(runsRoot, runId);
       const background = (params.background ?? false) && ctx.hasUI;
 
+      const scriptHash = createHash("sha256")
+        .update(resolved.source)
+        .digest("hex");
+      // Parent-session defaults at launch, frozen into the replay-key salt.
+      // The defaults are best-effort: `ctx.model` may be undefined and
+      // `getThinkingLevel` may return an unsupported string. Undefined
+      // values are dropped by canonicalStringify, but we still stringify the
+      // thinking level once to keep cross-process replays stable for any
+      // type pi returns.
+      const defaultModelId = ctx.model?.id;
+      const defaultProvider = ctx.model?.provider;
+      const defaultThinking = String(pi.getThinkingLevel());
+      const keyContext: AgentKeyContext = {
+        launchCwd,
+        ...(defaultProvider !== undefined ? { defaultProvider } : {}),
+        ...(defaultModelId !== undefined ? { defaultModelId } : {}),
+        ...(defaultThinking !== undefined ? { defaultThinking } : {}),
+      };
       const details: WorkflowDetails = {
         runId,
         sessionId: ctx.sessionManager.getSessionId(),
         name: meta.name,
         description: meta.description,
+        ...(resolved.scriptPath !== undefined
+          ? { scriptPath: resolved.scriptPath }
+          : {}),
         background,
         status: "running",
         startedAt: Date.now(),
         phases: [...meta.phases],
         agents: [],
+        scriptHash,
+        ...(resumeSource
+          ? {
+              resumedFrom: resumeSource.priorRunId,
+              replayedCount: 0,
+            }
+          : {}),
+        launchCwd,
+        ...(defaultProvider !== undefined
+          ? { launchProvider: defaultProvider }
+          : {}),
+        ...(defaultModelId !== undefined
+          ? { launchModelId: defaultModelId }
+          : {}),
+        ...(defaultThinking !== undefined
+          ? { launchThinking: defaultThinking }
+          : {}),
       };
 
-      writeRunFile(runDir, "script.js", params.script);
+      writeRunFile(runDir, "script.js", resolved.source);
       if (params.args !== undefined)
         writeRunFile(runDir, "args.json", params.args);
+      else if (resumeSource?.argsJson !== undefined)
+        writeRunFile(runDir, "args.json", resumeSource.argsJson);
       persistWorkflowJson(runDir, details);
       const persistence = createWorkflowPersistence(runDir, details);
 
@@ -540,6 +658,18 @@ export default function workflows(pi: ExtensionAPI) {
       };
 
       let agentCounter = 0;
+      let journalSeq = 0;
+      // Null-object replay index for fresh runs; resume sets the real one.
+      // `take()` returns undefined on miss, so the agentFn body has one path.
+      const replayIndex = resumeSource
+        ? createReplayIndex(resumeSource.entries)
+        : {
+            take: (_key: string) =>
+              undefined as ReturnType<
+                ReturnType<typeof createReplayIndex>["take"]
+              >,
+            remaining: () => 0,
+          };
       const agentFn = async (
         promptValue: unknown,
         optsValue: unknown = {},
@@ -588,6 +718,73 @@ export default function workflows(pi: ExtensionAPI) {
           return fail("agent() requires a non-empty prompt string");
         if (controller.signal.aborted)
           return fail("Workflow was aborted before this agent started");
+
+        // Replay check: a hit returns the recorded result without ever
+        // touching the controller (no budget, no semaphore slot). A miss
+        // — including a thrown key computation or an unusable recorded
+        // result — falls through to a normal schedule.
+        let replayHit: ReturnType<typeof replayIndex.take> | undefined;
+        try {
+          replayHit = replayIndex.take(agentCallKey(prompt, opts, keyContext));
+        } catch {
+          replayHit = undefined;
+        }
+        if (replayHit) {
+          const candidate = replayHit.result as
+            | {
+                ok?: boolean;
+                output?: unknown;
+                structured?: unknown;
+                error?: unknown;
+              }
+            | undefined;
+          if (
+            candidate &&
+            typeof candidate === "object" &&
+            typeof candidate.ok === "boolean"
+          ) {
+            const now = Date.now();
+            const outputText =
+              typeof candidate.output === "string" ? candidate.output : "";
+            const replayedRecord: AgentRecord = {
+              ...record,
+              state: "done",
+              replayed: true,
+              startedAt: now,
+              finishedAt: now,
+              preview: outputText.slice(0, PREVIEW_LENGTH),
+            };
+            details.agents.push(replayedRecord);
+            details.replayedCount = (details.replayedCount ?? 0) + 1;
+            persistence.checkpoint({ immediate: true });
+            emit();
+            try {
+              journalSeq += 1;
+              appendJournalEntry(runDir, {
+                key: replayHit.key,
+                seq: journalSeq,
+                index: replayedRecord.index,
+                label: replayedRecord.label,
+                ok: true,
+                result: candidate,
+                finishedAt: now,
+              });
+            } catch {
+              // Best-effort: never propagate journal failures out of the replay path.
+            }
+            return {
+              ok: candidate.ok,
+              output: outputText,
+              ...(candidate.structured !== undefined
+                ? { structured: candidate.structured }
+                : {}),
+              ...(candidate.error !== undefined
+                ? { error: String(candidate.error) }
+                : {}),
+            };
+          }
+          // Fall through: usable object test failed; treat as a miss.
+        }
 
         return controller
           .schedule(async (runSignal) => {
@@ -710,7 +907,7 @@ export default function workflows(pi: ExtensionAPI) {
             }
             emit();
 
-            return {
+            const scriptResult: ScriptAgentResult = {
               ok: outcome.ok,
               output: outcome.output,
               ...(outcome.structured !== undefined
@@ -718,6 +915,28 @@ export default function workflows(pi: ExtensionAPI) {
                 : {}),
               ...(outcome.error !== undefined ? { error: outcome.error } : {}),
             };
+            // Journal only calls that actually ran. agentCallKey and
+            // appendJournalEntry are both best-effort; either failure must
+            // never propagate out of the happy path.
+            try {
+              journalSeq += 1;
+              appendJournalEntry(runDir, {
+                key: agentCallKey(prompt, opts, keyContext),
+                seq: journalSeq,
+                index: record.index,
+                label: record.label,
+                ok: outcome.ok,
+                result: scriptResult,
+                model: record.model,
+                cwd: resolution.cwd,
+                finishedAt: record.finishedAt ?? Date.now(),
+              });
+            } catch {
+              // Best-effort: agentCallKey can throw on non-canonicalizable
+              // options, and appendJournalEntry already swallows its own.
+            }
+
+            return scriptResult;
           }, invocationSignal)
           .catch((error) => ({
             ok: false,
@@ -761,6 +980,13 @@ export default function workflows(pi: ExtensionAPI) {
         }
         details.status = status;
         details.finishedAt = Date.now();
+        // Terminal sort: after the run has fully settled, order details.agents
+        // by index so the completion report (buildWorkflowResultMessage in
+        // prompt.ts) — which iterates details.agents directly — sees index
+        // order. Live renders (tool block, dashboard) already use sorted
+        // views via compactToolDetails / phaseGroups. Reassignment mid-run
+        // is the thing to avoid; this is a one-shot at run completion.
+        details.agents = sortedAgents(details);
         try {
           persistence.flush();
         } catch (error) {
