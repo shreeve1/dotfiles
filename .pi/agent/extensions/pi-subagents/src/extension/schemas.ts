@@ -151,6 +151,11 @@ export const DynamicExpandSchema = Type.Object({
 		equals: Type.Optional(Type.Union([Type.String(), Type.Number(), Type.Boolean()], { description: "Keep items whose value strictly equals this scalar." })),
 		in: Type.Optional(Type.Array(Type.Union([Type.String(), Type.Number(), Type.Boolean()]), { description: "Keep items whose value is one of these scalars." })),
 	}, { additionalProperties: false, description: "Fan out only over items matching this predicate. Provide exactly one of equals or in." })),
+	sort: Type.Optional(Type.Object({
+		by: Type.String({ description: "JSON Pointer into each item resolving to a scalar sort key, e.g. /severity." }),
+		order: Type.Optional(Type.String({ enum: ["asc", "desc"], description: "Sort direction. Defaults to asc. Missing/non-scalar keys always sort last." })),
+	}, { additionalProperties: false, description: "Rank items before fanout. Applied after filter, before top/maxItems." })),
+	top: Type.Optional(Type.Integer({ minimum: 1, description: "Keep only the best N items after sort (before the maxItems guard). May be used without sort to take the first N." })),
 }, { additionalProperties: false });
 
 export const DynamicParallelTemplateSchema = Type.Object({
