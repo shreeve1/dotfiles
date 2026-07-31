@@ -214,7 +214,8 @@ for (const c of [
   'ruff check --fix src',
   'jest -u',
   'vitest -u',
-  'git commit -m x',
+  'git commit --amend',
+  'git commit',
   'git push',
   'git checkout main',
   'git reset --hard',
@@ -256,6 +257,65 @@ if (v6.ok) { console.log('FAIL: shell metachar should win over project allow'); 
 	exit 1
 }
 echo "OK:   bash policy (allowed / metachar / dangerous / project-override / deny-wins)"
+
+# --- (5b) parent commit exception (git add / git commit -m) --------------
+# The Fusion parent may author commits. ONLY git add + git commit -m in
+# tightly-shaped, injection-free forms are allowed; every other git verb and
+# commit form stays hard-denied, and message injection must not escape.
+node --input-type=module -e "
+const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
+const { isSafeBash, isSafeGitCommit } = await import(url);
+
+// allowed: commit with quoted messages containing shell metacharacters
+const commitOk = [
+  \"git commit -m 'feat(pi-subagents): add thing'\",
+  \"git commit -m 'fix: handle !bang and (parens)'\",
+  'git commit -m \"docs: plain double-quoted\"',
+  \"git commit -m ''\",
+  'git add -A',
+  'git add .pi/agent/settings.json.template',
+  'git add src/a.ts src/b.ts',
+  'git add -p',
+  'git add -- path/to/file',
+];
+for (const c of commitOk) {
+  const v = isSafeBash(c);
+  if (!v.ok) { console.log('FAIL: parent commit should allow [' + c + '] -> ' + v.reason); process.exit(1); }
+}
+
+// denied: other commit forms, other mutating verbs, and injection attempts
+const commitDeny = [
+  'git commit',                               // no -m
+  'git commit --amend',
+  'git commit -a -m x',                        // -a not permitted (stages tracked implicitly)
+  \"git commit -m 'x' && rm -rf /\",           // trailing command after closing quote
+  \"git commit -m 'x'; echo hi\",
+  'git commit -m \"x\$(rm -rf /)\"',            // command substitution in double quotes
+  'git commit -m \"x\`id\`\"',                  // backtick substitution
+  'git push',
+  'git reset --hard',
+  'git checkout main',
+  'git add',                                   // bare add, no targets
+  'git add; rm x',
+  'git add foo\nid',                           // newline injection: second command
+  'git add foo\rid',                           // carriage-return variant
+  'git add -c foo',                            // -c is not a permitted add flag
+  'git add --upload-pack=/x',                  // arbitrary --flag rejected
+  'git add -- --exec=/x',                      // dangerous flag after --
+];
+for (const c of commitDeny) {
+  const v = isSafeBash(c);
+  if (v.ok) { console.log('FAIL: parent commit should DENY [' + c + ']'); process.exit(1); }
+}
+
+// isSafeGitCommit is the narrow recognizer: false for anything non-commit
+if (isSafeGitCommit('git status')) { console.log('FAIL: recognizer should not match git status'); process.exit(1); }
+if (isSafeGitCommit('git commit --amend')) { console.log('FAIL: recognizer should not match --amend'); process.exit(1); }
+" || {
+	echo 'FAIL: parent commit exception' >&2
+	exit 1
+}
+echo "OK:   parent commit exception (git add / commit -m allowed; injection + other verbs denied)"
 
 # --- (5a) generic --name=value Bash tail rejection --------------------
 # Without generic --name=value acceptance, arbitrary flag values are denied.
