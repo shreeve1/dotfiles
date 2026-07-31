@@ -365,6 +365,54 @@ function findDangerousFragment(cmd: string): string | undefined {
 	return undefined;
 }
 
+// Narrow, deliberate exception to the "mutating git command" deny: the Fusion
+// PARENT is allowed to author commits (git add + git commit -m). This is the
+// ONLY mutating-git carve-out; every other verb (push/pull/fetch/reset/rebase/
+// checkout/switch/restore/merge/revert/cherry-pick/clean/rm/mv/stash/branch/tag/
+// clone/am) and every other commit form (--amend, commit without -m) stays
+// hard-denied. Because commit messages routinely contain shell metacharacters
+// (parentheses in `feat(scope): ...`, `!`, etc.), these recognizers must run
+// BEFORE the metacharacter gate — but they accept only tightly-shaped commands
+// whose message is fully contained in one shell-inert quoted token, so nothing
+// after the message can smuggle a second command.
+//
+// git add: only safe path tokens and a small set of add flags.
+const SAFE_ADD_FLAGS = /^(-A|--all|-u|--update|-p|--patch|-f|--force|--|-)$/;
+// git commit -m with a single-quoted message. Single quotes make the shell
+// treat everything inside literally; the only character that can end the quote
+// is another single quote, so a message with no embedded single quote cannot
+// escape. Anchored end ($) forbids any trailing tokens (no `&& rm`, no `;`).
+const GIT_COMMIT_SQ = /^git commit -m '[^'\n\r]*'$/;
+// git commit -m with a double-quoted message. Double quotes still expand $, `,
+// and \, so those are forbidden inside; the closing quote ends the token and
+// the anchored end forbids trailing content.
+const GIT_COMMIT_DQ = /^git commit -m "[^"$`\\\n\r]*"$/;
+
+/**
+ * True only for the narrow, safe `git add <paths>` and `git commit -m <msg>`
+ * forms the Fusion parent is permitted to run. Returns false for every other
+ * git command (including other commit forms) so the caller falls through to the
+ * normal dangerous-mode deny.
+ */
+export function isSafeGitCommit(cmd: string): boolean {
+	if (GIT_COMMIT_SQ.test(cmd) || GIT_COMMIT_DQ.test(cmd)) return true;
+	if (cmd === "git add" || cmd.startsWith("git add ")) {
+		// Reject any newline/CR/vertical whitespace BEFORE tokenizing: a shell
+		// treats a newline as a command separator, and splitting on /\s+/ would
+		// otherwise turn `git add foo\nid` into individually-safe tokens and
+		// smuggle a second command past this early return. Only plain spaces and
+		// tabs may separate `git add` arguments.
+		if (/[\n\r\v\f\u2028\u2029]/.test(cmd)) return false;
+		const rest = cmd.slice("git add".length).trim();
+		if (rest === "") return false; // bare `git add` is a no-op; require targets
+		const tokens = rest.split(/[ \t]+/);
+		return tokens.every(
+			(t) => SAFE_ADD_FLAGS.test(t) || ARG_PATH_REV.test(t),
+		);
+	}
+	return false;
+}
+
 /** Match the full head of the command against a globally-allowed head; remaining
  * tokens must each be a safe flag / revision / path / value. Any token outside
  * the safe list makes the command not globally-allowed. */
@@ -401,6 +449,12 @@ export function isSafeBash(
 	const raw = String(cmd ?? "");
 	const normalized = raw.trim();
 	if (!normalized) return { ok: false, reason: "empty command" };
+	// Narrow parent commit exception: `git add` / `git commit -m` in their
+	// tightly-shaped, injection-free forms are allowed and must be checked
+	// BEFORE the dangerous-mode and metacharacter gates (commit messages
+	// legitimately contain parentheses, `!`, etc.). Every other git verb and
+	// commit form still falls through to the dangerous-mode deny below.
+	if (isSafeGitCommit(normalized)) return { ok: true };
 	// Dangerous-mode deny FIRST: package install/update/publish, fix
 	// modes, mutating Git, etc. always lose — even if a project override
 	// would otherwise grant them. This is the settled Fusion precedence.
