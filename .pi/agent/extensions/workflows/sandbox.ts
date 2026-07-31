@@ -8,6 +8,8 @@ const MAX_SOURCE_BYTES = 512 * 1024;
 const MAX_ARGS_BYTES = 256 * 1024;
 const MAX_RESULT_BYTES = 1024 * 1024;
 const MAX_AGENT_MESSAGE_BYTES = 512 * 1024;
+const MAX_CHECKPOINT_BYTES = 64 * 1024;
+const MAX_WORKTREE_BYTES = 8 * 1024;
 
 export interface SandboxAgentOptions {
   label?: unknown;
@@ -38,6 +40,15 @@ export interface RunWorkflowSandboxOptions {
     signal: AbortSignal,
   ) => Promise<SandboxAgentResult>;
   onPhase: (title: string) => void;
+  onCheckpoint?: (
+    request: { id: number; name: string; prompt: string; context: unknown },
+    signal: AbortSignal,
+  ) => Promise<"approved" | "rejected">;
+  onWorktreeOpen?: (
+    request: { id: number; name: string },
+    signal: AbortSignal,
+  ) => Promise<{ path: string }>;
+  onWorktreeClose?: (request: { id: number; name: string }) => Promise<void>;
 }
 
 function byteLength(value: string) {
@@ -128,6 +139,8 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
     const token = randomBytes(24).toString("hex");
     const requestIds = new Set<number>();
     const activeAgentRequests = new Map<number, AbortController>();
+    const activeCheckpointRequests = new Map<number, AbortController>();
+    const activeWorktreeRequests = new Map<number, AbortController>();
     let finished = false;
 
     const cleanup = () => {
@@ -135,6 +148,14 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
         abortController.abort(new Error("Workflow stopped"));
       }
       activeAgentRequests.clear();
+      for (const abortController of activeCheckpointRequests.values()) {
+        abortController.abort(new Error("Workflow stopped"));
+      }
+      activeCheckpointRequests.clear();
+      for (const abortController of activeWorktreeRequests.values()) {
+        abortController.abort(new Error("Workflow stopped"));
+      }
+      activeWorktreeRequests.clear();
       options.signal.removeEventListener("abort", onAbort);
       child.removeAllListeners("message");
       child.removeAllListeners("error");
@@ -285,6 +306,212 @@ export function runWorkflowSandbox(options: RunWorkflowSandboxOptions) {
       }
       if (raw.kind === "error" && typeof raw.error === "string") {
         finish(new Error(raw.error.slice(0, 16 * 1024)));
+        return;
+      }
+      if (raw.kind === "checkpoint") {
+        if (
+          typeof raw.payloadJson !== "string" ||
+          byteLength(raw.payloadJson) > MAX_CHECKPOINT_BYTES
+        ) {
+          finish(
+            new Error("Workflow sandbox sent an oversized checkpoint request"),
+          );
+          return;
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(raw.payloadJson);
+        } catch {
+          finish(new Error("Workflow sandbox sent malformed checkpoint JSON"));
+          return;
+        }
+        if (
+          !isRecord(payload) ||
+          !Number.isSafeInteger(payload.id) ||
+          typeof payload.id !== "number" ||
+          payload.id < 1 ||
+          typeof payload.name !== "string" ||
+          typeof payload.prompt !== "string" ||
+          payload.prompt.length > 100_000
+        ) {
+          finish(
+            new Error("Workflow sandbox sent an invalid checkpoint request"),
+          );
+          return;
+        }
+        if (requestIds.has(payload.id)) {
+          finish(new Error("Workflow sandbox reused a checkpoint request id"));
+          return;
+        }
+        requestIds.add(payload.id);
+        const id = payload.id;
+        const abortController = new AbortController();
+        const sendCheckpointResult = (decision: "approved" | "rejected") => {
+          if (!activeCheckpointRequests.delete(id)) return;
+          requestIds.delete(id);
+          if (finished || !child.connected) return;
+          const normalized = decision === "approved" ? "approved" : "rejected";
+          child.send({
+            token,
+            kind: "checkpointResult",
+            id,
+            resultJson: JSON.stringify(normalized),
+          });
+        };
+        const sendCheckpointError = (message: string) => {
+          if (!activeCheckpointRequests.delete(id)) return;
+          requestIds.delete(id);
+          if (finished || !child.connected) return;
+          child.send({
+            token,
+            kind: "checkpointResult",
+            id,
+            error: message.slice(0, 4096),
+          });
+        };
+        activeCheckpointRequests.set(id, abortController);
+        if (!options.onCheckpoint) {
+          sendCheckpointError("checkpoint() is not supported in this run");
+          return;
+        }
+        void options
+          .onCheckpoint(
+            {
+              id,
+              name: payload.name,
+              prompt: payload.prompt,
+              context: payload.context,
+            },
+            abortController.signal,
+          )
+          .then(sendCheckpointResult)
+          .catch((error) => sendCheckpointError(errorText(error)));
+        return;
+      }
+      if (raw.kind === "worktreeOpen") {
+        if (
+          typeof raw.payloadJson !== "string" ||
+          byteLength(raw.payloadJson) > MAX_WORKTREE_BYTES
+        ) {
+          finish(
+            new Error("Workflow sandbox sent an oversized worktree request"),
+          );
+          return;
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(raw.payloadJson);
+        } catch {
+          finish(new Error("Workflow sandbox sent malformed worktree JSON"));
+          return;
+        }
+        if (
+          !isRecord(payload) ||
+          !Number.isSafeInteger(payload.id) ||
+          typeof payload.id !== "number" ||
+          payload.id < 1 ||
+          typeof payload.name !== "string"
+        ) {
+          finish(
+            new Error("Workflow sandbox sent an invalid worktree request"),
+          );
+          return;
+        }
+        if (requestIds.has(payload.id)) {
+          finish(new Error("Workflow sandbox reused a worktree request id"));
+          return;
+        }
+        requestIds.add(payload.id);
+        const id = payload.id;
+        const abortController = new AbortController();
+        const sendWorktreeResult = (scope: { path: string }) => {
+          if (!activeWorktreeRequests.delete(id)) return;
+          requestIds.delete(id);
+          if (finished || !child.connected) return;
+          child.send({
+            token,
+            kind: "worktreeResult",
+            id,
+            resultJson: JSON.stringify({ path: String(scope.path) }),
+          });
+        };
+        const sendWorktreeError = (message: string) => {
+          if (!activeWorktreeRequests.delete(id)) return;
+          requestIds.delete(id);
+          if (finished || !child.connected) return;
+          child.send({
+            token,
+            kind: "worktreeResult",
+            id,
+            error: message.slice(0, 4096),
+          });
+        };
+        activeWorktreeRequests.set(id, abortController);
+        if (!options.onWorktreeOpen) {
+          sendWorktreeError("withWorktree() is not supported in this run");
+          return;
+        }
+        void options
+          .onWorktreeOpen({ id, name: payload.name }, abortController.signal)
+          .then(sendWorktreeResult)
+          .catch((error) => sendWorktreeError(errorText(error)));
+        return;
+      }
+      if (raw.kind === "worktreeClose") {
+        if (
+          typeof raw.payloadJson !== "string" ||
+          byteLength(raw.payloadJson) > MAX_WORKTREE_BYTES
+        ) {
+          finish(
+            new Error(
+              "Workflow sandbox sent an oversized worktree close request",
+            ),
+          );
+          return;
+        }
+        let payload: unknown;
+        try {
+          payload = JSON.parse(raw.payloadJson);
+        } catch {
+          finish(
+            new Error("Workflow sandbox sent malformed worktree close JSON"),
+          );
+          return;
+        }
+        if (
+          !isRecord(payload) ||
+          !Number.isSafeInteger(payload.id) ||
+          typeof payload.id !== "number" ||
+          payload.id < 1 ||
+          typeof payload.name !== "string"
+        ) {
+          finish(
+            new Error(
+              "Workflow sandbox sent an invalid worktree close request",
+            ),
+          );
+          return;
+        }
+        const id = payload.id;
+        const sendCloseAck = (errorMessage?: string) => {
+          if (finished || !child.connected) return;
+          if (errorMessage)
+            child.send({
+              token,
+              kind: "worktreeCloseAck",
+              id,
+              error: errorMessage.slice(0, 4096),
+            });
+          else child.send({ token, kind: "worktreeCloseAck", id });
+        };
+        if (!options.onWorktreeClose) {
+          sendCloseAck();
+          return;
+        }
+        void options
+          .onWorktreeClose({ id, name: payload.name })
+          .then(() => sendCloseAck())
+          .catch((error) => sendCloseAck(errorText(error)));
         return;
       }
       finish(new Error("Workflow sandbox sent an unknown IPC message"));

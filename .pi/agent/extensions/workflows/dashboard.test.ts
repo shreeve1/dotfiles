@@ -68,6 +68,24 @@ test("replayedSummary returns replayed 0/N when replayedCount is explicitly 0", 
   assert.equal(replayedSummary(details), "replayed 0/2");
 });
 
+test("replayedSummary appends checkpoint count when checkpoints were replayed", () => {
+  const details = makeDetails({
+    resumedFrom: "wf_prior1234567",
+    replayedCount: 2,
+    checkpointReplayedCount: 1,
+  });
+  assert.equal(replayedSummary(details), "replayed 2/2 (+1 checkpoint)");
+});
+
+test("replayedSummary shows checkpoints even with zero agent replays", () => {
+  const details = makeDetails({
+    resumedFrom: "wf_prior1234567",
+    agents: [],
+    checkpointReplayedCount: 3,
+  });
+  assert.equal(replayedSummary(details), "replayed 0/0 (+3 checkpoints)");
+});
+
 test("canResumeRun is true for failed", () => {
   assert.equal(canResumeRun(makeDetails({ status: "failed" })), true);
 });
