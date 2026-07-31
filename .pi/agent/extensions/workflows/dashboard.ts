@@ -216,13 +216,24 @@ function normalizeDetails(
       typeof record.replayedCount === "number"
         ? record.replayedCount
         : undefined,
+    checkpointReplayedCount:
+      typeof record.checkpointReplayedCount === "number"
+        ? record.checkpointReplayedCount
+        : undefined,
   };
 }
 
 export function replayedSummary(details: WorkflowDetails): string | undefined {
-  if (!details.resumedFrom && details.replayedCount === undefined)
-    return undefined;
-  return `replayed ${details.replayedCount ?? 0}/${details.agents.length}`;
+  const hasResume =
+    details.resumedFrom !== undefined ||
+    details.replayedCount !== undefined ||
+    details.checkpointReplayedCount !== undefined;
+  if (!hasResume) return undefined;
+  let summary = `replayed ${details.replayedCount ?? 0}/${details.agents.length}`;
+  if (details.checkpointReplayedCount) {
+    summary += ` (+${details.checkpointReplayedCount} checkpoint${details.checkpointReplayedCount === 1 ? "" : "s"})`;
+  }
+  return summary;
 }
 
 export function canResumeRun(details: WorkflowDetails): boolean {
