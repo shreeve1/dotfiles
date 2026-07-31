@@ -108,6 +108,8 @@ export interface WorkflowDetails {
   resumedFrom?: string;
   /** Count of agent calls satisfied from the prior run's journal. */
   replayedCount?: number;
+  /** Count of checkpoint decisions satisfied from the prior run's journal. */
+  checkpointReplayedCount?: number;
   /** Canonical absolute cwd the run was launched in; resume must match it. */
   launchCwd?: string;
   /** Parent session model provider at launch, part of the replay key context. */

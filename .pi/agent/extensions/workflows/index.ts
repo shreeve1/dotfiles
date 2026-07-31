@@ -38,11 +38,12 @@ import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { formatActivityStatus } from "../shared/activity-status.ts";
 import { createWorkflowPersistence, persistWorkflowJson } from "./artifacts.ts";
-import { RunController } from "./controller.ts";
+import { RunController, type RunBudget } from "./controller.ts";
 import { sessionWorkflowRunIds, showWorkflowDashboard } from "./dashboard.ts";
 import {
   agentCallKey,
   appendJournalEntry,
+  checkpointCallKey,
   createReplayIndex,
   type AgentKeyContext,
 } from "./journal.ts";
@@ -89,6 +90,7 @@ import { prepareResume } from "./resume.ts";
 import { resolveScriptSource } from "./script-source.ts";
 import { runWorkflowSandbox } from "./sandbox.ts";
 import { safeStringify, writeFileAtomic } from "./serialization.ts";
+import { WorktreeManager } from "./worktree.ts";
 
 const PREVIEW_LENGTH = 200;
 const EMIT_INTERVAL_MS = 120;
@@ -148,6 +150,16 @@ const WorkflowParams = Type.Object({
       description: WORKFLOW_PARAMETER_DESCRIPTIONS.resume,
     }),
   ),
+  budget: Type.Optional(
+    Type.Object(
+      {
+        maxCost: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+        maxTokens: Type.Optional(Type.Integer({ exclusiveMinimum: 0 })),
+        maxDurationMs: Type.Optional(Type.Integer({ exclusiveMinimum: 0 })),
+      },
+      { description: WORKFLOW_PARAMETER_DESCRIPTIONS.budget },
+    ),
+  ),
 });
 
 type WorkflowInput = Static<typeof WorkflowParams>;
@@ -185,6 +197,56 @@ export function recordBackgroundRunFailure(
   if (details.status === "running") details.status = "failed";
   details.finishedAt = Date.now();
   details.error = details.error ?? errorText(error);
+}
+
+/** Build the RunController budget from the validated tool param. Exported for
+ *  testing; keeps only numeric fields so a partial/absent budget is undefined. */
+export function parseBudgetArg(
+  budget:
+    | { maxCost?: number; maxTokens?: number; maxDurationMs?: number }
+    | undefined,
+): RunBudget | undefined {
+  if (!budget) return undefined;
+  return {
+    ...(typeof budget.maxCost === "number" ? { maxCost: budget.maxCost } : {}),
+    ...(typeof budget.maxTokens === "number"
+      ? { maxTokens: budget.maxTokens }
+      : {}),
+    ...(typeof budget.maxDurationMs === "number"
+      ? { maxDurationMs: budget.maxDurationMs }
+      : {}),
+  };
+}
+
+/** First (oldest, insertion-ordered) pending-checkpoint id whose name matches,
+ *  or undefined. Exported for testing the workflow_respond FIFO semantics. */
+export function matchPendingCheckpoint(
+  pending: Map<number, { name: string }>,
+  checkpoint: string,
+): number | undefined {
+  for (const [id, parked] of pending) {
+    if (parked.name === checkpoint) return id;
+  }
+  return undefined;
+}
+
+/** Decide how a checkpoint request resolves before any live prompt.
+ *  - "replay": a recorded decision exists; return it (works in foreground too).
+ *  - "prompt": no recorded decision and background — park for workflow_respond.
+ *  - "reject-foreground": no recorded decision and foreground — cannot receive an answer.
+ *  Exported so the replay-before-background-gate ordering is regression-tested. */
+export function resolveCheckpointReplay(options: {
+  replayDecision?: "approved" | "rejected";
+  background: boolean;
+}):
+  | { action: "replay"; decision: "approved" | "rejected" }
+  | { action: "prompt" }
+  | { action: "reject-foreground" } {
+  if (options.replayDecision !== undefined) {
+    return { action: "replay", decision: options.replayDecision };
+  }
+  if (!options.background) return { action: "reject-foreground" };
+  return { action: "prompt" };
 }
 
 export interface AgentCwdResolution {
@@ -346,6 +408,19 @@ function runDetailText(
   }
 }
 
+const WorkflowRespondParams = Type.Object({
+  runId: Type.String({
+    description: "The paused workflow run id (e.g. wf_a1b2c3d4e5f6).",
+  }),
+  checkpoint: Type.String({
+    description: "The checkpoint name shown in the pause message.",
+  }),
+  decision: Type.Union([Type.Literal("approved"), Type.Literal("rejected")], {
+    description:
+      "approved to proceed, rejected to signal the workflow to stop or take the rejection branch.",
+  }),
+});
+
 export default function workflows(pi: ExtensionAPI) {
   /** Live background runs, for /workflows and shutdown cleanup. */
   const activeRuns = new Map<
@@ -354,6 +429,13 @@ export default function workflows(pi: ExtensionAPI) {
       details: WorkflowDetails;
       controller: RunController;
       completion?: Promise<void>;
+      pendingCheckpoints?: Map<
+        number,
+        {
+          name: string;
+          resolve: (decision: "approved" | "rejected") => void;
+        }
+      >;
     }
   >();
   const activeDetails = () =>
@@ -612,7 +694,13 @@ export default function workflows(pi: ExtensionAPI) {
 
       // Background runs survive Esc on the parent turn, but all runs are
       // aborted and settled during session shutdown.
-      const controller = new RunController(background ? undefined : signal);
+      const budgetArg = parseBudgetArg(params.budget);
+      const controller = new RunController(
+        background ? undefined : signal,
+        undefined,
+        undefined,
+        budgetArg,
+      );
 
       // Each concurrent child gets its own extension runtime. A previous
       // version cached `createWorkflowResources` per (cwd,variant,trusted)
@@ -658,7 +746,16 @@ export default function workflows(pi: ExtensionAPI) {
       };
 
       let agentCounter = 0;
+      let checkpointCounter = 0;
       let journalSeq = 0;
+      const pendingCheckpoints = new Map<
+        number,
+        {
+          name: string;
+          resolve: (decision: "approved" | "rejected") => void;
+        }
+      >();
+      const worktrees = new WorktreeManager({ runDir, launchCwd });
       // Null-object replay index for fresh runs; resume sets the real one.
       // `take()` returns undefined on miss, so the agentFn body has one path.
       const replayIndex = resumeSource
@@ -729,7 +826,7 @@ export default function workflows(pi: ExtensionAPI) {
         } catch {
           replayHit = undefined;
         }
-        if (replayHit) {
+        if (replayHit && (replayHit.kind ?? "agent") === "agent") {
           const candidate = replayHit.result as
             | {
                 ok?: boolean;
@@ -862,6 +959,14 @@ export default function workflows(pi: ExtensionAPI) {
               return fail(`agent "${label}": ${errorText(error)}`);
             }
 
+            // Worktree scratch dirs live under runDir, which can canonicalize
+            // into a trusted ancestor (e.g. ~/.pi symlinked into a trusted
+            // tree). Force them untrusted so an isolated worktree never loads
+            // project extensions with ambient trust.
+            if (worktrees.ownsPath(resolution.cwd)) {
+              resolution = { cwd: resolution.cwd, trusted: false };
+            }
+
             const resources = await createWorkflowResources(
               resolution.cwd,
               opts.schema !== undefined ? "structured" : "plain",
@@ -890,6 +995,11 @@ export default function workflows(pi: ExtensionAPI) {
             });
 
             record.usage = outcome.usage;
+            // Charge the run-wide cost/token budget. Replayed calls skip
+            // this path entirely (they return before controller.schedule),
+            // so their cost was already paid in the run that produced the
+            // journal entry being replayed.
+            controller.recordUsage(outcome.usage);
             record.model = outcome.model ?? record.model;
             record.contextWindow =
               outcome.contextWindow ?? record.contextWindow;
@@ -945,6 +1055,154 @@ export default function workflows(pi: ExtensionAPI) {
           }));
       };
 
+      const checkpointFn = async (
+        request: {
+          id: number;
+          name: string;
+          prompt: string;
+          context: unknown;
+        },
+        signal: AbortSignal,
+      ): Promise<"approved" | "rejected"> => {
+        const name =
+          typeof request.name === "string" && request.name.trim()
+            ? request.name.trim().slice(0, 160)
+            : `checkpoint-${request.id}`;
+        const index = ++checkpointCounter;
+
+        // Replay: a prior run's recorded decision satisfies the checkpoint without
+        // asking again. Checked BEFORE the background guard so a resumed run (which
+        // can land here with the prior decision still parked in the journal) returns
+        // the stored decision instead of throwing.
+        let replayKey = "";
+        let replayDecision: "approved" | "rejected" | undefined;
+        try {
+          replayKey = checkpointCallKey(
+            name,
+            request.prompt,
+            request.context,
+            keyContext,
+          );
+          const hit = replayIndex.take(replayKey);
+          replayDecision =
+            hit && hit.kind === "checkpoint" ? hit.decision : undefined;
+        } catch {
+          // Key computation failed → fall through to a live prompt.
+        }
+        const plan = resolveCheckpointReplay({ replayDecision, background });
+        if (plan.action === "replay") {
+          details.checkpointReplayedCount =
+            (details.checkpointReplayedCount ?? 0) + 1;
+          try {
+            journalSeq += 1;
+            appendJournalEntry(runDir, {
+              kind: "checkpoint",
+              key: replayKey,
+              seq: journalSeq,
+              index,
+              label: name,
+              ok: true,
+              decision: plan.decision,
+              finishedAt: Date.now(),
+            });
+          } catch {
+            // Best-effort: never propagate journal failures out of the replay path.
+          }
+          return plan.decision;
+        }
+        if (plan.action === "reject-foreground") {
+          // Checkpoints require a background run: a foreground workflow call blocks the
+          // turn, so the model cannot issue workflow_respond until workflow() returns.
+          // This guard runs only on a replay MISS (a genuinely new checkpoint with no
+          // recorded decision); a resumed run replays above and never reaches here.
+          throw new Error(
+            "checkpoint() requires a background workflow run (launch with background: true) so you can answer it with workflow_respond while it is paused; resuming a prior background run replays already-answered checkpoints without needing background",
+          );
+        }
+
+        const decision = await new Promise<"approved" | "rejected">(
+          (resolve, reject) => {
+            if (signal.aborted) {
+              reject(
+                new Error(
+                  "Workflow was aborted before the checkpoint was answered",
+                ),
+              );
+              return;
+            }
+            const onAbort = () => {
+              pendingCheckpoints.delete(request.id);
+              reject(
+                new Error(
+                  "Workflow was aborted while awaiting a checkpoint decision",
+                ),
+              );
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            pendingCheckpoints.set(request.id, {
+              name,
+              resolve: (d) => {
+                signal.removeEventListener("abort", onAbort);
+                pendingCheckpoints.delete(request.id);
+                resolve(d);
+              },
+            });
+            try {
+              pi.sendUserMessage(
+                `[Workflow ${runId} paused at checkpoint "${name}"]\n\n${request.prompt}\n\nRespond with workflow_respond({ runId: "${runId}", checkpoint: "${name}", decision: "approved" | "rejected" }).`,
+                { deliverAs: "followUp" },
+              );
+            } catch (error) {
+              signal.removeEventListener("abort", onAbort);
+              pendingCheckpoints.delete(request.id);
+              reject(
+                new Error(
+                  `Failed to deliver checkpoint prompt: ${error instanceof Error ? error.message : String(error)}`,
+                ),
+              );
+            }
+          },
+        );
+
+        // Journal the decision so a resume replays it instead of re-asking.
+        try {
+          journalSeq += 1;
+          appendJournalEntry(runDir, {
+            kind: "checkpoint",
+            key:
+              replayKey ||
+              checkpointCallKey(
+                name,
+                request.prompt,
+                request.context,
+                keyContext,
+              ),
+            seq: journalSeq,
+            index,
+            label: name,
+            ok: true,
+            decision,
+            finishedAt: Date.now(),
+          });
+        } catch {
+          // Best-effort journaling.
+        }
+        return decision;
+      };
+
+      const worktreeOpenFn = async (
+        request: { id: number; name: string },
+        _signal: AbortSignal,
+      ): Promise<{ path: string }> => {
+        return worktrees.create(request.name);
+      };
+      const worktreeCloseFn = async (request: {
+        id: number;
+        name: string;
+      }): Promise<void> => {
+        await worktrees.remove(request.name);
+      };
+
       const runScript = async () => {
         let status: WorkflowDetails["status"] = "completed";
         try {
@@ -955,6 +1213,9 @@ export default function workflows(pi: ExtensionAPI) {
             signal: controller.signal,
             onAgent: agentFn,
             onPhase: phaseFn,
+            onCheckpoint: checkpointFn,
+            onWorktreeOpen: worktreeOpenFn,
+            onWorktreeClose: worktreeCloseFn,
           });
         } catch (error) {
           details.error = errorText(error);
@@ -977,6 +1238,14 @@ export default function workflows(pi: ExtensionAPI) {
           record.error =
             record.error ?? "Agent did not settle before run cleanup";
           record.finishedAt = Date.now();
+        }
+        // Sweep any worktrees the script did not close (e.g. the child was
+        // killed on abort before its finally ran). Best-effort; never alters
+        // run status.
+        try {
+          await worktrees.cleanup();
+        } catch {
+          // Worktree teardown is best-effort.
         }
         details.status = status;
         details.finishedAt = Date.now();
@@ -1002,10 +1271,17 @@ export default function workflows(pi: ExtensionAPI) {
 
       // Registered for /workflows visibility and session_shutdown abort;
       // blocking runs are watchable live from the dashboard too.
-      const activeRun = { details, controller } as {
+      const activeRun = { details, controller, pendingCheckpoints } as {
         details: WorkflowDetails;
         controller: RunController;
         completion?: Promise<void>;
+        pendingCheckpoints: Map<
+          number,
+          {
+            name: string;
+            resolve: (decision: "approved" | "rejected") => void;
+          }
+        >;
       };
       activeRuns.set(runId, activeRun);
       const completion = runScript();
@@ -1199,6 +1475,54 @@ export default function workflows(pi: ExtensionAPI) {
         container.addChild(new Text(theme.fg("dim", `Total: ${totals}`), 0, 0));
       }
       return container;
+    },
+  });
+
+  pi.registerTool({
+    name: "workflow_respond",
+    label: "Workflow respond",
+    description: "Answer a checkpoint waiting in a background workflow.",
+    parameters: WorkflowRespondParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+      const run = activeRuns.get(params.runId);
+      if (!run || !run.pendingCheckpoints) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No active workflow run "${params.runId}" is awaiting a checkpoint.`,
+            },
+          ],
+          details: undefined,
+        };
+      }
+      // Resolve the oldest parked checkpoint matching this name (FIFO on insertion order).
+      const matchedId = matchPendingCheckpoint(
+        run.pendingCheckpoints,
+        params.checkpoint,
+      );
+      if (matchedId === undefined) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Workflow "${params.runId}" has no pending checkpoint named "${params.checkpoint}".`,
+            },
+          ],
+          details: undefined,
+        };
+      }
+      const parked = run.pendingCheckpoints.get(matchedId)!;
+      parked.resolve(params.decision);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Checkpoint "${params.checkpoint}" in ${params.runId} → ${params.decision}.`,
+          },
+        ],
+        details: undefined,
+      };
     },
   });
 }

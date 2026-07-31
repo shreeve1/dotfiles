@@ -38,7 +38,10 @@ export interface AgentKeyContext {
   defaultThinking?: string;
 }
 
-export interface JournalEntry {
+export interface AgentJournalEntry {
+  /** "agent" for completed `runAgent` calls. Optional on legacy entries written
+   *  before the discriminated union existed; defaults to "agent" when missing. */
+  kind?: "agent";
   /** sha256 hex of (prompt + allowlisted options + AgentKeyContext). */
   key: string;
   /** 1-based append order within this run. */
@@ -54,6 +57,29 @@ export interface JournalEntry {
   cwd?: string;
   finishedAt: number;
 }
+
+export interface CheckpointJournalEntry {
+  kind: "checkpoint";
+  /** sha256 hex of (name + prompt + context + AgentKeyContext); see
+   *  `checkpointCallKey`. No ordinal/seq — parallel-safe; duplicates are
+   *  resolved by FIFO replay. */
+  key: string;
+  /** 1-based append order within this run. */
+  seq: number;
+  /** AgentRecord.index at time of write; display aid only. */
+  index: number;
+  label: string;
+  /** Always true; checkpoints never journal a "failed" decision. */
+  ok: true;
+  /** The user's verdict on the checkpoint. */
+  decision: "approved" | "rejected";
+  finishedAt: number;
+}
+
+/** Discriminated union over journaled ops. `agent` is the historical shape
+ *  (legacy entries omit `kind`, which `isValidEntry` coerces to "agent");
+ *  `checkpoint` is a parallel op kind with disjoint key semantics. */
+export type JournalEntry = AgentJournalEntry | CheckpointJournalEntry;
 
 /**
  * Explicit allowlist of `agent()` option fields that change what the agent
@@ -138,6 +164,24 @@ export function agentCallKey(
   return createHash("sha256").update(payload).digest("hex");
 }
 
+/** sha256 hex of `{ checkpoint: { name, prompt, context }, context }`.
+ *  Pure content hash — no ordinal/seq, so concurrent checkpoint calls with
+ *  identical payloads share a key and duplicates are absorbed by FIFO
+ *  replay. Checkpoint keys occupy a disjoint namespace from agent keys
+ *  because the wrapper object differs. */
+export function checkpointCallKey(
+  name: string,
+  prompt: string,
+  context: unknown,
+  keyContext: AgentKeyContext,
+): string {
+  const payload = canonicalStringify({
+    checkpoint: { name, prompt, context },
+    context: keyContext,
+  });
+  return createHash("sha256").update(payload).digest("hex");
+}
+
 /** Best-effort single-line append. A failed write is swallowed so it never
  *  surfaces in the caller's happy path. */
 export function appendJournalEntry(runDir: string, entry: JournalEntry): void {
@@ -156,12 +200,19 @@ export function appendJournalEntry(runDir: string, entry: JournalEntry): void {
 function isValidEntry(value: unknown): value is JournalEntry {
   if (!value || typeof value !== "object") return false;
   const e = value as Record<string, unknown>;
+  const kind = e.kind === undefined ? "agent" : e.kind;
+  if (kind !== "agent" && kind !== "checkpoint") return false;
   if (typeof e.key !== "string") return false;
   if (typeof e.seq !== "number") return false;
   if (typeof e.index !== "number") return false;
   if (typeof e.label !== "string") return false;
-  if (typeof e.ok !== "boolean") return false;
   if (typeof e.finishedAt !== "number") return false;
+  if (kind === "checkpoint") {
+    if (e.ok !== true) return false;
+    if (e.decision !== "approved" && e.decision !== "rejected") return false;
+    return true;
+  }
+  if (typeof e.ok !== "boolean") return false;
   return true;
 }
 

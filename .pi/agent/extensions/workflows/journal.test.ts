@@ -6,9 +6,12 @@ import { test } from "node:test";
 import {
   agentCallKey,
   appendJournalEntry,
+  checkpointCallKey,
   createReplayIndex,
   HASHED_OPTION_KEYS,
   readJournal,
+  type AgentJournalEntry,
+  type CheckpointJournalEntry,
   type JournalEntry,
 } from "./journal.ts";
 
@@ -18,7 +21,9 @@ function freshDir(): string {
 
 const CTX = { launchCwd: "/x", defaultModelId: "a", defaultThinking: "medium" };
 
-function baseEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
+function baseEntry(
+  overrides: Partial<AgentJournalEntry> = {},
+): AgentJournalEntry {
   return {
     key: "k",
     seq: 1,
@@ -240,8 +245,14 @@ test("append + read round-trip preserves entries in seq order", () => {
     assert.equal(entries.length, 2);
     assert.equal(entries[0].seq, 1);
     assert.equal(entries[1].seq, 2);
-    assert.deepEqual(entries[0].result, { ok: true, output: "one" });
-    assert.deepEqual(entries[1].result, { ok: true, output: "two" });
+    assert.deepEqual((entries[0] as AgentJournalEntry).result, {
+      ok: true,
+      output: "one",
+    });
+    assert.deepEqual((entries[1] as AgentJournalEntry).result, {
+      ok: true,
+      output: "two",
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -365,6 +376,167 @@ test("appendJournalEntry does not throw when the write fails", () => {
     assert.doesNotThrow(() =>
       appendJournalEntry(runDir, baseEntry({ key: "k", seq: 1 })),
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("checkpointCallKey is stable for identical inputs and returns full sha256 hex", () => {
+  const a = checkpointCallKey("gate", "looks good?", { files: [1, 2] }, CTX);
+  const b = checkpointCallKey("gate", "looks good?", { files: [1, 2] }, CTX);
+  assert.equal(a, b);
+  assert.match(a, /^[a-f0-9]{64}$/);
+});
+
+test("checkpointCallKey differs when name, prompt, context, or launchCwd differ", () => {
+  const base = checkpointCallKey("gate", "looks good?", { files: [1, 2] }, CTX);
+  assert.notEqual(
+    checkpointCallKey("other", "looks good?", { files: [1, 2] }, CTX),
+    base,
+    "name must affect the key",
+  );
+  assert.notEqual(
+    checkpointCallKey("gate", "ship it?", { files: [1, 2] }, CTX),
+    base,
+    "prompt must affect the key",
+  );
+  assert.notEqual(
+    checkpointCallKey("gate", "looks good?", { files: [1, 3] }, CTX),
+    base,
+    "context must affect the key",
+  );
+  assert.notEqual(
+    checkpointCallKey(
+      "gate",
+      "looks good?",
+      { files: [1, 2] },
+      { ...CTX, launchCwd: "/y" },
+    ),
+    base,
+    "launchCwd must affect the key",
+  );
+});
+
+test("readJournal round-trips a legacy agent entry with no `kind` field", () => {
+  // Legacy journals written before the discriminated union existed have no
+  // `kind` discriminator. `isValidEntry` must default them to "agent".
+  const dir = freshDir();
+  try {
+    const legacy: AgentJournalEntry = {
+      key: "legacy-key",
+      seq: 1,
+      index: 1,
+      label: "legacy",
+      ok: true,
+      result: { ok: true, output: "legacy" },
+      finishedAt: 1,
+    };
+    writeFileSync(join(dir, "journal.jsonl"), `${JSON.stringify(legacy)}\n`);
+    const entries = readJournal(dir);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].seq, 1);
+    assert.equal(entries[0].key, "legacy-key");
+    // `kind` is absent on the wire; the read-back entry is still treated as
+    // an agent entry and exposes `result`.
+    assert.equal((entries[0] as AgentJournalEntry).kind, undefined);
+    assert.deepEqual((entries[0] as AgentJournalEntry).result, {
+      ok: true,
+      output: "legacy",
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("append + read round-trip preserves checkpoint entries in seq order", () => {
+  const dir = freshDir();
+  try {
+    const cp: CheckpointJournalEntry = {
+      kind: "checkpoint",
+      key: "ck1",
+      seq: 1,
+      index: 1,
+      label: "gate-1",
+      ok: true,
+      decision: "approved",
+      finishedAt: 100,
+    };
+    appendJournalEntry(dir, cp);
+    appendJournalEntry(
+      dir,
+      baseEntry({ key: "a1", seq: 2, index: 2, label: "agent-after" }),
+    );
+    const entries = readJournal(dir);
+    assert.equal(entries.length, 2);
+    assert.equal(entries[0].seq, 1);
+    assert.equal(entries[1].seq, 2);
+    assert.equal((entries[0] as CheckpointJournalEntry).decision, "approved");
+    assert.equal(entries[0].key, "ck1");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("createReplayIndex dispatches checkpoint and agent entries by their own keys", () => {
+  // Checkpoint keys and agent keys occupy disjoint hash namespaces (the
+  // checkpoint key wraps in `{ checkpoint: ... }`); both kinds pass the
+  // `ok` filter and are taken independently.
+  const cpKey = checkpointCallKey("gate", "ok?", { n: 1 }, CTX);
+  const entries: JournalEntry[] = [
+    baseEntry({ key: "agent-key", seq: 1, finishedAt: 1, ok: true }),
+    {
+      kind: "checkpoint",
+      key: cpKey,
+      seq: 2,
+      index: 2,
+      label: "gate",
+      ok: true,
+      decision: "rejected",
+      finishedAt: 2,
+    } satisfies CheckpointJournalEntry,
+  ];
+  const replay = createReplayIndex(entries);
+  assert.equal(replay.remaining(), 2);
+  const cp = replay.take(cpKey);
+  assert.ok(cp);
+  assert.equal(cp.kind, "checkpoint");
+  assert.equal((cp as CheckpointJournalEntry).decision, "rejected");
+  const ag = replay.take("agent-key");
+  assert.ok(ag);
+  assert.equal((ag as AgentJournalEntry).kind ?? "agent", "agent");
+  assert.equal(replay.remaining(), 0);
+  assert.equal(replay.take("agent-key"), undefined);
+  assert.equal(replay.take(cpKey), undefined);
+});
+
+test('readJournal drops an invalid checkpoint (decision:"maybe") as torn', () => {
+  // decision must be exactly "approved" or "rejected"; any other value
+  // invalidates the line and readJournal stops reading after it.
+  const dir = freshDir();
+  try {
+    const good1 = JSON.stringify(
+      baseEntry({ key: "k1", seq: 1, finishedAt: 1 }),
+    );
+    const badCp: unknown = {
+      kind: "checkpoint",
+      key: "ck-bad",
+      seq: 2,
+      index: 2,
+      label: "gate",
+      ok: true,
+      decision: "maybe",
+      finishedAt: 2,
+    };
+    const good3 = JSON.stringify(
+      baseEntry({ key: "k3", seq: 3, index: 3, label: "c", finishedAt: 3 }),
+    );
+    writeFileSync(
+      join(dir, "journal.jsonl"),
+      [good1, JSON.stringify(badCp), good3].join("\n") + "\n",
+    );
+    const entries = readJournal(dir);
+    assert.equal(entries.length, 1, "torn tail: only k1 survives");
+    assert.equal(entries[0].seq, 1);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -132,3 +132,91 @@ test("RunController aborts a script that ignores the budget refusals", async () 
   assert.ok(results.every((result) => result.status === "rejected"));
   assert.equal(await controller.settle({ abort: true }), true);
 });
+
+test("RunController accumulates cost and aborts when maxCost exceeded", async () => {
+  const controller = new RunController(undefined, undefined, undefined, {
+    maxCost: 0.05,
+  });
+  controller.recordUsage({ cost: 0.03 });
+  assert.equal(controller.signal.aborted, false);
+  assert.equal(controller.spentCost, 0.03);
+  controller.recordUsage({ cost: 0.04 });
+  assert.equal(controller.signal.aborted, true);
+  assert.match(String(controller.signal.reason), /cost budget/);
+  assert.equal(await controller.settle({ abort: true }), true);
+});
+
+test("RunController aborts when maxTokens exceeded", async () => {
+  const controller = new RunController(undefined, undefined, undefined, {
+    maxTokens: 1_000,
+  });
+  controller.recordUsage({ input: 800, output: 0 });
+  assert.equal(controller.signal.aborted, false);
+  assert.equal(controller.spentTokens, 800);
+  controller.recordUsage({ input: 300, output: 100 });
+  assert.equal(controller.signal.aborted, true);
+  assert.match(String(controller.signal.reason), /token budget/);
+  assert.equal(await controller.settle({ abort: true }), true);
+});
+
+test("RunController rejects schedule when maxDurationMs already exceeded", async () => {
+  const controller = new RunController(undefined, undefined, undefined, {
+    maxDurationMs: 1,
+  });
+  await delay(5);
+  await assert.rejects(
+    controller.schedule(async () => "should not run"),
+    /exceeded its duration budget/,
+  );
+  assert.equal(controller.signal.aborted, true);
+  assert.match(
+    String(controller.signal.reason),
+    /exceeded its duration budget/,
+  );
+  assert.equal(await controller.settle({ abort: true }), true);
+});
+
+test("RunController with no budget behaves exactly as before", async () => {
+  const controller = new RunController();
+  assert.equal(controller.spentCost, 0);
+  assert.equal(controller.spentTokens, 0);
+  assert.equal(await controller.schedule(async () => 42), 42);
+  assert.equal(controller.signal.aborted, false);
+  // Negative / NaN fields are still numeric, but no budget gate is set so
+  // they never trip the abort.
+  controller.recordUsage({ cost: -1, input: Number.NaN });
+  assert.equal(controller.spentCost, -1);
+  assert.equal(controller.spentTokens, 0);
+  assert.equal(controller.signal.aborted, false);
+  assert.equal(await controller.settle(), true);
+});
+
+test("RunController aborts via wall-clock timer when maxDurationMs elapses with no further calls", async () => {
+  const controller = new RunController(undefined, undefined, undefined, {
+    maxDurationMs: 20,
+  });
+  assert.equal(controller.signal.aborted, false);
+  await delay(40);
+  assert.equal(controller.signal.aborted, true);
+  assert.match((controller.signal.reason as Error).message, /duration budget/);
+  assert.equal(await controller.settle({ abort: true }), true);
+});
+
+test("RunController duration timer is cleared on settle (zero-task path)", async () => {
+  const c = new RunController(undefined, undefined, undefined, {
+    maxDurationMs: 20,
+  });
+  await c.settle(); // no tasks were scheduled → zero-task settle branch
+  await new Promise((r) => setTimeout(r, 40)); // past the deadline
+  assert.equal(c.signal.aborted, false); // timer was cleared, no spurious abort
+});
+
+test("RunController duration timer is cleared on settle (after an active task)", async () => {
+  const c = new RunController(undefined, undefined, undefined, {
+    maxDurationMs: 20,
+  });
+  await c.schedule(async () => "ok"); // one task runs and completes
+  await c.settle();
+  await new Promise((r) => setTimeout(r, 40)); // past the deadline
+  assert.equal(c.signal.aborted, false); // timer cleared despite the deadline passing
+});
