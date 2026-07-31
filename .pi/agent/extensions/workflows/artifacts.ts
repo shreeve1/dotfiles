@@ -1,4 +1,5 @@
 import type { TranscriptEntry, WorkflowDetails } from "./model.ts";
+import { sortedAgents } from "./model.ts";
 import {
   safeStringify,
   truncateUtf8,
@@ -88,8 +89,13 @@ function writeRunFile(runDir: string, name: string, content: string) {
 }
 
 export function persistWorkflowJson(runDir: string, details: WorkflowDetails) {
+  // Sort before persisting so on-disk agents come out in index order even
+  // when replayed records (pushed immediately) interleaved with executed
+  // records (pushed only after the semaphore acquires). Index stays unique
+  // and transcript keying (keyed by index) is unaffected by the sort.
+  const ordered = sortedAgents(details);
   const transcripts = Object.fromEntries(
-    details.agents.map((agent) => [
+    ordered.map((agent) => [
       agent.index,
       boundedArtifactTranscript(agent.transcript),
     ]),
@@ -112,7 +118,7 @@ export function persistWorkflowJson(runDir: string, details: WorkflowDetails) {
       ? { result: "[stored in result.json]", resultArtifact: "result.json" }
       : {}),
     transcriptArtifact: "transcripts.json",
-    agents: details.agents.map((agent) => ({ ...agent, transcript: [] })),
+    agents: ordered.map((agent) => ({ ...agent, transcript: [] })),
   };
   writeRunFile(
     runDir,

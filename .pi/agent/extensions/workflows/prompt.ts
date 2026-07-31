@@ -9,10 +9,14 @@ import {
 /** Model-facing schema descriptions for workflow source, arguments, and background mode. */
 export const WORKFLOW_PARAMETER_DESCRIPTIONS = {
   script:
-    "JavaScript workflow script. May start with `export const meta = {...}`, then use phase(), agent(), parallel(), args, and a final `return`.",
+    "JavaScript workflow script. May start with `export const meta = {...}`, then use phase(), agent(), parallel(), args, and a final `return`. Mutually exclusive with `scriptPath` and `resume`.",
+  scriptPath:
+    "Path to a JavaScript workflow file, relative to the project root (e.g. .pi/workflows/review.js). Mutually exclusive with `script` and `resume`. The file is read once at launch and copied into the run directory.",
   args: "Optional JSON string exposed to the script as `args` (parsed when valid JSON, otherwise passed through as the raw string).",
   background:
     "Run in the background: the tool returns a run id immediately and you receive a follow-up message when the workflow finishes. Defaults to false (blocking with live progress).",
+  resume:
+    "Resume a prior failed or aborted workflow run by its run id (e.g. wf_a1b2c3d4e5f6). The prior run's script and args are reused; agent calls that already succeeded are replayed from its journal instead of re-run. Mutually exclusive with `script` and `scriptPath`.",
 };
 
 /** Defines the workflow DSL, constraints, reliability guidance, and model-authored task examples. */
