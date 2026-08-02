@@ -86,3 +86,31 @@ when repo state changed during the user turn (worker mutation), not on
 plain chat / design-only / read-only turns. Read-only architecture or
 design analysis requires manual `/gap-review`. See
 `docs/adr/0002-fusion-mode.md` and `docs/adr/0001-verification-two-layers.md`.
+
+## Orchestration mode — Claude Fusion
+
+**Claude Fusion** ports Fusion's intent into Claude Code: Claude is the **brain**
+(intent, architecture, spec, diff review, verification) and delegated `pi -p`
+processes are the **arms and legs** (all mutation + grind, on non-Anthropic
+models so grunt work does not spend the Anthropic subscription). Enforced by
+PreToolUse hook denial (Claude has no Pi-style `setActiveTools`). See
+`docs/adr/0003-claude-fusion.md`.
+
+- **Brain cage**: `Edit`/`Write`/`MultiEdit`/`NotebookEdit` blocked; `Bash`
+  gated to an allowlist (read-only git + verification + the `pi-delegate`
+  wrapper, same shape as Fusion `isSafeBash`). `Read`/`Grep`/`Glob`/
+  `WebSearch`/`WebFetch` kept on Claude — the deliberate divergence from
+  Fusion's blind Pi-parent.
+- **`pi-delegate <role> "<task>"`**: the delegation vehicle. Flat top-level
+  `pi -p --no-session` (never nested `pi --fusion`), same working tree,
+  synchronous by default (`--async` opt-in) over the `setsid`-detach engine
+  (`.claude/skills/_shared/pi-reviewer-engine.md`).
+- **Roles**: `worker` (minimax, only writer), `reviewer` (gpt-5.6-sol),
+  `planner` (claude-opus-5), `researcher` (gpt-5.6-terra). `scout` dropped —
+  Claude keeps its own discovery. **Model + tools come from
+  `settings.json` `agentOverrides`; persona body from
+  `pi-subagents/agents/<role>.md` — never the persona `tools:` frontmatter**
+  (it grants the reviewer write, breaking "reviewer never writes").
+- **Switch**: `claude` key in `~/.config/fusion/config.json` (falls back to
+  `defaultMode`); read live per call; human-driven only (the caged brain
+  cannot unblock itself); `.claude/.fusion-off` per-project escape hatch.

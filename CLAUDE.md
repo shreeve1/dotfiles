@@ -176,6 +176,48 @@ commands).
   `<turn>-<ts>.input.md` after the reviewer consumes it (transient, to keep
   retention of the original request + answer tight). Smoke test:
   `bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh`.
+- **Claude Fusion** (Claude Code orchestrates, Pi executes — the CC-side port of
+  Pi's Fusion; design in `docs/adr/0003-claude-fusion.md`, glossed in
+  `CONTEXT.md`). When on, Claude is the brain (intent/spec/diff-review/verify) and
+  cannot mutate — all writes/grind are delegated to a fresh `pi -p` role process.
+  Surfaces:
+    - `bin/pi-delegate` — the delegation wrapper (bash), symlinked onto PATH by
+      `install.sh` (`.local/bin/pi-delegate`). `pi-delegate <worker|reviewer|
+      planner|researcher> [--async] [--dry-run] "<task>"` launches a flat, fresh
+      `pi -p --no-session --no-skills --no-extensions` process. **Sourcing rule
+      (correctness-critical):** model + tools come from `.pi/agent/settings.json`
+      `subagents.agentOverrides.<role>`, persona body from
+      `extensions/pi-subagents/agents/<role>.md` — NEVER the persona frontmatter
+      (reviewer frontmatter grants edit/write; settings strips it). `planner` has
+      no `tools` key → `--tools` is omitted (never `--tools null`). `--no-extensions`
+      is **load-bearing**: it stops the delegated pi from loading Fusion (machine
+      default on) and stripping the worker's edit/write tools; `researcher`
+      re-adds `rpiv-web-tools` via explicit `--extension` (kept under
+      `--no-extensions`). Sync by default (prints the worker's output); `--async`
+      returns a poll handle. Reuses the `setsid`-detach + poll mechanics of
+      `.claude/skills/_shared/pi-reviewer-engine.md`.
+    - `.claude/hooks/claude-fusion-block.sh` — PreToolUse enforcement. Denies
+      `Edit|Write|MultiEdit|NotebookEdit` (exit 2) and gates `Bash` to a
+      read-only/verification/`pi-delegate` allowlist. The Bash decision **reuses
+      Fusion's VERBATIM `isSafeBash`** (`.pi/agent/extensions/fusion/index.ts`)
+      via the jiti vendored in `pi-subagents/node_modules` — same policy as Pi's
+      Fusion, no divergent regex re-port — plus an injection-safe `pi-delegate`
+      carve-out (mirrors `isSafeGitCommit`'s anchored quoted-arg shape). Wired
+      into the `Bash` matcher (stacks after `block-bash-pattern.sh`) and a
+      dedicated writer matcher, in `settings.json.template` AND live
+      `~/.claude/settings.json` (switch-provider retired, so no provider files).
+    - `.claude/hooks/claude-fusion-guidance.sh` — SessionStart hook, injects the
+      delegation protocol as raw stdout (native-CC context path, like
+      `ponytail-activate.js`; no JSON wrapper).
+    - `.claude/hooks/tests/claude-fusion-smoke.sh` — offline assert smoke (block
+      decisions + `--dry-run` role resolution; no live `pi`).
+  - **Switch:** `claude` key in `~/.config/fusion/config.json`
+    (`{"claude":"on"|"off"}`), falling back to Pi's `defaultMode` when absent.
+    Read live on every hook call. **Human-driven only** — the caged brain cannot
+    unblock itself. Per-repo escape hatch: `.claude/.fusion-off`.
+  - **Gotcha:** the block hook depends on jiti + `fusion/index.ts` being present
+    (both vendored, installed by `bash install.sh`). It fails CLOSED if the
+    policy engine can't load — toggle `claude=off` or drop `.claude/.fusion-off`.
 
 ## Editing rules
 

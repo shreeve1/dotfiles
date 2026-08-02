@@ -74,6 +74,12 @@
             "command": "command -v node >/dev/null 2>&1 && node \"$HOME/.claude/hooks/ponytail/ponytail-activate.js\" || exit 0",
             "timeout": 5,
             "statusMessage": "Loading ponytail mode..."
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/claude-fusion-guidance.sh",
+            "timeout": 5,
+            "statusMessage": "Loading Claude Fusion protocol..."
           }
         ]
       }
@@ -97,6 +103,10 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/block-bash-pattern.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/claude-fusion-block.sh"
           }
         ]
       },
@@ -106,6 +116,15 @@
           {
             "type": "command",
             "command": "~/.claude/hooks/block-path-access.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/claude-fusion-block.sh"
           }
         ]
       }
