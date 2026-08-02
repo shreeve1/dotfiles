@@ -162,6 +162,9 @@ bin/*
 # Pi model catalog cache — self-refreshing runtime state, never commit
 .pi/agent/models-store.json
 
+# Machine-local MCP tool-schema cache (regenerated on first use per machine)
+.pi/agent/mcp-cache.json
+
 # Codex config accumulates machine-local trust hashes; seeded from
 # .codex/config.toml.template by install.sh
 .codex/config.toml
