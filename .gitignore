@@ -20,6 +20,7 @@ youtube/
 # Machine-local helper binaries (sync rralph; keep the rest machine-local)
 bin/*
 !bin/rralph
+!bin/pi-delegate
 
 # Machine-local secrets (not synced)
 .env
@@ -166,3 +167,5 @@ bin/*
 
 # Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
 /tests/
+.claude/.fusion-off
+.claude/.harness-unlock
