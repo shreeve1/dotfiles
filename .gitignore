@@ -21,6 +21,7 @@ youtube/
 bin/*
 !bin/rralph
 !bin/pi-delegate
+!bin/claude-fusion
 
 # Machine-local secrets (not synced)
 .env

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# claude-fusion — toggle Claude Fusion enforcement on/off (ADR 0003).
+#
+# Human-driven switch: flips the `claude` key in ~/.config/fusion/config.json
+# (leaving Pi's `defaultMode` untouched). The default resolves to ON when the key
+# is unset, so doing nothing = enforced. The caged brain CANNOT run this to free
+# itself (not on the Bash allowlist) — run it from your own shell, or
+# `! claude-fusion off` inside Claude Code.
+#
+# Usage: claude-fusion on|off|status
+set -euo pipefail
+
+CONFIG="${FUSION_CONFIG:-$HOME/.config/fusion/config.json}"
+command -v jq >/dev/null 2>&1 || { echo "claude-fusion: jq not found" >&2; exit 1; }
+
+# Mirror the hooks exactly: they enforce only when the flag resolves to literal
+# "on" (`.claude // .defaultMode`); missing/empty/anything-else => not enforced.
+resolved() {
+  local v; v=$(jq -r '.claude // .defaultMode // "off"' "$CONFIG" 2>/dev/null) || v=off
+  [ "$v" = "on" ] && echo on || echo off
+}
+
+set_flag() { # <on|off>
+  mkdir -p "$(dirname "$CONFIG")"
+  local tmp; tmp=$(mktemp)
+  if [ -f "$CONFIG" ]; then
+    jq --arg v "$1" '.claude = $v' "$CONFIG" > "$tmp"
+  else
+    printf '{"claude":"%s"}\n' "$1" > "$tmp"
+  fi
+  mv "$tmp" "$CONFIG"
+}
+
+case "${1:-status}" in
+  on)  set_flag on;  echo "Claude Fusion: ON  (claude=on)" ;;
+  off) set_flag off; echo "Claude Fusion: OFF (claude=off)" ;;
+  status)
+    echo "Claude Fusion: $(resolved)  (config: $CONFIG)"
+    if [ -f "$PWD/.claude/.fusion-off" ]; then
+      echo "note: this repo has .claude/.fusion-off — forced OFF here regardless of the global flag"
+    fi
+    ;;
+  *) echo "usage: claude-fusion on|off|status" >&2; exit 1 ;;
+esac
