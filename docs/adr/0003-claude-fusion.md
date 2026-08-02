@@ -102,9 +102,12 @@ by test at build time, not by assumption.
   Pi — `readGlobalDefaultMode` reads only `defaultMode` and ignores other keys.
 - **Read live:** hooks read the flag on every call, so toggling takes effect
   mid-session with no session-id plumbing.
-- **Human-driven only.** The operator flips it (via `!`-shell or a small
-  script); the blocked brain cannot unblock itself — same posture as
-  `block-path-access.sh`'s self-disarm guard.
+- **Human-driven only.** The operator flips it with the `claude-fusion
+  on|off|status` helper (`bin/claude-fusion`, on PATH via `install.sh`; edits the
+  `claude` key, leaves `defaultMode` alone) — or any `!`-shell edit of the config.
+  The helper is deliberately NOT on the Bash allowlist, so the blocked brain
+  cannot run it to unblock itself — same posture as `block-path-access.sh`'s
+  self-disarm guard.
 - **Per-project escape hatch:** `.claude/.fusion-off` forces it off in one repo
   regardless of the global switch.
 

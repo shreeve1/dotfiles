@@ -74,5 +74,23 @@ echo "$out" | grep -q -- "--extension" && echo "$out" | grep -q "rpiv-web-tools"
 # T.2.4 bogus role -> nonzero
 "$PD" bogus "x" >/dev/null 2>&1 && bad "T.2.4 bogus should be nonzero" || ok
 
+echo "== T.3 claude-fusion toggle (against a temp config) =="
+CF="$REPO/bin/claude-fusion"
+TCFG=$(mktemp); printf '{"defaultMode":"on"}' > "$TCFG"
+# T.3.1 defaultMode on, no claude key -> status resolves on
+FUSION_CONFIG="$TCFG" "$CF" status | grep -q "Fusion: on" && ok || bad "T.3.1 default resolves on"
+# T.3.2 off sets claude=off (defaultMode preserved) -> status off
+FUSION_CONFIG="$TCFG" "$CF" off >/dev/null
+{ FUSION_CONFIG="$TCFG" "$CF" status | grep -q "Fusion: off" && grep -q '"defaultMode"' "$TCFG"; } \
+  && ok || bad "T.3.2 off -> off, defaultMode preserved"
+# T.3.3 on sets claude=on -> status on
+FUSION_CONFIG="$TCFG" "$CF" on >/dev/null
+FUSION_CONFIG="$TCFG" "$CF" status | grep -q "Fusion: on" && ok || bad "T.3.3 on -> on"
+# T.3.4 status exits 0
+FUSION_CONFIG="$TCFG" "$CF" status >/dev/null; [ $? -eq 0 ] && ok || bad "T.3.4 status exit 0"
+# T.3.5 bogus subcommand -> nonzero
+FUSION_CONFIG="$TCFG" "$CF" bogus >/dev/null 2>&1 && bad "T.3.5 bogus should be nonzero" || ok
+rm -f "$TCFG"
+
 echo "--- $pass passed, $fail failed ---"
 [ "$fail" -eq 0 ]
