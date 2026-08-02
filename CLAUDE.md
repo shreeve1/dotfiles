@@ -212,9 +212,13 @@ commands).
     - `.claude/hooks/tests/claude-fusion-smoke.sh` — offline assert smoke (block
       decisions + `--dry-run` role resolution; no live `pi`).
   - **Switch:** `claude` key in `~/.config/fusion/config.json`
-    (`{"claude":"on"|"off"}`), falling back to Pi's `defaultMode` when absent.
-    Read live on every hook call. **Human-driven only** — the caged brain cannot
-    unblock itself. Per-repo escape hatch: `.claude/.fusion-off`.
+    (`{"claude":"on"|"off"}`), falling back to Pi's `defaultMode` when absent
+    (default resolves ON). Read live on every hook call. Toggle with the
+    `bin/claude-fusion on|off|status` helper (symlinked onto PATH by `install.sh`;
+    flips the `claude` key, leaves `defaultMode` untouched). **Human-driven
+    only** — the helper is NOT on the Bash allowlist, so the caged brain cannot
+    run it to unblock itself; run it from your shell or `! claude-fusion off`
+    inside Claude Code. Per-repo escape hatch: `.claude/.fusion-off`.
   - **Gotcha:** the block hook depends on jiti + `fusion/index.ts` being present
     (both vendored, installed by `bash install.sh`). It fails CLOSED if the
     policy engine can't load — toggle `claude=off` or drop `.claude/.fusion-off`.
