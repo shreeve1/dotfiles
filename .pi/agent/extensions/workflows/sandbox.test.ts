@@ -130,6 +130,114 @@ test("workflow cancellation aborts a pending agent request", async () => {
 
   await started;
   controller.abort(new Error("cancel fixture"));
-  await assert.rejects(pending, /Workflow was aborted/);
+  await assert.rejects(pending, /cancel fixture/);
   assert.equal(requestAborted, true);
+});
+
+// Regression guard for the pre-6997387 runaway: a script's `while (true)
+// await agent(...)` must not hang the sandbox once the parent aborts the
+// run's AbortSignal (mimicking the controller overshooting the agent-call
+// budget). The sandbox must surface the abort reason on its returned
+// promise.
+test("sandbox checkpoint resolves with host decision", async () => {
+  let received: { id: number; name: string; prompt: string } | undefined;
+  const result = await run(
+    `const d = await checkpoint({ name: "gate", prompt: "ok?" }); return d;`,
+    {
+      onCheckpoint: async (request) => {
+        received = {
+          id: request.id,
+          name: request.name,
+          prompt: request.prompt,
+        };
+        return "approved";
+      },
+    },
+  );
+  assert.equal(result, "approved");
+  assert.deepEqual(received, { id: 1, name: "gate", prompt: "ok?" });
+});
+
+test("sandbox checkpoint surfaces host rejection as a script error", async () => {
+  await assert.rejects(
+    run(
+      `const d = await checkpoint({ name: "gate", prompt: "ok?" }); return d;`,
+      {
+        onCheckpoint: async () => {
+          throw new Error("denied by host");
+        },
+      },
+    ),
+    /denied by host/,
+  );
+});
+
+test("sandbox withWorktree provides a scope and runs the callback", async () => {
+  let closeCalls = 0;
+  const result = await run(
+    `const out = await withWorktree("iso", async (s) => s.path); return out;`,
+    {
+      onWorktreeOpen: async (request) => {
+        assert.equal(request.name, "iso");
+        return { path: "/tmp/wt" };
+      },
+      onWorktreeClose: async (request) => {
+        closeCalls++;
+        assert.equal(request.name, "iso");
+      },
+    },
+  );
+  assert.equal(result, "/tmp/wt");
+  assert.equal(closeCalls, 1);
+});
+
+test("sandbox withWorktree closes even when the callback throws", async () => {
+  let closeCalls = 0;
+  await assert.rejects(
+    run(
+      `await withWorktree("iso", async () => { throw new Error("boom"); });`,
+      {
+        onWorktreeOpen: async () => ({ path: "/tmp/wt" }),
+        onWorktreeClose: async () => {
+          closeCalls++;
+        },
+      },
+    ),
+    /boom/,
+  );
+  assert.equal(closeCalls, 1);
+});
+
+test("sandbox withWorktree surfaces an open failure", async () => {
+  let closeCalls = 0;
+  await assert.rejects(
+    run(`await withWorktree("iso", async () => "never");`, {
+      onWorktreeOpen: async () => {
+        throw new Error("open denied");
+      },
+      onWorktreeClose: async () => {
+        closeCalls++;
+      },
+    }),
+    /open denied/,
+  );
+  assert.equal(closeCalls, 0);
+});
+
+test("runaway agent loop terminates when the run's signal aborts", async () => {
+  const abort = new AbortController();
+  let calls = 0;
+  await assert.rejects(
+    run(`while (true) { await agent("x"); }`, {
+      signal: abort.signal,
+      onAgent: async () => {
+        calls++;
+        if (calls >= 3) {
+          abort.abort(new Error("Workflow exceeded the agent-call budget"));
+        }
+        return { ok: false, output: "", error: "aborted" };
+      },
+    }),
+    /agent-call budget/,
+  );
 });

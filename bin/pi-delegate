@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# pi-delegate — Claude Fusion delegation wrapper (ADR 0003 / docs/adr/0003-claude-fusion.md).
+#
+# Launches a flat, fresh `pi -p` process that reproduces a pi-subagents role so
+# Claude Code can offload all mutation/grind to a cheaper non-Anthropic model:
+#   - model + tools come from .pi/agent/settings.json .subagents.agentOverrides.<role>
+#     (NEVER the persona frontmatter — reviewer frontmatter grants edit/write; the
+#      settings override strips it; see ADR 0003 sourcing rule).
+#   - persona body comes from extensions/pi-subagents/agents/<role>.md.
+# `--no-extensions` is LOAD-BEARING: it stops the delegated pi from loading Fusion
+# (machine default on) and stripping the worker's edit/write tools. researcher
+# re-adds rpiv-web-tools explicitly (--no-extensions keeps explicit -e paths).
+#
+# Usage: pi-delegate <worker|reviewer|planner|researcher> [--async] [--dry-run] <task...>
+set -euo pipefail
+
+PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+SETTINGS="$PI_DIR/settings.json"
+TIMEOUT="${PI_DELEGATE_TIMEOUT:-900}"
+
+die() { echo "pi-delegate: $1" >&2; exit 1; }
+
+[ $# -ge 1 ] || die "usage: pi-delegate <worker|reviewer|planner|researcher> [--async] [--dry-run] <task...>"
+role="$1"; shift
+
+case "$role" in
+  worker|reviewer|planner|researcher) ;;
+  *) die "unknown role '$role' (expected worker|reviewer|planner|researcher)" ;;
+esac
+
+async=0; dry=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --async)   async=1; shift ;;
+    --dry-run) dry=1;   shift ;;
+    --)        shift; break ;;
+    *)         break ;;
+  esac
+done
+task="$*"
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+[ -f "$SETTINGS" ] || die "settings not found: $SETTINGS"
+
+model=$(jq -r --arg r "$role" '.subagents.agentOverrides[$r].model // empty' "$SETTINGS")
+[ -n "$model" ] || die "no model for role '$role' in $SETTINGS"
+
+# Tools from settings only. planner has NO tools key -> empty -> omit --tools so
+# pi uses its default set (never pass `--tools ""` / `--tools null`).
+tools=$(jq -r --arg r "$role" \
+  '.subagents.agentOverrides[$r].tools // [] | if length > 0 then join(",") else empty end' \
+  "$SETTINGS")
+
+persona="$PI_DIR/extensions/pi-subagents/agents/$role.md"
+[ -f "$persona" ] || die "persona not found: $persona"
+# Strip YAML frontmatter: print only lines after the 2nd `---`. (systemPromptMode
+# is `replace`, so the body IS the whole system prompt.)
+persona_tmp=$(mktemp /tmp/pi-delegate-persona-XXXXXX.md)
+awk 'seen>=2{print} /^---[[:space:]]*$/{seen++}' "$persona" > "$persona_tmp"
+
+# Base args (system prompt appended only at real launch so --dry-run stays terse).
+launch_args=( -p --no-session --no-skills --model "$model" )
+[ -n "$tools" ] && launch_args+=( --tools "$tools" )
+launch_args+=( --no-extensions )
+[ "$role" = researcher ] && launch_args+=( --extension "$PI_DIR/extensions/rpiv-web-tools" )
+
+if [ "$dry" = 1 ]; then
+  echo "role: $role"
+  echo "model: $model"
+  echo "tools: ${tools:-<default (no --tools)>}"
+  echo "persona: $persona"
+  echo "args: pi ${launch_args[*]} --system-prompt <persona-body> ${task:+<task>}"
+  rm -f "$persona_tmp"
+  exit 0
+fi
+
+launch_args+=( --system-prompt "$(cat "$persona_tmp")" )
+
+# Reuse the reviewer-engine mechanics (_shared/pi-reviewer-engine.md): setsid so a
+# launcher exit / parent-pgid signal can't SIGKILL pi mid-thought; </dev/null to
+# drop tty contention. Run in the CALLER's cwd (worker edits Claude's tree).
+OUT=$(mktemp /tmp/pi-delegate-out-XXXXXX.txt)
+PIDF=$(mktemp /tmp/pi-delegate-pid-XXXXXX)
+runId=$(basename "$OUT" .txt)
+
+setsid pi "${launch_args[@]}" "$task" > "$OUT" 2>&1 < /dev/null &
+pid=$!
+echo "$pid" > "$PIDF"
+rm -f "$persona_tmp"
+
+# 1s launch-failure sanity check (bad args / missing key die instantly).
+sleep 1
+if ! kill -0 "$pid" 2>/dev/null && [ ! -s "$OUT" ]; then
+  echo "pi-delegate: launch failed (pi exited within 1s, no output)" >&2
+  cat "$OUT" >&2 2>/dev/null || true
+  rm -f "$OUT" "$PIDF"
+  exit 1
+fi
+
+if [ "$async" = 1 ]; then
+  echo "runId: $runId"
+  echo "output: $OUT"
+  echo "pid: $pid ($PIDF)"
+  echo "poll: while kill -0 \$(cat '$PIDF') 2>/dev/null; do sleep 3; done; cat '$OUT'"
+  exit 0
+fi
+
+# Synchronous: poll until pi exits (generous cap), then print its output.
+elapsed=0
+while kill -0 "$pid" 2>/dev/null; do
+  sleep 3; elapsed=$((elapsed + 3))
+  if [ "$elapsed" -ge "$TIMEOUT" ]; then
+    echo "pi-delegate: timeout after ${TIMEOUT}s; killing pid $pid" >&2
+    kill "$pid" 2>/dev/null || true
+    break
+  fi
+done
+status=0
+wait "$pid" 2>/dev/null || status=$?
+cat "$OUT"
+rm -f "$OUT" "$PIDF"
+exit "$status"

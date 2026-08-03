@@ -12,10 +12,10 @@
 
 import {
   createAgentSession,
-  DefaultResourceLoader,
+  type DefaultResourceLoader,
   defineTool,
   SessionManager,
-  SettingsManager,
+  type SettingsManager,
   type AgentSession,
   type AgentSessionEvent,
   type AgentSessionEventListener,
@@ -96,6 +96,8 @@ export interface RunAgentOptions {
   toolCallTimeoutMs?: number;
   /** Test-only override for the first assistant response-event timeout. */
   firstResponseTimeoutMs?: number;
+  /** Opt this child back into `write`/`edit` (default: read-only). */
+  writable?: boolean;
 }
 
 /** Build a fresh extension runtime for each concurrent workflow child. */
@@ -119,19 +121,59 @@ interface WorkflowToolSession {
   subscribe(listener: AgentSessionEventListener): () => void;
 }
 
+interface ActiveToolSession {
+  getActiveToolNames(): string[];
+  setActiveToolsByName(names: string[]): void;
+}
+
+/**
+ * Re-activate SDK-injected `customTools` after extension binding.
+ *
+ * `bindExtensions` emits `session_start`, and an extension loaded in the child
+ * may replace the ACTIVE tool set wholesale. Fusion does exactly that: its
+ * `session_start` handler calls `setActiveTools(parentToolAllowlist())`
+ * (`extensions/fusion/index.ts`), which knows nothing about a workflow's
+ * `structured_output`, so the tool is dropped from the active set while
+ * surviving in the registry. The agent loop resolves against the active set, so
+ * the call returns `Tool <name> not found` and the agent's finished work is
+ * discarded — observed in run wf_4cb67e93508c, where 3 of 4 agents called the
+ * tool with valid payloads and every call was rejected.
+ *
+ * Registry presence is not activation: `getAllTools()` still lists the tool,
+ * which is why this hid behind a plausible "the model ignored the schema".
+ *
+ * Only the named custom tools are re-added, and the SDK intersects the active
+ * list against the registry, so `childToolPolicy` denials stand.
+ */
+export function reactivateCustomTools(
+  session: ActiveToolSession,
+  customTools: ReadonlyArray<{ name: string }>,
+) {
+  const names = customTools.map((tool) => tool.name);
+  const active = session.getActiveToolNames();
+  if (names.every((name) => active.includes(name))) return;
+  session.setActiveToolsByName([...new Set([...active, ...names])]);
+}
+
 /** Guard current tools and tools registered by extensions at later agent starts. */
 export function guardWorkflowChildTools(
-  session: WorkflowToolSession,
+  session: WorkflowToolSession & ActiveToolSession,
   timeoutMs?: number,
+  customTools?: ReadonlyArray<{ name: string }>,
 ) {
   const guard = createToolCallTimeoutGuard(timeoutMs);
   guard.apply(session);
   return session.subscribe((event) => {
-    if (event.type === "agent_start") guard.apply(session);
+    if (event.type !== "agent_start") return;
+    guard.apply(session);
+    // Fusion reapplies its allowlist before every agent start, so the custom
+    // tool must be re-asserted each time, not just once after binding.
+    if (customTools) reactivateCustomTools(session, customTools);
   });
 }
 
-function isJsonSchema(value: unknown): value is TSchema {
+/** Exported so the shared-subschema / cycle boundary is asserted directly. */
+export function isJsonSchema(value: unknown): value is TSchema {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const seen = new WeakSet<object>();
   let nodes = 0;
@@ -149,14 +191,22 @@ function isJsonSchema(value: unknown): value is TSchema {
       return current.every((item) => validate(item, depth + 1));
     }
     if (typeof current !== "object") return false;
+    // Cycle detection must be scoped to the CURRENT PATH, not the whole walk.
+    // A shared subschema (`const STR = { type: "string" }` reused across
+    // fields) is a DAG, not a cycle, and is idiomatic hand-written JSON
+    // Schema. Tracking `seen` globally rejected it, so the caller got
+    // "schema must be a bounded JSON object" and lost structured output.
+    // The node/depth caps above still bound a wide DAG.
     if (seen.has(current)) return false;
     seen.add(current);
-    return Object.keys(current).every((key) => {
+    const ok = Object.keys(current).every((key) => {
       if (key === "__proto__" || key === "constructor" || key === "prototype") {
         return false;
       }
       return validate((current as Record<string, unknown>)[key], depth + 1);
     });
+    seen.delete(current);
+    return ok;
   };
   return validate(value, 0);
 }
@@ -452,12 +502,14 @@ export async function runAgent(
       settingsManager: options.settingsManager,
       sessionManager: SessionManager.inMemory(options.cwd),
       ...(customTools ? { customTools } : {}),
-      ...childToolPolicy(),
+      ...childToolPolicy({ writable: options.writable }),
     }));
     await bindChildSessionExtensions(session);
+    if (customTools) reactivateCustomTools(session, customTools);
     unsubscribeToolTimeout = guardWorkflowChildTools(
       session,
       options.toolCallTimeoutMs,
+      customTools,
     );
   } catch (error) {
     unsubscribeToolTimeout?.();
