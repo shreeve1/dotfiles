@@ -74,6 +74,7 @@ import { acceptanceFailureMessage, buildSkippedAcceptanceLedger, evaluateAccepta
 import { appendTurnBudgetSystemPrompt, formatTurnBudgetOutput, initialTurnBudgetState, turnBudgetDecision, turnBudgetDeferredNote, turnBudgetDeferredState, turnBudgetExceededMessage, turnBudgetSoftNote, turnBudgetState } from "../shared/turn-budget.ts";
 import { initialToolBudgetState, toolBudgetState } from "../shared/tool-budget.ts";
 import { resolveWatchdogConfig } from "../../watchdog/settings.ts";
+import { applySalvage } from "../../shared/settings.ts";
 import { createBoundedByteTail, createBoundedLineReader, formatProtocolOutputLimit, MAX_CHILD_STDERR_BYTES, projectChildLifecycle, type ChildLifecycleAction, type ProtocolOutputLimit } from "../shared/child-protocol.ts";
 import {
 	acceptChildWatchdogEvent,
@@ -1048,8 +1049,21 @@ async function runSingleAttempt(
 		result.structuredOutputSchemaPath = options.structuredOutput.schemaPath;
 		result.structuredOutputPath = options.structuredOutput.outputPath;
 		if (structured.error) {
-			result.exitCode = 1;
-			result.error = structured.error;
+			const salvaged = applySalvage({
+				salvage: options.salvage,
+				otherErrors: result.error ? [result.error] : [],
+				structuredError: structured.error,
+				baseExitCode: result.exitCode,
+				finalOutputText: getFinalOutput(result.messages),
+			});
+			if (salvaged.salvaged) {
+				result.exitCode = 0;
+				result.error = undefined;
+				result.structuredOutput = salvaged.structuredOutput;
+			} else {
+				result.exitCode = 1;
+				result.error = structured.error;
+			}
 		} else {
 			result.structuredOutput = structured.value;
 		}

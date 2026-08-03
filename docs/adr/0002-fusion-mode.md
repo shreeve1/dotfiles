@@ -87,10 +87,27 @@ The extension intercepts events and blocks at the tool boundary:
   - **Always rejected**: shell chaining (any of `;`, `&&`, `||`,
     `|`, `&`, redirection, command / process substitution, newline);
     `>`, `>>`, `<`; package install/update/publish; formatter/linter
-    fix / write modes; snapshot update modes; mutating Git commands;
-    `tee`/output-to-file variants; unrestricted interpreters/shells
-    (`sh`, `bash`, `zsh` invoked with no command, `python`, `node`,
-    `ruby`, `perl`).
+    fix / write modes; snapshot update modes; mutating Git commands
+    (see the parent-commit exception below); `tee`/output-to-file
+    variants; unrestricted interpreters/shells (`sh`, `bash`, `zsh`
+    invoked with no command, `python`, `node`, `ruby`, `perl`).
+  - **Parent-commit exception** (the ONLY mutating-Git carve-out): the
+    parent may author commits with `git add <paths>` and
+    `git commit -m <msg>`. Because commit messages legitimately contain
+    shell metacharacters (`feat(scope): ...`, `!`), the recognizer
+    (`isSafeGitCommit`) runs BEFORE the metacharacter/dangerous gates,
+    but admits only tightly-shaped, injection-free forms: a
+    single-quoted message `'[^'\n\r]*'` (shell-literal, no embedded
+    quote/newline) or a double-quoted message excluding `$`, backtick,
+    backslash, and newline, each fully anchored so no second command
+    can follow; and `git add` whose tokens are all safe paths or a
+    small flag set (`-A`/`-u`/`-p`/`-f`/`--`), with any newline/CR/
+    vertical-whitespace rejected before tokenizing. Every other git
+    verb (`push`, `pull`, `fetch`, `reset`, `rebase`, `checkout`,
+    `switch`, `restore`, `merge`, `revert`, `cherry-pick`, `clean`,
+    `rm`, `mv`, `stash`, `branch`, `tag`, `clone`, `am`) and every
+    other commit form (`--amend`, `-a`, commit without `-m`) stays
+    hard-denied. Covered by the `(5b)` block in `fusion-smoke.sh`.
   - **Project exceptions** live in trusted `<project>/.pi/fusion.json`
     under `allowedCommands: ["exact complete command string", ...]`.
     No regex / prefix matching. Global shell-metacharacter and

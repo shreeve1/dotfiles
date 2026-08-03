@@ -909,6 +909,7 @@ export function buildAsyncRunnerSteps(
 				s.completionGuard,
 				a.completionGuard,
 			),
+			salvage: s.salvage,
 			systemPrompt,
 			systemPromptMode: a.systemPromptMode,
 			inheritProjectContext: a.inheritProjectContext,

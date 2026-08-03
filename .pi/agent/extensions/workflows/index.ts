@@ -7,12 +7,15 @@
  *
  *   export const meta = { name, description, phases: [{ title, detail? }] }
  *   phase(title)                                  // mark runtime phase progression
- *   await agent(prompt, { label?, phase?, schema?, model?, provider?, effort? })
+ *   await agent(prompt, { label?, phase?, schema?, model?, provider?, effort?, writable? })
  *   await parallel([() => agent(...), ...], { concurrency? })
  *   args                                          // parsed JSON args passed with the tool call
  *
  * `agent()` always resolves to `{ ok, output, structured?, error? }` — it
- * never throws into the script. Scripts branch on `ok` explicitly.
+ * never throws into the script. Scripts branch on `ok` explicitly. `output`
+ * holds the agent's final text on every outcome, `ok:false` included, so a
+ * script can degrade to prose instead of discarding a result whose only fault
+ * was skipping `structured_output`.
  *
  * Runs are blocking by default (live progress in the tool block). Pass
  * `background: true` to return immediately and get a follow-up message when
@@ -21,7 +24,7 @@
  * transcripts use separate artifacts, and there is no resume.
  */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
@@ -35,8 +38,15 @@ import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import { formatActivityStatus } from "../shared/activity-status.ts";
 import { createWorkflowPersistence, persistWorkflowJson } from "./artifacts.ts";
-import { RunController } from "./controller.ts";
+import { RunController, type RunBudget } from "./controller.ts";
 import { sessionWorkflowRunIds, showWorkflowDashboard } from "./dashboard.ts";
+import {
+  agentCallKey,
+  appendJournalEntry,
+  checkpointCallKey,
+  createReplayIndex,
+  type AgentKeyContext,
+} from "./journal.ts";
 import {
   extractMeta,
   prepareWorkflowScript,
@@ -51,6 +61,7 @@ import {
   formatUsage,
   phaseGroups,
   resultJson,
+  sortedAgents,
   stateSquare,
   statusColor,
   statusWord,
@@ -74,8 +85,12 @@ import {
   type ThinkingLevel,
   type WorkflowModel,
 } from "./runner.ts";
+import { resolveStandaloneChildProjectTrust } from "../shared/child-session.ts";
+import { prepareResume } from "./resume.ts";
+import { resolveScriptSource } from "./script-source.ts";
 import { runWorkflowSandbox } from "./sandbox.ts";
 import { safeStringify, writeFileAtomic } from "./serialization.ts";
+import { WorktreeManager } from "./worktree.ts";
 
 const PREVIEW_LENGTH = 200;
 const EMIT_INTERVAL_MS = 120;
@@ -105,12 +120,21 @@ interface AgentCallOptions {
   model?: unknown;
   provider?: unknown;
   effort?: unknown;
+  writable?: unknown;
+  cwd?: unknown;
 }
 
 const WorkflowParams = Type.Object({
-  script: Type.String({
-    description: WORKFLOW_PARAMETER_DESCRIPTIONS.script,
-  }),
+  script: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.script,
+    }),
+  ),
+  scriptPath: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.scriptPath,
+    }),
+  ),
   args: Type.Optional(
     Type.String({
       description: WORKFLOW_PARAMETER_DESCRIPTIONS.args,
@@ -121,6 +145,21 @@ const WorkflowParams = Type.Object({
       description: WORKFLOW_PARAMETER_DESCRIPTIONS.background,
     }),
   ),
+  resume: Type.Optional(
+    Type.String({
+      description: WORKFLOW_PARAMETER_DESCRIPTIONS.resume,
+    }),
+  ),
+  budget: Type.Optional(
+    Type.Object(
+      {
+        maxCost: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
+        maxTokens: Type.Optional(Type.Integer({ exclusiveMinimum: 0 })),
+        maxDurationMs: Type.Optional(Type.Integer({ exclusiveMinimum: 0 })),
+      },
+      { description: WORKFLOW_PARAMETER_DESCRIPTIONS.budget },
+    ),
+  ),
 });
 
 type WorkflowInput = Static<typeof WorkflowParams>;
@@ -130,6 +169,130 @@ function errorText(error: unknown): string {
     0,
     16 * 1024,
   );
+}
+
+/** Records a flush-failure after runScript() already committed details.status.
+ *  Does not touch details.status — overwrites details.error with a typed
+ *  prefix and rethrows so callers (blocking awaiter or background catch) see
+ *  a tagged failure. Exported so the "do not clobber a truthful terminal
+ *  status" invariant is regression-tested. */
+export function recordFlushFailure(
+  details: WorkflowDetails,
+  error: unknown,
+): never {
+  details.error = `Artifact persistence failed: ${errorText(error)}`;
+  throw new Error(details.error);
+}
+
+/** Records a background-run completion error. Preserves a truthful "completed"
+ *  or "aborted" status; only marks "failed" when status never advanced past
+ *  "running" (genuine mid-flight crash). Sets finishedAt and keeps any
+ *  already-recorded error (e.g. the "Artifact persistence failed:" prefix
+ *  set by recordFlushFailure). Exported so the === "running" guard is
+ *  regression-tested. */
+export function recordBackgroundRunFailure(
+  details: WorkflowDetails,
+  error: unknown,
+): void {
+  if (details.status === "running") details.status = "failed";
+  details.finishedAt = Date.now();
+  details.error = details.error ?? errorText(error);
+}
+
+/** Build the RunController budget from the validated tool param. Exported for
+ *  testing; keeps only numeric fields so a partial/absent budget is undefined. */
+export function parseBudgetArg(
+  budget:
+    | { maxCost?: number; maxTokens?: number; maxDurationMs?: number }
+    | undefined,
+): RunBudget | undefined {
+  if (!budget) return undefined;
+  return {
+    ...(typeof budget.maxCost === "number" ? { maxCost: budget.maxCost } : {}),
+    ...(typeof budget.maxTokens === "number"
+      ? { maxTokens: budget.maxTokens }
+      : {}),
+    ...(typeof budget.maxDurationMs === "number"
+      ? { maxDurationMs: budget.maxDurationMs }
+      : {}),
+  };
+}
+
+/** First (oldest, insertion-ordered) pending-checkpoint id whose name matches,
+ *  or undefined. Exported for testing the workflow_respond FIFO semantics. */
+export function matchPendingCheckpoint(
+  pending: Map<number, { name: string }>,
+  checkpoint: string,
+): number | undefined {
+  for (const [id, parked] of pending) {
+    if (parked.name === checkpoint) return id;
+  }
+  return undefined;
+}
+
+/** Decide how a checkpoint request resolves before any live prompt.
+ *  - "replay": a recorded decision exists; return it (works in foreground too).
+ *  - "prompt": no recorded decision and background — park for workflow_respond.
+ *  - "reject-foreground": no recorded decision and foreground — cannot receive an answer.
+ *  Exported so the replay-before-background-gate ordering is regression-tested. */
+export function resolveCheckpointReplay(options: {
+  replayDecision?: "approved" | "rejected";
+  background: boolean;
+}):
+  | { action: "replay"; decision: "approved" | "rejected" }
+  | { action: "prompt" }
+  | { action: "reject-foreground" } {
+  if (options.replayDecision !== undefined) {
+    return { action: "replay", decision: options.replayDecision };
+  }
+  if (!options.background) return { action: "reject-foreground" };
+  return { action: "prompt" };
+}
+
+export interface AgentCwdResolution {
+  cwd: string;
+  trusted: boolean;
+}
+
+/** Resolve a per-agent cwd and the trust that must accompany it. Exported so the
+ * trust invariant is testable: an alternate cwd must never inherit the parent's
+ * trust bit. Throws on a missing / non-directory cwd; the caller maps that to a
+ * failed agent call. */
+export function resolveAgentCwdAndTrust(options: {
+  requested: unknown;
+  parentCwd: string;
+  parentTrusted: boolean;
+  agentDir?: string;
+}): AgentCwdResolution {
+  const requestedCwd =
+    typeof options.requested === "string" && options.requested.trim()
+      ? options.requested.trim()
+      : undefined;
+  const resolvedCwd = requestedCwd
+    ? path.resolve(options.parentCwd, requestedCwd)
+    : options.parentCwd;
+  let resolvedTrusted = options.parentTrusted;
+  if (requestedCwd && resolvedCwd !== options.parentCwd) {
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(resolvedCwd);
+    } catch {
+      throw new Error(
+        `cwd does not exist or is not a directory: ${resolvedCwd}`,
+      );
+    }
+    if (!stat.isDirectory()) {
+      throw new Error(`cwd is not a directory: ${resolvedCwd}`);
+    }
+    resolvedTrusted = resolveStandaloneChildProjectTrust({
+      parentCwd: options.parentCwd,
+      childCwd: resolvedCwd,
+      parentTrusted: options.parentTrusted,
+      ...(options.agentDir !== undefined ? { agentDir: options.agentDir } : {}),
+    });
+  }
+
+  return { cwd: resolvedCwd, trusted: resolvedTrusted };
 }
 
 function summaryLine(details: WorkflowDetails): string {
@@ -154,7 +317,12 @@ function compactToolDetails(details: WorkflowDetails): WorkflowDetails {
           ),
         }
       : {}),
-    agents: details.agents.map((agent) => ({ ...agent, transcript: [] })),
+    // Sorted view so the tool-block rendering sees index order even when
+    // replayed records interleaved with executed records mid-run.
+    agents: sortedAgents(details).map((agent) => ({
+      ...agent,
+      transcript: [],
+    })),
   };
 }
 
@@ -240,6 +408,19 @@ function runDetailText(
   }
 }
 
+const WorkflowRespondParams = Type.Object({
+  runId: Type.String({
+    description: "The paused workflow run id (e.g. wf_a1b2c3d4e5f6).",
+  }),
+  checkpoint: Type.String({
+    description: "The checkpoint name shown in the pause message.",
+  }),
+  decision: Type.Union([Type.Literal("approved"), Type.Literal("rejected")], {
+    description:
+      "approved to proceed, rejected to signal the workflow to stop or take the rejection branch.",
+  }),
+});
+
 export default function workflows(pi: ExtensionAPI) {
   /** Live background runs, for /workflows and shutdown cleanup. */
   const activeRuns = new Map<
@@ -248,6 +429,13 @@ export default function workflows(pi: ExtensionAPI) {
       details: WorkflowDetails;
       controller: RunController;
       completion?: Promise<void>;
+      pendingCheckpoints?: Map<
+        number,
+        {
+          name: string;
+          resolve: (decision: "approved" | "rejected") => void;
+        }
+      >;
     }
   >();
   const activeDetails = () =>
@@ -373,9 +561,54 @@ export default function workflows(pi: ExtensionAPI) {
     parameters: WorkflowParams,
 
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const runsRoot = path.join(getAgentDir(), "workflows");
+
+      // Resume branch: hoist the early decision so the script/args path
+      //   below stays unchanged for fresh runs. Mutual exclusion with
+      //   `script`/`scriptPath` is checked here only; `resume` + `args` is
+      //   allowed (an explicit args string overrides the prior args).
+      const resumeRequested = params.resume?.trim();
+      if (resumeRequested) {
+        const scriptProvided = params.script !== undefined;
+        const scriptPathProvided =
+          params.scriptPath !== undefined && params.scriptPath.trim() !== "";
+        if (scriptProvided || scriptPathProvided) {
+          throw new Error(
+            "workflow `resume` is mutually exclusive with `script` and `scriptPath` — provide at most one",
+          );
+        }
+        if (activeRuns.has(resumeRequested)) {
+          throw new Error(
+            `workflow resume: run ${resumeRequested} is still active; wait for it to settle or pick a different run`,
+          );
+        }
+      }
+
+      let resolved: ReturnType<typeof resolveScriptSource>;
+      let resumeSource: ReturnType<typeof prepareResume> | undefined;
+      // Canonical absolute cwd of this run. Used both to guard cross-project
+      // resumes and to salt every replay key; realpath falls back to
+      // resolve when the cwd is already canonical or its symlinks vanish.
+      let launchCwd: string;
+      try {
+        launchCwd = fs.realpathSync(ctx.cwd);
+      } catch {
+        launchCwd = path.resolve(ctx.cwd);
+      }
+      if (resumeRequested) {
+        resumeSource = prepareResume(runsRoot, resumeRequested, launchCwd);
+        resolved = {
+          source: resumeSource.source,
+          ...(resumeSource.priorDetails.scriptPath !== undefined
+            ? { scriptPath: resumeSource.priorDetails.scriptPath }
+            : {}),
+        };
+      } else {
+        resolved = resolveScriptSource(params, ctx.cwd);
+      }
       let prepared: ReturnType<typeof prepareWorkflowScript>;
       try {
-        prepared = prepareWorkflowScript(params.script);
+        prepared = prepareWorkflowScript(resolved.source);
       } catch (error) {
         throw new Error(`Workflow script failed to parse: ${errorText(error)}`);
       }
@@ -387,44 +620,96 @@ export default function workflows(pi: ExtensionAPI) {
         } catch {
           args = params.args;
         }
+      } else if (resumeSource?.argsJson !== undefined) {
+        // Reuse the prior run's args unless the caller explicitly overrode.
+        try {
+          args = JSON.parse(resumeSource.argsJson);
+        } catch {
+          args = resumeSource.argsJson;
+        }
       }
 
       const meta = prepared.meta;
       const runId = `wf_${randomBytes(6).toString("hex")}`;
-      const runDir = path.join(getAgentDir(), "workflows", runId);
+      const runDir = path.join(runsRoot, runId);
       const background = (params.background ?? false) && ctx.hasUI;
 
+      const scriptHash = createHash("sha256")
+        .update(resolved.source)
+        .digest("hex");
+      // Parent-session defaults at launch, frozen into the replay-key salt.
+      // The defaults are best-effort: `ctx.model` may be undefined and
+      // `getThinkingLevel` may return an unsupported string. Undefined
+      // values are dropped by canonicalStringify, but we still stringify the
+      // thinking level once to keep cross-process replays stable for any
+      // type pi returns.
+      const defaultModelId = ctx.model?.id;
+      const defaultProvider = ctx.model?.provider;
+      const defaultThinking = String(pi.getThinkingLevel());
+      const keyContext: AgentKeyContext = {
+        launchCwd,
+        ...(defaultProvider !== undefined ? { defaultProvider } : {}),
+        ...(defaultModelId !== undefined ? { defaultModelId } : {}),
+        ...(defaultThinking !== undefined ? { defaultThinking } : {}),
+      };
       const details: WorkflowDetails = {
         runId,
         sessionId: ctx.sessionManager.getSessionId(),
         name: meta.name,
         description: meta.description,
+        ...(resolved.scriptPath !== undefined
+          ? { scriptPath: resolved.scriptPath }
+          : {}),
         background,
         status: "running",
         startedAt: Date.now(),
         phases: [...meta.phases],
         agents: [],
+        scriptHash,
+        ...(resumeSource
+          ? {
+              resumedFrom: resumeSource.priorRunId,
+              replayedCount: 0,
+            }
+          : {}),
+        launchCwd,
+        ...(defaultProvider !== undefined
+          ? { launchProvider: defaultProvider }
+          : {}),
+        ...(defaultModelId !== undefined
+          ? { launchModelId: defaultModelId }
+          : {}),
+        ...(defaultThinking !== undefined
+          ? { launchThinking: defaultThinking }
+          : {}),
       };
 
-      writeRunFile(runDir, "script.js", params.script);
+      writeRunFile(runDir, "script.js", resolved.source);
       if (params.args !== undefined)
         writeRunFile(runDir, "args.json", params.args);
+      else if (resumeSource?.argsJson !== undefined)
+        writeRunFile(runDir, "args.json", resumeSource.argsJson);
       persistWorkflowJson(runDir, details);
       const persistence = createWorkflowPersistence(runDir, details);
 
       // Background runs survive Esc on the parent turn, but all runs are
       // aborted and settled during session shutdown.
-      const controller = new RunController(background ? undefined : signal);
+      const budgetArg = parseBudgetArg(params.budget);
+      const controller = new RunController(
+        background ? undefined : signal,
+        undefined,
+        undefined,
+        budgetArg,
+      );
 
-      // Each concurrent child gets its own extension runtime. All children use
-      // the parent cwd and live trust decision.
-      const projectTrusted = ctx.isProjectTrusted();
-      const getResources = (structured: boolean) =>
-        createWorkflowResources(
-          ctx.cwd,
-          structured ? "structured" : "plain",
-          projectTrusted,
-        );
+      // Each concurrent child gets its own extension runtime. A previous
+      // version cached `createWorkflowResources` per (cwd,variant,trusted)
+      // and shared one runtime across children, so the first child finishing
+      // (`AgentSession.dispose()` invalidates its extension runner) poisoned
+      // every still-running sibling — observed in run wf_d10a2148948f.
+      // Trust and cwd resolution are still per-agent; only resources are
+      // freshly built each call.
+      const parentTrusted = ctx.isProjectTrusted();
 
       // Throttled progress: tool-block updates when blocking. Background
       // runs are covered by the below-editor indicator and /workflows.
@@ -461,6 +746,27 @@ export default function workflows(pi: ExtensionAPI) {
       };
 
       let agentCounter = 0;
+      let checkpointCounter = 0;
+      let journalSeq = 0;
+      const pendingCheckpoints = new Map<
+        number,
+        {
+          name: string;
+          resolve: (decision: "approved" | "rejected") => void;
+        }
+      >();
+      const worktrees = new WorktreeManager({ runDir, launchCwd });
+      // Null-object replay index for fresh runs; resume sets the real one.
+      // `take()` returns undefined on miss, so the agentFn body has one path.
+      const replayIndex = resumeSource
+        ? createReplayIndex(resumeSource.entries)
+        : {
+            take: (_key: string) =>
+              undefined as ReturnType<
+                ReturnType<typeof createReplayIndex>["take"]
+              >,
+            remaining: () => 0,
+          };
       const agentFn = async (
         promptValue: unknown,
         optsValue: unknown = {},
@@ -491,9 +797,6 @@ export default function workflows(pi: ExtensionAPI) {
           usage: emptyUsage(),
           transcript: [],
         };
-        details.agents.push(record);
-        persistence.checkpoint({ immediate: true });
-        emit(false);
 
         const fail = (error: string): ScriptAgentResult => {
           record.state = "error";
@@ -513,8 +816,83 @@ export default function workflows(pi: ExtensionAPI) {
         if (controller.signal.aborted)
           return fail("Workflow was aborted before this agent started");
 
+        // Replay check: a hit returns the recorded result without ever
+        // touching the controller (no budget, no semaphore slot). A miss
+        // — including a thrown key computation or an unusable recorded
+        // result — falls through to a normal schedule.
+        let replayHit: ReturnType<typeof replayIndex.take> | undefined;
+        try {
+          replayHit = replayIndex.take(agentCallKey(prompt, opts, keyContext));
+        } catch {
+          replayHit = undefined;
+        }
+        if (replayHit && (replayHit.kind ?? "agent") === "agent") {
+          const candidate = replayHit.result as
+            | {
+                ok?: boolean;
+                output?: unknown;
+                structured?: unknown;
+                error?: unknown;
+              }
+            | undefined;
+          if (
+            candidate &&
+            typeof candidate === "object" &&
+            typeof candidate.ok === "boolean"
+          ) {
+            const now = Date.now();
+            const outputText =
+              typeof candidate.output === "string" ? candidate.output : "";
+            const replayedRecord: AgentRecord = {
+              ...record,
+              state: "done",
+              replayed: true,
+              startedAt: now,
+              finishedAt: now,
+              preview: outputText.slice(0, PREVIEW_LENGTH),
+            };
+            details.agents.push(replayedRecord);
+            details.replayedCount = (details.replayedCount ?? 0) + 1;
+            persistence.checkpoint({ immediate: true });
+            emit();
+            try {
+              journalSeq += 1;
+              appendJournalEntry(runDir, {
+                key: replayHit.key,
+                seq: journalSeq,
+                index: replayedRecord.index,
+                label: replayedRecord.label,
+                ok: true,
+                result: candidate,
+                finishedAt: now,
+              });
+            } catch {
+              // Best-effort: never propagate journal failures out of the replay path.
+            }
+            return {
+              ok: candidate.ok,
+              output: outputText,
+              ...(candidate.structured !== undefined
+                ? { structured: candidate.structured }
+                : {}),
+              ...(candidate.error !== undefined
+                ? { error: String(candidate.error) }
+                : {}),
+            };
+          }
+          // Fall through: usable object test failed; treat as a miss.
+        }
+
         return controller
           .schedule(async (runSignal) => {
+            // Record is allocated in agentFn but only published (and the
+            // initial checkpoint written) once schedule has accepted the call
+            // and acquired the semaphore. A budget-exhausted schedule
+            // rejection must never append to details.agents or checkpoint.
+            details.agents.push(record);
+            persistence.checkpoint({ immediate: true });
+            emit(false);
+
             // Model/provider resolution: default to the parent session's model.
             let model: WorkflowModel | undefined = ctx.model;
             if (opts.model !== undefined || opts.provider !== undefined) {
@@ -567,16 +945,43 @@ export default function workflows(pi: ExtensionAPI) {
               thinkingLevel = effort as ThinkingLevel;
             }
 
-            const resources = await getResources(opts.schema !== undefined);
+            // Per-agent cwd: relative paths resolve against the parent cwd;
+            // missing or non-directory paths fail the call. Trust is re-derived
+            // for the target dir so untrusted dirs load no project extensions.
+            let resolution: AgentCwdResolution;
+            try {
+              resolution = resolveAgentCwdAndTrust({
+                requested: opts.cwd,
+                parentCwd: ctx.cwd,
+                parentTrusted,
+              });
+            } catch (error) {
+              return fail(`agent "${label}": ${errorText(error)}`);
+            }
+
+            // Worktree scratch dirs live under runDir, which can canonicalize
+            // into a trusted ancestor (e.g. ~/.pi symlinked into a trusted
+            // tree). Force them untrusted so an isolated worktree never loads
+            // project extensions with ambient trust.
+            if (worktrees.ownsPath(resolution.cwd)) {
+              resolution = { cwd: resolution.cwd, trusted: false };
+            }
+
+            const resources = await createWorkflowResources(
+              resolution.cwd,
+              opts.schema !== undefined ? "structured" : "plain",
+              resolution.trusted,
+            );
             const outcome = await runAgent({
               prompt,
               schema: opts.schema,
               model,
               thinkingLevel,
-              cwd: ctx.cwd,
+              cwd: resolution.cwd,
               loader: resources.loader,
               settingsManager: resources.settingsManager,
               modelRegistry: ctx.modelRegistry,
+              writable: opts.writable === true,
               signal: runSignal,
               onProgress: (progress) => {
                 record.preview = progress.preview.slice(0, PREVIEW_LENGTH);
@@ -590,6 +995,11 @@ export default function workflows(pi: ExtensionAPI) {
             });
 
             record.usage = outcome.usage;
+            // Charge the run-wide cost/token budget. Replayed calls skip
+            // this path entirely (they return before controller.schedule),
+            // so their cost was already paid in the run that produced the
+            // journal entry being replayed.
+            controller.recordUsage(outcome.usage);
             record.model = outcome.model ?? record.model;
             record.contextWindow =
               outcome.contextWindow ?? record.contextWindow;
@@ -607,7 +1017,7 @@ export default function workflows(pi: ExtensionAPI) {
             }
             emit();
 
-            return {
+            const scriptResult: ScriptAgentResult = {
               ok: outcome.ok,
               output: outcome.output,
               ...(outcome.structured !== undefined
@@ -615,8 +1025,182 @@ export default function workflows(pi: ExtensionAPI) {
                 : {}),
               ...(outcome.error !== undefined ? { error: outcome.error } : {}),
             };
+            // Journal only calls that actually ran. agentCallKey and
+            // appendJournalEntry are both best-effort; either failure must
+            // never propagate out of the happy path.
+            try {
+              journalSeq += 1;
+              appendJournalEntry(runDir, {
+                key: agentCallKey(prompt, opts, keyContext),
+                seq: journalSeq,
+                index: record.index,
+                label: record.label,
+                ok: outcome.ok,
+                result: scriptResult,
+                model: record.model,
+                cwd: resolution.cwd,
+                finishedAt: record.finishedAt ?? Date.now(),
+              });
+            } catch {
+              // Best-effort: agentCallKey can throw on non-canonicalizable
+              // options, and appendJournalEntry already swallows its own.
+            }
+
+            return scriptResult;
           }, invocationSignal)
-          .catch((error) => fail(errorText(error)));
+          .catch((error) => ({
+            ok: false,
+            output: "",
+            error: errorText(error),
+          }));
+      };
+
+      const checkpointFn = async (
+        request: {
+          id: number;
+          name: string;
+          prompt: string;
+          context: unknown;
+        },
+        signal: AbortSignal,
+      ): Promise<"approved" | "rejected"> => {
+        const name =
+          typeof request.name === "string" && request.name.trim()
+            ? request.name.trim().slice(0, 160)
+            : `checkpoint-${request.id}`;
+        const index = ++checkpointCounter;
+
+        // Replay: a prior run's recorded decision satisfies the checkpoint without
+        // asking again. Checked BEFORE the background guard so a resumed run (which
+        // can land here with the prior decision still parked in the journal) returns
+        // the stored decision instead of throwing.
+        let replayKey = "";
+        let replayDecision: "approved" | "rejected" | undefined;
+        try {
+          replayKey = checkpointCallKey(
+            name,
+            request.prompt,
+            request.context,
+            keyContext,
+          );
+          const hit = replayIndex.take(replayKey);
+          replayDecision =
+            hit && hit.kind === "checkpoint" ? hit.decision : undefined;
+        } catch {
+          // Key computation failed → fall through to a live prompt.
+        }
+        const plan = resolveCheckpointReplay({ replayDecision, background });
+        if (plan.action === "replay") {
+          details.checkpointReplayedCount =
+            (details.checkpointReplayedCount ?? 0) + 1;
+          try {
+            journalSeq += 1;
+            appendJournalEntry(runDir, {
+              kind: "checkpoint",
+              key: replayKey,
+              seq: journalSeq,
+              index,
+              label: name,
+              ok: true,
+              decision: plan.decision,
+              finishedAt: Date.now(),
+            });
+          } catch {
+            // Best-effort: never propagate journal failures out of the replay path.
+          }
+          return plan.decision;
+        }
+        if (plan.action === "reject-foreground") {
+          // Checkpoints require a background run: a foreground workflow call blocks the
+          // turn, so the model cannot issue workflow_respond until workflow() returns.
+          // This guard runs only on a replay MISS (a genuinely new checkpoint with no
+          // recorded decision); a resumed run replays above and never reaches here.
+          throw new Error(
+            "checkpoint() requires a background workflow run (launch with background: true) so you can answer it with workflow_respond while it is paused; resuming a prior background run replays already-answered checkpoints without needing background",
+          );
+        }
+
+        const decision = await new Promise<"approved" | "rejected">(
+          (resolve, reject) => {
+            if (signal.aborted) {
+              reject(
+                new Error(
+                  "Workflow was aborted before the checkpoint was answered",
+                ),
+              );
+              return;
+            }
+            const onAbort = () => {
+              pendingCheckpoints.delete(request.id);
+              reject(
+                new Error(
+                  "Workflow was aborted while awaiting a checkpoint decision",
+                ),
+              );
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            pendingCheckpoints.set(request.id, {
+              name,
+              resolve: (d) => {
+                signal.removeEventListener("abort", onAbort);
+                pendingCheckpoints.delete(request.id);
+                resolve(d);
+              },
+            });
+            try {
+              pi.sendUserMessage(
+                `[Workflow ${runId} paused at checkpoint "${name}"]\n\n${request.prompt}\n\nRespond with workflow_respond({ runId: "${runId}", checkpoint: "${name}", decision: "approved" | "rejected" }).`,
+                { deliverAs: "followUp" },
+              );
+            } catch (error) {
+              signal.removeEventListener("abort", onAbort);
+              pendingCheckpoints.delete(request.id);
+              reject(
+                new Error(
+                  `Failed to deliver checkpoint prompt: ${error instanceof Error ? error.message : String(error)}`,
+                ),
+              );
+            }
+          },
+        );
+
+        // Journal the decision so a resume replays it instead of re-asking.
+        try {
+          journalSeq += 1;
+          appendJournalEntry(runDir, {
+            kind: "checkpoint",
+            key:
+              replayKey ||
+              checkpointCallKey(
+                name,
+                request.prompt,
+                request.context,
+                keyContext,
+              ),
+            seq: journalSeq,
+            index,
+            label: name,
+            ok: true,
+            decision,
+            finishedAt: Date.now(),
+          });
+        } catch {
+          // Best-effort journaling.
+        }
+        return decision;
+      };
+
+      const worktreeOpenFn = async (
+        request: { id: number; name: string },
+        _signal: AbortSignal,
+      ): Promise<{ path: string }> => {
+        return worktrees.create(request.name);
+      };
+      const worktreeCloseFn = async (request: {
+        id: number;
+        name: string;
+      }): Promise<void> => {
+        await worktrees.remove(request.name);
       };
 
       const runScript = async () => {
@@ -629,6 +1213,9 @@ export default function workflows(pi: ExtensionAPI) {
             signal: controller.signal,
             onAgent: agentFn,
             onPhase: phaseFn,
+            onCheckpoint: checkpointFn,
+            onWorktreeOpen: worktreeOpenFn,
+            onWorktreeClose: worktreeCloseFn,
           });
         } catch (error) {
           details.error = errorText(error);
@@ -652,14 +1239,31 @@ export default function workflows(pi: ExtensionAPI) {
             record.error ?? "Agent did not settle before run cleanup";
           record.finishedAt = Date.now();
         }
+        // Sweep any worktrees the script did not close (e.g. the child was
+        // killed on abort before its finally ran). Best-effort; never alters
+        // run status.
+        try {
+          await worktrees.cleanup();
+        } catch {
+          // Worktree teardown is best-effort.
+        }
         details.status = status;
         details.finishedAt = Date.now();
+        // Terminal sort: after the run has fully settled, order details.agents
+        // by index so the completion report (buildWorkflowResultMessage in
+        // prompt.ts) — which iterates details.agents directly — sees index
+        // order. Live renders (tool block, dashboard) already use sorted
+        // views via compactToolDetails / phaseGroups. Reassignment mid-run
+        // is the thing to avoid; this is a one-shot at run completion.
+        details.agents = sortedAgents(details);
         try {
           persistence.flush();
         } catch (error) {
-          details.status = "failed";
-          details.error = `Artifact persistence failed: ${errorText(error)}`;
-          throw new Error(details.error);
+          // recordFlushFailure() does not touch details.status — runScript
+          // already committed the truthful status above. The error message
+          // is the only thing worth recording, and it is rethrown so the
+          // background catch (or the blocking awaiter) sees a tagged failure.
+          recordFlushFailure(details, error);
         } finally {
           flushNow();
         }
@@ -667,10 +1271,17 @@ export default function workflows(pi: ExtensionAPI) {
 
       // Registered for /workflows visibility and session_shutdown abort;
       // blocking runs are watchable live from the dashboard too.
-      const activeRun = { details, controller } as {
+      const activeRun = { details, controller, pendingCheckpoints } as {
         details: WorkflowDetails;
         controller: RunController;
         completion?: Promise<void>;
+        pendingCheckpoints: Map<
+          number,
+          {
+            name: string;
+            resolve: (decision: "approved" | "rejected") => void;
+          }
+        >;
       };
       activeRuns.set(runId, activeRun);
       const completion = runScript();
@@ -681,9 +1292,7 @@ export default function workflows(pi: ExtensionAPI) {
       if (background) {
         void completion
           .catch((error) => {
-            details.status = "failed";
-            details.finishedAt = Date.now();
-            details.error = details.error ?? errorText(error);
+            recordBackgroundRunFailure(details, error);
           })
           .finally(() => {
             activeRuns.delete(runId);
@@ -866,6 +1475,54 @@ export default function workflows(pi: ExtensionAPI) {
         container.addChild(new Text(theme.fg("dim", `Total: ${totals}`), 0, 0));
       }
       return container;
+    },
+  });
+
+  pi.registerTool({
+    name: "workflow_respond",
+    label: "Workflow respond",
+    description: "Answer a checkpoint waiting in a background workflow.",
+    parameters: WorkflowRespondParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
+      const run = activeRuns.get(params.runId);
+      if (!run || !run.pendingCheckpoints) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No active workflow run "${params.runId}" is awaiting a checkpoint.`,
+            },
+          ],
+          details: undefined,
+        };
+      }
+      // Resolve the oldest parked checkpoint matching this name (FIFO on insertion order).
+      const matchedId = matchPendingCheckpoint(
+        run.pendingCheckpoints,
+        params.checkpoint,
+      );
+      if (matchedId === undefined) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Workflow "${params.runId}" has no pending checkpoint named "${params.checkpoint}".`,
+            },
+          ],
+          details: undefined,
+        };
+      }
+      const parked = run.pendingCheckpoints.get(matchedId)!;
+      parked.resolve(params.decision);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Checkpoint "${params.checkpoint}" in ${params.runId} → ${params.decision}.`,
+          },
+        ],
+        details: undefined,
+      };
     },
   });
 }

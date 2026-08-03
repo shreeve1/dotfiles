@@ -20,6 +20,8 @@ youtube/
 # Machine-local helper binaries (sync rralph; keep the rest machine-local)
 bin/*
 !bin/rralph
+!bin/pi-delegate
+!bin/claude-fusion
 
 # Machine-local secrets (not synced)
 .env
@@ -147,6 +149,10 @@ bin/*
 .autoagent-runs/
 .symphony-runs/
 
+# Workflow run artifacts (machine-local: workflow.json / transcripts.json /
+# result.json / script.js per run, written under ~/.pi/agent/workflows/)
+.pi/agent/workflows/
+
 # gap-review extension output (completeness reviews written at turn end)
 .gap-reviews/
 
@@ -156,9 +162,14 @@ bin/*
 # Pi model catalog cache — self-refreshing runtime state, never commit
 .pi/agent/models-store.json
 
+# Machine-local MCP tool-schema cache (regenerated on first use per machine)
+.pi/agent/mcp-cache.json
+
 # Codex config accumulates machine-local trust hashes; seeded from
 # .codex/config.toml.template by install.sh
 .codex/config.toml
 
 # Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
 /tests/
+.claude/.fusion-off
+.claude/.harness-unlock

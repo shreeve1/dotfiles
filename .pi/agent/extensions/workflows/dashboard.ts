@@ -143,6 +143,7 @@ function normalizeDetails(
         turns: 0,
         ...(a.usage && typeof a.usage === "object" ? (a.usage as object) : {}),
       },
+      replayed: a.replayed === true,
       transcript: normalizeTranscript(a.transcript),
     });
   }
@@ -186,6 +187,10 @@ function normalizeDetails(
         : typeof meta.description === "string"
           ? meta.description
           : undefined,
+    scriptPath:
+      typeof record.scriptPath === "string" ? record.scriptPath : undefined,
+    scriptHash:
+      typeof record.scriptHash === "string" ? record.scriptHash : undefined,
     background: record.background === true,
     status,
     startedAt,
@@ -205,7 +210,34 @@ function normalizeDetails(
         ? record.transcriptArtifact
         : undefined,
     error: typeof record.error === "string" ? record.error : undefined,
+    resumedFrom:
+      typeof record.resumedFrom === "string" ? record.resumedFrom : undefined,
+    replayedCount:
+      typeof record.replayedCount === "number"
+        ? record.replayedCount
+        : undefined,
+    checkpointReplayedCount:
+      typeof record.checkpointReplayedCount === "number"
+        ? record.checkpointReplayedCount
+        : undefined,
   };
+}
+
+export function replayedSummary(details: WorkflowDetails): string | undefined {
+  const hasResume =
+    details.resumedFrom !== undefined ||
+    details.replayedCount !== undefined ||
+    details.checkpointReplayedCount !== undefined;
+  if (!hasResume) return undefined;
+  let summary = `replayed ${details.replayedCount ?? 0}/${details.agents.length}`;
+  if (details.checkpointReplayedCount) {
+    summary += ` (+${details.checkpointReplayedCount} checkpoint${details.checkpointReplayedCount === 1 ? "" : "s"})`;
+  }
+  return summary;
+}
+
+export function canResumeRun(details: WorkflowDetails): boolean {
+  return details.status === "failed" || details.status === "aborted";
 }
 
 export function sessionWorkflowRunIds(ctx: ExtensionContext): Set<string> {
@@ -477,6 +509,22 @@ export class WorkflowDashboard {
     this.agentIndex = Math.min(this.agentIndex, Math.max(0, agents.length - 1));
   }
 
+  private resumeSelected() {
+    const entry =
+      this.view === "list" ? this.entries[this.listIndex] : this.current;
+    if (!entry) return;
+    if (!canResumeRun(entry.details)) {
+      this.notice =
+        entry.details.status === "completed"
+          ? "cannot resume: already completed"
+          : "cannot resume: still running";
+      this.noticeAt = Date.now();
+      return;
+    }
+    this.notice = `Resume with: workflow(resume: "${entry.runId}")`;
+    this.noticeAt = Date.now();
+  }
+
   private saveReport() {
     const entry = this.current;
     if (!entry) return;
@@ -506,6 +554,8 @@ export class WorkflowDashboard {
         this.listIndex = wrapSelection(this.listIndex, -1, this.entries.length);
       } else if (down) {
         this.listIndex = wrapSelection(this.listIndex, 1, this.entries.length);
+      } else if (data === "r") {
+        this.resumeSelected();
       } else if (data === "g") {
         this.listIndex = 0;
       } else if (data === "G") {
@@ -575,6 +625,7 @@ export class WorkflowDashboard {
         }
       }
       if (data === "s") this.saveReport();
+      if (data === "r") this.resumeSelected();
     } else {
       const maxScroll = Math.max(
         0,
@@ -743,13 +794,13 @@ export class WorkflowDashboard {
         ) +
         theme.fg(statusColor(d.status), statusWord(d.status)) +
         " ";
-      const left = ` ${marker} ${statusSquareFor(d, theme)} ${label} ${theme.fg("dim", d.runId)}`;
+      const left = ` ${marker} ${statusSquareFor(d, theme)} ${label}${d.resumedFrom ? " ↻" : ""} ${theme.fg("dim", d.runId)}`;
       return this.split(left, right, width - 2);
     });
     lines.push(...this.panel("Runs", rows, width, panelHeight));
     lines.push(
       this.hintLine(
-        `${this.keys("tui.select.up")}/${this.keys("tui.select.down")} select · ${this.keys("tui.select.confirm")} open · ${this.keys("tui.select.cancel")} close`,
+        `${this.keys("tui.select.up")}/${this.keys("tui.select.down")} select · ${this.keys("tui.select.confirm")} open · r resume · ${this.keys("tui.select.cancel")} close`,
         width,
       ),
     );
@@ -785,6 +836,10 @@ export class WorkflowDashboard {
     lines.push(
       this.split(subLeft, totals ? theme.fg("dim", `${totals} `) : " ", width),
     );
+    if (d.resumedFrom) lines.push(` resumed from ${d.resumedFrom}`);
+    const replayed = replayedSummary(d);
+    if (replayed) lines.push(` ${replayed}`);
+    if (d.scriptPath) lines.push(` script: ${d.scriptPath}`);
 
     const groups = this.groups();
     this.phaseIndex = Math.min(this.phaseIndex, Math.max(0, groups.length - 1));
@@ -851,7 +906,7 @@ export class WorkflowDashboard {
           selected && this.detailFocus === "agents"
             ? theme.fg("accent", agent.label.padEnd(Math.min(maxLabel, 40)))
             : theme.fg("text", agent.label.padEnd(Math.min(maxLabel, 40)));
-        const left = ` ${marker} ${stateSquare(agent.state, theme)} ${label}  ${theme.fg("dim", stats)}`;
+        const left = ` ${marker} ${agent.replayed ? "↻ " : ""}${stateSquare(agent.state, theme)} ${label}  ${theme.fg("dim", stats)}`;
         const right = theme.fg(
           "dim",
           `${formatElapsed(agent.startedAt, agent.finishedAt)} `,
@@ -904,8 +959,8 @@ export class WorkflowDashboard {
 
     const hint =
       this.detailFocus === "phases"
-        ? `j/k select phase · l/${this.keys("tui.editor.cursorRight")}/${this.keys("tui.select.confirm")} agents · ${this.keys("tui.select.cancel")} back · s save report`
-        : `j/k select agent · h/${this.keys("tui.editor.cursorLeft")}/${this.keys("tui.select.cancel")} phases · ${this.keys("tui.select.confirm")} transcript · s save report`;
+        ? `j/k select phase · l/${this.keys("tui.editor.cursorRight")}/${this.keys("tui.select.confirm")} agents · r resume · ${this.keys("tui.select.cancel")} back · s save report`
+        : `j/k select agent · h/${this.keys("tui.editor.cursorLeft")}/${this.keys("tui.select.cancel")} phases · r resume · ${this.keys("tui.select.confirm")} transcript · s save report`;
     lines.push(this.hintLine(hint, width));
     return lines;
   }
