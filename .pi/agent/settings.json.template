@@ -1,11 +1,15 @@
 {
+  "defaultProvider": "cliproxy",
+  "defaultModel": "claude-opus-5",
+  "defaultThinkingLevel": "high",
   "quietStartup": true,
-  "skills": [],
-  "theme": "github-dark-default",
+  "skills": [
+    "~/.claude/skills"
+  ],
+  "theme": "neon80s",
   "hideThinkingBlock": false,
   "transport": "sse",
   "packages": [
-    "npm:lsp-pi",
     "extensions/pi-lens",
     "extensions/pi-subagents",
     "extensions/rpiv-advisor",
@@ -13,36 +17,63 @@
     "extensions/@juicesharp/rpiv-i18n",
     "extensions/rpiv-web-tools",
     "extensions/@juicesharp/rpiv-args",
-"extensions/pi-retry",
-    {
-      "source": "extensions/rpiv-pi",
-      "skills": [
-        "skills/personalize-harness-pi/SKILL.md"
-      ]
-    }
+    "extensions/pi-retry"
   ],
   "subagents": {
     "agentOverrides": {
       "scout": {
         "model": "minimax/MiniMax-M3",
         "thinking": "low",
-        "tools": ["read", "grep", "find", "ls"]
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls"
+        ]
       },
       "researcher": {
-        "model": "deepseek/deepseek-v4-flash",
-        "thinking": "medium",
-        "tools": ["read", "web_search", "web_fetch"]
+        "model": "openai-codex/gpt-5.6-terra",
+        "thinking": "high",
+        "tools": [
+          "read",
+          "web_search",
+          "web_fetch"
+        ]
       },
       "worker": {
         "model": "minimax/MiniMax-M3",
-        "thinking": "low",
-        "tools": ["read", "grep", "find", "ls", "bash", "edit", "write"]
+        "thinking": "high",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls",
+          "bash",
+          "edit",
+          "write"
+        ]
       },
       "reviewer": {
-        "model": "deepseek/deepseek-v4-flash",
-        "thinking": "low",
-        "tools": ["read", "grep", "find", "ls"]
+        "model": "openai-codex/gpt-5.6-sol",
+        "thinking": "high",
+        "tools": [
+          "read",
+          "grep",
+          "find",
+          "ls",
+          "bash"
+        ]
+      },
+      "planner": {
+        "model": "cliproxy/claude-opus-5",
+        "thinking": "high"
       }
+    }
+  },
+  "retry": {
+    "maxRetries": 6,
+    "provider": {
+      "timeoutMs": 600000
     }
   },
   "collapseChangelog": true,
@@ -63,5 +94,15 @@
     "-extensions/web-fetch/index.ts",
     "-extensions/summaries/index.ts",
     "-extensions/rpiv-advisor/index.ts"
+  ],
+  "enabledModels": [
+    "deepseek/deepseek-v4-pro",
+    "cliproxy/claude-opus-4-8",
+    "cliproxy/claude-opus-5",
+    "opencode-go/deepseek-v4-pro",
+    "openai-codex/gpt-5.6-sol",
+    "cliproxy/claude-fable-5",
+    "minimax/MiniMax-M3",
+    "openai-codex/gpt-5.6-terra"
   ]
 }

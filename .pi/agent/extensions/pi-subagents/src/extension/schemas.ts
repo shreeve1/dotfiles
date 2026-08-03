@@ -127,6 +127,7 @@ export const ParallelTaskSchema = Type.Object({
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 });
 
 export const DynamicExpandSchema = Type.Object({
@@ -136,8 +137,25 @@ export const DynamicExpandSchema = Type.Object({
 	}, { additionalProperties: false }),
 	item: Type.Optional(Type.String({ description: "Template variable name for each item. Defaults to item." })),
 	key: Type.Optional(Type.String({ description: "JSON Pointer relative to each item for stable child ids." })),
+	join: Type.Optional(Type.Array(Type.Object({
+		output: Type.String({ description: "Prior named structured output to join from." }),
+		path: Type.String({ description: "JSON Pointer into that output to the secondary array, e.g. /items." }),
+		on: Type.String({ description: "JSON Pointer into each primary item (left key). Must resolve to a scalar." }),
+		match: Type.Optional(Type.String({ description: "JSON Pointer into each secondary element (right key). Defaults to on." })),
+		as: Type.String({ description: "Field name the matched secondary element binds to on each item (null when unmatched). Overwrites any existing field of the same name." }),
+	}, { additionalProperties: false }), { description: "Enrich each item with a matching element from prior outputs (left join, first match wins). Applied in order, before filter." })),
 	maxItems: Type.Optional(Type.Integer({ minimum: 0, description: "Required fanout bound unless configured globally." })),
 	onEmpty: Type.Optional(Type.String({ enum: ["skip", "fail"], description: "Empty input behavior. Defaults to skip." })),
+	filter: Type.Optional(Type.Object({
+		path: Type.Optional(Type.String({ description: "JSON Pointer relative to each item, e.g. /severity. Omit to match the whole item." })),
+		equals: Type.Optional(Type.Union([Type.String(), Type.Number(), Type.Boolean()], { description: "Keep items whose value strictly equals this scalar." })),
+		in: Type.Optional(Type.Array(Type.Union([Type.String(), Type.Number(), Type.Boolean()]), { description: "Keep items whose value is one of these scalars." })),
+	}, { additionalProperties: false, description: "Fan out only over items matching this predicate. Provide exactly one of equals or in." })),
+	sort: Type.Optional(Type.Object({
+		by: Type.String({ description: "JSON Pointer into each item resolving to a scalar sort key, e.g. /severity." }),
+		order: Type.Optional(Type.String({ enum: ["asc", "desc"], description: "Sort direction. Defaults to asc. Missing/non-scalar keys always sort last." })),
+	}, { additionalProperties: false, description: "Rank items before fanout. Applied after filter, before top/maxItems." })),
+	top: Type.Optional(Type.Integer({ minimum: 1, description: "Keep only the best N items after sort (before the maxItems guard). May be used without sort to take the first N." })),
 }, { additionalProperties: false });
 
 export const DynamicParallelTemplateSchema = Type.Object({
@@ -156,6 +174,7 @@ export const DynamicParallelTemplateSchema = Type.Object({
 	toolBudget: Type.Optional(ToolBudgetOverride),
 	acceptance: Type.Optional(AcceptanceOverride),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 }, { additionalProperties: false });
 
 export const DynamicCollectSchema = Type.Object({
@@ -197,6 +216,7 @@ export const ChainItem = Type.Object({
 		description: "Create isolated git worktrees for each parallel task."
 	})),
 	completionGuard: Type.Optional(Type.Boolean({ description: "Override the agent's completion guard for this call" })),
+	salvage: Type.Optional(Type.Boolean({ description: "On structured-output failure, capture final text as { unstructured } and continue (exit 0) instead of failing. Requires outputSchema." })),
 }, {
 	description: "Chain step: use {agent, task?, ...} for sequential, {parallel: [...]} for static concurrent execution, or {expand, parallel: {...}, collect} for dynamic fanout.",
 	additionalProperties: false,

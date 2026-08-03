@@ -46,6 +46,17 @@ commands).
   `~/.pi/agent/auth.json` (dir-bound). Vendored deps (`jiti`, `yaml`) install via
   `bash install.sh`. Do not `pi install npm:pi-subagents`; use the repo copy.
   Root Pi delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
+  `.pi/agent/extensions/pi-subagents/biome.json` (`{"formatter":{"enabled":false}}`)
+  is a LOCAL-only file with no upstream counterpart — keep it across re-syncs.
+  pi-lens auto-runs `biome format` on every edited file with cwd set to the
+  file's own dir; since neither a `biome.json` nor a same-dir `.editorconfig`
+  exists for deeply-nested `src/` files, biome fell back to its default 80-col
+  wrapping and reflowed the wide-authored upstream files into multi-thousand-line
+  diffs on every edit (the repo-root `.editorconfig` is too far up to be seen,
+  and `.editorconfig` has no line-width knob anyway). Upstream ships no formatter
+  config and enforces none, so disabling the formatter is upstream-faithful and
+  keeps edits churn-free. If a re-sync drops it, edits to this extension will
+  churn again — re-add it.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
@@ -136,6 +147,7 @@ commands).
   insufficient — pi auto-discovers `extensions/*/index.ts`). Upstream
   `subagents`, `ask-user`, and `firecrawl-search` are intentionally omitted:
   native `pi-subagents`, inline questions, and `rpiv-web-tools` remain canonical.
+  `workflows` accepts either inline `script` or an explicit relative `scriptPath` to a `.js`/`.mjs` file (never a bare-name or implicit `.pi/workflows/` lookup); paths are realpath-contained under launch cwd (including symlinks) and capped at 256 KiB. Completed `agent()` calls are best-effort journaled to append-only `journal.jsonl`, keyed by content + allowlisted execution options + launch context, never call ordinal: `parallel()`'s concurrency window and call-time sandbox request ids make ordinals nondeterministic and index-based replay corrupt; cosmetic `label`/`phase` are deliberately excluded. `resume` creates a new run while keeping the failed/aborted source read-only; successful matches replay outside `RunController` (no budget/semaphore), failed calls retry, and consumed replays seed the new journal. Resume rejects a changed launch cwd (and validates run id/script hash), while model/provider/thinking changes alter keys and safely re-execute; legacy missing metadata is lenient, and a malformed journal line invalidates it and the tail. `/workflows` marks source/replay/script details, but `r` is intentionally degraded: custom dashboard UI cannot invoke the tool, so it only notifies a ready-to-paste `workflow(resume: "wf_...")` call. Three capabilities were added beyond upstream (ported selectively from vekexasia/pi-extensible-workflows, NOT a wholesale swap — our vendoring + Fusion + dashboard integration stays canonical): (1) run `budget` — an optional launch param `{ maxCost, maxTokens, maxDurationMs }` enforced cumulatively in `RunController` (cost/token overage aborts after the offending call; maxDurationMs is a wall-clock run deadline — a timer aborts the run and interrupts in-flight agents via signal propagation, with a supplemental admission check); replayed calls carry empty usage so a resumed run's budget only counts fresh work. (2) `checkpoint({name,prompt,context})` — a BACKGROUND-ONLY human-in-the-loop gate resolving to `"approved"|"rejected"`; it throws in a foreground run because a foreground `workflow` call blocks the turn and could never receive the answer. Answers arrive via a new `workflow_respond({runId,checkpoint,decision})` tool that resolves a promise parked on the active-run entry; decisions are journaled (discriminated `JournalEntry` union, content-hash key) and replay on resume instead of re-asking. (3) `withWorktree(name, cb)` — host-mediated git isolation: the host runs `git worktree add --detach` (execFile argv-only, never a shell; the script `name` is slugified to `[a-z0-9._-]` (unsafe characters sanitized, not just rejected), dot-only names (`.`/`..`) rejected, and the target path is asserted to stay under the run dir), the child callback runs agents against the tree via `cwd:path`, and the host removes it on close with an orphan sweep on run settle (a child killed on abort skips its own finally). Worktree scratch dirs live under the run dir; because `~/.pi` can be symlinked into a trusted tree, agent cwds owned by the worktree manager are FORCE-set untrusted (`WorktreeManager.ownsPath`) so an isolated worktree never loads project extensions with ambient trust. Agent calls and checkpoint decisions are journaled and replay on resume; budget and worktree operations are side effects and are deliberately NOT journaled. All three are gated so they never regress the existing sandbox, budget, or resume invariants. Workflow tests: `cd .pi/agent/extensions/workflows && npm test` (136 tests).
   `subagent-bridge` exposes native subagent activity in the shared footer, `/fleet` overlay, and the `/btw` side-question channel (bare `/btw` opens a Q&A overlay to ask/review mid-run, `/btw <q>` quick-fires; spawns an async `delegate` via pi-subagents' RPC bridge, answers shown in the overlay from the completion payload while chat delivery stays with pi-subagents' notify — never delivered twice by the bridge). Foreground (sync) spawns — incl. fusion-gated ones — are tracked from the parent's own `tool_execution_start/end` events because pi-subagents emits NO lifecycle event for plain sync runs (`SUBAGENT_FOREGROUND_COMPLETE_EVENT` only fires for detached exits); entries key by toolCallId while running, re-key to the run's real runId at completion, skip `action:` management calls and `async:true` (a run that went async via config default is dropped at end when its result carries asyncDir), and get no stop/steer/resume actions (no asyncDir); the tool result's finalOutput tail is kept for the /fleet detail view. Smoke test (offline, via pi-subagents' vendored jiti): `bash .pi/agent/extensions/subagent-bridge/tests/subagent-bridge-smoke.sh`.
   `.pi/agent/extensions/hub-kit/` is our own shared library dir (NOT an extension — no top-level `index.ts`, so pi auto-discovery skips it; consumers import relatively like `shared/`): panel/list-detail/deliver UI kit + the activity-provider registry that `subagent-bridge` wires `/fleet` (multi-provider hub) and the footer onto, with per-run stop/interrupt (pi-subagents RPC) and steer/resume (slash-bridge event channel) actions. Registry state is globalThis-keyed — pi's loader does not guarantee a shared module cache across separately loaded extensions, so a plain module-level Map would silently split per consumer.
   Repair extension dependencies on another machine with `bash install.sh`.
@@ -164,6 +176,52 @@ commands).
   `<turn>-<ts>.input.md` after the reviewer consumes it (transient, to keep
   retention of the original request + answer tight). Smoke test:
   `bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh`.
+- **Claude Fusion** (Claude Code orchestrates, Pi executes — the CC-side port of
+  Pi's Fusion; design in `docs/adr/0003-claude-fusion.md`, glossed in
+  `CONTEXT.md`). When on, Claude is the brain (intent/spec/diff-review/verify) and
+  cannot mutate — all writes/grind are delegated to a fresh `pi -p` role process.
+  Surfaces:
+    - `bin/pi-delegate` — the delegation wrapper (bash), symlinked onto PATH by
+      `install.sh` (`.local/bin/pi-delegate`). `pi-delegate <worker|reviewer|
+      planner|researcher> [--async] [--dry-run] "<task>"` launches a flat, fresh
+      `pi -p --no-session --no-skills --no-extensions` process. **Sourcing rule
+      (correctness-critical):** model + tools come from `.pi/agent/settings.json`
+      `subagents.agentOverrides.<role>`, persona body from
+      `extensions/pi-subagents/agents/<role>.md` — NEVER the persona frontmatter
+      (reviewer frontmatter grants edit/write; settings strips it). `planner` has
+      no `tools` key → `--tools` is omitted (never `--tools null`). `--no-extensions`
+      is **load-bearing**: it stops the delegated pi from loading Fusion (machine
+      default on) and stripping the worker's edit/write tools; `researcher`
+      re-adds `rpiv-web-tools` via explicit `--extension` (kept under
+      `--no-extensions`). Sync by default (prints the worker's output); `--async`
+      returns a poll handle. Reuses the `setsid`-detach + poll mechanics of
+      `.claude/skills/_shared/pi-reviewer-engine.md`.
+    - `.claude/hooks/claude-fusion-block.sh` — PreToolUse enforcement. Denies
+      `Edit|Write|MultiEdit|NotebookEdit` (exit 2) and gates `Bash` to a
+      read-only/verification/`pi-delegate` allowlist. The Bash decision **reuses
+      Fusion's VERBATIM `isSafeBash`** (`.pi/agent/extensions/fusion/index.ts`)
+      via the jiti vendored in `pi-subagents/node_modules` — same policy as Pi's
+      Fusion, no divergent regex re-port — plus an injection-safe `pi-delegate`
+      carve-out (mirrors `isSafeGitCommit`'s anchored quoted-arg shape). Wired
+      into the `Bash` matcher (stacks after `block-bash-pattern.sh`) and a
+      dedicated writer matcher, in `settings.json.template` AND live
+      `~/.claude/settings.json` (switch-provider retired, so no provider files).
+    - `.claude/hooks/claude-fusion-guidance.sh` — SessionStart hook, injects the
+      delegation protocol as raw stdout (native-CC context path, like
+      `ponytail-activate.js`; no JSON wrapper).
+    - `.claude/hooks/tests/claude-fusion-smoke.sh` — offline assert smoke (block
+      decisions + `--dry-run` role resolution; no live `pi`).
+  - **Switch:** `claude` key in `~/.config/fusion/config.json`
+    (`{"claude":"on"|"off"}`), falling back to Pi's `defaultMode` when absent
+    (default resolves ON). Read live on every hook call. Toggle with the
+    `bin/claude-fusion on|off|status` helper (symlinked onto PATH by `install.sh`;
+    flips the `claude` key, leaves `defaultMode` untouched). **Human-driven
+    only** — the helper is NOT on the Bash allowlist, so the caged brain cannot
+    run it to unblock itself; run it from your shell or `! claude-fusion off`
+    inside Claude Code. Per-repo escape hatch: `.claude/.fusion-off`.
+  - **Gotcha:** the block hook depends on jiti + `fusion/index.ts` being present
+    (both vendored, installed by `bash install.sh`). It fails CLOSED if the
+    policy engine can't load — toggle `claude=off` or drop `.claude/.fusion-off`.
 
 ## Editing rules
 

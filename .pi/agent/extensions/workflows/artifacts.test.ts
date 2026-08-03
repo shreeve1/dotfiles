@@ -112,6 +112,56 @@ test("live artifact persistence includes current agents and transcripts", () => 
   }
 });
 
+test("persistWorkflowJson sorts interleaved replayed/executed agents by index", () => {
+  const directory = mkdtempSync(join(tmpdir(), "pi-workflow-artifacts-"));
+  try {
+    const details = workflowDetails();
+    // Simulate a run where a replayed record (pushed immediately) lands
+    // BEFORE a previously-issued executed record (pushed only after the
+    // semaphore acquires). Insertion order is [2 (replayed), 1 (executed)]
+    // even though AgentRecord.index is unique.
+    details.agents.push({
+      index: 2,
+      label: "replayed-2",
+      state: "done",
+      startedAt: 5,
+      finishedAt: 5,
+      preview: "from journal",
+      usage: emptyUsage(),
+      transcript: [],
+      replayed: true,
+    });
+    details.agents.push({
+      index: 1,
+      label: "executed-1",
+      state: "done",
+      startedAt: 6,
+      finishedAt: 7,
+      preview: "fresh",
+      usage: emptyUsage(),
+      transcript: [],
+    });
+
+    persistWorkflowJson(directory, details);
+
+    const workflow = JSON.parse(
+      readFileSync(join(directory, "workflow.json"), "utf8"),
+    ) as WorkflowDetails;
+    const transcripts = JSON.parse(
+      readFileSync(join(directory, "transcripts.json"), "utf8"),
+    ) as Record<string, TranscriptEntry[]>;
+    // On-disk agents list is index-ordered regardless of push order.
+    assert.deepEqual(
+      workflow.agents.map((agent) => agent.index),
+      [1, 2],
+    );
+    // Transcript keys are stable because they were always keyed by index.
+    assert.deepEqual(Object.keys(transcripts).sort(), ["1", "2"]);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("workflow checkpoints throttle updates and support immediate/final flushes", async () => {
   const details = workflowDetails();
   const snapshots: WorkflowDetails[] = [];

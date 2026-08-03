@@ -91,7 +91,7 @@ import {
 	type WorktreeSetup,
 } from "../shared/worktree.ts";
 import { resolveEffectiveThinking } from "../../shared/model-info.ts";
-import { writeInitialProgressFile } from "../../shared/settings.ts";
+import { applySalvage, writeInitialProgressFile } from "../../shared/settings.ts";
 import { resolveSubagentIntercomTarget } from "../../intercom/intercom-bridge.ts";
 import { acceptanceFailureMessage, aggregateAcceptanceReport, buildSkippedAcceptanceLedger, evaluateAcceptance, formatAcceptancePrompt, resolveEffectiveAcceptance, stripAcceptanceReport } from "../shared/acceptance.ts";
 import { waitForImportedAsyncRoot } from "./chain-root-attachment.ts";
@@ -1213,6 +1213,25 @@ async function runSingleStep(
 			});
 			if (structured.error) structuredError = structured.error;
 			else structuredOutput = structured.value;
+		}
+		const salvaged = applySalvage({
+			salvage: step.salvage,
+			otherErrors: [
+				toolAvailabilityError,
+				emptyOutputError,
+				hiddenError?.hasError
+					? (hiddenError.errorType ?? "subagent")
+					: undefined,
+				run.error,
+				run.exitCode !== 0 && run.stderr.trim() ? run.stderr.trim() : undefined,
+			],
+			structuredError,
+			baseExitCode: run.exitCode === 0 ? 0 : 1,
+			finalOutputText: getFinalOutput(run.messages),
+		});
+		if (salvaged.salvaged) {
+			structuredError = undefined;
+			structuredOutput = salvaged.structuredOutput;
 		}
 		const completionGuard = run.exitCode === 0 && !run.error && !toolAvailabilityError && !hiddenError?.hasError && !emptyOutputError && step.completionGuard !== false
 			? evaluateCompletionMutationGuard({

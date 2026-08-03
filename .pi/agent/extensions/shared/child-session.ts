@@ -10,20 +10,63 @@ import {
 
 const CHILD_SHUTDOWN_TIMEOUT_MS = 5_000;
 
-/** Tools that headless children must not receive. Everything else stays enabled. */
+/** Tools a headless workflow child must NEVER receive: subprocess spawn,
+ *  process control, parent-RPC orchestration, recursion, interactive. Each
+ *  name is a real registered tool, annotated with its registration site so the
+ *  list can be audited. */
 export const CHILD_EXCLUDED_TOOL_NAMES = [
-  "subagent_spawn",
+  // spawns real pi subprocesses — pi-subagents/src/extension/index.ts
+  "subagent",
+  // waits on async subagent runs — pi-subagents/src/runs/background/wait-tool.ts
   "subagent_wait",
-  "subagent_cancel",
-  "subagent_check",
-  "subagent_list",
+  // parent-only supervisor RPC — pi-subagents/src/intercom/native-supervisor-channel.ts
+  "subagent_supervisor",
+  // child→parent supervisor RPC — pi-subagents/src/intercom/native-supervisor-channel.ts
+  "contact_supervisor",
+  // supervisor/intercom RPC route — pi-subagents/src/intercom/native-supervisor-channel.ts
+  "intercom",
+  // the workflows orchestrator itself (prevents recursion) — workflows/index.ts
   "workflow",
-  "ask_user",
+  // spawns background subprocesses — background-terminals/index.ts
+  "bg_start",
+  // kills background processes — background-terminals/index.ts
+  "bg_kill",
+  // headless children have no interactive question channel — rpiv-ask-user-question
+  "ask_user_question",
+  // rpiv-advisor issues its own model request via completeSimple — bypasses
+  // the workflow agent-call/concurrency budget, so a child could otherwise
+  // exhaust the parent's account unbounded — extensions/rpiv-advisor/advisor.ts
+  "advisor",
 ] as const;
 
-/** Fresh SDK options avoid turning the denylist into an accidental allowlist. */
-export function childToolPolicy() {
-  return { excludeTools: [...CHILD_EXCLUDED_TOOL_NAMES] };
+/** File-mutation tools denied by default; a workflow step opts back in via
+ *  `{ writable: true }`. */
+export const CHILD_WRITABLE_GATED_TOOLS = [
+  "write",
+  "edit",
+  "ast_grep_replace",
+] as const;
+
+/**
+ * Fresh SDK options avoid turning the denylist into an accidental allowlist.
+ *
+ * Children have a default read-only file-mutation policy: the tools in
+ * `CHILD_WRITABLE_GATED_TOOLS` are denied unless a workflow step opts in via
+ * `{ writable: true }`. Spawn / process-control / parent-RPC tools in
+ * `CHILD_EXCLUDED_TOOL_NAMES` are always denied.
+ *
+ * ponytail: containment is advisory, not a hard sandbox. `bash` stays enabled
+ * (a child can mutate files or spawn `pi` via shell), and `lsp_navigation`'s
+ * `rename`+`apply` path can also write files. Closing those means denying bash,
+ * which cripples children needing shell access — the real upgrade path is to
+ * gate bash or move concurrent writers to git-worktree isolation.
+ */
+export function childToolPolicy(options?: { writable?: boolean }) {
+  const excluded =
+    options?.writable === true
+      ? [...CHILD_EXCLUDED_TOOL_NAMES]
+      : [...CHILD_EXCLUDED_TOOL_NAMES, ...CHILD_WRITABLE_GATED_TOOLS];
+  return { excludeTools: excluded };
 }
 
 export interface ChildResourceOptions {

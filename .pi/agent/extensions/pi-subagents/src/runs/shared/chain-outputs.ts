@@ -54,6 +54,11 @@ export function validateChainOutputBindingsWithContext(
 			if (!available.has(step.expand.from.output)) {
 				throw new ChainOutputValidationError(`Dynamic chain step ${displayStepIndex} references unknown output '${step.expand.from.output}'. Named outputs are only available after producing step/group completes.`);
 			}
+			for (const join of step.expand.join ?? []) {
+				if (!available.has(join.output)) {
+					throw new ChainOutputValidationError(`Dynamic chain step ${displayStepIndex} join references unknown output '${join.output}'. Named outputs are only available after producing step/group completes.`);
+				}
+			}
 		}
 		for (const name of outputNamesForStep(step)) {
 			if (!SAFE_OUTPUT_NAME_PATTERN.test(name)) {

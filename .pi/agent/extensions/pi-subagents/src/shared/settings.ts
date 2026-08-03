@@ -58,6 +58,7 @@ export interface SequentialStep {
 	toolBudget?: ToolBudgetConfig;
 	acceptance?: AcceptanceInput;
 	completionGuard?: boolean;
+	salvage?: boolean;
 }
 
 /** Parallel task item within a parallel step */
@@ -79,6 +80,58 @@ export interface ParallelTaskItem {
 	toolBudget?: ToolBudgetConfig;
 	acceptance?: AcceptanceInput;
 	completionGuard?: boolean;
+	salvage?: boolean;
+}
+
+/**
+ * Resolve structured-output salvage. When salvage is enabled and the only
+ * failure is a missing/invalid structured output, the seam should capture
+ * the final text under `{ unstructured }` and keep exit code 0. Any other
+ * failure (any entry in `otherErrors`, or a non-zero base exit code that
+ * indicates the step already failed for an unrelated reason) short-circuits
+ * salvage and the seam proceeds with its own state.
+ */
+export function applySalvage(input: {
+	salvage: boolean | undefined;
+	otherErrors: ReadonlyArray<string | undefined>;
+	structuredError: string | undefined;
+	baseExitCode: number | null;
+	finalOutputText: string;
+}):
+	| { salvaged: true; structuredOutput: { unstructured: string } }
+	| { salvaged: false } {
+	const hasOtherError = input.otherErrors.some((e) => Boolean(e));
+	const canSalvage =
+		input.salvage === true &&
+		Boolean(input.structuredError) &&
+		!hasOtherError &&
+		input.baseExitCode === 0;
+	if (canSalvage) {
+		return {
+			salvaged: true,
+			structuredOutput: { unstructured: input.finalOutputText },
+		};
+	}
+	return { salvaged: false };
+}
+
+export interface DynamicFilterSpec {
+	path?: string;
+	equals?: string | number | boolean;
+	in?: Array<string | number | boolean>;
+}
+
+export interface DynamicJoinSpec {
+	output: string;
+	path: string;
+	on: string;
+	match?: string;
+	as: string;
+}
+
+export interface DynamicSortSpec {
+	by: string;
+	order?: "asc" | "desc";
 }
 
 export interface DynamicExpandSpec {
@@ -88,6 +141,10 @@ export interface DynamicExpandSpec {
 	};
 	item?: string;
 	key?: string;
+	join?: DynamicJoinSpec[];
+	filter?: DynamicFilterSpec;
+	sort?: DynamicSortSpec;
+	top?: number;
 	maxItems?: number;
 	onEmpty?: "skip" | "fail";
 }
