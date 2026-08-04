@@ -33,6 +33,10 @@ bin/*
 .pi/agent/auth.json.*
 .pi/agent/settings.json
 
+# Langfuse observability layer — machine-local to host `aidev` only, never synced
+.pi/agent/extensions/langfuse/
+.claude/skills/langfuse/
+
 # Pi-lens — runtime churn (keep only config.json synced)
 .pi-lens/*
 !.pi-lens/config.json
