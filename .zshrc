@@ -341,6 +341,5 @@ export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslm
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
 
-
 # OpenWork endpoint env
 [ -f "/Users/james/.config/openwork/aidev.env" ] && . "/Users/james/.config/openwork/aidev.env"
