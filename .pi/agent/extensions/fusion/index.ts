@@ -580,7 +580,7 @@ export const BLOCKED_MUTATION_ACTIONS = new Set([
 	"schedule-cancel",
 ]);
 
-const ROLES_THAT_ALLOW_OUTPUT = new Set(["worker"]);
+const ROLES_THAT_ALLOW_OUTPUT = new Set(["worker", "planner"]);
 
 export interface SubagentCallArgs {
 	agent?: string;
@@ -679,10 +679,11 @@ function normalizeParallel(
 	errors.push(`${path}: expected array or single dynamic template object`);
 }
 
-/** True when this step's role is not worker AND output is undefined or a
- * string. Workers are the only role that may keep `output: "..."`; every
- * other role (and any unset role) must end with `output: false` so the
- * built-in context.md / research.md files never land in a project root. */
+/** True when this step's role may not keep `output` AND output is undefined
+ * or a string. Only worker (source edits) and planner (plan.md, the spec the
+ * worker executes) may keep `output: "..."`; every other role (and any unset
+ * role) must end with `output: false` so the built-in context.md / research.md
+ * files never land in a project root. */
 function shouldForceOutputFalse(step: Record<string, unknown>): boolean {
 	const agent = step.agent;
 	if (typeof agent === "string" && ROLES_THAT_ALLOW_OUTPUT.has(agent)) {
@@ -1021,9 +1022,12 @@ export const FUSION_GUIDANCE_BODY = [
 	"  trust or privilege boundaries, data loss, migrations, public APIs, or removes/weakens",
 	"  an existing safety check. This is the default, not a suggestion. To skip it, state the",
 	"  one-line reason in your reply so the omission is visible.",
-	"- planner: OPTIONAL, narrowly triggered. Use only for complex multi-file, architectural,",
-	"  migration, cross-system, or explicitly requested planning. Routine task decomposition",
-	"  stays in the parent. Never auto-invoked.",
+	"- planner: delegate BEFORE the worker when a change spans multiple files, touches",
+	"  interfaces/contracts/schemas, involves a migration or cross-system work, or is",
+	"  non-trivial to sequence. This is the default for such work, not a suggestion. The",
+	"  planner writes plan.md; hand that file to the worker as its spec. Trivial, single-file,",
+	"  or mechanical edits may be planned inline in the parent — state the one-line reason",
+	"  when you skip planner so the omission is visible.",
 	"",
 	"Session-efficiency rules:",
 	"- no duplicate parent discovery: parent never redoes discovery scout already produced.",

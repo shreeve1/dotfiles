@@ -11,8 +11,8 @@
 #        modes, fix/snapshot/install; allows standard verification + Git;
 #        honors trusted-project override; ignores untrusted override.
 #   (6)  Subagent validation rejects non-allowed roles + model/thinking
-#        overrides; coerces context→fresh and output→false for non-workers;
-#        accepts valid worker call; blocks management mutations.
+#        overrides; coerces context→fresh and output→false for roles other
+#        than worker/planner; accepts valid worker call; blocks management mutations.
 #   (7)  readLatestFusionState walks entries backward and picks the last one.
 #
 # Does NOT exercise the live spawn — that requires a real pi turn + model.
@@ -1148,7 +1148,7 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
 
 // (g) tool_call: subagent handler (the THIRD tool_call registration;
 //     first is bash, second is bg_start) nests-normalizes event.input in place. Mutate=true
-//     coerces context=fresh and output=false for non-worker.
+//     coerces context=fresh and output=false for roles other than worker/planner.
 {
   const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor']);
   fusion(h.pi);
