@@ -57,6 +57,25 @@ commands).
   config and enforces none, so disabling the formatter is upstream-faithful and
   keeps edits churn-free. If a re-sync drops it, edits to this extension will
   churn again — re-add it.
+- `pi-lens` (real-time code feedback: LSP/linters/formatters/ast-grep) is a
+  synced vendored extension at `.pi/agent/extensions/pi-lens/`, registered in
+  both Pi settings files as `extensions/pi-lens`. Do not `pi install npm:pi-lens`;
+  use the repo copy. Since **3.8.74** it is vendored in upstream's **prebuilt npm
+  form** — `pi.extensions: ["./dist/index.js"]` (a single ~2.8 MB bundled
+  `dist/index.js`) plus vendored `grammars/*.wasm` — NOT the pre-3.8.74
+  from-TS-source form (`./index.ts`, grammars via postinstall). To bump the
+  version: `npm pack pi-lens@<ver>`, `tar xzf`, and replace the vendored dir with
+  the tarball's `package/` contents (dist, grammars, rules, config, skills, docs,
+  scripts, package.json, README/CHANGELOG/banners/LICENSE), then reinstall deps.
+  **Footgun:** the manifest's `prepare` script (npm runs it on ANY local
+  `npm install`) does `rm -rf dist` then rebuilds from `tsconfig.dist.json` +
+  `bundle-dist.mjs` — inputs the prebuilt tarball does NOT ship — so it destroys
+  the vendored `dist/` and fails. Always install with `--ignore-scripts`:
+  `cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
+  --ignore-scripts`. `install.sh` special-cases pi-lens to pass `--ignore-scripts`
+  (skipped in the generic extension loop). Skills resolve at runtime via the
+  package's own `skills/` (`resolvePackagePath`), not the manifest's
+  `skills: ["../../skills"]`.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
