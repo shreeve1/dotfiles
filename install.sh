@@ -377,9 +377,14 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-pi" --omit=dev
 
 	# pi-lens is vendored so it syncs with dotfiles, not installed via
-	# `pi install npm:pi-lens`. Its postinstall downloads tree-sitter grammars.
+	# `pi install npm:pi-lens`. Since 3.8.74 it ships the prebuilt npm form
+	# (`pi.extensions: ["./dist/index.js"]` + vendored `grammars/*.wasm`), so no
+	# build/postinstall step runs — only runtime deps need installing. Use
+	# --ignore-scripts: the manifest's `prepare` (npm runs it on local installs)
+	# rm -rf's the vendored dist/ then rebuilds from source files the prebuilt
+	# npm form does not ship, so it destroys dist/ and fails.
 	# Fresh-system / AI-session repair command:
-	#   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer
+	#   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer --ignore-scripts
 
 	# rpiv-advisor is vendored so it syncs with dotfiles, not installed via
 	# `pi install npm:@juicesharp/rpiv-advisor`. It is registered in
@@ -400,6 +405,7 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 	# my-pi-setup extensions are vendored with extension-local runtime manifests.
 	# Install runtime-only dependencies explicitly where upstream prepare scripts
 	# require omitted development tools; the generic loop handles the rest.
+	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/pi-lens" --omit=dev --omit=peer --ignore-scripts
 	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/file-search" --omit=dev --omit=peer --ignore-scripts
 	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/git-info" --omit=dev --omit=peer --ignore-scripts
 	install_npm_deps_if_needed "$HOME/.pi/agent/extensions/summaries" --omit=dev --omit=peer --ignore-scripts
@@ -410,6 +416,7 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
 		[ -f "$package_json" ] || continue
 		case "$(dirname "$package_json")" in
 		"$HOME/.pi/agent/extensions/pi-subagents") continue ;;
+		"$HOME/.pi/agent/extensions/pi-lens") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
 		"$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
 		"$HOME/.pi/agent/extensions/file-search") continue ;;
