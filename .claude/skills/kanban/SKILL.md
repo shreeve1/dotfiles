@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: kanban
 description: Manage a local markdown-based kanban board. Use when user wants to view issues, check board status, create issues manually, move issues between statuses, or initialize a new kanban board.
 ---

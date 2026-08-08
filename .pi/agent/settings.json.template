@@ -12,7 +12,6 @@
   "packages": [
     "extensions/pi-lens",
     "extensions/pi-subagents",
-    "extensions/rpiv-advisor",
     "extensions/rpiv-todo",
     "extensions/@juicesharp/rpiv-i18n",
     "extensions/rpiv-web-tools",
@@ -88,7 +87,7 @@
     "extensions/git-info",
     "extensions/background-terminals",
     "extensions/file-search",
-    "extensions/workflows",
+    "-extensions/workflows/index.ts",
     "extensions/subagent-bridge",
     "-extensions/rpiv-ask-user-question/index.ts",
     "-extensions/web-fetch/index.ts",

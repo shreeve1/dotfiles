@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: orca-help
 description: Diagnose and maintain this user's Orca Desktop client and remote Orca servers. Use when an Orca Desktop app, pairing, remote runtime, structured-agent launch, terminal, CLI, skill, orchestration, service, AppImage update, or rollback fails; when checking Orca topology or version alignment; or when changing this user's Orca deployment.
 ---

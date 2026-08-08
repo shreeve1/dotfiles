@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: goal-objective
 description: >
   Turn a rough intent into a well-formed goal prompt for the `goal` skill.
