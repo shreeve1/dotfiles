@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: vault-ingest
 description: Extract notes, decisions, and knowledge from meeting-transcription summaries in the Obsidian vault's Transcriptions/ folder (or any file the user points at). Use when the user says "ingest transcriptions", "process transcriptions", or "extract notes from this transcript".
 ---

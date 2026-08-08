@@ -27,7 +27,7 @@ in this file. The two-liner summary:
 
 - The parent's tool surface is intentionally small (read, bash
   restricted, subagent, todo, lsp_diagnostics, subagent_wait,
-  subagent_supervisor, advisor-only). Discovery and execution flow
+  subagent_supervisor). Discovery and execution flow
   through `scout`, `researcher`, `worker`, and `reviewer` (when
   risk-based). Worker delegation MUST carry Objective / Files /
   Interfaces / Constraints / Verification.

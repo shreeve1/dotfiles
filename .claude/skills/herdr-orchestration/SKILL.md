@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: herdr-orchestration
 description: "Long-lived, watched multi-model delegation via herdr panes — runs worker + reviewer sessions inside live herdr tabs that the orchestrator and human can watch and steer in real time. Companion to spawn.sh (V1 headless). USE WHEN the user wants to delegate a task that benefits from visibility into the worker's reasoning as it runs, or wants to steer mid-flight from phone via herdr remote, or when nicobailon subagent's headless fan-out is the wrong shape because the human should see the work happen. NOT for quick headless fan-out (use the subagent tool), unattended batch runs (use spawn.sh), or tasks that fit in one pi session."
 ---

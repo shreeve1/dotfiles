@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: orca-cli
 description: >-
   Use the public `orca` CLI to operate Orca-managed worktrees, folder contexts,

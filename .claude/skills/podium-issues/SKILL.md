@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: podium-issues
 description: "Slice an approved plan directly into Podium Issues for the binding matching cwd. No .kanban scan or mirror; creates issues in dependency order with real blocked_by ids and locks."
 ---

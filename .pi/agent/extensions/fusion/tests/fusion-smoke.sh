@@ -124,7 +124,7 @@ node --input-type=module -e "
 const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
 const { PARENT_ALLOWED_TOOLS, parentToolAllowlist, applyParentAllowlist, isParentAllowedTool } = await import(url);
 
-const expected = ['read','bash','lsp_diagnostics','subagent','subagent_wait','subagent_supervisor','todo','advisor','bg_start','bg_status','bg_list','bg_kill'];
+const expected = ['read','bash','lsp_diagnostics','subagent','subagent_wait','subagent_supervisor','todo','bg_start','bg_status','bg_list','bg_kill'];
 if (PARENT_ALLOWED_TOOLS.length !== expected.length) { console.log('FAIL: allowed tool length'); process.exit(1); }
 for (const t of expected) {
   if (!PARENT_ALLOWED_TOOLS.includes(t)) { console.log('FAIL: missing tool ' + t); process.exit(1); }
@@ -1112,10 +1112,10 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
 
 // (e) before_agent_start re-applies allowlist + injects guidance
 {
-  const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor']);
+  const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo']);
   fusion(h.pi);
   h.ctx.sessionManager = { getEntries: () => [
-    { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor'] } },
+    { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
   // Simulate a tool registered later leaking into active set
@@ -1150,10 +1150,10 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
 //     first is bash, second is bg_start) nests-normalizes event.input in place. Mutate=true
 //     coerces context=fresh and output=false for roles other than worker/planner.
 {
-  const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor']);
+  const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo']);
   fusion(h.pi);
   h.ctx.sessionManager = { getEntries: () => [
-    { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo','advisor'] } },
+    { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
   const subagentHandler = h.handlers.tool_call[2];

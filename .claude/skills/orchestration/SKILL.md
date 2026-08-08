@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: orchestration
 description: >-
   Use Orca orchestration for structured multi-agent coordination: threaded

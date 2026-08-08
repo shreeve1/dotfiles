@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: debug-hermes
 description: Diagnose Hermes Agent behavior, gateway issues, Honcho integration, context loading, and Telegram connectivity.
 ---
