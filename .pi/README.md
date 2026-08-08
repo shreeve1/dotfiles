@@ -4,7 +4,6 @@ Personal [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agen
 
 <img width="1625" height="544" alt="image" src="https://github.com/user-attachments/assets/30c63265-c328-4e67-811b-68a5d3dc2fdc" />
 
-
 ---
 
 ## Why Pi?
@@ -18,7 +17,7 @@ Personal [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agen
 ### Pi vs. Claude Code
 
 | | Pi | Claude Code |
-|---|---|---|
+| --- | --- | --- |
 | **System prompt** | ~200 tokens | ~10,000+ tokens |
 | **Core tools** | 4 (read, write, edit, bash) | 8+ |
 | **Source** | Open source (MIT) | Closed source |
@@ -99,6 +98,8 @@ Restart Pi after install. Expected flags include `--no-lens` and `--no-lsp`; exp
 ### Synced extension: rpiv-advisor
 
 `rpiv-advisor` is vendored in this repo at `~/.pi/agent/extensions/rpiv-advisor` and registered in `~/.pi/agent/settings.json` as `extensions/rpiv-advisor`. Do not install it with `pi install npm:@juicesharp/rpiv-advisor` on synced machines; that creates machine-local files instead of using the repo copy.
+
+> **Currently disabled** to reduce prompt-token load. It has been removed from `~/.pi/agent/settings.json` `packages` and from Fusion's parent tool allowlist, so the `advisor` tool no longer loads. The vendored files, `package.json` pin, and install steps below remain so it can be re-enabled by re-adding `extensions/rpiv-advisor` to the `packages` array.
 
 On another system, install it through the dotfiles installer:
 
@@ -184,7 +185,7 @@ When running in team mode, each agent shows status and activity at a glance.
 #### Agent Status
 
 | Icon | Meaning |
-|------|---------|
+| ------ | --------- |
 | `○` | Idle — ready, not running |
 | `●` | Running — currently working |
 | `✓` | Done — completed successfully |
@@ -193,7 +194,7 @@ When running in team mode, each agent shows status and activity at a glance.
 #### Activity Indicators
 
 | Indicator | Meaning |
-|-----------|---------|
+| ----------- | --------- |
 | `💬 N` | N messages in team channel |
 | `⏳` | Pending request from another agent |
 | `📚` | Expertise file loaded |
@@ -206,7 +207,7 @@ When running in team mode, each agent shows status and activity at a glance.
 ### Team Commands
 
 | Command | What it does |
-|---------|-------------|
+| --------- | ------------- |
 | `/agents-team` | Switch active team |
 | `/agents-list` | List agents in current team |
 | `/agents-view` | Toggle dashboard layout (compact / cards) |
@@ -230,7 +231,7 @@ This helps Pi improve agent definitions without switching you to models or provi
 ### `full` — End-to-End Software Delivery (9 agents)
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | scout | gpt-5.3-codex | Read-only codebase exploration |
 | web-searcher | gemini-2.5-pro | Live research, docs, package versions |
 | planner | gpt-5.4 | Task breakdown, implementation plans |
@@ -255,7 +256,7 @@ Documentation:    documenter (direct dispatch)
 ### `infra-ops` — Infrastructure Operations (6 agents)
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | infra-scout | gpt-5.3-codex | Read-only infrastructure exploration |
 | infra-responder | gpt-5.4 | Incident response and triage |
 | infra-analyst | gpt-5.4 | Root cause analysis |
@@ -270,7 +271,7 @@ Documentation:    documenter (direct dispatch)
 Seven read-only framework experts, three meta-improvement agents that can audit and refine the agent-team system itself.
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | ext-expert | claude-opus-4-6 | Pi extensions, hooks, lifecycle |
 | theme-expert | claude-opus-4-6 | Themes, color tokens, styling |
 | tui-expert | claude-opus-4-6 | Terminal UI, rendering, layout |
@@ -283,6 +284,7 @@ Seven read-only framework experts, three meta-improvement agents that can audit 
 | config-tuner | gemini-2.5-pro | Adjusts team configs, boundaries, models |
 
 **Meta-improvement pipeline:**
+
 ```
 agent-auditor → (findings) → prompt-engineer and/or config-tuner
 ```
@@ -292,7 +294,7 @@ agent-auditor → (findings) → prompt-engineer and/or config-tuner
 ### `frontend` — UI Design + Implementation (5 agents)
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | planner | gpt-5.4 | Feature planning |
 | mockup-designer | gemini-2.5-pro | Visual mockups, design direction |
 | builder | gpt-5.3-codex | UI implementation |
@@ -304,7 +306,7 @@ agent-auditor → (findings) → prompt-engineer and/or config-tuner
 ### `info` — Research and Documentation (4 agents)
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | scout | gpt-5.3-codex | Codebase exploration |
 | web-searcher | gemini-2.5-pro | Web research |
 | reviewer | claude-opus-4-6 | Content review |
@@ -315,7 +317,7 @@ agent-auditor → (findings) → prompt-engineer and/or config-tuner
 ### `qa` — Validation and Risk (5 agents)
 
 | Agent | Model | Role |
-|-------|-------|------|
+| ------- | ------- | ------ |
 | tester | gpt-5.3-codex | Test execution |
 | reviewer | claude-opus-4-6 | Code and plan review |
 | red-team | gemini-2.5-pro | Security and adversarial testing |
@@ -329,7 +331,7 @@ agent-auditor → (findings) → prompt-engineer and/or config-tuner
 ### Model Strategy
 
 | Tier | Models | Used For |
-|------|--------|----------|
+| ------ | -------- | ---------- |
 | **Premium** | claude-opus-4-6 | Deep review, security, framework expertise, audit |
 | **Strong** | gpt-5.4, gemini-2.5-pro | Planning, investigation, research, meta-improvement |
 | **Efficient** | gpt-5.3-codex | Implementation, testing, exploration, default work |
@@ -348,7 +350,7 @@ Every write-capable agent declares `allowed_write_paths` in its frontmatter. The
 Agents accumulate knowledge across sessions through three layers:
 
 | Layer | File | Updated By | Purpose |
-|-------|------|------------|---------|
+| ------- | ------ | ------------ | --------- |
 | **Domain knowledge** | `teams/{team}/knowledge/{agent}.md` | Humans | Curated reference, never overwritten by agents |
 | **Expertise** | `teams/{team}/expertise/{agent}.md` | Agent (`update_expertise`) | Core mental model, grows over time |
 | **Session notes** | `teams/{team}/session-notes/{agent}.jsonl` | Agent (`add_session_note`) | Lightweight per-session observations |
@@ -406,7 +408,7 @@ Design and build a custom team from scratch:
 Pi-mem gives the agent persistent memory across sessions — project-scoped and global.
 
 | Command | What it does |
-|---------|-------------|
+| --------- | ------------- |
 | `/mem` | Browse recent project sessions and global learnings |
 | `/mem search "query"` | Full-text search across all saved memory |
 | `/mem save` | Save current session to project memory |
@@ -416,6 +418,7 @@ Pi-mem gives the agent persistent memory across sessions — project-scoped and 
 | `/mem cleanup` | Consolidate or prune old entries (confirms before deleting) |
 
 **Storage:**
+
 - Project memory: `~/.pi/data/memory/projects/{hash}-{name}/memory.db`
 - Global memory: `~/.pi/data/memory/global/memory.db`
 
@@ -424,7 +427,7 @@ Pi-mem gives the agent persistent memory across sessions — project-scoped and 
 ## What's Included
 
 | Directory | Contents |
-|-----------|----------|
+| ----------- | ---------- |
 | `agent/agents/` | Agent definitions — root-level and team-specific |
 | `agent/agents/teams/` | Team configs, dispatcher protocols, expertise, session notes |
 | `agent/skills/` | 35+ skills — planning, building, testing, brainstorming, team creation, etc. |
@@ -441,7 +444,7 @@ Pi-mem gives the agent persistent memory across sessions — project-scoped and 
 Default settings in `agent/settings.json`:
 
 | Setting | Default | Notes |
-|---------|---------|-------|
+| --------- | --------- | ------- |
 | `defaultProvider` | `openai-codex` | Provider for the main session |
 | `defaultModel` | `gpt-5.3-codex` | Model for the main session |
 | `theme` | `ember` | UI color theme |

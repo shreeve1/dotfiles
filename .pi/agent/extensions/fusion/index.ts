@@ -166,7 +166,6 @@ export const PARENT_ALLOWED_TOOLS = [
 	"subagent_wait",
 	"subagent_supervisor",
 	"todo",
-	"advisor",
 	"bg_start",
 	"bg_status",
 	"bg_list",
@@ -1005,7 +1004,7 @@ export const FUSION_GUIDANCE_HEADER = "[FUSION MODE ACTIVE]";
 export const FUSION_GUIDANCE_BODY = [
 	"You are the parent in Fusion orchestration. The parent tool surface is",
 	"intentionally small: read, bash (restricted), lsp_diagnostics, subagent,",
-	"subagent_wait, subagent_supervisor, todo, advisor (exception only). Discovery",
+	"subagent_wait, subagent_supervisor, todo. Discovery",
 	"and execution go through children.",
 	"",
 	"Role models and thinking levels are configured in `settings.json` `subagents.agentOverrides`; this extension never hardcodes them.",
@@ -1049,10 +1048,6 @@ export const FUSION_GUIDANCE_BODY = [
 	"3. Dictated patch still fails: stop retrying and revise the parent's plan.",
 	"",
 	"One writer per cwd. Parallel writers require isolated git worktrees.",
-	"",
-	"Use advisor() only when stuck, when errors keep recurring, when evidence",
-	"is conflicting, or when about to change approach or take an unusually",
-	"risky decision. Don't pre-call it.",
 ].join("\n");
 export const FUSION_GUIDANCE_FULL = `${FUSION_GUIDANCE_HEADER}\n${FUSION_GUIDANCE_BODY}\n`;
 

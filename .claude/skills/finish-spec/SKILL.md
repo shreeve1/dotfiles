@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: finish-spec
 description: "Verify, fix, and close a spec once its child tickets are done. The terminal bookend of to-spec → to-tickets → implement: confirms the slices compose, walks the spec's acceptance criteria against the merged code, fixes only small integration gaps, and closes the spec."
 ---

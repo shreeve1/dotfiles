@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: restart
 description: Kill all running instances of the project's development server and start it fresh. USE WHEN user says "restart the server", "kill and restart dev server", or the dev server is unresponsive and needs a clean restart.
 ---
