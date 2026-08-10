@@ -452,6 +452,9 @@ export function isSafeBash(
 	// legitimately contain parentheses, `!`, etc.). Every other git verb and
 	// commit form still falls through to the dangerous-mode deny below.
 	if (isSafeGitCommit(normalized)) return { ok: true };
+	// Exact no-argument session-management wrapper. Its shell implementation
+	// stays behind this audited entry point instead of crossing the Bash gate.
+	if (normalized === "herdr-fork") return { ok: true };
 	// Dangerous-mode deny FIRST: package install/update/publish, fix
 	// modes, mutating Git, etc. always lose — even if a project override
 	// would otherwise grant them. This is the settled Fusion precedence.
@@ -1160,7 +1163,9 @@ export default function fusionExtension(pi: ExtensionAPI): void {
 		}
 		ctx.ui.setStatus(
 			"fusion",
-			enabled ? ctx.ui.theme.fg("warning", "fusion") : undefined,
+			enabled && ctx.ui.theme
+				? ctx.ui.theme.fg("warning", "fusion")
+				: undefined,
 		);
 	}
 
