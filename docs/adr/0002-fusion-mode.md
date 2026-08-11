@@ -34,7 +34,7 @@ entry before global config is consulted.
 ## Role split
 
 | Role | Owns | Forbidden |
-|---|---|---|
+| --- | --- | --- |
 | **parent** | intent, architecture, task decomposition, diff review, deterministic verification, retry ladder | grep/find/ls/discovery delegations to self; broad read-side exploration beyond the changed files; editing/deleting files; web search |
 | **scout** | pre-work code discovery (files, entry points, constraints) | file mutations; web research |
 | **researcher** | current external facts; primary sources only | file mutations; agent definitions |

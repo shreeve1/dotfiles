@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: humanizer
 description: |
   Remove signs of AI-generated writing from text. Use when editing or reviewing

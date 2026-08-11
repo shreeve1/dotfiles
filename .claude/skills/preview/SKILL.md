@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: preview
 description: Serve the current working directory over HTTP so artifacts (HTML, PDF, images, anything a browser opens) can be viewed from a remote system on the LAN. Spin up on demand, tear down when done. Zero dependencies — uses python3 stdlib only. Use when the user wants to view/preview artifacts locally, serve a directory, see an HTML file or PDF from another machine, or says "preview this", "serve this", "let me view it", "open this in my browser", "host this", "tear down the server", "stop preview", or "done previewing".
 ---

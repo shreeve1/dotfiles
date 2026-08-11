@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: vault-todo
 description: Create, complete, or list todos in the Obsidian vault using the Tasks-plugin format. Use when the user says "add a todo", "remind me to", "vault todo", "mark X done", or "what's on my todo list".
 ---
