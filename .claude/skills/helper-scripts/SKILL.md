@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: helper-scripts
 description: Set up repo-local agent helper scripts that emit compact context for Claude Code/Pi/OpenCode. Use when the user asks to reduce token usage during repo inspection, install AI helper scripts, bootstrap scripts/ai, create repo_summary.py/extract_imports.py/etc., or prepare a local repo for agent work.
 ---

@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: vault-save
 description: Save a learning, decision, or note from the current session into the Obsidian vault. Use when the user says "save this to my vault", "vault this", "add to my notes", or wants knowledge from any repo or session captured permanently.
 ---
