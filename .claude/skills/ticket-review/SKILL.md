@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: ticket-review
 description: "Review every finished ticket without a reviewer note for gaps, fix them, and leave a reviewer note on each. Works with local kanban or GitHub/GitLab tickets. Use when the user wants to gap-check, audit, or close out completed tickets. Parent tickets are reviewed together with their child issues; already-noted tickets are skipped."
 ---

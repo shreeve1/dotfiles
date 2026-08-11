@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 name: vault-read
 description: Answer a question from the personal Obsidian vault. Use when the user asks "what does my vault know about X", "check my notes/vault", or wants past learnings, client records, or personal notes recalled from any session.
 ---
