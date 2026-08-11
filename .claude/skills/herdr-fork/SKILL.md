@@ -46,49 +46,15 @@ expected outside Pi-in-herdr.
 
 ## What to do
 
-Run the preflight, then the fork. All values come from the environment; the
-skill takes no arguments.
+Run the audited no-argument wrapper:
 
 ```bash
-# --- preflight ---
-[[ "$HERDR_ENV" == 1 ]] || { echo "herdr-fork: not inside a herdr session (HERDR_ENV != 1)"; exit 1; }
-[[ -n "$PI_SESSION_FILE" && -f "$PI_SESSION_FILE" ]] || { echo "herdr-fork: PI_SESSION_FILE unset or missing ('$PI_SESSION_FILE')"; exit 1; }
-[[ -n "$HERDR_WORKSPACE_ID" ]] || { echo "herdr-fork: HERDR_WORKSPACE_ID unset"; exit 1; }
-
-# --- create the parked snapshot tab in the same workspace ---
-# Create the tab first (never bare `agent start --workspace`, which would
-# hijack the currently-focused tab). The tab ships with ONE auto-created root
-# pane; launch pi --fork INTO that root pane via `pane run` so we don't orphan
-# it. (`herdr agent start --tab <id>` would add a SECOND pane and leave the
-# root pane as a dead idle shell.) pi launched via `pane run` is still
-# auto-detected as a real pi agent.
-src_id=$(basename "$PI_SESSION_FILE" | grep -oE '[0-9a-f]{8}' | head -1)
-tab_json=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$(pwd)" --no-focus)
-tab_id=$(printf '%s' "$tab_json" | jq -r '.result.tab.tab_id // empty')
-root_pane=$(printf '%s' "$tab_json" | jq -r '.result.root_pane.pane_id // empty')
-[[ -n "$tab_id" && -n "$root_pane" ]] || { echo "herdr-fork: could not parse tab/root pane from: $tab_json"; exit 1; }
-herdr tab rename "$tab_id" "fork: ${src_id:-session}" >/dev/null 2>&1 || true
-
-# --- trim the invoking turn so the parked branch diverges cleanly ---
-# The last user record is this skill's own invocation. Fork a copy that keeps
-# everything BEFORE it (records 1..last_user-1) so the new tab opens at the
-# prior turn, not one step past it. jq finds the boundary by parsing each
-# record's message.role (immune to user text that merely contains
-# '"role":"user"'); a grep would false-match on that.
-last_user=$(jq -r 'select(.message.role=="user") | input_line_number' "$PI_SESSION_FILE" | tail -1)
-[[ -n "$last_user" && "$last_user" -gt 1 ]] || { echo "herdr-fork: could not locate invoking turn in $PI_SESSION_FILE"; exit 1; }
-fork_src=$(mktemp --suffix=.jsonl)
-head -n "$((last_user - 1))" "$PI_SESSION_FILE" > "$fork_src"
-
-# --- launch pi --fork of the trimmed copy in the tab's root pane (idle, no seed) ---
-# pi --fork reads the file at startup; keep $fork_src until the pane has booted,
-# then remove it (the fork created its own independent session file).
-herdr pane run "$root_pane" "pi --fork '$fork_src'; rm -f '$fork_src'" >/dev/null 2>&1 \
-  || { echo "herdr-fork: pane run failed for pane $root_pane"; rm -f "$fork_src"; exit 1; }
-
-echo "herdr-fork: parked snapshot in tab $tab_id (label 'fork: ${src_id:-session}'), root pane $root_pane."
-echo "herdr-fork: focus stays here — this is still the original conversation. Keep going."
+herdr-fork
 ```
+
+The wrapper owns preflight, tab creation, session trimming, and launch. Keeping
+that shell program behind one exact command lets it run under Fusion without
+allowlisting arbitrary shell metacharacters.
 
 The `pi --fork` continuation is a **real interactive session**: no
 `--no-skills` / `--no-extensions`, so the parked branch has the same

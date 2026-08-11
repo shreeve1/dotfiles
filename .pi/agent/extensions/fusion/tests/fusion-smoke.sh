@@ -182,6 +182,7 @@ const okCases = [
   'eslint src',
   'biome check src',
   'prettier --check .',
+  'herdr-fork',
 ];
 for (const c of okCases) {
   const v = isSafeBash(c);
@@ -236,6 +237,8 @@ const v1 = isSafeBash('');
 if (v1.ok) { console.log('FAIL: should deny empty'); process.exit(1); }
 const v2 = isSafeBash('ls');
 if (v2.ok) { console.log('FAIL: should deny ls (not global, no project override)'); process.exit(1); }
+const v2a = isSafeBash('herdr-fork extra');
+if (v2a.ok) { console.log('FAIL: herdr-fork must reject arguments'); process.exit(1); }
 
 // trusted-project exact-match grant
 const v3 = isSafeBash('ls', { projectAllowed: ['ls'] });
