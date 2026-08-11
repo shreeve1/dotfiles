@@ -4,6 +4,16 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 Tradeoff: These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
+## 0. Client Operations Context
+
+For client-operations requests—tickets, users, email, endpoints, networks, security, phones, monitoring, licensing, or internal knowledge:
+
+- Check active context and available memory first.
+- Identify the relevant ITAStack service and use its connector before web search or asking the user to locate data.
+- If the service is unclear, use the ITAStack service inventory before asking a clarifying question.
+- Treat discovery as read-only; it does not authorize changes in any connected service.
+- If memory is unavailable, continue with active context and service discovery.
+
 ## 1. Think Before Coding
 
 Don't assume. Don't hide confusion. Surface tradeoffs.
