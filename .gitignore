@@ -22,6 +22,7 @@ bin/*
 !bin/rralph
 !bin/pi-delegate
 !bin/claude-fusion
+!bin/herdr-fork
 
 # Machine-local secrets (not synced)
 .env
