@@ -50,11 +50,11 @@ MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
-RALPH_MODEL="${RALPH_MODEL:-}"
+RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}"
 # Optional stronger model used ONLY for the per-issue independent review-on-DONE
 # (mode=review). The implementer and the BLOCKED-drain repair path (mode=repair)
 # keep using RALPH_MODEL. Unset => the reviewer inherits RALPH_MODEL.
-RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-}"
+RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-openai-codex/gpt-5.6-sol}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
