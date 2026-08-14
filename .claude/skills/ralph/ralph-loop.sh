@@ -639,7 +639,7 @@ run_pi_adapter() {
     cmd=(pi --no-session --skill "$SKILL_DIR" -p "$full_prompt")
   fi
   local rc=0
-  "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
+  PI_SUBAGENT_CHILD=1 "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
 
   if [[ $rc -eq 0 ]]; then
     if blocked_is_skippable "$output_file"; then
@@ -735,7 +735,7 @@ run_tmux_adapter() {
   fi
 
   echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
-  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec $AGENT_CMD"
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec env PI_SUBAGENT_CHILD=1 $AGENT_CMD"
   tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
   if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
