@@ -332,7 +332,11 @@ alias tms='tmux new -s'
 alias tmk='tmux kill-session -t'
 
 # Ralph loop - background tmux session running /ralph until all issues done
-alias tralph='~/.claude/skills/ralph/ralph-loop.sh'
+tralph() {
+	RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}" \
+	RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-openai-codex/gpt-5.6-sol}" \
+		~/.claude/skills/ralph/ralph-loop.sh "$@"
+}
 
 alias op='opencode'
 

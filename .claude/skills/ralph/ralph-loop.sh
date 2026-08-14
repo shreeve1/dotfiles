@@ -1187,12 +1187,12 @@ normalize_todo_status() {
   local f changed=false
   for f in .kanban/issues/*.md; do
     [[ -f "$f" ]] || continue
-    if grep -q "^status: todo$" "$f"; then
-      perl -0pi -e 's/^status: todo$/status: pending/m' "$f"
+    if grep -q "^status: \(todo\|open\)$" "$f"; then
+      perl -0pi -e 's/^status: (todo|open)$/status: pending/m' "$f"
       changed=true
     fi
   done
-  [[ "$changed" == "true" ]] && echo "🔄 Normalized 'status: todo' -> 'status: pending'" | tee -a "$LOG_FILE"
+  [[ "$changed" == "true" ]] && echo "🔄 Normalized 'status: todo|open' -> 'status: pending'" | tee -a "$LOG_FILE"
   return 0
 }
 
