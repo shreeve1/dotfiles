@@ -750,7 +750,21 @@ run_tmux_adapter() {
   fi
 
   echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
-  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec env PI_SUBAGENT_CHILD=1 $AGENT_CMD"
+  # Bound worker memory: launch the pane inside a transient systemd --user scope
+  # with a MemoryMax cap so a runaway child (e.g. a service the worker starts) is
+  # cgroup-OOM-killed inside its own scope instead of triggering a GLOBAL host OOM
+  # that kills unrelated services. The default tmux server env has
+  # DBUS_SESSION_BUS_ADDRESS=disabled: and no XDG_RUNTIME_DIR, so supply both. If a
+  # scope cannot be created (no working user bus), fall back to an uncapped launch
+  # (previous behavior) so workers never fail to start.
+  local mem_prefix="" xrd="/run/user/$(id -u)"
+  if command -v systemd-run >/dev/null 2>&1 && env XDG_RUNTIME_DIR="$xrd" DBUS_SESSION_BUS_ADDRESS="unix:path=$xrd/bus" systemd-run --user --scope --quiet -p MemoryMax=64M --description=ralph-memcap-probe true >/dev/null 2>&1; then
+    mem_prefix="env XDG_RUNTIME_DIR=$xrd DBUS_SESSION_BUS_ADDRESS=unix:path=$xrd/bus systemd-run --user --scope --quiet -p MemoryMax=8G -p MemorySwapMax=2G "
+    echo "🧠 Worker memory cap: MemoryMax=8G MemorySwapMax=2G (systemd --user scope)" | tee -a "$LOG_FILE"
+  else
+    echo "ℹ️  Worker memory cap unavailable (no working systemd --user scope); launching uncapped" | tee -a "$LOG_FILE"
+  fi
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec ${mem_prefix}env PI_SUBAGENT_CHILD=1 $AGENT_CMD"
   tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
   if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
