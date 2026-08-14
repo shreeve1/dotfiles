@@ -393,6 +393,7 @@ MAX_ISSUE_FAILS="${21:-2}"
 REVIEW_EACH="${22:-true}"
 RALPH_REVIEW_MODEL="${23:-}"
 AGENT_CMD_EXPLICIT="${24:-false}"
+SKIP_BLOCKED="${25:-false}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -400,6 +401,13 @@ LOOP_EXIT_CODE=0
 mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
 : > "$LOG_FILE"
+
+# Review base state used by run_inline_review / prompt construction. Set per
+# iteration in the main loop, but the blocked-issue drain path calls
+# run_inline_review BEFORE the loop assigns them, so initialize here or `set -u`
+# aborts the whole (sole-session) driver and the tmux server vanishes.
+REVIEW_BASE_SHA=""
+BASE_REMINDER=""
 
 # Prompt framing used when an inline auto-review/repair worker is spawned for a
 # blocked issue. Mirrors the review-loop reminder built by the outer script.
@@ -1531,7 +1539,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
 	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
 	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
-	"$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT"; do
+	"$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
