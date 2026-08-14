@@ -927,6 +927,20 @@ extract_runnable_verification() {
   ' || return 0
 }
 
+# Set the frontmatter `status:` of an issue file to a new value (first status
+# line only). Mirrors the park-to-blocked rewrites. Callers persist the change
+# (run_inline_review commits it before returning). Idempotent if already at $2.
+set_issue_status() {
+  local file="$1" new="$2"
+  [[ -f "$file" ]] || return 1
+  # Require a real frontmatter status line (a known kanban value) before
+  # rewriting; return nonzero if absent so callers never log a state change
+  # that did not happen. `unless $seen++` rewrites only the first match, which
+  # is the frontmatter line since frontmatter leads the file.
+  grep -Eq '^status: (pending|in-progress|review|done|blocked|todo)\b' "$file" || return 1
+  perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
+}
+
 # Spawn a fresh actionable-review/repair worker against a single issue, then
 # return so the implement loop can continue. Never fatal: if the worker cannot
 # confirm the issue it stays blocked (parked) and the loop moves on.
@@ -1002,30 +1016,51 @@ run_inline_review() {
     if [[ -n "$verify_cmd" ]]; then
       echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
       if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
+        set_issue_status "$target_file" done
         echo "✅ Inline review $done_verb issue #$target_id (verification passed)" | tee -a "$LOG_FILE"
       else
         echo "❌ Verification FAILED after review for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
-        if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
-          perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+        if [[ -f "$target_file" ]]; then
+          set_issue_status "$target_file" blocked
           printf '\n## Blocker\n\nReview reported DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
         fi
       fi
     else
+      # Repair mode (BLOCKED-drain) stays worker-authoritative for status: only
+      # the review-each (mode==review) path makes the driver author the terminal
+      # `done`. A prose-verification review issue has no runnable verify_cmd and
+      # lands here too, so it must still be finalized to done.
+      if [[ "$mode" == "review" ]]; then
+        set_issue_status "$target_file" done
+      fi
       echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
     fi
   elif [[ "$mode" == "review" ]]; then
     # DONE-path review did not confirm (timeout / BLOCKED / FAIL). Genuinely park
     # the issue instead of silently leaving it done, so completion is never
     # trusted on an unconfirmed review. The next scan / blocked-drain picks it up.
-    if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
-      perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+    if [[ -f "$target_file" ]]; then
+      set_issue_status "$target_file" blocked
       printf '\n## Blocker\n\nAuto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff %s HEAD` before marking done.\n' "$REVIEW_BASE_SHA" >> "$target_file"
-      echo "↪️  Inline review did not confirm #$target_id; parked done→blocked for review" | tee -a "$LOG_FILE"
+      echo "↪️  Inline review did not confirm #$target_id; parked review→blocked for review" | tee -a "$LOG_FILE"
     else
-      echo "↪️  Inline review did not confirm #$target_id; not in done state, left as-is" | tee -a "$LOG_FILE"
+      echo "↪️  Inline review did not confirm #$target_id; issue file missing, left as-is" | tee -a "$LOG_FILE"
     fi
   else
     echo "↪️  Inline review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
+  fi
+
+  # Persist any driver-authored terminal status immediately. The pre-worker
+  # checkpoint only runs at the TOP of the next iteration, so on the final
+  # issue (loop then breaks on NO_WORK) the status would otherwise stay
+  # uncommitted and be invisible to the worktree-merge finalizer. Stage only
+  # the issue file (SKILL.md convention); ignore failures (e.g. not a git repo
+  # or nothing staged).
+  if [[ -f "$target_file" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+    if ! git diff --quiet -- "$target_file" 2>/dev/null; then
+      git add -- "$target_file" 2>/dev/null \
+        && git commit -m "review(#$target_id): driver-authored status after inline review" 2>&1 | tee -a "$LOG_FILE" || true
+    fi
   fi
 
   rm -f "$review_out"
