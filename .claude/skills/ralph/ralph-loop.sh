@@ -8,7 +8,7 @@
 #   --sleep-interval N    Sleep N seconds between iterations (default: 3)
 #   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
 #   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
-#   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+#   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with its configured default model)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
@@ -33,7 +33,7 @@ CONTINUE_ON_ERROR=false
 SLEEP_INTERVAL=3
 READY_DELAY=1
 READY_TIMEOUT=60
-ITERATION_TIMEOUT=3600
+ITERATION_TIMEOUT=7200
 AGENT_CMD="${RALPH_AGENT_CMD:-}"
 AGENT_CMD_EXPLICIT=false
 AGENT_PROMPT_EXPLICIT=false
@@ -73,7 +73,7 @@ OPTIONS:
   --sleep-interval N    Sleep N seconds between iterations (default: 3)
   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
-  --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+  --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
   --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with its configured default model)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
@@ -125,7 +125,7 @@ while [[ $# -gt 0 ]]; do
 		shift 2
 		;;
 	--iteration-timeout)
-		ITERATION_TIMEOUT="${2:-3600}"
+		ITERATION_TIMEOUT="${2:-7200}"
 		shift 2
 		;;
 	--agent-cmd)
@@ -792,7 +792,7 @@ run_tmux_adapter() {
 
   start=$(date +%s)
   last_vishash=""; idle_secs=0; stall_nudges=0
-  stall_after="${RALPH_STALL_NUDGE_SECONDS:-120}"   # idle seconds before nudging "continue"
+  stall_after="${RALPH_STALL_NUDGE_SECONDS:-300}"   # idle seconds before nudging "continue"; high enough that a slow reviewer (e.g. ~2 tok/s gpt-5.6-sol) streaming its critique is not mistaken for a stall
   max_nudges="${RALPH_MAX_STALL_NUDGES:-3}"          # give up after this many nudges
   while true; do
     now=$(date +%s)
