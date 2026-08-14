@@ -51,6 +51,10 @@ REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-}"
+# Optional stronger model used ONLY for the per-issue independent review-on-DONE
+# (mode=review). The implementer and the BLOCKED-drain repair path (mode=repair)
+# keep using RALPH_MODEL. Unset => the reviewer inherits RALPH_MODEL.
+RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
@@ -78,6 +82,7 @@ OPTIONS:
   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
+  --review-model ID     Model id for the per-issue review-on-DONE only (env RALPH_REVIEW_MODEL); implementer + repair keep RALPH_MODEL
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -130,6 +135,14 @@ while [[ $# -gt 0 ]]; do
 		fi
 		AGENT_CMD="$2"
 		AGENT_CMD_EXPLICIT=true
+		shift 2
+		;;
+	--review-model)
+		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+			echo "❌ Error: --review-model requires a model id" >&2
+			exit 1
+		fi
+		RALPH_REVIEW_MODEL="$2"
 		shift 2
 		;;
 	--agent-prompt)
@@ -378,6 +391,8 @@ AUTO_REVIEW_BLOCKED="${19}"
 UNATTENDED="${20:-false}"
 MAX_ISSUE_FAILS="${21:-2}"
 REVIEW_EACH="${22:-true}"
+RALPH_REVIEW_MODEL="${23:-}"
+AGENT_CMD_EXPLICIT="${24:-false}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -980,6 +995,28 @@ run_inline_review() {
   local saved_reminder="$SHARED_PROMPT_REMINDER"
   local saved_base="$REVIEW_BASE_SHA"
   local saved_base_reminder="$BASE_REMINDER"
+  local saved_agent_cmd="$AGENT_CMD"
+  local saved_ralph_model="$RALPH_MODEL"
+
+  # Per-issue review-on-DONE (mode=review) may run on a stronger reviewer model.
+  # The implementer and the BLOCKED-drain repair path keep RALPH_MODEL. Respect
+  # an explicit --agent-cmd / RALPH_AGENT_CMD (do not clobber a user command).
+  if [[ "$mode" == "review" && -n "$RALPH_REVIEW_MODEL" ]]; then
+    if [[ "$ADAPTER" == "tmux" && ( "$AGENT_CMD_EXPLICIT" == "true" || -n "${RALPH_AGENT_CMD:-}" ) ]]; then
+      # An explicit agent command controls the tmux model; the swap would be
+      # inert, so leave everything on the implementer command and say so.
+      echo "ℹ️  Review model $RALPH_REVIEW_MODEL ignored: explicit --agent-cmd/RALPH_AGENT_CMD controls the model" | tee -a "$LOG_FILE"
+    else
+      RALPH_MODEL="$RALPH_REVIEW_MODEL"
+      if [[ "$ADAPTER" == "tmux" ]]; then
+        local rm_skill_q rm_model_q
+        printf -v rm_skill_q '%q' "$SKILL_DIR"
+        printf -v rm_model_q '%q' "$RALPH_REVIEW_MODEL"
+        AGENT_CMD="pi --model $rm_model_q --skill $rm_skill_q"
+      fi
+      echo "🧠 Review model: $RALPH_REVIEW_MODEL (implementer/repair stay on ${saved_ralph_model:-pi default})" | tee -a "$LOG_FILE"
+    fi
+  fi
 
   REVIEW_BASE_SHA=""
   BASE_REMINDER=""
@@ -1069,6 +1106,8 @@ run_inline_review() {
   SHARED_PROMPT_REMINDER="$saved_reminder"
   REVIEW_BASE_SHA="$saved_base"
   BASE_REMINDER="$saved_base_reminder"
+  AGENT_CMD="$saved_agent_cmd"
+  RALPH_MODEL="$saved_ralph_model"
   return 0
 }
 
@@ -1477,7 +1516,8 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
 	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH"; do
+	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
+	"$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
