@@ -6,6 +6,19 @@ export PATH="$PATH:/snap/bin"
 # not a TTY — stty would error out.
 [[ -t 0 ]] && stty -ixon
 
+# herdr in Orca terminals: herdr can't detect the Orca terminal as remote
+# (TERM_PROGRAM=Orca), so copy-on-select writes via xclip to Orca's headless
+# X display instead of the Mac clipboard. A VSCODE_IPC_HOOK_CLI marker flips
+# herdr's clipboard routing to OSC 52 (it only checks the var is set).
+# See herdrdev/herdr#2399.
+function herdr() {
+  if [[ "${TERM_PROGRAM:-}" == "Orca" && "${HERDR_OSC52:-}" != "1" ]]; then
+    HERDR_OSC52=1 VSCODE_IPC_HOOK_CLI=/dev/null command herdr "$@"
+  else
+    command herdr "$@"
+  fi
+}
+
 # Platform detection
 case "$(uname -s)" in
   Darwin) IS_MACOS=1; IS_LINUX=0 ;;
@@ -319,7 +332,11 @@ alias tms='tmux new -s'
 alias tmk='tmux kill-session -t'
 
 # Ralph loop - background tmux session running /ralph until all issues done
-alias tralph='~/.claude/skills/ralph/ralph-loop.sh'
+tralph() {
+	RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}" \
+	RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-deepseek/deepseek-v4-flash}" \
+		~/.claude/skills/ralph/ralph-loop.sh "$@"
+}
 
 alias op='opencode'
 
