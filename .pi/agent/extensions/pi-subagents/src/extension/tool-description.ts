@@ -11,7 +11,7 @@ export const SUBAGENT_SAFETY_GUIDANCE = `SAFETY-CRITICAL SUBAGENT GUIDANCE:
 • Keep execution and management separate: omit action for SINGLE/PARALLEL/CHAIN execution; use action only for list/get/models/create/update/delete/status/grant-spawn-budget/interrupt/stop/resume/append-step/doctor.
 • Async/background runs: launch with async:true only when work can proceed independently. Do not sleep or poll status just to wait. In an interactive session, normally return control and let Pi wake you; do not call subagent_wait merely to wait. Override that default and call subagent_wait when the current request is run-to-completion — for example, the user asked you to report results back before continuing or a skill must finish in one turn. Headless sessions auto-drain current-session work at agent_end; use subagent_wait when this turn must receive results before it ends.
 • Child-safety boundary: ordinary child subagents are not orchestrators and must not run subagents. Only explicitly configured fanout children may use the child-safe subagent tool, still bounded by depth/session limits.
-• Writing/review safety: keep one writer for the same cwd/worktree. Use fresh-context read-only reviewers/validators for independent review, then have the parent synthesize and apply fixes as the sole writer unless an isolated worktree was intentionally requested.
+• Writing/review safety: one writer per file set. Concurrent workers in one cwd must be handed disjoint file sets (the delegation Files field is the declaration). Parent attributes changed files to workers afterward and stops on any overlap. Reviewers always review a completed diff, scoped to the target worker's file set; never review the whole tree while another worker is in flight.
 • Artifacts/status essentials: chain outputs live under {chain_dir}; async runs expose asyncId/asyncDir with status.json, events.jsonl, output logs, and status via { action: "status", id }. Include output paths and residual risks when reporting results.`;
 
 export const FULL_SUBAGENT_TOOL_DESCRIPTION = `Delegate to subagents or manage agent definitions.
@@ -96,7 +96,7 @@ ASYNC / WAIT:
 
 SAFETY:
 • Ordinary child subagents are not orchestrators and must not run subagents. Only explicit fanout children may use child-safe subagent, still bounded by depth/session limits.
-• Keep one writer per cwd/worktree. Use fresh read-only review/validation fanout, then synthesize and apply fixes from the parent unless isolated worktrees were intentionally requested.`;
+• One writer per file set. Concurrent workers in one cwd must get disjoint file sets (the delegation Files field is the declaration); the parent attributes changed files afterward and stops on overlap. Reviewers review completed diffs scoped to the target worker's file set, never the whole tree while another worker is in flight.`;
 
 function isToolDescriptionMode(value: unknown): value is ToolDescriptionMode {
 	return value === "full" || value === "compact" || value === "custom";

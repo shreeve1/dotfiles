@@ -52,6 +52,8 @@ Bash. `pi-delegate <role> "<task>"`:
 - **Same working tree.** The worker edits files in Claude's cwd; Claude reviews
   via `git diff` + `Read`, runs verification, commits. One writer per cwd
   (ADR 0002:45). Isolated worktrees only if parallel workers are wanted later.
+  Contract superseded by ADR 0004: same disjoint-file-set rule; worktrees remain
+  available (opt-in) but are not required.
 - **Fresh session.** `pi -p --no-session` — a completely fresh, ephemeral
   process per call. This is the pattern that works: dispatch → result back.
 - **Synchronous by default,** `--async` opt-in. Both run over the proven
@@ -67,10 +69,10 @@ Four of Fusion's roles; `scout` dropped (Claude keeps Grep/Glob, so a discovery
 role would duplicate the brain's own eyes).
 
 | Role | Model (from `agentOverrides`) | Why delegated |
-|---|---|---|
+| --- | --- | --- |
 | **worker** | `minimax/MiniMax-M3` | the only writer; blocked on Claude, so it *must* be delegated |
 | **reviewer** | `openai-codex/gpt-5.6-sol` | fresh-context risk review; the pattern that works best |
-| **planner** | `cliproxy/claude-opus-5` | fresh-context planning for complex multi-file work |
+| **planner** | `cliproxy/claude-opus-4-8` | fresh-context planning for complex multi-file work |
 | **researcher** | `openai-codex/gpt-5.6-terra` | current external facts; needs web tools loaded (not a lean launch) |
 
 **Sourcing rule (correctness-critical):** the wrapper takes **model + tools

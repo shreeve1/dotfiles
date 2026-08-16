@@ -1016,10 +1016,10 @@ export const FUSION_GUIDANCE_BODY = [
 	"",
 	"- scout: pre-work code discovery. Read-only.",
 	"- researcher: current external facts. Read-only.",
-	"- worker: the single writer in a cwd. Receives Objective / Files / Interfaces / Constraints / Verification.",
-	"- reviewer: independent risk review. Fresh context, never the worker that wrote the code.",
+	"- worker: one writer per file set; concurrent workers in one cwd must be handed disjoint file sets (the delegation Files field is the declaration). Receives Objective / Files / Interfaces / Constraints / Verification.",
+	"- reviewer: independent risk review. Fresh context, never the worker that wrote the code. Reviewers always review a completed diff, scoped to the target worker's file set; never review the whole tree while another worker is in flight.",
 	"  Has read + bash for VERIFICATION ONLY (tests, git diff, typecheck, git apply --check).",
-	"  Must not write or edit; the worker remains the single writer in a cwd.",
+	"  Must not write or edit; the worker remains the single writer for its file set.",
 	"  RUN A REVIEWER BEFORE COMMITTING when a change touches any of: security, auth,",
 	"  trust or privilege boundaries, data loss, migrations, public APIs, or removes/weakens",
 	"  an existing safety check. This is the default, not a suggestion. To skip it, state the",
@@ -1050,7 +1050,8 @@ export const FUSION_GUIDANCE_BODY = [
 	"2. Second miss: parent supplies the exact verbatim patch; worker applies it.",
 	"3. Dictated patch still fails: stop retrying and revise the parent's plan.",
 	"",
-	"One writer per cwd. Parallel writers require isolated git worktrees.",
+	"Multi-scout: batch multiple scouts into one parallel tasks:[...] call when they're known upfront; separate concurrent calls are fine when discovered sequentially.",
+	"Post-fanout verification: after any multi-worker fanout, run git status --porcelain + git diff --stat HEAD; every changed file must belong to exactly one worker's declared set; any unclaimed or doubly-claimed file → stop, no commit.",
 ].join("\n");
 export const FUSION_GUIDANCE_FULL = `${FUSION_GUIDANCE_HEADER}\n${FUSION_GUIDANCE_BODY}\n`;
 
