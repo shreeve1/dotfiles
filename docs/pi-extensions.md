@@ -17,11 +17,23 @@ requirements" carries the short must-not-break rules and points here.
   a fresh child `pi` process (real isolation, per-role model) and provides the
   `subagent`, `subagent_wait`, and `subagent_supervisor` tools. It ships builtin
   agents (worker, reviewer, scout, researcher, planner, oracle, context-builder,
-  delegate) — `.pi/agent/agents/` is intentionally empty (custom agent files
+  delegate) - `.pi/agent/agents/` is intentionally empty (custom agent files
   there would shadow builtins by name). Per-role models are set in
   `.pi/agent/settings.json` `subagents.agentOverrides` (worker →
   `minimax/MiniMax-M3`, reviewer → `deepseek/deepseek-v4-flash`), NOT in agent
   frontmatter — a frontmatter `model:` pin silently shadows settings overrides.
+  Vendored at version 0.35.1 (the package `CHANGELOG.md` is the only version
+  marker — the vendored `package.json` version field does NOT change on
+  re-vendor). Local deviation per ADR 0004: the
+  `executeWithSingleDispatchGuard` wrapper in
+  `src/runs/foreground/subagent-executor.ts` is removed and the
+  `subagentInProgress` state field plus its initializers are deleted, so
+  multiple concurrent foreground subagent calls are dispatched (not
+  rejected). A future upstream re-vendor MUST re-apply this guard
+  removal — delete the wrapper, `duplicateSubagentCallResult`,
+  `inferExecutionMode`, and `SubagentState.subagentInProgress` against
+  the current fork before committing the new upstream copy, otherwise
+  the single-call-per-turn rejection returns.
   Auth split: minimax uses env `MINIMAX_API_KEY` (portable); deepseek uses
   `~/.pi/agent/auth.json` (dir-bound). Vendored deps (`jiti`, `yaml`) install via
   `bash install.sh`. Do not `pi install npm:pi-subagents`; use the repo copy.
@@ -107,13 +119,12 @@ requirements" carries the short must-not-break rules and points here.
 - `graphify` (codebase knowledge-graph tool, `github.com/Graphify-Labs/graphify`)
   is split between a synced skill and a machine-local CLI. Surfaces:
   - Skill: vendored (not `graphify install`-generated per machine) at
-      `.claude/skills/graphify/` (synced → Claude Code + OpenCode) and
-      `.pi/agent/skills/graphify/` (synced → Pi). Both parent dirs are already
-      symlinked by `install.sh`, so the skill needs no extra link. Refresh the
-      vendored copy after a CLI upgrade by re-running `graphify install` /
-      `graphify install --platform pi` into a throwaway `HOME` and copying the
-      generated `graphify/` dir back over the two vendored locations (avoids the
-      installer editing your real `~/.claude/CLAUDE.md`).
+      `.claude/skills/graphify/` (synced → Claude Code + OpenCode). The parent
+      dir is already symlinked by `install.sh`, so the skill needs no extra
+      link. Refresh the vendored copy after a CLI upgrade by re-running
+      `graphify install` into a throwaway `HOME` and copying the generated
+      `graphify/` dir back over the vendored location (avoids the installer
+      editing your real `~/.claude/CLAUDE.md`).
   - CLI: machine-local, NOT synced. Install with `uv tool install graphifyy`
       (PyPI package is `graphifyy` double-y; command stays `graphify`). Lands in
       `~/.local/bin`, already on PATH via the shell rc files.

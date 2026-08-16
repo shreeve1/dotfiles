@@ -64,7 +64,7 @@
         ]
       },
       "planner": {
-        "model": "cliproxy/claude-opus-5",
+        "model": "cliproxy/claude-opus-4-8",
         "thinking": "high"
       }
     }
