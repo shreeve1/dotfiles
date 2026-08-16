@@ -131,7 +131,7 @@ npm:pi-subagents`; use the repo copy so it syncs.
 
 ## Notes
 
-- graphify (codebase knowledge graph): the skill is synced (`~/.claude/skills/graphify`, `~/.pi/agent/skills/graphify`); the CLI is machine-local (`uv tool install graphifyy`). The synced global git hook `~/.config/git/hooks/post-commit` runs `graphify update .` in the background after each commit, but **only** in repos that already have a `graphify-out/` graph and only when the CLI is on PATH — it is a silent no-op everywhere else. Set up a project's graph once with `/graphify .` in your assistant. Verify wiring with `git config --global core.hooksPath` and `command -v graphify`.
+- graphify (codebase knowledge graph): the skill is synced (`~/.claude/skills/graphify`); the CLI is machine-local (`uv tool install graphifyy`). The synced global git hook `~/.config/git/hooks/post-commit` runs `graphify update .` in the background after each commit, but **only** in repos that already have a `graphify-out/` graph and only when the CLI is on PATH — it is a silent no-op everywhere else. Set up a project's graph once with `/graphify .` in your assistant. Verify wiring with `git config --global core.hooksPath` and `command -v graphify`.
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
 
