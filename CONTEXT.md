@@ -109,7 +109,7 @@ PreToolUse hook denial (Claude has no Pi-style `setActiveTools`). See
   synchronous by default (`--async` opt-in) over the `setsid`-detach engine
   (`.claude/skills/_shared/pi-reviewer-engine.md`).
 - **Roles**: `worker` (minimax, only writer), `reviewer` (gpt-5.6-sol),
-  `planner` (claude-opus-5), `researcher` (gpt-5.6-terra). `scout` dropped —
+  `planner` (claude-opus-4-8), `researcher` (gpt-5.6-terra). `scout` dropped —
   Claude keeps its own discovery. **Model + tools come from
   `settings.json` `agentOverrides`; persona body from
   `pi-subagents/agents/<role>.md` — never the persona `tools:` frontmatter**
