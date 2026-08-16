@@ -1001,7 +1001,6 @@ export interface ForegroundResumeRun {
 export interface SubagentState {
 	baseCwd: string;
 	currentSessionId: string | null;
-	subagentInProgress?: boolean;
 	subagentSpawns?: {
 		sessionId: string | null;
 		count: number;
