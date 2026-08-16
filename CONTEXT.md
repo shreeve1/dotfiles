@@ -60,8 +60,9 @@ machine-global config (`$XDG_CONFIG_HOME/fusion/config.json`,
 
 - `scout` — fast pre-work code discovery (read-only).
 - `researcher` — current external facts (web; read-only).
-- `worker` — the single writer in a cwd; receives
-  Objective / Files / Interfaces / Constraints / Verification.
+- `worker` — one writer per file set; concurrent workers get disjoint
+  file sets; receives Objective / Files / Interfaces / Constraints /
+  Verification.
 - `reviewer` — risk-based review only (security, auth, migrations,
   public APIs, data loss, substantial multi-file logic); no Bash.
 
@@ -70,6 +71,7 @@ machine-global config (`$XDG_CONFIG_HOME/fusion/config.json`,
 `subagent_supervisor`, `todo`, `advisor` (exception only).
 
 **Worker delegation contract** (every worker delegation carries all five):
+
 1. **Objective** — one sentence; what success looks like.
 2. **Files** — exact paths the worker may read and may write.
 3. **Interfaces** — schemas, types, function signatures.
@@ -77,6 +79,7 @@ machine-global config (`$XDG_CONFIG_HOME/fusion/config.json`,
 5. **Verification** — the deterministic check the parent will run after.
 
 **Retry ladder** (no blind loops, no model switching inside a task):
+
 1. First miss → `resume` the same persisted worker session with precise correction.
 2. Second miss → parent supplies the exact verbatim patch; worker applies it.
 3. Dictated patch still fails → stop retrying and revise the parent's plan.
