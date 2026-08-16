@@ -290,7 +290,7 @@ link_path ".pi/README.md" ".pi/README.md"
 # agents ship inside the extension; .pi/agent/agents/ is intentionally empty.
 _pi_subagents_ok=1
 [ -f "$HOME/.pi/agent/extensions/pi-subagents/package.json" ] || _pi_subagents_ok=0
-grep -Fq '## Delegate Non-Trivial Work' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
+grep -Fq '## Delegation guidance is mode-aware' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
 for _pi_settings in "$HOME/.pi/agent/settings.json" "$HOME/.pi/agent/settings.json.template"; do
   grep -Fq '"extensions/pi-subagents"' "$_pi_settings" 2>/dev/null || _pi_subagents_ok=0
 done
