@@ -35,22 +35,22 @@ set -euo pipefail
 
 manifest=${1:?manifest required}
 state_dir=${2:?state-dir required}
-# Harness-relative default: works identically from .claude/skills and .pi/agent/skills.
+# Harness-relative default: works identically from .claude/skills.
 # HERDR_ORCH_SCRIPT is canonical; V2_SCRIPT is a deprecated fallback.
 skills_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 v2=${HERDR_ORCH_SCRIPT:-${V2_SCRIPT:-"$skills_dir/herdr-orchestration/scripts/herdr-orchestration.sh"}}
 
 [[ "${HERDR_ENV:-}" == "1" ]] || {
-	echo "FATAL: HERDR_ENV != 1 (run inside a herdr session)" >&2
-	exit 2
+  echo "FATAL: HERDR_ENV != 1 (run inside a herdr session)" >&2
+  exit 2
 }
 [[ -f "$v2" ]] || {
-	echo "FATAL: herdr-orchestration.sh not found: $v2 (set HERDR_ORCH_SCRIPT)" >&2
-	exit 2
+  echo "FATAL: herdr-orchestration.sh not found: $v2 (set HERDR_ORCH_SCRIPT)" >&2
+  exit 2
 }
 [[ -f "$manifest" ]] || {
-	echo "FATAL: manifest not found: $manifest" >&2
-	exit 2
+  echo "FATAL: manifest not found: $manifest" >&2
+  exit 2
 }
 mkdir -p "$state_dir"
 
@@ -59,23 +59,23 @@ mkdir -p "$state_dir"
 declare -A pid_issue=()
 pids=()
 while IFS=$'\t' read -r issue worktree worker_task reviewer_task || [[ -n "${issue:-}" ]]; do
-	[[ -z "${issue:-}" || "$issue" == \#* ]] && continue
-	if [[ -z "${worktree:-}" || -z "${worker_task:-}" || -z "${reviewer_task:-}" ]]; then
-		echo "SKIP malformed manifest line: $issue" >&2
-		continue
-	fi
-	(
-		bash "$v2" "$worktree" "$worker_task" "$reviewer_task" \
-			>"$state_dir/$issue.result" 2>&1
-	) &
-	pids+=("$!")
-	pid_issue[$!]="$issue"
+  [[ -z "${issue:-}" || "$issue" == \#* ]] && continue
+  if [[ -z "${worktree:-}" || -z "${worker_task:-}" || -z "${reviewer_task:-}" ]]; then
+    echo "SKIP malformed manifest line: $issue" >&2
+    continue
+  fi
+  (
+    bash "$v2" "$worktree" "$worker_task" "$reviewer_task" \
+      >"$state_dir/$issue.result" 2>&1
+  ) &
+  pids+=("$!")
+  pid_issue[$!]="$issue"
 done <"$manifest"
 
 # Nothing to do this wave.
 if [[ ${#pids[@]} -eq 0 ]]; then
-	echo "WAVE: empty (no eligible issues)"
-	exit 0
+  echo "WAVE: empty (no eligible issues)"
+  exit 0
 fi
 
 echo "WAVE: launched ${#pids[@]} issue(s); waiting..."
@@ -83,17 +83,17 @@ echo "WAVE: launched ${#pids[@]} issue(s); waiting..."
 # Reap each pid explicitly (portable; no `wait -n -p`). Report verdict per issue.
 fail=0
 for pid in "${pids[@]}"; do
-	issue=${pid_issue[$pid]}
-	if wait "$pid"; then
-		status=ok
-	else
-		rc=$?
-		status="CRASH(rc=$rc)"
-		fail=1
-	fi
-	verdict=$(grep -oE 'VERDICT: *(LGTM|BLOCKING|STUCK|NONE)' "$state_dir/$issue.result" 2>/dev/null | tail -1 || true)
-	printf 'ISSUE %s\t%s\t%s\n' "$issue" "$status" "${verdict:-(no verdict)}"
-	printf '  result: %s/%s.result\n' "$state_dir" "$issue"
+  issue=${pid_issue[$pid]}
+  if wait "$pid"; then
+    status=ok
+  else
+    rc=$?
+    status="CRASH(rc=$rc)"
+    fail=1
+  fi
+  verdict=$(grep -oE 'VERDICT: *(LGTM|BLOCKING|STUCK|NONE)' "$state_dir/$issue.result" 2>/dev/null | tail -1 || true)
+  printf 'ISSUE %s\t%s\t%s\n' "$issue" "$status" "${verdict:-(no verdict)}"
+  printf '  result: %s/%s.result\n' "$state_dir" "$issue"
 done
 
 exit "$fail"

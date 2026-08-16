@@ -216,7 +216,6 @@ export default function registerSubagentExtension(pi: ExtensionAPI): void {
 	const state: SubagentState = {
 		baseCwd: "",
 		currentSessionId: null,
-		subagentInProgress: false,
 		subagentSpawns: {
 			sessionId: null,
 			count: 0,

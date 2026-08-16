@@ -241,8 +241,7 @@ link_path "bin/herdr-fork" ".local/bin/herdr-fork"
 
 # ─── graphify (knowledge-graph skill + global commit hook) ─
 # graphify is the codebase knowledge-graph tool. The skill is synced with the
-# other skills (~/.claude/skills/graphify, ~/.pi/agent/skills/graphify — both
-# under dirs already linked below). The graphify CLI itself is machine-local
+# other skills (~/.claude/skills/graphify). The graphify CLI itself is machine-local
 # (install with: uv tool install graphifyy) and must be on PATH via ~/.local/bin.
 #
 # The synced global git hook (~/.config/git/hooks/post-commit) auto-refreshes

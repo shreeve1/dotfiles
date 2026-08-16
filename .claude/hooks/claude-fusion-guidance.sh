@@ -23,7 +23,7 @@ Delegate ALL mutation and grind via the `pi-delegate` wrapper (allowlisted Bash)
 Roles (fresh flat `pi -p`, cheap non-Anthropic models, model+tools from settings):
   worker     — the ONLY writer; makes the edits.        (minimax/MiniMax-M3)
   reviewer   — fresh-context risk review (read-only).   (openai-codex/gpt-5.6-sol)
-  planner    — fresh-context multi-file planning.       (cliproxy/claude-opus-5)
+  planner    — fresh-context multi-file planning.       (cliproxy/claude-opus-4-8)
   researcher — current external facts (web tools).      (openai-codex/gpt-5.6-terra)
 
 Every worker delegation carries all five fields:

@@ -469,8 +469,7 @@ function withSpawnBudgetStatus(
 }
 
 function hasActiveSubagentChildren(state: SubagentState): boolean {
-	if (state.subagentInProgress || state.foregroundControls.size > 0)
-		return true;
+	if (state.foregroundControls.size > 0) return true;
 	const isActive = (status: string) =>
 		status === "queued" || status === "running";
 	return [
@@ -4879,27 +4878,6 @@ async function runSinglePath(
 	};
 }
 
-function inferExecutionMode(params: SubagentParamsLike): SubagentRunMode {
-	if ((params.chain?.length ?? 0) > 0) return "chain";
-	if ((params.tasks?.length ?? 0) > 0) return "parallel";
-	return "single";
-}
-
-function duplicateSubagentCallResult(
-	params: SubagentParamsLike,
-): AgentToolResult<Details> {
-	return {
-		content: [
-			{
-				type: "text",
-				text: "Rejected: a subagent call is already in progress. Issue exactly ONE subagent call per turn.",
-			},
-		],
-		isError: true,
-		details: { mode: inferExecutionMode(params), results: [] },
-	};
-}
-
 function omitExecutionModeActionAlias(
 	params: SubagentParamsLike,
 ): SubagentParamsLike {
@@ -6077,36 +6055,5 @@ export function createSubagentExecutor(deps: ExecutorDeps): {
 		);
 	};
 
-	const executeWithSingleDispatchGuard = async (
-		id: string,
-		params: SubagentParamsLike,
-		signal: AbortSignal,
-		onUpdate: ((r: AgentToolResult<Details>) => void) | undefined,
-		ctx: ExtensionContext,
-	): Promise<AgentToolResult<Details>> => {
-		const requestParams = omitExecutionModeActionAlias(params);
-		if (requestParams.action)
-			return execute(id, requestParams, signal, onUpdate, ctx);
-		const { depth } = checkSubagentDepth(deps.config.maxSubagentDepth);
-		const dispatchParams = applyForceTopLevelAsyncOverride(
-			requestParams,
-			depth,
-			deps.config.forceTopLevelAsync === true,
-		);
-		const runsForeground =
-			dispatchParams.clarify === true ||
-			(dispatchParams.async ?? deps.asyncByDefault) !== true;
-		if (!runsForeground)
-			return execute(id, requestParams, signal, onUpdate, ctx);
-		if (deps.state.subagentInProgress === true)
-			return duplicateSubagentCallResult(requestParams);
-		deps.state.subagentInProgress = true;
-		try {
-			return await execute(id, requestParams, signal, onUpdate, ctx);
-		} finally {
-			deps.state.subagentInProgress = false;
-		}
-	};
-
-	return { execute: executeWithSingleDispatchGuard };
+	return { execute };
 }

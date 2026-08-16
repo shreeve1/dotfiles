@@ -40,7 +40,7 @@ Model/tool overrides for subagents live in `settings.json`
 
 - `scout` — fast read-only codebase recon.
 - `researcher` — web/docs research with sources.
-- `worker` — single writer in a cwd.
+- `worker` — one writer per file set (concurrent workers get disjoint file sets).
 - `reviewer` — risk-based code review (security, auth, migrations,
   public APIs, data loss, substantial multi-file logic).
 - `planner` — delegate before the worker when a change spans multiple

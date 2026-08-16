@@ -38,11 +38,12 @@ entry before global config is consulted.
 | **parent** | intent, architecture, task decomposition, diff review, deterministic verification, retry ladder | grep/find/ls/discovery delegations to self; broad read-side exploration beyond the changed files; editing/deleting files; web search |
 | **scout** | pre-work code discovery (files, entry points, constraints) | file mutations; web research |
 | **researcher** | current external facts; primary sources only | file mutations; agent definitions |
-| **worker** | the single writer in a cwd | sub-delegation; tasks broader than the spec; writing uncommitted code outside the request |
+| **worker** | one writer per file set (disjoint sets for concurrent workers) | sub-delegation; tasks broader than the spec; writing uncommitted code outside the request |
 | **reviewer** | risk-based review (security, auth, migrations, public APIs, data loss, substantial logic) | file mutations; bash; agent definitions |
 | **planner** | default before the worker for multi-file, interface/contract/schema, migration, cross-system, or non-trivial-to-sequence changes; writes `plan.md` as the worker's spec | file mutations; bash; being skipped for non-trivial work without stating why |
 
 One writer per cwd. Parallel writers require isolated git worktrees.
+Superseded by ADR 0004 (concurrent subagents with disjoint file sets).
 
 ## Mechanical enforcement (no polite asks)
 

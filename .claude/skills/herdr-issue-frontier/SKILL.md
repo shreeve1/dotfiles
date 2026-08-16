@@ -400,8 +400,6 @@ VERDICT: BLOCKING
 
 ```bash
 bash -n "$SKILL_DIR/scripts/wave.sh"                      # syntax
-diff "$CLAUDE_SKILL/SKILL.md" "$PI_SKILL/SKILL.md"        # byte-identical mirror
-diff "$CLAUDE_SKILL/scripts/wave.sh" "$PI_SKILL/scripts/wave.sh"
 ```
 
 Smoke the launcher without burning real model calls: hand it a manifest pointing
