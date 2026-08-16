@@ -12,8 +12,8 @@ tears down on LGTM. The orchestrator and the human can both watch the panes
 live; from a phone, attach via `herdr remote` to steer mid-flight.
 
 The script that does the work lives at `{skill-root}/scripts/herdr-orchestration.sh`
-(installed to `~/.claude/skills/herdr-orchestration/scripts/` and
-`~/.pi/agent/skills/herdr-orchestration/scripts/` via install.sh's whole-dir sync).
+(installed to `~/.claude/skills/herdr-orchestration/scripts/`
+via install.sh's whole-dir sync).
 This skill documents the protocol so other skills can compose with it.
 
 ## When to reach for this
@@ -37,8 +37,7 @@ screen.
 - `pi` 0.80.6+ on PATH
 - `jq` on PATH
 - The script is installed by `install.sh` at
-  `~/.claude/skills/herdr-orchestration/scripts/herdr-orchestration.sh` (Claude) and
-  `~/.pi/agent/skills/herdr-orchestration/scripts/herdr-orchestration.sh` (Pi). It is also
+  `~/.claude/skills/herdr-orchestration/scripts/herdr-orchestration.sh`. It is also
   synced to other machines — no per-machine setup beyond `bash install.sh`.
 
 ## The protocol
@@ -125,7 +124,7 @@ bash ~/.claude/skills/herdr-orchestration/scripts/herdr-orchestration.sh \
 
 Concrete copy-pasteable paths (Pi):
 ```
-bash ~/.pi/agent/skills/herdr-orchestration/scripts/herdr-orchestration.sh \
+bash ~/.claude/skills/herdr-orchestration/scripts/herdr-orchestration.sh \
   /tmp/v2-demo \
   /tmp/v2-demo/worker-task.md \
   /tmp/v2-demo/reviewer-task.md
@@ -265,13 +264,8 @@ exercise.
 ├── SKILL.md                 # this file
 └── scripts/
     └── herdr-orchestration.sh      # the orchestration primitive
-
-.pi/agent/skills/herdr-orchestration/   # mirrored for Pi
-├── SKILL.md
-└── scripts/
-    └── herdr-orchestration.sh
 ```
 
-Both copies are kept byte-identical. `install.sh` syncs the whole
-`.claude/skills/` and `.pi/agent/` directories to the user's home, so a fresh
-machine only needs `bash install.sh` to get the script and the skill.
+The skill and script live in `~/.claude/skills/herdr-orchestration/` and sync
+via `install.sh`, so a fresh machine only needs `bash install.sh` to get the
+script and the skill.

@@ -119,13 +119,12 @@ requirements" carries the short must-not-break rules and points here.
 - `graphify` (codebase knowledge-graph tool, `github.com/Graphify-Labs/graphify`)
   is split between a synced skill and a machine-local CLI. Surfaces:
   - Skill: vendored (not `graphify install`-generated per machine) at
-      `.claude/skills/graphify/` (synced → Claude Code + OpenCode) and
-      `.pi/agent/skills/graphify/` (synced → Pi). Both parent dirs are already
-      symlinked by `install.sh`, so the skill needs no extra link. Refresh the
-      vendored copy after a CLI upgrade by re-running `graphify install` /
-      `graphify install --platform pi` into a throwaway `HOME` and copying the
-      generated `graphify/` dir back over the two vendored locations (avoids the
-      installer editing your real `~/.claude/CLAUDE.md`).
+      `.claude/skills/graphify/` (synced → Claude Code + OpenCode). The parent
+      dir is already symlinked by `install.sh`, so the skill needs no extra
+      link. Refresh the vendored copy after a CLI upgrade by re-running
+      `graphify install` into a throwaway `HOME` and copying the generated
+      `graphify/` dir back over the vendored location (avoids the installer
+      editing your real `~/.claude/CLAUDE.md`).
   - CLI: machine-local, NOT synced. Install with `uv tool install graphifyy`
       (PyPI package is `graphifyy` double-y; command stays `graphify`). Lands in
       `~/.local/bin`, already on PATH via the shell rc files.
