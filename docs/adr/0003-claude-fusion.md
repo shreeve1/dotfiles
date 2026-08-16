@@ -72,7 +72,7 @@ role would duplicate the brain's own eyes).
 | --- | --- | --- |
 | **worker** | `minimax/MiniMax-M3` | the only writer; blocked on Claude, so it *must* be delegated |
 | **reviewer** | `openai-codex/gpt-5.6-sol` | fresh-context risk review; the pattern that works best |
-| **planner** | `cliproxy/claude-opus-5` | fresh-context planning for complex multi-file work |
+| **planner** | `cliproxy/claude-opus-4-8` | fresh-context planning for complex multi-file work |
 | **researcher** | `openai-codex/gpt-5.6-terra` | current external facts; needs web tools loaded (not a lean launch) |
 
 **Sourcing rule (correctness-critical):** the wrapper takes **model + tools
