@@ -8,7 +8,7 @@
 #   --sleep-interval N    Sleep N seconds between iterations (default: 3)
 #   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
 #   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
-#   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+#   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with its configured default model)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
@@ -33,7 +33,7 @@ CONTINUE_ON_ERROR=false
 SLEEP_INTERVAL=3
 READY_DELAY=1
 READY_TIMEOUT=60
-ITERATION_TIMEOUT=3600
+ITERATION_TIMEOUT=7200
 AGENT_CMD="${RALPH_AGENT_CMD:-}"
 AGENT_CMD_EXPLICIT=false
 AGENT_PROMPT_EXPLICIT=false
@@ -50,7 +50,11 @@ MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
-RALPH_MODEL="${RALPH_MODEL:-}"
+RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}"
+# Optional stronger model used ONLY for the per-issue independent review-on-DONE
+# (mode=review). The implementer and the BLOCKED-drain repair path (mode=repair)
+# keep using RALPH_MODEL. Unset => the reviewer inherits RALPH_MODEL.
+RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-deepseek/deepseek-v4-flash}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
@@ -69,7 +73,7 @@ OPTIONS:
   --sleep-interval N    Sleep N seconds between iterations (default: 3)
   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
-  --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 3600)
+  --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
   --agent-cmd CMD       Interactive agent command for tmux adapter (default: Pi with its configured default model)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
@@ -78,6 +82,7 @@ OPTIONS:
   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
+  --review-model ID     Model id for the per-issue review-on-DONE only (env RALPH_REVIEW_MODEL); implementer + repair keep RALPH_MODEL
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -120,7 +125,7 @@ while [[ $# -gt 0 ]]; do
 		shift 2
 		;;
 	--iteration-timeout)
-		ITERATION_TIMEOUT="${2:-3600}"
+		ITERATION_TIMEOUT="${2:-7200}"
 		shift 2
 		;;
 	--agent-cmd)
@@ -130,6 +135,14 @@ while [[ $# -gt 0 ]]; do
 		fi
 		AGENT_CMD="$2"
 		AGENT_CMD_EXPLICIT=true
+		shift 2
+		;;
+	--review-model)
+		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+			echo "❌ Error: --review-model requires a model id" >&2
+			exit 1
+		fi
+		RALPH_REVIEW_MODEL="$2"
 		shift 2
 		;;
 	--agent-prompt)
@@ -378,6 +391,9 @@ AUTO_REVIEW_BLOCKED="${19}"
 UNATTENDED="${20:-false}"
 MAX_ISSUE_FAILS="${21:-2}"
 REVIEW_EACH="${22:-true}"
+RALPH_REVIEW_MODEL="${23:-}"
+AGENT_CMD_EXPLICIT="${24:-false}"
+SKIP_BLOCKED="${25:-false}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -385,6 +401,13 @@ LOOP_EXIT_CODE=0
 mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
 : > "$LOG_FILE"
+
+# Review base state used by run_inline_review / prompt construction. Set per
+# iteration in the main loop, but the blocked-issue drain path calls
+# run_inline_review BEFORE the loop assigns them, so initialize here or `set -u`
+# aborts the whole (sole-session) driver and the tmux server vanishes.
+REVIEW_BASE_SHA=""
+BASE_REMINDER=""
 
 # Prompt framing used when an inline auto-review/repair worker is spawned for a
 # blocked issue. Mirrors the review-loop reminder built by the outer script.
@@ -639,7 +662,7 @@ run_pi_adapter() {
     cmd=(pi --no-session --skill "$SKILL_DIR" -p "$full_prompt")
   fi
   local rc=0
-  "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
+  PI_SUBAGENT_CHILD=1 "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
 
   if [[ $rc -eq 0 ]]; then
     if blocked_is_skippable "$output_file"; then
@@ -735,7 +758,21 @@ run_tmux_adapter() {
   fi
 
   echo "▶ Starting interactive agent session: $agent_session" | tee -a "$LOG_FILE"
-  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec $AGENT_CMD"
+  # Bound worker memory: launch the pane inside a transient systemd --user scope
+  # with a MemoryMax cap so a runaway child (e.g. a service the worker starts) is
+  # cgroup-OOM-killed inside its own scope instead of triggering a GLOBAL host OOM
+  # that kills unrelated services. The default tmux server env has
+  # DBUS_SESSION_BUS_ADDRESS=disabled: and no XDG_RUNTIME_DIR, so supply both. If a
+  # scope cannot be created (no working user bus), fall back to an uncapped launch
+  # (previous behavior) so workers never fail to start.
+  local mem_prefix="" xrd="/run/user/$(id -u)"
+  if command -v systemd-run >/dev/null 2>&1 && env XDG_RUNTIME_DIR="$xrd" DBUS_SESSION_BUS_ADDRESS="unix:path=$xrd/bus" systemd-run --user --scope --quiet -p MemoryMax=64M --description=ralph-memcap-probe true >/dev/null 2>&1; then
+    mem_prefix="env XDG_RUNTIME_DIR=$xrd DBUS_SESSION_BUS_ADDRESS=unix:path=$xrd/bus systemd-run --user --scope --quiet -p MemoryMax=8G -p MemorySwapMax=2G "
+    echo "🧠 Worker memory cap: MemoryMax=8G MemorySwapMax=2G (systemd --user scope)" | tee -a "$LOG_FILE"
+  else
+    echo "ℹ️  Worker memory cap unavailable (no working systemd --user scope); launching uncapped" | tee -a "$LOG_FILE"
+  fi
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec ${mem_prefix}env PI_SUBAGENT_CHILD=1 $AGENT_CMD"
   tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
   if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
@@ -755,7 +792,7 @@ run_tmux_adapter() {
 
   start=$(date +%s)
   last_vishash=""; idle_secs=0; stall_nudges=0
-  stall_after="${RALPH_STALL_NUDGE_SECONDS:-120}"   # idle seconds before nudging "continue"
+  stall_after="${RALPH_STALL_NUDGE_SECONDS:-300}"   # idle seconds before nudging "continue"; high enough that a slow reviewer (e.g. ~2 tok/s gpt-5.6-sol) streaming its critique is not mistaken for a stall
   max_nudges="${RALPH_MAX_STALL_NUDGES:-3}"          # give up after this many nudges
   while true; do
     now=$(date +%s)
@@ -927,6 +964,20 @@ extract_runnable_verification() {
   ' || return 0
 }
 
+# Set the frontmatter `status:` of an issue file to a new value (first status
+# line only). Mirrors the park-to-blocked rewrites. Callers persist the change
+# (run_inline_review commits it before returning). Idempotent if already at $2.
+set_issue_status() {
+  local file="$1" new="$2"
+  [[ -f "$file" ]] || return 1
+  # Require a real frontmatter status line (a known kanban value) before
+  # rewriting; return nonzero if absent so callers never log a state change
+  # that did not happen. `unless $seen++` rewrites only the first match, which
+  # is the frontmatter line since frontmatter leads the file.
+  grep -Eq '^status: (pending|in-progress|review|done|blocked|todo)\b' "$file" || return 1
+  perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
+}
+
 # Spawn a fresh actionable-review/repair worker against a single issue, then
 # return so the implement loop can continue. Never fatal: if the worker cannot
 # confirm the issue it stays blocked (parked) and the loop moves on.
@@ -966,6 +1017,28 @@ run_inline_review() {
   local saved_reminder="$SHARED_PROMPT_REMINDER"
   local saved_base="$REVIEW_BASE_SHA"
   local saved_base_reminder="$BASE_REMINDER"
+  local saved_agent_cmd="$AGENT_CMD"
+  local saved_ralph_model="$RALPH_MODEL"
+
+  # Per-issue review-on-DONE (mode=review) may run on a stronger reviewer model.
+  # The implementer and the BLOCKED-drain repair path keep RALPH_MODEL. Respect
+  # an explicit --agent-cmd / RALPH_AGENT_CMD (do not clobber a user command).
+  if [[ "$mode" == "review" && -n "$RALPH_REVIEW_MODEL" ]]; then
+    if [[ "$ADAPTER" == "tmux" && ( "$AGENT_CMD_EXPLICIT" == "true" || -n "${RALPH_AGENT_CMD:-}" ) ]]; then
+      # An explicit agent command controls the tmux model; the swap would be
+      # inert, so leave everything on the implementer command and say so.
+      echo "ℹ️  Review model $RALPH_REVIEW_MODEL ignored: explicit --agent-cmd/RALPH_AGENT_CMD controls the model" | tee -a "$LOG_FILE"
+    else
+      RALPH_MODEL="$RALPH_REVIEW_MODEL"
+      if [[ "$ADAPTER" == "tmux" ]]; then
+        local rm_skill_q rm_model_q
+        printf -v rm_skill_q '%q' "$SKILL_DIR"
+        printf -v rm_model_q '%q' "$RALPH_REVIEW_MODEL"
+        AGENT_CMD="pi --model $rm_model_q --skill $rm_skill_q"
+      fi
+      echo "🧠 Review model: $RALPH_REVIEW_MODEL (implementer/repair stay on ${saved_ralph_model:-pi default})" | tee -a "$LOG_FILE"
+    fi
+  fi
 
   REVIEW_BASE_SHA=""
   BASE_REMINDER=""
@@ -1002,30 +1075,51 @@ run_inline_review() {
     if [[ -n "$verify_cmd" ]]; then
       echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
       if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
+        set_issue_status "$target_file" done
         echo "✅ Inline review $done_verb issue #$target_id (verification passed)" | tee -a "$LOG_FILE"
       else
         echo "❌ Verification FAILED after review for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
-        if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
-          perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+        if [[ -f "$target_file" ]]; then
+          set_issue_status "$target_file" blocked
           printf '\n## Blocker\n\nReview reported DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
         fi
       fi
     else
+      # Repair mode (BLOCKED-drain) stays worker-authoritative for status: only
+      # the review-each (mode==review) path makes the driver author the terminal
+      # `done`. A prose-verification review issue has no runnable verify_cmd and
+      # lands here too, so it must still be finalized to done.
+      if [[ "$mode" == "review" ]]; then
+        set_issue_status "$target_file" done
+      fi
       echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
     fi
   elif [[ "$mode" == "review" ]]; then
     # DONE-path review did not confirm (timeout / BLOCKED / FAIL). Genuinely park
     # the issue instead of silently leaving it done, so completion is never
     # trusted on an unconfirmed review. The next scan / blocked-drain picks it up.
-    if [[ -f "$target_file" ]] && grep -q '^status: done$' "$target_file"; then
-      perl -0pi -e 's/^status: done$/status: blocked/m' "$target_file"
+    if [[ -f "$target_file" ]]; then
+      set_issue_status "$target_file" blocked
       printf '\n## Blocker\n\nAuto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff %s HEAD` before marking done.\n' "$REVIEW_BASE_SHA" >> "$target_file"
-      echo "↪️  Inline review did not confirm #$target_id; parked done→blocked for review" | tee -a "$LOG_FILE"
+      echo "↪️  Inline review did not confirm #$target_id; parked review→blocked for review" | tee -a "$LOG_FILE"
     else
-      echo "↪️  Inline review did not confirm #$target_id; not in done state, left as-is" | tee -a "$LOG_FILE"
+      echo "↪️  Inline review did not confirm #$target_id; issue file missing, left as-is" | tee -a "$LOG_FILE"
     fi
   else
     echo "↪️  Inline review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
+  fi
+
+  # Persist any driver-authored terminal status immediately. The pre-worker
+  # checkpoint only runs at the TOP of the next iteration, so on the final
+  # issue (loop then breaks on NO_WORK) the status would otherwise stay
+  # uncommitted and be invisible to the worktree-merge finalizer. Stage only
+  # the issue file (SKILL.md convention); ignore failures (e.g. not a git repo
+  # or nothing staged).
+  if [[ -f "$target_file" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+    if ! git diff --quiet -- "$target_file" 2>/dev/null; then
+      git add -- "$target_file" 2>/dev/null \
+        && git commit -m "review(#$target_id): driver-authored status after inline review" 2>&1 | tee -a "$LOG_FILE" || true
+    fi
   fi
 
   rm -f "$review_out"
@@ -1034,6 +1128,8 @@ run_inline_review() {
   SHARED_PROMPT_REMINDER="$saved_reminder"
   REVIEW_BASE_SHA="$saved_base"
   BASE_REMINDER="$saved_base_reminder"
+  AGENT_CMD="$saved_agent_cmd"
+  RALPH_MODEL="$saved_ralph_model"
   return 0
 }
 
@@ -1113,12 +1209,12 @@ normalize_todo_status() {
   local f changed=false
   for f in .kanban/issues/*.md; do
     [[ -f "$f" ]] || continue
-    if grep -q "^status: todo$" "$f"; then
-      perl -0pi -e 's/^status: todo$/status: pending/m' "$f"
+    if grep -q "^status: \(todo\|open\)$" "$f"; then
+      perl -0pi -e 's/^status: (todo|open)$/status: pending/m' "$f"
       changed=true
     fi
   done
-  [[ "$changed" == "true" ]] && echo "🔄 Normalized 'status: todo' -> 'status: pending'" | tee -a "$LOG_FILE"
+  [[ "$changed" == "true" ]] && echo "🔄 Normalized 'status: todo|open' -> 'status: pending'" | tee -a "$LOG_FILE"
   return 0
 }
 
@@ -1442,7 +1538,8 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
 	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
 	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
 	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH"; do
+	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
+	"$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED"; do
 	printf -v arg_q '%q' "$arg"
 	INNER_ARGS+=("$arg_q")
 done
