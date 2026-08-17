@@ -35,7 +35,7 @@
  * Env:
  *   PI_GAP_REVIEW=0          disable BOTH flavors (default: on)
  *   PI_GAP_MODEL             completeness reviewer model  (default deepseek/deepseek-v4-flash)
- *   PI_GAP_GROUNDING_MODEL   grounding reviewer model    (default deepseek/deepseek-v4-pro)
+ *   PI_GAP_GROUNDING_MODEL   grounding reviewer model    (default deepseek/deepseek-v4-flash)
  *   PI_GAP_GROUNDING=0       disable grounding flavor only (default: on)
  *   PI_GAP_THINKING          reviewer thinking           (default low; shared by both flavors)
  *   PI_GAP_MIN_CHARS         min answer chars            (default 200)
@@ -64,7 +64,7 @@ import {
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
-const DEFAULT_GROUNDING_MODEL = "deepseek/deepseek-v4-pro";
+const DEFAULT_GROUNDING_MODEL = "deepseek/deepseek-v4-flash";
 const DEFAULT_THINKING = "low";
 const DEFAULT_GROUNDING_THINKING = DEFAULT_THINKING; // reuse "low"; no new env
 const DEFAULT_MIN_CHARS = 200;
@@ -127,11 +127,9 @@ const SIG_IGNORED_NAMES = new Set([".pi-subagents", "tmp", "node_modules"]);
 export function computeRepoChangeSignature(cwd) {
 	const gitRoot = (() => {
 		try {
-			const out = spawnSync(
-				"git",
-				["-C", cwd, "rev-parse", "--show-toplevel"],
-				{ encoding: "utf8" },
-			);
+			const out = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+				encoding: "utf8",
+			});
 			return out.status === 0 ? out.stdout.trim() : undefined;
 		} catch {
 			return undefined;
@@ -142,14 +140,7 @@ export function computeRepoChangeSignature(cwd) {
 		try {
 			const out = spawnSync(
 				"git",
-				[
-					"-C",
-					gitRoot,
-					"status",
-					"--porcelain=v1",
-					"-z",
-					"--untracked-files=all",
-				],
+				["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
 				{ encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
 			);
 			return out.status === 0 ? out.stdout : undefined;
@@ -430,24 +421,15 @@ export function prepareReview({
 	if (absFiles.length === 0 && cwd && !allowEmptyFiles) {
 		try {
 			const gitRoot = (() => {
-				const o = spawnSync(
-					"git",
-					["-C", cwd, "rev-parse", "--show-toplevel"],
-					{ encoding: "utf8" },
-				);
+				const o = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+					encoding: "utf8",
+				});
 				return o.status === 0 ? o.stdout.trim() : undefined;
 			})();
 			if (gitRoot) {
 				const o = spawnSync(
 					"git",
-					[
-						"-C",
-						gitRoot,
-						"status",
-						"--porcelain=v1",
-						"-z",
-						"--untracked-files=all",
-					],
+					["-C", gitRoot, "status", "--porcelain=v1", "-z", "--untracked-files=all"],
 					{ encoding: "utf8" },
 				);
 				if (o.status === 0) {
@@ -483,10 +465,7 @@ export function prepareReview({
 		dir,
 		Number(procEnv.PI_GAP_RETAIN_DAYS || DEFAULT_RETAIN_DAYS),
 	);
-	reapStaleReviews(
-		dir,
-		Number(procEnv.PI_GAP_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
-	);
+	reapStaleReviews(dir, Number(procEnv.PI_GAP_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
 	if (pendingCount(dir) >= MAX_PENDING) return null;
 	// Base uniqueness across flavors: -c for completeness, -g for grounding.
 	// Two flavors firing in the same millisecond get distinct suffixed bases
@@ -663,9 +642,7 @@ export default function gapReviewExtension(pi) {
 		// read-only architecture analysis" without rerunning the whole turn.
 		if (request && request.trim() && answer.length >= minChars) {
 			const cwdAbs = ctx && ctx.cwd ? ctx.cwd : process.cwd();
-			const absFiles = files.map((f) =>
-				isAbsolute(f) ? f : resolve(cwdAbs, f),
-			);
+			const absFiles = files.map((f) => (isAbsolute(f) ? f : resolve(cwdAbs, f)));
 			lastCandidate = {
 				request: request,
 				answer,
@@ -768,8 +745,7 @@ export default function gapReviewExtension(pi) {
 				return;
 			}
 			spawnReviewFor(params);
-			if (ctx.hasUI)
-				ctx.ui.notify("gap-review: manual review launched", "info");
+			if (ctx.hasUI) ctx.ui.notify("gap-review: manual review launched", "info");
 		},
 	});
 }

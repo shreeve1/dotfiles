@@ -198,7 +198,7 @@ requirements" carries the short must-not-break rules and points here.
   produce both `…-c.*` and `…-g.*` artifacts. Per-flavor config: completeness
   uses `PI_GAP_MODEL` (default `deepseek/deepseek-v4-flash`) for an omission
   scan; grounding uses `PI_GAP_GROUNDING_MODEL` (default
-  `deepseek/deepseek-v4-pro`) for a claim-grounding scan, matching the
+  `deepseek/deepseek-v4-flash`) for a claim-grounding scan, matching the
   claim-verifier / grill-with-docs / verify-claims grounding checker. Both
   flavors share `PI_GAP_REVIEW` (master kill switch), `PI_GAP_THINKING`,
   reaper, prune, and the `MAX_PENDING=3` backpressure budget; grounding

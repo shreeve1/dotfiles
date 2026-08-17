@@ -37,7 +37,7 @@ node --check "$ext" || {
 	exit 1
 }
 for sym in isTerminal answerText extractFilePath pendingCount pruneOldReviews reapStaleReviews findProjectRoot reviewPrompt prepareReview computeRepoChangeSignature \
-	groundingPrompt PI_GAP_GROUNDING PI_GAP_GROUNDING_MODEL deepseek/deepseek-v4-pro 'GROUNDING:' \
+	groundingPrompt PI_GAP_GROUNDING PI_GAP_GROUNDING_MODEL 'GROUNDING:' \
 	'pi.on("turn_end"' 'pi.on("turn_start"' 'pi.on("tool_call"' 'pi.on("before_agent_start"' 'pi.registerCommand("gap-review"' \
 	'rm -f "$GR_IN"' '$GR_THINKING'; do
 	grep -qF "$sym" "$ext" || {
@@ -412,8 +412,8 @@ const longAns = "x".repeat(300);
 	check("base uniqueness: -c and -g bases are distinct",
 		cIns[0] !== gIns[0]);
 
-	// Per-flavor model: grounding uses deepseek-v4-pro, completeness uses
-	// deepseek-v4-flash (the engine passes the selected model via GR_MODEL).
+	// Per-flavor model: both grounding and completeness use deepseek-v4-flash
+	// (the engine passes the selected model via GR_MODEL).
 	const cText = readFileSync(join(reviewsDir, cIns[0]), "utf8");
 	const gText = readFileSync(join(reviewsDir, gIns[0]), "utf8");
 	// The prompt itself is the per-flavor payload; both reference the same
@@ -445,8 +445,8 @@ const longAns = "x".repeat(300);
 		kind: "completeness",
 		allowEmptyFiles: true,
 	});
-	check("base uniqueness: grounding passes GR_MODEL=deepseek/deepseek-v4-pro",
-		procs && procs.env.GR_MODEL === "deepseek/deepseek-v4-pro");
+	check("base uniqueness: grounding passes GR_MODEL=deepseek/deepseek-v4-flash",
+		procs && procs.env.GR_MODEL === "deepseek/deepseek-v4-flash");
 	check("base uniqueness: completeness passes GR_MODEL=deepseek/deepseek-v4-flash",
 		procc && procc.env.GR_MODEL === "deepseek/deepseek-v4-flash");
 }

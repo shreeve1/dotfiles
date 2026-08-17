@@ -45,7 +45,7 @@ Run from the repo root:
 ```bash
 pi -p --no-session --no-skills --no-context-files \
   --no-extensions --tools read,grep,find,ls \
-  --model deepseek/deepseek-v4-pro \
+  --model deepseek/deepseek-v4-flash \
   "You are fact-checking claims about THIS repository. For each claim, read the
    relevant files and reply on one line: VERIFIED | FALSE | UNSURE, then
    file:line evidence, then a one-line correction if FALSE. Do not speculate —
@@ -98,7 +98,7 @@ Notes:
 - `--no-session --no-context-files` keep the direct checker grounded only in
   the files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
   bias. The Fusion reviewer has no parent session either.
-- `deepseek/deepseek-v4-pro` is the fixed checker model on the direct route.
+- `deepseek/deepseek-v4-flash` is the fixed checker model on the direct route.
   It is independent of whatever model is driving the grill session. On the
   Fusion route the reviewer's model and thinking come from `settings.json` —
   pick the `reviewer` role precisely so you do not have to pin them here.
