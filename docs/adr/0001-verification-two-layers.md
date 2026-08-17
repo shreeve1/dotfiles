@@ -71,6 +71,18 @@ the durable artifact either way.
 - When a result feels wrong but pi-duo passed it, suspect a COMPLETENESS failure,
 not a grounding failure — reach for the completeness review, not a "stronger"
 grounding gate.
+- **Automatic grounding layer revived (gap-review grounding flavor).** pi-duo
+  (the in-band grounding gate) was removed. To keep a grounding layer running
+  automatically, gap-review gains a SECOND reviewer flavor that fires on every
+  substantive terminal turn — including the read-only analysis/design turns the
+  completeness flavor deliberately skips. This does NOT contradict the
+  "augment pi-duo's in-band verifier" option rejected above: that option was
+  rejected because pi-duo's verifier is tool-less and in-band, so it cannot
+  *discover* a claim's ground truth. The grounding flavor is a FRESH, TOOLED
+  `pi -p` subagent (read/grep/find/ls, `--no-extensions/--no-skills/
+  --no-session`) — exactly the tool-access + fresh-context levers the ADR calls
+  independently sufficient to surface these issues. Completeness and grounding
+  stay SEPARATE prompts, fire conditions, and artifacts; they are not collapsed.
 
 ## Evidence
 

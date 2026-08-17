@@ -33,12 +33,20 @@
  * the reviewer.
  *
  * Env:
- *   PI_GAP_REVIEW=0    disable (default: on)
- *   PI_GAP_MODEL        reviewer model        (default deepseek/deepseek-v4-flash)
- *   PI_GAP_THINKING     reviewer thinking     (default low)
- *   PI_GAP_MIN_CHARS    min answer chars      (default 200)
- *   PI_GAP_RETAIN_DAYS  prune age (days)      (default 14)
- *   PI_GAP_TIMEOUT_MS   stale-reviewer reap   (default 300000 = 5 min)
+ *   PI_GAP_REVIEW=0          disable BOTH flavors (default: on)
+ *   PI_GAP_MODEL             completeness reviewer model  (default deepseek/deepseek-v4-flash)
+ *   PI_GAP_GROUNDING_MODEL   grounding reviewer model    (default deepseek/deepseek-v4-pro)
+ *   PI_GAP_GROUNDING=0       disable grounding flavor only (default: on)
+ *   PI_GAP_THINKING          reviewer thinking           (default low; shared by both flavors)
+ *   PI_GAP_MIN_CHARS         min answer chars            (default 200)
+ *   PI_GAP_RETAIN_DAYS       prune age (days)            (default 14)
+ *   PI_GAP_TIMEOUT_MS        stale-reviewer reap         (default 300000 = 5 min)
+ *
+ * Two flavors share the engine (completeness + grounding):
+ *   - completeness — fires on repo mutation; finds material omissions (OMISSIONS:).
+ *   - grounding    — fires on every substantive terminal turn; grounds the answer's
+ *                    factual claims about the code (GROUNDING:). See
+ *                    docs/adr/0001-verification-two-layers.md for the two-layer split.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -56,7 +64,9 @@ import {
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+const DEFAULT_GROUNDING_MODEL = "deepseek/deepseek-v4-pro";
 const DEFAULT_THINKING = "low";
+const DEFAULT_GROUNDING_THINKING = DEFAULT_THINKING; // reuse "low"; no new env
 const DEFAULT_MIN_CHARS = 200;
 const DEFAULT_RETAIN_DAYS = 14;
 const DEFAULT_TIMEOUT_MS = 300000; // D4: reap a hung reviewer after 5 min
@@ -312,6 +322,59 @@ export function reviewPrompt(answer, files, request) {
 	].join("\n");
 }
 
+// Grounding prompt — same shape as reviewPrompt (request block + TOUCHED FILES
+// + FINAL ANSWER tail) so it slots into the same runner unchanged. The reviewer
+// reads the actual files and tags each claim extracted from the FINAL ANSWER
+// as Verified / Weakened / Falsified / Unsure. Used by the second flavor
+// (grounding) that fires on every substantive terminal turn regardless of
+// repo change. Distinct by design (per ADR 0001): completeness = omission
+// scan; grounding = claim-truth scan. Do NOT collapse.
+export function groundingPrompt(answer, files, request) {
+	const reqBlock =
+		request && request.trim()
+			? ["", "ORIGINAL REQUEST:", request.trim(), ""]
+			: [];
+	return [
+		"You are an adversarial grounding reviewer. Another agent produced the FINAL",
+		"ANSWER below about THIS repository. Your job is NOT to judge completeness or",
+		"style — it is to check whether the answer's factual claims about the code are",
+		"TRUE against the actual files on disk.",
+		"",
+		"Do this:",
+		"1. From the FINAL ANSWER text (and the TOUCHED / CITED FILES listed below),",
+		"   extract the concrete, checkable claims the answer makes about THIS",
+		"   repository — what a function does, where something is defined, how control",
+		"   flows, what a value is, whether a behavior exists. Ignore opinions, plans,",
+		"   and generic advice; extract only claims that can be checked by reading code.",
+		"2. For each claim, READ the cited or relevant files with read/grep/find/ls.",
+		"   Ground the claim in the actual source. Never trust the answer's paraphrase —",
+		"   the code is your only witness.",
+		"3. Tag each claim exactly one of:",
+		"   - Verified  — the code confirms the claim (or the claim is broader / worse",
+		"     than stated: say so and give the broader consequence).",
+		"   - Weakened  — same direction but narrower than stated (e.g. a guard the claim",
+		"     ignored).",
+		"   - Falsified — the code does the opposite, the cited quote/symbol is absent,",
+		"     or the claim's direction is wrong.",
+		"   - Unsure    — you could not find evidence either way. Do NOT speculate;",
+		"     prefer Unsure over guessing.",
+		"",
+		"Be adversarial and specific. Every row cites at least one file:line.",
+		"",
+		"FIRST LINE of your reply must be exactly one of:",
+		"  GROUNDING: <count> issues   (count = number of Weakened + Falsified claims)",
+		"  GROUNDING: clean            (no checkable claim found, or every claim Verified)",
+		"Then a blank line, then one row per claim:",
+		"  - <tag> | <file:line> | <claim> — <one-sentence justification>",
+		...reqBlock,
+		"TOUCHED / CITED FILES:",
+		...files.map((f) => "- " + f),
+		"",
+		"FINAL ANSWER (the agent's answer to check):",
+		answer,
+	].join("\n");
+}
+
 // Detached wrapper: runs the reviewer, captures stdout to the review file and
 // stderr to a temp; on non-zero exit OR empty output, overwrites the review file
 // with a visible ERROR line (so a failed reviewer is never silently reported as
@@ -346,6 +409,7 @@ export function prepareReview({
 	cwd,
 	env,
 	allowEmptyFiles = false,
+	kind = "completeness",
 }) {
 	const procEnv = env || process.env;
 	// D5: resolved against `cwd` (the actor's cwd at turn_end), not against
@@ -424,16 +488,30 @@ export function prepareReview({
 		Number(procEnv.PI_GAP_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
 	);
 	if (pendingCount(dir) >= MAX_PENDING) return null;
-	const base = join(dir, `${Date.now()}`);
+	// Base uniqueness across flavors: -c for completeness, -g for grounding.
+	// Two flavors firing in the same millisecond get distinct suffixed bases
+	// so the .done check downstream cannot collide. The runner, prune/reap/
+	// pendingCount all match on the suffixes BEFORE -c/-g, so adding the
+	// flavor suffix here is the only change needed for them to keep working.
+	const suffix = kind === "grounding" ? "g" : "c";
+	const base = join(dir, `${Date.now()}-${suffix}`);
 	if (existsSync(`${base}.done`) || existsSync(`${base}.notified`)) return null;
 	const inFile = `${base}.input.md`;
 	const outFile = `${base}.md`;
 	const errFile = `${base}.err`;
 	const doneFile = `${base}.done`;
-	writeFileSync(inFile, reviewPrompt(answer, absFiles, request));
+	const prompt =
+		kind === "grounding"
+			? groundingPrompt(answer, absFiles, request)
+			: reviewPrompt(answer, absFiles, request);
+	writeFileSync(inFile, prompt);
+	const model =
+		kind === "grounding"
+			? procEnv.PI_GAP_GROUNDING_MODEL || DEFAULT_GROUNDING_MODEL
+			: procEnv.PI_GAP_MODEL || DEFAULT_MODEL;
 	const reviewEnv = {
 		...procEnv,
-		GR_MODEL: procEnv.PI_GAP_MODEL || DEFAULT_MODEL,
+		GR_MODEL: model,
 		GR_THINKING: procEnv.PI_GAP_THINKING || DEFAULT_THINKING,
 		GR_IN: inFile,
 		GR_OUT: outFile,
@@ -512,7 +590,13 @@ export default function gapReviewExtension(pi) {
 		for (const name of names) {
 			if (!name.endsWith(".done")) continue;
 			const base = name.slice(0, -".done".length);
-			let headline = "completeness review ready";
+			// Fallback default is per-flavor (the .md first line / sentinel
+			// usually overrides it; this is only for unreadable/missing .md).
+			// The base suffix identifies the flavor: -g = grounding, anything
+			// else (legacy -c, or unsuffixed) = completeness.
+			let headline = base.endsWith("-g")
+				? "grounding review ready"
+				: "completeness review ready";
 			try {
 				const first = (
 					readFileSync(join(dir, `${base}.md`), "utf8").split("\n")[0] || ""
@@ -565,6 +649,13 @@ export default function gapReviewExtension(pi) {
 			// signature failure: don't break the turn
 		}
 		const shouldAutoReview = repoChanged && answer.length >= minChars;
+		// Grounding flavor: fires on every substantive terminal turn
+		// regardless of repo change. The completeness gate is unchanged
+		// (still repo-changed only); grounding is its own independent
+		// branch. Both flavors may fire on the same turn — they are
+		// separate prompts, models, and artifacts (…-c.* vs …-g.*).
+		const groundingOn = process.env.PI_GAP_GROUNDING !== "0";
+		const substantive = answer.length >= minChars;
 
 		// Retain the latest candidate for manual /gap-review invocation
 		// regardless of whether the automatic review fired. Stashing the
@@ -583,26 +674,52 @@ export default function gapReviewExtension(pi) {
 			};
 		}
 
-		if (!shouldAutoReview) return;
-
-		let params;
-		try {
-			// prepareReview can throw (mkdir / writeFile on a read-only root or
-			// a parent-is-a-file blocker, full disk, etc.). Wrap the whole
-			// decide-and-prepare phase in ONE try/catch so nothing leaks into
-			// pi's turn_end dispatcher — the turn has already completed (D3).
-			params = prepareReview({
-				message,
-				files,
-				request,
-				cwd: ctx && ctx.cwd,
-				env: process.env,
-			});
-		} catch {
-			return;
+		// Completeness flavor — unchanged condition (repo changed this turn).
+		if (shouldAutoReview) {
+			let params;
+			try {
+				// prepareReview can throw (mkdir / writeFile on a read-only root or
+				// a parent-is-a-file blocker, full disk, etc.). Wrap the whole
+				// decide-and-prepare phase in ONE try/catch so nothing leaks into
+				// pi's turn_end dispatcher — the turn has already completed (D3).
+				params = prepareReview({
+					message,
+					files,
+					request,
+					cwd: ctx && ctx.cwd,
+					env: process.env,
+					kind: "completeness",
+				});
+			} catch {
+				params = null;
+			}
+			if (params) spawnReviewFor(params);
 		}
-		if (!params) return;
-		spawnReviewFor(params);
+
+		// Grounding flavor — fires on every substantive terminal turn, repo
+		// change or not. allowEmptyFiles: true so a read-only analysis turn
+		// (no file_write captured, but files were read) is not rejected by
+		// the empty-files gate and does not trigger the git-status fallback
+		// (we want the capture-time files + the answer, not noisy
+		// unrelated diffs). The grounding reviewer still has read/grep/
+		// find/ls to anchor on.
+		if (groundingOn && substantive) {
+			let gparams;
+			try {
+				gparams = prepareReview({
+					message,
+					files,
+					request,
+					cwd: ctx && ctx.cwd,
+					env: process.env,
+					kind: "grounding",
+					allowEmptyFiles: true,
+				});
+			} catch {
+				gparams = null;
+			}
+			if (gparams) spawnReviewFor(gparams);
+		}
 	});
 
 	// Manual /gap-review command. Replay the latest retained candidate
