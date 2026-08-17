@@ -9,14 +9,14 @@
 # instead. The key is unencrypted, so no key_passphrase is required.
 
 [services.aidev]
-type = "sftp"
+kind = "sftp"
 host = "100.95.230.15"
 user = "james"
 port = 22
 key_file = "~/.ssh/id_ed25519"
 
 [services.itan8n]
-type = "sftp"
+kind = "sftp"
 host = "100.95.224.218"
 user = "itadmin"
 port = 22
