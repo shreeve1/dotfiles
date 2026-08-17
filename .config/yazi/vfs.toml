@@ -8,15 +8,13 @@
 # "Identity agent not provided". A non-empty key_file takes the key-auth branch
 # instead. The key is unencrypted, so no key_passphrase is required.
 
-[services.aidev]
-kind = "sftp"
+[sftp.aidev]
 host = "100.95.230.15"
 user = "james"
 port = 22
 key_file = "~/.ssh/id_ed25519"
 
-[services.itan8n]
-kind = "sftp"
+[sftp.itan8n]
 host = "100.95.224.218"
 user = "itadmin"
 port = 22
