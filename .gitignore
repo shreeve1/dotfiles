@@ -161,6 +161,9 @@ bin/*
 # gap-review extension output (completeness reviews written at turn end)
 .gap-reviews/
 
+# session-log extension output (per-session turn transcripts written at agent_settled)
+.sessions/
+
 # Pi subagent run-history logs (machine-local runtime state)
 .pi/agent/run-history.jsonl
 

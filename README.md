@@ -41,6 +41,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
       agents/                (empty; builtins ship in pi-subagents)
       extensions/
         pi-subagents/        (vendored nicobailon subagent runtime)
+        session-log/         (per-turn transcripts -> <repo>/.sessions/*.md)
       settings.json.template
   .codex/
   install.sh
