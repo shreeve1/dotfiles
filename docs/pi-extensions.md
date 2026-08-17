@@ -187,6 +187,29 @@ requirements" carries the short must-not-break rules and points here.
   `<turn>-<ts>.input.md` after the reviewer consumes it (transient, to keep
   retention of the original request + answer tight). Smoke test:
   `bash .pi/agent/extensions/gap-review/tests/gap-review-smoke.sh`.
+  Two flavors share the engine (completeness + grounding); the COMPLETENESS
+  flavor's fire condition is unchanged (repo mutation required), and the
+  GROUNDING flavor is a SECOND reviewer that fires on every substantive
+  terminal turn (≥ `PI_GAP_MIN_CHARS`) regardless of repo change — reviving
+  the auto-grounding layer pi-duo used to provide (which was removed). Grounding
+  writes `GROUNDING: <count> issues` / `GROUNDING: clean` to
+  `<project>/.gap-reviews/<turn>-<ts>-g.md` (the `-g` suffix disambiguates
+  from completeness `…-c.md`); on a repo-changing turn both flavors fire and
+  produce both `…-c.*` and `…-g.*` artifacts. Per-flavor config: completeness
+  uses `PI_GAP_MODEL` (default `deepseek/deepseek-v4-flash`) for an omission
+  scan; grounding uses `PI_GAP_GROUNDING_MODEL` (default
+  `deepseek/deepseek-v4-pro`) for a claim-grounding scan, matching the
+  claim-verifier / grill-with-docs / verify-claims grounding checker. Both
+  flavors share `PI_GAP_REVIEW` (master kill switch), `PI_GAP_THINKING`,
+  reaper, prune, and the `MAX_PENDING=3` backpressure budget; grounding
+  adds `PI_GAP_GROUNDING=0` (disable the grounding flavor only — default on).
+  `pendingCount` / `pruneOldReviews` / `reapStaleReviews` / the notify sweep
+  all glob on `.input.md` / `.done` / `.notified` / `.md`, which sit AFTER
+  the flavor suffix, so the new `-g` artifacts slot into the existing scheme
+  unchanged. Manual `/gap-review` stays completeness-only (replays
+  `lastCandidate` with `kind: "completeness"` via the default). See
+  `docs/adr/0001-verification-two-layers.md` for why this does NOT contradict
+  the "augment pi-duo's in-band verifier" rejection.
 - `session-log` (Pi human-readable session transcript) is a synced, zero-dependency vendored extension at `.pi/agent/extensions/session-log/`, auto-discovered by Pi — no `settings.json{,.template}` entry is needed to enable it (it would only be *disabled* by a `-extensions/session-log/index.ts` exclusion). On each completed interactive (`tui`) turn (`agent_settled`) it appends that turn's user prompt plus the assistant's final markdown answer to `<git-project-root>/.sessions/<YYYY-MM-DD>_<slug>-<hash6>.md`. The `<slug>` is a short human-readable title generated ONCE per session (first turn) by a small `deepseek/deepseek-v4-flash` call over the first prompt+response; any model/auth/timeout/empty failure falls back to `<YYYY-MM-DD>_<sessionId>.md`, and the markdown append NEVER fails due to slug generation. Restart-safe: an interrupted/resumed session re-finds its existing file by the stable `hash6`/sessionId filename suffix (no second model call). Output dir `.sessions/` is `.gitignore`d. No `install.sh` change is required — the whole `.pi/agent` directory is symlinked by `install.sh` and the extension ships no `package.json`.
 - **Claude Fusion** (Claude Code orchestrates, Pi executes — the CC-side port of
   Pi's Fusion; design in `docs/adr/0003-claude-fusion.md`, glossed in
