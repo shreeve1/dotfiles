@@ -37,6 +37,7 @@ node --check "$ext" || {
 	exit 1
 }
 for sym in isTerminal answerText extractFilePath pendingCount pruneOldReviews reapStaleReviews findProjectRoot reviewPrompt prepareReview computeRepoChangeSignature \
+	groundingPrompt PI_GAP_GROUNDING PI_GAP_GROUNDING_MODEL deepseek/deepseek-v4-pro 'GROUNDING:' \
 	'pi.on("turn_end"' 'pi.on("turn_start"' 'pi.on("tool_call"' 'pi.on("before_agent_start"' 'pi.registerCommand("gap-review"' \
 	'rm -f "$GR_IN"' '$GR_THINKING'; do
 	grep -qF "$sym" "$ext" || {
@@ -287,7 +288,8 @@ const longAns = "x".repeat(300);
 		second.includes("THIRD_REQ"));
 }
 
-// (8b) Auto gate — read-only turn (no repo change): no review spawned.
+// (8b) Auto gate — read-only turn (no repo change): no COMPLETENESS review spawned.
+// (Grounding flavor still fires here — verified separately in (13).)
 {
 	const h = newHarness();
 	const root = makeRepo();
@@ -302,11 +304,12 @@ const longAns = "x".repeat(300);
 	const ins = pathExists(reviewsDir)
 		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
 		: [];
-	check("auto gate: read-only design turn does NOT spawn a review",
-		ins.length === 0);
+	const completenessIns = ins.filter((n) => n.endsWith("-c.input.md"));
+	check("auto gate: read-only design turn does NOT spawn a COMPLETENESS review",
+		completenessIns.length === 0);
 }
 
-// (8c) Auto gate — repo state changed: review IS spawned.
+// (8c) Auto gate — repo state changed: COMPLETENESS review IS spawned.
 {
 	const h = newHarness();
 	const root = makeRepo();
@@ -324,8 +327,9 @@ const longAns = "x".repeat(300);
 	const ins = pathExists(reviewsDir)
 		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
 		: [];
-	check("auto gate: repo-changed turn DOES spawn a review",
-		ins.length === 1);
+	const completenessIns = ins.filter((n) => n.endsWith("-c.input.md"));
+	check("auto gate: repo-changed turn DOES spawn a COMPLETENESS review",
+		completenessIns.length === 1);
 }
 
 // (8d) Manual /gap-review command revives a retained candidate.
@@ -341,9 +345,9 @@ const longAns = "x".repeat(300);
 	);
 	const reviewsDir = join(root, ".gap-reviews");
 	const before = pathExists(reviewsDir)
-		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md")).length
+		? readdirSync(reviewsDir).filter((n) => n.endsWith("-c.input.md")).length
 		: 0;
-	check("manual: no review yet (read-only turn)", before === 0);
+	check("manual: no COMPLETENESS review yet (read-only turn)", before === 0);
 	await h.command("gap-review", "");
 	const after = pathExists(reviewsDir)
 		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md")).length
@@ -358,6 +362,237 @@ const longAns = "x".repeat(300);
 	const h = newHarness();
 	await h.command("gap-review", "");
 	check("manual: no candidate => nothing spawned", h.lastNotify && /no eligible/.test(h.lastNotify.msg));
+}
+
+// (10) groundingPrompt shape — mirrors reviewPrompt's request-relative contract.
+{
+	const g = gap.groundingPrompt("ANS_MARK", ["/z.py"], "REQ_MARK");
+	check("groundingPrompt: includes answer + files + request + sentinel + tags",
+		g.includes("ANS_MARK") && g.includes("/z.py") && g.includes("REQ_MARK")
+			&& g.includes("GROUNDING:") && g.includes("Unsure")
+			&& g.includes("adversarial")
+			&& g.includes("Weakened + Falsified"));
+	const g2 = gap.groundingPrompt("ANS", ["/z.py"], "");
+	check("groundingPrompt: no request -> request content absent",
+		!g2.includes("REQ_MARK") && g2.includes("ANS"));
+}
+
+// (11) grounding sentinel parse — first line must match the contract.
+{
+	const g = gap.groundingPrompt("ANS", ["/z.py"], "");
+	check("groundingPrompt: lists <count> issues sentinel",
+		g.includes("GROUNDING: <count> issues"));
+	check("groundingPrompt: lists GROUNDING: clean sentinel",
+		g.includes("GROUNDING: clean"));
+}
+
+// (12) Base uniqueness across flavors — completeness = -c, grounding = -g.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "both-flavor-req" });
+	// mutate a tracked file so completeness triggers too
+	writeFileSync(join(root, "a.py"), "x = 1\n");
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	const cIns = ins.filter((n) => n.endsWith("-c.input.md"));
+	const gIns = ins.filter((n) => n.endsWith("-g.input.md"));
+	check("base uniqueness: completeness produces a -c.input.md",
+		cIns.length === 1);
+	check("base uniqueness: grounding produces a -g.input.md",
+		gIns.length === 1);
+	check("base uniqueness: -c and -g bases are distinct",
+		cIns[0] !== gIns[0]);
+
+	// Per-flavor model: grounding uses deepseek-v4-pro, completeness uses
+	// deepseek-v4-flash (the engine passes the selected model via GR_MODEL).
+	const cText = readFileSync(join(reviewsDir, cIns[0]), "utf8");
+	const gText = readFileSync(join(reviewsDir, gIns[0]), "utf8");
+	// The prompt itself is the per-flavor payload; both reference the same
+	// model name in the prompt and the model is propagated via GR_MODEL.
+	// We assert on the prompt's sentinel + flavor-specific framing instead
+	// (the model is in env, not in the prompt text).
+	check("base uniqueness: completeness input prompts with OMISSIONS:",
+		cText.includes("OMISSIONS:") && cText.includes("completeness reviewer"));
+	check("base uniqueness: grounding input prompts with GROUNDING:",
+		gText.includes("GROUNDING:") && gText.includes("grounding reviewer"));
+
+	// And the env passed to the runner must carry the per-flavor model.
+	// We construct two offline prepareReview calls and compare GR_MODEL.
+	const procs = gap.prepareReview({
+		message: { content: [{ type: "text", text: longAns }] },
+		files: ["/abs/x.py"],
+		request: "r",
+		cwd: ".",
+		env: {},
+		kind: "grounding",
+		allowEmptyFiles: true,
+	});
+	const procc = gap.prepareReview({
+		message: { content: [{ type: "text", text: longAns }] },
+		files: ["/abs/x.py"],
+		request: "r",
+		cwd: ".",
+		env: {},
+		kind: "completeness",
+		allowEmptyFiles: true,
+	});
+	check("base uniqueness: grounding passes GR_MODEL=deepseek/deepseek-v4-pro",
+		procs && procs.env.GR_MODEL === "deepseek/deepseek-v4-pro");
+	check("base uniqueness: completeness passes GR_MODEL=deepseek/deepseek-v4-flash",
+		procc && procc.env.GR_MODEL === "deepseek/deepseek-v4-flash");
+}
+
+// (13) Grounding fires on a NO-repo-change terminal turn (read-only).
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "grounding-only-readonly" });
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	const gIns = ins.filter((n) => n.endsWith("-g.input.md"));
+	const cIns = ins.filter((n) => n.endsWith("-c.input.md"));
+	check("grounding: fires on no-repo-change turn (a -g.input.md exists)",
+		gIns.length === 1);
+	check("grounding: completeness correctly skips (no -c.input.md)",
+		cIns.length === 0);
+}
+
+// (14) Both flavors fire on a repo-changing substantive turn.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	await h.turn_start({}, { cwd: root, hasUI: false });
+	h.before_agent_start({ prompt: "both-flavors" });
+	writeFileSync(join(root, "b.py"), "y = 2\n");
+	await h.turn_end(
+		{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+		{ cwd: root, hasUI: true },
+	);
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	const gIns = ins.filter((n) => n.endsWith("-g.input.md"));
+	const cIns = ins.filter((n) => n.endsWith("-c.input.md"));
+	check("both flavors: repo-changing turn spawns BOTH -c and -g",
+		gIns.length === 1 && cIns.length === 1);
+}
+
+// (15) Grounding disable toggle — PI_GAP_GROUNDING=0 suppresses the -g run.
+{
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	const saved = process.env.PI_GAP_GROUNDING;
+	process.env.PI_GAP_GROUNDING = "0";
+	try {
+		await h.turn_start({}, { cwd: root, hasUI: false });
+		h.before_agent_start({ prompt: "grounding-disabled" });
+		await h.turn_end(
+			{ message: { content: [{ type: "text", text: longAns }] }, turnIndex: 1 },
+			{ cwd: root, hasUI: true },
+		);
+	} finally {
+		if (saved === undefined) delete process.env.PI_GAP_GROUNDING;
+		else process.env.PI_GAP_GROUNDING = saved;
+	}
+	const reviewsDir = join(root, ".gap-reviews");
+	const ins = pathExists(reviewsDir)
+		? readdirSync(reviewsDir).filter((n) => n.endsWith(".input.md"))
+		: [];
+	const gIns = ins.filter((n) => n.endsWith("-g.input.md"));
+	check("grounding disable: PI_GAP_GROUNDING=0 suppresses the -g run",
+		gIns.length === 0);
+}
+
+// (16) Notify headline distinguishes flavors on turn_start.
+{
+	// Sub-test (a): a -g.done + -g.md with the GROUNDING: sentinel as the
+	// first line is surfaced verbatim via the notify.
+	const h = newHarness();
+	const root = makeRepo();
+	h.cwd = root;
+	const d = join(root, ".gap-reviews");
+	mkdirSync(d, { recursive: true });
+	const base = join(d, "1699-g");
+	writeFileSync(base + ".md", "GROUNDING: 2 issues\n\n- Falsified | /x:1 | demo\n");
+	writeFileSync(base + ".done", "done");
+	// Pass the harness as ctx so ctx.ui.notify routes to h.lastNotify.
+	await h.turn_start({}, h);
+	check("notify: grounding sentinel surfaces verbatim",
+		h.lastNotify && /GROUNDING:/.test(h.lastNotify.msg));
+	// The .done file should be renamed to .notified so it doesn't re-notify.
+	check("notify: -g.done renamed to -g.notified",
+		!pathExists(base + ".done") && pathExists(base + ".notified"));
+
+	// Sub-test (b): with no .md (unreadable), the flavor-aware fallback
+	// headline is "grounding review ready" (not completeness).
+	const h2 = newHarness();
+	const root2 = makeRepo();
+	h2.cwd = root2;
+	const d2 = join(root2, ".gap-reviews");
+	mkdirSync(d2, { recursive: true });
+	const base2 = join(d2, "1699-g");
+	// No .md so the fallback default is used.
+	writeFileSync(base2 + ".done", "done");
+	await h2.turn_start({}, h2);
+	check("notify: -g fallback headline is 'grounding review ready'",
+		h2.lastNotify && /grounding review ready/.test(h2.lastNotify.msg));
+	check("notify: -g fallback is NOT the completeness headline",
+		h2.lastNotify && !/completeness review ready/.test(h2.lastNotify.msg));
+}
+
+// (17) Glob compatibility — pendingCount / pruneOldReviews / reapStaleReviews
+// all treat -c / -g suffixed bases as ordinary bases.
+{
+	// pendingCount: a -g.input.md without .done/.notified counts as 1.
+	const d = mkdtempSync(join(tmpdir(), "gap-g-"));
+	writeFileSync(join(d, "1699-g.input.md"), "x");
+	check("glob compat: pendingCount sees a -g.input.md as 1 pending",
+		gap.pendingCount(d) === 1);
+	// A -g.done sibling frees it.
+	writeFileSync(join(d, "1699-g.done"), "done");
+	check("glob compat: pendingCount treats -g.done as finished",
+		gap.pendingCount(d) === 0);
+	// pruneOldReviews: an aged -g.notified + its siblings prune together.
+	const pd = mkdtempSync(join(tmpdir(), "gap-g-prune-"));
+	const ancient = new Date(Date.now() - 30 * 86400000);
+	writeFileSync(join(pd, "1699-g.input.md"), "x");
+	writeFileSync(join(pd, "1699-g.md"), "r");
+	writeFileSync(join(pd, "1699-g.notified"), "n");
+	utimesSync(join(pd, "1699-g.notified"), ancient, ancient);
+	const pruned = gap.pruneOldReviews(pd, 14);
+	check("glob compat: pruneOldReviews prunes -g.notified + siblings",
+		pruned >= 1 && !pathExists(join(pd, "1699-g.md"))
+			&& !pathExists(join(pd, "1699-g.notified")));
+	// reapStaleReviews: an aged -g.input.md reaps to -g.done + -g.md.
+	const rd = mkdtempSync(join(tmpdir(), "gap-g-reap-"));
+	writeFileSync(join(rd, "1699-g.input.md"), "pending");
+	const stale = new Date(Date.now() - 10 * 60 * 1000);
+	utimesSync(join(rd, "1699-g.input.md"), stale, stale);
+	const reaped = gap.reapStaleReviews(rd, 300000);
+	check("glob compat: reapStaleReviews reaps an aged -g.input.md",
+		reaped === 1 && pathExists(join(rd, "1699-g.done"))
+			&& pathExists(join(rd, "1699-g.md"))
+			&& readFileSync(join(rd, "1699-g.md"), "utf8").startsWith("ERROR: gap-review reviewer timed out"));
 }
 
 // (9) D1: \$GR_<X> tokens in the source match GR_<X> keys built by prepareReview.
