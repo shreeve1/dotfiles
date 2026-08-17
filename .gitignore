@@ -164,6 +164,9 @@ bin/*
 # session-log extension output (per-session turn transcripts written at agent_settled)
 .sessions/
 
+# Pi subagent scratch dir (machine-local per-run artifacts)
+.pi-subagents/
+
 # Pi subagent run-history logs (machine-local runtime state)
 .pi/agent/run-history.jsonl
 

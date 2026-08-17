@@ -51,7 +51,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 ### Canonical vs tool-specific
 
 | Concern | Canonical Home | Why |
-|---|---|---|
+| --- | --- | --- |
 | Global agent guidance | `~/.claude/CLAUDE.md` | Claude Code reads natively; OpenCode reads via `opencode.json` `instructions[]`. |
 | Slash commands | `~/.claude/commands/` | Claude Code is canonical. Retired OpenCode commands live under `~/.config/opencode/archive/commands/`. |
 | Subagents | Tool-specific | Claude Code uses `~/.claude/agents/`; Pi uses the vendored `pi-subagents` (nicobailon) runtime with its builtin agents. |
