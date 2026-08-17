@@ -21,7 +21,12 @@ const NODE_KIND_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  * Returns true when at least one structural-intent field is present.
  */
 export function hasStructuralIntent(intent) {
-    return !!(intent.insideKind || intent.hasKind || intent.follows || intent.precedes);
+    return !!(intent.nodeKind ||
+        intent.insideKind ||
+        intent.hasKind ||
+        intent.hasDescendantKind ||
+        intent.follows ||
+        intent.precedes);
 }
 /**
  * Synthesize an ast-grep YAML rule for replace operations.
@@ -33,25 +38,47 @@ export function synthesizeReplaceRule(intent) {
     return `${base}fix: ${JSON.stringify(intent.rewrite)}\n`;
 }
 /**
- * Synthesize an ast-grep YAML rule from a pattern and structural constraints.
+ * Synthesize an ast-grep YAML rule from a pattern (or node kind) and
+ * structural constraints.
  *
- * The generated rule uses `stopBy: end` on `inside` so the search climbs
- * all ancestors, not just the immediate parent.
+ * The generated rule uses `stopBy: end` on `inside` and
+ * `hasDescendantKind`, so those two explicit recursive forms climb all
+ * ancestors/descendants. `hasKind` intentionally retains ast-grep's default
+ * immediate-child semantics for compatibility.
  *
- * @throws if pattern is empty
+ * @throws if neither pattern nor nodeKind is supplied, or both are supplied
  */
 export function synthesizeRule(intent) {
-    assertSafePattern(intent.pattern, "pattern");
+    const hasPattern = !!intent.pattern?.trim();
+    const hasNodeKind = !!intent.nodeKind?.trim();
+    if (hasPattern === hasNodeKind) {
+        throw new Error("provide exactly one of pattern or nodeKind");
+    }
+    const pattern = intent.pattern;
+    if (hasPattern && pattern)
+        assertSafePattern(pattern, "pattern");
+    if (intent.hasKind?.trim() && intent.hasDescendantKind?.trim()) {
+        throw new Error("hasKind and hasDescendantKind are mutually exclusive");
+    }
     // Canonical language name for the YAML header (ast-grep is case-sensitive here).
     const language = canonicalLanguage(intent.lang);
-    const rule = {
-        pattern: intent.pattern,
-    };
+    const rule = hasNodeKind
+        ? { kind: assertSafeNodeKind(intent.nodeKind ?? "", "nodeKind") }
+        : { pattern };
     if (intent.insideKind) {
-        rule.inside = { kind: assertSafeNodeKind(intent.insideKind, "insideKind"), stopBy: "end" };
+        rule.inside = {
+            kind: assertSafeNodeKind(intent.insideKind, "insideKind"),
+            stopBy: "end",
+        };
     }
     if (intent.hasKind) {
         rule.has = { kind: assertSafeNodeKind(intent.hasKind, "hasKind") };
+    }
+    if (intent.hasDescendantKind) {
+        rule.has = {
+            kind: assertSafeNodeKind(intent.hasDescendantKind, "hasDescendantKind"),
+            stopBy: "end",
+        };
     }
     if (intent.follows) {
         assertSafePattern(intent.follows, "follows");

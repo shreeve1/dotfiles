@@ -17,15 +17,18 @@ export const withFactTree = withTreeSitterRoot;
  * (there is no typescript-compiler fallback by design, #402). Centralising this
  * keeps each provider to just its extraction logic (and de-duplicates the prologue).
  */
-export async function extractFactsFromTree(ctx, store, defaults, extract) {
-    const writeAll = (facts) => {
+export async function extractFactsFromTree(ctx, store, defaults, extract, coverageFact) {
+    const writeAll = (facts, complete) => {
         for (const key of Object.keys(defaults)) {
             store.setFileFact(ctx.filePath, key, facts[key] ?? defaults[key]);
         }
+        if (coverageFact) {
+            store.setFileFact(ctx.filePath, coverageFact, complete ? "complete" : "unavailable");
+        }
     };
     const content = store.getFileFact(ctx.filePath, "file.content");
-    if (!content)
-        return writeAll(defaults);
+    if (content == null)
+        return writeAll(defaults, false);
     const parsed = await withFactTree(ctx.filePath, content, (root) => extract(root, content));
-    writeAll(parsed.parsed ? parsed.value : defaults);
+    writeAll(parsed.parsed ? parsed.value : defaults, parsed.parsed);
 }

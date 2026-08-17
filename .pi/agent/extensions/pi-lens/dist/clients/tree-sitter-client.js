@@ -23,6 +23,10 @@ import { loadWebTreeSitter } from "./deps/web-tree-sitter.js";
 import { getProjectIgnoreMatcher, isExcludedDirName } from "./file-utils.js";
 import { downloadGrammar, grammarBlockReason, LANGUAGE_TO_GRAMMAR, } from "./grammar-source.js";
 import { resolvePackagePath } from "./package-root.js";
+import { recordDegradation } from "./degradation-ledger.js";
+import { assertInstallAllowed, getProjectTrustGeneration, } from "./project-trust.js";
+import { logTreeSitterDiagnostic } from "./tree-sitter-logger.js";
+import { notifyUserDegradation } from "./user-notify.js";
 const _require = createRequire(import.meta.url);
 import { createTreeCacheCounters, TreeCache, } from "./tree-sitter-cache.js";
 import { TreeSitterNavigator } from "./tree-sitter-navigator.js";
@@ -37,6 +41,10 @@ const TREE_SITTER_MAX_SCAN_FILES = 20_000;
 // failure (offline lazy fetch, mid-scan load error) recover on a later scan
 // instead of paying the 3.3x per-rule fallback for the process lifetime (#889).
 const QUERY_BATCH_MAX_LOAD_FAILURES = 3;
+// Keep post-filter tree walks bounded. A malformed or unexpectedly huge tree
+// must not stall the batched query walk; the filter fails open when this cap
+// is reached so unrelated diagnostics and the current match are preserved.
+const NO_NESTED_ANCHOR_VISIT_CAP = 10_000;
 const NOT_PARSED = { parsed: false };
 function createParserCounters() {
     return {
@@ -60,6 +68,8 @@ export class TreeSitterClient {
     grammarsDir;
     /** In-flight/settled lazy grammar fetches, keyed by wasm filename. */
     grammarEnsurePromises = new Map();
+    trustBlockedGrammarNotifications = new Set();
+    trustNotificationsGeneration = getProjectTrustGeneration();
     // biome-ignore lint/suspicious/noExplicitAny: Optional dependency loaded dynamically
     ParserClass = null;
     // biome-ignore lint/suspicious/noExplicitAny: Language loader from module
@@ -68,6 +78,38 @@ export class TreeSitterClient {
     queryCache = new Map();
     /** Combined multi-rule queries by language + rule-set identity (null = don't retry). */
     queryBatchCache = new Map();
+    static QUERY_CACHE_MAX_ENTRIES = 256;
+    static QUERY_BATCH_CACHE_MAX_ENTRIES = 256;
+    queryCacheCap() {
+        const value = Number.parseInt(process.env.PI_LENS_TREE_SITTER_QUERY_CACHE_CAP ?? "", 10);
+        return Number.isSafeInteger(value) && value > 0 ? value : TreeSitterClient.QUERY_CACHE_MAX_ENTRIES;
+    }
+    queryBatchCacheCap() {
+        const value = Number.parseInt(process.env.PI_LENS_TREE_SITTER_QUERY_BATCH_CACHE_CAP ?? "", 10);
+        return Number.isSafeInteger(value) && value > 0 ? value : TreeSitterClient.QUERY_BATCH_CACHE_MAX_ENTRIES;
+    }
+    cacheQuery(key, value) {
+        this.queryCache.delete(key);
+        this.queryCache.set(key, value);
+        while (this.queryCache.size > this.queryCacheCap()) {
+            const oldest = this.queryCache.entries().next().value;
+            if (!oldest)
+                break;
+            this.queryCache.delete(oldest[0]);
+            oldest[1]?.query?.delete?.();
+        }
+    }
+    cacheQueryBatch(key, value) {
+        this.queryBatchCache.delete(key);
+        this.queryBatchCache.set(key, value);
+        while (this.queryBatchCache.size > this.queryBatchCacheCap()) {
+            const oldest = this.queryBatchCache.entries().next().value;
+            if (!oldest)
+                break;
+            this.queryBatchCache.delete(oldest[0]);
+            oldest[1]?.query?.delete?.();
+        }
+    }
     /** Consecutive grammar-load failures per batch key — bounds load retries (#889). */
     queryBatchLoadFailures = new Map();
     queryLoader = new TreeSitterQueryLoader();
@@ -98,9 +140,39 @@ export class TreeSitterClient {
             return false;
         if (!this.wasmAborted) {
             this.wasmAborted = true;
+            recordDegradation({
+                kind: "wasm-abort",
+                subject: "web-tree-sitter",
+                reason: error instanceof Error ? error.message : String(error),
+            });
             this.onWasmAbort?.();
         }
         return true;
+    }
+    /**
+     * O(1) runtime footprint counters (#1123 item 2 memory attribution): every
+     * field is a `Map.size` read, never an iteration over the maps' contents.
+     * `wasmMemoryBytes` is deliberately NOT included here — web-tree-sitter
+     * 0.25.10's Emscripten `Module` (which owns the WASM linear memory /
+     * `HEAPU8.buffer`) is a private closure variable in the package's
+     * `bindings.ts` and is not exposed through any public export (`Parser`,
+     * `Language`, `Query`, ...); reaching it would require either reflecting
+     * into the package's internal module state (brittle across web-tree-sitter
+     * versions/bundling) or overriding Emscripten's `wasmMemory` module option
+     * at `Parser.init()` time with a hand-constructed `WebAssembly.Memory`
+     * matching the library's own default page-count math (risks a memory-import
+     * mismatch that would break ALL structural analysis, for an
+     * observability-only feature). `process.memoryUsage().arrayBuffers` is the
+     * process-wide proxy used instead (WASM linear memory backs an ArrayBuffer,
+     * so it is included there) — see clients/memory-sampler.ts.
+     */
+    getRuntimeStats() {
+        return {
+            languagesLoaded: this.languages.size,
+            parsersLoaded: this.parsers.size,
+            queryCacheSize: this.queryCache.size,
+            queryBatchCacheSize: this.queryBatchCache.size,
+        };
     }
     getParseCacheStats() {
         return {
@@ -145,7 +217,13 @@ export class TreeSitterClient {
     /** Debug logging helper */
     dbg(msg) {
         if (this.verbose) {
-            console.error(`[tree-sitter] ${msg}`); // pi-lens-ignore: console-statement — intentional verbose logger
+            // #1333: verbose gating is preserved, but the SINK is tree-sitter.log —
+            // a raw write would corrupt pi's frame the moment verbose is enabled.
+            logTreeSitterDiagnostic({
+                subsystem: "tree-sitter-client",
+                level: "debug",
+                message: msg,
+            });
         }
     }
     /**
@@ -285,6 +363,32 @@ export class TreeSitterClient {
         if (this.resolveGrammarFile(grammarFile)) {
             return true;
         }
+        if (!assertInstallAllowed(`tree-sitter grammar fetch: ${grammarFile}`)) {
+            const unavailable = `tree-sitter grammar '${grammarFile}' is unavailable because the project is not trusted; ` +
+                `runtime grammar downloads are disabled until trust is granted.`;
+            logTreeSitterDiagnostic({
+                subsystem: "tree-sitter-client",
+                message: unavailable,
+                metadata: { grammarFile, outcome: "trust-gated" },
+            });
+            recordDegradation({
+                kind: "grammar-blocked",
+                subject: grammarFile,
+                reason: "runtime grammar download blocked because project is untrusted",
+            });
+            // Lazy clear-on-transition (#1363 review): compare the trust
+            // generation at use time -- no listener registration, no retention.
+            const generation = getProjectTrustGeneration();
+            if (generation !== this.trustNotificationsGeneration) {
+                this.trustNotificationsGeneration = generation;
+                this.trustBlockedGrammarNotifications.clear();
+            }
+            if (!this.trustBlockedGrammarNotifications.has(grammarFile)) {
+                this.trustBlockedGrammarNotifications.add(grammarFile);
+                notifyUserDegradation(`pi-lens: ${unavailable}`);
+            }
+            return false;
+        }
         const inflight = this.grammarEnsurePromises.get(grammarFile);
         if (inflight)
             return inflight;
@@ -300,17 +404,36 @@ export class TreeSitterClient {
             if (ok) {
                 if (!this.grammarsDir)
                     this.grammarsDir = dir;
-                console.error(`[pi-lens] fetched missing tree-sitter grammar ${grammarFile} at runtime (install scripts were skipped by the package manager)`);
+                logTreeSitterDiagnostic({
+                    subsystem: "tree-sitter-client",
+                    level: "warn",
+                    message: `fetched missing tree-sitter grammar ${grammarFile} at runtime (install scripts were skipped by the package manager)`,
+                    metadata: { grammarFile, outcome: "fetched" },
+                });
             }
             else {
                 // Surface the degradation once per grammar (the promise cache dedupes)
                 // instead of failing silently — otherwise pnpm/bun users offline get
                 // no signal that a language's tree-sitter features are unavailable.
-                console.error(`[pi-lens] tree-sitter grammar '${grammarFile}' is unavailable — ` +
+                const unavailable = `tree-sitter grammar '${grammarFile}' is unavailable — ` +
                     `symbol search, module reports and structural rules for this language will be degraded. ` +
                     `The package manager skipped install scripts and the runtime download failed (offline or CDN unreachable). ` +
                     `Fix: reinstall with a manager that runs postinstall, allow its build scripts ` +
-                    `(pnpm approve-builds / bun trustedDependencies), or restore network access.`);
+                    `(pnpm approve-builds / bun trustedDependencies), or restore network access.`;
+                logTreeSitterDiagnostic({
+                    subsystem: "tree-sitter-client",
+                    message: unavailable,
+                    metadata: { grammarFile, outcome: "unavailable" },
+                });
+                recordDegradation({
+                    kind: "grammar-blocked",
+                    subject: grammarFile,
+                    reason: "runtime grammar download failed",
+                });
+                // HUMAN-audience: an offline grammar fetch silently degrades this
+                // language's features, so it reaches the user through the HOST's
+                // render path (#1333) rather than a raw terminal write.
+                notifyUserDegradation(`pi-lens: ${unavailable}`);
             }
             return ok;
         })();
@@ -393,6 +516,11 @@ export class TreeSitterClient {
         const blockReason = grammarBlockReason(grammarFile);
         if (blockReason) {
             this.dbg(`Grammar ${grammarFile} blocked on this runtime — ${blockReason}`);
+            recordDegradation({
+                kind: "grammar-blocked",
+                subject: grammarFile,
+                reason: blockReason,
+            });
             return null;
         }
         // Look across the bundled core `grammars/` dir and the postinstall/lazy
@@ -744,8 +872,11 @@ export class TreeSitterClient {
             .digest("hex");
         const cacheKey = this.getQueryCacheKey(`batch:${identity}`, languageId);
         const cached = this.queryBatchCache.get(cacheKey);
-        if (cached !== undefined)
+        if (cached !== undefined) {
+            this.queryBatchCache.delete(cacheKey);
+            this.queryBatchCache.set(cacheKey, cached);
             return cached;
+        }
         // A loadLanguage() failure is transient (offline lazy grammar fetch,
         // transient mid-scan load error) — do NOT cache null for it, or every
         // later scan pays the ~3.3x per-rule fallback for the process lifetime
@@ -757,7 +888,7 @@ export class TreeSitterClient {
             if (failures >= QUERY_BATCH_MAX_LOAD_FAILURES) {
                 this.dbg(`Batch: grammar for ${languageId} failed to load ${failures} times — caching miss`);
                 this.queryBatchLoadFailures.delete(cacheKey);
-                this.queryBatchCache.set(cacheKey, null);
+                this.cacheQueryBatch(cacheKey, null);
             }
             else {
                 this.queryBatchLoadFailures.set(cacheKey, failures);
@@ -817,7 +948,7 @@ export class TreeSitterClient {
             }
         };
         const batch = await build();
-        this.queryBatchCache.set(cacheKey, batch);
+        this.cacheQueryBatch(cacheKey, batch);
         return batch;
     }
     /**
@@ -928,7 +1059,10 @@ export class TreeSitterClient {
         // Check cache first
         if (this.queryCache.has(cacheKey)) {
             this.dbg(`Query cache hit: ${cacheKey}`);
-            return this.queryCache.get(cacheKey);
+            const cached = this.queryCache.get(cacheKey);
+            this.queryCache.delete(cacheKey);
+            this.queryCache.set(cacheKey, cached);
+            return cached;
         }
         const language = await this.loadLanguage(languageId);
         if (!language) {
@@ -945,7 +1079,7 @@ export class TreeSitterClient {
             this.dbg(`Query compiled with ${query.patternCount()} patterns`);
             const result = { query, metavars, postFilter, postFilterParams };
             // Cache the compiled query
-            this.queryCache.set(cacheKey, result);
+            this.cacheQuery(cacheKey, result);
             return result;
         }
         catch (err) {
@@ -958,7 +1092,10 @@ export class TreeSitterClient {
     async compileRawQuery(queryId, queryStr, metavars, languageId, postFilter, postFilterParams) {
         const cacheKey = this.getQueryCacheKey(`raw:${queryId}:${queryStr}`, languageId);
         if (this.queryCache.has(cacheKey)) {
-            return this.queryCache.get(cacheKey);
+            const cached = this.queryCache.get(cacheKey);
+            this.queryCache.delete(cacheKey);
+            this.queryCache.set(cacheKey, cached);
+            return cached;
         }
         const language = await this.loadLanguage(languageId);
         if (!language)
@@ -969,7 +1106,7 @@ export class TreeSitterClient {
             // biome-ignore lint/suspicious/noExplicitAny: Language type compatibility
             const query = new Query(language, queryStr);
             const result = { query, metavars, postFilter, postFilterParams };
-            this.queryCache.set(cacheKey, result);
+            this.cacheQuery(cacheKey, result);
             return result;
         }
         catch (err) {
@@ -989,12 +1126,58 @@ export class TreeSitterClient {
         if (this.reportedCompileFailures.has(key))
             return;
         this.reportedCompileFailures.add(key);
-        console.error(`[pi-lens] tree-sitter rule '${ruleId}' failed to compile against '${languageId}' — ` +
-            `matches for this rule are silently dropped rather than reported. ` +
-            `Fix the query in the rule definition to re-enable it. (${err})`);
+        logTreeSitterDiagnostic({
+            subsystem: "tree-sitter-client",
+            languageId,
+            message: `tree-sitter rule '${ruleId}' failed to compile against '${languageId}' — ` +
+                `matches for this rule are silently dropped rather than reported. ` +
+                `Fix the query in the rule definition to re-enable it. (${err})`,
+            metadata: { ruleId },
+        });
     }
     hasChildToken(node, token) {
         return node.children?.some((child) => child.type === token || child.text === token);
+    }
+    /**
+     * Collect names introduced by a parameter binding pattern.
+     *
+     * Binding-aware: only identifiers in a *binding* position are counted.
+     * Two node shapes hold reference expressions rather than bindings and
+     * must not be descended into:
+     *  - `assignment_pattern` / `object_assignment_pattern` (`pattern = default`,
+     *    e.g. `[a = b]` or `{a = b}`) — the `value`/`right` side is a default
+     *    *expression*, not a new name (`b` in `{a = b}` is a reference).
+     *  - `computed_property_name` (`[expr]:` in a destructuring pattern,
+     *    e.g. `{[key]: a}`) — `expr` is a reference, not a binding.
+     * Nested binding positions (destructured sub-patterns) are still walked
+     * so renamed/duplicate collisions inside them are found.
+     */
+    bindingNames(node) {
+        const names = new Set();
+        if (!node)
+            return names;
+        const stack = [node];
+        while (stack.length > 0) {
+            const current = stack.pop();
+            if (current.type === "identifier")
+                names.add(current.text);
+            else if (current.type === "shorthand_property_identifier_pattern") {
+                names.add(current.text);
+            }
+            if (current.type === "property_identifier" ||
+                current.type === "type_identifier" ||
+                current.type === "computed_property_name")
+                continue;
+            if (current.type === "assignment_pattern" ||
+                current.type === "object_assignment_pattern") {
+                const left = current.childForFieldName?.("left");
+                if (left)
+                    stack.push(left);
+                continue;
+            }
+            stack.push(...(current.children ?? []));
+        }
+        return names;
     }
     containsYieldInFunctionBody(node, root = node) {
         for (const child of node.children ?? []) {
@@ -1029,6 +1212,122 @@ export class TreeSitterClient {
         const named = (caseNode.children ?? []).filter((c) => c.isNamed && !c.type.includes("comment"));
         // First named child is the case's value expression (`case <value>`).
         return named.slice(1);
+    }
+    /**
+     * Whether a case body carries an intentional fallthrough marker comment
+     * (`// fallthrough`, `// falls through`, …). Only a *trailing* marker is
+     * honored: a comment attached to the case node after its body statements
+     * (TypeScript), the case's next sibling in the switch body (JavaScript), or
+     * one inside the trailing body statement's block. A comment in a nested
+     * function or an earlier statement is not a marker for this case and must
+     * not suppress a genuine fall-through. Only comment nodes are checked, never
+     * the case value or statement text.
+     */
+    hasFallthroughMarker(caseNode) {
+        const comments = [];
+        const body = this.switchCaseBodyStatements(caseNode);
+        const last = body[body.length - 1];
+        const lastEnd = last?.endIndex ?? caseNode.startIndex;
+        // TypeScript attaches a trailing `// fallthrough` as a direct child of the
+        // case node, after the body statements.
+        for (const c of caseNode.children ?? []) {
+            if (c.type.includes("comment") && c.startIndex >= lastEnd) {
+                comments.push(c);
+            }
+        }
+        // JavaScript attaches it to the switch body as the case's next sibling.
+        const siblings = (caseNode.parent?.children ?? []).filter((c) => c.isNamed);
+        const index = siblings.findIndex((c) => c.startIndex === caseNode.startIndex);
+        const next = index >= 0 ? siblings[index + 1] : undefined;
+        if (next?.type.includes("comment"))
+            comments.push(next);
+        // A marker inside the trailing body statement's block (e.g. `{ work();
+        // /* fallthrough */ }`). Only the trailing statement is walked, and nested
+        // functions are not descended into, so a comment in a nested function or
+        // an earlier statement can't suppress a genuine fall-through.
+        if (last) {
+            const NESTED_FN = new Set([
+                "function_declaration",
+                "function_expression",
+                "arrow_function",
+                "method_definition",
+                "generator_function",
+                "generator_function_declaration",
+                "class_declaration",
+            ]);
+            const stack = [last];
+            for (let visited = 0; stack.length > 0 && visited < 500; visited++) {
+                const node = stack.pop();
+                if (!node)
+                    break;
+                if (node.type.includes("comment"))
+                    comments.push(node);
+                if (!NESTED_FN.has(node.type)) {
+                    stack.push(...(node.children ?? []));
+                }
+            }
+        }
+        return comments.some((c) => /falls?\s?through/i.test(c.text));
+    }
+    /**
+     * Whether a statement terminates control flow (does not fall through to the
+     * next statement). Handles terminators, trailing blocks, try/catch/finally,
+     * and exhaustive if/else. Fail-safe: any unrecognized shape returns false
+     * (falls through), so a blocking rule never under-reports. Depth-bounded so a
+     * pathological nesting cannot blow the stack.
+     */
+    statementTerminates(node, depth = 0) {
+        if (depth > 20)
+            return false;
+        const t = node.type;
+        const TERMINATORS = new Set([
+            "break_statement",
+            "return_statement",
+            "throw_statement",
+            "continue_statement",
+        ]);
+        if (TERMINATORS.has(t))
+            return true;
+        // Wrapper nodes whose trailing statement decides termination: a block, an
+        // `else` clause, a `catch` clause, or a `finally` clause.
+        if (t === "statement_block" ||
+            t === "else_clause" ||
+            t === "catch_clause" ||
+            t === "finally_clause") {
+            const inner = (node.children ?? []).filter((c) => c.isNamed && !c.type.includes("comment"));
+            const last = inner[inner.length - 1];
+            if (!last)
+                return false; // empty wrapper falls through
+            return this.statementTerminates(last, depth + 1);
+        }
+        if (t === "try_statement") {
+            // The try body is the first statement_block child. A returning/throwing
+            // try completes after finally, so only a catch that handles a thrown try
+            // and falls through can still reach the end. A try body that completes
+            // normally reaches the end unless a finally terminates it.
+            const tryBody = (node.children ?? []).find((c) => c.type === "statement_block");
+            const tryTerminates = tryBody
+                ? this.statementTerminates(tryBody, depth + 1)
+                : false;
+            const catches = (node.children ?? []).filter((c) => c.type === "catch_clause");
+            const fin = (node.children ?? []).find((c) => c.type === "finally_clause");
+            if (tryTerminates) {
+                return catches.every((c) => this.statementTerminates(c, depth + 1));
+            }
+            return !!fin && this.statementTerminates(fin, depth + 1);
+        }
+        if (t === "if_statement") {
+            // An if only terminates when it has an else and both branches do.
+            const named = (node.children ?? []).filter((c) => c.isNamed && !c.type.includes("comment"));
+            // named = [condition, consequence, (else_clause)]
+            const consequence = named[1];
+            const alternative = named[2];
+            if (!consequence || !alternative)
+                return false;
+            return (this.statementTerminates(consequence, depth + 1) &&
+                this.statementTerminates(alternative, depth + 1));
+        }
+        return false;
     }
     /**
      * Whether a `switch_case`'s next sibling is another label — `case "a": case
@@ -1524,7 +1823,71 @@ export class TreeSitterClient {
             }
             return slots;
         }
+        /**
+         * Escape a string for safe interpolation into a `RegExp` source —
+         * needed anywhere an identifier's raw text is combined with regex
+         * metacharacters like `\b` word boundaries (see
+         * "not_closed_or_try_with_resources" below; #1089 P2).
+         */
+        function escapeRegExp(s) {
+            return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
         switch (postFilter) {
+            case "no_nested_anchor_chain": {
+                // Tree-sitter queries can express the opening-tag shape, but they
+                // cannot express both an arbitrary-depth descendant relationship and
+                // an ancestor exclusion. Walk the captured JSX element here so the
+                // TSX path agrees with the ast-grep rule: keep exactly the outermost
+                // anchor that contains another anchor, including through wrappers.
+                // This post-filter runs inside a batched query walk. It must never
+                // abort that walk or turn a malformed tree into a false negative.
+                try {
+                    const outer = captures.OUTER_ELEMENT;
+                    if (!outer) {
+                        this.reportPostFilterFailure(postFilter, "missing OUTER_ELEMENT capture");
+                        return true;
+                    }
+                    const isAnchorElement = (node) => {
+                        if (node.type !== "jsx_element")
+                            return false;
+                        const opening = node.childForFieldName?.("open_tag") ??
+                            node.children?.find((child) => child.type === "jsx_opening_element");
+                        const name = opening?.childForFieldName?.("name") ??
+                            opening?.children?.find((child) => child.type === "identifier");
+                        return name?.text === "a";
+                    };
+                    let visited = 0;
+                    let ancestor = outer.parent;
+                    while (ancestor) {
+                        if (++visited > NO_NESTED_ANCHOR_VISIT_CAP) {
+                            this.reportPostFilterFailure(postFilter, `ancestor walk exceeded ${NO_NESTED_ANCHOR_VISIT_CAP} nodes`);
+                            return true;
+                        }
+                        if (isAnchorElement(ancestor))
+                            return false;
+                        ancestor = ancestor.parent;
+                    }
+                    const pending = [...(outer.children ?? [])];
+                    while (pending.length > 0) {
+                        const node = pending.pop();
+                        if (!node)
+                            continue;
+                        if (++visited > NO_NESTED_ANCHOR_VISIT_CAP) {
+                            this.reportPostFilterFailure(postFilter, `descendant walk exceeded ${NO_NESTED_ANCHOR_VISIT_CAP} nodes`);
+                            return true;
+                        }
+                        if (isAnchorElement(node))
+                            return true;
+                        pending.push(...(node.children ?? []));
+                    }
+                    return false;
+                }
+                catch (error) {
+                    const reason = error instanceof Error ? error.message : String(error);
+                    this.reportPostFilterFailure(postFilter, `tree walk failed${reason ? `: ${reason}` : ""}`);
+                    return true;
+                }
+            }
             case "differs_only_by_case": {
                 try {
                     const field = captures.FIELD?.text ?? "";
@@ -1637,7 +2000,11 @@ export class TreeSitterClient {
                     ]) ?? rootNode;
                     if (!scope)
                         return true;
-                    const resourceWord = new RegExp(`\b${resource}\b`);
+                    // `\b` in a template literal is the BACKSPACE control char
+                    // (U+0008), not a regex word-boundary escape — that requires
+                    // the literal two-character sequence `\\b`. The identifier
+                    // itself must also be regex-escaped (#1089 P2).
+                    const resourceWord = new RegExp(`\\b${escapeRegExp(resource)}\\b`);
                     const stack = [scope];
                     for (let visited = 0; stack.length > 0 && visited < 10_000; visited++) {
                         const node = stack.pop();
@@ -1846,41 +2213,27 @@ export class TreeSitterClient {
                 return !this.bodyHasLoopExit(bodyNode, false);
             }
             case "same_param_name": {
-                // duplicate-function-arg: keep the pair only when the two captured
-                // parameter identifiers share the same name.
-                const first = captures.PARAM1?.text;
-                const second = captures.NAME?.text;
-                return !!first && first === second;
+                // duplicate-function-arg: keep the pair when the captured binding
+                // patterns share any name.
+                const first = this.bindingNames(captures.PARAM1);
+                const second = this.bindingNames(captures.NAME);
+                return [...first].some((name) => second.has(name));
             }
             case "no_terminating_statement": {
                 // switch-case-termination: keep a non-empty case (already known to be
-                // followed by another case via the query) whose last body statement is
-                // not a terminator, i.e. it falls through. Empty cases are handled by
-                // empty-switch-case, so require at least one body statement here.
+                // followed by another case via the query) whose last body statement
+                // does not terminate, i.e. it falls through. Empty cases are handled
+                // by empty-switch-case, so require at least one body statement here.
+                // An intentional `// fallthrough` marker suppresses the finding.
                 const caseNode = captures.CASE;
                 if (!caseNode)
+                    return false;
+                if (this.hasFallthroughMarker(caseNode))
                     return false;
                 const body = this.switchCaseBodyStatements(caseNode);
                 if (body.length === 0)
                     return false;
-                let last = body[body.length - 1];
-                while (last.type === "statement_block") {
-                    // A block-scoped case body terminates when its trailing statement
-                    // terminates. Keep an empty block as the last node so it still
-                    // reports fall-through.
-                    const inner = (last.children ?? []).filter((c) => c.isNamed && !c.type.includes("comment"));
-                    const next = inner[inner.length - 1];
-                    if (!next)
-                        break;
-                    last = next;
-                }
-                const TERMINATORS = new Set([
-                    "break_statement",
-                    "return_statement",
-                    "throw_statement",
-                    "continue_statement",
-                ]);
-                return !TERMINATORS.has(last.type);
+                return !this.statementTerminates(body[body.length - 1]);
             }
             case "no_break_or_return": {
                 // infinite-loop-java: keep a `while(true)`/`for(;;)` whose body has no
@@ -1981,18 +2334,17 @@ export class TreeSitterClient {
                 // A typed `except` clause has a named child for the exception
                 // spec — one of: identifier (e.g. `except ValueError`),
                 // attribute (e.g. `except asyncio.TimeoutError` — dotted name),
-                // tuple (e.g. `except (E, F)`), or as_pattern (e.g. `except E as e`).
+                // tuple (e.g. `except (E, F)`), as_pattern (e.g. `except E as e`),
+                // parenthesized_expression (e.g. `except (E)`), or subscript
+                // (e.g. `except dict[str, int]` — #1244, mirrors the ast-grep
+                // rule's shape space).
                 // Bare `except:` has NO named children (just the `except` keyword,
                 // the `:` colon, and the body block).
                 // biome-ignore lint/suspicious/noExplicitAny: AST iteration
                 const hasExceptionSpec = clauseNode.children.some((c) => {
                     if (!c.isNamed)
                         return false;
-                    return (c.type === "identifier" ||
-                        c.type === "attribute" ||
-                        c.type === "tuple" ||
-                        c.type === "as_pattern" ||
-                        c.type === "parenthesized_expression");
+                    return (c.type !== "block");
                 });
                 // Fire ONLY when bare (no exception spec)
                 return !hasExceptionSpec;
@@ -2756,14 +3108,31 @@ export class TreeSitterClient {
         }
     }
     reportedMissingPostFilters = new Set();
+    reportedPostFilterFailures = new Set();
+    /** Keep a failed post-filter match and leave a bounded diagnostic trail. */
+    reportPostFilterFailure(postFilter, reason) {
+        if (this.reportedPostFilterFailures.has(postFilter))
+            return;
+        this.reportedPostFilterFailures.add(postFilter);
+        logTreeSitterDiagnostic({
+            subsystem: "tree-sitter-client",
+            message: `tree-sitter rule post_filter '${postFilter}' failed — ` +
+                `keeping the diagnostic (fail-open): ${reason}.`,
+            metadata: { postFilter },
+        });
+    }
     /** Warn once per unimplemented post_filter — a silent rule needs a trail. */
     reportMissingPostFilter(postFilter) {
         if (this.reportedMissingPostFilters.has(postFilter))
             return;
         this.reportedMissingPostFilters.add(postFilter);
-        console.error(`[pi-lens] tree-sitter rule post_filter '${postFilter}' is not implemented — ` +
-            `matches for the rules using it are suppressed rather than reported unfiltered. ` +
-            `Implement it in applyPostFilter (clients/tree-sitter-client.ts) to re-enable them.`);
+        logTreeSitterDiagnostic({
+            subsystem: "tree-sitter-client",
+            message: `tree-sitter rule post_filter '${postFilter}' is not implemented — ` +
+                `matches for the rules using it are suppressed rather than reported unfiltered. ` +
+                `Implement it in applyPostFilter (clients/tree-sitter-client.ts) to re-enable them.`,
+            metadata: { postFilter },
+        });
     }
     /**
      * Evaluate text predicates (#match?, #eq?) for a query match.

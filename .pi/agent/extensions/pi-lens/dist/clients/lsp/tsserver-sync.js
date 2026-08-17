@@ -32,10 +32,106 @@
  * `undefined`). The caller must handle `undefined` as "sync path unavailable,
  * fall back to existing unconfirmed/timed-out behavior".
  */
+import { logLatency } from "../latency-logger.js";
+import { normalizeMapKey } from "../path-utils.js";
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 export const TSSERVER_REQUEST_COMMAND = "typescript.tsserverRequest";
+function classifyProjectInfo(body) {
+    if (!body || typeof body !== "object") {
+        return { projectKind: "unassociated", association: "unassociated" };
+    }
+    const info = body;
+    const configFile = typeof info.configFileName === "string" && info.configFileName.length > 0
+        ? info.configFileName
+        : undefined;
+    const inferred = configFile
+        ? /(?:^|[/\\])inferredProject\d*\*?$/i.test(configFile) ||
+            /inferred[-_ ]?project/i.test(configFile)
+        : false;
+    const projectKind = configFile
+        ? inferred
+            ? "inferred"
+            : /(?:^|[/\\])(?:tsconfig|jsconfig)\.json$/i.test(configFile)
+                ? "configured"
+                : "unassociated"
+        : "unassociated";
+    return {
+        projectKind,
+        ...(configFile ? { configFile } : {}),
+        association: info.languageServiceDisabled === true
+            ? "language-service-disabled"
+            : projectKind === "unassociated"
+                ? "unassociated"
+                : "associated",
+    };
+}
+/**
+ * #1412: after classic TypeScript's first successful didOpen, sample the
+ * tsserver project association without delaying diagnostics. The supplied
+ * executeCommand channel owns the existing bounded anti-deadlock backstop.
+ */
+export async function probeTsserverProjectIdentity(options) {
+    const normalizedFile = options.normalizedFile ?? normalizeMapKey(options.file);
+    const startedAt = Date.now();
+    // Logging starts only once a probe is actually eligible and attempted:
+    // ineligible servers (wrong serverId/launchVariant, no command channel) and
+    // already-probed dedupe are both routine, high-volume, and per-server — a
+    // bare return keeps them out of the telemetry stream entirely instead of
+    // writing an `lsp_typescript_project_identity` row per didOpen on every
+    // server (python, go, opengrep, ...).
+    const logOutcome = (outcome, metadata = {}) => logLatency({
+        type: "phase", phase: "lsp_typescript_project_identity", filePath: normalizedFile,
+        durationMs: Date.now() - startedAt,
+        metadata: { serverId: options.serverId, launchVariant: options.launchVariant, clientRoot: options.clientRoot, outcome, ...metadata },
+    });
+    if (options.serverId !== "typescript" ||
+        options.launchVariant !== "classic" ||
+        typeof options.commandChannel.executeCommand !== "function") {
+        return;
+    }
+    if (options.probedFiles.has(normalizedFile))
+        return;
+    // Claim before yielding so concurrent opens cannot issue duplicate probes.
+    options.probedFiles.add(normalizedFile);
+    try {
+        const outcome = await options.commandChannel.executeCommand(TSSERVER_REQUEST_COMMAND, ["projectInfo", { file: options.file, needFileNameList: false }]);
+        if (!outcome.executed) {
+            logOutcome("not-executed");
+            return;
+        }
+        const response = outcome.result;
+        if (!response) {
+            logOutcome("no-response");
+            return;
+        }
+        if (response.success !== true) {
+            logOutcome("unsuccessful");
+            return;
+        }
+        const identity = classifyProjectInfo(response.body);
+        logLatency({
+            type: "phase",
+            phase: "lsp_typescript_project_identity",
+            filePath: normalizedFile,
+            durationMs: Date.now() - startedAt,
+            metadata: {
+                outcome: "ok",
+                serverId: options.serverId,
+                launchVariant: options.launchVariant,
+                clientRoot: options.clientRoot,
+                projectKind: identity.projectKind,
+                configFile: identity.configFile,
+                association: identity.association,
+            },
+        });
+    }
+    catch {
+        logOutcome("threw");
+        // Best-effort telemetry: command errors/timeouts never reach diagnostics.
+    }
+}
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

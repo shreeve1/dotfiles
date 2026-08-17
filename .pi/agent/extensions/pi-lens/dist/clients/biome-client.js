@@ -7,15 +7,38 @@
  * Requires: npm install @biomejs/biome (or npx @biomejs/biome)
  * Docs: https://biomejs.dev/
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { isFileKind } from "./file-kinds.js";
 import { getGlobalPiLensDir } from "./file-utils.js";
 import { findGlobalBinary } from "./package-manager.js";
 import { safeSpawnAsync } from "./safe-spawn.js";
+import { biomeConfigArgs } from "./tool-policy.js";
+import { resolveManagedToolClient, } from "./dispatch/runners/utils/runner-helpers.js";
+import { classifyProbeFailure, createAvailabilityLatch, logAvailabilityDecision, startHostStallSampler, } from "./dispatch/runners/utils/availability-policy.js";
 // --- Client ---
+const PROBE_TIMEOUT_MS = 10_000;
 export class BiomeClient {
-    biomeAvailable = null;
+    /**
+     * Availability memo, backed by the shared transient-aware latch (#1476).
+     *
+     * Biome is the hot-path formatter: before this, ANY probe failure — a
+     * timeout included — collapsed to `{ outcome: "missing" }`, which both
+     * triggered an install and latched `false` for the life of the process. One
+     * slow first format then disabled formatting until restart.
+     */
+    availabilityLatch = createAvailabilityLatch();
+    /** Cause of the last probe, read when the resolution comes back. */
+    lastProbeCause = null;
+    /**
+     * Measurements of the last failed probe, held until the latch decides how
+     * long the verdict lasts. The decision record is emitted after that, so it
+     * can carry `retryAfterMs` — a latch you can see is worth little if the
+     * retry schedule is not greppable beside it (#1474).
+     */
+    lastProbeElapsedMs = 0;
+    lastProbeHostStallMs = 0;
     // Per-cwd cache of the resolved biome binary. Keying by cwd matters in
     // monorepos where different sub-packages each ship their own biome
     // installation; sharing one slot across the whole client would cause
@@ -29,7 +52,7 @@ export class BiomeClient {
     log;
     constructor(verbose = false) {
         this.log = verbose
-            ? (msg) => console.error(`[biome] ${msg}`)
+            ? createSubsystemLogger("biome")
             : () => { };
     }
     /**
@@ -87,7 +110,7 @@ export class BiomeClient {
     }
     async spawnBiomeAsync(args, timeout = 15000, cwd) {
         const { cmd, args: prefix } = await this.getBiomeBinary(cwd);
-        return safeSpawnAsync(cmd, [...prefix, ...args], { timeout });
+        return safeSpawnAsync(cmd, [...prefix, ...args], { timeout, cwd });
     }
     /**
      * Ensure Biome is available, auto-installing if necessary.
@@ -97,10 +120,15 @@ export class BiomeClient {
      * `ensureInFlight` promise so probing/auto-install isn't duplicated.
      * Mirrors the dedupe pattern in `SgRunner` / `KnipClient` /
      * `DependencyChecker`.
+     *
+     * The memo returns `null` when the last verdict was transient and its
+     * cooldown expired, which re-enters the probe: "biome is not installed" is a
+     * fact worth caching, "the probe timed out" is a moment worth retrying.
      */
     async ensureAvailable() {
-        if (this.biomeAvailable !== null)
-            return this.biomeAvailable;
+        const memo = this.availabilityLatch.read();
+        if (memo !== null)
+            return memo;
         if (this.ensureInFlight)
             return this.ensureInFlight;
         this.ensureInFlight = this.doEnsureAvailable();
@@ -111,27 +139,105 @@ export class BiomeClient {
             this.ensureInFlight = null;
         }
     }
-    async doEnsureAvailable() {
-        // Check if already available
-        const result = await this.spawnBiomeAsync(["--version"], 10000);
+    /**
+     * Probe `biome --version` and classify the failure through the shared
+     * policy. Only a durable verdict (`missing` / `non-installable`) may reach
+     * the install branch of `resolveManagedToolClient`; a transient one returns
+     * as `transient`, which that seam passes straight back without installing.
+     */
+    async probeBiome() {
+        // The probe budget is enforced by a HOST-side timer, so a stalled event
+        // loop expires it while the child is still healthy. Measure the stall
+        // that overlapped the window and let the classifier see it (#1467).
+        const sampler = startHostStallSampler();
+        const startedAt = Date.now();
+        let result;
+        let hostStallMs;
+        try {
+            result = await this.spawnBiomeAsync(["--version"], PROBE_TIMEOUT_MS);
+        }
+        finally {
+            hostStallMs = sampler.stop();
+        }
+        const elapsedMs = Date.now() - startedAt;
         if (!result.error && result.status === 0) {
-            this.biomeAvailable = true;
+            this.lastProbeCause = "ok";
+            logAvailabilityDecision({
+                tool: "biome",
+                verdict: "available",
+                outcome: "success",
+                cause: "ok",
+                elapsedMs,
+                latched: true,
+                hostStallMs,
+                budgetMs: PROBE_TIMEOUT_MS,
+            });
+            return { outcome: "success", value: true };
+        }
+        // `unclassifiedFailureOutcome: "missing"` preserves the pre-#1476
+        // meaning of a plain non-zero exit (npx reporting no biome package):
+        // still "missing", still installable. Only the timeout/abort arm changes.
+        const { outcome, cause } = classifyProbeFailure(result, {
+            hostStallMs,
+            unclassifiedFailureOutcome: "missing",
+        });
+        // `classifyProbeFailure` is typed over the full outcome union but never
+        // returns "success" for a failed probe; narrow it for the seam's type.
+        const failureOutcome = outcome === "success" ? "non-installable" : outcome;
+        this.lastProbeCause = cause;
+        this.lastProbeElapsedMs = elapsedMs;
+        this.lastProbeHostStallMs = hostStallMs;
+        // The record is emitted by `doEnsureAvailable`, once the latch has said how
+        // long this verdict holds.
+        return { outcome: failureOutcome };
+    }
+    async doEnsureAvailable() {
+        const resolved = await resolveManagedToolClient({
+            toolId: "biome",
+            cwd: process.cwd(),
+            probe: () => this.probeBiome(),
+            acceptInstalled: (installedPath) => {
+                this.autoInstalledBinaryPath = installedPath;
+                return true;
+            },
+        });
+        if (resolved.outcome === "success") {
+            this.availabilityLatch.noteAvailable();
+            // The probe itself logs a clean hit. This arm is the other way to
+            // succeed — the install repaired a durable miss — and it needs its own
+            // record, or "biome went missing and came back" reads as silence.
+            if (this.lastProbeCause !== null && this.lastProbeCause !== "ok") {
+                logAvailabilityDecision({
+                    tool: "biome",
+                    verdict: "available",
+                    outcome: "success",
+                    cause: "ok",
+                    elapsedMs: this.lastProbeElapsedMs,
+                    latched: true,
+                    hostStallMs: this.lastProbeHostStallMs,
+                    budgetMs: PROBE_TIMEOUT_MS,
+                });
+            }
             return true;
         }
-        // Auto-install via pi-lens installer
-        this.log("Biome not found, attempting auto-install...");
-        const { ensureTool } = await import("./installer/index.js");
-        const installedPath = await ensureTool("biome");
-        if (installedPath) {
-            this.log(`Biome auto-installed: ${installedPath}`);
-            // Set the installed path as the global fallback so every cwd
-            // reaches it after its own per-package lookup misses.
-            this.autoInstalledBinaryPath = installedPath;
-            this.biomeAvailable = true;
-            return true;
+        // A transient probe expires; a durable verdict is remembered for the
+        // session exactly as before.
+        const cause = this.lastProbeCause ?? "not-found";
+        const retryAfterMs = this.availabilityLatch.noteUnavailable(resolved.outcome, cause);
+        logAvailabilityDecision({
+            tool: "biome",
+            verdict: "unavailable",
+            outcome: resolved.outcome,
+            cause,
+            elapsedMs: this.lastProbeElapsedMs,
+            latched: resolved.outcome !== "transient",
+            hostStallMs: this.lastProbeHostStallMs,
+            ...(retryAfterMs > 0 && { retryAfterMs }),
+            budgetMs: PROBE_TIMEOUT_MS,
+        });
+        if (resolved.outcome === "transient") {
+            this.log("biome availability probe timed out; will retry (not installing)");
         }
-        this.log("Biome auto-install failed");
-        this.biomeAvailable = false;
         return false;
     }
     /**
@@ -142,8 +248,10 @@ export class BiomeClient {
     }
     /**
      * Async auto-fix variant for pipeline use (non-blocking spawn).
+     * `cwd` is the dispatch language root (used for config discovery); when
+     * omitted it defaults to the file's directory.
      */
-    async fixFileAsync(filePath) {
+    async fixFileAsync(filePath, cwd) {
         if (!(await this.ensureAvailable())) {
             return {
                 success: false,
@@ -163,7 +271,11 @@ export class BiomeClient {
         }
         try {
             const before = await fs.promises.readFile(absolutePath, "utf-8");
-            const result = await this.spawnBiomeAsync(["lint", "--write", absolutePath], 15000, path.dirname(absolutePath));
+            const configCwd = cwd ?? path.dirname(absolutePath);
+            // Shared config-args seam (#1247): the lint runner consumes the same
+            // builder, so `lint --write` can never drift to biome's default
+            // config when a user config or the package fallback exists.
+            const result = await this.spawnBiomeAsync(["lint", "--write", ...biomeConfigArgs(configCwd), absolutePath], 15000, configCwd);
             if (result.error) {
                 return {
                     success: false,

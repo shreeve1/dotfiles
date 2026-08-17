@@ -7,6 +7,7 @@
  * - Diagnostics with debouncing
  * - Request/response handling
  */
+import { logExtension } from "../extension-log.js";
 import { spawn as nodeSpawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { access, readFile } from "node:fs/promises";
@@ -18,9 +19,12 @@ import { logLatency } from "../latency-logger.js";
 // `./node` subpath (no `.js`); the old `/node.js` file path no longer resolves.
 import { CancellationTokenSource, createMessageConnection, StreamMessageReader, StreamMessageWriter, } from "../deps/vscode-jsonrpc.js";
 import { getAmbientAbortSignal } from "../safe-spawn.js";
-import { applyWorkspaceEdit } from "./edits.js";
+import { hashDiagnosticContent, } from "./diagnostic-binding.js";
+import { newLspMutationCorrelationId, } from "../lsp-mutation.js";
+import { applyWorkspaceEdit, normalizeWorkspaceEditToUtf16, } from "./edits.js";
 import { recordLspChild, removeLspChild } from "../instance-registry.js";
 import { normalizeMapKey, uriToPath } from "./path-utils.js";
+import { probeTsserverProjectIdentity } from "./tsserver-sync.js";
 import { ADVERTISED_POSITION_ENCODINGS, convertCharacterOffset, lineTextAt, negotiatePositionEncoding, } from "./position-encoding.js";
 import { getStrategy } from "./wait-policy/index.js";
 import { WatchedFilesQueue } from "./watch-queue.js";
@@ -123,12 +127,35 @@ const PULL_DIAGNOSTICS_RETRY_INTERVAL_MS = positiveIntFromEnv("PI_LENS_LSP_PULL_
 // (per #240) is NOT read as clean and falls through to the bounded push backstop.
 const PULL_REQUEST_TIMEOUT_MS = positiveIntFromEnv("PI_LENS_LSP_PULL_REQUEST_TIMEOUT_MS", 10_000);
 const SHUTDOWN_REQUEST_TIMEOUT_MS = positiveIntFromEnv("PI_LENS_LSP_SHUTDOWN_TIMEOUT_MS", 1000);
+// #1277: cheap liveness round-trip for the silent-clean gates (`index.ts`).
+// Those gates convert a diagnostics-wait timeout into a confirmed-clean
+// result from a STATIC capability classification (`silentOnClean`) alone —
+// but a wedged server (accepted the notify write, then hung) satisfies that
+// classification identically to a genuinely clean one. This is deliberately
+// short relative to NAV_REQUEST_TIMEOUT_MS: it only needs to prove the
+// connection round-trips SOMETHING before the touch reports clean, not
+// complete a real navigation request.
+const LIVENESS_PING_TIMEOUT_MS = positiveIntFromEnv("PI_LENS_LSP_LIVENESS_PING_TIMEOUT_MS", 300);
+// Distinctive, unlikely-to-collide query string — the response content is
+// never inspected, only whether one arrived before the timeout.
+const LIVENESS_PING_QUERY = "__pi_lens_liveness_ping__";
+// #1104: bound on `state.workspacePullResultCache` — one entry per distinct
+// file the server has ever returned a `resultId` for across this client's
+// lifetime. A full clear on overflow (rather than an LRU) is fine, same
+// reasoning as `DISK_BINDING_MEMO_MAX` in diagnostic-binding.ts: each entry is
+// cheaply rebuilt by the next full pull, the worst case is just one extra full
+// (non-`unchanged`) report per affected file.
+const WORKSPACE_PULL_RESULT_CACHE_MAX = 4096;
 // Anti-deadlock backstop for workspace/executeCommand. Deliberately generous
 // (30s): the command is mutating and legitimately long-running (a real server
 // refactor / organize-imports), so this must not truncate valid work — it only
 // stops a hung server from blocking the caller forever. On timeout the command
 // may still be applying server-side; we surface that rather than pretend it ran.
 const EXECUTE_COMMAND_TIMEOUT_MS = positiveIntFromEnv("PI_LENS_LSP_EXECUTE_COMMAND_TIMEOUT_MS", 30_000);
+// #1412 H1: short ceiling for the read-only tsserver project-identity probe.
+// This is a telemetry sample, not a mutation — it must never hold the door
+// open for anything close to EXECUTE_COMMAND_TIMEOUT_MS.
+const PROBE_COMMAND_TIMEOUT_MS = positiveIntFromEnv("PI_LENS_LSP_PROJECT_IDENTITY_PROBE_TIMEOUT_MS", 2_500);
 const LSP_CRASH_CODES = new Set([
     "ERR_STREAM_DESTROYED",
     "ERR_STREAM_WRITE_AFTER_END",
@@ -282,12 +309,34 @@ export async function killProcessTree(proc, pid, options = {}) {
         }
     };
     try {
+        // #1114: gate the escalation on OBSERVED exit, not `proc.killed`. Node
+        // only sets `proc.killed = true` when `proc.kill()` (the ChildProcess
+        // method) successfully SENDS a signal — never when the process actually
+        // dies, and the primary SIGTERM path above goes through the raw
+        // `process.kill(-pid, …)` process-group call, which never touches
+        // `proc.killed` at all. Checking `!proc.killed` here was therefore
+        // either always-true (unconditional SIGKILL after the window,
+        // regardless of whether the group already died — group-kill path) or
+        // always-false/dead (direct-child fallback path, same shape as the
+        // safe-spawn escalation bug). An `exit` listener set once, up front,
+        // gives a real observed-death signal for both. Seeded from the same
+        // `exitCode`/`signalCode` pre-check the top-of-function early return
+        // uses (:689) — that early return is skipped when
+        // `options.processExiting` is set, so a process that was ALREADY dead
+        // on entry can still reach here; without seeding, `exited` would stay
+        // false (the "exit" event already fired before this listener was
+        // attached) and the fast/non-fast branches below would still fire a
+        // redundant group SIGKILL at the escalation window.
+        let exited = proc.exitCode != null || proc.signalCode != null;
+        proc.once?.("exit", () => {
+            exited = true;
+        });
         if (!killPosixProcessGroup("SIGTERM")) {
             killDirectChild("SIGTERM");
         }
         if (options.fast) {
             const timer = setTimeout(() => {
-                if (!proc.killed) {
+                if (!exited) {
                     logLatency({
                         type: "phase",
                         phase: "lsp_kill_escalation",
@@ -324,7 +373,7 @@ export async function killProcessTree(proc, pid, options = {}) {
             }, 1500);
             proc.once?.("exit", onExit);
         });
-        if (!exitedInTime && !proc.killed) {
+        if (!exitedInTime && !exited) {
             logLatency({
                 type: "phase",
                 phase: "lsp_kill_escalation",
@@ -390,15 +439,72 @@ function getMergedDiagnosticsForPath(state, normalizedPath) {
     return mergeDiagnosticLists(state.pushDiagnostics?.get(normalizedPath) ??
         legacy.diagnostics?.get(normalizedPath), state.documentPullDiagnostics?.get(normalizedPath));
 }
-function clearDiagnosticsForPath(state, normalizedPath) {
+/** Exported for tests: the quiet-window timer cancel on clear/resync is the
+ * headline #1412 safety property (a stale versionless publication must never
+ * land after the document content changed). */
+export function clearDiagnosticsForPath(state, normalizedPath) {
     const legacy = state;
     state.pushDiagnostics?.delete(normalizedPath);
+    const pending = state.pendingDiagnostics?.get(normalizedPath);
+    if (pending)
+        clearTimeout(pending);
+    state.pendingDiagnostics?.delete(normalizedPath);
     state.pushDiagnosticTimestamps?.delete(normalizedPath);
     state.documentPullDiagnostics?.delete(normalizedPath);
     state.documentPullDiagnosticTimestamps?.delete(normalizedPath);
     state.diagnosticDocVersions?.delete(normalizedPath);
+    // #1095: a cleared path must never serve a stale content binding alongside a
+    // later publish — drop it with the diagnostics it described. (The last-sent
+    // `documentContentHashes` record is intentionally retained: it describes what
+    // we sent, which the NEXT publish for that version still needs to bind to.)
+    state.diagnosticBindings?.delete(normalizedPath);
+    // #1104: a resync invalidates any `unchanged`-report basis too — the next
+    // pull must not inherit a resultId/contentHash computed against the
+    // content this resync just replaced.
+    state.pullResultIds?.delete(normalizedPath);
+    state.workspacePullResultCache?.delete(normalizedPath);
     legacy.diagnostics?.delete(normalizedPath);
     legacy.diagnosticTimestamps?.delete(normalizedPath);
+}
+function logTypeScriptPullSettle(state, normalizedPath) {
+    if (state.serverId !== "typescript")
+        return;
+    const diagnostics = state.documentPullDiagnostics.get(normalizedPath) ?? [];
+    const elapsedSinceDidOpenMs = Math.max(0, Date.now() - (state.documentOpenedAt.get(normalizedPath) ?? Date.now()));
+    const diagnosticCodes = [...new Set(diagnostics
+            .map((diagnostic) => diagnostic.code)
+            .filter((code) => code !== undefined)
+            .map(String))].slice(0, 8);
+    logLatency({
+        type: "phase",
+        phase: "lsp_typescript_diagnostic_sequence",
+        filePath: normalizedPath,
+        durationMs: elapsedSinceDidOpenMs,
+        metadata: {
+            launchVariant: state.launchVariant ?? "unknown",
+            publicationIndex: state.diagnosticPublicationCounts.get(normalizedPath) ?? 0,
+            version: null,
+            diagnosticCount: diagnostics.length,
+            diagnosticCodes,
+            elapsedSinceDidOpenMs,
+            settledReturn: true,
+            settleSource: "pull",
+        },
+    });
+}
+/**
+ * #1095: fingerprint the EXACT didOpen/didChange payload text at SEND time and
+ * tag it with the document version it was sent as, so a later
+ * `publishDiagnostics` echoing that version can bind its diagnostics to the
+ * content they were computed against. Runs on in-memory content — never a disk
+ * read on the notification path (I1). Bounded by the same file-size gates the
+ * caller already applies to the content it hands us.
+ */
+function recordSentContent(state, normalizedPath, version, content) {
+    state.documentContentHashes.set(normalizedPath, {
+        version,
+        hash: hashDiagnosticContent(content),
+    });
 }
 // Methods that can be registered dynamically and map to operationSupport keys
 const DYNAMIC_OPERATION_METHOD_MAP = {
@@ -475,12 +581,60 @@ export function setupIncomingHandlers(state, initialization) {
     state.connection.onNotification("textDocument/publishDiagnostics", (params) => {
         const filePath = uriToPath(params.uri);
         const normalizedPath = normalizeMapKey(filePath);
+        // A server can flush a queued publish after didClose during teardown.
+        // Do not resurrect diagnostics or their content binding for a document
+        // that is no longer open on this client.
+        if (state.closedDocuments?.has(normalizedPath))
+            return;
         const newDiags = normalizeLspDiagnostics(params.diagnostics || []);
         const docVersion = params.version;
         if (PUB_DEBUG) {
-            console.error(`[lsp-pub] server=${state.serverId} pubVersion=${docVersion} docVersion=${state.documentVersions?.get(normalizedPath)} diags=${newDiags.length}`);
+            // #1333: PUB_DEBUG gate preserved; sink is extension.log.
+            logExtension({
+                subsystem: "lsp-pub",
+                level: "debug",
+                message: `server=${state.serverId} pubVersion=${docVersion} docVersion=${state.documentVersions?.get(normalizedPath)} diags=${newDiags.length}`,
+            });
         }
-        const strategy = getStrategy(state.serverId);
+        const strategy = getStrategy(state.serverId, state.launchVariant);
+        // Publication counting and code extraction exist only for the
+        // TypeScript diagnostic-sequence telemetry; skip the bookkeeping for
+        // every other push server on this hot receive path.
+        const isTypeScriptTelemetry = state.serverId === "typescript";
+        const publicationIndex = isTypeScriptTelemetry
+            ? (state.diagnosticPublicationCounts.get(normalizedPath) ?? 0) + 1
+            : 0;
+        if (isTypeScriptTelemetry) {
+            state.diagnosticPublicationCounts.set(normalizedPath, publicationIndex);
+        }
+        const diagnosticCodes = isTypeScriptTelemetry
+            ? [...new Set(newDiags
+                    .map((diagnostic) => diagnostic.code)
+                    .filter((code) => code !== undefined)
+                    .map(String))].slice(0, 8)
+            : [];
+        const logSequence = (settledReturn, settleSource) => {
+            if (state.serverId !== "typescript")
+                return;
+            const elapsedSinceDidOpenMs = Math.max(0, Date.now() -
+                (state.documentOpenedAt.get(normalizedPath) ?? Date.now()));
+            logLatency({
+                type: "phase",
+                phase: "lsp_typescript_diagnostic_sequence",
+                filePath: normalizedPath,
+                durationMs: elapsedSinceDidOpenMs,
+                metadata: {
+                    launchVariant: state.launchVariant ?? "unknown",
+                    publicationIndex,
+                    version: docVersion ?? null,
+                    diagnosticCount: newDiags.length,
+                    diagnosticCodes,
+                    elapsedSinceDidOpenMs,
+                    settledReturn,
+                    ...(settleSource && { settleSource }),
+                },
+            });
+        };
         // Record the document version these diagnostics were computed against
         // (when the server reports it) so waitForDiagnostics can reject results
         // that lag behind the latest didChange instead of serving them as fresh.
@@ -488,6 +642,26 @@ export function setupIncomingHandlers(state, initialization) {
             if (docVersion !== undefined) {
                 state.diagnosticDocVersions.set(normalizedPath, docVersion);
             }
+            recordBinding();
+        };
+        // #1095: bind the just-stored diagnostics to the content they were
+        // computed against. Only when the server reported a version AND we still
+        // hold the sent-content fingerprint for exactly that version — otherwise
+        // no contentHash is recorded, so the binding reads "unknown" and a
+        // version-less server behaves exactly as before. Runs at the same
+        // write-time moment as `pushDiagnostics.set` (superseded pushes are
+        // dropped before this via `isSupersededPush`, so a binding never lags the
+        // latest sent version).
+        const recordBinding = () => {
+            if (docVersion === undefined) {
+                state.diagnosticBindings.delete(normalizedPath);
+                return;
+            }
+            const sent = state.documentContentHashes.get(normalizedPath);
+            state.diagnosticBindings.set(normalizedPath, {
+                version: docVersion,
+                contentHash: sent && sent.version === docVersion ? sent.hash : undefined,
+            });
         };
         // Late/superseded-push guard: if the server stamped this push with a
         // version and that version already lags the latest didChange we sent,
@@ -526,8 +700,10 @@ export function setupIncomingHandlers(state, initialization) {
             recordDocVersion();
             state.diagnosticsVersion += 1;
             state.diagnosticEmitter.emit("diagnostics", normalizedPath);
+            logSequence(true, "first-push");
             return;
         }
+        logSequence(false);
         const existingTimer = state.pendingDiagnostics.get(normalizedPath);
         if (existingTimer)
             clearTimeout(existingTimer);
@@ -540,6 +716,7 @@ export function setupIncomingHandlers(state, initialization) {
             recordDocVersion();
             state.diagnosticsVersion += 1;
             state.diagnosticEmitter.emit("diagnostics", normalizedPath);
+            logSequence(true, "quiet-window");
         }, strategy.debounceMs);
         state.pendingDiagnostics.set(normalizedPath, timer);
     });
@@ -580,8 +757,21 @@ export function setupIncomingHandlers(state, initialization) {
         if (state.serverEditsAllowed <= 0 || !params?.edit) {
             return { applied: false, failureReason: "edit not solicited" };
         }
+        const context = (state.activeMutationDepth ?? 0) === 1
+            ? state.activeMutationContext
+            : undefined;
+        const telemetryContext = context ?? {
+            cwd: state.root,
+            correlationId: newLspMutationCorrelationId(),
+            tool: "lsp-workspace-applyEdit",
+            source: "lsp-edit",
+        };
         try {
-            await applyWorkspaceEdit(params.edit, state.root);
+            await applyWorkspaceEdit(params.edit, state.root, {
+                positionEncoding: state.positionEncoding,
+                documentVersions: state.documentVersions,
+                mutationContext: telemetryContext,
+            });
             return { applied: true };
         }
         catch (err) {
@@ -603,16 +793,30 @@ export function setupIncomingHandlers(state, initialization) {
     });
     state.connection.onRequest("window/workDoneProgress/create", async () => { });
 }
+/**
+ * #1127: record the FIRST moment this client observed its own death. Detection
+ * of a dead client (the next `getClientForFile` attach in index.ts) can happen
+ * long after the process actually died — this timestamp is the only reliable
+ * "when did it die" signal, so it must be set here, at the earliest death
+ * signal, not derived later from detection time.
+ */
+function markExitedIfUnset(state) {
+    if (state.exitedAt === undefined) {
+        state.exitedAt = Date.now();
+    }
+}
 function setupConnectionLifecycle(state, recentStderr) {
     state.connection.onError(([error]) => {
         state.lastError = error instanceof Error ? error : new Error(String(error));
         state.isConnected = false;
         state.isDestroyed = true;
+        markExitedIfUnset(state);
         disposeClientConnection(state);
     });
     state.connection.onClose(() => {
         state.isConnected = false;
         state.isDestroyed = true;
+        markExitedIfUnset(state);
         disposeClientConnection(state);
     });
     state.lspProcess.process.on("exit", (code, signal) => {
@@ -627,6 +831,7 @@ function setupConnectionLifecycle(state, recentStderr) {
         const wasIntentional = state.shutdownRequested;
         state.isConnected = false;
         state.isDestroyed = true;
+        markExitedIfUnset(state);
         disposeClientConnection(state);
         if (!wasIntentional) {
             logLatency({
@@ -649,6 +854,12 @@ async function clientRequestPullDiagnostics(state, filePath, budgetMs = PULL_REQ
     if (!isClientAlive(state))
         return { status: "unavailable" };
     const uri = pathToFileURL(filePath).href;
+    const normalizedPath = normalizeMapKey(filePath);
+    // #1104: echo the last resultId we hold for this document so a server that
+    // hasn't changed its view can answer `kind: "unchanged"` instead of
+    // recomputing — see the `kind === "unchanged"` branch below for how that's
+    // honored (inherit, never treat an omitted `items` as clean).
+    const previousResultId = state.pullResultIds.get(normalizedPath);
     try {
         // withTimeout is the backstop against a hung pull-mode server: without it
         // this await never settles unless the stream is destroyed. Bounded by the
@@ -657,23 +868,69 @@ async function clientRequestPullDiagnostics(state, filePath, budgetMs = PULL_REQ
         // `clean`), so it falls through to the push-wait/timeout backstop.
         const report = await withTimeout(safeSendRequest(state.connection, "textDocument/diagnostic", {
             textDocument: { uri },
+            ...(previousResultId !== undefined && { previousResultId }),
         }), Math.max(1, Math.min(PULL_REQUEST_TIMEOUT_MS, budgetMs)));
-        if (!report)
+        if (!report) {
+            recordPullFailure(state, "textDocument/diagnostic", new Error("empty response"));
             return { status: "unavailable" };
-        const normalizedPath = normalizeMapKey(filePath);
-        const primaryItems = normalizeLspDiagnostics(report.items ?? []);
+        }
         const now = Date.now();
-        state.documentPullDiagnostics.set(normalizedPath, primaryItems);
-        state.documentPullDiagnosticTimestamps.set(normalizedPath, now);
-        state.diagnosticsVersion += 1;
-        let totalCount = primaryItems.length;
+        // #1104: the fingerprint of the content we last sent for this document —
+        // the SAME `documentContentHashes` entry the push binding path uses
+        // (`recordSentContent` runs unconditionally on every didOpen/didChange,
+        // regardless of push/pull mode), so this costs no extra read. A pull
+        // response describes whatever the server had when it answered, which for
+        // a pi-lens-opened document is exactly that last-sent payload.
+        const sentHash = state.documentContentHashes.get(normalizedPath)?.hash;
+        let totalCount;
+        if (report.kind === "unchanged") {
+            // #1104: same resultId basis as last time — an omitted `items` here
+            // means "no change", NOT "clean". Overwriting with `[]` would be the
+            // exact false-clean shape #570/#571 already fixed for the touch path;
+            // keep the previously stored diagnostics and binding as-is.
+            totalCount = state.documentPullDiagnostics.get(normalizedPath)?.length ?? 0;
+            // Still a fresh confirmation as of `now` even though the content is
+            // unchanged — bump the timestamp so `getAllDiagnostics()` doesn't read
+            // this entry as aging purely because the server had nothing new to say.
+            state.documentPullDiagnosticTimestamps.set(normalizedPath, now);
+        }
+        else {
+            const primaryItems = normalizeLspDiagnostics(report.items ?? []);
+            state.documentPullDiagnostics.set(normalizedPath, primaryItems);
+            state.documentPullDiagnosticTimestamps.set(normalizedPath, now);
+            state.diagnosticsVersion += 1;
+            state.diagnosticBindings.set(normalizedPath, { contentHash: sentHash });
+            totalCount = primaryItems.length;
+        }
+        if (report.resultId !== undefined) {
+            state.pullResultIds.set(normalizedPath, report.resultId);
+        }
+        else {
+            state.pullResultIds.delete(normalizedPath);
+        }
         if (report.relatedDocuments) {
             for (const [relatedUri, related] of Object.entries(report.relatedDocuments)) {
                 const relatedPath = uriToPath(relatedUri);
-                const relatedItems = normalizeLspDiagnostics(related?.items ?? []);
-                state.documentPullDiagnostics.set(normalizeMapKey(relatedPath), relatedItems);
-                state.documentPullDiagnosticTimestamps.set(normalizeMapKey(relatedPath), now);
-                totalCount += relatedItems.length;
+                const relatedNormalized = normalizeMapKey(relatedPath);
+                if (related?.kind === "unchanged") {
+                    totalCount +=
+                        state.documentPullDiagnostics.get(relatedNormalized)?.length ?? 0;
+                    state.documentPullDiagnosticTimestamps.set(relatedNormalized, now);
+                }
+                else {
+                    const relatedItems = normalizeLspDiagnostics(related?.items ?? []);
+                    state.documentPullDiagnostics.set(relatedNormalized, relatedItems);
+                    state.documentPullDiagnosticTimestamps.set(relatedNormalized, now);
+                    // #1104: a related document's diagnostics were NOT computed against
+                    // content we independently sent/fingerprinted (we never requested
+                    // it directly) — its binding stays honestly "unknown" rather than
+                    // borrowing the primary document's hash.
+                    state.diagnosticBindings.delete(relatedNormalized);
+                    totalCount += relatedItems.length;
+                }
+                if (related?.resultId !== undefined) {
+                    state.pullResultIds.set(relatedNormalized, related.resultId);
+                }
             }
         }
         state.diagnosticEmitter.emit("diagnostics", normalizedPath);
@@ -681,8 +938,32 @@ async function clientRequestPullDiagnostics(state, filePath, budgetMs = PULL_REQ
             ? { status: "found", count: totalCount }
             : { status: "clean" };
     }
-    catch {
+    catch (err) {
+        recordPullFailure(state, "textDocument/diagnostic", err);
         return { status: "unavailable" };
+    }
+}
+const PULL_FAILURE_HISTORY_LIMIT = 10;
+function recordPullFailure(state, method, error) {
+    const candidate = error;
+    const message = typeof candidate.message === "string" ? candidate.message : "";
+    const unsupportedMessage = /^(?:method not found|unknown method|unsupported method)(?::|$)/i;
+    if (candidate.code === -32601 ||
+        candidate.code === "-32601" ||
+        unsupportedMessage.test(message.trim()))
+        return;
+    state.pullFailureHistory.push({
+        timestamp: Date.now(),
+        method,
+        ...(typeof candidate.code === "number" || typeof candidate.code === "string"
+            ? { code: candidate.code }
+            : {}),
+        message: typeof candidate.message === "string"
+            ? candidate.message
+            : String(error),
+    });
+    if (state.pullFailureHistory.length > PULL_FAILURE_HISTORY_LIMIT) {
+        state.pullFailureHistory.splice(0, state.pullFailureHistory.length - PULL_FAILURE_HISTORY_LIMIT);
     }
 }
 /**
@@ -698,23 +979,73 @@ export async function clientRequestWorkspaceDiagnostics(state, budgetMs) {
     if (!state.workspaceDiagnosticsSupport.workspaceDiagnostics)
         return undefined;
     try {
-        const report = await withTimeout(safeSendRequest(state.connection, "workspace/diagnostic", { previousResultIds: [] }), Math.max(1, budgetMs));
+        // #1104: echo every resultId we hold from a PRIOR pull so the server can
+        // answer `kind: "unchanged"` for files it hasn't recomputed, instead of
+        // resending (and us re-hashing) every file on every sweep.
+        const previousResultIds = Array.from(state.workspacePullResultCache.values()).map((entry) => ({ uri: entry.uri, value: entry.resultId }));
+        const report = await withTimeout(safeSendRequest(state.connection, "workspace/diagnostic", { previousResultIds }), Math.max(1, budgetMs));
         if (!report || !Array.isArray(report.items))
             return undefined;
         const out = [];
         for (const item of report.items) {
-            // Only "full" reports carry items; "unchanged" means "same as last pull"
-            // (none, since previousResultIds is empty on this one-shot request).
-            if (!item?.uri || item.kind !== "full")
+            if (!item?.uri)
                 continue;
-            out.push({
-                filePath: uriToPath(item.uri),
-                diagnostics: normalizeLspDiagnostics(item.items ?? []),
-            });
+            const filePath = uriToPath(item.uri);
+            const normalizedPath = normalizeMapKey(filePath);
+            if (item.kind === "unchanged") {
+                // #1104: inherit the prior pull's diagnostics + content binding for
+                // the SAME resultId basis — an "unchanged" report never carries
+                // `items`, so without this a file the server confirmed unchanged
+                // would silently drop out of the sweep result entirely.
+                const prior = state.workspacePullResultCache.get(normalizedPath);
+                if (!prior)
+                    continue; // no earlier basis to inherit — nothing to report
+                if (item.resultId !== undefined) {
+                    state.workspacePullResultCache.set(normalizedPath, {
+                        ...prior,
+                        resultId: item.resultId,
+                    });
+                }
+                out.push({
+                    filePath,
+                    diagnostics: prior.diagnostics,
+                    contentHash: prior.contentHash,
+                });
+                continue;
+            }
+            // "full" (or a non-conforming server omitting `kind`, per the LSP
+            // default) — recompute and re-fingerprint.
+            const diagnostics = normalizeLspDiagnostics(item.items ?? []);
+            // #1104: fingerprint the file bytes active AT REQUEST TIME. Best-effort —
+            // a read failure (deleted/unreadable mid-sweep) just leaves contentHash
+            // undefined, so the binding reads honestly "unknown", never fabricated.
+            let contentHash;
+            try {
+                contentHash = hashDiagnosticContent(await readFile(filePath, "utf-8"));
+            }
+            catch {
+                contentHash = undefined;
+            }
+            if (item.resultId !== undefined) {
+                if (state.workspacePullResultCache.size >= WORKSPACE_PULL_RESULT_CACHE_MAX) {
+                    state.workspacePullResultCache.clear();
+                }
+                state.workspacePullResultCache.set(normalizedPath, {
+                    uri: item.uri,
+                    resultId: item.resultId,
+                    diagnostics,
+                    contentHash,
+                });
+            }
+            else {
+                state.workspacePullResultCache.delete(normalizedPath);
+            }
+            out.push({ filePath, diagnostics, contentHash });
         }
         return out;
     }
-    catch {
+    catch (err) {
+        recordPullFailure(state, "workspace/diagnostic", err);
         return undefined;
     }
 }
@@ -746,10 +1077,12 @@ export async function clientWaitForDiagnostics(state, filePath, timeoutMs, optio
         // version baseline (`minVersion === undefined`), so a failed pull returned
         // 0 and was read as a fresh clean.
         let outcome = await clientRequestPullDiagnostics(state, filePath, timeoutMs);
-        if (outcome.status === "found")
+        if (outcome.status === "found") {
+            logTypeScriptPullSettle(state, normalizedPath);
             return;
+        }
         let sawClean = outcome.status === "clean";
-        const strategy = getStrategy(state.serverId);
+        const strategy = getStrategy(state.serverId, state.launchVariant);
         const retryBudgetMs = strategy.pullRetryBudgetMs > 0
             ? Math.min(timeoutMs, strategy.pullRetryBudgetMs)
             : 0;
@@ -764,10 +1097,16 @@ export async function clientWaitForDiagnostics(state, filePath, timeoutMs, optio
             if (outcome.status === "clean")
                 sawClean = true;
         }
-        if (options.pullOnly)
+        if (options.pullOnly) {
+            if (outcome.status === "found" || sawClean) {
+                logTypeScriptPullSettle(state, normalizedPath);
+            }
             return;
-        if (outcome.status === "found" || sawClean)
+        }
+        if (outcome.status === "found" || sawClean) {
+            logTypeScriptPullSettle(state, normalizedPath);
             return;
+        }
     }
     if (hasFreshDiagnostics() &&
         !isVersionStale() &&
@@ -785,7 +1124,7 @@ export async function clientWaitForDiagnostics(state, filePath, timeoutMs, optio
                 clearTimeout(debounceTimer);
             // Adaptive debounce: use time since last push to compute remaining
             // wait instead of always waiting the full debounce window.
-            const strategy = getStrategy(state.serverId);
+            const strategy = getStrategy(state.serverId, state.launchVariant);
             const hit = state.pushDiagnosticTimestamps.get(normalizedPath);
             const timeSincePush = hit ? Date.now() - hit : Infinity;
             const remaining = Math.max(0, strategy.debounceMs - timeSincePush);
@@ -807,8 +1146,8 @@ export async function clientWaitForDiagnostics(state, filePath, timeoutMs, optio
 export async function handleNotifyOpen(state, filePath, content, languageId, preserveDiagnostics = false, silent = false) {
     if (!isClientAlive(state))
         return;
-    const uri = pathToFileURL(filePath).href;
     const normalizedPath = normalizeMapKey(filePath);
+    const uri = state.openDocumentUris?.get(normalizedPath) ?? pathToFileURL(filePath).href;
     if (state.openDocuments.has(normalizedPath) ||
         state.pendingOpens.has(normalizedPath)) {
         const version = (state.documentVersions.get(normalizedPath) ?? 0) + 1;
@@ -816,34 +1155,57 @@ export async function handleNotifyOpen(state, filePath, content, languageId, pre
         // preserveDiagnostics: skip cache clear for format-only resyncs so
         // waitForDiagnostics fast-paths instead of waiting up to 5s for TypeScript
         // to re-publish what it already knows (formatting doesn't change semantics).
+        // #1095 note: this also retains the prior content `binding`. Until the
+        // server republishes for the new version, a binding read compares the OLD
+        // content hash against the NEW disk bytes → boundToCurrentDisk `false` →
+        // the consumer demotes to inconclusive. That's the SAFE (#533) direction (a
+        // transient "unconfirmed", never a false-clean), self-healing on the next
+        // publish — not a correctness hazard, unlike the reopen false-TRUE above.
         if (!preserveDiagnostics) {
             clearDiagnosticsForPath(state, normalizedPath);
         }
         // Scanners that only re-scan on a fresh open (opengrep ignores didChange):
         // close + reopen so the re-edit actually triggers a re-scan instead of
         // silently publishing nothing.
-        if (getStrategy(state.serverId).reopenOnResync) {
+        if (getStrategy(state.serverId, state.launchVariant).reopenOnResync) {
             await safeSendNotification(state.connection, "textDocument/didClose", {
                 textDocument: { uri },
             });
             state.openDocuments.delete(normalizedPath);
-            state.documentVersions.set(normalizedPath, 0);
+            state.openDocumentUris?.delete(normalizedPath);
+            // #1095 (P2-3): carry the version counter FORWARD across the
+            // close+reopen instead of resetting to 0. LSP lets a didOpen use any
+            // version, and reusing 0 for successive resyncs made the version
+            // ambiguous — a late publish for an earlier resync's content echoed the
+            // SAME 0 as the current send, so the superseded-push guard (0 < 0 is
+            // false) accepted it and `recordBinding` bound STALE diagnostics to the
+            // CURRENT content's fingerprint → an affirmative boundToCurrentDisk TRUE
+            // for a stale view (worse than "unknown"). Monotonic versions make that
+            // late echo strictly older → dropped by isSupersededPush → never bound.
+            state.documentVersions.set(normalizedPath, version);
+            state.documentOpenedAt.set(normalizedPath, Date.now());
+            state.diagnosticPublicationCounts.set(normalizedPath, 0);
             if (!isClientAlive(state))
                 return;
             await safeSendNotification(state.connection, "textDocument/didOpen", {
-                textDocument: { uri, languageId, version: 0, text: content },
+                textDocument: { uri, languageId, version, text: content },
             });
+            recordSentContent(state, normalizedPath, version, content);
             state.openDocuments.add(normalizedPath);
+            state.openDocumentUris?.set(normalizedPath, uri);
             return;
         }
         await safeSendNotification(state.connection, "textDocument/didChange", {
             textDocument: { uri, version },
             contentChanges: [{ text: content }],
         });
+        recordSentContent(state, normalizedPath, version, content);
         return;
     }
     state.pendingOpens.add(normalizedPath);
     state.documentVersions.set(normalizedPath, 0);
+    state.documentOpenedAt.set(normalizedPath, Date.now());
+    state.diagnosticPublicationCounts.set(normalizedPath, 0);
     clearDiagnosticsForPath(state, normalizedPath); // always clear for initial open
     // Send workspace notification first (like opencode does).
     // Skipped in silent mode — cascade reads a file for diagnostics,
@@ -873,14 +1235,35 @@ export async function handleNotifyOpen(state, filePath, content, languageId, pre
     await safeSendNotification(state.connection, "textDocument/didOpen", {
         textDocument: { uri, languageId, version: 0, text: content },
     });
+    recordSentContent(state, normalizedPath, 0, content);
     state.pendingOpens.delete(normalizedPath);
     state.openDocuments.add(normalizedPath);
+    state.closedDocuments?.delete(normalizedPath);
+    state.openDocumentUris?.set(normalizedPath, uri);
+    // Telemetry is deliberately detached after didOpen succeeds.
+    // #1412 H1: routed through runReadOnlyServerCommand, NOT runServerCommand —
+    // the probe must never open the serverEditsAllowed/activeMutationContext
+    // mutation-acceptance window; it is a diagnostic sample, not a mutation, and
+    // carries its own short PROBE_COMMAND_TIMEOUT_MS backstop. The probe itself
+    // is classic-only and swallows every failure.
+    void probeTsserverProjectIdentity({
+        serverId: state.serverId,
+        launchVariant: state.launchVariant,
+        clientRoot: state.root,
+        file: filePath,
+        normalizedFile: normalizedPath,
+        probedFiles: state.projectIdentityProbedFiles ??
+            (state.projectIdentityProbedFiles = new Set()),
+        commandChannel: {
+            executeCommand: (command, args) => runReadOnlyServerCommand(state, command, args),
+        },
+    });
 }
 export async function handleNotifyChange(state, filePath, content) {
     if (!isClientAlive(state))
         return;
-    const uri = pathToFileURL(filePath).href;
     const normalizedPath = normalizeMapKey(filePath);
+    const uri = state.openDocumentUris?.get(normalizedPath) ?? pathToFileURL(filePath).href;
     if (!state.openDocuments.has(normalizedPath)) {
         // Safety fallback: keep protocol ordering valid even if caller sends
         // didChange before first didOpen for this document.
@@ -888,7 +1271,11 @@ export async function handleNotifyChange(state, filePath, content) {
             textDocument: { uri, languageId: "plaintext", version: 0, text: content },
         });
         state.documentVersions.set(normalizedPath, 0);
+        state.documentOpenedAt.set(normalizedPath, Date.now());
+        state.diagnosticPublicationCounts.set(normalizedPath, 0);
+        recordSentContent(state, normalizedPath, 0, content);
         state.openDocuments.add(normalizedPath);
+        state.openDocumentUris?.set(normalizedPath, uri);
         return;
     }
     const version = (state.documentVersions.get(normalizedPath) ?? 0) + 1;
@@ -900,6 +1287,32 @@ export async function handleNotifyChange(state, filePath, content) {
         textDocument: { uri, version },
         contentChanges: [{ text: content }],
     });
+    recordSentContent(state, normalizedPath, version, content);
+}
+/** Close a document through the same lifecycle path exposed by the client. */
+export async function closeDocument(state, filePath) {
+    if (!isClientAlive(state))
+        return;
+    const normalizedPath = normalizeMapKey(filePath);
+    if (!state.openDocuments.has(normalizedPath))
+        return;
+    await safeSendNotification(state.connection, "textDocument/didClose", {
+        textDocument: {
+            uri: state.openDocumentUris?.get(normalizedPath) ?? pathToFileURL(filePath).href,
+        },
+    });
+    state.openDocuments.delete(normalizedPath);
+    state.closedDocuments?.add(normalizedPath);
+    state.openDocumentUris?.delete(normalizedPath);
+    state.documentVersions.delete(normalizedPath);
+    state.documentOpenedAt.delete(normalizedPath);
+    state.diagnosticPublicationCounts.delete(normalizedPath);
+    // #1412 L1: projectIdentityProbedFiles is a claim-once memo scoped to the
+    // document's open lifetime (re-probing a closed-then-reopened file is
+    // harmless and cheap) — mirror openDocuments' own per-close cleanup so it
+    // doesn't grow unbounded across a long session's worth of open/close churn.
+    state.projectIdentityProbedFiles?.delete(normalizedPath);
+    clearDiagnosticsForPath(state, normalizedPath);
 }
 export async function clientShutdown(state, options = {}) {
     const shutdownStart = Date.now();
@@ -912,6 +1325,10 @@ export async function clientShutdown(state, options = {}) {
     state.pendingDiagnostics.clear();
     state.pendingOpens.clear();
     state.openDocuments.clear();
+    state.openDocumentUris?.clear();
+    // #1412 L1: mirror openDocuments' clear — a shut-down/evicted client's
+    // probe memo is moot along with everything else document-scoped.
+    state.projectIdentityProbedFiles?.clear();
     // #271: drop any pending watched-files batch + its timer (a dying client's
     // queued FS changes are moot, and the timer must not outlive the connection).
     state.watchQueue?.cancel();
@@ -1030,13 +1447,44 @@ signal = getAmbientAbortSignal()) {
     }
     return result;
 }
+// #1277: cheap liveness round-trip used by the silent-clean gates in
+// `index.ts`. `isAlive()`/`checkAlive()` only look at process/connection
+// state — a server that accepted the notify write and then wedged (still
+// running, connection still open, just never replying) reads as "alive" by
+// those checks even though it will never answer anything again. This sends a
+// real request (`workspace/symbol`, chosen because it needs no open document)
+// and reports whether the connection round-tripped it — success, a genuine
+// protocol-level error (e.g. MethodNotFound), and a stream-destroyed/
+// cancelled response (safeSendRequest swallows those to `undefined`, so the
+// final `isClientAlive` re-check is what catches "died mid-flight") ALL count
+// as "alive"; only a real timeout, or the connection having gone down by the
+// time this resolves, reports dead. The response content itself is never
+// inspected — only whether one arrived in time.
+async function clientPingLiveness(state, timeoutMs = LIVENESS_PING_TIMEOUT_MS) {
+    if (!isClientAlive(state))
+        return false;
+    try {
+        await withTimeout(safeSendRequest(state.connection, "workspace/symbol", {
+            query: LIVENESS_PING_QUERY,
+        }), timeoutMs);
+    }
+    catch (err) {
+        if (err instanceof Error && err.message.startsWith("Timeout after")) {
+            return false;
+        }
+        // A real protocol-level error reply still proves the server round-
+        // tripped the request — fall through to the alive re-check below
+        // rather than treating an error response as "dead".
+    }
+    return isClientAlive(state);
+}
 // Run an advertised server command via workspace/executeCommand, with the
 // generous EXECUTE_COMMAND_TIMEOUT_MS anti-deadlock backstop. Preserves the
 // hardening invariants: allowlist-by-advertisement (only commands the server
 // declared) and the serverEditsAllowed window that gates server-driven
 // applyEdit to the duration of an explicit call. Exported with an overridable
 // `timeoutMs` for the #365 regression tests.
-export async function runServerCommand(state, command, args, timeoutMs = EXECUTE_COMMAND_TIMEOUT_MS) {
+export async function runServerCommand(state, command, args, timeoutMs = EXECUTE_COMMAND_TIMEOUT_MS, mutationContext) {
     if (!isClientAlive(state)) {
         return { executed: false, reason: "lsp client not alive" };
     }
@@ -1047,6 +1495,11 @@ export async function runServerCommand(state, command, args, timeoutMs = EXECUTE
         };
     }
     state.serverEditsAllowed += 1;
+    state.activeMutationDepth = (state.activeMutationDepth ?? 0) + 1;
+    if (state.activeMutationDepth === 1)
+        state.activeMutationContext = mutationContext;
+    else
+        state.activeMutationContext = undefined;
     try {
         let result;
         try {
@@ -1072,22 +1525,122 @@ export async function runServerCommand(state, command, args, timeoutMs = EXECUTE
     }
     finally {
         state.serverEditsAllowed -= 1;
+        state.activeMutationDepth = Math.max(0, (state.activeMutationDepth ?? 0) - 1);
+        if (state.activeMutationDepth === 0)
+            state.activeMutationContext = undefined;
     }
 }
-async function resolveCodeActionBestEffort(state, action) {
-    if (!isClientAlive(state) || action.edit)
-        return action;
+// #1412 H1/H2: read-only sibling of runServerCommand for telemetry/identity
+// probes that must NOT participate in the mutation-acceptance window. Unlike
+// runServerCommand this never touches serverEditsAllowed, activeMutationDepth,
+// or activeMutationContext — a probe firing mid-flight must leave a concurrent
+// real executeCommand's mutation context untouched, and must not itself open
+// the workspace/applyEdit acceptance window (client.ts's applyEdit handler
+// gates on serverEditsAllowed > 0). Preserves the allowlist-by-advertisement
+// invariant. Short PROBE_COMMAND_TIMEOUT_MS backstop — this is a diagnostic
+// sample, not a mutation, and must never hold anything up for anywhere near
+// EXECUTE_COMMAND_TIMEOUT_MS.
+export async function runReadOnlyServerCommand(state, command, args, timeoutMs = PROBE_COMMAND_TIMEOUT_MS) {
+    if (!isClientAlive(state)) {
+        return { executed: false, reason: "lsp client not alive" };
+    }
+    if (!state.advertisedCommands.has(command)) {
+        return {
+            executed: false,
+            reason: `command "${command}" is not advertised by the ${state.serverId} server`,
+        };
+    }
     try {
-        const resolved = await withTimeout(safeSendRequest(state.connection, "codeAction/resolve", action), NAV_REQUEST_TIMEOUT_MS);
-        if (!resolved || typeof resolved !== "object")
-            return action;
-        return { ...action, ...resolved };
+        const result = await withTimeout(safeSendRequest(state.connection, "workspace/executeCommand", {
+            command,
+            arguments: args ?? [],
+        }), timeoutMs);
+        return { executed: true, result };
+    }
+    catch (err) {
+        if (err instanceof Error && err.message.startsWith("Timeout after")) {
+            return {
+                executed: false,
+                reason: `workspace/executeCommand timed out after ${timeoutMs}ms`,
+            };
+        }
+        throw err;
+    }
+}
+function validateWorkspaceEditVersions(state, edit) {
+    for (const change of edit.documentChanges ?? []) {
+        if (typeof change !== "object" || change === null || !("textDocument" in change))
+            continue;
+        const textDocument = change.textDocument;
+        if (!textDocument || typeof textDocument.uri !== "string" || textDocument.version == null)
+            continue;
+        const current = state.documentVersions.get(normalizeMapKey(uriToPath(textDocument.uri)));
+        if (current === undefined || current !== textDocument.version) {
+            throw new Error(`stale workspace edit document version for ${textDocument.uri}`);
+        }
+    }
+}
+// Neutralize numeric `textDocument.version` stamps AFTER they have been
+// validated against the live document map. The tool apply paths (rename
+// apply:true in tools/lsp-navigation.ts, code-action autofix in
+// actionable-warnings.ts) call applyWorkspaceEdit without a documentVersions
+// map, so a preserved numeric version would fail preflight 100% of the time for
+// servers that stamp real versions (gopls stamps open documents). Setting the
+// version to null is the spec's "do not check" — the freshness guarantee has
+// already been provided here by validateWorkspaceEditVersions at the correct
+// moment. The server-initiated workspace/applyEdit handler does NOT route
+// through here (it applies params.edit directly with state.documentVersions),
+// so its real preflight version check is left fully intact.
+function stripDocumentVersions(edit) {
+    if (!Array.isArray(edit.documentChanges))
+        return edit;
+    const documentChanges = edit.documentChanges.map((change) => {
+        if (typeof change === "object" &&
+            change !== null &&
+            "textDocument" in change &&
+            "edits" in change) {
+            const textDocument = change
+                .textDocument;
+            if (textDocument && typeof textDocument.version === "number") {
+                return {
+                    ...change,
+                    textDocument: { ...textDocument, version: null },
+                };
+            }
+        }
+        return change;
+    });
+    return { ...edit, documentChanges };
+}
+export async function normalizeClientWorkspaceEdit(state, edit) {
+    validateWorkspaceEditVersions(state, edit);
+    const normalized = (await normalizeWorkspaceEditToUtf16(edit, state.positionEncoding, state.root));
+    return stripDocumentVersions(normalized);
+}
+async function resolveCodeActionBestEffort(state, action) {
+    if (!isClientAlive(state))
+        return action;
+    if (action.edit) {
+        return {
+            ...action,
+            edit: await normalizeClientWorkspaceEdit(state, action.edit),
+        };
+    }
+    let resolved;
+    try {
+        resolved = await withTimeout(safeSendRequest(state.connection, "codeAction/resolve", action), NAV_REQUEST_TIMEOUT_MS);
     }
     catch {
         // codeAction/resolve is optional. Keep the original lightweight action when
         // the server does not support resolve or fails to populate an edit.
         return action;
     }
+    if (!resolved || typeof resolved !== "object")
+        return action;
+    const merged = { ...action, ...resolved };
+    return merged.edit
+        ? { ...merged, edit: await normalizeClientWorkspaceEdit(state, merged.edit) }
+        : merged;
 }
 // --- Client Factory ---
 export async function createLSPClient(options) {
@@ -1187,6 +1740,7 @@ export async function createLSPClient(options) {
         isConnected: true,
         isDestroyed: false,
         shutdownRequested: false,
+        exitedAt: undefined,
         connectionDisposed: false,
         lastError: undefined,
         connection,
@@ -1194,13 +1748,23 @@ export async function createLSPClient(options) {
         pushDiagnosticTimestamps: new Map(),
         documentPullDiagnostics: new Map(),
         documentPullDiagnosticTimestamps: new Map(),
+        pullFailureHistory: [],
         pendingDiagnostics: new Map(),
+        diagnosticPublicationCounts: new Map(),
+        documentOpenedAt: new Map(),
         diagnosticEmitter,
         diagnosticsVersion: 0,
         documentVersions: new Map(),
         diagnosticDocVersions: new Map(),
+        documentContentHashes: new Map(),
+        diagnosticBindings: new Map(),
+        pullResultIds: new Map(),
+        workspacePullResultCache: new Map(),
         openDocuments: new Set(),
+        closedDocuments: new Set(),
+        openDocumentUris: new Map(),
         pendingOpens: new Set(),
+        projectIdentityProbedFiles: new Set(),
         // these are filled in after initialize — cast to avoid two-phase init
         workspaceDiagnosticsSupport: undefined,
         operationSupport: undefined,
@@ -1209,6 +1773,7 @@ export async function createLSPClient(options) {
         dynamicRegistrations: new Map(),
         advertisedCommands: new Set(),
         serverEditsAllowed: 0,
+        activeMutationDepth: 0,
         serverId,
         launchVariant,
         root,
@@ -1258,7 +1823,22 @@ export async function createLSPClient(options) {
             });
         });
         setTimeout(() => {
-            if (!lspProcess.process.killed && process.platform !== "win32") {
+            // #1114: gate on the process's own observed `exitCode`/`signalCode`,
+            // not `.killed` — `killProcessTree` above signals the POSIX process
+            // GROUP via the raw `process.kill(-pid, …)`, which never touches
+            // this `ChildProcess` instance's `.killed` flag, so `!…killed` here
+            // was always true and this 2s backstop unconditionally re-sent
+            // SIGKILL even when the group had already exited. `exitCode` alone
+            // is insufficient too: a process that died FROM a signal (the
+            // common case here — killProcessTree's own SIGTERM/SIGKILL) has
+            // `exitCode === null` forever and only `signalCode` set, so
+            // checking `exitCode === null` alone still re-SIGKILLs that corpse
+            // on the common path (harmless — `kill()` on an already-exited pid
+            // is a swallowed no-op — but not actually "observed still alive").
+            // Require both null to mean "no exit observed by either signal".
+            if (lspProcess.process.exitCode === null &&
+                lspProcess.process.signalCode === null &&
+                process.platform !== "win32") {
                 lspProcess.process.kill("SIGKILL");
             }
         }, 2000);
@@ -1312,10 +1892,20 @@ export async function createLSPClient(options) {
         /** True if the server process has exited or been killed. */
         processExited: () => lspProcess.process.exitCode !== null ||
             lspProcess.process.killed === true,
+        /** #1127: mirrors `state.shutdownRequested` — see interface doc. */
+        wasShutdownIntentional: () => state.shutdownRequested,
+        /** #1127: mirrors `state.exitedAt` — see interface doc. */
+        getExitedAt: () => state.exitedAt,
         /** Last N lines of server stderr for diagnostics. */
         recentStderr: (lines) => recentStderr(lines),
+        getPullFailureHistory: () => state.pullFailureHistory.map((entry) => ({
+            ...entry,
+            message: entry.message.slice(0, 200),
+        })),
         /** Pre-request health check — returns error string if dead. */
         checkAlive: () => checkProcessAlive(),
+        /** #1277: cheap request round-trip proving the server still responds. */
+        pingLiveness: (timeoutMs) => clientPingLiveness(state, timeoutMs),
         notify: {
             async open(filePath, content, languageId, preserveDiagnostics, silent) {
                 return handleNotifyOpen(state, filePath, content, languageId, preserveDiagnostics, silent);
@@ -1327,6 +1917,9 @@ export async function createLSPClient(options) {
         getDiagnostics(filePath) {
             return getMergedDiagnosticsForPath(state, normalizeMapKey(filePath));
         },
+        getDiagnosticBinding(filePath) {
+            return state.diagnosticBindings.get(normalizeMapKey(filePath));
+        },
         getAllDiagnostics() {
             const result = new Map();
             const keys = new Set([
@@ -1337,17 +1930,16 @@ export async function createLSPClient(options) {
                 result.set(key, {
                     diags: getMergedDiagnosticsForPath(state, key),
                     ts: Math.max(state.pushDiagnosticTimestamps.get(key) ?? 0, state.documentPullDiagnosticTimestamps.get(key) ?? 0),
+                    binding: state.diagnosticBindings.get(key),
                 });
             }
             return result;
         },
         getTrackedDiagnosticPaths() {
-            return [
-                ...new Set([
+            return [...new Set([
                     ...state.pushDiagnostics.keys(),
                     ...state.documentPullDiagnostics.keys(),
-                ]),
-            ];
+                ])].map((filePath) => process.platform === "win32" ? filePath.replace(/\//g, "\\") : filePath);
         },
         pruneDiagnostics(predicate) {
             let removed = 0;
@@ -1383,8 +1975,8 @@ export async function createLSPClient(options) {
         getLaunchVariant() {
             return state.launchVariant;
         },
-        async executeCommand(command, args) {
-            return runServerCommand(state, command, args);
+        async executeCommand(command, args, mutationContext) {
+            return runServerCommand(state, command, args, EXECUTE_COMMAND_TIMEOUT_MS, mutationContext);
         },
         get diagnosticsVersion() {
             return state.diagnosticsVersion;
@@ -1448,6 +2040,12 @@ export async function createLSPClient(options) {
         isDocumentOpen(filePath) {
             return state.openDocuments.has(normalizeMapKey(filePath));
         },
+        isBusy() {
+            return (activeRequestsByConnection.get(connection) ?? 0) > 0;
+        },
+        getDocumentUri(filePath) {
+            return state.openDocumentUris?.get(normalizeMapKey(filePath));
+        },
         async workspaceSymbol(query) {
             if (!isClientAlive(state))
                 return [];
@@ -1487,8 +2085,9 @@ export async function createLSPClient(options) {
                 position: await toWirePosition(state, filePath, line, character),
                 newName,
             }, filePath);
-            return result ?? null;
+            return result ? await normalizeClientWorkspaceEdit(state, result) : null;
         },
+        closeDocument: (filePath) => closeDocument(state, filePath),
         async willRenameFiles(oldFilePath, newFilePath) {
             const result = await navRequest(state, "workspace/willRenameFiles", {
                 files: [
@@ -1498,16 +2097,16 @@ export async function createLSPClient(options) {
                     },
                 ],
             });
-            return result ?? null;
+            return result ? await normalizeClientWorkspaceEdit(state, result) : null;
         },
-        async didRenameFiles(oldFilePath, newFilePath) {
+        async didRenameFiles(oldFilePath, newFilePath, oldUri, newUri) {
             if (!isClientAlive(state))
                 return;
             await safeSendNotification(state.connection, "workspace/didRenameFiles", {
                 files: [
                     {
-                        oldUri: pathToFileURL(oldFilePath).href,
-                        newUri: pathToFileURL(newFilePath).href,
+                        oldUri: oldUri ?? pathToFileURL(oldFilePath).href,
+                        newUri: newUri ?? pathToFileURL(newFilePath).href,
                     },
                 ],
             });
@@ -1556,6 +2155,7 @@ async function safeSendNotification(connection, method, params) {
         throw err;
     }
 }
+const activeRequestsByConnection = new WeakMap();
 // Helper to safely send requests - catches stream destruction
 async function safeSendRequest(connection, method, params, 
 // When provided, aborting the signal cancels the in-flight request via
@@ -1578,6 +2178,7 @@ signal) {
     const send = () => tokenSource
         ? connection.sendRequest(method, params, tokenSource.token)
         : connection.sendRequest(method, params);
+    activeRequestsByConnection.set(connection, (activeRequestsByConnection.get(connection) ?? 0) + 1);
     try {
         // One safe retry on ContentModified (-32801): the document changed under
         // us, so the server discarded the request. A single retry beats returning
@@ -1607,6 +2208,11 @@ signal) {
         }
     }
     finally {
+        const remaining = (activeRequestsByConnection.get(connection) ?? 1) - 1;
+        if (remaining > 0)
+            activeRequestsByConnection.set(connection, remaining);
+        else
+            activeRequestsByConnection.delete(connection);
         if (signal && onAbort)
             signal.removeEventListener("abort", onAbort);
         tokenSource?.dispose();

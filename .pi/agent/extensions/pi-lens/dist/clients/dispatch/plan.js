@@ -118,6 +118,11 @@ export const LANGUAGE_CAPABILITY_MATRIX = {
             { mode: "all", runnerIds: ["actionlint"], filterKinds: ["yaml"] },
         ],
     },
+    "helm-template": {
+        name: "Helm Template Linting",
+        capabilities: ["lint"],
+        writeGroups: [primary("helm-template")],
+    },
     sql: {
         name: "SQL Processing",
         capabilities: ["format", "lint"],
@@ -218,8 +223,13 @@ export const LANGUAGE_CAPABILITY_MATRIX = {
     },
     terraform: {
         name: "Terraform Linting",
-        capabilities: ["types", "lint"],
+        capabilities: ["types", "lint", "security"],
         writeGroups: [primary("terraform")],
+    },
+    terragrunt: {
+        name: "Terragrunt Linting",
+        capabilities: ["lint", "format"],
+        writeGroups: [primary("terragrunt")],
     },
     nix: {
         name: "Nix Linting",

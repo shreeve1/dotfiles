@@ -3,6 +3,7 @@ import { safeSpawnAsync } from "../../safe-spawn.js";
 import { getLinterPolicyForCwd } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import { createAvailabilityChecker, resolveToolCommandWithInstallFallback, } from "./utils/runner-helpers.js";
+import { spawnFailedWithNoOutput } from "./utils/spawn-outcome.js";
 const htmlhint = createAvailabilityChecker("htmlhint");
 const HTMLHINT_RULES = {
     "tag-pair": true,
@@ -71,10 +72,10 @@ const htmlhintRunner = {
             "unix",
             path.resolve(cwd, ctx.filePath),
         ], { cwd });
-        if (result.error && !result.stdout && !result.stderr) {
+        const output = result.stdout || result.stderr || "";
+        if (spawnFailedWithNoOutput(result, output)) {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
-        const output = result.stdout || result.stderr || "";
         const diagnostics = parseHtmlhintOutput(output, ctx.filePath);
         if (diagnostics.length === 0) {
             return { status: "succeeded", diagnostics: [], semantic: "none" };

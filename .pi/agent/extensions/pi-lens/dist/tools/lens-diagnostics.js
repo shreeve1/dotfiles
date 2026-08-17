@@ -14,17 +14,21 @@ import * as path from "node:path";
 import { Type } from "../clients/deps/typebox.js";
 import { anchorsForDiagnostic, applyDispositions, applyWeakDispositions, getDisposition, } from "../clients/diagnostic-dispositions.js";
 import { applyInlineSuppressions } from "../clients/dispatch/inline-suppressions.js";
+import { normalizeRuleId } from "../clients/dispatch/rule-id-normalize.js";
+import { applyRulePolicy, rulePolicyMapFromConfig } from "../clients/dispatch/rule-policy.js";
+import { loadPiLensProjectConfig } from "../clients/project-lens-config.js";
 import { compactRenderResult } from "./render-compact.js";
 import { combineAbortSignals } from "../clients/deadline-utils.js";
 import { getProjectIgnoreMatcher } from "../clients/file-utils.js";
 import { isAtOrAboveHomeDir, normalizeFilePath, } from "../clients/path-utils.js";
 import { getLSPService } from "../clients/lsp/index.js";
 import { primaryServerId } from "../clients/lsp/config.js";
+import { hashDiagnosticContent, } from "../clients/lsp/diagnostic-binding.js";
 import { loadProjectDiagnosticsDeltaReport, loadProjectDiagnosticsSnapshot, PROJECT_DIAGNOSTICS_CACHE_VERSION, reconcileProjectDiagnosticsSnapshot, } from "../clients/project-diagnostics/cache.js";
 import { warmTriggerFor } from "../clients/project-diagnostics/extractors.js";
 import { fetchFreshProjectDiagnostics } from "../clients/project-diagnostics/fresh-fetch.js";
 import { loadBootstrapClients } from "../clients/bootstrap.js";
-import { scanTruncationNotice } from "../clients/lens-engine.js";
+import { generatedSkipNotice, scanTruncationNotice, } from "../clients/lens-engine.js";
 import { scanProjectDiagnostics } from "../clients/project-diagnostics/scanner.js";
 import { getFileDiagnosticSummaries, reconcileScanDiagnostics, reconcileStaleWidgetFiles, } from "../clients/widget-state.js";
 import { convertLspDiagnostics } from "../clients/dispatch/utils/lsp-diagnostics.js";
@@ -50,6 +54,48 @@ const FULL_SCAN_WALL_CLOCK_MS = (() => {
     const raw = Number(process.env.PI_LENS_LENS_DIAGNOSTICS_FULL_TIMEOUT_MS);
     return Number.isFinite(raw) && raw > 0 ? raw : 300_000; // 5 min default
 })();
+// Binding verification is a fallback for result producers that supplied a
+// content hash without an already-computed disk verdict. Keep it one-file-at-a-
+// time and yield periodically: a full scan can contain thousands of results,
+// and a synchronous read loop here would freeze the host even though the LSP
+// work itself was asynchronous (#1198 follow-up).
+const FULL_SCAN_BINDING_YIELD_EVERY = 16;
+async function findFullScanBindingMismatches(results) {
+    const mismatched = new WeakSet();
+    let sinceYield = 0;
+    for (const result of results) {
+        if (result.boundToCurrentDisk === false) {
+            mismatched.add(result);
+        }
+        else if (
+        // A `true` verdict came from the LSP/cache binding seam and has already
+        // compared its fingerprint with disk. Only legacy/partial producers need
+        // this fallback read; `unknown` remains unknown when no hash exists.
+        result.boundToCurrentDisk !== true &&
+            result.contentHash !== undefined) {
+            try {
+                // Promise-based, sequential reads bound both event-loop occupancy and
+                // outstanding file handles. A read failure deliberately leaves the
+                // verdict unknown (the historical fail-open behavior).
+                const content = await fs.readFile(result.filePath, "utf-8");
+                if (hashDiagnosticContent(content) !== result.contentHash) {
+                    mismatched.add(result);
+                }
+            }
+            catch {
+                // Unreadable/deleted files cannot disprove the binding. Leave them
+                // unknown for the existing caller policy, rather than manufacturing a
+                // mismatch or a clean verdict here.
+            }
+        }
+        sinceYield += 1;
+        if (sinceYield >= FULL_SCAN_BINDING_YIELD_EVERY) {
+            sinceYield = 0;
+            await new Promise((resolve) => setImmediate(resolve));
+        }
+    }
+    return mismatched;
+}
 export function createLensDiagnosticsTool(cacheManager, getCwd, getLspService = getLSPService, 
 // Flush any debounced per-edit dispatches before reading, so files the agent
 // fixed earlier in the turn are re-dispatched and the widget reflects the
@@ -72,7 +118,7 @@ nextWriteIndex,
 // #798/#338: capture host UI methods synchronously from the active tool event.
 // The returned closure is safe for the later async sweep to invoke because it
 // never dereferences the session-guarded ctx.ui getter.
-captureLspStatusRepaint) {
+captureLspStatusRepaint, getRuntime) {
     return {
         name: "lens_diagnostics",
         label: "Project Diagnostics",
@@ -156,6 +202,9 @@ captureLspStatusRepaint) {
             maxLspFiles: Type.Optional(Type.Number({
                 description: "mode=full only: cap the number of files routed through the language server for the project-wide LSP sweep. On large projects (e.g. a Next.js app with thousands of source files) the uncapped sweep can take many minutes; set this to bound it. Default is generous (env PI_LENS_LSP_WORKSPACE_MAX_FILES, else 5000).",
             })),
+            includeGenerated: Type.Optional(Type.Boolean({
+                description: "mode=full refreshRunners=cheap/all only (no effect with refreshRunners=cached/none, since no project scan runs to apply it to): scan WITHOUT the generated/artifact NAME-heuristic filter (lockfiles, gen.ts-style names, generated/ dirs, …). Default false. Use when a scan's 'excluded by generated-name heuristics' notice suggests a real file was skipped.",
+            })),
             severity: Type.Optional(Type.String({
                 enum: ["error", "warning", "all"],
                 description: "Filter by severity (default: all).",
@@ -192,6 +241,7 @@ captureLspStatusRepaint) {
                 : undefined;
             const maxProjectFiles = parsePositiveInt(params.maxProjectFiles);
             const maxLspFiles = parsePositiveInt(params.maxLspFiles);
+            const includeGenerated = params.includeGenerated === true;
             const cwd = ctx.cwd ?? getCwd();
             let pathsScope;
             try {
@@ -236,12 +286,14 @@ captureLspStatusRepaint) {
                     refreshRunners,
                     maxProjectFiles,
                     maxLspFiles,
+                    includeGenerated,
                     signal: fullSignal,
                     wallClockMs: FULL_SCAN_WALL_CLOCK_MS,
                     onProgress,
                     onServerReady: repaintLspStatus,
                     pathsScope,
                     nextWriteIndex,
+                    runtime: getRuntime?.(),
                 });
             }
             return formatDeltaMode(cacheManager, cwd, severity, pathsScope);
@@ -281,23 +333,46 @@ function appendProjectDiagnosticsDeltaLines(lines, cwd, report, severity, includ
  * delta mode re-serves them. Anchored via `projectDiagnosticToWidget` so the
  * (tool, rule) an agent's mark binds to matches mode=full's own project-runner
  * filter (`applyInlineSuppressionsToSummaries`), keeping the two paths in
- * agreement. Weak-anchored → no file read.
+ * agreement. Weak-anchored → no file read. Also applies the project's
+ * `.pi-lens.json` `rules.<id>.disable`/`select` policy so a project's policy
+ * overlays the same delta report cache; the cache is otherwise insensitive to
+ * a project-config edit (the per-edit path picks it up immediately, but a
+ * non-dispatch tool query would replay the pre-edit state).
  */
-function filterDeltaReportDispositions(report, cwd) {
+function filterDeltaReportDispositions(report, cwd, policyMap) {
     if (!report?.diagnostics.length)
         return report;
     const kept = report.diagnostics.filter((d) => applyWeakDispositions([projectDiagnosticToWidget(d)], cwd, d.filePath)
         .length === 1);
-    return kept.length === report.diagnostics.length
-        ? report
-        : { ...report, diagnostics: kept };
+    const policyKept = applyRulePolicy(kept, policyMap);
+    if (policyKept.length === report.diagnostics.length)
+        return report;
+    return { ...report, diagnostics: policyKept };
+}
+/**
+ * Load the rule-policy map from a project's `.pi-lens.json` — same source the
+ * per-edit dispatch path uses, so a project's policy applies consistently
+ * across every output surface. `loadPiLensProjectConfig` is mtime-cached, and
+ * the map is filtered to entries that actually have a `disable`/`select` list
+ * (thresholds are handled elsewhere), so the common case returns undefined and
+ * the filter step is skipped outright.
+ */
+function loadProjectRulePolicyMap(cwd) {
+    return rulePolicyMapFromConfig(loadPiLensProjectConfig(cwd).rules);
 }
 function formatDeltaMode(cacheManager, cwd, severity, pathsScope) {
     const actionableEntry = cacheManager.readCache("actionable-warnings", cwd);
     const qualityEntry = cacheManager.readCache("code-quality-warnings", cwd);
     const actionable = actionableEntry?.data;
     const quality = qualityEntry?.data;
-    const projectDelta = filterDeltaReportDispositions(loadProjectDiagnosticsDeltaReport(cwd), cwd);
+    // Project rule policy (`.pi-lens.json` `rules.<id>.disable` /
+    // `rules.<id>.select`) — output-only filtering applied consistently across
+    // every mode. The cache-only delta/all paths would otherwise leak project-
+    // policy oversight (the per-edit dispatch already filters, but the cache
+    // snapshots predate the user's project config edit and would replay
+    // filtered findings). Weak-anchored like weak disposition — zero I/O.
+    const policyMap = loadProjectRulePolicyMap(cwd);
+    const projectDelta = filterDeltaReportDispositions(loadProjectDiagnosticsDeltaReport(cwd), cwd, policyMap);
     const ignoreFile = createCurrentIgnoreFilter(cwd);
     const includeFile = (filePath) => ignoreFile(filePath) && (!pathsScope || pathsScope.includeFile(filePath));
     // #755: delta re-serves the actionable/quality caches verbatim, but those
@@ -305,20 +380,15 @@ function formatDeltaMode(cacheManager, cwd, severity, pathsScope) {
     // the weak disposition filter (suppress/defer) here so a mark converges
     // immediately, not only on the next edit. Weak-anchored → zero file I/O, so
     // this stays "instant" (see applyWeakDispositions).
-    const actionableFiles = (actionable?.files ?? [])
+    const visibleWarningFiles = (files) => (files ?? [])
         .filter((file) => includeFile(file.filePath))
         .map((file) => ({
         filePath: file.filePath,
-        warnings: applyWeakDispositions(file.warnings ?? [], cwd, file.filePath),
+        warnings: applyRulePolicy(applyWeakDispositions(file.warnings ?? [], cwd, file.filePath), policyMap),
     }))
         .filter((file) => file.warnings.length > 0);
-    const qualityFiles = (quality?.files ?? [])
-        .filter((file) => includeFile(file.filePath))
-        .map((file) => ({
-        filePath: file.filePath,
-        warnings: applyWeakDispositions(file.warnings ?? [], cwd, file.filePath),
-    }))
-        .filter((file) => file.warnings.length > 0);
+    const actionableFiles = visibleWarningFiles(actionable?.files);
+    const qualityFiles = visibleWarningFiles(quality?.files);
     const lines = [];
     // Fixable warnings from actionable-warnings
     if (severity !== "error") {
@@ -353,7 +423,7 @@ function formatDeltaMode(cacheManager, cwd, severity, pathsScope) {
             .filter((f) => includeFile(f.filePath))
             .map((f) => ({
             ...f,
-            diagnostics: applyWeakDispositions(f.diagnostics, cwd, f.filePath),
+            diagnostics: applyRulePolicy(applyWeakDispositions(f.diagnostics, cwd, f.filePath), policyMap),
         }))
             .filter((f) => f.diagnostics.length > 0);
         const carriedIssues = carried.reduce((n, f) => n + f.diagnostics.length, 0);
@@ -484,6 +554,20 @@ function filterProjectDiagnosticsDeltaReport(report, includeFile) {
         diagnostics: report.diagnostics.filter((d) => includeFile(d.filePath)),
     };
 }
+/**
+ * Apply the project rule policy to a project-diagnostics snapshot/delta
+ * report's `diagnostics` list, in place of the collection's shape. Used by
+ * `formatFullMode` so `projectSnapshot.diagnostics.length` /
+ * `projectDelta.diagnostics.length` — which feed both the merged summaries
+ * and the `details.projectDiagnostics`/`details.projectDiagnosticsDelta`
+ * counts — already reflect the policy instead of reporting a pre-policy
+ * count that disagrees with the rendered text.
+ */
+function applyProjectRulePolicy(value, policyMap) {
+    if (!value)
+        return undefined;
+    return { ...value, diagnostics: applyRulePolicy(value.diagnostics, policyMap) };
+}
 /** A diagnostic counts as error-like when it blocks or has error severity. */
 function isErrorLike(d) {
     return d.semantic === "blocking" || d.severity === "error";
@@ -553,12 +637,12 @@ function projectDiagnosticToWidget(diagnostic) {
 // violation must collapse to one finding in mode=full's merge regardless of which
 // engine produced it. Strip the `ast-grep:` source prefix and the `-js` language
 // suffix (the napi runner already treats `<id>` / `<id>-js` as one rule) so the
-// LSP sweep and the napi scan don't double-report the same line.
-function normalizeRuleForDedup(ruleId) {
-    return ruleId.replace(/^ast-grep:/, "").replace(/-js$/, "");
-}
+// LSP sweep and the napi scan don't double-report the same line. The
+// normalization itself now lives in `clients/dispatch/rule-id-normalize.ts` so the
+// inline suppression parser, the project rule-policy matcher, and dedup all apply
+// the same canonical form.
 function diagnosticDedupKey(filePath, diagnostic) {
-    const ruleId = normalizeRuleForDedup(diagnostic.rule ?? diagnostic.tool ?? "");
+    const ruleId = normalizeRuleId(diagnostic.rule ?? diagnostic.tool ?? "");
     return [path.resolve(filePath), diagnostic.line ?? "?", ruleId].join(":");
 }
 function summarizeDiagnostics(filePath, diagnostics, hasFinalSnapshot) {
@@ -701,8 +785,14 @@ function mergeDiagnosticsWithWidgetSummaries(widgetSummaries, lspResults, projec
  * a read failure is fail-safe (keep the diagnostics rather than hide a finding on
  * an I/O error). Re-summarizes so the blocking/error/warning counts reflect the
  * suppression.
+ *
+ * Also applies the project's `.pi-lens.json` `rules.<id>.disable`/`select`
+ * policy AFTER inline suppression / disposition so the same set of findings
+ * the per-edit `dispatcher.ts` filters is what's rendered here. The policy
+ * map is passed in (computed once per `formatFullMode` call) rather than
+ * re-deriving per file — see `loadProjectRulePolicyMap(cwd)`.
  */
-async function applyInlineSuppressionsToSummaries(summaries, cwd) {
+async function applyInlineSuppressionsToSummaries(summaries, cwd, policyMap) {
     return Promise.all(summaries.map(async (summary) => {
         if (!summary.diagnostics.length)
             return summary;
@@ -711,7 +801,13 @@ async function applyInlineSuppressionsToSummaries(summaries, cwd) {
             content = await fs.readFile(summary.filePath, "utf8");
         }
         catch {
-            return summary; // never hide a finding on a read error
+            // Inline suppression/disposition remains fail-open when the file cannot
+            // be read, but project policy does not depend on content and must still
+            // be applied so a fresh full-mode result cannot bypass `disable`/`select`.
+            const policyKept = applyRulePolicy(summary.diagnostics, policyMap);
+            return policyKept.length === summary.diagnostics.length
+                ? summary
+                : summarizeDiagnostics(summary.filePath, policyKept, summary.hasFinalSnapshot);
         }
         const inlineKept = applyInlineSuppressions(summary.diagnostics, content);
         // #690: same false-positive/suppress/defer disposition filter the
@@ -719,11 +815,16 @@ async function applyInlineSuppressionsToSummaries(summaries, cwd) {
         // diagnostics from a fresh LSP sweep/project scan that never went
         // through that path, so without this a disposed finding reappears here.
         const kept = applyDispositions(inlineKept, cwd, summary.filePath, content);
+        // Project rule policy (`.pi-lens.json` `rules.<id>.disable`/`select`).
+        // Applied after inline suppression / disposition so the policy's
+        // output-only filtering affects the same surface the per-edit path
+        // produces (no double-counting, no leftover policy-rejected findings).
+        const policyKept = applyRulePolicy(kept, policyMap);
         // Tag `flagged` diagnostics for the render loop (formatAllMode). Content
         // is already in hand here (unlike mode=all/delta's cache-only path), so
         // this is the one place the tag can be computed without adding I/O to
         // the "instant" modes.
-        for (const d of kept) {
+        for (const d of policyKept) {
             // flagged is weak-anchored (module doc, diagnostic-dispositions.ts) so
             // the tag survives incidental edits to the flagged line itself.
             const { weak } = anchorsForDiagnostic(cwd, summary.filePath, d, content);
@@ -731,9 +832,9 @@ async function applyInlineSuppressionsToSummaries(summaries, cwd) {
                 d.flagged = true;
             }
         }
-        if (kept.length === summary.diagnostics.length)
+        if (policyKept.length === summary.diagnostics.length)
             return summary;
-        return summarizeDiagnostics(summary.filePath, kept, summary.hasFinalSnapshot);
+        return summarizeDiagnostics(summary.filePath, policyKept, summary.hasFinalSnapshot);
     }));
 }
 function shouldUseCachedProjectDiagnostics(value) {
@@ -781,6 +882,7 @@ async function getProjectDiagnosticsSnapshotForFullMode(cwd, options) {
             maxFiles: options.maxProjectFiles,
             signal: options.signal,
             files: options.files,
+            includeGenerated: options.includeGenerated,
         });
     }
     if (shouldUseCachedProjectDiagnostics(options.refreshRunners)) {
@@ -834,7 +936,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
     // scan, makes it genuinely concurrent — all three phases now race the SAME
     // signal from the same starting point instead of stacking.
     const analyzersPromise = shouldIncludeProjectRunners(options.refreshRunners)
-        ? loadBootstrapClients().then((clients) => fetchFreshProjectDiagnostics(cacheManager, cwd, clients, signal))
+        ? loadBootstrapClients().then((clients) => fetchFreshProjectDiagnostics(cacheManager, cwd, clients, signal, { runtime: options.runtime }))
         : Promise.resolve({
             diagnostics: [],
             runners: [],
@@ -848,6 +950,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
             signal,
             onProgress: options.onProgress,
             onServerReady: options.onServerReady,
+            nextWriteIndex: options.nextWriteIndex,
             files: explicitFiles,
         }),
         getProjectDiagnosticsSnapshotForFullMode(cwd, {
@@ -858,6 +961,12 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
     ]);
     const aborted = signal?.aborted ?? false;
     const lspResults = rawLspResults.filter((result) => includeFile(result.filePath));
+    // A result bound to a different document must not replace the current
+    // widget state, even when it contains real diagnostics. Pull results may carry
+    // a content hash without the push binding verdict, so verify that hash against
+    // disk through the bounded async fallback above; unreadable files remain
+    // unknown and retain the existing fail-open policy.
+    const mismatchedLspResults = await findFullScanBindingMismatches(lspResults);
     // #630: `timedOut`/`error` means the per-file check never actually
     // completed or was inconclusive (#570's `touchFile().inconclusive`, or
     // this sweep's own outer per-file deadline/throw — see
@@ -869,8 +978,12 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
     // the unfiltered `lspResults` in, so a timed-out file's placeholder `[]`
     // read as "0 diagnostics" — false-clean — in the rendered/`details`
     // output (#630).
-    const confirmedLspResults = lspResults.filter((result) => !result.timedOut && !result.error);
-    const unconfirmedLspResults = lspResults.filter((result) => result.timedOut || result.error);
+    const confirmedLspResults = lspResults.filter((result) => !result.timedOut &&
+        !result.error &&
+        !mismatchedLspResults.has(result));
+    const unconfirmedLspResults = lspResults.filter((result) => result.timedOut ||
+        result.error ||
+        mismatchedLspResults.has(result));
     // #571: reconcile this scan's fresh, CONFIRMED per-file results into the
     // footer cache. A footer write is never allowed to fail the tool call, so
     // any unexpected throw is swallowed.
@@ -891,12 +1004,33 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
             // (`applyAuxiliarySuppressions`), so an empty content string here is a
             // safe no-op re-check rather than a behavior gap.
             const retagged = retagAuxiliaryDiagnostics(diagnostics, result.diagnostics, "", { cwd, fileRole: detectFileRole(result.filePath) });
-            reconcileScanDiagnostics(result.filePath, retagged, true, nextWriteIndex?.());
+            reconcileScanDiagnostics(result.filePath, retagged, true, 
+            // The service reserves this token when the file enters the scan. The
+            // fallback preserves compatibility with older test doubles/services.
+            result.writeIndex ?? nextWriteIndex?.(), 
+            // #1093: `observedAt` is set only when this result was served from
+            // the workspace-diagnostics cache (a replay of an older scan) —
+            // stamp `touchedAt` with when it was scanned, not now(), so a
+            // mode=full that only re-serves the cache can't keep a resolved
+            // finding on screen by re-arming the mtime gate. Undefined for
+            // freshly-touched results (observed now).
+            result.observedAt);
         }
         catch {
             // Never let a footer-reconciliation hiccup fail the scan itself.
         }
     }
+    // Project rule policy (`.pi-lens.json` `rules.<id>.disable`/`select`) —
+    // loaded once per mode=full call, BEFORE `projectSnapshot`/`projectDelta`
+    // are built below, so `.diagnostics.length` on both (which feeds
+    // `details.projectDiagnostics`/`details.projectDiagnosticsDelta` as well
+    // as the merge into `summaries`) is the POST-policy count. Threaded into
+    // `applyInlineSuppressionsToSummaries` too (idempotent re-apply there) so
+    // the merged summaries honor the same policy the per-edit dispatch path
+    // applies. A project config read failure is treated as "no policy"
+    // (defensive, matches the `applyInlineSuppressionsToSummaries` read-error
+    // discipline).
+    const policyMap = loadProjectRulePolicyMap(cwd);
     const scannedSnapshot = filterProjectDiagnosticsSnapshot(rawProjectSnapshot, includeFile);
     // Heavyweight-analyzer findings (jscpd, madge, gitleaks, knip, govulncheck,
     // trivy, dead-code) — a FRESH run of each (#585), not a cache-only read:
@@ -911,14 +1045,14 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
     // computed above, in the SAME `Promise.all` as the LSP sweep (#613) — only
     // when the caller opted into project-runner state (otherwise it's the
     // `Promise.resolve({...})` stub from `analyzersPromise` above).
-    const projectSnapshot = foldExtraDiagnosticsIntoSnapshot(scannedSnapshot, extracted.diagnostics.filter((d) => includeFile(d.filePath)), extracted.runners, cwd);
-    const projectDelta = filterProjectDiagnosticsDeltaReport(loadProjectDiagnosticsDeltaReport(cwd), includeFile);
+    const projectSnapshot = applyProjectRulePolicy(foldExtraDiagnosticsIntoSnapshot(scannedSnapshot, extracted.diagnostics.filter((d) => includeFile(d.filePath)), extracted.runners, cwd), policyMap);
+    const projectDelta = applyProjectRulePolicy(filterProjectDiagnosticsDeltaReport(loadProjectDiagnosticsDeltaReport(cwd), includeFile), policyMap);
     // #630: only the CONFIRMED LSP results contribute diagnostics to the merge
     // — an unconfirmed (timed-out/errored) file's placeholder `[]` must not be
     // read as "0 issues, clean" via its LSP contribution. It can still
     // legitimately show diagnostics from widgetSummaries/project-runner state
     // below if those independently have entries for it.
-    const summaries = await applyInlineSuppressionsToSummaries(mergeDiagnosticsWithWidgetSummaries(getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath)), confirmedLspResults, projectSnapshot, projectDelta), cwd);
+    const summaries = await applyInlineSuppressionsToSummaries(mergeDiagnosticsWithWidgetSummaries(getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath)), confirmedLspResults, projectSnapshot, projectDelta), cwd, policyMap);
     const result = formatAllMode(cwd, severity, summaries, {
         mode: "full",
         lspFilesChecked: rawLspResults.length,
@@ -1057,6 +1191,14 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
     const scanTruncatedNote = scanTruncatedNoticeText
         ? `\n\n${scanTruncatedNoticeText}`
         : "";
+    // #1107 phase 2: same "reached the seam, nothing rendered it" gap as #784
+    // above, for the generated-name/dir skip counters.
+    const generatedSkipNoticeText = projectSnapshot
+        ? generatedSkipNotice(projectSnapshot)
+        : undefined;
+    const generatedSkipNote = generatedSkipNoticeText
+        ? `\n\n${generatedSkipNoticeText}`
+        : "";
     const abortedNote = abortedIds.size > 0
         ? `\n\nstopped mid-scan (still running in the background, not reflected in this result): ${[
             ...abortedIds,
@@ -1110,6 +1252,19 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
             // #784: lets a caller check "was the cheap project scan truncated"
             // without parsing the text note.
             projectScanTruncated: projectSnapshot?.scanTruncated ?? false,
+            // #1107 phase 2: same machine-readable convention, for the
+            // generated-name/dir skip counters.
+            ...(projectSnapshot?.generatedFileSkips
+                ? { projectGeneratedFileSkips: projectSnapshot.generatedFileSkips }
+                : {}),
+            ...(projectSnapshot?.generatedNameOnlySkips
+                ? {
+                    projectGeneratedNameOnlySkips: projectSnapshot.generatedNameOnlySkips,
+                }
+                : {}),
+            ...(projectSnapshot?.generatedDirSkips
+                ? { projectGeneratedDirSkips: projectSnapshot.generatedDirSkips }
+                : {}),
         },
     };
     // Stopped mid-scan: the results above are whatever completed before the abort.
@@ -1138,6 +1293,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
                         failedNote +
                         walkUnsafeRootNote +
                         scanTruncatedNote +
+                        generatedSkipNote +
                         abortedNote +
                         freshNote +
                         missingNote,
@@ -1152,6 +1308,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
         failedNote ||
         walkUnsafeRootNote ||
         scanTruncatedNote ||
+        generatedSkipNote ||
         abortedNote ||
         freshNote ||
         unconfirmedLspNote ||
@@ -1168,6 +1325,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager, options =
                         failedNote +
                         walkUnsafeRootNote +
                         scanTruncatedNote +
+                        generatedSkipNote +
                         abortedNote +
                         freshNote +
                         missingNote,
@@ -1197,13 +1355,20 @@ function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummaries(), 
     // post-dispatch lens_diagnostic_mark (suppress/defer) would otherwise still
     // show here. Re-apply the weak filter (zero I/O) for the cache-only path and
     // re-summarize so blocking/error/warning counts reflect the drop.
+    // Same project rule policy (`.pi-lens.json` `rules.<id>.disable`/`select`)
+    // overlays both modes: mode=full re-applies it after inline suppression /
+    // disposition (zero I/O), mode=all applies it here on the cache-only path.
+    // The full path's policyMover is loaded below in `applyInlineSuppressionsToSummaries`.
+    const policyMap = loadProjectRulePolicyMap(cwd);
     const dispositioned = isFullMode
         ? summaries
         : summaries.map((s) => {
             const kept = applyWeakDispositions(s.diagnostics ?? [], cwd, s.filePath);
-            return kept.length === (s.diagnostics?.length ?? 0)
-                ? s
-                : summarizeDiagnostics(s.filePath, kept, s.hasFinalSnapshot);
+            const policyKept = applyRulePolicy(kept, policyMap);
+            if (policyKept.length === kept.length &&
+                kept.length === (s.diagnostics?.length ?? 0))
+                return s;
+            return summarizeDiagnostics(s.filePath, policyKept, s.hasFinalSnapshot);
         });
     const visibleSummaries = dispositioned.filter((s) => includeFile(s.filePath));
     // Filter to files with actual issues

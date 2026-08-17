@@ -8,6 +8,8 @@
  */
 import * as os from "node:os";
 import * as path from "node:path";
+import { BoundedLruCache } from "./bounded-cache.js";
+import { normalizeMapKey } from "./path-utils.js";
 import { lazyEnvNumber } from "./env-utils.js";
 import { getProjectIgnoreMatcher, } from "./file-utils.js";
 import { isAtOrAboveHomeDir } from "./path-utils.js";
@@ -220,15 +222,18 @@ export function countSourceFilesWithinLimit(dir, limit) {
 // depends only on the file tree shape and ignore rules — both of which
 // are also captured by the project snapshot freshness check upstream —
 // in-process memoisation is safe for the duration of a single pi process.
-const startupScanContextCache = new Map();
+const startupScanContextCache = new BoundedLruCache(32);
+function startupScanCacheKey(cwd, options) {
+    return [
+        normalizeMapKey(path.resolve(cwd)),
+        options.homeDir ? normalizeMapKey(path.resolve(options.homeDir)) : "",
+        options.maxSourceFiles ?? "",
+        options.maxScanEntries ?? "",
+    ].join("|");
+}
+export const __testing = { startupScanCacheKey };
 export function resolveStartupScanContext(cwd, options = {}) {
-    const cacheKey = path.resolve(cwd) +
-        "|" +
-        (options.homeDir ?? "") +
-        "|" +
-        (options.maxSourceFiles ?? "") +
-        "|" +
-        (options.maxScanEntries ?? "");
+    const cacheKey = startupScanCacheKey(cwd, options);
     const cached = startupScanContextCache.get(cacheKey);
     if (cached)
         return cached;
@@ -322,7 +327,7 @@ async function walkSourceCountAsync(dir, limit, maxEntries, opts = {}) {
         // ~0.1ms of overhead and a 2k-file project produces ~20 yields, so the
         // total async overhead is well under 5ms while keeping per-burst sync
         // work under 50ms (the perceptual threshold for "instant" keystrokes).
-        yieldEvery: opts.yieldEvery ?? 100,
+        budgetMs: opts.budgetMs ?? 8,
         // #703: prime the tracked-files set ONCE before the walk (not per file)
         // so a tracked file matching a `.gitignore`/global pattern isn't dropped
         // from the startup source-file count. Fail-open: resolves even when git
@@ -338,13 +343,7 @@ export async function countSourceFilesWithinLimitAsync(dir, limit, opts = {}) {
     return (await walkSourceCountAsync(dir, limit, Number.POSITIVE_INFINITY, opts)).count;
 }
 export async function resolveStartupScanContextAsync(cwd, options = {}) {
-    const cacheKey = path.resolve(cwd) +
-        "|" +
-        (options.homeDir ?? "") +
-        "|" +
-        (options.maxSourceFiles ?? "") +
-        "|" +
-        (options.maxScanEntries ?? "");
+    const cacheKey = startupScanCacheKey(cwd, options);
     const cached = startupScanContextCache.get(cacheKey);
     if (cached)
         return cached;

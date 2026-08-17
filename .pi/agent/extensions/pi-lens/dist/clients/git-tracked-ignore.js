@@ -178,6 +178,10 @@ export function collectTrackedFiles(cwd) {
     // this file's module doc for why this diverges from `collectUntrackedIgnoredIds`.
     const key = normalizeEphemeralMapKey(cwd);
     const now = Date.now();
+    for (const [snapshotKey, entry] of _trackedCache) {
+        if (now - entry.fetchedAtMs >= CACHE_TTL_MS)
+            _trackedSnapshot.delete(snapshotKey);
+    }
     const cached = _trackedCache.get(key);
     if (cached && now - cached.fetchedAtMs < CACHE_TTL_MS)
         return cached.promise;

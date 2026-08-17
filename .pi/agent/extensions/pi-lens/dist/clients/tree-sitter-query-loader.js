@@ -4,6 +4,7 @@
  * Loads tree-sitter queries from YAML files in rules/tree-sitter-queries/
  * and provides them to the TreeSitterClient.
  */
+import { logTreeSitterDiagnostic } from "./tree-sitter-logger.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { resolvePackagePath } from "./package-root.js";
@@ -110,7 +111,12 @@ export class TreeSitterQueryLoader {
     /** Debug logging helper */
     dbg(msg) {
         if (this.verbose) {
-            console.error(`[query-loader] ${msg}`);
+            // #1333: verbose gate preserved, sink moved to tree-sitter.log.
+            logTreeSitterDiagnostic({
+                subsystem: "query-loader",
+                level: "debug",
+                message: msg,
+            });
         }
     }
     /**

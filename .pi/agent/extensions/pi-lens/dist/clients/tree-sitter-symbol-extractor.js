@@ -2,6 +2,7 @@
  * Symbol extraction via tree-sitter queries
  * Extracts definitions and references from source files
  */
+import { logTreeSitterDiagnostic } from "./tree-sitter-logger.js";
 import * as path from "node:path";
 import { loadWebTreeSitter } from "./deps/web-tree-sitter.js";
 // Tree-sitter query patterns for symbol extraction
@@ -505,6 +506,10 @@ SYMBOL_QUERIES.javascript = {
         constructor: (identifier) @newIdent) @newRef
     `,
 };
+/** Language keys with symbol queries; used by fixture drift guards. */
+export function getSymbolQueryLanguages() {
+    return Object.keys(SYMBOL_QUERIES);
+}
 // Per-language import-source extraction (#249). Optional and independent of
 // SYMBOL_QUERIES: a language without an entry simply yields no imports (its
 // symbols still extract). Each query captures the import source text as
@@ -653,7 +658,11 @@ export class TreeSitterSymbolExtractor {
         }
         catch (err) {
             this.client.reportWasmAbort(err);
-            console.error(`[symbol-extractor] Failed to init ${this.languageId}:`, err);
+            logTreeSitterDiagnostic({
+                subsystem: "symbol-extractor",
+                languageId: this.languageId,
+                message: `Failed to init ${this.languageId}: ${err instanceof Error ? err.message : String(err)}`,
+            });
             return false;
         }
     }
@@ -665,7 +674,12 @@ export class TreeSitterSymbolExtractor {
         catch (err) {
             if (this.client.reportWasmAbort(err))
                 throw err;
-            console.error(`[symbol-extractor] ${this.languageId} ${label} query failed: ${err.message}`);
+            logTreeSitterDiagnostic({
+                subsystem: "symbol-extractor",
+                languageId: this.languageId,
+                message: `${this.languageId} ${label} query failed: ${err.message}`,
+                metadata: { query: label },
+            });
             return null;
         }
     }
@@ -704,7 +718,16 @@ export class TreeSitterSymbolExtractor {
                     imports.push(ref);
             }
         }
-        return { symbols, refs, imports };
+        return {
+            symbols,
+            refs,
+            imports,
+            coverage: {
+                definitions: this.defQuery ? "complete" : "unavailable",
+                references: this.refQuery ? "complete" : "unavailable",
+                imports: this.importQuery ? "complete" : "unavailable",
+            },
+        };
     }
     queryMatches(query, rootNode) {
         try {
@@ -1001,26 +1024,40 @@ export class TreeSitterSymbolExtractor {
     parseRefMatch(match, filePath) {
         let name;
         let refNode;
+        let referenceKind = "unknown";
         for (const capture of match.captures) {
-            if (capture.name.endsWith("Ident") ||
-                capture.name.endsWith("Method") ||
-                capture.name.endsWith("Field")) {
+            const captureName = String(capture.name);
+            if (captureName.endsWith("Ident") ||
+                captureName.endsWith("Method") ||
+                captureName.endsWith("Field")) {
                 name = capture.node.text;
                 // biome-ignore lint/suspicious/noExplicitAny: Node type
                 refNode = capture.node;
+                if (captureName.startsWith("type"))
+                    referenceKind = "type";
+                else if (captureName.startsWith("call") || captureName.startsWith("new")) {
+                    referenceKind = "call";
+                }
             }
-            if (capture.name.endsWith("Ref") && !refNode) {
+            if (captureName.endsWith("Ref") && !refNode) {
                 // biome-ignore lint/suspicious/noExplicitAny: Node type
                 refNode = capture.node;
+                if (captureName.startsWith("type"))
+                    referenceKind = "type";
+                else if (captureName.startsWith("call") || captureName.startsWith("new")) {
+                    referenceKind = "call";
+                }
             }
         }
         if (!name || !refNode)
             return null;
         return {
             symbolId: `${filePath}:${name}`, // Will be resolved later
+            symbolName: name,
             filePath,
             line: refNode.startPosition.row + 1,
             column: refNode.startPosition.column + 1,
+            referenceKind,
         };
     }
     // biome-ignore lint/suspicious/noExplicitAny: Node type

@@ -18,7 +18,7 @@
  * instead, so calling this tool is harmless, just unnecessary.
  */
 import { Type } from "../clients/deps/typebox.js";
-export function createActivateToolsTool(pi, lazyTools) {
+export function createActivateToolsTool(pi, lazyTools, options = {}) {
     const lazyNames = lazyTools.map((t) => t.name);
     const lazyNameSet = new Set(lazyNames);
     const catalog = lazyTools.map((t) => `${t.name} — ${t.summary}`).join("\n");
@@ -35,7 +35,7 @@ export function createActivateToolsTool(pi, lazyTools) {
                 description: "Names of situational tools to activate (see this tool's description for the catalog).",
             }),
         }),
-        async execute(_toolCallId, params, _signal, _onUpdate) {
+        async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
             const requested = Array.isArray(params.tools)
                 ? params.tools.filter((t) => typeof t === "string" && lazyNameSet.has(t))
                 : [];
@@ -53,10 +53,22 @@ export function createActivateToolsTool(pi, lazyTools) {
             }
             // Additive only, per the docs' contract: never drop currently active
             // tools in the same call.
+            // Remember every requested tool, not just the newly-added ones: a
+            // tool that is already active still has to survive the next
+            // fork/reload/resume restore.
+            options.onActivated?.(requested);
             const active = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : [];
-            const merged = [...new Set([...active, ...requested])];
-            if (typeof pi.setActiveTools === "function") {
+            const activeSet = new Set(active);
+            const added = requested.filter((name) => !activeSet.has(name));
+            const merged = [...new Set([...active, ...added])];
+            if (added.length > 0 && typeof pi.setActiveTools === "function") {
                 pi.setActiveTools(merged);
+                options.onMutation?.({
+                    addedCount: added.length,
+                    removedCount: 0,
+                    reason: "lazy_activation",
+                    deferralApplies: options.deferredToolSupport?.(ctx) ?? false,
+                });
             }
             return {
                 content: [
@@ -65,7 +77,7 @@ export function createActivateToolsTool(pi, lazyTools) {
                         text: `Activated: ${requested.join(", ")}. Available starting next turn.`,
                     },
                 ],
-                details: { matches: requested, added: requested },
+                details: { matches: requested, added },
             };
         },
     };

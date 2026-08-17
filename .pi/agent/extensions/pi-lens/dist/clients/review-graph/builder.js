@@ -12,6 +12,7 @@ import { detectFileKind, KIND_EXTENSIONS } from "../file-kinds.js";
 import { detectFileRole } from "../file-role.js";
 import { getProjectDataDir } from "../file-utils.js";
 import { collectUntrackedIgnoredIds } from "../git-tracked-ignore.js";
+import { realIsPidAlive } from "../instance-reaper.js";
 import { logLatency } from "../latency-logger.js";
 import { containerNameChain, getOpenDocumentSymbols, lspSymbolKindName, } from "../lsp-document-symbols.js";
 import { isAtOrAboveHomeDir, normalizeFilePath, normalizeMapKey, toProjectRelativePath, } from "../path-utils.js";
@@ -22,7 +23,7 @@ import { RUNTIME_CONFIG } from "../runtime-config.js";
 import { buildReverseDependencyIndexFromGraph, rankFilesByReverseDependencyCentrality, } from "../reverse-deps.js";
 import { buildQualifiedName, findOwnerName } from "../symbol-containment.js";
 import { logTreeSitterCacheStats } from "../tree-sitter-logger.js";
-import { flushReviewGraphLogSync, logReviewGraph, } from "../review-graph-logger.js";
+import { flushReviewGraphLogSync, logReviewGraph, makeReviewGraphBuildMetadata, } from "../review-graph-logger.js";
 import { getSharedTreeSitterClient } from "../tree-sitter-shared.js";
 import { TreeSitterSymbolExtractor, } from "../tree-sitter-symbol-extractor.js";
 import { withTreeSitterRoot } from "../tree-sitter-shared.js";
@@ -58,7 +59,10 @@ import { clearReviewGraphFileIr, getFreshReviewGraphFileIr, reviewGraphIrContent
 // safe-rebuild mechanism as the v2→v3/v3→v4/v4→v5 bumps above.
 // v7 (#939): the canonical snapshot is streamed gzip. A v7 payload in the
 // legacy uncompressed filename remains readable for one compatibility release.
-const REVIEW_GRAPH_VERSION = "v7";
+// v8 (#1070): call/reference evidence now records call-like vs type-only
+// references and tree-sitter query coverage, so call-graph consumers cannot
+// mistake incomplete extraction for a clean zero.
+export const REVIEW_GRAPH_VERSION = "v8";
 const MAIN_KINDS = new Set([
     "jsts",
     "python",
@@ -84,6 +88,8 @@ const MAIN_KINDS = new Set([
 // so a repo heavy in JSON/YAML/Markdown doesn't trip the cap on files the graph
 // would have filtered out anyway (the cap is on the walk, not on noise). #250.
 const MAIN_KIND_EXTENSIONS = Array.from(MAIN_KINDS).flatMap((kind) => KIND_EXTENSIONS[kind] ?? []);
+/** The bounded, source-filtered extension set shared by graph cache readers. */
+export const REVIEW_GRAPH_SOURCE_EXTENSIONS = MAIN_KIND_EXTENSIONS;
 const CHANGED_SYMBOLS_PREFIX = "session.reviewGraph.changedSymbols:";
 const extractorCache = new Map();
 // Per-invocation Promise cache: deduplicates concurrent buildOrUpdateGraph calls
@@ -92,17 +98,87 @@ const extractorCache = new Map();
 // graph across invocations when source file mtimes/sizes have not changed.
 const _buildCache = new Map();
 const _workspaceGraphCache = new Map();
+const REVIEW_GRAPH_MAX_WARM_WORKSPACES = 8;
+const REVIEW_GRAPH_IDLE_EVICT_MS_DEFAULT = 20 * 60_000;
+// A workspace-wide clear must invalidate builds for workspaces that are not
+// resident yet, too. This process-wide component therefore survives cache
+// deletion; per-workspace eviction/reset increments the map component below.
+let _workspaceCacheEpoch = 0;
+const _workspaceCacheEpochs = new Map();
+function workspaceCacheEpoch(key) {
+    return _workspaceCacheEpoch + (_workspaceCacheEpochs.get(key) ?? 0);
+}
+function reviewGraphIdleEvictMs() {
+    const value = Number.parseInt(process.env.PI_LENS_REVIEW_GRAPH_IDLE_EVICT_MS ?? "", 10);
+    return Number.isSafeInteger(value) && value > 0 ? value : REVIEW_GRAPH_IDLE_EVICT_MS_DEFAULT;
+}
+function clearWorkspaceGraphTimer(entry) {
+    if (entry.idleTimer)
+        clearTimeout(entry.idleTimer);
+    entry.idleTimer = undefined;
+}
+function evictWorkspaceGraph(key, entry) {
+    if (_workspaceGraphCache.get(key) !== entry)
+        return;
+    clearWorkspaceGraphTimer(entry);
+    for (const buildKey of _buildCache.keys()) {
+        const separator = buildKey.indexOf("|");
+        if (separator >= 0 && normalizeMapKey(buildKey.slice(0, separator)) === key) {
+            _buildCache.delete(buildKey);
+        }
+    }
+    _workspaceCacheEpochs.set(key, (_workspaceCacheEpochs.get(key) ?? 0) + 1);
+    _workspaceGraphCache.delete(key);
+}
+function scheduleWorkspaceGraphEviction(key, entry) {
+    clearWorkspaceGraphTimer(entry);
+    const epoch = workspaceCacheEpoch(key);
+    entry.idleTimer = setTimeout(() => {
+        entry.idleTimer = undefined;
+        if (_workspaceGraphCache.get(key) !== entry || workspaceCacheEpoch(key) !== epoch)
+            return;
+        evictWorkspaceGraph(key, entry);
+    }, reviewGraphIdleEvictMs());
+    entry.idleTimer.unref?.();
+}
+function touchWorkspaceGraph(key) {
+    const entry = _workspaceGraphCache.get(key);
+    if (!entry)
+        return;
+    entry.lastUsedAt = Date.now();
+    scheduleWorkspaceGraphEviction(key, entry);
+}
+function setWorkspaceGraph(key, entry, epoch) {
+    if (epoch !== undefined && workspaceCacheEpoch(key) !== epoch)
+        return false;
+    const resident = { ...entry, lastUsedAt: Date.now() };
+    _workspaceGraphCache.set(key, resident);
+    scheduleWorkspaceGraphEviction(key, resident);
+    while (_workspaceGraphCache.size > REVIEW_GRAPH_MAX_WARM_WORKSPACES) {
+        const victim = [..._workspaceGraphCache.entries()].sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)[0];
+        if (!victim)
+            break;
+        evictWorkspaceGraph(victim[0], victim[1]);
+    }
+    return true;
+}
 // #459: process-wide monotonic source for ReviewGraph.buildGeneration stamps.
 // Never reset (uniqueness is the invariant — a workspace-cache clear must not
 // let a new build collide with a generation a derived-data cache recorded
 // earlier in the same process).
 let _graphGenerationCounter = 0;
+// Build invocation identity is separate from graph content generation: cached
+// builds can reuse content while still needing a stable lifecycle join key.
+let _buildIdCounter = 0;
 /** Beyond this many seq-changed files, incremental re-extract nears sweep cost — just sweep (#451). */
 const SEQ_FASTPATH_MAX_CHANGES = 32;
 /** Force a full walk+stat re-verify at least this often in wall time (external-edit safety valve, #451). */
 const SEQ_FASTPATH_REVERIFY_MS = 5 * 60_000;
 /** ...and at least every Nth fast-path build per workspace. */
 const SEQ_FASTPATH_REVERIFY_EVERY = 20;
+function graphLogMetadata(graph, options = {}) {
+    return makeReviewGraphBuildMetadata(graph, options);
+}
 function seqFastpathEnabled() {
     const raw = process.env.PI_LENS_GRAPH_SEQ_FASTPATH;
     return raw !== "0" && raw !== "false";
@@ -112,13 +188,68 @@ let _lastGraphBuildInfo = {
     mode: "full",
     graphChanged: true,
 };
+// The global slot above is retained for legacy status surfaces, but overlapping
+// deferred builds need a per-result identity for lifecycle telemetry.
+const _graphBuildInfoByGraph = new WeakMap();
+// #1179: true once ANY graph has been stamped since the last cache clear — i.e.
+// `_lastGraphBuildInfo` may now hold a REAL build's info (a potential sibling)
+// rather than the pristine `mode: "full"` default. Used only by the fail-closed
+// safety read below to decide whether the global slot is safe to serve on a
+// WeakMap identity miss.
+let _anyGraphStamped = false;
+function setGraphBuildInfo(graph, info) {
+    _lastGraphBuildInfo = info;
+    _graphBuildInfoByGraph.set(graph, info);
+    _anyGraphStamped = true;
+}
+export function getGraphBuildInfoForGraph(graph) {
+    return _graphBuildInfoByGraph.get(graph) ?? _lastGraphBuildInfo;
+}
+/**
+ * #1179 (fail-closed guard, latent P3 from the #1108/#1180 side-channel audit).
+ * Whether `getGraphBuildInfoForGraph(graph)` can be TRUSTED to describe `graph`
+ * itself — for a SAFETY gate that must never read a sibling graph's state.
+ *
+ * `getGraphBuildInfoForGraph` deliberately falls back to the global
+ * `_lastGraphBuildInfo` slot on a WeakMap identity miss — fine for the telemetry
+ * and `updateGraphBuildInfo` base-read callers, where a sibling build's `mode` is
+ * only informational (and the first stamp of a graph legitimately bases off the
+ * prior slot). But a gate that decides degraded-vs-clean must not read a DIFFERENT
+ * graph's `mode: "cached"` (healthy) off that fallback, or it would mistake an
+ * unstamped/rehydrated graph for a clean leaf and serve a silent all-clear (the
+ * #533 false-clean trap). Such a caller reads THIS first and, when it returns
+ * false, fails CLOSED (treats coverage as unknown/degraded) instead of trusting
+ * the slot.
+ *
+ * Trustworthy iff EITHER the graph's own identity is present in the WeakMap (the
+ * fallback is not even taken), OR nothing has been stamped since the last cache
+ * clear (`_lastGraphBuildInfo` is still the pristine `mode: "full"` default, which
+ * cannot be a sibling's real state). Only a miss AFTER some real build has stamped
+ * — where the global slot could be a sibling's info — is untrustworthy.
+ *
+ * Live path: always trustworthy. Every `_doBuildGraph` return stamps the graph via
+ * `setGraphBuildInfo` before returning it, so the cascade reads the freshly-stamped
+ * same-identity instance (`has(graph)` true) and the miss branch is unreachable
+ * today. This only hardens a future path that ever surfaces an unstamped graph.
+ */
+export function graphBuildInfoIsTrustworthy(graph) {
+    return _graphBuildInfoByGraph.has(graph) || !_anyGraphStamped;
+}
+function updateGraphBuildInfo(graph, patch) {
+    const info = { ...getGraphBuildInfoForGraph(graph), ...patch };
+    setGraphBuildInfo(graph, info);
+    return info;
+}
 export function clearGraphCache() {
     _buildCache.clear();
 }
 export function clearReviewGraphWorkspaceCache(cwd) {
     if (cwd === undefined) {
         _buildCache.clear();
+        for (const entry of _workspaceGraphCache.values())
+            clearWorkspaceGraphTimer(entry);
         _workspaceGraphCache.clear();
+        _workspaceCacheEpoch++;
         _sizeSkipVerdicts.clear();
     }
     else {
@@ -128,20 +259,92 @@ export function clearReviewGraphWorkspaceCache(cwd) {
                 _buildCache.delete(key);
             }
         }
+        const entry = _workspaceGraphCache.get(normalized);
+        if (entry)
+            clearWorkspaceGraphTimer(entry);
+        _workspaceCacheEpochs.set(normalized, (_workspaceCacheEpochs.get(normalized) ?? 0) + 1);
         _workspaceGraphCache.delete(normalized);
         _sizeSkipVerdicts.delete(normalized);
     }
     _lastGraphBuildInfo = { reused: false, mode: "full", graphChanged: true };
+    // #1179: the global slot is back to the pristine default, so a subsequent
+    // identity miss can safely serve it again (it cannot be a sibling's state).
+    _anyGraphStamped = false;
+}
+let _reviewGraphBuildGateForTests;
+/** Test seam for deterministically interleaving a build with cache eviction. */
+export function _setReviewGraphBuildGateForTests(gate) {
+    _reviewGraphBuildGateForTests = gate;
+}
+/**
+ * O(cache-entries) snapshot of the resident workspace graph cache — NOT
+ * O(nodes)/O(edges): only `.size`/`.length` are read per entry, never the
+ * graph contents themselves (#1123 item 2 memory-attribution sample). Cache
+ * entries are per-cwd and normally number 1 (a session_start clears the
+ * cache), so this is cheap enough for a per-N-turn sample.
+ */
+export function getReviewGraphWorkspaceCacheSnapshot() {
+    let totalNodes = 0;
+    let totalEdges = 0;
+    for (const entry of _workspaceGraphCache.values()) {
+        totalNodes += entry.graph.nodes.size;
+        totalEdges += entry.graph.edges.length;
+    }
+    return {
+        cacheEntries: _workspaceGraphCache.size,
+        totalNodes,
+        totalEdges,
+    };
+}
+/** Test-only cache keys, including the LRU order from oldest to newest. */
+export function _getReviewGraphWorkspaceCacheKeysForTests() {
+    return [..._workspaceGraphCache.entries()]
+        .sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)
+        .map(([key]) => key);
 }
 export function _getReviewGraphCacheStateForTests(cwd) {
     const cached = _workspaceGraphCache.get(normalizeMapKey(cwd));
     if (!cached)
         return undefined;
+    touchWorkspaceGraph(normalizeMapKey(cwd));
     return {
         signature: cached.signature,
         fileSignatures: new Map(cached.fileSignatures),
         fileHashes: cached.fileHashes ? new Map(cached.fileHashes) : undefined,
     };
+}
+export function getReviewGraphCacheIdentity(cwd, graph) {
+    const cached = _workspaceGraphCache.get(normalizeMapKey(cwd));
+    if (!cached)
+        return undefined;
+    touchWorkspaceGraph(normalizeMapKey(cwd));
+    // #1088: `version` is the constant schema tag ("v8" today) — identical for
+    // every live graph, so comparing it can never detect that `graph` is a
+    // stale instance the workspace cache has since replaced (e.g. a concurrent
+    // build racing between this caller's projection snapshot and its identity
+    // lookup). Compare the ENTRY's generation stamp (#459), not the stored
+    // graph object's: reuse paths store an unstamped `cloneGraph` copy and
+    // stamp only the returned instance, so `cached.graph.buildGeneration` is
+    // undefined on every drift-reuse / disk-hit entry while the caller's graph
+    // carries the entry's generation. The both-undefined case is legitimate
+    // only for the tier-3 hydration entry, where the caller holds the exact
+    // stored instance — anything else unstamped must not resolve an identity
+    // (e.g. the size-skip empty graph racing a hydrated entry).
+    if (graph) {
+        if (cached.buildGeneration === undefined && graph.buildGeneration === undefined) {
+            if (cached.graph !== graph)
+                return undefined;
+        }
+        else if (cached.buildGeneration !== graph.buildGeneration) {
+            return undefined;
+        }
+    }
+    const version = graph?.version ?? cached.graph.version;
+    if (typeof version !== "string" || version.length === 0 ||
+        typeof cached.signature !== "string") {
+        return undefined;
+    }
+    return { version, signature: cached.signature };
 }
 // #300 Edge 2: the review-graph's cross-worktree isolation is INCIDENTAL to
 // the cwd-derived data-dir slug (getProjectDataDir) — it holds only because
@@ -225,6 +428,7 @@ export function getCachedReviewGraph(cwd) {
         return undefined;
     const cached = _workspaceGraphCache.get(key);
     if (cached) {
+        touchWorkspaceGraph(key);
         ensureIndexed(cached.graph);
         return cached.graph;
     }
@@ -242,7 +446,7 @@ export function getCachedReviewGraph(cwd) {
     });
     if (!disk)
         return undefined;
-    _workspaceGraphCache.set(key, {
+    setWorkspaceGraph(key, {
         signature: disk.signature,
         fileSignatures: disk.fileSignatures,
         fileHashes: disk.fileHashes,
@@ -300,6 +504,10 @@ function cloneGraph(graph) {
         // partial base outright; this keeps any other cloner honest.
         persistCoverage: graph.persistCoverage,
     };
+}
+/** Refresh the content timestamp only when an incremental path changed graph data. */
+function refreshGraphBuiltAt(graph) {
+    graph.builtAt = new Date().toISOString();
 }
 function sourceSignatureEntry(file) {
     try {
@@ -410,7 +618,7 @@ function diffSignatureMaps(previous, next) {
 // `RUNTIME_CONFIG.reviewGraph.maxFiles` constant as the fallback — the ratio
 // table reproduces that same 1,000-file default at the default base, so this
 // is behavior-neutral when nothing is configured.
-function getReviewGraphMaxFiles(cwd) {
+export function getReviewGraphMaxFiles(cwd) {
     const override = Number.parseInt(process.env.PI_LENS_REVIEW_GRAPH_MAX_FILES ?? "", 10);
     return Number.isFinite(override) && override > 0
         ? override
@@ -463,26 +671,50 @@ export function getLastReviewGraphBuildAttempt(cwd) {
 export function _resetReviewGraphBuildAttemptsForTests() {
     _buildAttempts.clear();
 }
-function recordBuildAttempt(cwd, outcome, reason) {
-    _buildAttempts.set(normalizeMapKey(cwd), {
+function recordBuildAttempt(cwd, outcome, reason, buildId) {
+    const key = normalizeMapKey(cwd);
+    const prior = _buildAttempts.get(key);
+    // Build IDs are assigned at start, so a terminal event from an older
+    // overlapping build must never overwrite the newest build's status/reason.
+    // Keep the newest started attempt as the project-report truth source.
+    if (prior?.buildId !== undefined &&
+        (buildId === undefined || buildId < prior.buildId)) {
+        return;
+    }
+    _buildAttempts.set(key, {
         when: new Date().toISOString(),
         outcome,
+        ...(buildId === undefined ? {} : { buildId }),
         ...(reason ? { reason } : {}),
     });
 }
-function recordPersistFailure(cwd, reason, error) {
+function recordPersistFailure(cwd, reason, error, pending, workerState) {
     // A debounced persist can fail AFTER a newer build already recorded
     // "failed" or "running" for this cwd — don't relabel a dead/in-flight
     // build as succeeded; only annotate a record that says succeeded.
     const prior = _buildAttempts.get(normalizeMapKey(cwd));
-    if (prior === undefined || prior.outcome === "succeeded") {
-        recordBuildAttempt(cwd, "succeeded", `graph built but persistence failed: ${error}`);
+    const pendingBuildId = pending?.graphMetadata.buildId;
+    const belongsToCurrentBuild = pendingBuildId === undefined || prior?.buildId === pendingBuildId;
+    if (belongsToCurrentBuild &&
+        (prior === undefined || prior.outcome === "succeeded")) {
+        recordBuildAttempt(cwd, "succeeded", `graph built but persistence failed: ${error}`, pendingBuildId);
     }
     logReviewGraph({
         cwd,
         phase: "persist_failed",
         reason,
         error,
+        ...(pending
+            ? {
+                observability: persistObservability(pending, {
+                    status: "failed",
+                    reason: workerState?.fallbackReason ?? reason,
+                    workerStarted: workerState?.started,
+                    workerCompleted: workerState?.completed,
+                    ...(workerState?.fallbackReason ? { workerFallback: true } : {}),
+                }),
+            }
+            : {}),
     });
 }
 const _sizeSkipVerdicts = new Map();
@@ -494,11 +726,17 @@ function recordReviewGraphSizeSkip(cwd, sourceFileCount, maxFileCount) {
     _sizeSkipVerdicts.set(normalizeMapKey(cwd), {
         sourceFileCount,
         maxFileCount,
+        sourceFileCountTruncated: true,
         skippedAt: Date.now(),
     });
 }
 function clearReviewGraphSizeSkip(cwd) {
     _sizeSkipVerdicts.delete(normalizeMapKey(cwd));
+}
+const REVIEW_GRAPH_SIZE_NEAR_MISS_RATIO = 0.05;
+function isReviewGraphSizeNearMiss(sourceFileCount, maxFileCount) {
+    return (sourceFileCount > maxFileCount &&
+        sourceFileCount <= maxFileCount * (1 + REVIEW_GRAPH_SIZE_NEAR_MISS_RATIO));
 }
 /**
  * The most recent size-skip verdict for `cwd`, if one was recorded and it's
@@ -519,7 +757,17 @@ export function getReviewGraphSizeSkipVerdict(cwd, now = Date.now()) {
     }
     return verdict;
 }
-async function getGraphSourceFiles(cwd) {
+// Test-only override so the entry-budget propagation contract can be exercised
+// without constructing a 200k-entry fixture tree.
+let _reviewGraphEntryBudgetForTests;
+export function _setReviewGraphEntryBudgetForTests(maxScanEntries) {
+    _reviewGraphEntryBudgetForTests = maxScanEntries;
+}
+let _reviewGraphEntryCounterForTests;
+export function _setReviewGraphEntryCounterForTests(counter) {
+    _reviewGraphEntryCounterForTests = counter;
+}
+export async function getGraphSourceFiles(cwd) {
     // Async, chunked-yield walk (identical output to the sync collector) so the
     // per-edit cascade graph rebuild doesn't block the event loop on a large repo.
     //
@@ -529,17 +777,21 @@ async function getGraphSourceFiles(cwd) {
     // the cap is hit the caller skips the build on count alone, so the unfiltered
     // over-limit list is all it needs — see _doBuildGraph's too_many_files branch.
     const maxGraphFiles = getReviewGraphMaxFiles(cwd);
-    // #760: the maxFiles cap above bounds results FOUND, not entries VISITED —
-    // a mixed tree with few source files among a huge pile of non-source files
-    // never trips it. The walk's default entry budget (DEFAULT_MAX_SCAN_ENTRIES)
-    // bounds the visit count; a truncated best-effort list is acceptable for the
-    // graph (it degrades to a partial graph, same as maxFiles trimming), so just
-    // log the truncation for observability rather than failing the build.
+    // #760: the maxFiles cap bounds results FOUND, not entries VISITED. A mixed
+    // tree with few source files among a huge pile of non-source files can trip the
+    // entry budget first. That result is a useful partial graph, but its lower-bound
+    // count MUST travel with the graph and persistence metadata; it is never clean.
     const { files: collected, entryBudgetExceeded } = await collectProjectSourceFilesWithBudgetAsync(cwd, {
         // Only walk graph-relevant extensions so the cap counts what the graph
         // keeps (post-filter), not JSON/YAML/MD noise it would discard anyway.
         extensions: MAIN_KIND_EXTENSIONS,
         maxFiles: maxGraphFiles + 1,
+        ...(_reviewGraphEntryBudgetForTests === undefined
+            ? {}
+            : { maxScanEntries: _reviewGraphEntryBudgetForTests }),
+        ...(_reviewGraphEntryCounterForTests === undefined
+            ? {}
+            : { onEntryVisited: _reviewGraphEntryCounterForTests }),
     });
     if (entryBudgetExceeded) {
         logLatency({
@@ -553,7 +805,12 @@ async function getGraphSourceFiles(cwd) {
     if (collected.length > maxGraphFiles) {
         // Contents are unused by the too_many_files branch; return the capped list
         // so the caller's `length > maxGraphFiles` check still trips.
-        return collected;
+        return {
+            files: collected,
+            sourceFileCount: collected.length,
+            maxFileCount: maxGraphFiles,
+            entryBudgetExceeded,
+        };
     }
     const result = [];
     let sinceYield = 0;
@@ -576,7 +833,12 @@ async function getGraphSourceFiles(cwd) {
             await yieldToLoop();
         }
     }
-    return result;
+    return {
+        files: result,
+        sourceFileCount: result.length,
+        maxFileCount: maxGraphFiles,
+        entryBudgetExceeded,
+    };
 }
 function addNode(graph, node) {
     graph.nodes.set(node.id, node);
@@ -635,7 +897,13 @@ function loadPersistedGraph(cwd, opts) {
             ? gunzipSync(fs.readFileSync(cachePath)).toString("utf-8")
             : fs.readFileSync(legacyPath, "utf-8");
         const data = JSON.parse(raw);
-        if (data.version !== REVIEW_GRAPH_VERSION)
+        // Derived projections require a canonical source identity. Legacy or
+        // malformed snapshots are unavailable, never a clean empty graph.
+        if (data.version !== REVIEW_GRAPH_VERSION ||
+            typeof data.signature !== "string" ||
+            typeof data.builtAt !== "string" ||
+            !Array.isArray(data.nodes) ||
+            !Array.isArray(data.edges))
             return null;
         if (data.coverage?.partial && !opts?.allowPartial)
             return null;
@@ -727,7 +995,9 @@ function getPersistedReviewGraphVersion(cwd) {
         fd = fs.openSync(legacyPath, "r");
         const buf = Buffer.alloc(200);
         const n = fs.readSync(fd, buf, 0, 200, 0);
-        const match = buf.toString("utf-8", 0, n).match(/"version"\s*:\s*"([^"]+)"/);
+        const match = buf
+            .toString("utf-8", 0, n)
+            .match(/"version"\s*:\s*"([^"]+)"/);
         return match ? match[1] : null;
     }
     catch {
@@ -785,7 +1055,9 @@ const _persistGenerations = new Map();
 const _workerRequests = new Map();
 let _persistWorker;
 let _persistWorkerRequestId = 0;
+let _persistAttemptId = 0;
 let _workerDisabled = false;
+let _persistWorkerUnavailableReason;
 let _lastWorkerFallbackReasonForTests;
 const _checkpointGenerations = new Map();
 const _checkpointWorkerRequests = new Map();
@@ -808,14 +1080,33 @@ function persistedData(pending) {
         gitStamp: pending.gitStamp,
     };
 }
-function graphCoverage(graph, cap) {
+function countRetainedSourceFiles(graph, sourceFilePaths) {
+    if (sourceFilePaths === undefined)
+        return graph.fileNodes.size;
+    const sourceKeys = new Set();
+    for (const filePath of sourceFilePaths) {
+        sourceKeys.add(normalizeMapKey(filePath));
+    }
+    let retained = 0;
+    for (const filePath of sourceKeys) {
+        if (graph.fileNodes.has(filePath))
+            retained++;
+    }
+    return retained;
+}
+function graphCoverage(graph, cap, sourceFileCount = graph.persistCoverage?.totalFiles ?? graph.fileNodes.size, sourceFilesTruncated = graph.persistCoverage?.sourceFilesTruncated === true, sourceFilePaths) {
+    const inherited = graph.persistCoverage;
     return {
-        partial: false,
+        partial: inherited?.partial === true || sourceFilesTruncated,
         cap,
         totalNodes: graph.nodes.size,
         totalEdges: graph.edges.length,
         persistedNodes: graph.nodes.size,
         persistedEdges: graph.edges.length,
+        totalFiles: sourceFileCount,
+        persistedFiles: countRetainedSourceFiles(graph, sourceFilePaths),
+        ...(sourceFilesTruncated ? { sourceFilesTruncated: true } : {}),
+        ...(inherited?.inProgress ? { inProgress: true } : {}),
     };
 }
 /**
@@ -824,7 +1115,7 @@ function graphCoverage(graph, cap) {
  * graph's node/edge ratio so symbol-dense and edge-dense repositories both
  * retain a useful mix instead of allowing either side to consume the cap.
  */
-function capGraphForPersist(cwd, graph, cap) {
+function capGraphForPersist(cwd, graph, cap, options = {}) {
     const totalElements = graph.nodes.size + graph.edges.length;
     const nodeBudget = Math.max(1, Math.floor((cap * graph.nodes.size) / totalElements));
     const reverseDeps = buildReverseDependencyIndexFromGraph({ cwd, graph });
@@ -842,7 +1133,9 @@ function capGraphForPersist(cwd, graph, cap) {
         const ids = nodeIdsByFile.get(filePath) ?? [];
         if (ids.length === 0)
             continue;
-        const effectiveNodeBudget = keptIds.size === 0 ? Math.max(nodeBudget, Math.min(cap, ids.length)) : nodeBudget;
+        const effectiveNodeBudget = keptIds.size === 0
+            ? Math.max(nodeBudget, Math.min(cap, ids.length))
+            : nodeBudget;
         if (keptIds.size + ids.length > effectiveNodeBudget)
             continue;
         for (const id of ids)
@@ -860,6 +1153,15 @@ function capGraphForPersist(cwd, graph, cap) {
         totalEdges: graph.edges.length,
         persistedNodes: nodes.size,
         persistedEdges: edges.length,
+        totalFiles: options.sourceFileCount ??
+            graph.persistCoverage?.totalFiles ??
+            graph.fileNodes.size,
+        persistedFiles: 0,
+        ...(options.sourceFilesTruncated ||
+            graph.persistCoverage?.sourceFilesTruncated
+            ? { sourceFilesTruncated: true }
+            : {}),
+        ...(graph.persistCoverage?.inProgress ? { inProgress: true } : {}),
     };
     const capped = {
         ...graph,
@@ -870,12 +1172,20 @@ function capGraphForPersist(cwd, graph, cap) {
         fileNodes: new Map(),
         symbolNodesByFile: new Map(),
         changedSymbolsByFile: new Map(),
-        persistCoverage: coverage,
+        persistCoverage: undefined,
     };
     rebuildIndexes(capped);
+    coverage.persistedFiles = countRetainedSourceFiles(capped, options.sourceFilePaths);
+    capped.persistCoverage = coverage;
     return capped;
 }
-function logPersistSuccess(key, pending, stats) {
+function persistObservability(pending, patch) {
+    return {
+        graph: pending.graphMetadata,
+        persistence: { ...pending.persistenceMetadata, ...patch },
+    };
+}
+function logPersistSuccess(key, pending, stats, workerState = { started: false, completed: false }) {
     logLatency({
         type: "phase",
         phase: "review_graph_persist",
@@ -888,9 +1198,15 @@ function logPersistSuccess(key, pending, stats) {
         phase: "persist_succeeded",
         elements: pending.elementCount,
         ...stats,
+        observability: persistObservability(pending, {
+            status: "succeeded",
+            workerStarted: workerState.started,
+            workerCompleted: workerState.completed,
+            ...(workerState.fallback ? { workerFallback: true } : {}),
+        }),
     });
 }
-function writePendingOnMainThread(key, pending, reason) {
+function writePendingOnMainThread(key, pending, reason, workerState = { started: false, completed: false }) {
     const serializeStarted = performance.now();
     try {
         const json = JSON.stringify(persistedData(pending));
@@ -909,6 +1225,10 @@ function writePendingOnMainThread(key, pending, reason) {
             serializeMs,
             writeMs: performance.now() - writeStarted,
             offloaded: false,
+        }, {
+            started: workerState.started,
+            completed: workerState.completed,
+            fallback: Boolean(reason),
         });
         if (reason) {
             // The persist SUCCEEDED via fallback — log the degradation under its
@@ -921,13 +1241,22 @@ function writePendingOnMainThread(key, pending, reason) {
                 reason: "worker_fallback",
                 error: reason,
                 offloaded: false,
+                observability: persistObservability(pending, {
+                    status: "fallback",
+                    workerStarted: workerState.started,
+                    workerCompleted: workerState.completed,
+                    workerFallback: true,
+                    reason: workerState.fallbackReason ?? "worker_fallback",
+                }),
             });
         }
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        recordPersistFailure(key, "cache_write_failed", message);
-        console.error("[review-graph] cache persist failed:", message);
+        recordPersistFailure(key, "cache_write_failed", message, pending, workerState);
+        // #1333: recordPersistFailure already emits `phase: "persist_failed"` to
+        // review-graph.log with this same message — the console.error was a
+        // duplicate RAW write into pi's frame, not a second destination.
     }
 }
 function handleWorkerResult(result) {
@@ -946,17 +1275,50 @@ function handleWorkerResult(result) {
     }
     _workerRequests.delete(result.id);
     const { key, pending } = request;
+    const currentGeneration = _persistGenerations.get(key);
+    if (currentGeneration !== result.generation) {
+        // Removing the request makes completion observable to test/CLI waiters.
+        // Reap our completed loser synchronously first so "no requests in flight"
+        // also means its stage namespace is clean (#1318). Caught (#1361 review):
+        // force suppresses ENOENT but not EBUSY/EPERM (Windows AV/backup can
+        // briefly hold the handle) -- a failed reap must never abort this
+        // callback, or the WINNING generation's completion is lost with it. The
+        // startup sweep reclaims anything a failed unlink leaves behind.
+        try {
+            fs.rmSync(result.stagePath, { force: true });
+        }
+        catch (reapErr) {
+            logReviewGraph({
+                cwd: key,
+                phase: "persist_failed",
+                reason: `superseded-stage reap failed: ${String(reapErr)}`,
+            });
+        }
+        logReviewGraph({
+            cwd: key,
+            phase: "persist_skipped",
+            reason: "superseded",
+            observability: persistObservability(pending, {
+                status: "superseded",
+                supersededByGeneration: currentGeneration,
+                reason: "newer_generation_scheduled",
+                workerStarted: true,
+                workerCompleted: true,
+            }),
+        });
+        return;
+    }
     if (result.error ||
         result.rawBytes === undefined ||
         result.gzBytes === undefined ||
         result.serializeMs === undefined ||
         result.writeMs === undefined) {
         fs.rm(result.stagePath, { force: true }, () => { });
-        writePendingOnMainThread(key, pending, result.error ?? "invalid worker result");
-        return;
-    }
-    if (_persistGenerations.get(key) !== result.generation) {
-        fs.rm(result.stagePath, { force: true }, () => { });
+        writePendingOnMainThread(key, pending, result.error ?? "invalid worker result", {
+            started: true,
+            completed: true,
+            fallbackReason: result.error ? "worker_error" : "invalid_worker_result",
+        });
         return;
     }
     try {
@@ -970,11 +1332,15 @@ function handleWorkerResult(result) {
             serializeMs: result.serializeMs,
             writeMs: result.writeMs,
             offloaded: true,
-        });
+        }, { started: true, completed: true });
     }
     catch (err) {
         fs.rm(result.stagePath, { force: true }, () => { });
-        writePendingOnMainThread(key, pending, err instanceof Error ? err.message : String(err));
+        writePendingOnMainThread(key, pending, err instanceof Error ? err.message : String(err), {
+            started: true,
+            completed: true,
+            fallbackReason: "promotion_failed",
+        });
     }
 }
 function handleCheckpointWorkerResult(cp, result) {
@@ -1024,12 +1390,32 @@ function handleCheckpointWorkerResult(cp, result) {
     }
 }
 function handleWorkerDeath(reason) {
+    _persistWorkerUnavailableReason = reason;
     _persistWorker = undefined;
     _workerDisabled = true;
     const requests = [..._workerRequests.values()];
     _workerRequests.clear();
     for (const { key, pending } of requests) {
-        writePendingOnMainThread(key, pending, reason);
+        if (_persistGenerations.get(key) !== pending.generation) {
+            logReviewGraph({
+                cwd: key,
+                phase: "persist_skipped",
+                reason: "superseded",
+                observability: persistObservability(pending, {
+                    status: "superseded",
+                    supersededByGeneration: _persistGenerations.get(key),
+                    reason: "worker_death_after_newer_generation",
+                    workerStarted: true,
+                    workerCompleted: false,
+                }),
+            });
+            continue;
+        }
+        writePendingOnMainThread(key, pending, reason, {
+            started: true,
+            completed: false,
+            fallbackReason: "worker_death",
+        });
     }
     // Best-effort checkpoints don't fall back (no retained DTO to pin heap); drop
     // their in-flight requests and clean up any stage files they may have left.
@@ -1080,22 +1466,27 @@ function getPersistWorker() {
             return undefined;
         }
         const worker = new Worker(workerPath);
-        worker.unref();
         worker.on("message", handleWorkerResult);
         worker.on("error", (err) => handleWorkerDeath(err.message));
         worker.on("exit", (code) => {
             if (_persistWorker !== worker)
                 return;
-            if (code !== 0) {
-                handleWorkerDeath(`persist worker exited with code ${code}`);
+            const hasPendingRequests = _workerRequests.size > 0 || _checkpointWorkerRequests.size > 0;
+            if (code !== 0 || hasPendingRequests) {
+                handleWorkerDeath(code !== 0
+                    ? `persist worker exited with code ${code}`
+                    : "persist worker exited with pending requests");
             }
             else {
-                // Clean exit (unref'd worker at teardown, or host recycling):
-                // drop the stale reference so a later persist respawns instead
-                // of posting into a dead worker (#950 review F7).
+                // Clean exit with no pending work (unref'd worker at teardown, or host
+                // recycling): drop the stale reference so a later persist respawns
+                // instead of posting into a dead worker (#950 review F7).
                 _persistWorker = undefined;
             }
         });
+        // #1148: adding a message listener refs the Worker's public MessagePort.
+        // Unref only after every listener is installed so it stays background-only.
+        worker.unref();
         _persistWorker = worker;
         return worker;
     }
@@ -1116,7 +1507,12 @@ function writePending(key) {
     }
     const worker = getPersistWorker();
     if (!worker) {
-        writePendingOnMainThread(key, pending, "persist worker unavailable");
+        const unavailableReason = _persistWorkerUnavailableReason ?? "persist worker unavailable";
+        writePendingOnMainThread(key, pending, unavailableReason, {
+            started: false,
+            completed: false,
+            fallbackReason: unavailableReason,
+        });
         return;
     }
     const id = ++_persistWorkerRequestId;
@@ -1139,31 +1535,81 @@ function writePending(key) {
 // snapshot isn't lost. Sync writes only (no child spawn — see the teardown
 // libuv hazard); best-effort.
 let _persistExitHookInstalled = false;
+function flushPendingReviewGraphPersistsAtExit() {
+    const keys = new Set([
+        ..._pendingPersist.keys(),
+        ...[..._workerRequests.values()].map((request) => request.key),
+    ]);
+    for (const key of keys) {
+        // Shared with the CLI's forced flush — same persistedData DTO, same
+        // atomic writer (#762), distinct failure label per source.
+        flushReviewGraphPersist(key, "exit_hook");
+    }
+    // The review-graph logger's shared process-exit flusher was registered
+    // before this hook. Flush again after emitting exit-hook outcomes so a
+    // successful forced write cannot leave its lifecycle event buffered.
+    flushReviewGraphLogSync();
+    void _persistWorker?.terminate();
+}
+/** Test-only seam for the exit-hook ordering/durability contract. */
+export function flushReviewGraphPersistsForExitForTests() {
+    flushPendingReviewGraphPersistsAtExit();
+}
 function ensurePersistExitHook() {
     if (_persistExitHookInstalled)
         return;
     _persistExitHookInstalled = true;
-    process.once("exit", () => {
-        const keys = new Set([
-            ..._pendingPersist.keys(),
-            ...[..._workerRequests.values()].map((request) => request.key),
-        ]);
-        for (const key of keys) {
-            // Shared with the CLI's forced flush — same persistedData DTO, same
-            // atomic writer (#762), distinct failure label per source.
-            const result = flushReviewGraphPersist(key, "exit_hook");
-            if (!result.ok)
-                flushReviewGraphLogSync();
-        }
-        void _persistWorker?.terminate();
-    });
+    process.once("exit", flushPendingReviewGraphPersistsAtExit);
 }
 // #950 review F3: a process that dies between a worker's staged write and its
 // promotion leaves review-graph.json.gz.stage-<pid>-<gen> (and the worker's
-// .tmp-<pid>) behind forever — the exit hook can't run handleWorkerResult's rm.
-// Sweep leftovers from PRIOR processes once per cache dir; our own live stage
-// files carry this pid and are skipped.
+// <stage>.tmp-<pid>) behind forever — the exit hook can't run
+// handleWorkerResult's rm. Sweep leftovers from PRIOR processes once per cache
+// dir.
+//
+// #1206: `cacheDir` is the SHARED project cache dir (getProjectDataDir/cache)
+// that every durable store stages into via writeFileAtomic's generic
+// `<target>.tmp-<pid>`. The old predicate also matched that shape, so this
+// sweep deleted OTHER modules' in-flight staging files in the window between
+// their write and their rename — turning their rename into ENOENT (propagated
+// out of markDisposition for bestEffort:false stores) or silently dropping the
+// update. The sweep is therefore scoped to artifacts the review graph itself
+// produces, all of which are `<review-graph.*>.stage-<pid>-<gen>`:
+//   review-graph.json.gz.stage-<pid>-<gen>              (persistGraph, L1861)
+//   review-graph.checkpoint.json.gz.stage-<pid>-<gen>   (checkpoint, L2259)
+//   ...plus either's worker tmp `<stage>.tmp-<pid>`, which still carries both
+//   the `review-graph.` prefix and the `.stage-` marker.
+// (LEGACY_GRAPH_CACHE_FILENAME, `review-graph.json`, is never staged — it is
+// only ever `rmSync`'d as a one-time migration cleanup — so it is not a
+// producer here despite matching the prefix.)
+// The bare `.tmp-<pid>` shape is never matched, which also makes this sweep
+// independent of any change to atomic-write's staging name (#1205). Dropping
+// that shape means the review-graph sweep is no longer the incidental GC for
+// other stores' orphaned atomic-write temps; the generic `.tmp-*` namespace is
+// now swept at session_start by instance-reaper (#1228), not by this graph
+// artifact-specific pass.
+//
+// Liveness: an entry whose embedded stage pid is still alive belongs to a
+// concurrent healthy owner (or to us) and is skipped, reusing the reaper's
+// conservative `realIsPidAlive` (ESRCH-only-means-dead) rather than inventing
+// a second liveness probe. A recycled pid can therefore leave one stale stage
+// file behind instead of destroying a live one — deliberately the safe
+// direction; a later process whose pid table has moved on sweeps it.
 const _sweptStageDirs = new Set();
+const REVIEW_GRAPH_ARTIFACT_PREFIX = "review-graph.";
+const STAGE_PID_PATTERN = /\.stage-(\d+)-/;
+/** True only for a review-graph stage artifact left behind by a dead process. */
+function isStaleReviewGraphStageFile(entry) {
+    if (!entry.startsWith(REVIEW_GRAPH_ARTIFACT_PREFIX))
+        return false;
+    const match = STAGE_PID_PATTERN.exec(entry);
+    if (!match)
+        return false;
+    const pid = Number(match[1]);
+    if (pid === process.pid)
+        return false; // our own live stage file
+    return !realIsPidAlive(pid);
+}
 function sweepStaleStageFiles(cacheDir) {
     if (_sweptStageDirs.has(cacheDir))
         return;
@@ -1171,22 +1617,35 @@ function sweepStaleStageFiles(cacheDir) {
     fs.readdir(cacheDir, (err, entries) => {
         if (err)
             return;
-        const ownMarker = `.stage-${process.pid}-`;
         for (const entry of entries) {
-            const isStage = entry.includes(".stage-") || /\.tmp-\d+$/.test(entry);
-            if (!isStage || entry.includes(ownMarker))
+            if (!isStaleReviewGraphStageFile(entry))
                 continue;
             fs.rm(path.join(cacheDir, entry), { force: true }, () => { });
         }
     });
 }
-function persistGraph(cwd, signature, fileSignatures, fileHashes, graph) {
+/** Test seam: the sweep runs at most once per cache dir per process. */
+export function _resetReviewGraphStageSweepForTests() {
+    _sweptStageDirs.clear();
+}
+function persistGraph(cwd, signature, fileSignatures, fileHashes, graph, options = {}) {
     const totalElementCount = graph.nodes.size + graph.edges.length;
     const cap = graphPersistMaxElements();
+    const sourceFileCount = options.sourceFileCount ?? fileSignatures.size;
+    const sourceFilePaths = options.sourceFilePaths ?? fileSignatures.keys();
     const persistedGraph = totalElementCount > cap
-        ? capGraphForPersist(cwd, graph, cap)
-        : { ...graph, persistCoverage: graphCoverage(graph, cap) };
+        ? capGraphForPersist(cwd, graph, cap, {
+            sourceFileCount,
+            sourceFilesTruncated: options.sourceFilesTruncated,
+            sourceFilePaths,
+        })
+        : {
+            ...graph,
+            persistCoverage: graphCoverage(graph, cap, sourceFileCount, options.sourceFilesTruncated, sourceFilePaths),
+        };
     const elementCount = persistedGraph.nodes.size + persistedGraph.edges.length;
+    const sourceWalkPartial = persistedGraph.persistCoverage?.sourceFilesTruncated === true;
+    let persistReason;
     if (totalElementCount > cap) {
         const coverage = persistedGraph.persistCoverage;
         if (!coverage)
@@ -1203,18 +1662,13 @@ function persistGraph(cwd, signature, fileSignatures, fileHashes, graph) {
                 cap,
             },
         });
-        const reason = `persisted partial review graph (${elementCount}/${totalElementCount} elements; ` +
-            `${coverage.persistedNodes}/${coverage.totalNodes} nodes, ` +
-            `${coverage.persistedEdges}/${coverage.totalEdges} edges; ${cap} cap)`;
-        recordBuildAttempt(cwd, "succeeded", reason);
-        logReviewGraph({
-            cwd,
-            phase: "persist_partial",
-            reason: "element_cap_exceeded",
-            elements: totalElementCount,
-            persistedElements: elementCount,
-            cap,
-        });
+        persistReason =
+            `persisted partial review graph (${elementCount}/${totalElementCount} elements; ` +
+                `${coverage.persistedNodes}/${coverage.totalNodes} nodes, ` +
+                `${coverage.persistedEdges}/${coverage.totalEdges} edges; ${cap} cap)`;
+    }
+    else if (sourceWalkPartial) {
+        persistReason = "persisted partial review graph (source walk entry budget)";
     }
     const cacheDir = path.join(getProjectDataDir(cwd), "cache");
     const cachePath = path.join(cacheDir, GRAPH_CACHE_FILENAME);
@@ -1228,9 +1682,31 @@ function persistGraph(cwd, signature, fileSignatures, fileHashes, graph) {
     // arrays only after the quiet window. Replacing a pending entry during an edit
     // burst now avoids both serialization and the pre-serialization full copies.
     const key = normalizeMapKey(cwd);
-    const generation = (_persistGenerations.get(key) ?? 0) + 1;
+    const priorGeneration = _persistGenerations.get(key);
+    const existingPending = _pendingPersist.get(key);
+    const existingTimer = _persistTimers.get(key);
+    const generation = (priorGeneration ?? 0) + 1;
+    const attemptId = ++_persistAttemptId;
+    const coalesced = Boolean(existingPending || existingTimer);
     _persistGenerations.set(key, generation);
-    _pendingPersist.set(key, {
+    const graphMetadata = graphLogMetadata(persistedGraph, {
+        ...options,
+        sourceFileCount,
+        sourceFileCountTruncated: persistedGraph.persistCoverage?.sourceFilesTruncated === true,
+    });
+    const persistenceMetadata = {
+        generation,
+        attemptId,
+        status: "scheduled",
+        ...(priorGeneration === undefined
+            ? {}
+            : {
+                supersededGeneration: priorGeneration,
+                coalesced,
+                reason: coalesced ? "debounced_coalescing" : "in_flight_supersession",
+            }),
+    };
+    const pending = {
         cacheDir,
         cachePath,
         signature,
@@ -1240,12 +1716,50 @@ function persistGraph(cwd, signature, fileSignatures, fileHashes, graph) {
         gitStamp,
         elementCount,
         generation,
-    });
+        attemptId,
+        graphMetadata,
+        persistenceMetadata,
+    };
+    if (existingPending) {
+        logReviewGraph({
+            cwd: key,
+            phase: "persist_skipped",
+            reason: "superseded",
+            observability: persistObservability(existingPending, {
+                status: "superseded",
+                supersededByGeneration: generation,
+                reason: "newer_generation_scheduled",
+                workerStarted: false,
+                workerCompleted: false,
+            }),
+        });
+    }
+    _pendingPersist.set(key, pending);
+    if (totalElementCount > cap || sourceWalkPartial) {
+        logReviewGraph({
+            cwd,
+            phase: "persist_partial",
+            reason: totalElementCount > cap
+                ? "element_cap_exceeded"
+                : "source_walk_entry_budget",
+            elements: totalElementCount,
+            persistedElements: elementCount,
+            cap,
+            observability: {
+                graph: graphMetadata,
+                persistence: persistenceMetadata,
+            },
+        });
+    }
     logReviewGraph({
         cwd,
         phase: "persist_scheduled",
         elements: elementCount,
         cap,
+        observability: {
+            graph: graphMetadata,
+            persistence: persistenceMetadata,
+        },
     });
     ensurePersistExitHook();
     const debounce = graphPersistDebounceMs();
@@ -1254,13 +1768,14 @@ function persistGraph(cwd, signature, fileSignatures, fileHashes, graph) {
         clearTimeout(existing);
     if (debounce === 0) {
         writePending(key);
-        return;
+        return persistReason;
     }
     const timer = setTimeout(() => writePending(key), debounce);
     // Don't keep the event loop alive solely for a cache write.
     if (typeof timer.unref === "function")
         timer.unref();
     _persistTimers.set(key, timer);
+    return persistReason;
 }
 // --- Cross-session resumable full build (checkpointing, #936 limit 2) ---
 // A full build walks + tree-sitter-parses every source file, then resolves
@@ -1306,7 +1821,7 @@ function reviewGraphCheckpointPath(cwd) {
 function hashIgnoredIds(ignoredIds) {
     if (ignoredIds === undefined)
         return "unavailable";
-    const joined = [...ignoredIds].sort((a, b) => a.localeCompare(b)).join(" ");
+    const joined = [...ignoredIds].sort((a, b) => a.localeCompare(b)).join("\u0000");
     return createHash("sha256").update(joined).digest("hex");
 }
 /** Assemble the checkpoint DTO from the current PRE-resolution graph. Isolated
@@ -1501,9 +2016,14 @@ function loadReviewGraphCheckpoint(cwd) {
             totalEdges,
             persistedNodes: totalNodes,
             persistedEdges: totalEdges,
+            totalFiles: data.targetFileCount,
+            persistedFiles: 0,
         },
     };
     rebuildIndexes(graph);
+    if (graph.persistCoverage) {
+        graph.persistCoverage.persistedFiles = countRetainedSourceFiles(graph, data.processedFiles.map(([filePath]) => filePath));
+    }
     return {
         graph,
         processedHashes: new Map(data.processedFiles),
@@ -1670,6 +2190,8 @@ export async function terminateReviewGraphPersistWorkerForTests() {
 /** Test-only: restore worker creation after a deliberate death. */
 export function resetReviewGraphPersistWorkerForTests() {
     _workerDisabled = false;
+    _persistWorker = undefined;
+    _persistWorkerUnavailableReason = undefined;
     _lastWorkerFallbackReasonForTests = undefined;
     _checkpointWorkerRequests.clear();
     _checkpointGenerations.clear();
@@ -1701,16 +2223,39 @@ export function flushReviewGraphPersist(cwd, source = "cli") {
     // the flush. Removed requests' late results hit the no-request branch in
     // handleWorkerResult, which deletes their stage files.
     let pending = _pendingPersist.get(key);
+    const removedWorkerRequests = [];
+    let selectedWorkerRequest;
     for (const [id, request] of [..._workerRequests]) {
         if (request.key !== key)
             continue;
         _workerRequests.delete(id);
+        removedWorkerRequests.push(request.pending);
         if (!pending || request.pending.generation > pending.generation) {
             pending = request.pending;
+            selectedWorkerRequest = request.pending;
         }
     }
+    for (const removed of removedWorkerRequests) {
+        if (!pending || removed.generation === pending.generation)
+            continue;
+        logReviewGraph({
+            cwd: key,
+            phase: "persist_skipped",
+            reason: "superseded",
+            observability: persistObservability(removed, {
+                status: "superseded",
+                supersededByGeneration: pending.generation,
+                reason: "forced_flush_newest_generation",
+                workerStarted: true,
+                workerCompleted: false,
+            }),
+        });
+    }
     if (!pending) {
-        return { ok: false, reason: "no graph snapshot was queued for persistence" };
+        return {
+            ok: false,
+            reason: "no graph snapshot was queued for persistence",
+        };
     }
     // Invalidate every staged worker completion before doing the forced write.
     // Workers never promote their own stage file, so a late result can only be
@@ -1759,6 +2304,12 @@ export function flushReviewGraphPersist(cwd, source = "cli") {
             serializeMs,
             writeMs,
             offloaded: false,
+            observability: persistObservability(pending, {
+                status: "succeeded",
+                reason: source === "exit_hook" ? "exit_flush" : "forced_flush",
+                workerStarted: selectedWorkerRequest !== undefined,
+                workerCompleted: false,
+            }),
         });
         return {
             ok: true,
@@ -1770,7 +2321,13 @@ export function flushReviewGraphPersist(cwd, source = "cli") {
     }
     catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        recordPersistFailure(cwd, source === "exit_hook" ? "exit_flush_failed" : "forced_flush_failed", reason);
+        recordPersistFailure(cwd, source === "exit_hook" ? "exit_flush_failed" : "forced_flush_failed", reason, pending, selectedWorkerRequest
+            ? {
+                started: true,
+                completed: false,
+                fallbackReason: "forced_flush_write_failed",
+            }
+            : undefined);
         return { ok: false, reason };
     }
 }
@@ -1814,7 +2371,11 @@ function localImportToFile(cwd, filePath, source, ignoredIds) {
     }
     const root = path.resolve(cwd);
     for (const candidate of jsTsCandidatePaths(filePath, source)) {
-        if (!candidate.startsWith(root) || !fs.existsSync(candidate))
+        const relative = path.relative(root, candidate);
+        if ((relative.startsWith("..") &&
+            (relative.length === 2 || relative.startsWith(`..${path.sep}`))) ||
+            path.isAbsolute(relative) ||
+            !fs.existsSync(candidate))
             continue;
         const normalized = normalizeMapKey(candidate);
         if (ignoredIds?.has(normalized))
@@ -1862,7 +2423,12 @@ async function ensureReviewGraphFacts(filePath, cwd, facts, contentOverride) {
         // pi-lens-ignore: missing-error-propagation
     }
     catch (err) {
-        console.error(`[pi-lens] review-graph structural facts disabled (degraded mode): ${err?.message ?? String(err)}`);
+        logReviewGraph({
+            cwd,
+            phase: "build_skipped",
+            reason: "structural_facts_disabled",
+            error: err?.message ?? String(err),
+        });
     }
 }
 function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
@@ -1870,6 +2436,14 @@ function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
     const hintPath = toProjectRelativePath(normalized, cwd);
     const content = facts.getFileFact(normalized, "file.content") ?? "";
     const fileNodeId = `file:${normalized}`;
+    // The function-facts provider uses the shared tree-sitter integration for
+    // both TypeScript and JavaScript-family grammars. Do not suppress JS call
+    // evidence merely because import resolution may canonicalize a compiled twin
+    // onto its source; the graph must describe every supported source file, and
+    // lens-map performs the separate presentation-level twin merge.
+    const warmCallCoverage = facts.getFileFact(normalized, "file.functionFactsCoverage") ??
+        "unavailable";
+    const importCoverage = facts.getFileFact(normalized, "file.importFactsCoverage") ?? "unavailable";
     addNode(graph, {
         id: fileNodeId,
         kind: "file",
@@ -1877,6 +2451,12 @@ function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
         filePath: normalized,
         metadata: {
             lineCount: content.split("\n").length,
+            extractionCoverage: {
+                definitions: warmCallCoverage,
+                references: warmCallCoverage,
+                imports: importCoverage,
+                calls: warmCallCoverage,
+            },
             ...featureHintMetadata(hintPath),
         },
     });
@@ -1953,6 +2533,7 @@ function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
             exported: new RegExp(String.raw `export\s+(?:async\s+)?(?:function|const|let|var)\s+${escapeRegExp(fn.name)}\b`).test(content),
             metadata: {
                 line: fn.line,
+                endLine: fn.endLine,
                 column: fn.column,
                 cyclomaticComplexity: fn.cyclomaticComplexity,
                 maxNestingDepth: fn.maxNestingDepth,
@@ -2007,7 +2588,10 @@ function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
                         language: "jsts",
                         symbolName: site.method,
                         qualifiedName: `${receiverClass}.${site.method}`,
-                        metadata: { unresolvedName: callText, ambiguousCandidates: candidates.length },
+                        metadata: {
+                            unresolvedName: callText,
+                            ambiguousCandidates: candidates.length,
+                        },
                     });
                 }
                 addEdge(graph, {
@@ -2081,26 +2665,42 @@ function addJsTsFile(graph, cwd, filePath, facts, ignoredIds) {
 }
 function mapKindToTreeSitterLanguage(kind, filePath) {
     switch (kind) {
-        case "python": return "python";
-        case "go": return "go";
-        case "rust": return "rust";
-        case "ruby": return "ruby";
+        case "python":
+            return "python";
+        case "go":
+            return "go";
+        case "rust":
+            return "rust";
+        case "ruby":
+            return "ruby";
         case "cxx": {
             const ext = filePath ? path.extname(filePath).toLowerCase() : "";
             return ext === ".c" || ext === ".h" ? "c" : "cpp";
         }
-        case "java": return "java";
-        case "kotlin": return "kotlin";
-        case "dart": return "dart";
-        case "elixir": return "elixir";
-        case "csharp": return "csharp";
-        case "php": return "php";
-        case "swift": return "swift";
-        case "lua": return "lua";
-        case "ocaml": return "ocaml";
-        case "zig": return "zig";
-        case "shell": return "bash";
-        default: return undefined;
+        case "java":
+            return "java";
+        case "kotlin":
+            return "kotlin";
+        case "dart":
+            return "dart";
+        case "elixir":
+            return "elixir";
+        case "csharp":
+            return "csharp";
+        case "php":
+            return "php";
+        case "swift":
+            return "swift";
+        case "lua":
+            return "lua";
+        case "ocaml":
+            return "ocaml";
+        case "zig":
+            return "zig";
+        case "shell":
+            return "bash";
+        default:
+            return undefined;
     }
 }
 async function getExtractor(languageId) {
@@ -2123,7 +2723,16 @@ async function getExtractor(languageId) {
     return extractor;
 }
 async function extractTreeSitterSymbols(filePath, languageId, contentOverride) {
-    const empty = { symbols: [], refs: [], imports: [] };
+    const empty = {
+        symbols: [],
+        refs: [],
+        imports: [],
+        coverage: {
+            definitions: "unavailable",
+            references: "unavailable",
+            imports: "unavailable",
+        },
+    };
     if (contentOverride === null)
         return empty;
     const treeSitterClient = getSharedTreeSitterClient();
@@ -2158,6 +2767,19 @@ export async function captureReviewGraphStructuralIr(filePath, cwd, content, fac
         const parsed = await withTreeSitterRoot(filePath, content, () => true);
         if (!parsed.parsed)
             return { complete: false };
+        const functionCoverage = facts.getFileFact(filePath, "file.functionFactsCoverage") ??
+            "unavailable";
+        const importCoverage = facts.getFileFact(filePath, "file.importFactsCoverage") ??
+            "unavailable";
+        const coverage = {
+            definitions: functionCoverage,
+            references: functionCoverage,
+            imports: importCoverage,
+            calls: functionCoverage,
+        };
+        if (Object.values(coverage).some((status) => status !== "complete")) {
+            return { complete: false };
+        }
         return {
             complete: true,
             structural: {
@@ -2165,12 +2787,15 @@ export async function captureReviewGraphStructuralIr(filePath, cwd, content, fac
                 imports: facts.getFileFact(filePath, "file.imports") ?? [],
                 reexports: facts.getFileFact(filePath, "file.reexports") ?? [],
                 functionSummaries: facts.getFileFact(filePath, "file.functionSummaries") ?? [],
+                coverage,
             },
         };
     }
     const languageId = mapKindToTreeSitterLanguage(kind, filePath);
+    // A graph-relevant kind without a tree-sitter mapping is unsupported, not
+    // an empty successful extraction. Do not publish a complete IR for it.
     if (!languageId)
-        return { complete: true };
+        return { complete: false };
     const client = getSharedTreeSitterClient();
     if (!client || !(await client.init()))
         return { complete: false };
@@ -2232,7 +2857,10 @@ function addTreeSitterFile(graph, cwd, filePath, languageId, extracted, ignoredI
         kind: "file",
         language: languageId,
         filePath: normalized,
-        metadata: featureHintMetadata(hintPath),
+        metadata: {
+            ...featureHintMetadata(hintPath),
+            extractionCoverage: extracted.coverage,
+        },
     });
     const dedupedSymbols = dedupeSamePositionSymbols(extracted.symbols);
     // refs #655 phase 2: qualified (owner-chain) display name, computed via the
@@ -2261,6 +2889,7 @@ function addTreeSitterFile(graph, cwd, filePath, languageId, extracted, ignoredI
             exported: symbol.isExported,
             metadata: {
                 line: symbol.line,
+                endLine: symbol.endLine,
                 column: symbol.column,
                 signature: symbol.signature,
                 ...featureHintMetadata(`${symbol.name} ${hintPath}`),
@@ -2270,21 +2899,26 @@ function addTreeSitterFile(graph, cwd, filePath, languageId, extracted, ignoredI
         addEdge(graph, { from: fileNodeId, to: symbolId, kind: "defines" });
     }
     for (const ref of extracted.refs) {
-        const targetId = `symbol-name:${ref.symbolId.split(":").pop() ?? ref.symbolId}`;
+        const refName = ref.symbolName ?? ref.symbolId;
+        const targetId = `symbol-name:${refName}`;
         if (!graph.nodes.has(targetId)) {
             addNode(graph, {
                 id: targetId,
                 kind: "symbol",
                 language: languageId,
-                symbolName: ref.symbolId.split(":").pop() ?? ref.symbolId,
-                metadata: { unresolvedName: ref.symbolId },
+                symbolName: refName,
+                metadata: { unresolvedName: refName },
             });
         }
         addEdge(graph, {
             from: fileNodeId,
             to: targetId,
             kind: "references",
-            metadata: { line: ref.line, column: ref.column },
+            metadata: {
+                line: ref.line,
+                column: ref.column,
+                referenceKind: ref.referenceKind ?? "unknown",
+            },
             // Always starts bare-name-only (the extractor has no scope/type info);
             // resolveDeferredSymbolEdges may upgrade this to "exact" below.
             resolution: "name-only",
@@ -2367,12 +3001,8 @@ export function addLspFallbackSymbols(graph, filePath, languageId, symbols) {
             // Shared with the read-path enrichment (#951 Sonar dedup): flat
             // results qualify through the full containerName chain, not just
             // the immediate owner.
-            const owners = ancestry.length > 0
-                ? ancestry
-                : containerNameChain(symbol, symbols);
-            const qualifiedName = owners.length > 0
-                ? [...owners, symbol.name].join(".")
-                : undefined;
+            const owners = ancestry.length > 0 ? ancestry : containerNameChain(symbol, symbols);
+            const qualifiedName = owners.length > 0 ? [...owners, symbol.name].join(".") : undefined;
             addNode(graph, {
                 id: symbolId,
                 kind: "symbol",
@@ -2561,6 +3191,8 @@ async function addFileToGraph(graph, cwd, file, facts, ignoredIds, contentOverri
                 facts.setFileFact(file, "file.imports", sharedIr.imports);
                 facts.setFileFact(file, "file.reexports", sharedIr.reexports);
                 facts.setFileFact(file, "file.functionSummaries", sharedIr.functionSummaries);
+                facts.setFileFact(file, "file.functionFactsCoverage", sharedIr.coverage.calls);
+                facts.setFileFact(file, "file.importFactsCoverage", sharedIr.coverage.imports);
             }
             else {
                 await ensureReviewGraphFacts(file, cwd, facts, contentOverride);
@@ -2578,8 +3210,7 @@ async function addFileToGraph(graph, cwd, file, facts, ignoredIds, contentOverri
     const languageId = mapKindToTreeSitterLanguage(kind, file);
     if (!languageId)
         return;
-    const irExtracted = sharedIr?.kind === "tree-sitter" &&
-        sharedIr.languageId === languageId
+    const irExtracted = sharedIr?.kind === "tree-sitter" && sharedIr.languageId === languageId
         ? sharedIr.extracted
         : undefined;
     const extracted = irExtracted ??
@@ -2772,16 +3403,20 @@ async function tryIncrementalFromCache(cached, ctx) {
         for (const file of ctx.normalizedChanged) {
             upsertChangedSymbols(graph, ctx.facts, file);
         }
-        _workspaceGraphCache.set(ctx.normalizedCwd, {
+        setWorkspaceGraph(ctx.normalizedCwd, {
             signature: ctx.signature,
             fileSignatures: new Map(ctx.fileSignatures),
             fileHashes: hashes,
             graph: cloneGraph(cached.graph),
             buildGeneration: generation,
             ...verifiedCacheFields(ctx.seqAtBuildStart),
-        });
+        }, ctx.cacheEpoch);
         // #260: pure drift leaves the graph unchanged — don't rewrite the disk blob.
-        _lastGraphBuildInfo = { reused: true, mode: "cached", graphChanged: false };
+        setGraphBuildInfo(graph, {
+            reused: true,
+            mode: "cached",
+            graphChanged: false,
+        });
         graph.buildGeneration = generation;
         ctx.facts.setSessionFact("session.reviewGraph", graph);
         return graph;
@@ -2795,19 +3430,30 @@ async function tryIncrementalFromCache(cached, ctx) {
     const priorGeneration = cached.graph.buildGeneration;
     const graph = cloneGraph(cached.graph);
     const importChanges = await updateGraphFiles(graph, ctx.cwd, filesToUpdate, ctx.facts, ctx.ignoredIds);
+    refreshGraphBuiltAt(graph);
     // #459: real re-extract ⇒ new generation.
     const generation = ++_graphGenerationCounter;
     graph.buildGeneration = generation;
-    _workspaceGraphCache.set(ctx.normalizedCwd, {
+    setWorkspaceGraph(ctx.normalizedCwd, {
         signature: ctx.signature,
         fileSignatures: new Map(ctx.fileSignatures),
         fileHashes: hashes,
         graph,
         buildGeneration: generation,
         ...verifiedCacheFields(ctx.seqAtBuildStart),
+    }, ctx.cacheEpoch);
+    const persistReason = persistGraph(ctx.cwd, ctx.signature, ctx.fileSignatures, hashes, graph, {
+        buildId: ctx.buildId,
+        projectSeq: ctx.seqAtBuildStart,
+        seqHint: ctx.seqHint,
+        mode: ctx.mode,
     });
-    persistGraph(ctx.cwd, ctx.signature, ctx.fileSignatures, hashes, graph);
-    _lastGraphBuildInfo = { reused: true, mode: "incremental", graphChanged: true };
+    setGraphBuildInfo(graph, {
+        reused: true,
+        mode: "incremental",
+        ...(persistReason ? { persistReason } : {}),
+        graphChanged: true,
+    });
     _graphImportChanges.set(graph, {
         fromGeneration: priorGeneration,
         changes: importChanges,
@@ -2827,9 +3473,14 @@ function hasGraphKindExtension(file) {
  * `_lastGraphBuildInfo` (the caller's full sweep sets the mode and stamps the
  * fallback reason). Correctness bar is HIGH: any doubt ⇒ fall back.
  */
-async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqHint, seqAtBuildStart, ignoredIds) {
+async function trySeqFastpath(cwd, buildId, normalizedCwd, normalizedChanged, facts, seqHint, seqAtBuildStart, ignoredIds, cacheEpoch) {
     const cached = _workspaceGraphCache.get(normalizedCwd);
-    // Condition 2: need an in-process entry that recorded a build seq.
+    // Condition 2: need an in-process complete entry that recorded a build seq.
+    // A capped or entry-budget-truncated graph is read-only orientation data, not
+    // a safe incremental base; force the next build through a complete walk.
+    if (cached?.graph.persistCoverage?.partial) {
+        return { fallback: "partial-base" };
+    }
     if (!cached || cached.builtAtProjectSeq === undefined) {
         return { fallback: "no-seq" };
     }
@@ -2840,7 +3491,8 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
         ? Number.POSITIVE_INFINITY
         : now - cached.lastFullVerifyMs;
     const sinceVerify = cached.fastPathSinceVerify ?? 0;
-    if (ageMs > SEQ_FASTPATH_REVERIFY_MS || sinceVerify >= SEQ_FASTPATH_REVERIFY_EVERY) {
+    if (ageMs > SEQ_FASTPATH_REVERIFY_MS ||
+        sinceVerify >= SEQ_FASTPATH_REVERIFY_EVERY) {
         return { fallback: "verify-due" };
     }
     // Condition 3: bounded change set. changed ∪ changedFiles(param), normalized.
@@ -2858,7 +3510,7 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
     // (a genuine new file — updateGraphFiles' remove-then-add handles the add). A
     // changed file that no longer exists on disk is a DELETION: incremental has no
     // node-removal here, so fall back to the sweep (simple + correct).
-    const filesToUpdate = [];
+    const candidateFiles = [];
     for (const file of changed) {
         const known = cached.fileSignatures.has(file);
         let existsOnDisk = false;
@@ -2883,9 +3535,13 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
             if (!hasGraphKindExtension(file))
                 continue;
         }
-        filesToUpdate.push(file);
+        candidateFiles.push(file);
     }
-    if (filesToUpdate.length === 0) {
+    // A pi-observed write can advance projectSeq without changing bytes (format
+    // no-op, save, or an idempotent edit). Confirm content before re-extracting so
+    // the seq fast path does not refresh builtAt or claim graphChanged for drift.
+    const { trulyChanged, hashes } = await confirmContentChanged(candidateFiles, cached.fileHashes);
+    if (trulyChanged.length === 0) {
         // Nothing graph-relevant actually changed. Reuse the cached graph as-is,
         // refresh changed-symbol annotations, bump the fast-path counter.
         const graph = cloneGraph(cached.graph);
@@ -2896,18 +3552,30 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
         }
         // Stamp the seq captured at BUILD START — a bump that raced in during this
         // build has seq > stamp and is re-diffed next build, never missed.
+        const nextSignatures = new Map(cached.fileSignatures);
+        for (const file of candidateFiles) {
+            nextSignatures.set(file, sourceSignatureEntry(file));
+        }
+        cached.signature = sourceSignatureFromMap(nextSignatures);
+        cached.fileSignatures = nextSignatures;
+        cached.fileHashes = hashes;
         cached.builtAtProjectSeq = seqAtBuildStart;
         cached.fastPathSinceVerify = sinceVerify + 1;
         // #459: nothing graph-relevant changed — this is a genuine no-op reuse.
         const generation = (cached.buildGeneration ??= ++_graphGenerationCounter);
-        _lastGraphBuildInfo = { reused: true, mode: "seq-fastpath", graphChanged: false };
+        setGraphBuildInfo(graph, {
+            reused: true,
+            mode: "seq-fastpath",
+            graphChanged: false,
+        });
         graph.buildGeneration = generation;
         facts.setSessionFact("session.reviewGraph", graph);
         return { graph };
     }
-    // Incremental re-extract over exactly the changed files. Reuses the SAME
-    // machinery as the signature-diff incremental path (updateGraphFiles), so
+    // Incremental re-extract over exactly the content-changed files. Reuses the
+    // SAME machinery as the signature-diff incremental path (updateGraphFiles), so
     // there's no second incremental implementation.
+    const filesToUpdate = trulyChanged;
     const priorGeneration = cached.graph.buildGeneration;
     const graph = cloneGraph(cached.graph);
     let importChanges;
@@ -2917,23 +3585,22 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
     catch {
         return { fallback: "stat-error" };
     }
+    refreshGraphBuiltAt(graph);
     // Update fileSignatures/fileHashes for ONLY the touched files (stat/hash just
     // those — the whole point of the fast path). Recompute the aggregate signature
     // the same way the incremental branch does (sourceSignatureFromMap).
     const nextSignatures = new Map(cached.fileSignatures);
-    const nextHashes = new Map(cached.fileHashes ?? new Map());
-    for (const file of filesToUpdate) {
+    for (const file of candidateFiles) {
         nextSignatures.set(file, sourceSignatureEntry(file));
-        nextHashes.set(file, contentHashEntry(file));
     }
     const nextSignature = sourceSignatureFromMap(nextSignatures);
     // #459: real re-extract ⇒ new generation.
     const generation = ++_graphGenerationCounter;
     graph.buildGeneration = generation;
-    _workspaceGraphCache.set(normalizedCwd, {
+    setWorkspaceGraph(normalizedCwd, {
         signature: nextSignature,
         fileSignatures: nextSignatures,
-        fileHashes: nextHashes,
+        fileHashes: hashes,
         graph,
         buildGeneration: generation,
         // Build-start seq, not stamp-time: see verifiedCacheFields — a bump that
@@ -2941,11 +3608,21 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
         builtAtProjectSeq: seqAtBuildStart,
         lastFullVerifyMs: cached.lastFullVerifyMs,
         fastPathSinceVerify: sinceVerify + 1,
+    }, cacheEpoch);
+    const persistReason = persistGraph(cwd, nextSignature, nextSignatures, hashes, graph, {
+        buildId,
+        projectSeq: seqAtBuildStart,
+        seqHint: true,
+        mode: "seq-fastpath",
     });
-    persistGraph(cwd, nextSignature, nextSignatures, nextHashes, graph);
     // #459: filesToUpdate was non-empty — this fastpath re-extracted real files,
     // so (unlike the no-op branch above) the graph object did change.
-    _lastGraphBuildInfo = { reused: true, mode: "seq-fastpath", graphChanged: true };
+    setGraphBuildInfo(graph, {
+        reused: true,
+        mode: "seq-fastpath",
+        ...(persistReason ? { persistReason } : {}),
+        graphChanged: true,
+    });
     _graphImportChanges.set(graph, {
         fromGeneration: priorGeneration,
         changes: importChanges,
@@ -2953,8 +3630,14 @@ async function trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqH
     facts.setSessionFact("session.reviewGraph", graph);
     return { graph };
 }
-async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
+async function _doBuildGraph(cwd, changedFiles, facts, seqHint, buildId) {
     const normalizedCwd = normalizeMapKey(cwd);
+    const cacheEpoch = workspaceCacheEpoch(normalizedCwd);
+    // `await undefined` still yields a microtask, which reorders overlapping
+    // builds in production where no test gate is installed — only await a gate
+    // that exists.
+    if (_reviewGraphBuildGateForTests)
+        await _reviewGraphBuildGateForTests();
     const normalizedChanged = changedFiles.map((file) => normalizeMapKey(file));
     const normalizedChangedSet = new Set(normalizedChanged);
     logCwdWorktreeMismatchOnce(cwd);
@@ -2983,14 +3666,14 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
         for (const file of normalizedChanged) {
             upsertChangedSymbols(graph, facts, file);
         }
-        _lastGraphBuildInfo = {
+        setGraphBuildInfo(graph, {
             reused: false,
             mode: "skipped",
             skipReason: "unsafe_root",
             // #459: never persisted/reused, same as the too_many_files skip below —
             // treat as changed so dependents never trust stale derived state.
             graphChanged: true,
-        };
+        });
         facts.setSessionFact("session.reviewGraph", graph);
         return graph;
     }
@@ -3010,14 +3693,17 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     // cascade.log can watch the fast-path hit/miss rate.
     let seqFastpathFallback;
     if (seqHint && seqAtBuildStart !== undefined && seqFastpathEnabled()) {
-        const fast = await trySeqFastpath(cwd, normalizedCwd, normalizedChanged, facts, seqHint, seqAtBuildStart, await ignoredIdsPromise);
+        const fast = await trySeqFastpath(cwd, buildId, normalizedCwd, normalizedChanged, facts, seqHint, seqAtBuildStart, await ignoredIdsPromise, cacheEpoch);
         if ("graph" in fast)
             return fast.graph;
         seqFastpathFallback = fast.fallback;
     }
-    const filesToBuild = await getGraphSourceFiles(cwd);
+    const sourceCollection = await getGraphSourceFiles(cwd);
+    const filesToBuild = sourceCollection.files;
+    const sourceFileCount = sourceCollection.sourceFileCount;
+    const sourceFilesTruncated = sourceCollection.entryBudgetExceeded;
     const ignoredIds = await ignoredIdsPromise;
-    const maxGraphFiles = getReviewGraphMaxFiles(cwd);
+    const maxGraphFiles = sourceCollection.maxFileCount;
     if (filesToBuild.length > maxGraphFiles) {
         const graph = createEmptyGraph();
         graph.version = REVIEW_GRAPH_VERSION;
@@ -3029,7 +3715,7 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
         // any graph cached/persisted from before the repo crossed the cap, and so
         // project_report can render an honest "disabled at N files" hint instead
         // of "retry shortly" — see getReviewGraphSizeSkipVerdict.
-        recordReviewGraphSizeSkip(cwd, filesToBuild.length, maxGraphFiles);
+        recordReviewGraphSizeSkip(cwd, sourceFileCount, maxGraphFiles);
         // #775 R3: `_lastGraphBuildInfo`/the size-skip verdict above are only
         // SURFACED by callers that happen to read them (dispatch/integration.ts's
         // cascade path logs a `graph_build` phase; lens-map.ts, project-report.ts,
@@ -3044,15 +3730,33 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
             durationMs: 0,
             metadata: {
                 cwd,
-                sourceFileCount: filesToBuild.length,
+                sourceFileCount,
                 maxFileCount: maxGraphFiles,
+                sourceFileCountLabel: `more than ${maxGraphFiles} files`,
+                sourceFileCountTruncated: true,
             },
         });
-        _lastGraphBuildInfo = {
+        if (isReviewGraphSizeNearMiss(sourceFileCount, maxGraphFiles)) {
+            logLatency({
+                type: "phase",
+                phase: "review_graph_size_near_miss",
+                filePath: cwd,
+                durationMs: 0,
+                metadata: {
+                    cwd,
+                    maxFileCount: maxGraphFiles,
+                    sourceFileCount,
+                    sourceFileCountLabel: `more than ${maxGraphFiles} files`,
+                    sourceFileCountTruncated: true,
+                },
+            });
+        }
+        setGraphBuildInfo(graph, {
             reused: false,
             mode: "skipped",
             skipReason: "too_many_files",
-            sourceFileCount: filesToBuild.length,
+            sourceFileCount,
+            sourceFileCountTruncated: sourceFilesTruncated || filesToBuild.length > maxGraphFiles,
             maxFileCount: maxGraphFiles,
             seqFastpathFallback,
             // #459: a fresh empty graph is returned every call on this path (never
@@ -3060,7 +3764,7 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
             // derived state across skip/unskip transitions. Deliberately NOT stamped
             // with a buildGeneration: absent ⇒ derived caches rebuild every time.
             graphChanged: true,
-        };
+        });
         facts.setSessionFact("session.reviewGraph", graph);
         return graph;
     }
@@ -3068,11 +3772,14 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     // previously recorded size-skip verdict immediately (rather than waiting
     // out the TTL) so a shrink or a raised cap re-enables reads the moment a
     // build actually succeeds.
-    clearReviewGraphSizeSkip(cwd);
+    if (!sourceFilesTruncated)
+        clearReviewGraphSizeSkip(cwd);
     const fileSignatures = await sourceSignatureMapAsync(filesToBuild);
     const signature = sourceSignatureFromMap(fileSignatures);
     // Tier 1: in-memory cache (hot path — same process, already built this session)
-    let memCached = _workspaceGraphCache.get(normalizedCwd);
+    let memCached = sourceFilesTruncated
+        ? undefined
+        : _workspaceGraphCache.get(normalizedCwd);
     // A partial graph (hydrated from a capped snapshot for read-only orientation
     // via getCachedReviewGraph) can share this cache. It MUST NOT seed a build:
     // serving it silently drops the capped-away nodes/edges, and extending then
@@ -3082,6 +3789,7 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     if (memCached?.graph.persistCoverage?.partial)
         memCached = undefined;
     if (memCached?.signature === signature) {
+        touchWorkspaceGraph(normalizedCwd);
         const graph = cloneGraph(memCached.graph);
         rebuildIndexes(graph);
         graph.changedSymbolsByFile.clear();
@@ -3093,13 +3801,14 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
         // later fast path diffs from here and the periodic re-verify resets.
         Object.assign(memCached, verifiedCacheFields(seqAtBuildStart));
         // #459: content unchanged ⇒ carry the entry's generation forward.
-        const generation = (memCached.buildGeneration ??= ++_graphGenerationCounter);
-        _lastGraphBuildInfo = {
+        const generation = (memCached.buildGeneration ??=
+            ++_graphGenerationCounter);
+        setGraphBuildInfo(graph, {
             reused: true,
             mode: "cached",
             seqFastpathFallback,
             graphChanged: false,
-        };
+        });
         graph.buildGeneration = generation;
         facts.setSessionFact("session.reviewGraph", graph);
         return graph;
@@ -3107,6 +3816,9 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     if (memCached) {
         const incremental = await tryIncrementalFromCache(memCached, {
             cwd,
+            buildId,
+            seqHint: seqHint !== undefined,
+            mode: "incremental",
             normalizedCwd,
             normalizedChanged,
             fileSignatures,
@@ -3114,9 +3826,10 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
             facts,
             seqAtBuildStart,
             ignoredIds,
+            cacheEpoch,
         });
         if (incremental) {
-            _lastGraphBuildInfo.seqFastpathFallback = seqFastpathFallback;
+            updateGraphBuildInfo(incremental, { seqFastpathFallback });
             return incremental;
         }
     }
@@ -3125,7 +3838,7 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     // #202 content-hash confirm below already content-verify the load, and
     // dropping on every HEAD move would force a full whole-repo rebuild after
     // each plain `git commit` (HEAD moves, files unchanged).
-    const diskCached = loadPersistedGraph(cwd);
+    const diskCached = sourceFilesTruncated ? null : loadPersistedGraph(cwd);
     if (diskCached?.signature === signature) {
         const graph = cloneGraph(diskCached.graph);
         rebuildIndexes(graph);
@@ -3137,20 +3850,20 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
         // process's derived caches don't exist here; in-process derived caches from
         // before a workspace-cache clear must not match it).
         const generation = ++_graphGenerationCounter;
-        _workspaceGraphCache.set(normalizedCwd, {
+        setWorkspaceGraph(normalizedCwd, {
             signature,
             fileSignatures: new Map(fileSignatures),
             fileHashes: diskCached.fileHashes,
             graph: cloneGraph(diskCached.graph),
             buildGeneration: generation,
             ...verifiedCacheFields(seqAtBuildStart),
-        });
-        _lastGraphBuildInfo = {
+        }, cacheEpoch);
+        setGraphBuildInfo(graph, {
             reused: true,
             mode: "cached",
             seqFastpathFallback,
             graphChanged: false,
-        };
+        });
         graph.buildGeneration = generation;
         facts.setSessionFact("session.reviewGraph", graph);
         return graph;
@@ -3167,6 +3880,9 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
             graph: diskCached.graph,
         }, {
             cwd,
+            buildId,
+            seqHint: seqHint !== undefined,
+            mode: "incremental",
             normalizedCwd,
             normalizedChanged,
             fileSignatures,
@@ -3176,13 +3892,15 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
             ignoredIds,
         });
         if (incremental) {
-            _lastGraphBuildInfo.seqFastpathFallback = seqFastpathFallback;
+            updateGraphBuildInfo(incremental, { seqFastpathFallback });
             return incremental;
         }
     }
     // Tier 3: full build — resumed from a prior session's checkpoint when one is
     // present and still current (#936 limit 2), else cold from an empty graph.
-    const resumed = await tryResumeFromCheckpoint(cwd, filesToBuild, ignoredIds);
+    const resumed = sourceFilesTruncated
+        ? null
+        : await tryResumeFromCheckpoint(cwd, filesToBuild, ignoredIds);
     const graph = resumed?.graph ?? createEmptyGraph();
     const filesToExtract = resumed?.remaining ?? filesToBuild;
     const treeSitterClient = getSharedTreeSitterClient();
@@ -3285,28 +4003,44 @@ async function _doBuildGraph(cwd, changedFiles, facts, seqHint) {
     // in-progress/partial marker a resumed seed carried so the finished graph is
     // never mistaken for (or persisted as) a partial one, and retire the
     // checkpoint now that an authoritative snapshot supersedes it.
-    graph.persistCoverage = undefined;
+    graph.persistCoverage = sourceFilesTruncated
+        ? graphCoverage(graph, graphPersistMaxElements(), sourceFileCount, true, filesToBuild)
+        : undefined;
     deleteReviewGraphCheckpoint(cwd);
     // #202: the full-build pass hashes the same bytes it supplies to extraction,
     // so change detection does not reread every file after the graph is built.
     // #459: full rebuild ⇒ new generation.
     const generation = ++_graphGenerationCounter;
     const graphSnapshot = cloneGraph(graph);
-    _workspaceGraphCache.set(normalizedCwd, {
+    rebuildIndexes(graphSnapshot);
+    // Keep the content generation on the persisted snapshot instance too, so
+    // scheduled persistence logs join the same graph identity as build success.
+    graphSnapshot.buildGeneration = generation;
+    setWorkspaceGraph(normalizedCwd, {
         signature,
         fileSignatures: new Map(fileSignatures),
         fileHashes,
         graph: graphSnapshot,
         buildGeneration: generation,
         ...verifiedCacheFields(seqAtBuildStart),
-    });
-    persistGraph(cwd, signature, fileSignatures, fileHashes, graphSnapshot); // fire-and-forget
-    _lastGraphBuildInfo = {
+    }, cacheEpoch);
+    const persistReason = persistGraph(cwd, signature, fileSignatures, fileHashes, graphSnapshot, {
+        buildId,
+        projectSeq: seqAtBuildStart,
+        seqHint: seqHint !== undefined,
+        mode: "full",
+        sourceFileCount,
+        sourceFilesTruncated,
+    }); // fire-and-forget
+    setGraphBuildInfo(graph, {
         reused: false,
         mode: "full",
+        sourceFileCount,
+        sourceFileCountTruncated: sourceFilesTruncated,
         seqFastpathFallback,
+        ...(persistReason ? { persistReason } : {}),
         graphChanged: true,
-    };
+    });
     graph.buildGeneration = generation;
     facts.setSessionFact("session.reviewGraph", graph);
     return graph;
@@ -3317,34 +4051,67 @@ export function buildOrUpdateGraph(cwd, changedFiles, facts, seqHint) {
     if (cached)
         return cached;
     const startedAt = Date.now();
-    recordBuildAttempt(cwd, "running");
-    logReviewGraph({ cwd, phase: "build_started" });
-    const promise = _doBuildGraph(cwd, changedFiles, facts, seqHint)
+    const buildId = ++_buildIdCounter;
+    recordBuildAttempt(cwd, "running", undefined, buildId);
+    const startedProjectSeq = seqHint?.projectSeq();
+    logReviewGraph({
+        cwd,
+        phase: "build_started",
+        observability: {
+            graph: {
+                buildId,
+                ...(startedProjectSeq === undefined
+                    ? {}
+                    : { projectSeq: startedProjectSeq }),
+                ...(seqHint === undefined ? {} : { seqHint: true }),
+                nodes: 0,
+                edges: 0,
+            },
+        },
+    });
+    const promise = _doBuildGraph(cwd, changedFiles, facts, seqHint, buildId)
         .then((graph) => {
-        const sizeSkip = getReviewGraphSizeSkipVerdict(cwd);
-        const unsafeRoot = isAtOrAboveHomeDir(path.resolve(cwd));
-        if (sizeSkip || unsafeRoot) {
-            const reason = sizeSkip
-                ? `source file cap exceeded (${sizeSkip.sourceFileCount} > ${sizeSkip.maxFileCount})`
-                : "unsafe_root";
-            recordBuildAttempt(cwd, "skipped", reason);
+        const buildInfo = getGraphBuildInfoForGraph(graph);
+        if (buildInfo.mode === "skipped") {
+            const reason = buildInfo.skipReason ?? "skipped";
+            recordBuildAttempt(cwd, "skipped", reason, buildId);
             logReviewGraph({
                 cwd,
                 phase: "build_skipped",
                 reason,
                 durationMs: Date.now() - startedAt,
+                observability: {
+                    graph: graphLogMetadata(graph, {
+                        buildId,
+                        projectSeq: startedProjectSeq,
+                        seqHint: seqHint !== undefined,
+                        mode: buildInfo.mode,
+                        sourceFileCount: buildInfo.sourceFileCount,
+                        sourceFileCountTruncated: buildInfo.sourceFileCountTruncated,
+                    }),
+                },
             });
         }
         else {
-            const prior = getLastReviewGraphBuildAttempt(cwd);
-            recordBuildAttempt(cwd, "succeeded", prior?.reason);
+            const reason = buildInfo.persistReason;
+            recordBuildAttempt(cwd, "succeeded", reason, buildId);
             logReviewGraph({
                 cwd,
                 phase: "build_succeeded",
                 durationMs: Date.now() - startedAt,
                 nodes: graph.nodes.size,
                 edges: graph.edges.length,
-                ...(prior?.reason ? { reason: prior.reason } : {}),
+                ...(reason ? { reason } : {}),
+                observability: {
+                    graph: graphLogMetadata(graph, {
+                        buildId,
+                        projectSeq: startedProjectSeq,
+                        seqHint: seqHint !== undefined,
+                        mode: buildInfo.mode,
+                        sourceFileCount: buildInfo.sourceFileCount,
+                        sourceFileCountTruncated: buildInfo.sourceFileCountTruncated,
+                    }),
+                },
             });
         }
         return graph;
@@ -3352,13 +4119,21 @@ export function buildOrUpdateGraph(cwd, changedFiles, facts, seqHint) {
         .catch((err) => {
         _buildCache.delete(cacheKey);
         const reason = err instanceof Error ? err.message : String(err);
-        recordBuildAttempt(cwd, "failed", reason);
+        recordBuildAttempt(cwd, "failed", reason, buildId);
         logReviewGraph({
             cwd,
             phase: "build_failed",
             reason,
             durationMs: Date.now() - startedAt,
             error: reason,
+            observability: {
+                graph: {
+                    buildId,
+                    ...(seqHint === undefined ? {} : { seqHint: true }),
+                    nodes: 0,
+                    edges: 0,
+                },
+            },
         });
         throw err;
     });
@@ -3366,46 +4141,172 @@ export function buildOrUpdateGraph(cwd, changedFiles, facts, seqHint) {
     return promise;
 }
 /**
- * Extract symbols and refs from an already-built ReviewGraph for call graph construction.
- * Reuses parsed data without re-running tree-sitter — symbols come from "symbol" nodes,
- * refs come from "references" edges. Line numbers are unavailable here (not stored in graph
- * nodes), so caller attribution falls back to file-level keys in buildCallGraph.
+ * Normalize graph symbol/call/reference evidence for call-graph construction.
+ *
+ * Graph node ids are opaque canonical identities (kind and line are part of the
+ * id), so this adapter always reads target metadata from the target node. It
+ * retains unresolved/type-only evidence for bounded coverage accounting, but
+ * buildCallGraph will not turn those records into concrete edges.
  */
 export function extractSymbolsAndRefsFromGraph(graph) {
     const allSymbols = new Map();
     const allRefs = new Map();
+    const nodeSymbols = new Map();
+    const coverage = {
+        totalEvidence: 0,
+        callsEvidence: 0,
+        referencesEvidence: 0,
+        eligibleEvidence: 0,
+        resolvedEvidence: 0,
+        unresolvedEvidence: 0,
+        typeOnlyEvidence: 0,
+        unsupportedEvidence: 0,
+        sameFileEvidence: 0,
+        duplicateEvidence: 0,
+        complete: graph.persistCoverage?.partial !== true && graph.persistCoverage?.inProgress !== true,
+        languages: {},
+    };
+    const numberMetadata = (node, key) => {
+        const value = node?.metadata?.[key];
+        return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    };
+    const symbolKind = (node) => {
+        switch (node.symbolKind) {
+            case "class":
+            case "interface":
+            case "type":
+            case "variable":
+            case "method":
+            case "property":
+            case "function":
+                return node.symbolKind;
+            default:
+                return "function";
+        }
+    };
     for (const node of graph.nodes.values()) {
-        if (node.kind === "symbol" && node.filePath && node.symbolName) {
-            const sym = {
-                id: `${node.filePath}:${node.symbolName}`,
-                name: node.symbolName,
-                kind: "function",
-                filePath: node.filePath,
-                line: 1,
-                column: 1,
-                isExported: false,
-            };
-            const list = allSymbols.get(node.filePath) ?? [];
-            list.push(sym);
-            allSymbols.set(node.filePath, list);
-        }
+        if (node.kind !== "symbol" || !node.filePath || !node.symbolName)
+            continue;
+        const sym = {
+            id: node.id,
+            name: node.symbolName,
+            kind: symbolKind(node),
+            filePath: node.filePath,
+            line: numberMetadata(node, "line") ?? 1,
+            endLine: numberMetadata(node, "endLine"),
+            column: numberMetadata(node, "column") ?? 1,
+            isExported: node.exported === true,
+        };
+        nodeSymbols.set(node.id, sym);
+        const list = allSymbols.get(node.filePath) ?? [];
+        list.push(sym);
+        allSymbols.set(node.filePath, list);
     }
+    const addRef = (ref) => {
+        const list = allRefs.get(ref.filePath) ?? [];
+        list.push(ref);
+        allRefs.set(ref.filePath, list);
+    };
     for (const edge of graph.edges) {
-        if (edge.kind === "references" && edge.from.startsWith("file:")) {
-            const callerFile = edge.from.slice("file:".length);
-            const refName = edge.to.startsWith("symbol-name:")
+        if (edge.kind !== "calls" && edge.kind !== "references")
+            continue;
+        coverage.totalEvidence++;
+        if (edge.kind === "calls")
+            coverage.callsEvidence++;
+        else
+            coverage.referencesEvidence++;
+        const fromNode = graph.nodes.get(edge.from);
+        const targetNode = graph.nodes.get(edge.to);
+        const callerFile = fromNode?.kind === "symbol"
+            ? fromNode.filePath
+            : fromNode?.kind === "file"
+                ? fromNode.filePath
+                : edge.from.startsWith("file:")
+                    ? edge.from.slice("file:".length)
+                    : undefined;
+        if (!callerFile) {
+            coverage.unsupportedEvidence++;
+            continue;
+        }
+        const metadata = edge.metadata ?? {};
+        const referenceKind = edge.kind === "calls"
+            ? "call"
+            : metadata.referenceKind === "call"
+                ? "call"
+                : metadata.referenceKind === "type"
+                    ? "type"
+                    : "unknown";
+        const resolution = edge.resolution ?? (targetNode && !targetNode.metadata?.unresolvedName ? "exact" : "unresolved");
+        const targetSymbol = nodeSymbols.get(edge.to);
+        const targetName = targetNode?.symbolName ??
+            (edge.to.startsWith("symbol-name:")
                 ? edge.to.slice("symbol-name:".length)
-                : edge.to.split(":").pop() ?? edge.to;
-            const ref = {
-                symbolId: `${callerFile}:${refName}`,
-                filePath: callerFile,
-                line: edge.metadata?.line ?? 1,
-                column: edge.metadata?.column ?? 1,
-            };
-            const list = allRefs.get(callerFile) ?? [];
-            list.push(ref);
-            allRefs.set(callerFile, list);
+                : undefined);
+        const line = typeof metadata.line === "number" ? metadata.line : numberMetadata(fromNode, "line") ?? 1;
+        const column = typeof metadata.column === "number" ? metadata.column : numberMetadata(fromNode, "column") ?? 1;
+        addRef({
+            symbolId: targetName ? `${callerFile}:${targetName}` : edge.to,
+            filePath: callerFile,
+            line,
+            column,
+            evidenceKind: edge.kind,
+            referenceKind,
+            targetId: edge.to,
+            callerSymbolId: fromNode?.kind === "symbol" ? fromNode.id : undefined,
+            resolution,
+            targetName,
+            targetKind: targetNode?.symbolKind,
+            targetFilePath: targetNode?.filePath,
+            targetLine: numberMetadata(targetNode, "line"),
+            targetColumn: numberMetadata(targetNode, "column"),
+        });
+        if (referenceKind === "type")
+            coverage.typeOnlyEvidence++;
+        else if (referenceKind !== "call")
+            coverage.unsupportedEvidence++;
+        else if (!targetSymbol || resolution === "name-only" || resolution === "unresolved") {
+            coverage.unresolvedEvidence++;
+        }
+        else {
+            coverage.eligibleEvidence++;
+            coverage.resolvedEvidence++;
         }
     }
-    return { allSymbols, allRefs };
+    // Capped/partial graph persistence and file-level extractor metadata are
+    // explicit degradation signals for read-only consumers. Missing metadata is
+    // also unavailable: old/synthetic file nodes cannot prove that definitions,
+    // references, or the TS/TSX warm function facts were attempted successfully.
+    let sawRelevantFileNode = false;
+    for (const node of graph.nodes.values()) {
+        if (node.kind !== "file")
+            continue;
+        sawRelevantFileNode = true;
+        const extraction = node.metadata?.extractionCoverage;
+        const statuses = extraction ? Object.values(extraction) : [];
+        const languageStatus = !extraction || statuses.length === 0 || statuses.includes("unavailable")
+            ? "unavailable"
+            : statuses.includes("partial")
+                ? "partial"
+                : "complete";
+        if (languageStatus !== "complete")
+            coverage.complete = false;
+        if (node.language) {
+            const prior = coverage.languages[node.language];
+            coverage.languages[node.language] =
+                prior === "unavailable" || languageStatus === "unavailable"
+                    ? "unavailable"
+                    : prior === "partial" || languageStatus === "partial"
+                        ? "partial"
+                        : languageStatus;
+        }
+    }
+    // A graph with symbols/evidence but no file coverage metadata is a
+    // synthetic/legacy shape that cannot prove which source files were
+    // actually extracted. Do not let it masquerade as a complete scan.
+    // No file node means there is no bounded source/extractor coverage to
+    // justify a clean empty call graph (including an entirely empty or
+    // external-only synthetic graph).
+    if (!sawRelevantFileNode)
+        coverage.complete = false;
+    return { allSymbols, allRefs, coverage };
 }

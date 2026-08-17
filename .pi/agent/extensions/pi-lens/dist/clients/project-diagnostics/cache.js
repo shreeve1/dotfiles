@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectDataDir } from "../file-utils.js";
+import { writeFileAtomic } from "../atomic-write.js";
 import { readJsonCache } from "../json-cache-read.js";
 // v2: cheap-tier scan now also runs ast-grep-napi (#308); invalidate older
 // snapshots so a pre-ast-grep cache isn't served as complete via refreshRunners=cached.
@@ -25,7 +26,7 @@ export function loadProjectDiagnosticsSnapshot(cwd) {
 export function saveProjectDiagnosticsSnapshot(cwd, snapshot) {
     const filePath = cachePath(cwd, SNAPSHOT_CACHE_FILE);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2));
+    writeFileAtomic(filePath, JSON.stringify(snapshot, null, 2));
 }
 export function loadProjectDiagnosticsDeltaReport(cwd) {
     return readJsonCache(cachePath(cwd, DELTA_CACHE_FILE), (parsed) => {
@@ -42,7 +43,7 @@ export function loadProjectDiagnosticsDeltaReport(cwd) {
 export function writeProjectDiagnosticsDeltaReport(cwd, report) {
     const filePath = cachePath(cwd, DELTA_CACHE_FILE);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(report, null, 2));
+    writeFileAtomic(filePath, JSON.stringify(report, null, 2));
 }
 /**
  * Drop diagnostics whose underlying file changed on disk after the snapshot was

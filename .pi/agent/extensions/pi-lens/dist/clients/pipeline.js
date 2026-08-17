@@ -19,7 +19,7 @@ import { recordFromCodeQualityDiagnostic, } from "./code-quality-warnings.js";
 import { recordDiagnostics } from "./widget-state.js";
 import { getDiagnosticLogger } from "./diagnostic-logger.js";
 import { getDiagnosticTracker } from "./diagnostic-tracker.js";
-import { computeCascadeForFile, dispatchLintWithResult, } from "./dispatch/integration.js";
+import { loadDispatchIntegration } from "./dispatch/lazy.js";
 import { toRunnerDisplayPath } from "./dispatch/runner-context.js";
 import { createAvailabilityChecker, resolveAvailableOrInstall, resolveCommandArgsWithInstallFallback, resolveToolCommand, resolveToolCommandWithInstallFallback, } from "./dispatch/runners/utils/runner-helpers.js";
 import { findDetektConfig } from "./dispatch/runners/detekt.js";
@@ -29,12 +29,14 @@ import { logLatency } from "./latency-logger.js";
 import { emitLensAnalysisComplete } from "./lens-events.js";
 import { publishFilesTouched } from "./bus-publish.js";
 import { publishDiagnostics, wasPreviouslyReportedDirty, } from "./diagnostics-publish.js";
-import { getLSPService } from "./lsp/index.js";
+import { loadLspService } from "./lsp-lazy.js";
 import { clearGraphCache } from "./review-graph/builder.js";
+import { BoundedLruCache } from "./bounded-cache.js";
 import { RUNTIME_CONFIG } from "./runtime-config.js";
 import { getAmbientAbortSignal, safeSpawnAsync } from "./safe-spawn.js";
 import { combineAbortSignals } from "./deadline-utils.js";
-import { getAutofixPolicyForFile, getPreferredAutofixTools, getRubocopCommand, hasBiomeConfig, hasDetektConfig, hasEslintConfig, hasGolangciConfig, hasKtfmtConfig, hasOxlintConfig, hasRubocopConfig, hasSqlfluffConfig, hasStylelintConfig, } from "./tool-policy.js";
+import { recordDegradationOnce } from "./degradation-ledger.js";
+import { getAutofixPolicyForFile, getPreferredAutofixTools, getRubocopCommand, hasBiomeConfig, hasDetektConfig, hasEslintConfig, hasGolangciConfig, hasKtfmtConfig, hasKtlintConfig, hasOxlintConfig, hasRubocopConfig, hasSqlfluffConfig, hasStylelintConfig, markdownlintConfigArgs, } from "./tool-policy.js";
 const LSP_MAX_FILE_BYTES = RUNTIME_CONFIG.pipeline.lspMaxFileBytes;
 const LSP_MAX_FILE_LINES = RUNTIME_CONFIG.pipeline.lspMaxFileLines;
 const LSP_SPAWN_BUDGET_MS = RUNTIME_CONFIG.pipeline.lspSpawnBudgetMs;
@@ -66,7 +68,10 @@ const SNAPSHOT_YIELD_EVERY = 500;
 async function snapshotDirInto(dir, ignoreMatcher, stack, snapshot, counter) {
     let entries;
     try {
-        entries = nodeFs.readdirSync(dir, { withFileTypes: true });
+        // Async (#1137): a synchronous per-directory read blocks the loop for the
+        // whole stall on a slow cloud-backed (OneDrive) directory; fs.promises
+        // keeps this tool_result-path walk off the event loop.
+        entries = await nodeFs.promises.readdir(dir, { withFileTypes: true });
     }
     catch {
         return;
@@ -85,7 +90,7 @@ async function snapshotDirInto(dir, ignoreMatcher, stack, snapshot, counter) {
         if (ignoreMatcher.isIgnored(fullPath, false))
             continue;
         try {
-            const stat = nodeFs.statSync(fullPath);
+            const stat = await nodeFs.promises.stat(fullPath);
             snapshot.set(path.resolve(fullPath), {
                 mtimeMs: stat.mtimeMs,
                 size: stat.size,
@@ -173,7 +178,7 @@ function createPhaseTracker(toolName, filePath) {
 }
 // --- ESLint autofix helpers ---
 export { hasEslintConfig, hasRubocopConfig, hasSqlfluffConfig, hasStylelintConfig, };
-const _eslintCache = new Map();
+const _eslintCache = new BoundedLruCache(32);
 /**
  * Run eslint --fix on a file. Runs a single spawn and diffs the file before/after,
  * same idiom as the other autofix helpers below. Exit code 1 (unfixable problems
@@ -186,7 +191,9 @@ async function tryEslintFix(filePath, cwd) {
     const userHasConfig = hasEslintConfig(cwd);
     if (!userHasConfig)
         return 0;
-    const cacheKey = path.resolve(cwd);
+    // PATH is part of command resolution; include it so an install or PATH
+    // refresh cannot leave a negative eslint result live for the session.
+    const cacheKey = `${path.resolve(cwd)}|${process.env.PATH ?? ""}`;
     let cached = _eslintCache.get(cacheKey);
     if (!cached) {
         const candidate = resolveToolCommand(cwd, "eslint") ?? "eslint";
@@ -274,8 +281,12 @@ async function tryMarkdownlintFix(filePath, cwd) {
     const cmd = await resolveToolCommandWithInstallFallback(cwd, "markdownlint");
     if (!cmd)
         return 0;
+    // Shared config-args seam (#1247): the lint runner consumes the same
+    // builder, so the bare --fix here can never fall back to markdownlint's
+    // default all-rules-on config again (the whole-file CHANGELOG/AGENTS
+    // reformat + `#946` → `# 946` corruption).
     // markdownlint-cli2 --fix exits non-zero when unfixable violations remain.
-    return detectFileChangedAfterCommand(filePath, cmd, ["--fix", filePath], cwd, [1]);
+    return detectFileChangedAfterCommand(filePath, cmd, [...markdownlintConfigArgs(cwd), "--fix", filePath], cwd, [1]);
 }
 async function tryOxlintFix(filePath, cwd) {
     const cmd = await resolveToolCommandWithInstallFallback(cwd, "oxlint");
@@ -356,6 +367,7 @@ export async function runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSourc
         hasGolangciConfig: hasGolangciConfig(cwd),
         hasDetektConfig: hasDetektConfig(cwd),
         hasKtfmtConfig: hasKtfmtConfig(cwd),
+        hasKtlintConfig: hasKtlintConfig(cwd),
         hasOxlintConfig: hasOxlintConfig(cwd),
     };
     const autofixPolicy = getAutofixPolicyForFile(filePath, autofixContext);
@@ -396,7 +408,7 @@ export async function runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSourc
                 dbg(`autofix: ruff unavailable for ${filePath}`);
                 continue;
             }
-            const result = await ruffClient.fixFileAsync(filePath);
+            const result = await ruffClient.fixFileAsync(filePath, cwd);
             if (result.success && result.fixed > 0) {
                 fixedCount += result.fixed;
                 autofixTools.push(`ruff:${result.fixed}`);
@@ -415,7 +427,7 @@ export async function runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSourc
                 dbg(`autofix: biome unavailable or unsupported for ${filePath}`);
                 continue;
             }
-            const result = await biomeClient.fixFileAsync(filePath);
+            const result = await biomeClient.fixFileAsync(filePath, cwd);
             if (result.success && result.fixed > 0) {
                 fixedCount += result.fixed;
                 autofixTools.push(`biome:${result.fixed}`);
@@ -570,7 +582,6 @@ export async function runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSourc
                 dbg(`autofix: oxlint --fix fixed ${filePath}`);
                 needsContentRefresh = true;
             }
-            continue;
         }
     }
     if (attemptedTools.length > 0 && autofixTools.length === 0) {
@@ -593,7 +604,7 @@ export async function resyncLspFile(filePath, fileContent, needsContentRefresh, 
     if (limitCheck.tooLarge)
         return;
     try {
-        const lspService = getLSPService();
+        const lspService = (await loadLspService()).getLSPService();
         if (lspService.supportsLSP(filePath)) {
             // Push the final post-format/post-fix content through touchFile (not the
             // bare openFile) so it registers in the touch-debounce map via
@@ -704,6 +715,13 @@ export async function runFormatPhase(filePath, getFormatService, dbg) {
         }
         if (!result.allSucceeded) {
             const failures = result.formatters.filter((f) => !f.success);
+            for (const failure of failures) {
+                recordDegradationOnce({
+                    kind: "formatter-failure",
+                    subject: `${failure.name}:${path.basename(filePath)}`,
+                    reason: failure.error ?? "unknown error",
+                });
+            }
             formatFailures.push(...failures.map((f) => `${f.name}: ${f.error ?? "unknown error"}`));
             dbg("autoformat: " +
                 failures
@@ -713,6 +731,11 @@ export async function runFormatPhase(filePath, getFormatService, dbg) {
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        recordDegradationOnce({
+            kind: "formatter-failure",
+            subject: `format-service:${path.basename(filePath)}`,
+            reason: message,
+        });
         formatFailures.push(message);
         dbg(`autoformat error: ${err}`);
     }
@@ -820,7 +843,25 @@ export async function runPipeline(ctx, deps) {
     });
     // --- 3. Auto-fix ---
     phase.start("autofix");
-    const { fixedCount, autofixTools, attemptedTools, changedFiles: autofixChangedFiles, needsContentRefresh: fixRefresh, skipReason: autofixSkipReason, } = await runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSource);
+    let fixedCount = 0;
+    let autofixTools = [];
+    let attemptedTools = [];
+    let autofixChangedFiles = [];
+    let fixRefresh = false;
+    let autofixSkipReason;
+    if (ctx.autofixMode === "deferred") {
+        autofixSkipReason = "deferred_to_agent_end";
+        dbg(`autofix: deferred until agent_end for ${filePath}`);
+    }
+    else
+        ({
+            fixedCount,
+            autofixTools,
+            attemptedTools,
+            changedFiles: autofixChangedFiles,
+            needsContentRefresh: fixRefresh,
+            skipReason: autofixSkipReason,
+        } = await runAutofix(filePath, cwd, getFlag, dbg, deps, getFlagSource));
     for (const changedFile of autofixChangedFiles) {
         piChangedFiles.add(path.resolve(changedFile));
     }
@@ -871,11 +912,17 @@ export async function runPipeline(ctx, deps) {
     const piApi = {
         getFlag: getFlag,
     };
+    const { dispatchLintWithResult, computeCascadeForFile } = await loadDispatchIntegration();
     const dispatchResult = await dispatchLintWithResult(filePath, cwd, piApi, ctx.modifiedRanges, {
         model: ctx.telemetry?.model ?? "unknown",
         sessionId: ctx.telemetry?.sessionId ?? "unknown",
         turnIndex: ctx.telemetry?.turnIndex ?? 0,
         writeIndex: ctx.telemetry?.writeIndex ?? 0,
+    }, {
+        projectRoot: ctx.projectRoot,
+        writeIndex: ctx.telemetry?.writeIndex,
+        telemetryModel: ctx.telemetry?.modelId,
+        telemetryProvider: ctx.telemetry?.provider,
     });
     recordDiagnostics(filePath, dispatchResult.diagnostics, ctx.telemetry?.writeIndex);
     // #502: emit the write batch's FINAL diagnostic state immediately after
@@ -972,7 +1019,11 @@ export async function runPipeline(ctx, deps) {
         const fileList = changedList.length
             ? "\nModified files:\n" + topFiles + overflow
             : "";
-        output += `\n\n⚠️ **File was modified by auto-format/fix. You MUST re-read modified file(s) before making any further edits — the content on disk has changed (whitespace, indentation, quotes, or code). Editing from memory will produce mismatches.**${fileList}`;
+        const targetHasAuthoritativeAttachment = ctx.autofixMode !== "deferred" &&
+            autofixChangedFiles.some((changedFile) => path.resolve(changedFile) === path.resolve(filePath));
+        output += targetHasAuthoritativeAttachment
+            ? `\n\n⚠️ **The attached full content for ${toRunnerDisplayPath(cwd, filePath)} is authoritative after autofix. You MUST re-read any other modified side-effect files before editing them.**${fileList}`
+            : `\n\n⚠️ **File was modified by auto-format/fix. You MUST re-read modified file(s) before making any further edits — the content on disk has changed (whitespace, indentation, quotes, or code). Editing from memory will produce mismatches.**${fileList}`;
     }
     phase.end("dispatch_lint", {
         hasOutput: !!dispatchResult.output,
@@ -984,6 +1035,11 @@ export async function runPipeline(ctx, deps) {
     // result is never shown inline — settled (bounded) and surfaced at turn_end.
     // The stored promise must never reject: an unhandled rejection is fatal, so a
     // failing compute resolves to an "error" skip-run instead.
+    const cascadeOrigin = {
+        turnSeq: ctx.telemetry?.turnIndex,
+        writeSeq: ctx.telemetry?.writeIndex,
+        projectSeq: ctx.seqState?.projectSeq(),
+    };
     const cascadePromise = getFlag("no-lsp")
         ? undefined
         : computeCascadeForFile(filePath, cwd, {
@@ -995,10 +1051,12 @@ export async function runPipeline(ctx, deps) {
             fileContent,
             wordIndex: ctx.wordIndex,
             onWordIndexUpdated: ctx.onWordIndexUpdated,
-        }).catch((err) => {
+        }).then((run) => ({ ...run, origin: cascadeOrigin }))
+            .catch((err) => {
             dbg(`cascade compute failed for ${filePath}: ${err}`);
             return {
                 filePath,
+                origin: cascadeOrigin,
                 result: undefined,
                 neighborCount: 0,
                 diagnosticCount: 0,
@@ -1054,5 +1112,8 @@ export async function runPipeline(ctx, deps) {
         formattersUsed,
         fixedCount,
         autofixTools,
+        postMutation: ctx.autofixMode !== "deferred" && autofixChangedFiles.some((f) => path.resolve(f) === path.resolve(filePath)) && fileContent !== undefined
+            ? { filePath: path.resolve(filePath), content: fileContent, source: "autofix" }
+            : undefined,
     };
 }

@@ -60,6 +60,7 @@ column is the effective behavior when nothing is set.
 | `--no-tests` | `tests.enabled` | global | test runner **on** |
 | `--no-delta` | `delta.enabled` | global | delta mode **on** (new diagnostics only) |
 | `--lens-guard` | `guard.enabled` | global | **off** |
+
 | `--no-opengrep` | `opengrep.enabled` | global | Opengrep scanner **on** |
 | `--no-read-guard` | `readGuard.enabled` | global | read-before-edit monitor **on** |
 | `--no-lens-context` | `contextInjection.enabled` | global | context injection **on** |
@@ -68,6 +69,19 @@ column is the effective behavior when nothing is set.
 | `--lens-actionable-warning-actions` | `actionableWarnings.includeLspCodeActions` | global | **off** |
 | `--lens-actionable-warning-autofix` | `actionableWarnings.autoFix.enabled` | project | **off** |
 | `--lens-actionable-warning-all` | `actionableWarnings.deltaOnly` (`false`) | global | `deltaOnly` **on** (report this turn only) |
+| `--lens-compact-tool-line` | `ui.compactToolLine` | global | **off** (two-row tool rendering) |
+| `--no-lazy-tools` | `tools.lazy` | global | lazy tools **on** (six situational tools start inactive) |
+
+`--no-lazy-tools` keeps every pi-lens tool active for the whole session, so the
+advertised tool list never changes. The `pi_lens_activate_tools` loader stays
+registered and keeps its usual description; under this flag the tools it names
+are already active, so calling it is a no-op.
+
+`--lens-guard` is **EXPERIMENTAL and strictly opt-in**. When enabled, actual
+`git commit`/`git push` commands are blocked only for current, structured
+blocking findings (including blocking test failures); advisory/no-action-required
+findings do not block. Stale, malformed, or ambiguous persisted state blocks
+conservatively until checks run again.
 
 `--immediate-format` and `--lens-actionable-warning-all` are not `--no-*` flags,
 so they set a value rather than flipping a boolean off.
@@ -87,6 +101,8 @@ field docs.
 | `actionableWarnings.autoFix.maxFixes` | global | `5` | Cap on quickfixes applied per turn (`0` = report only) |
 | `rules.high-complexity.threshold` | project | `15` | Cyclomatic-complexity threshold |
 | `rules.high-fan-out.threshold` | project | `20` | Distinct-function-call threshold |
+| `rules.<id>.disable` | project | absent | Disable diagnostics for a rule (output-only filter, project-wide; same normalization as `pi-lens-ignore`) |
+| `rules.<id>.select` | project | absent | Allowlist of rule ids (output-only filter, project-wide across every key; disable wins over select) |
 | `maxProjectFiles` | project | `2000` | Base scale knob; derives five subsystem size budgets |
 | `reviewGraph.maxFiles` | project | derived (clamped `100`–`20000`) | Explicit review-graph file budget |
 | `trivy.enabled` / `trivy.minSeverity` | project | off | Opt-in Trivy vulnerability scanning |
@@ -140,7 +156,8 @@ tolerated without warning; anything else is logged once as a likely typo.
   "ignore": ["**/*.test.ts", "vendor/**"],
   "rules": {
     "high-complexity": { "threshold": 25 },
-    "high-fan-out": { "threshold": 30 }
+    "high-fan-out": { "threshold": 30 },
+    "no-eval": { "disable": ["no-eval", "ast-grep:no-eval", "no-eval-js"] }
   },
   "maxProjectFiles": 5000,
   "format": { "enabled": false }

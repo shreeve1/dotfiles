@@ -195,6 +195,33 @@ honored.
 Node cap for `/lens-map` (default 500). Graphs with more files keep only the
 highest-degree ones and render a visible truncation note.
 
+## Memory / idle eviction
+
+Several in-memory caches release their contents after a period of inactivity so a
+long-running session does not retain hydrated state indefinitely. Each has an
+env-tunable window; all default to 20 minutes (`1200000` ms).
+
+### `PI_LENS_TS_IDLE_EVICT_MS`
+
+Idle window (ms) after which TypeScript language-service clients release their
+hydrated program and shut down, rebuilding transparently on the next request.
+**Default:** 20 minutes (`1200000`).
+
+### `PI_LENS_WORD_INDEX_IDLE_EVICT_MS`
+
+Idle window (ms) after which the persisted word index (`symbol_search`'s BM25
+index) is released from memory. **Default:** 20 minutes (`1200000`).
+
+### `PI_LENS_PROJECT_SNAPSHOT_IDLE_EVICT_MS`
+
+Idle window (ms) after which the cached project snapshot is released from
+memory. **Default:** 20 minutes (`1200000`).
+
+### `PI_LENS_REVIEW_GRAPH_IDLE_EVICT_MS`
+
+Idle window (ms) after which the in-memory review graph (`file → symbol →
+dependency`) is released. **Default:** 20 minutes (`1200000`).
+
 ## Bus events
 
 ### `PI_LENS_BUS_PUBLISH`
@@ -212,6 +239,23 @@ misbehaves.
 
 Set to `1` for verbose installer/debug logging (same as `--debug`). Off by
 default.
+
+### `PI_LENS_DEBUG_HANDLES`
+
+Set to `1` **before starting pi** to enable the handle-origin tracer
+(institutionalized from the #1097 hand-rolled `async_hooks` investigation
+that root-caused a leaked `setTimeout` keeping a `--print --no-session`
+process alive). Read once at extension load — toggling it mid-session has no
+effect. When set, pi-lens dumps `process.getActiveResourcesInfo()` counts by
+resource type (plus per-type creation-site stack attribution, since the
+`async_hooks` tracker only installs when the flag was already on at startup)
+to `~/.pi-lens/debug-handles.log` at two points: `agent_settled` (after
+quiet-window work is scheduled) and `session_shutdown` (after teardown —
+whatever is still alive at that point is the leak). Off by default, and a
+true no-op when unset — no writer, no `async_hooks` hook, zero overhead. Use
+it to diagnose a pi process that won't exit: run once with the flag set,
+reproduce the hang, then check `debug-handles.log`'s `session_shutdown`
+entry for what's still holding the loop open.
 
 ### `PI_LENS_LOG_RETENTION_DAYS`
 

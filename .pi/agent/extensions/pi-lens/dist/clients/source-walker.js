@@ -31,6 +31,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { isExcludedDirName } from "./file-utils.js";
 import { isGeneratedArtifactDirectoryName } from "./generated-artifacts.js";
+import { createDeadline, yieldIfOverBudget, } from "./cooperative-budget.js";
 /**
  * Read a directory's entries, returning `[]` for a permission-denied or
  * missing directory instead of throwing. Shared by every walker below — a
@@ -47,11 +48,45 @@ export function readDirEntriesSafe(dirPath) {
     }
 }
 /**
+ * Async twin of {@link readDirEntriesSafe} (refs #1137) — the identical
+ * "unreadable directory yields no entries" contract, but the read itself
+ * happens off the event loop via `fs.promises.readdir`.
+ *
+ * Why this exists: chunked yielding is NOT sufficient to keep the loop free.
+ * `walkTreeStackAsync` already `setImmediate`-yielded every N entries, yet each
+ * per-directory read was still `readdirSync` — so on a cloud-backed tree
+ * (OneDrive, network drive) one stalled directory read blocked the Node loop,
+ * and pi's TUI, for the *entire* stall regardless of yield cadence. That is the
+ * exact shape #1170 already fixed in `pipeline.ts`'s autofix snapshot walk
+ * ("the walk was already async + chunk-yielding, but each synchronous per-dir
+ * read still blocked on a cloud stall"); #1170 deferred the SHARED engine, and
+ * this is that same fix applied here — so every async walker gets it at once.
+ */
+export async function readDirEntriesSafeAsync(dirPath) {
+    try {
+        return await fs.promises.readdir(dirPath, { withFileTypes: true });
+    }
+    catch {
+        return [];
+    }
+}
+/**
  * The one shared "should this directory be walked into" decision. Every
  * caller's own loop still owns *when* to call this (inline recursion vs. a
  * stack) and what to do with the answer.
+ *
+ * `onGeneratedDirSkip` (#1107 phase 2) fires exactly once when — and only
+ * when — the `isGeneratedArtifactDirectoryName` branch is the reason this
+ * directory is pruned, so a caller can count PRUNED DIRECTORIES (one event
+ * per directory, regardless of how many files it contains) without
+ * enumerating the directory's contents — doing that would defeat the whole
+ * point of pruning it. Optional and unused by every caller except
+ * `source-filter.ts`'s `classifyEntry`: the other two `shouldRecurseIntoDir`
+ * callers (`language-profile.ts`, `startup-scan.ts`) always pass
+ * `skipGeneratedArtifactDirs: false`, so this branch — and therefore the
+ * callback — never fires for them.
  */
-export function shouldRecurseIntoDir(entry, fullPath, policy) {
+export function shouldRecurseIntoDir(entry, fullPath, policy, onGeneratedDirSkip) {
     if (isExcludedDirName(entry.name, policy.extraExcludeDirs ?? [])) {
         return false;
     }
@@ -59,6 +94,7 @@ export function shouldRecurseIntoDir(entry, fullPath, policy) {
         return false;
     if (policy.skipGeneratedArtifactDirs === true &&
         isGeneratedArtifactDirectoryName(entry.name)) {
+        onGeneratedDirSkip?.();
         return false;
     }
     if (policy.followSymlinks !== true && entry.isSymbolicLink())
@@ -83,15 +119,24 @@ function* walkTreeStackSteps(rootDir, visit, shouldStop) {
         const dir = stack.pop();
         if (dir === undefined)
             continue;
+        // Directory-read REQUEST (#1137): the generator never reads the
+        // filesystem itself — it yields the directory path and the driver
+        // supplies the entries. That is what lets the sync driver stay
+        // `readdirSync` while the async driver reads via `fs.promises.readdir`
+        // WITHOUT forking the traversal into two implementations that can
+        // drift (the invariant this generator exists to protect).
+        const entries = (yield dir) ?? [];
         const subDirs = [];
-        for (const entry of readDirEntriesSafe(dir)) {
+        for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             const disposition = visit(entry, fullPath);
             if (disposition === "stop")
                 return true;
             if (disposition === "recurse")
                 subDirs.push(fullPath);
-            yield;
+            // Per-entry yield point: `undefined` distinguishes it from a
+            // directory-read request above.
+            yield undefined;
         }
         for (let i = subDirs.length - 1; i >= 0; i--)
             stack.push(subDirs[i]);
@@ -106,27 +151,38 @@ function* walkTreeStackSteps(rootDir, visit, shouldStop) {
 export function walkTreeStackSync(rootDir, visit, opts = {}) {
     const steps = walkTreeStackSteps(rootDir, visit, opts.shouldStop);
     let step = steps.next();
-    while (!step.done)
-        step = steps.next();
+    while (!step.done) {
+        step = steps.next(step.value === undefined ? undefined : readDirEntriesSafe(step.value));
+    }
     return step.value;
 }
 /**
  * Async, chunked-yield twin of {@link walkTreeStackSync} — the identical
  * {@link walkTreeStackSteps} traversal, plus a `setImmediate` yield every
- * `yieldEvery` processed entries so a large tree never holds the event loop in
+ * its monotonic budget so a large tree never holds the event loop in
  * one synchronous burst. Returns true iff the visitor stopped the walk via
  * `"stop"`.
+ *
+ * #1137: every per-directory read goes through {@link readDirEntriesSafeAsync},
+ * so the walk is non-blocking on BOTH axes — CPU (the `setImmediate` cadence)
+ * and I/O (the directory read itself). The yield cadence alone never covered
+ * the I/O axis: a stalled cloud-backed `readdirSync` held the loop for the full
+ * stall no matter how often the walk yielded around it.
  */
 export async function walkTreeStackAsync(rootDir, visit, opts) {
     await opts.beforeWalk?.();
     const steps = walkTreeStackSteps(rootDir, visit, opts.shouldStop);
-    let processedSinceYield = 0;
+    const deadline = createDeadline(opts.budgetMs ?? 8);
     let step = steps.next();
     while (!step.done) {
-        if (++processedSinceYield >= opts.yieldEvery) {
-            processedSinceYield = 0;
-            await new Promise((resolve) => setImmediate(resolve));
+        if (step.value !== undefined) {
+            // Directory-read request — satisfy it off the loop. No
+            step = steps.next(await readDirEntriesSafeAsync(step.value));
+            deadline.reset();
+            continue;
         }
+        if (deadline.expired())
+            await yieldIfOverBudget(deadline);
         step = steps.next();
     }
     return step.value;
