@@ -3,6 +3,7 @@ import { safeSpawnAsync } from "../../safe-spawn.js";
 import { getLinterPolicyForCwd } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import { createAvailabilityChecker, lspPrimaryCoversFile, resolveToolCommandWithInstallFallback, } from "./utils/runner-helpers.js";
+import { spawnFailedWithNoOutput } from "./utils/spawn-outcome.js";
 const taplo = createAvailabilityChecker("taplo", ".exe");
 function parseTaploOutput(raw, filePath) {
     try {
@@ -55,7 +56,7 @@ const taploRunner = {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         const absPath = path.resolve(cwd, ctx.filePath);
         const result = await safeSpawnAsync(cmd, ["check", "--output=json", absPath], { cwd, timeout: 15000 });
-        if (result.error && !result.stdout) {
+        if (spawnFailedWithNoOutput(result)) {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
         const diagnostics = parseTaploOutput(result.stdout || "", ctx.filePath);

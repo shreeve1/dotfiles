@@ -1,4 +1,5 @@
 import { safeSpawnAsync } from "../../../safe-spawn.js";
+import { assertInstallAllowed } from "../../../project-trust.js";
 const attempted = new Set();
 function key(cwd, tool) {
     return `${cwd}:${tool}`;
@@ -9,6 +10,8 @@ function key(cwd, tool) {
  * Installs are attempted once per cwd+tool per session to avoid repeated churn.
  */
 export async function tryLazyInstall(tool, cwd) {
+    if (!assertInstallAllowed(`runner lazy install: ${tool}`))
+        return false;
     const k = key(cwd, tool);
     if (attempted.has(k))
         return false;

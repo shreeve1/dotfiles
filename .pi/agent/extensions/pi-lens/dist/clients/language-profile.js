@@ -1,12 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { CODE_KINDS, detectFileKind, DOTNET_CSHARP_ROOT_MARKERS, DOTNET_FSHARP_ROOT_MARKERS, KIND_EXTENSIONS, } from "./file-kinds.js";
+import { CODE_KINDS, detectFileKind, DOTNET_CSHARP_ROOT_MARKERS, DOTNET_FSHARP_ROOT_MARKERS, KIND_EXTENSIONS, TERRAGRUNT_FILENAMES, } from "./file-kinds.js";
 import { getProjectIgnoreMatcher } from "./file-utils.js";
-import { direntsHaveMarkerGlobMatch } from "./path-utils.js";
+import { direntsHaveMarkerGlobMatch, normalizeMapKey } from "./path-utils.js";
 import { LANGUAGE_POLICY, } from "./language-policy.js";
 import { getSourceFiles } from "./scan-utils.js";
 import { readDirEntriesSafe, shouldRecurseIntoDir } from "./source-walker.js";
 import { findNearestDirWithAnyBasename } from "./workspace-topology.js";
+import { BoundedLruCache } from "./bounded-cache.js";
 /** Every registered kind participates in project-language detection (#894). */
 export const SUPPORTED_FILE_KINDS = Object.keys(KIND_EXTENSIONS);
 const PROJECT_MARKERS_BY_KIND = {
@@ -36,6 +37,7 @@ const PROJECT_MARKERS_BY_KIND = {
     elixir: ["mix.exs"],
     gleam: ["gleam.toml"],
     terraform: [".terraform.lock.hcl"],
+    terragrunt: TERRAGRUNT_FILENAMES,
     nix: ["flake.nix"],
     toml: ["pyproject.toml", "Cargo.toml", "taplo.toml"],
     csharp: DOTNET_CSHARP_ROOT_MARKERS,
@@ -80,6 +82,7 @@ const ROOT_MARKERS_BY_KIND = {
     elixir: ["mix.exs"],
     gleam: ["gleam.toml"],
     terraform: [".terraform.lock.hcl"],
+    terragrunt: TERRAGRUNT_FILENAMES,
     nix: ["flake.nix"],
     toml: ["pyproject.toml", "Cargo.toml", "taplo.toml"],
     csharp: DOTNET_CSHARP_ROOT_MARKERS,
@@ -101,16 +104,16 @@ function hasProjectMarker(projectRoot, marker) {
 // must not pollute the no-arg cache. The synchronous getSourceFiles() call
 // inside this function does the same expensive ignoreMatcher-driven walk
 // as resolveStartupScanContext, so the same memo strategy applies.
-const languageProfileCache = new Map();
+const languageProfileCache = new BoundedLruCache(32);
 export function detectProjectLanguageProfile(projectRoot, sourceFiles) {
     if (sourceFiles === undefined) {
-        const cached = languageProfileCache.get(projectRoot);
+        const cached = languageProfileCache.get(normalizeMapKey(projectRoot));
         if (cached)
             return cached;
     }
     const result = computeProjectLanguageProfile(projectRoot, sourceFiles);
     if (sourceFiles === undefined) {
-        languageProfileCache.set(projectRoot, result);
+        languageProfileCache.set(normalizeMapKey(projectRoot), result);
     }
     return result;
 }
@@ -297,6 +300,9 @@ export async function collectSourceFilesForWarmup(rootDir, maxFiles = MAX_WARMUP
                     break walk;
                 }
             }
+            // Each iteration performs only bounded dirent/ext/ignore checks. Keep the
+            // count cadence: the cost does not scale with the corpus item size, and
+            // this walk's existing matched-file ceiling bounds the total work.
             if (++processedSinceYield % yieldEvery === 0) {
                 // See countSourceFilesWithinLimitAsync for why setImmediate.
                 await new Promise((resolve) => setImmediate(resolve));
@@ -306,7 +312,7 @@ export async function collectSourceFilesForWarmup(rootDir, maxFiles = MAX_WARMUP
     return [...codeOut, ...nonCodeOut];
 }
 export async function detectProjectLanguageProfileAsync(projectRoot) {
-    const cached = languageProfileCache.get(projectRoot);
+    const cached = languageProfileCache.get(normalizeMapKey(projectRoot));
     if (cached)
         return cached;
     const files = await collectSourceFilesForWarmup(projectRoot);
@@ -315,6 +321,6 @@ export async function detectProjectLanguageProfileAsync(projectRoot) {
     // probe (`existsSync` for package.json / pyproject.toml / etc.) which
     // is constant-time and cheap.
     const result = detectProjectLanguageProfile(projectRoot, files);
-    languageProfileCache.set(projectRoot, result);
+    languageProfileCache.set(normalizeMapKey(projectRoot), result);
     return result;
 }

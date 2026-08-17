@@ -46,8 +46,11 @@
  * Server IDs match the `id` field of each built-in server definition in
  * clients/lsp/server.ts (e.g. "rust", "nix", "bash", "python", "go", "ts").
  */
+import { logExtension } from "../extension-log.js";
+import { notifyUserDegradation } from "../user-notify.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { BoundedLruCache } from "../bounded-cache.js";
 import { getGlobalPiLensDir } from "../file-utils.js";
 import { launchLSP } from "./launch.js";
 import { createRootDetector, LSP_SERVERS, } from "./server.js";
@@ -55,7 +58,15 @@ import { createRootDetector, LSP_SERVERS, } from "./server.js";
 const CONFIG_PATHS = [".pi-lens/lsp.json", ".pi-lens.json", "pi-lsp.json"];
 function warnInvalidLSPConfig(configPath, error) {
     const reason = error instanceof Error ? error.message : String(error);
-    console.error(`[pi-lens] ignoring invalid LSP config ${configPath}: ${reason}`);
+    const message = `ignoring invalid LSP config ${configPath}: ${reason}`;
+    logExtension({
+        subsystem: "lsp-config",
+        level: "warn",
+        message,
+        metadata: { configPath, reason },
+    });
+    // HUMAN-audience too: the user's own lsp.json is being ignored (#1333).
+    notifyUserDegradation(`pi-lens: ${message}`);
 }
 async function readLSPConfig(configPath) {
     let content;
@@ -156,7 +167,7 @@ const EMPTY_CONFIG = {
     disabledServerIds: new Set(),
     serverOverrides: new Map(),
 };
-const workspaceConfigs = new Map();
+const workspaceConfigs = new BoundedLruCache(32);
 /** In-flight config initialization promises to prevent duplicate concurrent loads */
 const configInFlight = new Map();
 function normalizeWorkspacePath(cwd) {

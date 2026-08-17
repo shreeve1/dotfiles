@@ -265,11 +265,19 @@ function buildProjectIgnoreMatcher(resolvedRoot, patterns) {
     const patternsForDir = (dir) => {
         if (dir === resolvedRoot)
             return patterns;
-        const gitignoreMtime = gitignoreMtimeMs(dir);
-        const pilensMtime = findPiLensConfigInDir(dir)?.mtimeMs ?? -1;
+        const gitignoreSig = gitignoreSignature(dir);
+        // #1105: gate on size too. `findPiLensConfigInDir` returns `size` alongside
+        // `mtimeMs` (both from one stat), and `gitignoreSignature` reads both for
+        // the nested `.gitignore`, so an mtime-preserving, length-changing edit to
+        // EITHER nested source can no longer replay stale patterns for this subtree.
+        const pilensInfo = findPiLensConfigInDir(dir);
+        const pilensMtime = pilensInfo?.mtimeMs ?? -1;
+        const pilensSize = pilensInfo?.size ?? -1;
         const cached = nestedCache.get(dir);
-        if (cached?.gitignoreMtimeMs === gitignoreMtime &&
-            cached?.pilensMtimeMs === pilensMtime) {
+        if (cached?.gitignoreMtimeMs === gitignoreSig.mtimeMs &&
+            cached?.gitignoreSize === gitignoreSig.size &&
+            cached?.pilensMtimeMs === pilensMtime &&
+            cached?.pilensSize === pilensSize) {
             return cached.patterns;
         }
         const nestedConfig = loadPiLensConfigInDir(dir);
@@ -278,15 +286,17 @@ function buildProjectIgnoreMatcher(resolvedRoot, patterns) {
             ...parseGitignoreContent(nestedConfig.ignore.join("\n"), "pilens"),
         ];
         nestedCache.set(dir, {
-            gitignoreMtimeMs: gitignoreMtime,
+            gitignoreMtimeMs: gitignoreSig.mtimeMs,
+            gitignoreSize: gitignoreSig.size,
             pilensMtimeMs: pilensMtime,
+            pilensSize: pilensSize,
             patterns: nextPatterns,
         });
         return nextPatterns;
     };
     // Per-matcher path → pattern-verdict memo. The matcher itself is cached by
-    // `getProjectIgnoreMatcher` keyed on `.gitignore` mtime, so this Map's
-    // lifetime is bounded to a single set of ignore rules — when any
+    // `getProjectIgnoreMatcher` keyed on `.gitignore` size+mtime (#1105), so this
+    // Map's lifetime is bounded to a single set of ignore rules — when any
     // `.gitignore` changes, the matcher is rebuilt and the memo is dropped
     // with it. Without this memo, every background scan (comment scan, knip,
     // jscpd, call-graph, source-filter, pipeline) recomputes O(ancestorDirs ×
@@ -402,26 +412,20 @@ export function createProjectIgnoreMatcher(rootDir, extraPatterns = [], globalPa
     return buildProjectIgnoreMatcher(resolvedRoot, patterns);
 }
 const projectIgnoreMatcherCache = new Map();
-/**
- * mtime of the global `~/.pi-lens/config.json` (or the PI_LENS_CONFIG_PATH
- * override). Part of the ignore-matcher cache key so editing global ignore
- * patterns takes effect without a restart (#252). -1 when absent.
- */
-function globalConfigMtimeMs() {
+function fileFreshnessSignature(filePath) {
     try {
-        return fs.statSync(getPiLensGlobalConfigPath()).mtimeMs;
+        const stat = fs.statSync(filePath);
+        return { mtimeMs: stat.mtimeMs, size: stat.size };
     }
     catch {
-        return -1;
+        return { mtimeMs: -1, size: -1 };
     }
 }
-function gitignoreMtimeMs(rootDir) {
-    try {
-        return fs.statSync(path.join(rootDir, ".gitignore")).mtimeMs;
-    }
-    catch {
-        return -1;
-    }
+function globalConfigSignature() {
+    return fileFreshnessSignature(getPiLensGlobalConfigPath());
+}
+function gitignoreSignature(rootDir) {
+    return fileFreshnessSignature(path.join(rootDir, ".gitignore"));
 }
 /**
  * The project config file found by the same upward walk as the loader. Cache
@@ -432,32 +436,39 @@ function gitignoreMtimeMs(rootDir) {
 function lensConfigInfo(rootDir) {
     const info = findPiLensProjectConfig(rootDir);
     return info
-        ? { info, path: info.path, mtimeMs: info.mtimeMs }
-        : { info, path: undefined, mtimeMs: -1 };
+        ? { info, path: info.path, mtimeMs: info.mtimeMs, size: info.size }
+        : { info, path: undefined, mtimeMs: -1, size: -1 };
 }
 export function getProjectIgnoreMatcher(rootDir) {
     const resolvedRoot = resolveGitIgnoreRoot(rootDir);
-    const gitignoreMtime = gitignoreMtimeMs(resolvedRoot);
+    const gitignoreSig = gitignoreSignature(resolvedRoot);
     const lensConfig = lensConfigInfo(resolvedRoot);
-    const globalMtime = globalConfigMtimeMs();
+    const globalSig = globalConfigSignature();
     const cached = projectIgnoreMatcherCache.get(resolvedRoot);
-    if (cached?.gitignoreMtimeMs === gitignoreMtime &&
+    if (cached?.gitignoreMtimeMs === gitignoreSig.mtimeMs &&
+        cached?.gitignoreSize === gitignoreSig.size &&
         cached?.lensConfigPath === lensConfig.path &&
         cached?.lensConfigMtimeMs === lensConfig.mtimeMs &&
-        cached?.globalConfigMtimeMs === globalMtime) {
+        cached?.lensConfigSize === lensConfig.size &&
+        cached?.globalConfigMtimeMs === globalSig.mtimeMs &&
+        cached?.globalConfigSize === globalSig.size) {
         return cached.matcher;
     }
     // Load both configs fresh on cache miss. On a cache HIT (the common case)
-    // none of this runs — the only per-call cost is the mtime stats above. The
-    // project loader is itself mtime-cached; the global loader re-parses, but
-    // only here on miss (when some tracked mtime changed).
+    // none of this runs — the only per-call cost is the size:mtimeMs stats above
+    // (size is free from the same stat). The project loader is itself
+    // size:mtimeMs-cached; the global loader re-parses, but only here on miss
+    // (when some tracked signature changed).
     const projectConfig = loadPiLensProjectConfig(resolvedRoot, lensConfig.info);
     const matcher = createProjectIgnoreMatcher(resolvedRoot, projectConfig.ignore, getGlobalIgnorePatterns());
     projectIgnoreMatcherCache.set(resolvedRoot, {
-        gitignoreMtimeMs: gitignoreMtime,
+        gitignoreMtimeMs: gitignoreSig.mtimeMs,
+        gitignoreSize: gitignoreSig.size,
         lensConfigPath: lensConfig.path,
         lensConfigMtimeMs: lensConfig.mtimeMs,
-        globalConfigMtimeMs: globalMtime,
+        lensConfigSize: lensConfig.size,
+        globalConfigMtimeMs: globalSig.mtimeMs,
+        globalConfigSize: globalSig.size,
         matcher,
     });
     return matcher;
@@ -465,10 +476,21 @@ export function getProjectIgnoreMatcher(rootDir) {
 export function isPathIgnoredByProject(filePath, rootDir, isDirectory = false) {
     return getProjectIgnoreMatcher(rootDir).isIgnored(filePath, isDirectory);
 }
+const projectIgnoreGlobsCache = new Map();
 export function getProjectIgnoreGlobs(rootDir) {
-    return readGitignorePatterns(rootDir)
+    const resolvedRoot = path.resolve(rootDir);
+    const signature = gitignoreSignature(resolvedRoot);
+    const cached = projectIgnoreGlobsCache.get(resolvedRoot);
+    if (cached &&
+        cached.mtimeMs === signature.mtimeMs &&
+        cached.size === signature.size) {
+        return cached.globs;
+    }
+    const globs = readGitignorePatterns(resolvedRoot)
         .filter((pattern) => !pattern.negated)
         .flatMap((pattern) => expandGitignorePattern(pattern));
+    projectIgnoreGlobsCache.set(resolvedRoot, { ...signature, globs });
+    return globs;
 }
 /**
  * Read simple directory-name entries from a root .gitignore.

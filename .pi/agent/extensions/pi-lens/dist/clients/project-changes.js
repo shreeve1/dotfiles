@@ -44,6 +44,31 @@ export function readProjectChanges(cwd) {
         return [];
     }
 }
+/**
+ * Async twin of `readProjectChanges` (#1162). `fs.promises.readFile` — unlike
+ * the sync `readFileSync` above — YIELDS to the event loop, which is what lets
+ * a caller bound it with a `Promise.race` timeout: a `setTimeout` can never
+ * preempt a synchronous blocking read (the thread doesn't return to the event
+ * loop until the OS does), so a bounded read on the session_start hot path
+ * requires the async form. Same parse/error-swallow semantics as the sync
+ * version — a missing/corrupt log is the normal cold-start case, not a
+ * caller-visible error.
+ */
+export async function readProjectChangesAsync(cwd) {
+    const logPath = getProjectChangeLogPath(cwd);
+    try {
+        const content = await fs.promises.readFile(logPath, "utf-8");
+        return content
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map(parseChangeLine)
+            .filter((entry) => Boolean(entry));
+    }
+    catch {
+        return [];
+    }
+}
 export function readChangesSince(cwd, seq, maxEntries = 200) {
     const limit = Math.max(1, maxEntries);
     return readProjectChanges(cwd)
@@ -127,6 +152,21 @@ function partialReplay(entries, base) {
  */
 export function readLatestProjectSequence(cwd, base) {
     const entries = readProjectChanges(cwd);
+    if (base) {
+        const partial = partialReplay(entries, base);
+        if (partial)
+            return partial;
+    }
+    return fullReplay(entries);
+}
+/**
+ * Async twin of `readLatestProjectSequence` (#1162) — same fold logic, but
+ * reads the log via `readProjectChangesAsync` so a caller can bound the wait
+ * with a `Promise.race` timeout (see that function's doc comment for why the
+ * sync form can't be bounded at all).
+ */
+export async function readLatestProjectSequenceAsync(cwd, base) {
+    const entries = await readProjectChangesAsync(cwd);
     if (base) {
         const partial = partialReplay(entries, base);
         if (partial)

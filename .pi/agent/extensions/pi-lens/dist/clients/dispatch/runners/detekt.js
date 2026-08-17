@@ -4,6 +4,7 @@ import { safeSpawnAsync } from "../../safe-spawn.js";
 import { getLinterPolicyForCwd } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import { createAvailabilityChecker } from "./utils/runner-helpers.js";
+import { spawnFailedWithNoOutput } from "./utils/spawn-outcome.js";
 const detekt = createAvailabilityChecker("detekt", ".bat");
 const DETEKT_CONFIG_CANDIDATES = [
     "detekt.yml",
@@ -145,10 +146,10 @@ const detektRunner = {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         const absPath = path.resolve(cwd, ctx.filePath);
         const result = await safeSpawnAsync(cmd, ["--input", absPath, "--config", configPath], { cwd, timeout: 60000 });
-        if (result.error && !result.stdout && !result.stderr) {
+        const raw = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+        if (spawnFailedWithNoOutput(result, raw)) {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
-        const raw = `${result.stdout ?? ""}${result.stderr ?? ""}`;
         const diagnostics = parseDetektOutput(raw, ctx.filePath);
         if (diagnostics.length === 0) {
             return { status: "succeeded", diagnostics: [], semantic: "none" };

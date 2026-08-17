@@ -88,6 +88,9 @@ export const KIND_EXTENSIONS = {
         ".hs",
         ".lhs",
     ],
+    "helm-template": [
+        ".tpl",
+    ],
     html: [
         ".htm",
         ".html",
@@ -169,6 +172,7 @@ export const KIND_EXTENSIONS = {
         ".tf",
         ".tfvars",
     ],
+    terragrunt: [],
     toml: [
         ".toml",
     ],
@@ -181,6 +185,36 @@ export const KIND_EXTENSIONS = {
         ".zon",
     ],
 };
+/** Return whether a path has an extension registered for the given file kind. */
+export function hasKindExtension(filePath, kind) {
+    const extension = extname(filePath).toLowerCase();
+    return KIND_EXTENSIONS[kind].some((candidate) => candidate === extension);
+}
+// Fact providers intentionally stay on the ordinary JS/TS source extensions.
+// Vue/Svelte files are classified as jsts for project-wide discovery, but their
+// embedded-language contents are not valid inputs for these tree-sitter facts.
+// Keep that one policy decision here so the function and import providers agree.
+const JSTS_FACT_EXTENSIONS = new Set(KIND_EXTENSIONS.jsts.filter((extension) => ![".vue", ".svelte"].includes(extension)));
+/** Whether the JS/TS fact providers should parse this path. */
+export function isJstsFactFile(filePath) {
+    return JSTS_FACT_EXTENSIONS.has(extname(filePath).toLowerCase());
+}
+// Bash access tracking also accepts common text/config files which do not have
+// a semantic FileKind. Every source extension is derived from KIND_EXTENSIONS;
+// only this explicit legacy text/config allowlist lives outside that registry.
+const NON_KIND_READABLE_EXTENSIONS = new Set([
+    ".txt",
+    ".env",
+    ".cfg",
+    ".conf",
+    ".ini",
+    ".xml",
+]);
+/** Whether bash file-access parsing should treat a path as source-like. */
+export function isReadableSourceFile(filePath) {
+    const extension = extname(filePath).toLowerCase();
+    return (Object.keys(KIND_EXTENSIONS).some((kind) => hasKindExtension(filePath, kind)) || NON_KIND_READABLE_EXTENSIONS.has(extension));
+}
 // --- Shared Project Root Markers ---
 /**
  * .NET project/solution root-marker globs (refs #895). Single source of truth
@@ -200,6 +234,19 @@ export const DOTNET_FSHARP_ROOT_MARKERS = [
     "*.fsproj",
     "*.sln",
 ];
+/**
+ * Terragrunt's unit/root entrypoint filenames, lowercase. Single source of truth
+ * for every subsystem that has to agree on what counts as a terragrunt file —
+ * SPECIAL_FILENAMES below, tool-policy.ts's linter and formatter policies,
+ * formatters.ts's terragruntHclFormatter, and language-profile.ts's project/root
+ * markers. Same rule as the .NET markers above: never hand-copy this list at a
+ * call site. tests/clients/terragrunt-filenames.test.ts asserts every consumer
+ * honors every name here, so a drifting call site fails CI.
+ */
+export const TERRAGRUNT_FILENAMES = [
+    "terragrunt.hcl",
+    "root.hcl",
+];
 // Reverse map: extension → file kind (for fast lookup)
 const EXT_TO_KIND = new Map();
 for (const [kind, exts] of Object.entries(KIND_EXTENSIONS)) {
@@ -218,6 +265,10 @@ const SPECIAL_FILENAMES = [
     { pattern: /^CMakeLists\.txt$/i, kind: "cmake" },
     { pattern: /^Makefile$/i, kind: "shell" },
     { pattern: /^Dockerfile(\.\w+)?$/i, kind: "docker" },
+    ...TERRAGRUNT_FILENAMES.map((name) => ({
+        pattern: new RegExp(`^${name.replaceAll(".", "\\.")}$`, "i"),
+        kind: "terragrunt",
+    })),
 ];
 // --- Detection Functions ---
 /**
@@ -294,6 +345,7 @@ export const CODE_KINDS = new Set([
     "gleam",
     "go",
     "haskell",
+    "helm-template",
     "java",
     "jsts",
     "kotlin",
@@ -310,6 +362,7 @@ export const CODE_KINDS = new Set([
     "sql",
     "swift",
     "terraform",
+    "terragrunt",
     "zig",
 ]);
 /** Data/doc/markup/config kinds — still enumerated (that's #894's point), but
@@ -376,11 +429,13 @@ export function getFileKindLabel(kind) {
         lua: "Lua",
         zig: "Zig",
         haskell: "Haskell",
+        "helm-template": "Helm template",
         elixir: "Elixir",
         gleam: "Gleam",
         ocaml: "OCaml",
         clojure: "Clojure",
         terraform: "Terraform",
+        terragrunt: "Terragrunt",
         nix: "Nix",
         toml: "TOML",
     };
@@ -444,11 +499,13 @@ export function getLanguageId(kind) {
         lua: "lua",
         zig: "zig",
         haskell: "haskell",
+        "helm-template": "helm",
         elixir: "elixir",
         gleam: "gleam",
         ocaml: "ocaml",
         clojure: "clojure",
         terraform: "terraform",
+        terragrunt: "terragrunt",
         nix: "nix",
         toml: "toml",
     };

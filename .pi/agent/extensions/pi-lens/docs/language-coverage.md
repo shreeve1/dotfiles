@@ -20,8 +20,8 @@ Dispatch is diagnostics-oriented: automatic formatting and safe autofix happen i
 | HTML                  | ✓   | lsp, htmlhint                                                                                                  | prettier                |
 | YAML                  | ✓   | lsp, yamllint, actionlint (GitHub workflows)                                                                   | prettier                |
 | JSON                  | ✓   | lsp                                                                                                            | biome, prettier         |
-| Svelte                | ✓   | lsp                                                                                                            | —                       |
-| Vue                   | ✓   | lsp                                                                                                            | —                       |
+| Svelte                | ✓   | lsp                                                                                                            | oxfmt (needs `svelte` pkg installed + config `svelte: true`) |
+| Vue                   | ✓   | lsp                                                                                                            | prettier, oxfmt         |
 | SQL                   | —   | sqlfluff                                                                                                       | sqlfluff                |
 | Markdown              | —   | spellcheck, markdownlint, vale                                                                                 | prettier                |
 | Docker                | ✓   | lsp, hadolint                                                                                                  | —                       |
@@ -42,7 +42,8 @@ Dispatch is diagnostics-oriented: automatic formatting and safe autofix happen i
 | Gleam                 | ✓   | lsp, gleam-check                                                                                               | gleam format            |
 | OCaml                 | ✓   | lsp                                                                                                            | ocamlformat             |
 | Clojure               | ✓   | lsp                                                                                                            | cljfmt                  |
-| Terraform             | ✓   | lsp, tflint                                                                                                    | terraform fmt           |
+| Terraform             | ✓   | lsp, tflint, trivy-config (opt-in)                                                                             | terraform fmt           |
+| Terragrunt            | —   | terragrunt                                                                                                     | terragrunt hcl fmt      |
 | Nix                   | ✓   | lsp                                                                                                            | nixfmt                  |
 | TOML                  | ✓   | lsp, taplo                                                                                                     | taplo                   |
 | CMake                 | ✓ (cmake-language-server) | lsp                                                                                           | cmake-format            |

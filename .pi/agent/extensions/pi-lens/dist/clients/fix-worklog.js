@@ -18,13 +18,15 @@ export function getWorklogPath(cwd) {
  * diagnostics that were already fixed by the tool, `false` for
  * diagnostics that are fixable but require agent action.
  */
-export function appendToWorklog(cwd, diagnostics, autoFixed) {
+export function appendToWorklog(cwd, diagnostics, autoFixed, identity) {
     if (diagnostics.length === 0)
         return;
     const worklogPath = getWorklogPath(cwd);
     try {
         fs.mkdirSync(path.dirname(worklogPath), { recursive: true });
         const timestamp = new Date().toISOString();
+        const model = identity?.model?.trim() || undefined;
+        const provider = identity?.provider?.trim() || undefined;
         const lines = diagnostics
             .map((d) => {
             const entry = {
@@ -38,6 +40,8 @@ export function appendToWorklog(cwd, diagnostics, autoFixed) {
                 fixable: d.fixable ?? false,
                 fixSuggestion: d.fixSuggestion,
                 autoFixed,
+                model,
+                provider,
             };
             return JSON.stringify(entry);
         })

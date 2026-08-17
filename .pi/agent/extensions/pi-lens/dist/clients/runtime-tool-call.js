@@ -1,6 +1,5 @@
 import * as nodeFs from "node:fs";
 import * as path from "node:path";
-import { extractReadPathsFromCommand, extractWrittenPathsFromCommand, } from "./bash-file-access.js";
 import { loadBootstrapClients } from "./bootstrap.js";
 import { detectFileKind } from "./file-kinds.js";
 import { isPathIgnoredByProject } from "./file-utils.js";
@@ -14,7 +13,7 @@ import { computeTrailingWhitespaceOldTextPatch, findUniqueMatchLineRange, } from
 import { applyPartiallyApplicableEdits } from "./partial-edit-apply.js";
 import { isExternalOrVendorFile } from "./path-utils.js";
 import { EXPANSION_BUDGET_MS, EXPANSION_LIMIT_LINES, tryExpandRead, } from "./read-expansion.js";
-import { logReadGuardEvent } from "./read-guard-logger.js";
+import { boundedIndexesForCount, createReadGuardEditBatchSummary, getReadGuardCorrelationId, logReadGuardEvent, } from "./read-guard-logger.js";
 import { countFileLines, getTouchedLinesForGuard, relocateEditRange, tryCorrectIndentationMismatch, tryCorrectIndentationMismatchFromContent, } from "./read-guard-tool-lines.js";
 import { handleToolResult } from "./runtime-tool-result.js";
 import { isToolCallEventType } from "./tool-event.js";
@@ -142,7 +141,42 @@ function getNewContentFromToolCall(event) {
 }
 export async function handleToolCall(deps) {
     const { event, ctx, lensEnabled, getFlag, dbg, runtime, cacheManager, ensureLSPConfigInitialized, updateLspStatus, resetLSPService, getTreeSitterClient = getSharedTreeSitterClient, } = deps;
+    const readGuardCorrelationId = getReadGuardCorrelationId(event);
+    let filePath;
+    const logToolReadGuardEvent = (entry) => logReadGuardEvent({ ...entry, correlationId: readGuardCorrelationId });
     const toolName = event.toolName ?? "";
+    const editInputForTelemetry = event.input;
+    const requestedEditIndexes = toolName === "write"
+        ? [0]
+        : Array.isArray(editInputForTelemetry?.edits)
+            ? boundedIndexesForCount(editInputForTelemetry.edits.length)
+            : [0];
+    const logBlockedEditSummary = (source) => logToolReadGuardEvent({
+        event: "edit_batch_summary",
+        filePath: filePath ?? "",
+        metadata: {
+            tool: toolName,
+            source,
+            editBatchSummary: createReadGuardEditBatchSummary({
+                requestedIndexes: requestedEditIndexes,
+                requestedTotal: toolName === "write"
+                    ? 1
+                    : Array.isArray(editInputForTelemetry?.edits)
+                        ? editInputForTelemetry.edits.length
+                        : 1,
+                rejectedReasons: requestedEditIndexes.map((index) => ({
+                    index,
+                    code: "preflight_blocked",
+                })),
+                rejectedTotal: toolName === "write"
+                    ? 1
+                    : Array.isArray(editInputForTelemetry?.edits)
+                        ? editInputForTelemetry.edits.length
+                        : 1,
+                terminalStatus: "blocked",
+            }),
+        },
+    });
     if (!lensEnabled)
         return;
     if (getFlag("lens-guard") &&
@@ -156,7 +190,7 @@ export async function handleToolCall(deps) {
         }
     }
     const rawFilePath = getToolCallRawFilePath(toolName, event);
-    const filePath = resolveToolCallFilePath(rawFilePath, ctx.cwd, runtime.projectRoot);
+    filePath = resolveToolCallFilePath(rawFilePath, ctx.cwd, runtime.projectRoot);
     if (!getFlag("no-lsp")) {
         try {
             const configCwd = filePath
@@ -312,7 +346,7 @@ export async function handleToolCall(deps) {
                 else {
                     enclosingSymbol = expansion.enclosingSymbol;
                 }
-                logReadGuardEvent({
+                logToolReadGuardEvent({
                     event: "ts_range_expanded",
                     sessionId: runtime.telemetrySessionId,
                     filePath,
@@ -348,7 +382,7 @@ export async function handleToolCall(deps) {
     if (toolName === "read" && filePath && !isExternalOrVendor) {
         const totalLines = countFileLines(filePath);
         const deliveredLimit = effectiveReadLimit ?? 1;
-        logReadGuardEvent({
+        logToolReadGuardEvent({
             event: "read_pattern",
             sessionId: runtime.telemetrySessionId,
             filePath,
@@ -378,41 +412,6 @@ export async function handleToolCall(deps) {
             writeIndex: runtime.peekWriteIndex(),
             timestamp: Date.now(),
         });
-    }
-    // --- Read-Before-Edit Guard: register file access done via `bash` ---
-    // Mirrors how the Read/Write tools are tracked. Only the bash tool —
-    // grep/find tools (and their patterns) are not contiguous file access.
-    //   reads  (cat/head/tail/sed -n) → recordRead with the exact range shown
-    //   writes (>, >>, tee, sed -i, cp/mv dest, touch) → noteCreatedFile, so the
-    //          agent "owns" the file (recordWritten fires at tool_result), same
-    //          as the Write tool.
-    if (toolName === "bash" && !getFlag("no-read-guard")) {
-        const cmd = event.input?.command;
-        if (typeof cmd === "string" && cmd) {
-            const effectiveCwd = ctx.cwd ?? runtime.projectRoot ?? process.cwd();
-            const inScope = (fp) => !isPathIgnoredByProject(fp, runtime.projectRoot, false) &&
-                !isExternalOrVendorFile(fp, runtime.projectRoot);
-            for (const span of extractReadPathsFromCommand(cmd, effectiveCwd)) {
-                if (!inScope(span.filePath))
-                    continue;
-                runtime.readGuard.recordRead({
-                    filePath: span.filePath,
-                    requestedOffset: span.offset,
-                    requestedLimit: span.limit,
-                    effectiveOffset: span.offset,
-                    effectiveLimit: span.limit,
-                    expandedByLsp: false,
-                    turnIndex: runtime.turnIndex,
-                    writeIndex: runtime.peekWriteIndex(),
-                    timestamp: Date.now(),
-                });
-            }
-            for (const wp of extractWrittenPathsFromCommand(cmd, effectiveCwd)) {
-                if (!inScope(wp))
-                    continue;
-                runtime.readGuard.noteCreatedFile(wp, runtime.turnIndex, runtime.peekWriteIndex());
-            }
-        }
     }
     const { complexityClient } = await loadBootstrapClients();
     // Record complexity baseline for historical tracking (booboo/tdi).
@@ -511,7 +510,7 @@ export async function handleToolCall(deps) {
                     continue;
                 entry.apply(escaped);
                 entry.value = escaped;
-                logReadGuardEvent({
+                logToolReadGuardEvent({
                     event: "oldtext_escape_autopatched",
                     sessionId: runtime.telemetrySessionId,
                     filePath,
@@ -541,7 +540,7 @@ export async function handleToolCall(deps) {
                     entry.applyNewText(patch.newText);
                     entry.newText = patch.newText;
                 }
-                logReadGuardEvent({
+                logToolReadGuardEvent({
                     event: "oldtext_trailing_ws_autopatched",
                     sessionId: runtime.telemetrySessionId,
                     filePath,
@@ -612,7 +611,7 @@ export async function handleToolCall(deps) {
                 if (correctedNewText !== undefined) {
                     entry.applyNewText(correctedNewText);
                 }
-                logReadGuardEvent({
+                logToolReadGuardEvent({
                     event: "oldtext_indent_autopatched",
                     sessionId: runtime.telemetrySessionId,
                     filePath,
@@ -651,20 +650,25 @@ export async function handleToolCall(deps) {
         const isExistingFile = typeof readGuard?.isNewFile !== "function" ||
             !readGuard.isNewFile(filePath);
         if (readGuard && isExistingFile && !isExternalOrVendor) {
-            const { touchedLines, editRanges, preflightError, partiallyApplicable, contentMatchValidated, } = getTouchedLinesForGuard(event, filePath, runtime.telemetrySessionId);
+            const { touchedLines, editRanges, preflightError, partiallyApplicable, contentMatchValidated, editBatchSummary, } = getTouchedLinesForGuard(event, filePath, runtime.telemetrySessionId, readGuardCorrelationId);
             if (preflightError) {
                 if (partiallyApplicable && partiallyApplicable.length > 0) {
                     try {
                         const partial = await applyPartiallyApplicableEdits({
                             filePath,
                             edits: partiallyApplicable,
+                            summary: editBatchSummary,
+                            correlationId: readGuardCorrelationId,
                             afterWrite: async () => {
                                 const { biomeClient, ruffClient, metricsClient, agentBehaviorClient, } = await loadBootstrapClients();
                                 const result = await handleToolResult({
                                     event: {
                                         toolName: "write",
                                         input: { path: filePath },
-                                        details: { piLensPartialApply: true },
+                                        details: {
+                                            piLensPartialApply: true,
+                                            readGuardCorrelationId,
+                                        },
                                         content: [],
                                         provider: event.provider,
                                         model: event.model,
@@ -683,20 +687,35 @@ export async function handleToolCall(deps) {
                                     agentBehaviorRecord: (toolName, analyzedPath) => agentBehaviorClient.recordToolCall(toolName, analyzedPath),
                                     formatBehaviorWarnings: (warnings) => agentBehaviorClient.formatWarnings(warnings),
                                 });
+                                if (result?.isError) {
+                                    throw new Error("post-edit pipeline rejected synthetic partial apply");
+                                }
                                 return result?.content
                                     ?.map((item) => item.text)
                                     .filter((text) => !!text)
                                     .join("\n\n");
                             },
                         });
+                        if (partial.postEditStatus === "failed") {
+                            return {
+                                block: true,
+                                reason: `${preflightError}\n\nPartial apply pipeline failed after ${partial.appliedCount} edit${partial.appliedCount === 1 ? "" : "s"} committed.`,
+                            };
+                        }
                         if (partial.appliedCount > 0) {
-                            logReadGuardEvent({
+                            logToolReadGuardEvent({
                                 event: "edit_partial_apply",
                                 sessionId: runtime.telemetrySessionId,
                                 filePath,
                                 metadata: {
                                     appliedCount: partial.appliedCount,
+                                    appliedTotal: partial.appliedTotal,
                                     appliedIndices: partial.appliedIndices,
+                                    skippedCount: partial.skippedCount ?? 0,
+                                    skippedTotal: partial.skippedTotal ?? 0,
+                                    skippedIndices: partial.skippedIndices ?? "",
+                                    indexesTruncated: partial.indexesTruncated ?? false,
+                                    editBatchSummary: partial.summary,
                                     routedThroughPostEditPipeline: true,
                                 },
                             });
@@ -711,9 +730,11 @@ export async function handleToolCall(deps) {
                         // fall through to full block
                     }
                 }
+                if (!editBatchSummary)
+                    logBlockedEditSummary("preflight");
                 return { block: true, reason: preflightError };
             }
-            logReadGuardEvent({
+            logToolReadGuardEvent({
                 event: "edit_check_started",
                 sessionId: runtime.telemetrySessionId,
                 filePath,
@@ -750,7 +771,7 @@ export async function handleToolCall(deps) {
                         writeIndex: 0,
                         timestamp: Date.now(),
                     });
-                    logReadGuardEvent({
+                    logToolReadGuardEvent({
                         event: "edit_range_relocated",
                         sessionId: runtime.telemetrySessionId,
                         filePath,
@@ -763,10 +784,12 @@ export async function handleToolCall(deps) {
                     // Relocation applied — let the re-targeted edit proceed.
                 }
                 else if (verdict.action === "block") {
+                    logBlockedEditSummary("range_relocated_blocked");
                     return { block: true, reason: verdict.reason };
                 }
             }
             else if (verdict.action === "block") {
+                logBlockedEditSummary("read_guard_blocked");
                 return {
                     block: true,
                     reason: verdict.reason,

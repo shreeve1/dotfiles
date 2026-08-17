@@ -43,9 +43,9 @@
  * process/pidusage involvement — mirrors the pure/impure split in
  * clients/instance-reaper.ts (`decideOrphanReaping` vs `sweepOrphans`).
  */
-import { spawn as nodeSpawn } from "node:child_process";
 import * as path from "node:path";
 import pidusage from "pidusage";
+import { spawnCollectStdout } from "./child-unref.js";
 // Read the platform live (not a module-load const) so both the Windows and the
 // POSIX sampling paths are exercisable in unit tests regardless of the host OS.
 function runningOnWindows() {
@@ -106,32 +106,26 @@ async function findDescendantPidsWindows(rootPid) {
     const psScript = "Get-CimInstance Win32_Process " +
         '| Select-Object -Property ProcessId,ParentProcessId ' +
         '| ForEach-Object { "$($_.ProcessId),$($_.ParentProcessId)" }';
-    const pairs = await new Promise((resolve) => {
-        try {
-            const powershell = path.join(process.env.SystemRoot ?? String.raw `C:\Windows`, "WindowsPowerShell", "v1.0", "powershell.exe");
-            const child = nodeSpawn(powershell, ["-NoProfile", "-NonInteractive", "-Command", psScript], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-            let out = "";
-            child.stdout?.on("data", (chunk) => {
-                out += chunk.toString();
-            });
-            child.once("error", () => resolve([]));
-            child.once("close", () => {
-                const result = [];
-                for (const line of out.split(/\r?\n/)) {
-                    const [pidStr, ppidStr] = line.split(",");
-                    const pid = Number(pidStr);
-                    const ppid = Number(ppidStr);
-                    if (Number.isFinite(pid) && Number.isFinite(ppid)) {
-                        result.push([pid, ppid]);
-                    }
-                }
-                resolve(result);
-            });
+    const powershell = path.join(process.env.SystemRoot ?? String.raw `C:\Windows`, "WindowsPowerShell", "v1.0", "powershell.exe");
+    // Fire-and-forget, per-poll-tick spawn (#1155): `spawnCollectStdout` unrefs
+    // the child AND its piped stdout so this one-shot CIM query can never keep
+    // a settled `pi --print` process alive past its own close — mirrors the
+    // reaper's identical spawn→collect plumbing (#1153/#1160). Sampling still
+    // works normally in an interactive/long-lived session: unref only means
+    // "don't hold the loop open FOR this alone," the collected stdout is still
+    // delivered whenever `close` fires. Resolves to `""` on any spawn/`error`
+    // failure, which the parse below turns into an empty pairs list (same
+    // result the old inline `resolve([])` error path produced).
+    const out = await spawnCollectStdout(powershell, ["-NoProfile", "-NonInteractive", "-Command", psScript], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    const pairs = [];
+    for (const line of out.split(/\r?\n/)) {
+        const [pidStr, ppidStr] = line.split(",");
+        const pid = Number(pidStr);
+        const ppid = Number(ppidStr);
+        if (Number.isFinite(pid) && Number.isFinite(ppid)) {
+            pairs.push([pid, ppid]);
         }
-        catch {
-            resolve([]);
-        }
-    });
+    }
     return walkDescendantPids(rootPid, pairs);
 }
 const windowsCpuHistory = new Map();
@@ -168,67 +162,59 @@ async function sampleProcessesWindows(valid) {
     const psScript = `Get-CimInstance Win32_Process -Filter "${filter}" ` +
         "| Select-Object -Property ProcessId,WorkingSetSize,KernelModeTime,UserModeTime " +
         '| ForEach-Object { "$($_.ProcessId),$($_.WorkingSetSize),$($_.KernelModeTime),$($_.UserModeTime)" }';
-    return await new Promise((resolve) => {
-        try {
-            const powershell = path.join(process.env.SystemRoot ?? String.raw `C:\Windows`, "WindowsPowerShell", "v1.0", "powershell.exe");
-            const child = nodeSpawn(powershell, ["-NoProfile", "-NonInteractive", "-Command", psScript], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
-            let out = "";
-            child.stdout?.on("data", (chunk) => {
-                out += chunk.toString();
-            });
-            // A spawn error (ENOENT, spawn UNKNOWN surfaced async, etc.) loses this
-            // tick's data for every pid but never rejects.
-            child.once("error", () => resolve(result));
-            child.once("close", () => {
-                try {
-                    const now = Date.now();
-                    const seen = new Set();
-                    for (const line of out.split(/\r?\n/)) {
-                        const parts = line.split(",");
-                        if (parts.length < 4)
-                            continue;
-                        const pid = Number(parts[0]);
-                        const workingSet = Number(parts[1]);
-                        const kernel100ns = Number(parts[2]);
-                        const user100ns = Number(parts[3]);
-                        if (!Number.isFinite(pid) || pid <= 0)
-                            continue;
-                        if (!Number.isFinite(workingSet))
-                            continue;
-                        const cpuMs = Math.round(kernel100ns / 1e4) + Math.round(user100ns / 1e4);
-                        const prev = windowsCpuHistory.get(pid);
-                        let cpuPercent = 0;
-                        if (prev) {
-                            const wallMs = now - prev.ts;
-                            if (wallMs > 0) {
-                                cpuPercent = ((cpuMs - prev.cpuMs) / wallMs) * 100;
-                                if (!Number.isFinite(cpuPercent) || cpuPercent < 0)
-                                    cpuPercent = 0;
-                            }
-                        }
-                        windowsCpuHistory.set(pid, { cpuMs, ts: now });
-                        seen.add(pid);
-                        result.set(pid, { rssBytes: workingSet, cpuPercent });
-                    }
-                    // Prune stale history so pids that have gone away don't accumulate.
-                    for (const [pid, entry] of windowsCpuHistory) {
-                        if (!seen.has(pid) && now - entry.ts > CPU_HISTORY_MAX_AGE_MS) {
-                            windowsCpuHistory.delete(pid);
-                        }
-                    }
+    const powershell = path.join(process.env.SystemRoot ?? String.raw `C:\Windows`, "WindowsPowerShell", "v1.0", "powershell.exe");
+    // Fire-and-forget, per-poll-tick spawn (#1155): `spawnCollectStdout` unrefs
+    // the child AND its piped stdout so this one-shot CIM query can never keep
+    // a settled `pi --print` process alive past its own close — mirrors the
+    // reaper's identical spawn→collect plumbing (#1153/#1160). It also absorbs
+    // both failure modes this function used to guard inline — a synchronous
+    // `spawn` throw (the `spawn UNKNOWN` crash vector, #620) and an async
+    // `error` event — resolving to `""` either way, which the parse below
+    // turns into the same empty/partial `result` map the old inline handlers
+    // produced. Sampling still works normally in an interactive/long-lived
+    // session: unref only means "don't hold the loop open FOR this alone."
+    const out = await spawnCollectStdout(powershell, ["-NoProfile", "-NonInteractive", "-Command", psScript], { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    try {
+        const now = Date.now();
+        const seen = new Set();
+        for (const line of out.split(/\r?\n/)) {
+            const parts = line.split(",");
+            if (parts.length < 4)
+                continue;
+            const pid = Number(parts[0]);
+            const workingSet = Number(parts[1]);
+            const kernel100ns = Number(parts[2]);
+            const user100ns = Number(parts[3]);
+            if (!Number.isFinite(pid) || pid <= 0)
+                continue;
+            if (!Number.isFinite(workingSet))
+                continue;
+            const cpuMs = Math.round(kernel100ns / 1e4) + Math.round(user100ns / 1e4);
+            const prev = windowsCpuHistory.get(pid);
+            let cpuPercent = 0;
+            if (prev) {
+                const wallMs = now - prev.ts;
+                if (wallMs > 0) {
+                    cpuPercent = ((cpuMs - prev.cpuMs) / wallMs) * 100;
+                    if (!Number.isFinite(cpuPercent) || cpuPercent < 0)
+                        cpuPercent = 0;
                 }
-                catch {
-                    // Parsing must never throw into the resolve path; best-effort.
-                }
-                resolve(result);
-            });
+            }
+            windowsCpuHistory.set(pid, { cpuMs, ts: now });
+            seen.add(pid);
+            result.set(pid, { rssBytes: workingSet, cpuPercent });
         }
-        catch {
-            // Synchronous spawn throw (the `spawn UNKNOWN` crash vector) — resolve
-            // to whatever we have (empty), never propagate.
-            resolve(result);
+        // Prune stale history so pids that have gone away don't accumulate.
+        for (const [pid, entry] of windowsCpuHistory) {
+            if (!seen.has(pid) && now - entry.ts > CPU_HISTORY_MAX_AGE_MS) {
+                windowsCpuHistory.delete(pid);
+            }
         }
-    });
+    }
+    catch {
+        // Parsing must never throw into the caller; best-effort.
+    }
+    return result;
 }
 /**
  * Sample CPU%/RSS for a set of pids. Best-effort: a pid that can't be resolved

@@ -525,7 +525,9 @@ const treeSitterRunner = {
                 });
             }
             else {
-                console.error("[tree-sitter] Batched query run failed:", err);
+                // #1333: the logTreeSitter call below already carries this failure to
+                // tree-sitter.log — the console.error was a duplicate RAW write into
+                // pi's frame, not a second destination. Sink kept, write dropped.
                 logTreeSitter({
                     phase: "query_error",
                     filePath,

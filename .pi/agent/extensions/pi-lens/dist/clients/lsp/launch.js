@@ -12,8 +12,11 @@ import os from "node:os";
 import path from "node:path";
 import { isTestMode } from "../env-utils.js";
 import { getGlobalPiLensDir } from "../file-utils.js";
+import { isFullyQualified } from "../path-utils.js";
 import { findGlobalBinary } from "../package-manager.js";
 import { redactSecrets } from "../redact/secrets.js";
+import { classifySpawnFailure, SpawnFailureError, } from "../safe-spawn.js";
+import { getRubyVersionDirNamesAsync } from "./ruby-drive-dirs.js";
 const isWindows = process.platform === "win32";
 /**
  * Whether a resolved command must be spawned through a shell on Windows.
@@ -109,7 +112,7 @@ function getLiveWindowsPath() {
     }
     return _liveWindowsPath;
 }
-function buildAugmentedPath(basePath) {
+async function buildAugmentedPath(basePath) {
     const candidates = [];
     const nodeDir = path.dirname(process.execPath);
     if (nodeDir) {
@@ -125,16 +128,12 @@ function buildAugmentedPath(basePath) {
         candidates.push(PI_LENS_TOOLS_BIN_DIR);
         candidates.push(path.join(driveRoot, "Program Files", "Go", "bin"));
         candidates.push(path.join(driveRoot, "Go", "bin"));
-        // Ruby installer drops versioned dirs (e.g. Ruby34-x64) on the drive root — scan dynamically
-        try {
-            for (const entry of fs.readdirSync(driveRoot)) {
-                if (/^ruby\d/i.test(entry)) {
-                    candidates.push(path.join(driveRoot, entry, "bin"));
-                }
-            }
-        }
-        catch {
-            // drive root not readable — skip
+        // Ruby installer drops versioned dirs (e.g. Ruby34-x64) on the drive root.
+        // Read off the event loop and memoized once per process (#1137): a
+        // synchronous drive-root enumeration on every LSP spawn blocked the loop
+        // for the whole stall on a slow cloud/network-backed drive root.
+        for (const entry of await getRubyVersionDirNamesAsync(driveRoot)) {
+            candidates.push(path.join(driveRoot, entry, "bin"));
         }
     }
     // On Windows, merge the live registry PATH so newly installed tools are visible
@@ -339,10 +338,12 @@ function _attachErrorHandler(proc, context, logContext, rejectOnImmediateError) 
                 err.message +
                 (stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""));
         }
-        // If we have a reject function and this is an immediate spawn error, reject
-        if (rejectOnImmediateError &&
-            err.code === "ENOENT") {
-            rejectOnImmediateError(err);
+        // Preserve intent at the boundary instead of leaking a raw errno check.
+        if (rejectOnImmediateError && logContext) {
+            void classifySpawnFailure(err, {
+                command: logContext.command,
+                cwd: logContext.cwd,
+            }).then(rejectOnImmediateError);
         }
     });
     proc.on("close", (code, signal) => {
@@ -402,7 +403,7 @@ function _attachErrorHandler(proc, context, logContext, rejectOnImmediateError) 
 export async function launchLSP(command, args = [], options = {}) {
     const cwd = String(options.cwd ?? process.cwd());
     const mergedEnv = { ...process.env, ...options.env };
-    const augmentedPath = buildAugmentedPath(resolvePathValue(mergedEnv));
+    const augmentedPath = await buildAugmentedPath(resolvePathValue(mergedEnv));
     const env = {
         ...mergedEnv,
         PATH: augmentedPath,
@@ -412,10 +413,10 @@ export async function launchLSP(command, args = [], options = {}) {
     // - If already absolute, use as-is
     // - If it's a simple command (no path separators), let system find it via PATH
     // - Otherwise, resolve relative to cwd
-    const isRelativePath = !path.isAbsolute(command) &&
+    const isRelativePath = !isFullyQualified(command) &&
         (command.includes(path.sep) || command.includes("/"));
     const explicitCommand = isRelativePath ? path.resolve(cwd, command) : command;
-    const resolvedCommand = !path.isAbsolute(command) &&
+    const resolvedCommand = !isFullyQualified(command) &&
         !command.includes(path.sep) &&
         !command.includes("/")
         ? (findBinaryOnPath(command, env) ?? explicitCommand)
@@ -428,7 +429,7 @@ export async function launchLSP(command, args = [], options = {}) {
     // If command not found, try npm global as fallback (handles PATH caching after install)
     let spawnCommand = resolvedCommand;
     // First, try to find in npm global if it's a simple command name
-    if (!path.isAbsolute(command) &&
+    if (!isFullyQualified(command) &&
         !command.includes(path.sep) &&
         !command.includes("/")) {
         const globalBinPath = await findGlobalBinary(command);
@@ -444,7 +445,8 @@ export async function launchLSP(command, args = [], options = {}) {
         /\.(cmd|bat)$/i.test(spawnCommand) &&
         !isCmdShimValid(spawnCommand)) {
         logSessionStart(`lsp cmd-shim-invalid: ${spawnCommand} target missing — skipping candidate`);
-        throw new Error(`LSP .cmd shim target not found: ${spawnCommand}. The npm package may not be installed.`);
+        const cause = Object.assign(new Error(`LSP .cmd shim target not found: ${spawnCommand}`), { code: "ENOENT" });
+        throw await classifySpawnFailure(cause, { command, cwd });
     }
     // P0 FIX: Never spawn .ps1 wrappers on Windows — they hang when PowerShell
     // execution policy is Restricted/AllSigned. Prefer .cmd or direct node.
@@ -466,7 +468,7 @@ export async function launchLSP(command, args = [], options = {}) {
     }
     catch (err) {
         // If spawn failed with simple command, try npm global
-        if (!path.isAbsolute(command) &&
+        if (!isFullyQualified(command) &&
             !command.includes(path.sep) &&
             !command.includes("/")) {
             const globalBinPath = await findGlobalBinary(command);
@@ -476,11 +478,11 @@ export async function launchLSP(command, args = [], options = {}) {
                 proc = trySpawn(globalBinPath, args, cwd, env, needsShellGlobal);
             }
             else {
-                throw err;
+                throw await classifySpawnFailure(err, { command, cwd });
             }
         }
         else {
-            throw err;
+            throw await classifySpawnFailure(err, { command, cwd });
         }
     }
     if (!proc.stdin || !proc.stdout || !proc.stderr) {
@@ -512,10 +514,14 @@ export async function launchLSP(command, args = [], options = {}) {
             let settled = false;
             // Attach error handler that can reject for immediate errors
             proc.on("error", (err) => {
-                if (!settled && (err.code === "ENOENT" || err.code === "EINVAL")) {
+                if (!settled) {
                     settled = true;
-                    reject(new Error(`LSP server binary not found: ${command}. ` +
-                        `Install it or check your PATH.${formatStartupStderr(startupStderr)}`));
+                    void classifySpawnFailure(err, { command, cwd }).then((failure) => {
+                        const detail = formatStartupStderr(startupStderr);
+                        reject(detail
+                            ? new SpawnFailureError(failure.kind, `${failure.message}${detail}`, failure.cause)
+                            : failure);
+                    });
                 }
             });
             // Also listen for immediate exit

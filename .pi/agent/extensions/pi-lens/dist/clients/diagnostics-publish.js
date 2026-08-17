@@ -61,12 +61,13 @@
  */
 import { logBusEvent } from "./bus-events-logger.js";
 import { normalizeFilePath } from "./path-utils.js";
+import { createLiveBusEmitter, recordStaleBusFailure, resolveLiveBusEmitter, } from "./live-bus-emitter.js";
 import { isBusPublishEnabled } from "./bus-publish.js";
 export const BUS_DIAGNOSTICS_EVENT = "pilens:diagnostics";
 export const BUS_DIAGNOSTICS_VERSION = 1;
 /** Max diagnostics carried per file per event — aligned with the widget's own per-file storage cap (`MAX_STORED_DIAGNOSTICS_PER_FILE`, clients/widget-state.ts). */
 export const MAX_DIAGNOSTICS_PER_FILE_EVENT = 12;
-let busEmit;
+const liveEmitter = createLiveBusEmitter();
 let hasLoggedFailure = false;
 let hasLoggedUnwired = false;
 let hasLoggedDisabled = false;
@@ -79,11 +80,14 @@ const reportedDirtyPaths = new Set();
  * producers share the identical `pi.events.emit` binding.
  */
 export function wireDiagnosticsBusEmitter(emitFn) {
-    busEmit = emitFn;
+    liveEmitter.wire(emitFn);
+}
+export function wireDiagnosticsBusEmitterGetter(getter) {
+    liveEmitter.wireGetter(getter);
 }
 /** Test-only: reset module state between test files. */
 export function _resetDiagnosticsPublishForTests() {
-    busEmit = undefined;
+    liveEmitter.reset();
     hasLoggedFailure = false;
     hasLoggedUnwired = false;
     hasLoggedDisabled = false;
@@ -145,7 +149,13 @@ export function publishDiagnostics(args) {
         }
         return;
     }
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_DIAGNOSTICS_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedUnwired) {
             hasLoggedUnwired = true;
             logBusEvent({
@@ -156,6 +166,7 @@ export function publishDiagnostics(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const fileEntries = args.files.map((f) => {
             const normPath = normalizeFilePath(f.path);
@@ -184,6 +195,7 @@ export function publishDiagnostics(args) {
             files: fileEntries,
         };
         busEmit(BUS_DIAGNOSTICS_EVENT, payload);
+        hasLoggedFailure = false;
         logBusEvent({
             event: BUS_DIAGNOSTICS_EVENT,
             outcome: "emitted",
@@ -198,9 +210,11 @@ export function publishDiagnostics(args) {
             outcome: "emit_failed",
             cwd: normalizeFilePath(args.cwd),
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedFailure) {
             hasLoggedFailure = true;
+            recordStaleBusFailure(BUS_DIAGNOSTICS_EVENT, err);
             args.dbg?.(`diagnostics-publish: pilens:diagnostics emit failed (further failures suppressed): ${err}`);
         }
     }

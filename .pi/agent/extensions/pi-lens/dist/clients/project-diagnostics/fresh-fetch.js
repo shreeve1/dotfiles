@@ -383,7 +383,7 @@ export async function fetchFreshProjectDiagnostics(cacheManager, cwd, clients, s
                 cold.push("test-runner");
                 return;
             }
-            record("test-runner", testRunnerFindingsToProjectDiagnostics(cached.data), Date.now() - startMs);
+            record("test-runner", testRunnerFindingsToProjectDiagnostics(cached.data, analysisRoot, options.runtime), Date.now() - startMs);
         }),
     ];
     // Swallow any later rejection so an aborted-and-abandoned task can never

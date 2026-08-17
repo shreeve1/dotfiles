@@ -6,13 +6,14 @@
  * - Auto-installation strategies
  * - Platform-specific handling
  */
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { access, readFile, readdir, stat, } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { getGlobalPiLensDir } from "../file-utils.js";
+import { getGlobalPiLensDir, getProjectIgnoreGlobs, isPathIgnoredByProject, } from "../file-utils.js";
+import { STAGE_TMP_PATTERN } from "../atomic-write-staging.js";
 import { DOTNET_CSHARP_ROOT_MARKERS, DOTNET_FSHARP_ROOT_MARKERS, KIND_EXTENSIONS, } from "../file-kinds.js";
-import { direntsHaveMarkerGlobMatch, isAtOrAboveHomeDir, } from "../path-utils.js";
+import { direntsHaveMarkerGlobMatch, isAtOrAboveHomeDir, isFullyQualified, isWindowsPath, } from "../path-utils.js";
 import { ensureTool, getToolEnvironment, getToolPath, } from "../installer/index.js";
 import { resolveOpengrepConfig } from "../opengrep-config.js";
 import { isZizmorAuditTarget, resolveZizmorGitHubToken } from "../zizmor-config.js";
@@ -22,40 +23,203 @@ import { findLocalSgconfig, resolveBaselineSgconfig } from "../sgconfig.js";
 import { findLocalTyposConfig } from "../typos-config.js";
 import { resolvePackagePath } from "../package-root.js";
 import { resolveAstGrepNativeExe } from "./wait-policy/index.js";
-import { isCommandAvailableAsync, safeSpawnAsync } from "../safe-spawn.js";
+import { hasSpawnFailureKind, isCommandAvailableAsync, safeSpawnAsync, } from "../safe-spawn.js";
 import { launchLSP } from "./launch.js";
 import { createLombokJdtlsArgs } from "./lombok.js";
 import { resolveJavaRuntimeEnv } from "./jvm-runtime.js";
 import { normalizeMapKey } from "./path-utils.js";
+import { getRubyVersionDirNamesSync } from "./ruby-drive-dirs.js";
+const FIXTURE_ROOT_SEGMENTS = new Set(["__fixtures__", "testdata"]);
+const FALLBACK_PROJECT_MARKERS = [
+    ".git",
+    "package.json",
+    "go.work",
+    "go.mod",
+    "Cargo.toml",
+    "pyproject.toml",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "mix.exs",
+    "pubspec.yaml",
+    "Package.swift",
+];
+/**
+ * Markers that make a nested root an independently hosted project rather than
+ * a config-only directory that should share an ancestor's LSP client.
+ */
+const PROJECT_BOUNDARY_MARKERS = [
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "bun.lock",
+    "bun.lockb",
+    "go.work",
+    "go.mod",
+    "Cargo.toml",
+    "Cargo.lock",
+    "pyproject.toml",
+    "uv.lock",
+    "poetry.lock",
+    "Pipfile",
+    "Pipfile.lock",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "mix.exs",
+    "pubspec.yaml",
+    "Package.swift",
+];
+// This is process-global state, so each candidate pair is logged once per
+// process (not once per session). Keep the root-boundary marker below aligned
+// with FALLBACK_PROJECT_MARKERS, the shared fallback root-policy marker set.
+const loggedRootCeilingClamps = new Set();
+function isSameOrWithin(ancestor, candidate) {
+    const windowsShaped = isWindowsPath(ancestor) || isWindowsPath(candidate);
+    const pathApi = windowsShaped ? path.win32 : path;
+    const relative = pathApi.relative(pathApi.resolve(ancestor), pathApi.resolve(candidate));
+    return (relative === "" ||
+        (!relative.startsWith("..") && !pathApi.isAbsolute(relative)));
+}
+/** Enforce the session cwd as the hard boundary for LSP client root selection. */
+export function enforceLspRootCeiling(root, sessionCwd, filePath) {
+    const windowsShaped = isWindowsPath(root) || isWindowsPath(sessionCwd);
+    const pathApi = windowsShaped ? path.win32 : path;
+    const resolvedRoot = pathApi.resolve(root);
+    const resolvedCwd = pathApi.resolve(sessionCwd);
+    // Callers may explicitly inspect an out-of-session file (notably isolated
+    // tests and API consumers). The cwd ceiling governs roots for files that are
+    // actually inside the declared session project.
+    if (filePath && !isSameOrWithin(resolvedCwd, pathApi.resolve(filePath))) {
+        return resolvedRoot;
+    }
+    if (isSameOrWithin(resolvedCwd, resolvedRoot))
+        return resolvedRoot;
+    const logKey = `${normalizeMapKey(resolvedCwd)}:${normalizeMapKey(resolvedRoot)}`;
+    if (!loggedRootCeilingClamps.has(logKey)) {
+        loggedRootCeilingClamps.add(logKey);
+        logSessionStart(`lsp root clamped to session cwd: candidate=${resolvedRoot} cwd=${resolvedCwd}`);
+    }
+    return resolvedCwd;
+}
+export async function hasProjectBoundaryMarker(dir) {
+    // A nested Git checkout is an independently hosted project even when it has
+    // no language manifest. Keep this directory boundary aligned with the shared
+    // FALLBACK_PROJECT_MARKERS policy used by nearestNonExcludedFallbackRoot.
+    if (await markerExists(dir, ".git"))
+        return true;
+    for (const marker of PROJECT_BOUNDARY_MARKERS) {
+        if (await markerExists(dir, marker))
+            return true;
+    }
+    return false;
+}
+function pathSegments(dir) {
+    const parsed = path.parse(path.resolve(dir));
+    return path
+        .relative(parsed.root, path.resolve(dir))
+        .split(path.sep)
+        .filter(Boolean)
+        .map((segment) => segment.toLowerCase());
+}
+function hasFixtureConvention(dir) {
+    const segments = pathSegments(dir);
+    // Go treats any directory named testdata as fixture data by convention. The
+    // exclusion is intentionally ancestor-wide so nested fixture projects cannot
+    // become independent LSP roots, but the segment match itself stays exact.
+    if (segments.some((segment) => FIXTURE_ROOT_SEGMENTS.has(segment)))
+        return true;
+    return segments.some((segment, index) => segment === "tests" && segments[index + 1] === "fixtures");
+}
+function hasAtomicStageSegment(dir) {
+    return pathSegments(dir).some((segment) => STAGE_TMP_PATTERN.test(segment));
+}
+async function findGitBoundary(dir) {
+    let current = path.resolve(dir);
+    const fsRoot = path.parse(current).root;
+    while (true) {
+        if (await markerExists(current, ".git"))
+            return current;
+        if (current === fsRoot)
+            return undefined;
+        current = path.dirname(current);
+    }
+}
+async function isExcludedLspRoot(dir) {
+    const candidate = path.resolve(dir);
+    if (hasFixtureConvention(candidate) || hasAtomicStageSegment(candidate))
+        return true;
+    const gitRoot = await findGitBoundary(candidate);
+    if (!gitRoot || gitRoot === candidate)
+        return false;
+    // Avoid constructing the matcher when the project has no positive ignore rules.
+    // The matcher remains authoritative (including anchored rules and directory form).
+    if (getProjectIgnoreGlobs(gitRoot).length === 0)
+        return false;
+    return isPathIgnoredByProject(candidate, gitRoot, true);
+}
+async function nearestNonExcludedFallbackRoot(candidate) {
+    if (!(await isExcludedLspRoot(candidate)))
+        return path.resolve(candidate);
+    let current = path.dirname(path.resolve(candidate));
+    const fsRoot = path.parse(current).root;
+    let nearestAllowed;
+    while (true) {
+        if (!(await isExcludedLspRoot(current))) {
+            nearestAllowed ??= current;
+            for (const marker of FALLBACK_PROJECT_MARKERS) {
+                if (await markerExists(current, marker))
+                    return current;
+            }
+        }
+        if (current === fsRoot)
+            break;
+        current = path.dirname(current);
+    }
+    // No project marker was available. Keep the file attached to a stable,
+    // non-excluded ancestor rather than minting a client inside the fixture/stage.
+    return nearestAllowed ?? fsRoot;
+}
 function isLspInstallDisabled() {
     return process.env.PI_LENS_DISABLE_LSP_INSTALL === "1";
 }
 function canInstall(allowInstall) {
     return allowInstall !== false && !isLspInstallDisabled();
 }
-function isCommandNotFoundError(error) {
-    const msg = String(error);
-    return (msg.includes("not found") ||
-        msg.includes("ENOENT") ||
-        msg.includes("not recognized"));
-}
 const DIRECT_LSP_NEGATIVE_TTL_MS = Math.max(30_000, Number.parseInt(process.env.PI_LENS_DIRECT_LSP_NEGATIVE_TTL_MS ?? "600000", 10) || 600_000);
 const directLspCommandUnavailableUntil = new Map();
 const directLspCommandSkipLoggedUntil = new Map();
+function pruneExpiredDirectLspNegativeEntries(now = Date.now()) {
+    for (const [command, until] of directLspCommandUnavailableUntil) {
+        if (until <= now) {
+            directLspCommandUnavailableUntil.delete(command);
+            directLspCommandSkipLoggedUntil.delete(command);
+        }
+    }
+    for (const [command, until] of directLspCommandSkipLoggedUntil) {
+        if (until <= now)
+            directLspCommandSkipLoggedUntil.delete(command);
+    }
+}
 function isSimpleCommand(command) {
-    return (!path.isAbsolute(command) &&
+    return (!isFullyQualified(command) &&
         !command.includes("/") &&
         !command.includes("\\"));
 }
 export function isDirectLspCommandTemporarilyUnavailable(command) {
+    const now = Date.now();
+    pruneExpiredDirectLspNegativeEntries(now);
     const until = directLspCommandUnavailableUntil.get(command);
-    if (!until || until <= Date.now()) {
+    if (!until || until <= now) {
         directLspCommandUnavailableUntil.delete(command);
         return false;
     }
     const loggedUntil = directLspCommandSkipLoggedUntil.get(command) ?? 0;
-    if (loggedUntil <= Date.now()) {
-        logSessionStart(`lsp direct command ${command}: skipped by negative availability cache (${Math.max(0, until - Date.now())}ms remaining)`);
+    if (loggedUntil <= now) {
+        logSessionStart(`lsp direct command ${command}: skipped by negative availability cache (${Math.max(0, until - now)}ms remaining)`);
         directLspCommandSkipLoggedUntil.set(command, until);
     }
     return true;
@@ -74,7 +238,7 @@ export async function resolveAndLaunch(spec, allowInstall) {
     let lastRuntimeFailure;
     const trackRuntimeFailure = (err) => {
         const message = err instanceof Error ? err.message : String(err);
-        if (!isCommandNotFoundError(message)) {
+        if (!hasSpawnFailureKind(err, "tool-not-found")) {
             lastRuntimeFailure = err instanceof Error ? err : new Error(message);
         }
     };
@@ -145,6 +309,12 @@ export async function resolveAndLaunch(spec, allowInstall) {
         logSessionStart(`lsp launch candidate failed tool=${toolLabel} idx=${failure.index} command=${failure.command} error=${failure.message}`);
         trackRuntimeFailure(failure.err);
     }
+    const hasOnlyRepairableCandidateFailures = candidateFailures.every((failure) => hasSpawnFailureKind(failure.err, "tool-not-found"));
+    if (!hasOnlyRepairableCandidateFailures) {
+        if (lastRuntimeFailure)
+            throw lastRuntimeFailure;
+        return undefined;
+    }
     if (!canInstall(allowInstall)) {
         logSessionStart(`lsp launch install blocked tool=${toolLabel} cwd=${spec.cwd} allowInstall=${allowInstall !== false} globalDisabled=${isLspInstallDisabled()}`);
         logLatency({
@@ -214,7 +384,7 @@ export async function resolveAndLaunch(spec, allowInstall) {
                 // fails to launch (e.g. broken symlink, missing .dll), nuke the
                 // caches and download a managed copy from the registry.
                 const looksPathResolved = !installed.includes("/") && !installed.includes("\\");
-                if (looksPathResolved) {
+                if (looksPathResolved && hasSpawnFailureKind(err, "tool-not-found")) {
                     logSessionStart(`lsp launch managed retry force-reinstall tool=${spec.managedToolId}`);
                     const reinstalled = await ensureTool(spec.managedToolId, {
                         forceReinstall: true,
@@ -415,19 +585,13 @@ function rubyBinCandidates(baseName) {
     candidates.push(path.join(home, ".asdf", "installs", "ruby", "bin", `${baseName}${ext}`));
     if (isWin) {
         // Ruby installer drops versioned dirs on C: by convention, but the drive
-        // and version suffix vary — scan what's actually present instead of hardcoding
+        // and version suffix vary — scan what's actually present instead of
+        // hardcoding. Memoized once per process (#1137): a synchronous drive-root
+        // enumeration per LSP spawn was an event-loop offender.
         const driveRoot = path.parse(home).root; // e.g. "C:\"
-        try {
-            const entries = readdirSync(driveRoot);
-            for (const entry of entries) {
-                if (/^ruby\d/i.test(entry)) {
-                    candidates.push(path.join(driveRoot, entry, "bin", `${baseName}.bat`));
-                    candidates.push(path.join(driveRoot, entry, "bin", baseName));
-                }
-            }
-        }
-        catch {
-            // drive root not readable — skip
+        for (const entry of getRubyVersionDirNamesSync(driveRoot)) {
+            candidates.push(path.join(driveRoot, entry, "bin", `${baseName}.bat`));
+            candidates.push(path.join(driveRoot, entry, "bin", baseName));
         }
     }
     return candidates;
@@ -465,7 +629,7 @@ function createInteractiveServer(spec) {
                 return { process: proc, source: "direct", initialization };
             }
             catch (err) {
-                if (isCommandNotFoundError(err)) {
+                if (hasSpawnFailureKind(err, "tool-not-found")) {
                     markDirectLspCommandUnavailable(command);
                 }
                 return undefined;
@@ -484,7 +648,10 @@ export function PriorityRoot(markerGroups, excludePatterns, stopDir) {
         return undefined;
     };
 }
-export const FileDirRoot = async (file) => path.resolve(path.dirname(file));
+export const FileDirRoot = async (file) => {
+    const candidate = path.resolve(path.dirname(file));
+    return nearestNonExcludedFallbackRoot(candidate);
+};
 export function RootWithFallback(primary, fallback = FileDirRoot) {
     return async (file) => {
         const primaryRoot = await primary(file);
@@ -555,6 +722,12 @@ export function NearestRoot(includePatterns, excludePatterns, stopDir) {
     // different servers (e.g. TypeScript vs Go) with different marker sets never
     // share entries. vi.resetModules() in tests resets module state between cases.
     const cache = new Map();
+    // Only cache successful hits. Undefined results are NOT cached so that a
+    // newly-created root marker (e.g. package.json or tsconfig.json scaffolded
+    // mid-session by the agent) is detected on the next call — the absent →
+    // present transition must work without a process restart. The uncached
+    // re-walk cost for configless repos is a known trade-off; bounding the
+    // walk with stopDir for in-cwd files is the tracked optimization (#1412).
     const inFlight = new Map();
     return async (file) => {
         // Cache key is the resolved directory — all files in the same dir share a root.
@@ -597,8 +770,10 @@ export function NearestRoot(includePatterns, excludePatterns, stopDir) {
                 // Check include patterns. Exact marker names stay cheap (`stat`), while
                 // glob markers like `*.csproj` match real project filenames (#201).
                 for (const pattern of includePatterns) {
-                    if (await markerExists(currentDir, pattern))
-                        return currentDir;
+                    if ((await markerExists(currentDir, pattern)) &&
+                        !(await isExcludedLspRoot(currentDir))) {
+                        return enforceLspRootCeiling(currentDir, process.cwd(), file);
+                    }
                 }
                 if (currentDir === stop || currentDir === fsRoot) {
                     break;
@@ -610,9 +785,6 @@ export function NearestRoot(includePatterns, excludePatterns, stopDir) {
         inFlight.set(dirKey, promise);
         try {
             const result = await promise;
-            // Only cache successful hits. Undefined results are not cached so that
-            // a newly-created root marker (e.g. package.json added mid-session) is
-            // detected on the next call.
             if (result !== undefined)
                 cache.set(dirKey, result);
             return result;
@@ -665,44 +837,173 @@ export async function tryDotnetToolInstall(tool) {
     return !updateResult.error && updateResult.status === 0;
 }
 /**
- * Locate tsserver.js — tries local project, then pi-lens managed TypeScript.
- * Returns the path to tsserver.js, or undefined if not found.
+ * #1412 M1: walk up from `startDir` (inclusive) looking for a file at
+ * `startDir/<relativeSegments>`, `dirname(startDir)/<relativeSegments>`, and so
+ * on — the same ancestor walk `findNativeTypeScriptLsp` uses, bounded the same
+ * way (`isAtOrAboveHomeDir`). A nested config root (e.g. a `cypress/tsconfig.json`
+ * LSP root inside a repo whose `node_modules` only exists at the repo root) must
+ * still resolve tooling installed at an ancestor, not just directly under the
+ * LSP root — mirrors how node module resolution itself walks up.
+ */
+async function findAncestorFile(startDir, ...relativeSegments) {
+    return findAncestorFileAmong(startDir, [relativeSegments]);
+}
+/**
+ * Same ancestor walk as `findAncestorFile`, but checks every candidate
+ * relative-path in `candidateSegmentLists` AT EACH LEVEL before moving up —
+ * so the nearest ancestor wins regardless of which candidate name matched
+ * there, matching normal node_modules resolution priority (nearest install
+ * shadows a further one, never the reverse).
+ */
+async function findAncestorFileAmong(startDir, candidateSegmentLists) {
+    const fs = await import("node:fs/promises");
+    let currentDir = path.resolve(startDir);
+    while (!isAtOrAboveHomeDir(currentDir)) {
+        for (const segments of candidateSegmentLists) {
+            const candidate = path.join(currentDir, ...segments);
+            try {
+                await fs.access(candidate);
+                return candidate;
+            }
+            catch {
+                /* not found at this level */
+            }
+        }
+        const parent = path.dirname(currentDir);
+        if (parent === currentDir)
+            break;
+        currentDir = parent;
+    }
+    return undefined;
+}
+/**
+ * A failed classic-compiler repair must not repeat. `ensureTool` caches
+ * successful installs, so a repair that works short-circuits later calls on
+ * its own. A repair that fails leaves nothing behind, and `findTsserverPath`
+ * has three call sites (TypeScript, Vue, Svelte). Without this guard an
+ * offline or partial install re-runs a 120 s forced reinstall on every spawn.
+ */
+let classicTsRepairAttempted = false;
+/** Test hook — clears the per-process classic-repair guard. */
+export function _resetClassicTsRepairForTests() {
+    classicTsRepairAttempted = false;
+}
+/**
+ * Directories that may hold the TypeScript package next to a resolved `tsc`
+ * binary: `<bin>/../typescript` (npm-global layout) and
+ * `<bin>/../../typescript` (managed `node_modules/.bin` layout).
+ */
+function typescriptDirsForTsc(tscPath) {
+    const binDir = path.dirname(tscPath);
+    return [
+        path.join(binDir, "..", "typescript"),
+        path.join(binDir, "..", "..", "typescript"),
+    ];
+}
+/**
+ * Read the major version of the TypeScript package that backs a resolved
+ * `tsc` binary. Returns undefined when the version is unknowable: `ensureTool`
+ * returns the bare string `"tsc"` for a PATH hit, and `path.dirname("tsc")` is
+ * `"."`, so the candidates would go cwd-relative. Callers must not repair on
+ * an unknown version — a healthy global TypeScript 5.x would be reinstalled
+ * for nothing.
+ */
+async function typescriptVersionForTsc(tscPath) {
+    if (!path.isAbsolute(tscPath))
+        return undefined;
+    for (const dir of typescriptDirsForTsc(tscPath)) {
+        let manifest;
+        try {
+            manifest = await readFile(path.join(dir, "package.json"), "utf8");
+        }
+        catch {
+            continue;
+        }
+        let version;
+        try {
+            const parsed = JSON.parse(manifest);
+            if (typeof parsed !== "object" ||
+                parsed === null ||
+                !("version" in parsed) ||
+                typeof parsed.version !== "string") {
+                return undefined;
+            }
+            version = parsed.version;
+        }
+        catch {
+            return undefined;
+        }
+        const majorText = version.split(".", 1)[0] ?? "";
+        const major = /^\d+$/.test(majorText) ? Number(majorText) : Number.NaN;
+        if (!Number.isFinite(major))
+            return undefined;
+        return { version, major };
+    }
+    return undefined;
+}
+/**
+ * Locate tsserver.js — tries local project (walking up from root, #1412 M1),
+ * then process.cwd() as a last-resort fallback, then pi-lens managed
+ * TypeScript. Returns the path to tsserver.js, or undefined if not found.
  */
 async function findTsserverPath(root, allowInstall) {
     const fs = await import("node:fs/promises");
-    const candidates = [
-        path.join(root, "node_modules", "typescript", "lib", "tsserver.js"),
-        path.join(process.cwd(), "node_modules", "typescript", "lib", "tsserver.js"),
-    ];
-    for (const p of candidates) {
-        try {
-            await fs.access(p);
-            return p;
-        }
-        catch {
-            /* not found */
-        }
+    const ancestorHit = await findAncestorFile(root, "node_modules", "typescript", "lib", "tsserver.js");
+    if (ancestorHit)
+        return ancestorHit;
+    const cwdCandidate = path.join(process.cwd(), "node_modules", "typescript", "lib", "tsserver.js");
+    try {
+        await fs.access(cwdCandidate);
+        return cwdCandidate;
     }
-    // Discover the typescript install (PATH / npm-global) even when install is
-    // disabled; only the download is gated by allowInstall.
-    const tscPath = await ensureTool("typescript", {
-        allowInstall: canInstall(allowInstall),
-    });
-    if (tscPath) {
-        for (const p of [
-            path.join(path.dirname(tscPath), "..", "typescript", "lib", "tsserver.js"),
-            path.join(path.dirname(tscPath), "..", "..", "typescript", "lib", "tsserver.js"),
-        ]) {
+    catch {
+        /* not found */
+    }
+    const tsserverForTsc = async (tscPath) => {
+        if (!tscPath)
+            return undefined;
+        for (const dir of typescriptDirsForTsc(tscPath)) {
+            const candidate = path.join(dir, "lib", "tsserver.js");
             try {
-                await fs.access(p);
-                return p;
+                await fs.access(candidate);
+                return candidate;
             }
             catch {
                 /* not found */
             }
         }
+        return undefined;
+    };
+    // Discover the TypeScript install (PATH / npm-global) even when installation
+    // is disabled; only the download is gated by allowInstall.
+    const installAllowed = canInstall(allowInstall);
+    const discoveredTsc = await ensureTool("typescript", {
+        allowInstall: installAllowed,
+    });
+    const discoveredTsserver = await tsserverForTsc(discoveredTsc);
+    if (discoveredTsserver ||
+        !discoveredTsc ||
+        !installAllowed ||
+        classicTsRepairAttempted) {
+        return discoveredTsserver;
     }
-    return undefined;
+    // Repair only a compiler we can prove is TypeScript 7+. TypeScript 7 dropped
+    // lib/tsserver.js, so the classic wrapper cannot start against it. Any other
+    // version — or a version we cannot read, such as a bare PATH `tsc` — is left
+    // alone rather than force-reinstalled.
+    const discoveredVersion = await typescriptVersionForTsc(discoveredTsc);
+    if (!discoveredVersion || discoveredVersion.major < 7)
+        return undefined;
+    // An older managed tree took `latest` before the registry pinned the classic
+    // compiler. Reinstall the pinned version once so that tree self-heals,
+    // without deleting user or project-local TypeScript installations.
+    classicTsRepairAttempted = true;
+    logSessionStart(`lsp typescript: managed compiler resolved to TypeScript ${discoveredVersion.version}, which ships no tsserver.js; reinstalling pinned classic fallback`);
+    const repairedTsc = await ensureTool("typescript", {
+        allowInstall: true,
+        forceReinstall: true,
+    });
+    return tsserverForTsc(repairedTsc);
 }
 /**
  * TypeScript 7+ ships the native typescript-go language server through the
@@ -882,10 +1183,17 @@ export async function detectPythonVenv(root) {
 }
 // --- Server Definitions ---
 const JS_TS_LSP_EXTENSIONS = KIND_EXTENSIONS["jsts"].filter((ext) => ext !== ".svelte" && ext !== ".vue");
-// Marker set used for both the unbounded TypeScriptProjectRoot walk and the
-// extension-bounded walk below. Kept in one place so both code paths look
-// for the same project signals.
-const TS_PROJECT_MARKERS = [
+// TypeScript identity and tooling discovery deliberately use separate marker
+// families. A governing config wins even when a package directory supplies
+// hoisted binaries. Keep configs out of PROJECT_BOUNDARY_MARKERS: #1373 still
+// coalesces a config-only nested root when an ancestor client was hosted first
+// (nested-config-first remains intentionally open-order-sensitive). #1412
+// accepted risk (M2, not fixed here): honoring nested config roots at all
+// enlarges the population of directories that can independently coalesce or
+// diverge under #1373's open-order sensitivity — the same pre-existing
+// blast-radius, just triggered by more roots than before.
+const TS_CONFIG_MARKERS = ["tsconfig.json", "jsconfig.json"];
+const TS_TOOLING_MARKERS = [
     "package-lock.json",
     "bun.lockb",
     "bun.lock",
@@ -893,21 +1201,71 @@ const TS_PROJECT_MARKERS = [
     "yarn.lock",
     "package.json",
 ];
-const TypeScriptProjectRoot = IgnoreHomeRoot(createRootDetector([...TS_PROJECT_MARKERS]));
+// #1412 M3: tsserver associates jsconfig.json with JS files only (its identity
+// probe reports a jsconfig-governed .ts file as unassociated) — so a TS-family
+// file under a jsconfig-only directory must NOT root there; keep walking up
+// for a real tsconfig.json. A JS-family file accepts either: tsconfig also
+// governs plain JS via `allowJs`, so accepting tsconfig for a .js file is
+// correct, and jsconfig obviously is too.
+const TS_FAMILY_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+function isTsFamilyFile(file) {
+    return TS_FAMILY_EXTENSIONS.has(path.extname(file).toLowerCase());
+}
+function tsConfigMarkersForFile(file) {
+    return isTsFamilyFile(file) ? ["tsconfig.json"] : TS_CONFIG_MARKERS;
+}
+// Two detector instances (not one parameterized by file) so each keeps its own
+// per-directory NearestRoot cache valid for its fixed marker set — a shared
+// cache keyed only by directory would conflate the TS-only and either-config
+// answers for the same directory.
+const TypeScriptConfigRootTsOnly = IgnoreHomeRoot(createRootDetector(["tsconfig.json"]));
+const TypeScriptConfigRootEither = IgnoreHomeRoot(createRootDetector([...TS_CONFIG_MARKERS]));
+const TypeScriptToolingRoot = IgnoreHomeRoot(createRootDetector([...TS_TOOLING_MARKERS]));
+async function findTypeScriptProjectRoot(file) {
+    const configDetector = isTsFamilyFile(file)
+        ? TypeScriptConfigRootTsOnly
+        : TypeScriptConfigRootEither;
+    const [configRoot, toolingRoot] = await Promise.all([
+        configDetector(file),
+        TypeScriptToolingRoot(file),
+    ]);
+    if (!configRoot)
+        return toolingRoot;
+    if (!toolingRoot)
+        return configRoot;
+    // A config inside (or beside) the nearest package governs its files. A
+    // config above a nearer package must not erase that topology boundary.
+    return isSameOrWithin(toolingRoot, configRoot) ? configRoot : toolingRoot;
+}
 /**
- * Walk up from the file's directory looking for a TypeScript project marker,
- * but stop at `extensionRootKey` so we never escape the .pi/agent/extensions
- * boundary into a higher-up project (e.g. ~/.pi/agent/package.json which
- * would pull every extension in the directory into one LSP workspace).
+ * Walk up from the file's directory looking for a TypeScript project marker
+ * (a governing config first, per-directory, per #1412 M3's extension-family
+ * filter; else a tooling/lockfile marker), but stop at `extensionRootKey` so
+ * we never escape the .pi/agent/extensions boundary into a higher-up project
+ * (e.g. ~/.pi/agent/package.json which would pull every extension in the
+ * directory into one LSP workspace).
  *
- * Returns the nearest directory containing a marker, or undefined if none
- * is found between the file and the extensions root inclusive.
+ * #1412 L4: each directory returns immediately on its first match (config or
+ * tooling) — there is no cross-level "nearest tooling root" to carry forward,
+ * since a match always wins on the spot. Returns the nearest directory
+ * containing a marker, or undefined if none is found between the file and the
+ * extensions root inclusive.
  */
 async function findExtensionBoundedRoot(file, extensionRootKey) {
     const startDir = path.resolve(path.dirname(file));
     let currentDir = startDir;
+    const configMarkers = tsConfigMarkersForFile(file);
     while (true) {
-        for (const pattern of TS_PROJECT_MARKERS) {
+        for (const pattern of configMarkers) {
+            try {
+                await stat(path.join(currentDir, pattern));
+                return currentDir;
+            }
+            catch {
+                /* not found, try next marker */
+            }
+        }
+        for (const pattern of TS_TOOLING_MARKERS) {
             try {
                 await stat(path.join(currentDir, pattern));
                 return currentDir;
@@ -938,7 +1296,7 @@ async function hasAgentLevelProjectMarker(extensionRootKey) {
     const agentDir = path.dirname(extensionRootKey);
     if (!agentDir || agentDir === extensionRootKey)
         return false;
-    for (const pattern of TS_PROJECT_MARKERS) {
+    for (const pattern of [...TS_CONFIG_MARKERS, ...TS_TOOLING_MARKERS]) {
         try {
             await stat(path.join(agentDir, pattern));
             return true;
@@ -969,7 +1327,7 @@ const TypeScriptRoot = DenoExcludeRoot(async (file) => {
         // analyze a lone .ts file with no package.json above or below).
         return undefined;
     }
-    const projectRoot = await TypeScriptProjectRoot(file);
+    const projectRoot = await findTypeScriptProjectRoot(file);
     if (projectRoot)
         return projectRoot;
     return FileDirRoot(file);
@@ -995,20 +1353,13 @@ export const TypeScriptServer = {
         let source = "direct";
         // TypeScript <=6 uses typescript-language-server + tsserver.js. Prefer a
         // project-local wrapper, then fall back to discovered/managed tooling.
-        let lspPath;
-        const localLsp = path.join(root, "node_modules", ".bin", "typescript-language-server");
-        const localLspCmd = path.join(root, "node_modules", ".bin", "typescript-language-server.cmd");
-        // Check for local version first (Windows .cmd first, then Unix)
-        for (const checkPath of [localLspCmd, localLsp]) {
-            try {
-                await fs.access(checkPath);
-                lspPath = checkPath;
-                break;
-            }
-            catch {
-                /* not found */
-            }
-        }
+        // #1412 M1: walk up from root (Windows .cmd first, then Unix at each
+        // level) — a nested config root's node_modules/.bin lives at an ancestor,
+        // not necessarily directly under the LSP root.
+        let lspPath = await findAncestorFileAmong(root, [
+            ["node_modules", ".bin", "typescript-language-server.cmd"],
+            ["node_modules", ".bin", "typescript-language-server"],
+        ]);
         // Fall back to a discovered or managed install. ensureTool() runs PATH /
         // npm-global discovery even when install is disabled (only the download is
         // gated by canInstall), so a globally-installed typescript-language-server

@@ -156,6 +156,22 @@ export const LENS_FLAGS = [
         default: false,
         scope: "global",
     },
+    {
+        name: "lens-compact-tool-line",
+        description: "Opt-in (#1327): collapse a pi-lens tool's call+result rows into ONE theme-aware line (status glyph + name + summary) instead of two. Preserves expand-to-view-full-output. Default off. Also via ui.compactToolLine=true in ~/.pi-lens/config.json.",
+        configKey: "ui.compactToolLine",
+        negated: false,
+        default: false,
+        scope: "global",
+    },
+    {
+        name: "no-lazy-tools",
+        description: "Keep all pi-lens tools active to avoid tool-list cache changes. Also via tools.lazy=false in ~/.pi-lens/config.json.",
+        configKey: "tools.lazy",
+        negated: true,
+        default: false,
+        scope: "global",
+    },
 ];
 const byName = new Map(LENS_FLAGS.map((spec) => [spec.name, spec]));
 export function getLensFlagSpec(name) {

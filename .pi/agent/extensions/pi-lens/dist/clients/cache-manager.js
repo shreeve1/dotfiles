@@ -8,9 +8,11 @@
  *
  * All paths are relative to project root (process.cwd()).
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectDataDir } from "./file-utils.js";
+import { writeFileAtomic } from "./atomic-write.js";
 import { readJsonCache } from "./json-cache-read.js";
 import { normalizeMapKey } from "./path-utils.js";
 // --- Defaults ---
@@ -21,6 +23,8 @@ const DEFAULT_TURN_STATE = {
     maxCycles: 3,
     lastUpdated: "",
 };
+export const MCP_TURN_STATE_OWNER_ID = `mcp-${process.pid}`;
+const TURN_OWNER_STALE_MS = 30 * 60 * 1000;
 // --- Helpers ---
 function getLensDir(cwd) {
     return getProjectDataDir(cwd);
@@ -36,7 +40,7 @@ export class CacheManager {
     log;
     constructor(verbose = false) {
         this.log = verbose
-            ? (msg) => console.error(`[cache] ${msg}`)
+            ? createSubsystemLogger("cache")
             : () => { };
     }
     /**
@@ -107,9 +111,44 @@ export class CacheManager {
             timestamp: new Date().toISOString(),
             ...extraMeta,
         };
-        fs.writeFileSync(cachePath, JSON.stringify(data, null, 2));
-        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+        writeFileAtomic(cachePath, JSON.stringify(data, null, 2), {
+            bestEffort: false,
+        });
+        writeFileAtomic(metaPath, JSON.stringify(meta, null, 2), {
+            bestEffort: false,
+        });
         this.log(`Cache written: ${scanner}`);
+    }
+    /** Inspect a cache without changing the behavior of readCache consumers. */
+    inspectCache(scanner, cwd, maxAgeMs = DEFAULT_MAX_AGE_MS) {
+        const cachePath = path.join(getCacheDir(cwd), `${scanner}.json`);
+        const metaPath = path.join(getCacheDir(cwd), `${scanner}.meta.json`);
+        for (const cachePathname of [cachePath, metaPath]) {
+            try {
+                fs.statSync(cachePathname);
+            }
+            catch (err) {
+                if (err.code === "ENOENT")
+                    return "missing";
+                return "unreadable";
+            }
+        }
+        try {
+            const meta = readJsonCache(metaPath, (parsed) => parsed);
+            if (!meta || typeof meta.timestamp !== "string")
+                return "malformed";
+            const timestamp = new Date(meta.timestamp).getTime();
+            if (!Number.isFinite(timestamp))
+                return "malformed";
+            const age = Date.now() - timestamp;
+            if (age < 0 || age > maxAgeMs)
+                return age < 0 ? "malformed" : "stale";
+            const data = readJsonCache(cachePath, (parsed) => parsed);
+            return data === undefined ? "malformed" : "fresh";
+        }
+        catch {
+            return "unreadable";
+        }
     }
     /**
      * Check if a cache entry is fresh (exists and not expired).
@@ -175,16 +214,57 @@ export class CacheManager {
         fs.mkdirSync(lensDir, { recursive: true });
         const statePath = getTurnStatePath(cwd);
         state.lastUpdated = new Date().toISOString();
-        fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+        writeFileAtomic(statePath, JSON.stringify(state, null, 2));
+    }
+    /** Return whether a writer may read/write this workspace worklist. */
+    getTurnStateAccess(cwd, owner) {
+        const state = this.readTurnState(cwd);
+        if (!state.owner) {
+            if (!state.sessionId || state.sessionId === owner.id)
+                return "owned";
+            // Pre-owner files have no liveness information. Preserve the existing
+            // stale-session eviction behavior for this legacy shape.
+            return "available";
+        }
+        if (state.owner.kind === owner.kind &&
+            state.owner.id === owner.id) {
+            return "owned";
+        }
+        return this.isTurnStateOwnerStale(state.owner) ? "available" : "foreign-live";
+    }
+    isTurnStateOwnerStale(owner) {
+        if (owner.pid > 0 && owner.pid !== process.pid) {
+            try {
+                process.kill(owner.pid, 0);
+                return false;
+            }
+            catch {
+                return true;
+            }
+        }
+        const lastSeen = Date.parse(owner.lastSeen);
+        return !Number.isFinite(lastSeen) || Date.now() - lastSeen > TURN_OWNER_STALE_MS;
     }
     /**
      * Add or update a file's modified ranges in turn state.
-     * Merges overlapping ranges.
+     * Merges overlapping ranges. `sessionId:null` deliberately preserves the
+     * current owner; callers must provide an explicit owner id to claim a stale
+     * worklist.
      */
-    addModifiedRange(filePath, range, importsChanged, cwd, sessionId) {
+    addModifiedRange(filePath, range, importsChanged, cwd, sessionId, ownerKind = "pi") {
         const state = this.readTurnState(cwd);
-        if (sessionId)
+        if (sessionId) {
+            const owner = {
+                kind: ownerKind,
+                id: sessionId,
+                pid: process.pid,
+                lastSeen: new Date().toISOString(),
+            };
+            if (this.getTurnStateAccess(cwd, owner) === "foreign-live")
+                return state;
             state.sessionId = sessionId;
+            state.owner = owner;
+        }
         const normalizedPath = this.toTurnStateKey(filePath, cwd);
         const existing = state.files[normalizedPath];
         if (existing) {
@@ -209,19 +289,27 @@ export class CacheManager {
     /**
      * Clear turn state (after turn_end processes it).
      */
-    clearTurnState(cwd) {
+    clearTurnState(cwd, owner) {
+        const currentState = this.readTurnState(cwd);
+        const isCurrentOwner = this.getTurnStateAccess(cwd, owner) !== "foreign-live";
+        if (!isCurrentOwner && process.pid !== currentState.owner?.pid)
+            return false;
         const state = {
             ...DEFAULT_TURN_STATE,
             files: {}, // fresh object — DEFAULT_TURN_STATE.files can be polluted by addModifiedRange
             lastUpdated: new Date().toISOString(),
         };
         this.writeTurnState(state, cwd);
+        return true;
     }
     /**
      * Increment turn cycle counter.
      */
-    incrementTurnCycle(cwd) {
+    incrementTurnCycle(cwd, owner) {
         const state = this.readTurnState(cwd);
+        const isCurrentOwner = this.getTurnStateAccess(cwd, owner) !== "foreign-live";
+        if (!isCurrentOwner && process.pid !== state.owner?.pid)
+            return state;
         state.turnCycles++;
         this.writeTurnState(state, cwd);
         return state;

@@ -56,7 +56,7 @@
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { writeFileAtomic } from "./atomic-write.js";
+import { commitDurableStore } from "./durable-store.js";
 import { logDispositionEvent } from "./disposition-logger.js";
 import { publishDisposition } from "./disposition-publish.js";
 import { getProjectDataDir } from "./file-utils.js";
@@ -140,11 +140,27 @@ function statePath(cwd) {
     return path.join(getProjectDataDir(cwd), "cache", "diagnostic-dispositions.json");
 }
 let stateCache = null;
+const DISPOSITION_LOCK_WAIT_MS = 2_000;
+const DISPOSITION_LOCK_RETRY_MS = 10;
+let beforeDispositionCommitForTests = null;
+let beforeDispositionCacheRefreshForTests = null;
+let dispositionStatSync = fs.statSync;
+/** Test seam after the caller's cached read and before commit lock acquisition. */
+export function _setBeforeDispositionCommitForTests(hook) {
+    beforeDispositionCommitForTests = hook;
+}
+/** Test seam immediately before the committed state refreshes the cache. */
+export function _setBeforeDispositionCacheRefreshForTests(hook) {
+    beforeDispositionCacheRefreshForTests = hook;
+}
+export function _setDispositionStatForTests(statSync) {
+    dispositionStatSync = statSync ?? fs.statSync;
+}
 function readState(cwd) {
     const p = statePath(cwd);
     let stat;
     try {
-        stat = fs.statSync(p);
+        stat = dispositionStatSync(p);
     }
     catch {
         if (stateCache && stateCache.path === p && stateCache.missing) {
@@ -188,6 +204,17 @@ function readState(cwd) {
     };
     return state;
 }
+function deserializeState(contents) {
+    try {
+        const parsed = JSON.parse(contents ?? "");
+        return parsed && typeof parsed === "object"
+            ? parsed
+            : {};
+    }
+    catch {
+        return {};
+    }
+}
 // Atomic tmp+rename via clients/atomic-write.ts (#762; shared with
 // instance-registry.ts / recent-touches.ts / review-graph/builder.ts): a
 // cross-process reader must never observe a partially-written file —
@@ -198,10 +225,7 @@ function readState(cwd) {
 // failure still propagates (matches the pre-atomic writeFileSync's behavior,
 // which never swallowed errors either) — a disposition mark silently vanishing
 // is a correctness bug for this store, not just a lost observability sample.
-function writeState(cwd, state) {
-    const p = statePath(cwd);
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    writeFileAtomic(p, JSON.stringify(state, null, 2), { bestEffort: false });
+function refreshStateCache(p, state) {
     // Refresh the cache from the write we just did instead of invalidating it —
     // avoids an immediate re-stat+re-parse of the file we already have in hand,
     // and guards against coarse filesystem mtime granularity making a
@@ -215,6 +239,33 @@ function writeState(cwd, state) {
         state,
     };
 }
+function commitDisposition(cwd, anchor, entry) {
+    const p = statePath(cwd);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    const hook = beforeDispositionCommitForTests;
+    beforeDispositionCommitForTests = null;
+    hook?.();
+    commitDurableStore({
+        path: p,
+        deserialize: deserializeState,
+        merge: (state) => {
+            state.dispositions ??= {};
+            state.dispositions[anchor] = entry;
+            return state;
+        },
+        serialize: (state) => JSON.stringify(state, null, 2),
+        waitMs: DISPOSITION_LOCK_WAIT_MS,
+        retryMs: DISPOSITION_LOCK_RETRY_MS,
+        timeoutMessage: "timed out acquiring diagnostic disposition store lock",
+        onContention: "throw",
+        afterWriteLocked: (state) => {
+            const cacheHook = beforeDispositionCacheRefreshForTests;
+            beforeDispositionCacheRefreshForTests = null;
+            cacheHook?.();
+            refreshStateCache(p, state);
+        },
+    });
+}
 /** Test-only escape hatch — the state cache is module-level, so tests that
  * write the store file out-of-band (or across separate cwds sharing a stat
  * coincidence) need to reset it between cases. */
@@ -227,7 +278,7 @@ export function _resetStateCacheForTests() {
  * Neither can throw into the mark path; both are already internally
  * fail-safe, but the try/catch keeps a future regression in either from
  * breaking a mark. */
-function emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing) {
+function emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing, identity) {
     try {
         logDispositionEvent({
             event: "mark",
@@ -239,6 +290,8 @@ function emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing) {
             reason,
             anchor,
             previousDisposition: existing?.disposition,
+            model: identity?.model || undefined,
+            provider: identity?.provider || undefined,
         });
         publishDisposition({
             cwd,
@@ -266,7 +319,7 @@ function emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing) {
  * hang off it, so the agent tool and any future UI caller are covered without
  * per-caller wiring.
  */
-export function markDisposition(cwd, target, disposition, reason) {
+export function markDisposition(cwd, target, disposition, reason, identity) {
     const anchor = disposition === "false-positive"
         ? computeStrictAnchor(target)
         : computeWeakAnchor(target);
@@ -274,19 +327,17 @@ export function markDisposition(cwd, target, disposition, reason) {
     // entry can already exist at the same weak anchor (a prior flagged/suppress
     // mark) — the log should record what this mark shadowed either way.
     const existing = readState(cwd).dispositions?.[anchor];
-    emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing);
     if (disposition === "defer") {
         deferredThisSession.add(anchor);
+        emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing, identity);
         return anchor;
     }
-    const state = readState(cwd);
-    state.dispositions ??= {};
     const now = new Date().toISOString();
     const capturesFixContext = disposition === "flagged";
     const lineText = capturesFixContext
         ? (target.content?.split(/\r?\n/)[target.line !== undefined ? target.line - 1 : -1] ?? existing?.lineText)?.trim()
         : existing?.lineText;
-    state.dispositions[anchor] = {
+    const entry = {
         disposition,
         reason: reason ?? existing?.reason,
         createdAt: existing?.createdAt ?? now,
@@ -294,7 +345,8 @@ export function markDisposition(cwd, target, disposition, reason) {
         line: capturesFixContext ? (target.line ?? existing?.line) : existing?.line,
         lineText,
     };
-    writeState(cwd, state);
+    commitDisposition(cwd, anchor, entry);
+    emitMarkTelemetry(cwd, target, disposition, anchor, reason, existing, identity);
     return anchor;
 }
 export function getDisposition(cwd, anchor) {

@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { visibleWidth } from "./deps/pi-tui.js";
-import { normalizeEphemeralMapKey } from "./path-utils.js";
+import { normalizeEphemeralMapKey, normalizeMapKey } from "./path-utils.js";
 import { fitLine } from "./tui-fit.js";
 import { WriteOrderingGuard } from "./write-ordering-guard.js";
 /**
@@ -57,7 +57,42 @@ let requestRenderFn = null;
  * `clients/runtime-tool-result.ts:nextWriteIndex`).
  */
 const diagnosticsWriteGuard = new WriteOrderingGuard();
+/**
+ * Runner completions also mutate the shared file record: they mark the
+ * diagnostics snapshot pending. Keep that mutation in the same per-file order
+ * as the final diagnostic replacement, or an older pipeline can set a newer
+ * confirmed-clean record back to `(pending)` (#1198).
+ */
+const runnerWriteGuard = new WriteOrderingGuard();
 const MAX_STORED_DIAGNOSTICS_PER_FILE = 12;
+const MAX_INACTIVE_FILE_RECORDS = 1024;
+const ACTIVE_FILE_IDLE_MS = 30 * 60_000;
+const MAX_LSP_SERVER_RECORDS = 128;
+// Pruning is a cold-size-boundary operation. Do not walk the whole file map
+// for every record in a large diagnostics reconciliation; the full-scan path
+// can legitimately create thousands of records in one synchronous batch.
+let nextInactivePruneSize = MAX_INACTIVE_FILE_RECORDS + 1;
+function pruneInactiveFileRecords(now = Date.now()) {
+    if (files.size <= MAX_INACTIVE_FILE_RECORDS)
+        return;
+    const victims = [...files.entries()]
+        .filter(([, rec]) => now - rec.touchedAt > ACTIVE_FILE_IDLE_MS &&
+        !hasLiveDiagnostic(rec))
+        .sort(([, a], [, b]) => a.touchedAt - b.touchedAt);
+    for (const [key] of victims) {
+        if (files.size <= MAX_INACTIVE_FILE_RECORDS)
+            break;
+        files.delete(key);
+    }
+}
+function maybePruneInactiveFileRecords() {
+    if (files.size < nextInactivePruneSize)
+        return;
+    pruneInactiveFileRecords();
+    // A live-heavy map may remain above the soft bound. Do not rescan it for
+    // every subsequent file; the next lifecycle starts with a fresh state map.
+    nextInactivePruneSize = Number.POSITIVE_INFINITY;
+}
 // ── Public API ────────────────────────────────────────────────────────────────
 export function setRenderCallback(fn) {
     requestRenderFn = fn;
@@ -68,8 +103,15 @@ export function clearWidgetState() {
     sessionLanguages = [];
     requestRenderFn = null;
     diagnosticsWriteGuard.clear();
+    runnerWriteGuard.clear();
+    nextInactivePruneSize = MAX_INACTIVE_FILE_RECORDS + 1;
 }
-const WIDGET_STATE_VERSION = 1;
+// v1 → v2 (#1186): per-entry `WidgetDiagnostic.observedAt`. v2 is a SUPERSET of
+// v1 (the field is additive/optional), so `importWidgetState` accepts either and
+// migrates a v1 record by inheriting each entry's `observedAt` from the record's
+// `touchedAt`. A v1 file must never be rejected (that would silently drop resume
+// diagnostics) nor crash.
+export const WIDGET_STATE_VERSION = 2;
 /**
  * Snapshot the per-file widget diagnostics for persistence (#190). Excludes
  * `lspServers` — those are process-bound (servers re-spawn fresh on the next
@@ -96,9 +138,29 @@ export function exportWidgetState() {
  * Replaces the in-memory `files` map; ignores snapshots from a different
  * version. Triggers a re-render if a callback is registered.
  */
+/**
+ * #1186 v1→v2 migration: stamp each entry that lacks a per-entry `observedAt`
+ * with the record's `touchedAt` (the single stamp the whole record shared under
+ * v1). Non-mutating; entries that already carry a stamp (a v2 record) pass
+ * through untouched.
+ */
+function migrateEntryStamps(entries, recordTouchedAt) {
+    return (entries ?? []).map((d) => d.observedAt == null ? { ...d, observedAt: recordTouchedAt } : d);
+}
 export function importWidgetState(state) {
-    if (!state || state.version !== WIDGET_STATE_VERSION)
+    // Accept any known-or-older version and migrate (#1186): reject a missing
+    // snapshot, a missing/non-numeric `version` (NaN/undefined/null — the
+    // pre-#1186 guard `version !== WIDGET_STATE_VERSION` rejected these, and
+    // loosening that would silently admit a malformed/foreign snapshot), or a
+    // FUTURE version this build can't understand. Rejecting a v1
+    // (pre-per-entry-stamp) file, by contrast, would silently drop all resume
+    // diagnostics — so v1..current are accepted and migrated.
+    if (!state ||
+        typeof state.version !== "number" ||
+        state.version < 1 ||
+        state.version > WIDGET_STATE_VERSION) {
         return false;
+    }
     files.clear();
     // A resumed session's writeIndex counter starts fresh (#190 rehydration is
     // process-bound like lspServers, see the export above) — any ordering
@@ -106,26 +168,39 @@ export function importWidgetState(state) {
     // drop them rather than risk a legitimate post-resume write being read as
     // "superseded" against a stale token.
     diagnosticsWriteGuard.clear();
+    runnerWriteGuard.clear();
     for (const f of state.files ?? []) {
         // Fold persisted keys through the same normalizer as live writes (#1020),
         // or a persisted forward-slash key stays split from a fresh backslash key
         // across a resumed session — a primary repro condition. Keep a readable
         // display path on the record.
+        // #1186 migration: a v1 record's entries have no per-entry `observedAt`.
+        // Inherit the record's `touchedAt` (a safe, over-conservative default —
+        // the whole record shared that one stamp before), so the per-entry stale
+        // gate has a concrete observation time and never treats `undefined` as
+        // epoch-0 (which would drop every migrated entry on the first sweep).
+        const recordTouchedAt = f.touchedAt ?? Date.now();
         files.set(fileMapKey(f.filePath), {
             filePath: f.filePath,
             runners: new Map(f.runners ?? []),
-            formatters: new Map(f.formatters ?? []),
-            diagnostics: f.diagnostics ?? [],
-            allDiagnostics: f.allDiagnostics ?? [],
+            // Failure entries do NOT survive a session restore (#1348 review):
+            // a fmt-failed marker is live advice about THIS session's last
+            // attempt; rehydrating one from a snapshot shows a stale failure the
+            // current session never observed (and same-mtime fixes would never
+            // clear it). Successes rehydrate as before.
+            formatters: new Map((f.formatters ?? []).filter(([, outcome]) => outcome?.success !== false)),
+            diagnostics: migrateEntryStamps(f.diagnostics, recordTouchedAt),
+            allDiagnostics: migrateEntryStamps(f.allDiagnostics, recordTouchedAt),
             diagnosticCounts: f.diagnosticCounts ?? {
                 blocking: 0,
                 errors: 0,
                 warnings: 0,
             },
             hasFinalDiagnosticsSnapshot: f.hasFinalDiagnosticsSnapshot ?? false,
-            touchedAt: f.touchedAt ?? Date.now(),
+            touchedAt: recordTouchedAt,
         });
     }
+    pruneInactiveFileRecords();
     sessionLanguages = state.sessionLanguages ?? [];
     requestRenderFn?.();
     return true;
@@ -161,7 +236,15 @@ export function recordFormatter(filePath, formatter, changed, success) {
     files.set(fileMapKey(filePath), rec);
     requestRender();
 }
-export function recordRunner(filePath, runnerId, status, diagnosticCount, durationMs) {
+export function recordRunner(filePath, runnerId, status, diagnosticCount, durationMs, writeIndex) {
+    const key = fileMapKey(filePath);
+    if (!runnerWriteGuard.shouldWrite(key, writeIndex))
+        return;
+    // Advance the final-diagnostics guard too. A runner completion is part of
+    // this pipeline's ordered write, even though its immediate effect is only to
+    // mark the record pending. This prevents an older final replacement from
+    // landing after a newer runner state (and vice versa).
+    diagnosticsWriteGuard.shouldWrite(key, writeIndex);
     const rec = getOrCreate(filePath);
     rec.runners.set(runnerId, { status, count: diagnosticCount, durationMs });
     rec.hasFinalDiagnosticsSnapshot = false;
@@ -179,7 +262,16 @@ export function recordRunner(filePath, runnerId, status, diagnosticCount, durati
 function toSingleLineMessage(message) {
     return (message ?? "").replace(/\s+/g, " ").trim();
 }
-export function recordDiagnostics(filePath, diagnostics, writeIndex) {
+export function recordDiagnostics(filePath, diagnostics, writeIndex, 
+// #1093: when the truth was OBSERVED, not when it's being written. Defaults
+// to `Date.now()` for the per-edit/live path (observed now). A reconcile
+// replaying a CACHED view (e.g. the workspace-diagnostics cache-hit branch in
+// `tools/lsp-diagnostics.ts`) must pass the cache entry's own scan timestamp
+// here — otherwise a repeat "fresh check" that merely re-serves a stale
+// cached view keeps bumping `touchedAt` to now(), permanently disarming
+// `reconcileStaleWidgetFiles`'s `mtimeMs > touchedAt` gate so a resolved
+// finding renders forever (the #1092 touchedAt-re-arming defect).
+observedAt) {
     // Drop a write that's superseded by a later same-turn edit to this file
     // whose pipeline finished first (same race class as #555). No cache write,
     // no count/timestamp update, no render trigger — the recorded state must
@@ -187,11 +279,27 @@ export function recordDiagnostics(filePath, diagnostics, writeIndex) {
     // the `clients/mcp/analyze.ts` on-demand call site, which has no per-edit
     // ordering token) always proceeds, same as version-less LSP servers in the
     // #555 guard.
-    if (!diagnosticsWriteGuard.shouldWrite(fileMapKey(filePath), writeIndex))
+    const key = fileMapKey(filePath);
+    if (!diagnosticsWriteGuard.shouldWrite(key, writeIndex))
         return;
-    const rec = getOrCreate(filePath);
+    // Keep runner state ordered with the final diagnostic replacement. The
+    // guards are deliberately advanced in both directions because either verb
+    // may be the first completion from a pipeline.
+    runnerWriteGuard.shouldWrite(key, writeIndex);
+    // Resolve the observation time ONCE (#1186): every incoming entry is stamped
+    // with it, and it also seeds the record's `touchedAt`. A fresh write (no
+    // `observedAt`) is observed now.
+    const observedTs = observedAt ?? Date.now();
+    const rec = getOrCreate(filePath, key);
+    commitDiagnostics(rec, filePath, normalizeDiagnostics(filePath, diagnostics, observedTs), observedTs, key);
+}
+/** Map the raw diagnostic shape callers pass into stored {@link WidgetDiagnostic}s.
+ * Every produced entry is stamped with `observedTs` (#1186) — the time THIS batch
+ * of diagnostics was observed — so the per-entry stale gate can later drop just
+ * the entries older than the file's mtime rather than the whole record. */
+function normalizeDiagnostics(filePath, diagnostics, observedTs) {
     const base = pathToFileURL(filePath).href;
-    const normalized = diagnostics.map((d) => {
+    return diagnostics.map((d) => {
         const rule = d.rule ?? d.id;
         const uri = d.line != null
             ? `${base}#L${d.line}${d.column != null ? `:${d.column}` : ""}`
@@ -205,12 +313,35 @@ export function recordDiagnostics(filePath, diagnostics, writeIndex) {
             rule,
             tool: d.tool,
             uri,
+            observedAt: observedTs,
         };
     });
+}
+/** Store `normalized` as the record's complete diagnostic set: recompute counts,
+ * cap the display list, stamp `touchedAt` (at `observedAt` when given, else now
+ * — #1093), persist, and re-render. The caller decides what `normalized`
+ * contains (a full replace, or a merge — see `reconcileCascadeNeighborLspErrors`). */
+function commitDiagnostics(rec, filePath, normalized, observedAt, key = fileMapKey(filePath)) {
+    rec.diagnosticCounts = countDiagnostics(normalized);
+    rec.diagnostics = capStoredDiagnostics(normalized);
+    rec.allDiagnostics = normalized;
+    rec.hasFinalDiagnosticsSnapshot = true;
+    // Record-level `touchedAt` is the FRESHEST per-entry observation in the merged
+    // set (#1186) — drives render recency and the empty-record stale gate. On a
+    // merge (`reconcileCascadeNeighborLspErrors`) this is the newest of the
+    // preserved + incoming entries, not the (possibly aging) incoming stamp, so a
+    // record holding a fresh preserved entry doesn't sort/gate as stale. Empty set
+    // falls back to the passed `observedAt` (or now).
+    rec.touchedAt = freshestObservation(normalized, observedAt ?? Date.now());
+    files.set(key, rec);
+    requestRender();
+}
+/** Recompute the {blocking, errors, warnings} tally for a diagnostic set. */
+function countDiagnostics(diags) {
     let blocking = 0;
     let errors = 0;
     let warnings = 0;
-    for (const diagnostic of normalized) {
+    for (const diagnostic of diags) {
         if (isBlocking(diagnostic))
             blocking++;
         if (diagnostic.severity === "error")
@@ -218,13 +349,69 @@ export function recordDiagnostics(filePath, diagnostics, writeIndex) {
         else if (diagnostic.severity === "warning")
             warnings++;
     }
-    rec.diagnosticCounts = { blocking, errors, warnings };
-    rec.diagnostics = capStoredDiagnostics(normalized);
-    rec.allDiagnostics = normalized;
-    rec.hasFinalDiagnosticsSnapshot = true;
-    rec.touchedAt = Date.now();
-    files.set(fileMapKey(filePath), rec);
-    requestRender();
+    return { blocking, errors, warnings };
+}
+/** The newest per-entry `observedAt` in `diags`, or `fallback` when empty (or no
+ * entry carries a stamp). Used as the record-level `touchedAt` (#1186). */
+function freshestObservation(diags, fallback) {
+    let newest;
+    for (const d of diags) {
+        if (d.observedAt != null && (newest === undefined || d.observedAt > newest)) {
+            newest = d.observedAt;
+        }
+    }
+    return newest ?? fallback;
+}
+/**
+ * A stored diagnostic that came from a language SERVER (tsserver, pyright, …)
+ * AND is an error/blocking finding. `convertLspDiagnostics` tags every
+ * language-server diagnostic with `tool: "lsp"` and `retagAuxiliaryDiagnostics`
+ * re-tags auxiliary-LSP findings (opengrep/ast-grep/zizmor/typos) to their real
+ * tool id, so `tool === "lsp"` uniquely identifies a genuine language-server
+ * entry. Used by the cascade merge below to decide which existing entries an
+ * errors-only LSP re-check is entitled to replace.
+ */
+function isLspErrorEntry(d) {
+    return d.tool === "lsp" && (d.semantic === "blocking" || d.severity === "error");
+}
+/**
+ * Reconcile a CONFIRMED cascade neighbor re-check (#1093) into the footer,
+ * MERGING rather than whole-replacing (unlike `recordDiagnostics`).
+ *
+ * The cascade only re-checks a neighbor through its LANGUAGE SERVER, and only
+ * for ERRORS (`severity === 1`; see `clients/dispatch/integration.ts`). A plain
+ * full-replace would therefore erase the neighbor's live findings from OTHER
+ * sources that the cascade never re-examined — biome/ruff/ast-grep runner
+ * findings, and even the language server's own WARNINGS — turning a
+ * cross-file-error re-check into a silent false-clean for everything else
+ * (#533). So we replace ONLY the existing LSP-error entries
+ * (`isLspErrorEntry`) with the cascade's fresh LSP errors and preserve
+ * everything else verbatim. A stale LSP warning or biome finding therefore
+ * survives an errors-only cascade — correct, because this check never looked at
+ * it; it self-corrects on the next per-edit dispatch or a `lens_diagnostics`
+ * scan (which DO re-examine every source).
+ *
+ * Only ever call this for a CONFIRMED result (a valid passive snapshot or a
+ * completed, NON-inconclusive active touch — #571). `writeIndex` and
+ * `observedAt` behave exactly as in `recordDiagnostics`.
+ */
+export function reconcileCascadeNeighborLspErrors(filePath, lspErrorDiagnostics, writeIndex, observedAt) {
+    const key = fileMapKey(filePath);
+    if (!diagnosticsWriteGuard.shouldWrite(key, writeIndex))
+        return;
+    runnerWriteGuard.shouldWrite(key, writeIndex);
+    // #1186: the INCOMING LSP errors are stamped at THIS observation time
+    // (`observedAt`, e.g. an aging passive snapshot's `entry.ts`, or now for a
+    // fresh active touch). The PRESERVED entries keep their OWN prior per-entry
+    // `observedAt` — a fresh per-edit finding preserved through this errors-only
+    // merge is NOT re-aged to the incoming stamp. That per-entry split is exactly
+    // what lets `reconcileStaleWidgetFiles` drop the stale incoming entry while
+    // keeping the newer preserved one, instead of dropping the whole record.
+    const observedTs = observedAt ?? Date.now();
+    const rec = getOrCreate(filePath);
+    const incoming = normalizeDiagnostics(filePath, lspErrorDiagnostics, observedTs);
+    const preserved = rec.allDiagnostics.filter((d) => !isLspErrorEntry(d));
+    commitDiagnostics(rec, filePath, [...incoming, ...preserved], observedTs);
 }
 /**
  * Reconcile a diagnostics result obtained OUTSIDE the per-edit dispatch
@@ -253,11 +440,18 @@ export function recordDiagnostics(filePath, diagnostics, writeIndex) {
  * write for the same file — an omitted `writeIndex` always proceeds (same
  * version-less fallback `recordDiagnostics` already documents), which is
  * only safe for callers with no ordering token to give (e.g. tests).
+ *
+ * `observedAt` (#1093) is the wall-clock time the diagnostics were actually
+ * OBSERVED — pass it whenever the reconciled result is a replay of an older
+ * CACHED observation (the workspace-diagnostics cache-hit branch), so
+ * `touchedAt` records when the truth was seen, not when it was written. Omit
+ * it for genuinely fresh observations (a just-completed touch/scan), which are
+ * observed now.
  */
-export function reconcileScanDiagnostics(filePath, diagnostics, confirmed, writeIndex) {
+export function reconcileScanDiagnostics(filePath, diagnostics, confirmed, writeIndex, observedAt) {
     if (!confirmed)
         return;
-    recordDiagnostics(filePath, diagnostics, writeIndex);
+    recordDiagnostics(filePath, diagnostics, writeIndex, observedAt);
 }
 /**
  * Drop widget entries whose file changed on disk after pi-lens last recorded
@@ -271,25 +465,60 @@ export function reconcileScanDiagnostics(filePath, diagnostics, confirmed, write
  */
 export async function reconcileStaleWidgetFiles() {
     const entries = [...files.entries()];
-    const staleKeys = await Promise.all(
+    const verdicts = await Promise.all(
     // `mapKey` is the normalized `files` key (used for deletion); stat the
     // record's real display path, not the lowercased key (#1020).
     entries.map(async ([mapKey, rec]) => {
+        let mtimeMs;
         try {
-            const st = await stat(rec.filePath);
-            // +1ms tolerance: a freshly-recorded file has touchedAt >= mtime.
-            return st.mtimeMs > rec.touchedAt + 1 ? mapKey : undefined;
+            mtimeMs = (await stat(rec.filePath)).mtimeMs;
         }
         catch {
-            return mapKey; // deleted / unreadable → drop
+            return { mapKey, action: "drop" }; // deleted / unreadable → drop
         }
+        // A clean record (no findings) has no per-entry stamps to consult —
+        // gate it on the record's own `touchedAt` exactly as before, so a ✓
+        // entry for a file that changed on disk still drops.
+        if (rec.allDiagnostics.length === 0) {
+            return mtimeMs > rec.touchedAt + 1
+                ? { mapKey, action: "drop" }
+                : { mapKey, action: "keep" };
+        }
+        // #1186 per-ENTRY gate: drop only the entries observed BEFORE the file's
+        // current mtime; keep the rest. A merged record can hold a fresh
+        // preserved entry beside an entry replayed from an aging snapshot, so a
+        // per-RECORD gate over-cleared the whole record (the residual documented
+        // at dispatch/integration.ts). A missing per-entry stamp (a migrated
+        // pre-#1186 record) inherits the record's `touchedAt`. +1ms tolerance:
+        // a freshly-recorded file has observedAt >= mtime.
+        const survivors = rec.allDiagnostics.filter((d) => !(mtimeMs > (d.observedAt ?? rec.touchedAt) + 1));
+        if (survivors.length === rec.allDiagnostics.length) {
+            return { mapKey, action: "keep" }; // nothing stale
+        }
+        if (survivors.length === 0) {
+            return { mapKey, action: "drop" }; // every entry stale → drop record
+        }
+        return { mapKey, action: "prune", survivors };
     }));
     let dropped = 0;
-    for (const key of staleKeys) {
-        if (key !== undefined) {
-            files.delete(key);
+    for (const v of verdicts) {
+        if (v.action === "keep")
+            continue;
+        if (v.action === "drop") {
+            files.delete(v.mapKey);
             dropped += 1;
+            continue;
         }
+        // prune: the file changed and shed its stale entries but retains fresher
+        // ones — keep the record, recompute counts/cap from the survivors, and
+        // still count it as a changed file so the agent is told to rescan.
+        const rec = files.get(v.mapKey);
+        if (rec) {
+            rec.allDiagnostics = v.survivors;
+            rec.diagnostics = capStoredDiagnostics(v.survivors);
+            rec.diagnosticCounts = countDiagnostics(v.survivors);
+        }
+        dropped += 1;
     }
     if (dropped > 0)
         requestRenderFn?.();
@@ -372,13 +601,20 @@ export const __testing = {
     },
 };
 export function recordLsp(serverId, root, status, durationMs) {
-    const key = `${serverId}@${root}`;
+    const normalizedRoot = normalizeMapKey(root);
+    const key = `${serverId}@${normalizedRoot}`;
     const mapped = status === "spawn_start"
         ? "spawning"
         : status === "spawn_success"
             ? "ready"
             : "failed";
     lspServers.set(key, { serverId, root, status: mapped, durationMs });
+    while (lspServers.size > MAX_LSP_SERVER_RECORDS) {
+        const oldest = lspServers.keys().next().value;
+        if (oldest === undefined)
+            break;
+        lspServers.delete(oldest);
+    }
     requestRender();
 }
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -488,11 +724,17 @@ function formatFileRowVertical(rec, theme) {
     const blocking = rec.diagnosticCounts.blocking;
     const errors = rec.diagnosticCounts.errors;
     const warnings = rec.diagnosticCounts.warnings;
+    const formatterFailed = hasFailedFormatter(rec);
+    // Diagnostic severity outranks formatter failure (#1348 review): a file
+    // with blocking diagnostics shows the blocking dot even if a format also
+    // failed -- same precedence as the horizontal renderer.
     const dot = blocking > 0
         ? red("●")
-        : warnings > 0 || errors > 0
-            ? yellow("!")
-            : green("✓");
+        : formatterFailed
+            ? red("x")
+            : warnings > 0 || errors > 0
+                ? yellow("!")
+                : green("✓");
     const runnerNames = [...rec.runners.entries()]
         .filter(([, r]) => r.status !== "skipped")
         .map(([id]) => id)
@@ -505,11 +747,15 @@ function formatFileRowVertical(rec, theme) {
             ? " " + yellow(`${warnings}W`)
             : " " + dim("clean");
     const changedFormatters = [...rec.formatters.entries()]
-        .filter(([, f]) => f.changed)
+        .filter(([, f]) => f.changed && f.success)
         .map(([name]) => name);
-    const formatMark = changedFormatters.length > 0
-        ? dim(` fmt:${changedFormatters.join(",")}`)
-        : "";
+    const failedFormatters = [...rec.formatters.entries()]
+        .filter(([, f]) => !f.success)
+        .map(([name]) => name);
+    const formatMark = (failedFormatters.length > 0
+        ? red(` fmt-failed:${failedFormatters.join(",")}`)
+        : "") +
+        (changedFormatters.length > 0 ? dim(` fmt:${changedFormatters.join(",")}`) : "");
     return ` ${dot} ${base}  ${dim(runnerNames)}${formatMark}${counts}`;
 }
 function packHorizontalRow(recs, totalWidth, theme) {
@@ -577,6 +823,7 @@ function formatFileTokenHorizontal(rec, remainingWidth, theme) {
     const errors = rec.diagnosticCounts.errors;
     const warnings = rec.diagnosticCounts.warnings;
     const formatterChanged = hasChangedFormatter(rec);
+    const formatterFailed = hasFailedFormatter(rec);
     let dotChar;
     if (blocking > 0)
         dotChar = red("●");
@@ -586,6 +833,9 @@ function formatFileTokenHorizontal(rec, remainingWidth, theme) {
         dotChar = dim("✎");
     else
         dotChar = dim("·");
+    if (formatterFailed && blocking === 0 && errors === 0 && warnings === 0) {
+        dotChar = red("x");
+    }
     let countsStyled = "";
     if (errors > 0 && warnings > 0) {
         const eColor = blocking > 0 ? red : yellow;
@@ -622,10 +872,11 @@ function truncateBasename(name, maxWidth) {
     return stem.slice(0, keep) + "…" + ext;
 }
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function getOrCreate(filePath) {
+function getOrCreate(filePath, key = fileMapKey(filePath)) {
+    maybePruneInactiveFileRecords();
     // Look up by the normalized key so mixed path forms of the same file share
     // ONE record (#1020); keep the caller's verbatim path as the display path.
-    return (files.get(fileMapKey(filePath)) ?? {
+    return (files.get(key) ?? {
         filePath,
         runners: new Map(),
         formatters: new Map(),
@@ -637,10 +888,16 @@ function getOrCreate(filePath) {
     });
 }
 function hasChangedFormatter(rec) {
-    return [...rec.formatters.values()].some((f) => f.changed);
+    return [...rec.formatters.values()].some((f) => f.changed && f.success);
+}
+function hasFailedFormatter(rec) {
+    return [...rec.formatters.values()].some((f) => !f.success);
 }
 function shouldRenderFile(rec) {
-    return rec.hasFinalDiagnosticsSnapshot || hasChangedFormatter(rec);
+    return rec.hasFinalDiagnosticsSnapshot || hasChangedFormatter(rec) || hasFailedFormatter(rec);
+}
+function hasLiveDiagnostic(rec) {
+    return rec.hasFinalDiagnosticsSnapshot && rec.diagnostics.length > 0;
 }
 function isPendingAnalysis(rec) {
     return rec.runners.size > 0 && !rec.hasFinalDiagnosticsSnapshot;

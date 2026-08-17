@@ -14,11 +14,12 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { BoundedLruCache } from "../bounded-cache.js";
 import { normalizeFilePath, walkUpDirs } from "../path-utils.js";
 // Per-process cache of resolved gitdir location keyed by cwd — the gitdir
 // location itself is stable for the life of the process; only HEAD's
 // CONTENT changes (on commit/checkout), so that's re-read fresh every call.
-const _gitDirCache = new Map();
+const _gitDirCache = new BoundedLruCache(32);
 export function _resetGitIdentityCacheForTests() {
     _gitDirCache.clear();
 }

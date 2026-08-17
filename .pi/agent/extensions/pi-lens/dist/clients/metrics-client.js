@@ -10,6 +10,7 @@
  * These are observational metrics — they inform the human in session summary,
  * they don't gate or interrupt the agent mid-task.
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 // --- Client ---
@@ -18,7 +19,7 @@ export class MetricsClient {
     fileBaselines = new Map();
     constructor(verbose = false) {
         this.log = verbose
-            ? (msg) => console.error(`[metrics] ${msg}`)
+            ? createSubsystemLogger("metrics")
             : () => { };
     }
     /**

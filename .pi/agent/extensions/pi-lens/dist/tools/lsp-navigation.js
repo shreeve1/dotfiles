@@ -8,6 +8,7 @@ import * as path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Type } from "../clients/deps/typebox.js";
 import { logLatency } from "../clients/latency-logger.js";
+import { newLspMutationCorrelationId, recordLspMutationOutcome, } from "../clients/lsp-mutation.js";
 import { compactRenderResult } from "./render-compact.js";
 import { applyWorkspaceEdit, summarizeWorkspaceEdit, } from "../clients/lsp/edits.js";
 import { getLSPService } from "../clients/lsp/index.js";
@@ -550,7 +551,7 @@ export function createLspNavigationTool(
  * constructed in; callers that only have a single fixed project root (e.g.
  * pi's own `getLensFlag`) may ignore the second argument.
  */
-getFlag) {
+getFlag, mutationDeps) {
     return {
         name: "lsp_navigation",
         label: "LSP Navigate",
@@ -675,7 +676,15 @@ getFlag) {
             let supported = null;
             let diagnosticsMode = "unknown";
             let columnResolution;
+            let mutationContext;
+            let requestedApply = false;
             const finalize = (payload, meta) => {
+                if (payload.isError &&
+                    requestedApply &&
+                    mutationContext &&
+                    ["rename", "rename_file", "executeCommand"].includes(meta.operation)) {
+                    recordLspMutationOutcome(mutationContext, "failed");
+                }
                 const normalizedFilePath = meta.filePath.replace(/\\/g, "/");
                 logLatency({
                     type: "phase",
@@ -759,6 +768,21 @@ getFlag) {
                 });
             }
             const operation = normalizedOperation;
+            requestedApply = apply === true;
+            if (requestedApply &&
+                ["rename", "rename_file", "executeCommand"].includes(operation)) {
+                const cwd = ctx.cwd || ".";
+                mutationContext = {
+                    cwd,
+                    correlationId: newLspMutationCorrelationId(_toolCallId),
+                    tool: "lsp_navigation",
+                    source: "lsp-edit",
+                    ...mutationDeps,
+                    readGuard: getFlag("no-read-guard", cwd)
+                        ? undefined
+                        : mutationDeps?.readGuard,
+                };
+            }
             const isCallHierarchyTraversal = operation === "incomingCalls" || operation === "outgoingCalls";
             const needsFilePath = operation !== "workspaceDiagnostics" &&
                 operation !== "workspaceSymbol" &&
@@ -1060,7 +1084,7 @@ getFlag) {
                                 edit,
                             };
                         }
-                        const applied = await applyWorkspaceEdit(edit, ctx.cwd || ".");
+                        const applied = await applyWorkspaceEdit(edit, ctx.cwd || ".", { mutationContext });
                         for (const touchedFile of applied.files) {
                             try {
                                 await openFileBestEffort(lspService, touchedFile, false);
@@ -1081,6 +1105,7 @@ getFlag) {
                         const result = await lspService.renameFile(filePath, resolvedNewFilePath, {
                             cwd: ctx.cwd || ".",
                             apply: apply ?? false,
+                            ...(mutationContext ? { mutationContext } : {}),
                         });
                         if (result.applied) {
                             for (const touchedFile of result.files ?? []) {
@@ -1122,7 +1147,7 @@ getFlag) {
                         if (!isAdvertised) {
                             throw new Error(`__UNSUPPORTED__ command "${command}" is not advertised by the active LSP server (advertised: ${advertised.join(", ") || "none"})`);
                         }
-                        return lspService.executeCommand(rawPath ? filePath : undefined, command, commandArguments);
+                        return lspService.executeCommand(rawPath ? filePath : undefined, command, commandArguments, mutationContext);
                     }
                     case "incomingCalls": {
                         if (!callHierarchyItem) {
@@ -1176,6 +1201,24 @@ getFlag) {
                             usedDocumentSymbolFallback = true;
                         }
                     }
+                }
+                if (mutationContext &&
+                    requestedApply &&
+                    !mutationContext.summaryEmitted) {
+                    const outcome = operation === "rename_file" &&
+                        result &&
+                        typeof result === "object" &&
+                        "applied" in result &&
+                        result.applied === false
+                        ? "failed"
+                        : operation === "executeCommand" &&
+                            result &&
+                            typeof result === "object" &&
+                            "executed" in result &&
+                            result.executed === false
+                            ? "failed"
+                            : "skipped";
+                    recordLspMutationOutcome(mutationContext, outcome);
                 }
             }
             catch (err) {

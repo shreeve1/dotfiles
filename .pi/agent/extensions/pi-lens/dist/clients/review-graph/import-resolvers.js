@@ -90,7 +90,7 @@ function resolveDart(cwd, filePath, source) {
 // JS/TS extension from the specifier before re-appending candidate extensions
 // lets that universal pattern resolve to the real source file. Exported so
 // builder.ts's warm `localImportToFile` shares the exact same regex (#694).
-export const JS_TS_EXT_RE = /\.(mjs|cjs|jsx?|tsx?)$/i;
+export const JS_TS_EXT_RE = /\.(mjs|cjs|mts|cts|jsx?|tsx?)$/i;
 /**
  * Ordered candidate list for resolving a relative JS/TS import specifier
  * (already resolved to an absolute base path) to an on-disk file, with
@@ -122,13 +122,18 @@ function jsTsExtensionCandidates(base, strippedBase, ext) {
         candidates.push(`${strippedBase}.mts`);
     if (ext === ".cjs")
         candidates.push(`${strippedBase}.cts`);
-    candidates.push(`${strippedBase}.ts`, `${strippedBase}.tsx`);
+    if (ext === ".mts")
+        candidates.push(`${strippedBase}.mts`);
+    if (ext === ".cts")
+        candidates.push(`${strippedBase}.cts`);
+    candidates.push(`${strippedBase}.ts`, `${strippedBase}.tsx`, `${strippedBase}.mts`, `${strippedBase}.cts`);
     // The literal specifier path (covers both "no extension in the specifier"
     // — base === strippedBase — and the compiled/as-written extension itself).
-    candidates.push(base);
-    candidates.push(`${strippedBase}.js`, `${strippedBase}.jsx`);
-    candidates.push(path.join(base, "index.ts"), path.join(base, "index.tsx"), path.join(base, "index.js"), path.join(base, "index.jsx"));
-    return candidates;
+    candidates.push(base, `${strippedBase}.js`, `${strippedBase}.jsx`, `${strippedBase}.mjs`, `${strippedBase}.cjs`);
+    for (const index of ["index.ts", "index.tsx", "index.mts", "index.cts", "index.js", "index.jsx", "index.mjs", "index.cjs"]) {
+        candidates.push(path.join(base, index));
+    }
+    return [...new Set(candidates)];
 }
 export function jsTsCandidatePaths(filePath, source) {
     const base = path.resolve(path.dirname(filePath), source);
@@ -198,10 +203,16 @@ function workspaceEntryCandidates(pkgRoot) {
         // missing/unreadable package.json — fall through to index candidates
     }
     const candidates = [];
-    if (main)
-        candidates.push(path.resolve(pkgRoot, main));
-    candidates.push(path.join(pkgRoot, "index.ts"), path.join(pkgRoot, "index.tsx"), path.join(pkgRoot, "index.js"), path.join(pkgRoot, "src", "index.ts"), path.join(pkgRoot, "src", "index.js"));
-    return candidates;
+    if (main) {
+        const mainPath = path.resolve(pkgRoot, main);
+        const ext = path.extname(mainPath).toLowerCase();
+        const stripped = mainPath.replace(JS_TS_EXT_RE, "");
+        candidates.push(...jsTsExtensionCandidates(mainPath, stripped, ext));
+    }
+    for (const base of [pkgRoot, path.join(pkgRoot, "src")]) {
+        candidates.push(path.join(base, "index.ts"), path.join(base, "index.tsx"), path.join(base, "index.mts"), path.join(base, "index.cts"), path.join(base, "index.js"), path.join(base, "index.jsx"), path.join(base, "index.mjs"), path.join(base, "index.cjs"));
+    }
+    return [...new Set(candidates)];
 }
 /** Candidate paths for a workspace-package SUBPATH import (`@scope/pkg/foo`)
  * — same source-twin-preferring extension probe as a relative import, rooted

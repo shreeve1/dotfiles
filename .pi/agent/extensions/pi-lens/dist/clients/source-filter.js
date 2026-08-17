@@ -19,8 +19,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectIgnoreMatcher } from "./file-utils.js";
-import { isDeclarationFile, isGeneratedOrArtifact, } from "./generated-artifacts.js";
+import { classifyGeneratedOrArtifactDetailed, isDeclarationFile, } from "./generated-artifacts.js";
 import { isCodeKindFile, KIND_EXTENSIONS } from "./file-kinds.js";
+import { logLatency } from "./latency-logger.js";
 import { normalizeEphemeralMapKey } from "./path-utils.js";
 import { isSlowFs, SLOW_FS_REDUCED_MAX_FILES } from "./slow-fs.js";
 import { shouldRecurseIntoDir, walkTreeRecursiveSync, walkTreeStackAsync, } from "./source-walker.js";
@@ -49,12 +50,50 @@ function probeExists(filePath, cache) {
  * Order matters: first entry has highest precedence.
  */
 export const SOURCE_PRECEDENCE = {
-    ".ts": [".js", ".mjs", ".cjs"],
+    ".ts": [".js", ".jsx", ".mjs", ".cjs"],
     ".tsx": [".jsx", ".js", ".mjs", ".cjs"],
+    ".mts": [".mjs", ".js", ".jsx", ".cjs"],
+    ".cts": [".cjs", ".js", ".jsx", ".mjs"],
     ".vue": [".js", ".mjs"],
     ".svelte": [".js", ".mjs"],
     ".coffee": [".js"],
 };
+/**
+ * Return source-twin candidates in the policy order for a compiled path.
+ * This is the pure counterpart to {@link findSourceSibling}: callers that
+ * already have a complete file identity set (the review graph and lens map)
+ * must not probe the filesystem or reimplement the extension matrix.
+ */
+export function sourceTwinCandidates(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const stem = filePath.slice(0, filePath.length - ext.length);
+    const sourceExts = ext === ".mjs"
+        ? [".mts", ".ts", ".tsx", ".cts"]
+        : ext === ".cjs"
+            ? [".cts", ".ts", ".tsx", ".mts"]
+            : ext === ".jsx"
+                // Deliberately retain the broad fallback: a .jsx next to a .ts
+                // is treated as a build artifact even without a .tsx sibling.
+                ? [".tsx", ".ts", ".mts", ".cts"]
+                : ext === ".js"
+                    ? [".ts", ".tsx", ".mts", ".cts"]
+                    : [];
+    return sourceExts.map((sourceExt) => `${stem}${sourceExt}`);
+}
+/**
+ * Resolve a compiled file to its canonical source identity within a known
+ * file set. The caller supplies normalized identities; this helper deliberately
+ * does not touch the filesystem, so complete source-set walks remain bounded
+ * and point-in-time consistent.
+ */
+export function canonicalSourceTwin(filePath, availableFiles, excludedFiles) {
+    for (const candidate of sourceTwinCandidates(filePath)) {
+        if (availableFiles.has(candidate) && !excludedFiles?.has(candidate)) {
+            return candidate;
+        }
+    }
+    return filePath;
+}
 /**
  * Every extension belonging to a supported file kind. KIND_EXTENSIONS is the
  * single language-extension authority; deriving here makes a newly registered
@@ -142,15 +181,77 @@ function createKeptFilesAccumulator(maxFiles, prioritizeCodeKinds) {
         list: () => [...codeFiles, ...otherFiles].slice(0, maxFiles),
     };
 }
-function shouldSkipGeneratedOrArtifact(filePath, options) {
+function createSourceWalkSkipCounters() {
+    return {
+        generatedOrArtifactSkips: 0,
+        buildArtifactSkips: 0,
+        generatedDirSkips: 0,
+        generatedNameOverrides: 0,
+        generatedNameOnlySkips: 0,
+    };
+}
+/**
+ * Log a one-line rollup for a walk's skip counters through the existing
+ * latency/scan logging channel (`logLatency`, ndjson `latency.log`) — mirrors
+ * how `getGraphSourceFiles` logs `review_graph_source_walk_entry_budget`.
+ * Silent (no log line) when both counters are zero, so a healthy walk with no
+ * name/artifact-probe skips produces no new log noise.
+ *
+ * Logged once per walk call, at the walk layer itself
+ * (`collectSourceFilesWithBudget`/`collectSourceFilesWithBudgetAsync`) rather
+ * than at each of its several consumers (review-graph builder, project-
+ * diagnostics scanner, word-index, …): every one of those consumers funnels
+ * through these two functions (directly or via the plain `collectSourceFiles`/
+ * `collectSourceFilesAsync` wrappers), so logging here is a single choke point
+ * that covers all of them — the smaller diff versus exporting the counters and
+ * wiring a log call into each consumer separately.
+ */
+function logSourceWalkSkipsIfAny(rootDir, counters) {
+    if (counters.generatedOrArtifactSkips === 0 &&
+        counters.buildArtifactSkips === 0 &&
+        counters.generatedDirSkips === 0 &&
+        counters.generatedNameOverrides === 0) {
+        return;
+    }
+    logLatency({
+        type: "phase",
+        phase: "source_walk_skip_summary",
+        filePath: rootDir,
+        durationMs: 0,
+        metadata: {
+            generatedOrArtifactSkips: counters.generatedOrArtifactSkips,
+            buildArtifactSkips: counters.buildArtifactSkips,
+            generatedDirSkips: counters.generatedDirSkips,
+            generatedNameOverrides: counters.generatedNameOverrides,
+            generatedNameOnlySkips: counters.generatedNameOnlySkips,
+        },
+    });
+}
+/**
+ * Full verdict+evidence form of {@link shouldSkipGeneratedOrArtifact} (#1107
+ * phase 2) — exposes `classifyGeneratedOrArtifactDetailed`'s `"override"`
+ * outcome (a WEAK name-only match the content-probe escape hatch rescued)
+ * AND, for a `"generated"` verdict, WHICH evidence tier decided it, so
+ * `classifyEntry` can count a genuine skip, a rescue, and the residual
+ * "unconfirmed name-only skip" bucket all distinctly. See
+ * `GeneratedArtifactEvidence`'s doc for why the tier split matters: a
+ * tool-facing notice keyed on the RAW skip count fires permanently on any
+ * repo with a lockfile, drowning the signal it exists to surface.
+ */
+function classifySkipGeneratedOrArtifact(filePath, options) {
     const includeDeclarations = options?.includeDeclarationFiles === true;
     if (options?.includeGenerated === true) {
-        return !includeDeclarations && isDeclarationFile(filePath);
+        return !includeDeclarations && isDeclarationFile(filePath)
+            ? { verdict: "generated", evidence: "strong" }
+            : { verdict: "clean" };
     }
-    return isGeneratedOrArtifact(filePath, {
+    return classifyGeneratedOrArtifactDetailed(filePath, {
         readContentHeader: options?.inspectGeneratedHeaders !== false,
         includeDeclarations: !includeDeclarations,
     });
+}
+function shouldSkipGeneratedOrArtifact(filePath, options) {
+    return classifySkipGeneratedOrArtifact(filePath, options).verdict === "generated";
 }
 /**
  * Extract the basename (filename without extension) from a path.
@@ -170,17 +271,20 @@ function getDir(filePath) {
  * Returns the shadowing source file path if found, null otherwise.
  */
 export function findSourceSibling(filePath, probeCache) {
+    for (const candidate of sourceTwinCandidates(filePath)) {
+        if (probeExists(candidate, probeCache))
+            return candidate;
+    }
+    // Keep the legacy non-JS source policies (Vue/Svelte/CoffeeScript) on the
+    // same seam without making them part of the JS/TS twin matrix above.
     const ext = path.extname(filePath).toLowerCase();
     const dir = getDir(filePath);
     const base = getBasename(filePath);
-    // Find which precedence group this extension belongs to
     for (const [sourceExt, shadowedExts] of Object.entries(SOURCE_PRECEDENCE)) {
-        if (shadowedExts.includes(ext)) {
-            // This file could be shadowed by a source file with sourceExt
+        if (!sourceExtsForCompiledExt(sourceExt).length && shadowedExts.includes(ext)) {
             const siblingPath = path.join(dir, base + sourceExt);
-            if (probeExists(siblingPath, probeCache)) {
+            if (probeExists(siblingPath, probeCache))
                 return siblingPath;
-            }
         }
     }
     return null;
@@ -191,6 +295,11 @@ export function findSourceSibling(filePath, probeCache) {
  * @param probeCache - Optional per-walk memo (see {@link ArtifactProbeCache}).
  * Omit for the original, uncached behavior.
  */
+function sourceExtsForCompiledExt(sourceExt) {
+    return sourceExt === ".ts" || sourceExt === ".tsx" || sourceExt === ".mts" || sourceExt === ".cts"
+        ? [sourceExt]
+        : [];
+}
 export function isBuildArtifact(filePath, probeCache) {
     return findSourceSibling(filePath, probeCache) !== null;
 }
@@ -261,7 +370,7 @@ function resolveCollectionConfig(rootDir, options, config) {
  * produce identical results — the only difference between the two is that the
  * async variant yields to the event loop every N entries.
  */
-function classifyEntry(entry, fullPath, cfg, probeCache) {
+function classifyEntry(entry, fullPath, cfg, probeCache, skipCounters) {
     const { ignoreMatcher, extraExcludePatterns, extensions, options } = cfg;
     if (entry.isDirectory()) {
         const canRecurse = shouldRecurseIntoDir(entry, fullPath, {
@@ -269,7 +378,14 @@ function classifyEntry(entry, fullPath, cfg, probeCache) {
             extraExcludeDirs: extraExcludePatterns,
             skipGeneratedArtifactDirs: options?.includeGenerated !== true,
             followSymlinks: options?.followSymlinks === true,
-        });
+        }, 
+        // #1107 phase 2: counts one event per PRUNED DIRECTORY, not per file
+        // inside it — see `generatedDirSkips`'s doc on `SourceCollectionResult`.
+        skipCounters
+            ? () => {
+                skipCounters.generatedDirSkips += 1;
+            }
+            : undefined);
         if (!canRecurse)
             return {};
         return { recurseInto: fullPath };
@@ -281,10 +397,35 @@ function classifyEntry(entry, fullPath, cfg, probeCache) {
         if (!extensions.has(ext))
             return {};
         // Skip if this is a build artifact or generated/codegen output.
-        if (isBuildArtifact(fullPath, probeCache))
+        // #1107: counted separately (both are observability-only — neither
+        // changes what gets skipped) so an invisible coverage hole (a real
+        // `src/gen.ts` silently dropped by the name heuristic) is at least
+        // visible via `SourceCollectionResult` and the walk's rollup log line.
+        if (isBuildArtifact(fullPath, probeCache)) {
+            if (skipCounters)
+                skipCounters.buildArtifactSkips += 1;
             return {};
-        if (shouldSkipGeneratedOrArtifact(fullPath, options))
+        }
+        // #1107 phase 2: the content-probe escape hatch can rescue a WEAK
+        // name-only match ("override") instead of skipping it — see
+        // `classifyGeneratedOrArtifactDetailed`'s doc for the evidence
+        // order/tradeoff. `evidence` additionally distinguishes a STRONG/
+        // content-CONFIRMED skip (expected, not a coverage-hole signal) from
+        // the residual "name-only" skip (unconfirmed — the one bucket a
+        // tool-facing notice should actually key off).
+        const classification = classifySkipGeneratedOrArtifact(fullPath, options);
+        if (classification.verdict === "generated") {
+            if (skipCounters) {
+                skipCounters.generatedOrArtifactSkips += 1;
+                if (classification.evidence === "name-only") {
+                    skipCounters.generatedNameOnlySkips += 1;
+                }
+            }
             return {};
+        }
+        if (classification.verdict === "override" && skipCounters) {
+            skipCounters.generatedNameOverrides += 1;
+        }
         return { keepFile: fullPath };
     }
     return {};
@@ -320,6 +461,8 @@ export function collectSourceFilesWithBudget(dir, options) {
     // on return — never persisted across calls.
     const probeCache = createArtifactProbeCache();
     const budget = createEntryBudget(cfg.maxScanEntries);
+    // #1107: per-walk skip counters, discarded on return like the probe cache.
+    const skipCounters = createSourceWalkSkipCounters();
     // #761: immediate-descent recursion driver (result-array order preserved),
     // with both caps kept as this walker's own per-entry policy: the hard
     // `maxFiles` results cap (#250) is checked BEFORE charging the entry budget
@@ -330,14 +473,23 @@ export function collectSourceFilesWithBudget(dir, options) {
             return "stop"; // hard cap (#250)
         if (!chargeEntryBudget(budget))
             return "stop"; // entry budget (#760)
-        const { recurseInto, keepFile } = classifyEntry(entry, fullPath, cfg, probeCache);
+        const { recurseInto, keepFile } = classifyEntry(entry, fullPath, cfg, probeCache, skipCounters);
         if (recurseInto)
             return "recurse";
         if (keepFile)
             kept.push(keepFile);
         return "skip";
     });
-    return { files: kept.list(), entryBudgetExceeded: budget.exceeded };
+    logSourceWalkSkipsIfAny(rootDir, skipCounters);
+    return {
+        files: kept.list(),
+        entryBudgetExceeded: budget.exceeded,
+        generatedOrArtifactSkips: skipCounters.generatedOrArtifactSkips,
+        buildArtifactSkips: skipCounters.buildArtifactSkips,
+        generatedDirSkips: skipCounters.generatedDirSkips,
+        generatedNameOverrides: skipCounters.generatedNameOverrides,
+        generatedNameOnlySkips: skipCounters.generatedNameOnlySkips,
+    };
 }
 export function collectSourceFiles(dir, options) {
     return collectSourceFilesWithBudget(dir, options).files;
@@ -345,7 +497,7 @@ export function collectSourceFiles(dir, options) {
 /**
  * Async, chunked-yield twin of {@link collectSourceFiles}. Returns the exact
  * same file list (it shares `classifyEntry`), but yields to the event loop
- * every `yieldEvery` directory entries so a large tree never holds the loop in
+ * on a monotonic time budget so a large tree never holds the loop in
  * one synchronous burst.
  *
  * Why this exists: on a ~2k-file project the synchronous `collectSourceFiles`
@@ -372,15 +524,18 @@ export async function collectSourceFilesWithBudgetAsync(dir, options) {
     // caching across the whole call remains invalidation-free.
     const probeCache = createArtifactProbeCache();
     const budget = createEntryBudget(cfg.maxScanEntries);
+    // #1107: per-walk skip counters, discarded on return like the probe cache.
+    const skipCounters = createSourceWalkSkipCounters();
     // #761: shared depth-first stack driver (its reverse-push mirrors the sync
     // collector's left-to-right recursion). The async collector charges the
     // entry budget (#760) FIRST, then checks the `maxFiles` cap immediately
     // after keeping a file — subtly different from the sync collector's ordering
     // but preserved verbatim, so both stay byte-identical to their pre-#761 form.
     await walkTreeStackAsync(rootDir, (entry, fullPath) => {
+        options?.onEntryVisited?.();
         if (!chargeEntryBudget(budget))
             return "stop"; // entry budget (#760)
-        const { recurseInto, keepFile } = classifyEntry(entry, fullPath, cfg, probeCache);
+        const { recurseInto, keepFile } = classifyEntry(entry, fullPath, cfg, probeCache, skipCounters);
         if (recurseInto)
             return "recurse";
         if (keepFile) {
@@ -394,13 +549,22 @@ export async function collectSourceFilesWithBudgetAsync(dir, options) {
         // even on a cold scan where every kept file pays the 4 KB generated-
         // header read (measured on a 2k-file fixture). Larger values regress
         // past the ~50ms event-loop budget; see PERF-AUDIT.md.
-        yieldEvery: Math.max(1, options?.yieldEvery ?? 50),
+        budgetMs: Math.max(1, options?.budgetMs ?? 8),
         // #703: prime the tracked-files set once before the walk so a tracked
         // file matching a `.gitignore`/global pattern still surfaces. Fail-open
         // on no-git/spawn failure.
         beforeWalk: () => cfg.ignoreMatcher.ensureTrackedIndex(),
     });
-    return { files: kept.list(), entryBudgetExceeded: budget.exceeded };
+    logSourceWalkSkipsIfAny(rootDir, skipCounters);
+    return {
+        files: kept.list(),
+        entryBudgetExceeded: budget.exceeded,
+        generatedOrArtifactSkips: skipCounters.generatedOrArtifactSkips,
+        buildArtifactSkips: skipCounters.buildArtifactSkips,
+        generatedDirSkips: skipCounters.generatedDirSkips,
+        generatedNameOverrides: skipCounters.generatedNameOverrides,
+        generatedNameOnlySkips: skipCounters.generatedNameOnlySkips,
+    };
 }
 /**
  * Get statistics about source file filtering for debugging/monitoring.

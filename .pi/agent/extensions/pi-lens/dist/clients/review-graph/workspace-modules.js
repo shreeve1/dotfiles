@@ -6,7 +6,7 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { getProjectIgnoreMatcher, isExcludedDirName } from "../file-utils.js";
+import { getProjectIgnoreMatcher, isExcludedDirName, } from "../file-utils.js";
 import { normalizeMapKey } from "../path-utils.js";
 import { getWorkspaceManifestMarkers } from "../workspace-topology.js";
 // Cap on candidate sub-directories probed per workspace glob level (#262).
@@ -387,6 +387,7 @@ export function buildModuleGraph(cwd) {
 }
 export function clearModuleGraphCache() {
     _moduleGraphCache = null;
+    _moduleSourceFilesMemo.clear();
 }
 /**
  * Find the module that owns a given file path.
@@ -419,13 +420,40 @@ export function getDownstreamModules(graph, moduleName) {
     }
     return [...downstream];
 }
+const _moduleSourceFilesMemo = new Map();
+const MTIME_GRANULARITY_GUARD_MS = 2_000;
+function isMemoEntryFresh(entry) {
+    const validatedAt = Date.now();
+    for (const { dir, mtimeMs, stampedAt } of entry.dirs) {
+        if (validatedAt - stampedAt < MTIME_GRANULARITY_GUARD_MS)
+            return false;
+        try {
+            if (fs.statSync(dir).mtimeMs !== mtimeMs)
+                return false;
+        }
+        catch {
+            return false;
+        }
+    }
+    return true;
+}
 /**
- * Get representative source files in a module.
+ * Get representative source files in a module. Memoized per module root (see
+ * above) — the returned array is a copy; mutating it does not affect the memo.
  */
 export function getModuleSourceFiles(moduleRoot, maxFiles = 20) {
-    const files = [];
     const root = normalizeMapKey(moduleRoot);
     const ignoreMatcher = getProjectIgnoreMatcher(root);
+    const cached = _moduleSourceFilesMemo.get(root);
+    if (cached &&
+        cached.maxFiles === maxFiles &&
+        cached.matcher === ignoreMatcher &&
+        isMemoEntryFresh(cached)) {
+        return [...cached.files];
+    }
+    const files = [];
+    const dirs = [];
+    let allDirsStamped = true;
     const visit = (dir, depth) => {
         if (files.length >= maxFiles || depth > 4)
             return;
@@ -435,6 +463,18 @@ export function getModuleSourceFiles(moduleRoot, maxFiles = 20) {
         }
         catch {
             return;
+        }
+        // Stamp AFTER the readdir: a change landing between readdir and stat
+        // records the newer mtime, so validation re-walks (fail-safe direction).
+        try {
+            dirs.push({
+                dir,
+                mtimeMs: fs.statSync(dir).mtimeMs,
+                stampedAt: Date.now(),
+            });
+        }
+        catch {
+            allDirsStamped = false;
         }
         entries.sort((a, b) => a.name.localeCompare(b.name));
         for (const entry of entries) {
@@ -458,5 +498,13 @@ export function getModuleSourceFiles(moduleRoot, maxFiles = 20) {
         }
     };
     visit(root, 0);
+    if (allDirsStamped) {
+        _moduleSourceFilesMemo.set(root, {
+            files: [...files],
+            maxFiles,
+            dirs,
+            matcher: ignoreMatcher,
+        });
+    }
     return files;
 }

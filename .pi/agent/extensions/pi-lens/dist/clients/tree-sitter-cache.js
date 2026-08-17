@@ -11,6 +11,7 @@
  * the Map's first key removes the least-recently-used file, not merely the
  * oldest insertion, and hot per-edit files survive scan traffic (#890).
  */
+import { logTreeSitterDiagnostic } from "./tree-sitter-logger.js";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import { normalizeFilePath } from "./path-utils.js";
@@ -47,7 +48,11 @@ export class TreeCache {
         this.counterObserver = counterObserver;
         this.treeErrorObserver = treeErrorObserver;
         this.debug = debug
-            ? (msg) => console.error(`[tree-cache] ${msg}`)
+            ? (msg) => logTreeSitterDiagnostic({
+                subsystem: "tree-cache",
+                level: "debug",
+                message: msg,
+            })
             : () => { };
     }
     recordCounter(key, amount = 1) {
