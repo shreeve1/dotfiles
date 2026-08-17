@@ -13,18 +13,25 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectDataDir } from "./file-utils.js";
+import { writeFileAtomic } from "./atomic-write.js";
+import { parseSymbolKey } from "./call-graph.js";
+import { detectFileRole } from "./file-role.js";
+import { isExternalOrVendorFile } from "./path-utils.js";
+import { isBuildArtifact } from "./source-filter.js";
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DEFAULT_TOKEN_BUDGET = 1500;
+export const DEFAULT_CODEBASE_MODEL_TOKEN_BUDGET = 1500;
 const MAX_CALLS_PER_SYMBOL = 10;
 const MIN_IN_DEGREE = 0.5; // skip symbols with low centrality (avoids noise)
+/** Persisted model schema version. Bump when the persisted shape changes. */
+export const CODEBASE_MODEL_VERSION = 1;
 // ── Builder ───────────────────────────────────────────────────────────────────
 function inferKind(symbolKey) {
-    const name = symbolKey.split(":").pop() ?? "";
-    if (/^[A-Z]/.test(name))
+    const parsed = parseSymbolKey(symbolKey);
+    if (parsed.kind === "class")
         return "class";
-    if (name.includes("."))
+    if (parsed.kind === "method" || parsed.symbolName?.includes("."))
         return "method";
-    return "function";
+    return /^[A-Z]/.test(parsed.symbolName ?? "") ? "class" : "function";
 }
 function estimateTokens(entry) {
     const text = [
@@ -45,7 +52,15 @@ function estimateTokens(entry) {
  * @param cwd     Project root — used to compute relative file paths.
  * @param budget  Maximum total token budget (default 1500).
  */
-export function buildCodebaseModel(graph, cwd, budget = DEFAULT_TOKEN_BUDGET) {
+export function buildCodebaseModel(graph, cwd, budget = DEFAULT_CODEBASE_MODEL_TOKEN_BUDGET, identity) {
+    // Standalone callers may build an unpersisted projection without the
+    // review-graph coordinator. Persisted/session models pass the canonical
+    // review-graph identity explicitly; this fallback is only a local call-graph
+    // identity for builder-only use.
+    const modelIdentity = identity ?? {
+        reviewGraphVersion: graph.builtAt || "call-graph-unknown",
+        reviewGraphSignature: graph.builtAt || "call-graph-unknown",
+    };
     // Sort all callee keys by in-degree descending
     const ranked = [...graph.inDegree.entries()]
         .filter(([, score]) => score >= MIN_IN_DEGREE)
@@ -56,16 +71,16 @@ export function buildCodebaseModel(graph, cwd, budget = DEFAULT_TOKEN_BUDGET) {
     for (const [calleeKey, inDegree] of ranked) {
         if (totalTokens >= budget)
             break;
-        const parts = calleeKey.split(":");
-        const name = parts.pop() ?? calleeKey;
-        const filePath = parts.join(":");
-        // Skip if file is in test/node_modules/generated directories
-        if (filePath.includes("node_modules") ||
-            filePath.includes(".test.") ||
-            filePath.includes(".spec.") ||
-            filePath.includes("/__tests__/") ||
-            filePath.includes("/dist/") ||
-            filePath.includes("/generated/")) {
+        const parsedCallee = parseSymbolKey(calleeKey);
+        const name = parsedCallee.symbolName ?? calleeKey;
+        const filePath = parsedCallee.filePath;
+        // Keep this projection aligned with the shared file-role policy. The
+        // call graph is derived from the canonical review graph, so the model
+        // carries that graph's identity rather than inventing a second freshness
+        // policy.
+        const fileRole = detectFileRole(filePath);
+        if (fileRole === "test" || fileRole === "generated" ||
+            isExternalOrVendorFile(filePath, cwd) || isBuildArtifact(filePath)) {
             continue;
         }
         // Deduplicate by name when the same function appears in multiple files
@@ -73,11 +88,11 @@ export function buildCodebaseModel(graph, cwd, budget = DEFAULT_TOKEN_BUDGET) {
             continue;
         seenNames.add(name);
         const calls = [...(graph.callees.get(calleeKey) ?? new Set())]
-            .map((k) => k.split(":").pop() ?? k)
+            .map((k) => parseSymbolKey(k).symbolName ?? k)
             .filter(Boolean)
             .slice(0, MAX_CALLS_PER_SYMBOL);
         const calledBy = [...(graph.callers.get(calleeKey) ?? new Set())]
-            .map((k) => k.split(":").pop() ?? k)
+            .map((k) => parseSymbolKey(k).symbolName ?? k)
             .filter((n) => !n.startsWith("file:"))
             .slice(0, MAX_CALLS_PER_SYMBOL);
         const file = filePath
@@ -98,9 +113,12 @@ export function buildCodebaseModel(graph, cwd, budget = DEFAULT_TOKEN_BUDGET) {
         totalTokens += tokens;
     }
     const allFiles = new Set([...graph.callers.keys(), ...graph.callees.keys()]
-        .map((k) => k.split(":").slice(0, -1).join(":"))
+        .map((k) => parseSymbolKey(k).filePath)
         .filter(Boolean));
     return {
+        version: CODEBASE_MODEL_VERSION,
+        reviewGraphVersion: modelIdentity.reviewGraphVersion,
+        reviewGraphSignature: modelIdentity.reviewGraphSignature,
         generatedAt: new Date().toISOString(),
         totalSymbols: graph.inDegree.size,
         totalFiles: allFiles.size,
@@ -119,16 +137,27 @@ export function saveCodebaseModel(cwd, model) {
     const cacheFile = cacheFilePath(cwd);
     try {
         fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
-        fs.writeFileSync(cacheFile, JSON.stringify(model), "utf-8");
-        fs.writeFileSync(metaFilePath(cwd), JSON.stringify({ savedAt: new Date().toISOString(), entryCount: model.entries.length, totalTokens: model.totalTokens }), "utf-8");
+        writeFileAtomic(cacheFile, JSON.stringify(model));
+        writeFileAtomic(metaFilePath(cwd), JSON.stringify({ savedAt: new Date().toISOString(), entryCount: model.entries.length, totalTokens: model.totalTokens }));
     }
     catch {
         // Non-fatal — next session rebuilds.
     }
 }
-export function loadCodebaseModel(cwd) {
+/** Load only a model matching the canonical identity it was derived from. */
+export function loadCodebaseModel(cwd, expectedIdentity) {
     try {
-        return JSON.parse(fs.readFileSync(cacheFilePath(cwd), "utf-8"));
+        const raw = JSON.parse(fs.readFileSync(cacheFilePath(cwd), "utf-8"));
+        if (raw.version !== CODEBASE_MODEL_VERSION ||
+            typeof raw.reviewGraphVersion !== "string" || raw.reviewGraphVersion.length === 0 ||
+            typeof raw.reviewGraphSignature !== "string" || raw.reviewGraphSignature.length === 0 ||
+            typeof raw.generatedAt !== "string" ||
+            !Array.isArray(raw.entries))
+            return undefined;
+        if (raw.reviewGraphVersion !== expectedIdentity.reviewGraphVersion ||
+            raw.reviewGraphSignature !== expectedIdentity.reviewGraphSignature)
+            return undefined;
+        return raw;
     }
     catch {
         return undefined;

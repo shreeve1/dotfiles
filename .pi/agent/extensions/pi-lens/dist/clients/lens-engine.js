@@ -13,27 +13,28 @@
  * adds thin wrappers over the remaining internal reach-ins (latency, project
  * scan, LSP status, diagnostic stats, LSP config).
  */
+import * as path from "node:path";
+import { minimatch } from "./deps/minimatch.js";
 import { getDiagnosticTracker } from "./diagnostic-tracker.js";
 import { getLatencyReports, } from "./dispatch/integration.js";
 import { getResourceFootprint as getResourceFootprintSnapshot, } from "./instance-registry.js";
 import { initLSPConfig } from "./lsp/config.js";
 import { getLSPService } from "./lsp/index.js";
-import { getOrLoadWarmWordIndex } from "./mcp/analyze.js";
-import { scanProjectDiagnostics } from "./project-diagnostics/scanner.js";
-import { getTreeSitterRuntimeStatus, } from "./tree-sitter-shared.js";
-import * as path from "node:path";
-import { minimatch } from "./deps/minimatch.js";
+import { acquireWarmWordIndex } from "./mcp/analyze.js";
 import { normalizeMapKey } from "./path-utils.js";
-import { loadProjectSnapshot } from "./project-snapshot.js";
-import { centralityFromReverseDeps, deserializeWordIndex, getWordIndexBuildStatus, searchWordIndex, triggerBackgroundWordIndexBuild, } from "./word-index.js";
+import { scanProjectDiagnostics } from "./project-diagnostics/scanner.js";
+import { loadProjectSnapshotWithoutWordIndex } from "./project-snapshot.js";
+import { getTreeSitterRuntimeStatus, } from "./tree-sitter-shared.js";
+import { centralityFromReverseDeps, getWordIndexBuildStatus, searchWordIndex, triggerBackgroundWordIndexBuild, } from "./word-index.js";
 // --- Facades (re-exported so adapters import only this module) ---------------
 export { analyzeFile, } from "./mcp/analyze.js";
 export { createMcpHost } from "./mcp/host-shim.js";
-export { ipcPathForCwd, requestWarmAnalyze, } from "./mcp/ipc.js";
+export { createWarmIpcLineReader, createWarmIpcRequestQueue, ipcPathForCwd, readTurnEndStatus, requestWarmAnalyze, WARM_TURN_END_SCHEMA_VERSION, } from "./mcp/ipc.js";
 export { analyzeFileFresh, canRebuildPiLens, REBUILD_UNAVAILABLE_MESSAGE, resolveRebuildScript, runRebuild, summarizeScan, } from "./mcp/review.js";
-export { runSessionStart, runTurnEnd, } from "./mcp/session.js";
+export { acknowledgeTurnEnd, runSessionStart, runTurnEnd, runTurnEndForIpc, } from "./mcp/session.js";
 export { moduleReport, readEnclosing, readSymbol, renderCompactModuleReport, } from "./module-report.js";
 export { projectReport, renderCompactProjectReport, } from "./project-report.js";
+export { createDefaultHostPorts, } from "./host-ports.js";
 // --- Query wrappers (own the remaining internal reach-ins) -------------------
 /** Recent dispatch latency reports (latency.log schema), newest first. */
 export function recentLatency(limit = 5, fileFilter) {
@@ -44,9 +45,21 @@ export function recentLatency(limit = 5, fileFilter) {
     }
     return reports.slice(-limit).reverse();
 }
-/** Cheap project-wide scan (tree-sitter + fact rules). */
-export function projectScan(cwd, maxFiles) {
-    return scanProjectDiagnostics({ cwd, tier: "cheap", maxFiles });
+/**
+ * Cheap project-wide scan (tree-sitter + fact rules).
+ *
+ * `includeGenerated` (#1107 phase 2 review): scan WITHOUT the generated/
+ * artifact NAME-heuristic filter — the actionable opt-out
+ * `generatedSkipNotice` below points a user at. Default `false` (existing
+ * filtering behavior unchanged).
+ */
+export function projectScan(cwd, maxFiles, includeGenerated) {
+    return scanProjectDiagnostics({
+        cwd,
+        tier: "cheap",
+        maxFiles,
+        includeGenerated,
+    });
 }
 /**
  * #784: `scanTruncated` (#760) reaches this seam intact but, until now, no
@@ -65,6 +78,53 @@ export function scanTruncationNotice(snapshot) {
     }
     return (`⚠ Scan truncated at ${snapshot.filesScanned} file(s) — results are partial; ` +
         "raise maxProjectFiles in .pi-lens.json to scan fully.");
+}
+/**
+ * #1107 phase 2: `generatedNameOnlySkips`/`generatedDirSkips` reach this seam
+ * via `ProjectDiagnosticsSnapshot` but need explicit rendering, same pattern
+ * as `scanTruncationNotice` above — otherwise a user has no way to learn the
+ * generated-name heuristic silently excluded files/directories short of
+ * reading `latency.log`'s `source_walk_skip_summary` line directly.
+ *
+ * #1107 phase 2 review round 2 (P1, empirically proven): this deliberately
+ * keys off `generatedNameOnlySkips`, NOT the raw `generatedFileSkips` total.
+ * `generatedFileSkips` counts every file the generated/artifact heuristic
+ * skipped, including STRONG evidence (lockfiles, declaration files, minified/
+ * bundle/chunk output — expected on nearly every real repo) and
+ * content-CONFIRMED WEAK matches (the escape hatch checked and a genuine
+ * generated-code header was present). Keying the notice off that total meant
+ * a repo with nothing more unusual than a `package-lock.json` and an ambient
+ * `.d.ts` showed "2 file(s) excluded" on literally every scan forever — the
+ * signal drowned itself on day one. `generatedNameOnlySkips` is the narrower,
+ * genuinely at-risk residual: a WEAK name match trusted with NO corroborating
+ * evidence check at all (only reachable when a caller opts out of the header
+ * probe — source-filter.ts's default project-walk path always enables it).
+ * Post-escape-hatch, this should be rare-to-zero on the default path, which
+ * is exactly what makes the notice meaningful again when it DOES fire.
+ * `generatedDirSkips` stays in the trigger condition unchanged: directory-
+ * level pruning has no escape hatch at all (the walk never enumerates a
+ * pruned directory's contents to check them), so it is always a genuine
+ * "real files may be hiding in here, unverified" signal, not a
+ * false-positive-prone one — see `generatedDirSkips`'s doc on
+ * `SourceCollectionResult`.
+ *
+ * Returns `undefined` when neither counter is set (nothing to append).
+ */
+export function generatedSkipNotice(snapshot) {
+    const files = snapshot.generatedNameOnlySkips ?? 0;
+    const dirs = snapshot.generatedDirSkips ?? 0;
+    if (files === 0 && dirs === 0)
+        return undefined;
+    const parts = [];
+    if (files > 0)
+        parts.push(`${files} file(s)`);
+    if (dirs > 0)
+        parts.push(`${dirs} director${dirs === 1 ? "y" : "ies"}`);
+    return (`ℹ ${parts.join(" and ")} excluded by generated-name heuristics with no ` +
+        "confirming evidence — a real hand-written file/directory whose name " +
+        "looks generated (e.g. `gen.ts`, `generated/`) can be excluded too; " +
+        "pass includeGenerated: true to pilens_project_scan / lens_diagnostics " +
+        "to scan without this filter if you suspect a false skip.");
 }
 /** Process-wide tree-sitter health for host status surfaces. */
 export function treeSitterRuntimeStatus() {
@@ -213,7 +273,7 @@ function toSymbolSearchHit(result) {
  * cwd, never blocking this call) so a retry shortly after succeeds (#348
  * decision 3).
  *
- * #536 rider: prefers the warm in-memory index (`getOrLoadWarmWordIndex`,
+ * #536 rider: prefers the warm in-memory index (`acquireWarmWordIndex`,
  * clients/mcp/analyze.ts) over a fresh disk read when one exists for this
  * cwd — a warm `pilens_analyze` call updates that live copy synchronously but
  * persists it to disk on a debounce (default 1500ms), so without this a query
@@ -239,9 +299,11 @@ function toSymbolSearchHit(result) {
  * nothing on this hot path.
  */
 export async function symbolSearch(query, cwd, limit = 20, options = {}) {
-    const snapshot = loadProjectSnapshot(cwd);
-    const index = getOrLoadWarmWordIndex(cwd) ?? deserializeWordIndex(snapshot?.wordIndex);
+    const warmLease = acquireWarmWordIndex(cwd);
+    const snapshot = loadProjectSnapshotWithoutWordIndex(cwd);
+    const index = warmLease.index;
     if (!index) {
+        warmLease.release();
         const priorStatus = getWordIndexBuildStatus(cwd);
         const status = priorStatus?.state === "refused"
             ? priorStatus
@@ -266,9 +328,16 @@ export async function symbolSearch(query, cwd, limit = 20, options = {}) {
     }
     // Boost well-connected files using the snapshot's reverse-dependency
     // (importedBy) counts; snapshot keys are normalized, index keys are raw.
-    const centrality = centralityFromReverseDeps(index, snapshot?.reverseDeps, (file) => normalizeMapKey(path.resolve(file)));
-    const fileFilter = buildSymbolSearchFileFilter(cwd, options);
-    const results = searchWordIndex(index, query, { limit, centrality, fileFilter });
+    let centrality;
+    let results;
+    try {
+        centrality = centralityFromReverseDeps(index, snapshot?.reverseDeps, (file) => normalizeMapKey(path.resolve(file)));
+        const fileFilter = buildSymbolSearchFileFilter(cwd, options);
+        results = searchWordIndex(index, query, { limit, centrality, fileFilter });
+    }
+    finally {
+        warmLease.release();
+    }
     const hits = results.map(toSymbolSearchHit);
     const { getCachedReviewGraph } = await import("./review-graph/builder.js");
     const graph = getCachedReviewGraph(cwd);

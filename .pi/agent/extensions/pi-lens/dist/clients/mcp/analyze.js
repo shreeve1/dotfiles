@@ -13,16 +13,19 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { CacheManager } from "../cache-manager.js";
+import { CacheManager, MCP_TURN_STATE_OWNER_ID } from "../cache-manager.js";
 import { CASCADE_GRAPH_KINDS, dispatchLintWithResult, getLatencyReports, } from "../dispatch/integration.js";
 import { FactStore } from "../dispatch/fact-store.js";
 import { detectFileKind } from "../file-kinds.js";
 import { getDiagnosticTracker } from "../diagnostic-tracker.js";
 import { getLSPService } from "../lsp/index.js";
+import { PathKeyedMap } from "../path-keyed-map.js";
+import { normalizeMapKey } from "../path-utils.js";
 import { loadProjectSnapshot } from "../project-snapshot.js";
 import { buildOrUpdateGraph } from "../review-graph/service.js";
 import { recordDiagnostics } from "../widget-state.js";
 import { deserializeWordIndex, removeWordIndexDocument, scheduleWordIndexPersist, updateWordIndexDocument, WORD_INDEX_MAX_BYTES, } from "../word-index.js";
+import { logWordIndex } from "../word-index-logger.js";
 import { createMcpHost } from "./host-shim.js";
 // #536: module-scoped FactStore for the warm-analyze graph seam, mirroring the
 // per-edit cascade path's own module-level `sessionFacts` singleton
@@ -43,7 +46,59 @@ const warmGraphFacts = new FactStore();
 // nothing usable" (index missing or pre-phase-2/no-forward-map), distinct from
 // "never checked" (key absent) — avoids re-attempting a snapshot load with no
 // forward index on every single analyze call.
-const warmWordIndexes = new Map();
+const DEFAULT_WORD_INDEX_IDLE_EVICT_MS = 20 * 60_000;
+const DEFAULT_WORD_INDEX_MAX_WARM_ROOTS = 8;
+const warmWordIndexes = new PathKeyedMap(normalizeMapKey);
+function positiveEnv(name, fallback) {
+    const parsed = Number.parseInt(process.env[name] ?? "", 10);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+function idleEvictMs() {
+    return positiveEnv("PI_LENS_WORD_INDEX_IDLE_EVICT_MS", DEFAULT_WORD_INDEX_IDLE_EVICT_MS);
+}
+function maxWarmRoots() {
+    return positiveEnv("PI_LENS_WORD_INDEX_MAX_WARM_ROOTS", DEFAULT_WORD_INDEX_MAX_WARM_ROOTS);
+}
+function clearWarmWordIndexTimer(entry) {
+    if (entry.timer)
+        clearTimeout(entry.timer);
+    entry.timer = undefined;
+}
+function evictWarmWordIndex(key, entry, reason) {
+    if (entry.leases > 0 || warmWordIndexes.get(key) !== entry)
+        return false;
+    clearWarmWordIndexTimer(entry);
+    warmWordIndexes.delete(key);
+    logWordIndex({
+        phase: "warm_cache_evicted",
+        cwd: key,
+        trigger: "mcp",
+        reason,
+    });
+    return true;
+}
+function scheduleWarmWordIndexIdleEviction(key, entry) {
+    clearWarmWordIndexTimer(entry);
+    const generation = ++entry.generation;
+    const timer = setTimeout(() => {
+        entry.timer = undefined;
+        if (warmWordIndexes.get(key) !== entry || entry.generation !== generation)
+            return;
+        if (!evictWarmWordIndex(key, entry, "idle"))
+            scheduleWarmWordIndexIdleEviction(key, entry);
+    }, idleEvictMs());
+    timer.unref?.();
+    entry.timer = timer;
+}
+function enforceWarmWordIndexLruCap() {
+    while (warmWordIndexes.size > maxWarmRoots()) {
+        const victim = [...warmWordIndexes.entries()]
+            .filter(([, entry]) => entry.leases === 0)
+            .sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)[0];
+        if (!victim || !evictWarmWordIndex(victim[0], victim[1], "lru"))
+            return;
+    }
+}
 /**
  * Look up (loading from the persisted snapshot on first use per cwd) the warm
  * in-memory word index this analyze facade keeps mutated in place. Exported so
@@ -52,25 +107,56 @@ const warmWordIndexes = new Map();
  * following a warm `pilens_analyze` call in the SAME process would read a
  * stale on-disk snapshot until the debounced persist (default 1500ms) flushes.
  */
-export function getOrLoadWarmWordIndex(cwd) {
+export function acquireWarmWordIndex(cwd) {
     const key = path.resolve(cwd);
-    if (warmWordIndexes.has(key))
-        return warmWordIndexes.get(key);
-    const snapshot = loadProjectSnapshot(key);
-    const index = deserializeWordIndex(snapshot?.wordIndex) ?? undefined;
-    // Same phase-2 rule as updateWordIndexForCascade: no forward index ⇒ no
-    // incremental primitive available, so don't cache it as "usable" — this
-    // call site's whole point is the incremental single-doc update.
-    const usable = index?.forward ? index : undefined;
-    warmWordIndexes.set(key, usable);
-    return usable;
+    let entry = warmWordIndexes.get(key);
+    if (!entry) {
+        const snapshot = loadProjectSnapshot(key);
+        const index = deserializeWordIndex(snapshot?.wordIndex) ?? undefined;
+        entry = {
+            index: index?.forward ? index : undefined,
+            timer: undefined,
+            leases: 0,
+            lastUsedAt: Date.now(),
+            generation: 0,
+        };
+        warmWordIndexes.set(key, entry);
+    }
+    entry.leases++;
+    entry.lastUsedAt = Date.now();
+    scheduleWarmWordIndexIdleEviction(key, entry);
+    enforceWarmWordIndexLruCap();
+    let released = false;
+    return {
+        index: entry.index,
+        release() {
+            if (released)
+                return;
+            released = true;
+            entry.leases = Math.max(0, entry.leases - 1);
+            entry.lastUsedAt = Date.now();
+            if (warmWordIndexes.get(key) === entry) {
+                scheduleWarmWordIndexIdleEviction(key, entry);
+                enforceWarmWordIndexLruCap();
+            }
+        },
+    };
 }
 /**
  * Test-only reset — the module-level warm cache otherwise survives across
  * unrelated test cases in the same vitest worker.
  */
 export function _resetWarmWordIndexCacheForTests() {
+    for (const entry of warmWordIndexes.values())
+        clearWarmWordIndexTimer(entry);
     warmWordIndexes.clear();
+}
+export function _getWarmWordIndexCacheStateForTests() {
+    return {
+        size: warmWordIndexes.size,
+        keys: [...warmWordIndexes.keys()],
+        timers: [...warmWordIndexes.values()].flatMap((entry) => entry.timer ? [entry.timer] : []),
+    };
 }
 // Generous warm-up budgets: a cold language server needs to spawn AND publish
 // diagnostics. The per-edit dispatch runner caps these tightly (spawn budget +
@@ -153,6 +239,10 @@ export async function analyzeFile(filePath, cwd, options = {}) {
     }
     const reportsBefore = getLatencyReports().length;
     const start = Date.now();
+    // No telemetryModel/telemetryProvider here (#1448): this MCP facade has no
+    // RuntimeCoordinator to hold a host-reported identity (see the module doc
+    // above), so any worklog entries this dispatch produces get a blank
+    // model/provider — that's correct, not a gap.
     const result = await dispatchLintWithResult(absPath, cwd, host, undefined, undefined, {
         blockingOnly: options.blockingOnly ?? false,
     });
@@ -167,11 +257,11 @@ export async function analyzeFile(filePath, cwd, options = {}) {
     }
     if (options.registerTurnState) {
         // Full-file range, importsChanged=true (conservative → dep/knip re-check
-        // broadly). No sessionId — leaving it unset avoids turn_end's stale-session
-        // eviction. Best-effort.
+        // broadly). Clear any stale pi session ID because the MCP Stop route owns
+        // this workspace-scoped worklist independently. Best-effort.
         try {
             const lineCount = fs.readFileSync(absPath, "utf8").split("\n").length;
-            new CacheManager().addModifiedRange(absPath, { start: 1, end: lineCount }, true, cwd);
+            new CacheManager().addModifiedRange(absPath, { start: 1, end: lineCount }, true, cwd, options.ownerId ?? MCP_TURN_STATE_OWNER_ID, "mcp");
         }
         catch {
             // unreadable — skip turn-state registration
@@ -215,23 +305,29 @@ export async function analyzeFile(filePath, cwd, options = {}) {
         // INTERNALLY (PathKeyedMap), so this edit-form key and the build path's
         // walk-derived key converge on the same entry regardless of casing/
         // separator — the old duplicate-orphan hazard is gone at the map layer.
-        const warmIndex = getOrLoadWarmWordIndex(cwd);
-        if (warmIndex) {
-            try {
-                const content = fs.readFileSync(absPath, "utf8");
-                const byteLength = Buffer.byteLength(content, "utf-8");
-                if (byteLength > WORD_INDEX_MAX_BYTES) {
-                    removeWordIndexDocument(warmIndex, absPath);
+        const warmLease = acquireWarmWordIndex(cwd);
+        const warmIndex = warmLease.index;
+        try {
+            if (warmIndex) {
+                try {
+                    const content = fs.readFileSync(absPath, "utf8");
+                    const byteLength = Buffer.byteLength(content, "utf-8");
+                    if (byteLength > WORD_INDEX_MAX_BYTES) {
+                        removeWordIndexDocument(warmIndex, absPath);
+                    }
+                    else {
+                        updateWordIndexDocument(warmIndex, { path: absPath, content });
+                    }
+                    scheduleWordIndexPersist(cwd, warmIndex);
                 }
-                else {
-                    updateWordIndexDocument(warmIndex, { path: absPath, content });
+                catch {
+                    // unreadable/deleted, or an update failure — best-effort, same as the
+                    // graph update above.
                 }
-                scheduleWordIndexPersist(cwd, warmIndex);
             }
-            catch {
-                // unreadable/deleted, or an update failure — best-effort, same as the
-                // graph update above.
-            }
+        }
+        finally {
+            warmLease.release();
         }
     }
     // dispatchForFile appended a latency report during the call above. Match the
@@ -243,8 +339,7 @@ export async function analyzeFile(filePath, cwd, options = {}) {
     const lspRunner = latencyReport?.runners.find((runner) => runner.runnerId === "lsp");
     const lsp = lspRunner
         ? {
-            ran: lspRunner.status !== "skipped" &&
-                lspRunner.status !== "when_skipped",
+            ran: lspRunner.status !== "skipped" && lspRunner.status !== "when_skipped",
             status: lspRunner.status,
             diagnosticCount: lspRunner.diagnosticCount,
             durationMs: lspRunner.durationMs,

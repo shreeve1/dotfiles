@@ -46,11 +46,70 @@ const MAX_WALK_DEPTH = 64;
 const PI_LENS_CONFIG_BASENAMES = [".pi-lens.json", "pi-lens.json"];
 /** Per-directory marker cache — the shared seam every consumer reads through. */
 const dirMarkerCache = new Map();
-/** Cache for upward marker-walk results, keyed by `${startDir}\0${markerKey}`. */
 const walkCache = new Map();
+const TOPOLOGY_MAX_DIR_ENTRIES = 256;
+const TOPOLOGY_MAX_WALK_ENTRIES = 512;
+const TOPOLOGY_IDLE_EVICT_MS_DEFAULT = 20 * 60_000;
+function topologyIdleEvictMs() {
+    const value = Number.parseInt(process.env.PI_LENS_WORKSPACE_TOPOLOGY_IDLE_EVICT_MS ?? "", 10);
+    return Number.isSafeInteger(value) && value > 0 ? value : TOPOLOGY_IDLE_EVICT_MS_DEFAULT;
+}
+function deleteDirMarker(key) {
+    const entry = dirMarkerCache.get(key);
+    if (entry?.idleTimer)
+        clearTimeout(entry.idleTimer);
+    dirMarkerCache.delete(key);
+}
+function deleteWalk(key) {
+    const entry = walkCache.get(key);
+    if (entry?.idleTimer)
+        clearTimeout(entry.idleTimer);
+    walkCache.delete(key);
+}
+function touchDirMarker(key, entry) {
+    entry.lastUsedAt = Date.now();
+    if (entry.idleTimer)
+        clearTimeout(entry.idleTimer);
+    const stamp = entry.lastUsedAt;
+    entry.idleTimer = setTimeout(() => {
+        if (dirMarkerCache.get(key) === entry && entry.lastUsedAt === stamp)
+            deleteDirMarker(key);
+    }, topologyIdleEvictMs());
+    entry.idleTimer.unref?.();
+}
+function touchWalk(key, entry) {
+    entry.lastUsedAt = Date.now();
+    if (entry.idleTimer)
+        clearTimeout(entry.idleTimer);
+    const stamp = entry.lastUsedAt;
+    entry.idleTimer = setTimeout(() => {
+        if (walkCache.get(key) === entry && entry.lastUsedAt === stamp)
+            deleteWalk(key);
+    }, topologyIdleEvictMs());
+    entry.idleTimer.unref?.();
+}
 export function resetWorkspaceTopology() {
-    dirMarkerCache.clear();
-    walkCache.clear();
+    for (const key of dirMarkerCache.keys())
+        deleteDirMarker(key);
+    for (const key of walkCache.keys())
+        deleteWalk(key);
+}
+/**
+ * Release cache eviction handles without discarding reusable entries.
+ * One-shot cascades call this after marker discovery so cache residency does
+ * not leave a process-liveness tail; the next cache use re-arms its timer.
+ */
+export function releaseWorkspaceTopologyIdleTimers() {
+    for (const entry of dirMarkerCache.values()) {
+        if (entry.idleTimer !== undefined)
+            clearTimeout(entry.idleTimer);
+        entry.idleTimer = undefined;
+    }
+    for (const entry of walkCache.values()) {
+        if (entry.idleTimer !== undefined)
+            clearTimeout(entry.idleTimer);
+        entry.idleTimer = undefined;
+    }
 }
 function safeDirMtimeMs(dir) {
     try {
@@ -80,6 +139,7 @@ export function getDirectoryMarkers(dir) {
     const dirMtimeMs = safeDirMtimeMs(resolvedDir);
     const cached = dirMarkerCache.get(resolvedDir);
     if (cached && cached.dirMtimeMs === dirMtimeMs) {
+        touchDirMarker(resolvedDir, cached);
         return cached.markers;
     }
     let entries = [];
@@ -117,8 +177,17 @@ export function getDirectoryMarkers(dir) {
         pnpmWorkspaceYamlPath: resolveMarker("pnpm-workspace.yaml"),
         cargoTomlPath: resolveMarker("Cargo.toml"),
         goWorkPath: resolveMarker("go.work"),
+        chartYamlPath: resolveMarker("Chart.yaml"),
     };
-    dirMarkerCache.set(resolvedDir, { dirMtimeMs, markers });
+    const entry = { dirMtimeMs, markers, lastUsedAt: Date.now() };
+    dirMarkerCache.set(resolvedDir, entry);
+    touchDirMarker(resolvedDir, entry);
+    while (dirMarkerCache.size > TOPOLOGY_MAX_DIR_ENTRIES) {
+        const victim = [...dirMarkerCache.entries()].sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)[0];
+        if (!victim)
+            break;
+        deleteDirMarker(victim[0]);
+    }
     return markers;
 }
 function walkCacheKey(startDir, markerKey) {
@@ -140,6 +209,7 @@ function walkToNearestMatch(startDir, cacheSuffix, matches, capMetadata, homeDir
     const key = walkCacheKey(startDir, cacheSuffix);
     const cached = walkCache.get(key);
     if (cached && walkStillFresh(cached.dirMtimes)) {
+        touchWalk(key, cached);
         return cached.dir;
     }
     const dirMtimes = [];
@@ -166,7 +236,15 @@ function walkToNearestMatch(startDir, cacheSuffix, matches, capMetadata, homeDir
         }
         depth += 1;
     }
-    walkCache.set(key, { dir: found, dirMtimes });
+    const entry = { dir: found, dirMtimes, lastUsedAt: Date.now() };
+    walkCache.set(key, entry);
+    touchWalk(key, entry);
+    while (walkCache.size > TOPOLOGY_MAX_WALK_ENTRIES) {
+        const victim = [...walkCache.entries()].sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)[0];
+        if (!victim)
+            break;
+        deleteWalk(victim[0]);
+    }
     return found;
 }
 /**
@@ -246,7 +324,12 @@ export function findPiLensConfigMarkerInDir(dir) {
     })();
     if (!stat?.isFile())
         return undefined;
-    return { path: markers.piLensConfigPath, dir: markers.dir, mtimeMs: stat.mtimeMs };
+    return {
+        path: markers.piLensConfigPath,
+        dir: markers.dir,
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+    };
 }
 /**
  * Nearest directory (at or above `startDir`, home-guarded) that carries a

@@ -10,6 +10,7 @@
  * maintainability index (Halstead-free), LOC/comments, code entropy, and AI-slop
  * indicators. These are silent metrics surfaced in the session summary.
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { firstChildOfType, withTreeSitterRoot, resolveTreeSitterLanguage, walk, } from "./tree-sitter-shared.js";
@@ -371,7 +372,7 @@ export class ComplexityClient {
     log;
     constructor(verbose = false) {
         this.log = verbose
-            ? (msg) => console.error(`[complexity] ${msg}`)
+            ? createSubsystemLogger("complexity")
             : () => { };
     }
     /** True if the file's grammar has a complexity node mapping. */

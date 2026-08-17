@@ -1,9 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { ensureTool } from "../../installer/index.js";
 import { safeSpawnAsync } from "../../safe-spawn.js";
 import { PRIORITY } from "../priorities.js";
-import { createAvailabilityChecker } from "./utils/runner-helpers.js";
+import { createAvailabilityChecker, resolveAvailableOrInstall, } from "./utils/runner-helpers.js";
 const shfmt = createAvailabilityChecker("shfmt", ".exe");
 // shfmt's only config source is .editorconfig. We treat its presence as the
 // opt-in for the (non-error) format-diff warning, so out of the box shfmt only
@@ -39,7 +38,7 @@ const shfmtRunner = {
             cmd = shfmt.getCommand(cwd);
         }
         else {
-            const installed = await ensureTool("shfmt");
+            const installed = await resolveAvailableOrInstall(shfmt, "shfmt", cwd);
             if (!installed) {
                 return { status: "skipped", diagnostics: [], semantic: "none" };
             }

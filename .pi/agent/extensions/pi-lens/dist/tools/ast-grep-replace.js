@@ -67,7 +67,12 @@ export function createAstGrepReplaceTool(astGrepClient) {
             }),
             paths: Type.Optional(Type.Array(Type.String(), { description: "Specific files/folders" })),
             insideKind: Type.Optional(Type.String({ description: "Restrict matches to nodes inside an ancestor of this AST node kind. Synthesizes a YAML rule." })),
-            hasKind: Type.Optional(Type.String({ description: "Restrict matches to nodes that contain a descendant of this AST node kind." })),
+            hasKind: Type.Optional(Type.String({
+                description: 'Restrict matches to nodes whose immediate child has this AST node kind (ast-grep default stopBy: neighbor). Example: `hasKind: "await_expression"`.',
+            })),
+            hasDescendantKind: Type.Optional(Type.String({
+                description: "Restrict matches to nodes containing this AST node kind anywhere in their descendants. Explicit recursive form (`stopBy: end`); use this instead of `hasKind` when nesting is not immediate.",
+            })),
             follows: Type.Optional(Type.String({ description: "Restrict matches to nodes that immediately follow a sibling matching this pattern." })),
             precedes: Type.Optional(Type.String({ description: "Restrict matches to nodes that immediately precede a sibling matching this pattern." })),
             apply: Type.Optional(Type.Boolean({ description: "Apply changes (default: false)" })),
@@ -78,7 +83,7 @@ export function createAstGrepReplaceTool(astGrepClient) {
         }),
         async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
             const startedAt = Date.now();
-            const { pattern, rewrite, paths, apply, strictness, insideKind, hasKind, follows, precedes } = params;
+            const { pattern, rewrite, paths, apply, strictness, insideKind, hasKind, hasDescendantKind, follows, precedes } = params;
             const lang = (params.lang ?? "").replace(/^"|"$/g, "");
             const pathsCount = paths?.length ?? 1;
             const applyFlag = apply ?? false;
@@ -122,10 +127,10 @@ export function createAstGrepReplaceTool(astGrepClient) {
             }
             const searchPaths = paths?.length ? paths : [ctx.cwd || "."];
             // Phase 3: structural-intent params → synthesize YAML with fix: field
-            if (hasStructuralIntent({ insideKind, hasKind, follows, precedes })) {
+            if (hasStructuralIntent({ insideKind, hasKind, hasDescendantKind, follows, precedes })) {
                 let ruleYaml;
                 try {
-                    ruleYaml = synthesizeReplaceRule({ pattern, lang, rewrite, insideKind, hasKind, follows, precedes });
+                    ruleYaml = synthesizeReplaceRule({ pattern, lang, rewrite, insideKind, hasKind, hasDescendantKind, follows, precedes });
                 }
                 catch (err) {
                     logOutcome("error", { errorRaw: String(err) });

@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { BoundedLruCache } from "../../bounded-cache.js";
 import { safeSpawnAsync } from "../../safe-spawn.js";
 import { findCompiledClassesDir } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
@@ -11,7 +12,7 @@ const java = createAvailabilityChecker("java", ".exe", ["-version"]);
 const spotbugs = createAvailabilityChecker("spotbugs", ".bat", ["-version"]);
 const MAX_DIAGNOSTICS = 50;
 const MAX_XML_BYTES = 4 * 1024 * 1024;
-const scanCache = new Map();
+const scanCache = new BoundedLruCache(32);
 /** Reset the SpotBugs scan cache (tests). */
 export function _resetSpotbugsCacheForTests() {
     scanCache.clear();

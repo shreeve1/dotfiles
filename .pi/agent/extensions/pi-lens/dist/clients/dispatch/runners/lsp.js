@@ -11,6 +11,8 @@
  * Replaces language-specific runners (pyright, etc.) with a single
  * unified runner that delegates to the LSP service.
  */
+import { logExtension } from "../../extension-log.js";
+import { touchCoverageGap } from "../../lsp/diagnostic-binding.js";
 import { getLSPService } from "../../lsp/index.js";
 import { RUNTIME_CONFIG } from "../../runtime-config.js";
 import { PRIORITY } from "../priorities.js";
@@ -110,6 +112,11 @@ const lspRunner = {
         // one spawned server) — an empty `lspDiags` in that case is NOT a
         // confirmed clean result and must not be reported as one (#570).
         let diagnosticsInconclusive = false;
+        // #1470: server ids the touch carries no evidence for — an auxiliary whose
+        // push wait our aux grace timer cut off. The touch is NOT inconclusive (the
+        // primary answered, and its findings below are real), so this is tracked
+        // separately: the only claim it invalidates is "0 diagnostics means clean".
+        let unconfirmedServerIds = [];
         let usedWarmAttach = false;
         let failureReason = "";
         const content = readFileContent(ctx.filePath);
@@ -128,8 +135,25 @@ const lspRunner = {
         try {
             const attached = await tryWarmAttachedDiagnostics(ctx.filePath, content, Math.max(LSP_SPAWN_BUDGET_MS, LSP_DIAGNOSTICS_WAIT_MS));
             usedWarmAttach = attached?.available === true;
+            // #1179 (shape-5 structural fix): both branches normalize to the
+            // `touchFile` wrapper shape. The warm-attach IPC branch resolves a plain
+            // diagnostics array — `available` no longer implies a fully confirmed
+            // answer: a `partial` confirmation (an auxiliary cut off by the grace
+            // timer) is served as `available: true` too (the IPC gate at
+            // `clients/mcp/ipc.ts:248` rejects only `inconclusive`). Carry the
+            // incumbent's `unconfirmedServerIds` onto the wrapper so
+            // `touchCoverageGap` below sees it — dropping it here is the same
+            // false-clean defect already fixed at `clients/lsp/index.ts` (the
+            // workspace sweep wrapper) and `tools/lsp-diagnostics.ts` (the tool
+            // consumer); wrap it as `{ diags }`; the incumbent branch already
+            // returns the wrapper.
             const touched = attached?.available
-                ? attached.response.diagnostics
+                ? {
+                    diags: attached.response.diagnostics,
+                    ...(attached.response.unconfirmedServerIds !== undefined && {
+                        unconfirmedServerIds: attached.response.unconfirmedServerIds,
+                    }),
+                }
                 : await lspService.touchFile(ctx.filePath, content, {
                     diagnostics: "document",
                     collectDiagnostics: true,
@@ -143,10 +167,9 @@ const lspRunner = {
                 lspClientReady = false;
             }
             else {
-                lspDiags = touched;
-                diagnosticsInconclusive =
-                    touched
-                        .inconclusive === true;
+                lspDiags = touched.diags;
+                diagnosticsInconclusive = touched.inconclusive === true;
+                unconfirmedServerIds = touchCoverageGap(touched);
             }
         }
         catch (err) {
@@ -156,7 +179,11 @@ const lspRunner = {
                 failureReason.includes("exited") ||
                 failureReason.includes("connection") ||
                 failureReason.includes("JSON RPC")) {
-                console.error(`[lsp-runner] LSP server failed for ${diagnosticPath}: ${failureReason}`);
+                logExtension({
+                    subsystem: "lsp-runner",
+                    message: `LSP server failed for ${diagnosticPath}: ${failureReason}`,
+                    metadata: { filePath: diagnosticPath },
+                });
             }
         }
         if (serverFailed) {
@@ -200,6 +227,20 @@ const lspRunner = {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
         if (lspDiags.length === 0) {
+            if (unconfirmedServerIds.length > 0) {
+                // #1470: an auxiliary was cut off by the aux grace timer, so this empty
+                // merged result is missing whatever that scanner would have said — a
+                // hung opengrep must not read as a clean bill of health on the security
+                // lane. `RunnerResult` has no channel for "clean for these servers,
+                // unknown for those", so the only honest verdict this seam can express
+                // for an EMPTY result is "not checked" — which is what "skipped" means
+                // here, and it lets the coverage notice say so once. Nothing is thrown
+                // away: the primary answered with zero findings, so there is nothing to
+                // report; when it DOES have findings the branches below still report
+                // them (see the non-empty path), which is how a trustworthy primary
+                // stays trustworthy under a cut-off auxiliary.
+                return { status: "skipped", diagnostics: [], semantic: "none" };
+            }
             return {
                 status: "succeeded",
                 diagnostics: [],

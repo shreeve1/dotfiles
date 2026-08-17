@@ -1,18 +1,6 @@
 import { logLatency } from "../../latency-logger.js";
+import { isJstsFactFile } from "../../file-kinds.js";
 import { childrenOfType, firstChildOfType, withFactTree, walk, } from "./tree-sitter-facts.js";
-// JS/TS extensions this provider handles (→ tree-sitter typescript/tsx/javascript
-// grammars via resolveTreeSitterLanguage). Ported off the `typescript` compiler API
-// onto tree-sitter (#402) — the parse is served from the shared, cached client.
-const JSTS_EXTS = new Set([
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    ".js",
-    ".jsx",
-    ".mjs",
-    ".cjs",
-]);
 function stripQuotes(raw) {
     return raw.replace(/^["'`]+|["'`]+$/g, "");
 }
@@ -78,19 +66,19 @@ function parseReExport(node) {
 }
 export const importFactProvider = {
     id: "fact.file.imports",
-    provides: ["file.imports", "file.reexports"],
+    provides: ["file.imports", "file.reexports", "file.importFactsCoverage"],
     requires: ["file.content"],
     appliesTo(ctx) {
-        const ext = ctx.filePath.slice(ctx.filePath.lastIndexOf(".")).toLowerCase();
-        return JSTS_EXTS.has(ext);
+        return isJstsFactFile(ctx.filePath);
     },
     async run(ctx, store) {
         const content = store.getFileFact(ctx.filePath, "file.content");
-        const setEmpty = () => {
+        const setEmpty = (complete = false) => {
             store.setFileFact(ctx.filePath, "file.imports", []);
             store.setFileFact(ctx.filePath, "file.reexports", []);
+            store.setFileFact(ctx.filePath, "file.importFactsCoverage", complete ? "complete" : "unavailable");
         };
-        if (!content) {
+        if (content == null) {
             setEmpty();
             return;
         }
@@ -205,5 +193,7 @@ export const importFactProvider = {
         });
         if (!parsed.parsed)
             setEmpty();
+        else
+            store.setFileFact(ctx.filePath, "file.importFactsCoverage", "complete");
     },
 };

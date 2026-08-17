@@ -24,13 +24,15 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { AstGrepClient } from "../clients/ast-grep-client.js";
 import { CacheManager } from "../clients/cache-manager.js";
-import { computeBuildStamp, STALE_SERVED_BY_FRESH, STALE_WARN_ONLY, StalenessGate, stalenessCheckEnabled, } from "./build-staleness.js";
-import { analyzeFile, analyzeFileFresh, canRebuildPiLens, createMcpHost, diagnosticStats, ensureLspConfig, ipcPathForCwd, lspStatus, renderLspBrokenStatusLines, moduleReport, projectReport, projectScan, readEnclosing, readSymbol, recentLatency, renderCompactModuleReport, renderCompactProjectReport, resolveRebuildScript, resourceFootprint, runRebuild, runSessionStart, runTurnEnd, scanTruncationNotice, summarizeScan, symbolSearch, treeSitterRuntimeStatus, } from "../clients/lens-engine.js";
+import { getDegradationSummary, renderDegradationLines, } from "../clients/degradation-ledger.js";
+import { acknowledgeTurnEnd, analyzeFile, analyzeFileFresh, canRebuildPiLens, createMcpHost, createWarmIpcLineReader, createWarmIpcRequestQueue, diagnosticStats, ensureLspConfig, generatedSkipNotice, ipcPathForCwd, lspStatus, moduleReport, projectReport, projectScan, readEnclosing, readSymbol, readTurnEndStatus, recentLatency, renderCompactModuleReport, renderCompactProjectReport, renderLspBrokenStatusLines, resolveRebuildScript, resourceFootprint, runRebuild, runSessionStart, runTurnEnd, runTurnEndForIpc, scanTruncationNotice, summarizeScan, symbolSearch, treeSitterRuntimeStatus, WARM_TURN_END_SCHEMA_VERSION, } from "../clients/lens-engine.js";
 import { createAstGrepReplaceTool } from "../tools/ast-grep-replace.js";
 import { createAstGrepSearchTool } from "../tools/ast-grep-search.js";
 import { createLensDiagnosticsTool } from "../tools/lens-diagnostics.js";
+import { peekMcpSessionRuntime } from "../clients/mcp/session.js";
 import { createLspDiagnosticsTool } from "../tools/lsp-diagnostics.js";
 import { createLspNavigationTool } from "../tools/lsp-navigation.js";
+import { computeBuildStamp, STALE_SERVED_BY_FRESH, STALE_WARN_ONLY, StalenessGate, stalenessCheckEnabled, } from "./build-staleness.js";
 // Any stray stdout write corrupts the JSON-RPC stream; force it onto stderr.
 console.log = (...args) => {
     console.error(...args);
@@ -191,6 +193,32 @@ function getAutoSessionStatus() {
 // runs in THIS warm process (LSP-complete) instead of a cold hook process.
 // Responses go over the socket — never stdout — so the MCP stream is untouched.
 const IPC_PATH = ipcPathForCwd(DEFAULT_CWD);
+/**
+ * #1273: the turn-end route runs the TARGET directory's configured test runner
+ * and spins up an LSP for it, from a client-supplied `cwd`. Every legitimate
+ * client derived the socket path from that same cwd, so a workspace check costs
+ * nothing legitimate — but without it, anything that can reach this endpoint
+ * (same-uid processes, a permissive-umask shared host, a Windows named pipe's
+ * more generous default DACL) can make the server execute an arbitrary
+ * directory's test suite. "Lint one file" and "run this directory's test suite"
+ * are different blast radii, so the guard is on turn-end and its ack.
+ */
+function rejectForeignTurnCwd(route, cwd) {
+    const message = `${route} cwd outside this server's workspace: ${path.resolve(cwd)} not within ${DEFAULT_CWD}`;
+    console.error(`[pi-lens-mcp] rejected ${message}`);
+    return message;
+}
+function isWithinServerWorkspace(cwd) {
+    const target = path.resolve(cwd);
+    // `path.relative` applies the platform's own path semantics (including
+    // win32 case-insensitivity), which is what "inside the workspace" means
+    // here — do NOT hand-roll a case fold. An empty result means `target`
+    // IS `DEFAULT_CWD` (win32 can reach that via a pure case/drive-letter
+    // difference, since path.relative there is case-insensitive) and must
+    // be accepted, not rejected — do NOT reintroduce a `rel !== ""` guard.
+    const rel = path.relative(DEFAULT_CWD, target);
+    return !rel.startsWith("..") && !path.isAbsolute(rel);
+}
 function startIpcServer() {
     // POSIX: a stale socket file blocks listen; remove it first. (Named pipes on
     // Windows don't need this.)
@@ -202,33 +230,77 @@ function startIpcServer() {
             // no stale socket — fine
         }
     }
+    const requestQueue = createWarmIpcRequestQueue();
     const ipc = net.createServer((socket) => {
         socket.setEncoding("utf8");
-        let buffer = "";
-        socket.on("data", (chunk) => {
-            buffer += chunk;
-            const newline = buffer.indexOf("\n");
-            if (newline === -1)
-                return;
-            const line = buffer.slice(0, newline);
-            void (async () => {
+        // One-shot per connection (#1219): clients write exactly one request and
+        // read one reply, so a handler that kept re-reading the same buffered
+        // line re-dispatched the request on stray bytes. The reader consumes the
+        // line and ignores anything after it.
+        socket.on("data", createWarmIpcLineReader((line) => {
+            void requestQueue.enqueue(async () => {
                 try {
-                    // #535: the PostToolUse hook bin (mcp/analyze-cli.ts) already treats
-                    // ANY error response as "no usable warm server" and falls back to
-                    // its own cold, load-fresh-from-disk analysis path — so on a stale
-                    // warm build, replying with an error IS the fresh-fork behavior for
-                    // this channel, for free. No separate fresh-fork plumbing needed
-                    // here: the client-side fallback already loads current code.
                     if (isWarmBuildStale()) {
-                        console.error("[pi-lens-mcp] warm analyze: build stale, replying error so the hook falls back cold");
-                        socket.end(`${JSON.stringify({ error: "warm build stale — falling back to cold analysis" })}\n`);
+                        console.error("[pi-lens-mcp] warm request: build stale, replying with an error");
+                        socket.end(`${JSON.stringify({ error: "warm build stale" })}\n`);
                         return;
                     }
-                    const req = JSON.parse(line);
+                    const parsed = JSON.parse(line);
+                    if (parsed.route === "turn-end-ack") {
+                        if (parsed.version !== WARM_TURN_END_SCHEMA_VERSION ||
+                            typeof parsed.deliveryId !==
+                                "string") {
+                            socket.end(`${JSON.stringify({ error: `turn-end ack schema ${parsed.version} != ${WARM_TURN_END_SCHEMA_VERSION}` })}\n`);
+                            return;
+                        }
+                        const turnCwd = parsed.cwd ?? DEFAULT_CWD;
+                        if (!isWithinServerWorkspace(turnCwd)) {
+                            socket.end(`${JSON.stringify({ error: rejectForeignTurnCwd("turn-end-ack", turnCwd) })}\n`);
+                            return;
+                        }
+                        const acknowledged = acknowledgeTurnEnd(turnCwd, parsed.deliveryId);
+                        socket.end(`${JSON.stringify({
+                            result: {
+                                route: "turn-end-ack",
+                                version: WARM_TURN_END_SCHEMA_VERSION,
+                                acknowledged,
+                            },
+                        })}\n`);
+                        return;
+                    }
+                    if (parsed.route === "turn-end") {
+                        if (parsed.version !== WARM_TURN_END_SCHEMA_VERSION) {
+                            socket.end(`${JSON.stringify({ error: `turn-end schema ${parsed.version} != ${WARM_TURN_END_SCHEMA_VERSION}` })}\n`);
+                            return;
+                        }
+                        const turnCwd = parsed.cwd ?? DEFAULT_CWD;
+                        if (!isWithinServerWorkspace(turnCwd)) {
+                            socket.end(`${JSON.stringify({ error: rejectForeignTurnCwd("turn-end", turnCwd) })}\n`);
+                            return;
+                        }
+                        // #1274: a client that already gave up (hook timeout, killed
+                        // Claude Code) leaves a destroyed socket. Starting a heavy
+                        // pass whose reply nobody can read is pure waste; the findings
+                        // stay in the cache for the next Stop either way.
+                        if (socket.destroyed) {
+                            console.error(`[pi-lens-mcp] warm turn-end: client gone before the pass started (${turnCwd})`);
+                            return;
+                        }
+                        console.error(`[pi-lens-mcp] warm turn-end: ${turnCwd}`);
+                        await ensureReady(turnCwd);
+                        const delivery = await runTurnEndForIpc(turnCwd);
+                        const result = {
+                            route: "turn-end",
+                            version: WARM_TURN_END_SCHEMA_VERSION,
+                            turnEnd: delivery.outcome.turnEnd,
+                            tests: delivery.outcome.tests,
+                            deliveryId: delivery.deliveryId,
+                        };
+                        socket.end(`${JSON.stringify({ result })}\n`);
+                        return;
+                    }
+                    const req = parsed;
                     console.error(`[pi-lens-mcp] warm analyze: ${req.file}`);
-                    // Warm = full LSP + an edit-detection path (register turn-state) +
-                    // review-graph maintenance (#536 — this is an in-process, long-lived
-                    // path, unlike the ephemeral `fresh` worker).
                     const result = await analyzeFile(req.file, req.cwd, {
                         registerTurnState: true,
                         updateGraph: true,
@@ -238,8 +310,8 @@ function startIpcServer() {
                 catch (err) {
                     socket.end(`${JSON.stringify({ error: String(err) })}\n`);
                 }
-            })();
-        });
+            });
+        }));
         socket.on("error", () => socket.destroy());
     });
     ipc.on("error", (err) => {
@@ -340,7 +412,12 @@ const cacheManager = new CacheManager();
 // nothing — a no-op dressed as a fix, not a real parity gap. The 4th arg is left
 // at its default (`async () => {}`, already a no-op) rather than importing and
 // wiring a flush with nothing to flush.
-const lensDiagnosticsTool = createLensDiagnosticsTool(cacheManager, () => DEFAULT_CWD);
+const lensDiagnosticsTool = createLensDiagnosticsTool(cacheManager, () => DEFAULT_CWD, undefined, undefined, undefined, undefined, 
+// #1413 surface parity: validate cached test-runner findings against the
+// same session identity the in-process path uses. Resolved lazily — until
+// an MCP session context exists there is no session to compare against and
+// validation skips the check, which is the honest classification.
+() => peekMcpSessionRuntime());
 const astGrepClient = new AstGrepClient();
 const astGrepSearchTool = createAstGrepSearchTool(astGrepClient);
 const astGrepReplaceTool = createAstGrepReplaceTool(astGrepClient);
@@ -395,7 +472,7 @@ const ALL_TOOLS = [
                 },
                 flags: {
                     type: "object",
-                    description: "Optional pi-lens flag overrides for this run, e.g. {\"no-lsp\": true} to bench the non-LSP path.",
+                    description: 'Optional pi-lens flag overrides for this run, e.g. {"no-lsp": true} to bench the non-LSP path.',
                 },
             },
             required: ["file"],
@@ -415,8 +492,14 @@ const ALL_TOOLS = [
         inputSchema: {
             type: "object",
             properties: {
-                limit: { type: "number", description: "Max reports to return (default 5)." },
-                file: { type: "string", description: "Only reports whose path ends with this." },
+                limit: {
+                    type: "number",
+                    description: "Max reports to return (default 5).",
+                },
+                file: {
+                    type: "string",
+                    description: "Only reports whose path ends with this.",
+                },
             },
         },
     },
@@ -439,6 +522,13 @@ const ALL_TOOLS = [
             properties: {
                 cwd: { type: "string" },
                 maxFiles: { type: "number", description: "Cap files scanned." },
+                includeGenerated: {
+                    type: "boolean",
+                    description: "Scan WITHOUT the generated/artifact NAME-heuristic filter " +
+                        "(lockfiles, gen.ts-style names, generated/ dirs, …). Default " +
+                        "false. Use when a scan's 'excluded by generated-name " +
+                        "heuristics' notice suggests a real file was skipped.",
+                },
             },
         },
     },
@@ -460,7 +550,7 @@ const ALL_TOOLS = [
             properties: {
                 query: {
                     type: "string",
-                    description: "Identifier-ish query, e.g. 'authenticate user'.",
+                    description: "Identifier-ish query, e.g. 'authenticate user'. Mix in composable prefix filters: lang:<kind> (e.g. lang:jsts, lang:python — kinds from file-kinds.ts), file:<substr> (path substring), ext:<ext> (e.g. ext:ts or ext:.ts), each optionally negated with a leading '-' (-file:test). Filters apply before ranking; e.g. 'lang:jsts file:clients/ -file:test rank'. Unknown prefixes/kinds error with the supported list.",
                 },
                 cwd: { type: "string" },
                 limit: {
@@ -495,7 +585,9 @@ const ALL_TOOLS = [
             "(this path never calls LSP). `semantic.source` reports whether graph " +
             "data was used. Pass `blastRadius: true` for the cross-file blast radius " +
             "(transitive dependents as ranked file reads, read-only over the cached " +
-            'graph). `view: "compact"` returns a line-oriented text rendering ' +
+            "graph). Pass `callGraph: true` for bounded derived callers/callees; a " +
+            "cold or stale call-graph cache is reported explicitly, never as zero calls. " +
+            '`view: "compact"` returns a line-oriented text rendering ' +
             "(cheapest option) instead of JSON. An outline shows shape, not bodies.",
         inputSchema: {
             type: "object",
@@ -525,6 +617,14 @@ const ALL_TOOLS = [
                 blastRadiusDepth: {
                     type: "number",
                     description: "Max hops for the blast-radius walk (default 3). Only used with blastRadius.",
+                },
+                callGraph: {
+                    type: "boolean",
+                    description: "Include bounded derived callers/callees from the cached FunctionCallGraph; cold or stale cache state is explicit.",
+                },
+                maxCallGraphEntries: {
+                    type: "number",
+                    description: "Per-direction cap for call-graph relations (default 20).",
                 },
             },
             required: ["file"],
@@ -685,8 +785,11 @@ const ALL_TOOLS = [
     {
         name: "pilens_ast_grep_search",
         description: "Structural (AST) code search via ast-grep — match by code structure, not " +
-            "text. Use meta-variables ($X) and AST context (e.g. 'console.log($MSG)', " +
-            "'function $NAME() { $$$ }'). Far more precise than grep for code shapes.",
+            "text. Use complete patterns with arguments (e.g. 'console.log($MSG)', " +
+            "'function $NAME($$$ARGS) { $$$BODY }'), or use nodeKind to find every " +
+            "node of a known grammar kind. Metavariables do not match text inside " +
+            "quoted string literals; use an exact string or grep for wildcard text. " +
+            "This is the same schema and synthesis path as the pi tool.",
         inputSchema: schemaWithCwd(astGrepSearchTool.parameters),
     },
     {
@@ -739,7 +842,10 @@ async function callTool(name, args) {
     if (name === "pilens_analyze") {
         const file = args.file;
         if (typeof file !== "string" || file.length === 0) {
-            return { ...toolText("pilens_analyze requires a 'file' string."), isError: true };
+            return {
+                ...toolText("pilens_analyze requires a 'file' string."),
+                isError: true,
+            };
         }
         const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
         const requestedMode = args.mode === "fresh" ? "fresh" : "warm";
@@ -814,7 +920,8 @@ async function callTool(name, args) {
         const maxFiles = typeof args.maxFiles === "number" && Number.isFinite(args.maxFiles)
             ? Math.max(1, Math.floor(args.maxFiles))
             : undefined;
-        const snapshot = await projectScan(cwd, maxFiles);
+        const includeGenerated = args.includeGenerated === true;
+        const snapshot = await projectScan(cwd, maxFiles, includeGenerated);
         // #747: a cwd at/above $HOME refuses to walk — say so instead of letting
         // "Scanned 0 file(s) → 0 diagnostics" read as a clean project.
         if (snapshot.unsafeRoot) {
@@ -840,6 +947,11 @@ async function callTool(name, args) {
         const truncationNotice = scanTruncationNotice(snapshot);
         if (truncationNotice)
             summaryLines.push(truncationNotice);
+        // #1107 phase 2: same "reached the seam but nothing rendered it" gap as
+        // #784's scanTruncationNotice, for the generated-name skip counters.
+        const skipNotice = generatedSkipNotice(snapshot);
+        if (skipNotice)
+            summaryLines.push(skipNotice);
         return toolText(summaryLines.join("\n"), {
             filesScanned: snapshot.filesScanned,
             runners: snapshot.runners,
@@ -851,6 +963,15 @@ async function callTool(name, args) {
             ...(snapshot.scanTruncated ? { scanTruncated: true } : {}),
             ...(snapshot.treeSitterStatus
                 ? { treeSitterStatus: snapshot.treeSitterStatus }
+                : {}),
+            ...(snapshot.generatedFileSkips
+                ? { generatedFileSkips: snapshot.generatedFileSkips }
+                : {}),
+            ...(snapshot.generatedNameOnlySkips
+                ? { generatedNameOnlySkips: snapshot.generatedNameOnlySkips }
+                : {}),
+            ...(snapshot.generatedDirSkips
+                ? { generatedDirSkips: snapshot.generatedDirSkips }
                 : {}),
         });
     }
@@ -868,7 +989,8 @@ async function callTool(name, args) {
         const lang = typeof args.lang === "string" ? args.lang : undefined;
         const { available, results, hint, unavailableReason, coverage, snapshotGeneratedAt, } = await symbolSearch(query, cwd, limit, { paths, lang });
         if (!available) {
-            return toolText(hint ?? "No word index for this workspace yet — run pilens_session_start first.", { available: false, query, hint, unavailableReason }, true);
+            return toolText(hint ??
+                "No word index for this workspace yet — run pilens_session_start first.", { available: false, query, hint, unavailableReason }, true);
         }
         const stalenessNote = graphStalenessNote(snapshotGeneratedAt, "Project snapshot");
         if (results.length === 0) {
@@ -934,12 +1056,21 @@ async function callTool(name, args) {
             Number.isFinite(args.blastRadiusDepth)
             ? Math.max(1, Math.floor(args.blastRadiusDepth))
             : undefined;
-        const view = args.view === "summary" || args.view === "compact" ? args.view : undefined;
+        const callGraph = args.callGraph === true;
+        const maxCallGraphEntries = typeof args.maxCallGraphEntries === "number" &&
+            Number.isFinite(args.maxCallGraphEntries)
+            ? Math.max(1, Math.floor(args.maxCallGraphEntries))
+            : undefined;
+        const view = args.view === "summary" || args.view === "compact"
+            ? args.view
+            : undefined;
         const focus = typeof args.focus === "string" ? args.focus : undefined;
         const report = await moduleReport(file, cwd, {
             maxRefsPerSymbol,
             blastRadius,
             blastRadiusDepth,
+            callGraph,
+            maxCallGraphEntries,
             view,
             focus,
         });
@@ -960,14 +1091,18 @@ async function callTool(name, args) {
                 content: [
                     {
                         type: "text",
-                        text: graphStaleness ? `${compactText}\n\n${graphStaleness}` : compactText,
+                        text: graphStaleness
+                            ? `${compactText}\n\n${graphStaleness}`
+                            : compactText,
                     },
                 ],
             };
         }
         // Compact (unindented) JSON — matches the pi tool's mirror (#512); an
         // agent parses this payload, it doesn't read it formatted.
-        return toolText(summary, graphStaleness ? { ...report, graphStalenessNote: graphStaleness } : report, true);
+        return toolText(summary, graphStaleness
+            ? { ...report, graphStalenessNote: graphStaleness }
+            : report, true);
     }
     if (name === "pilens_project_report") {
         const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
@@ -992,7 +1127,9 @@ async function callTool(name, args) {
                 content: [
                     {
                         type: "text",
-                        text: graphStaleness ? `${compactText}\n\n${graphStaleness}` : compactText,
+                        text: graphStaleness
+                            ? `${compactText}\n\n${graphStaleness}`
+                            : compactText,
                     },
                 ],
             };
@@ -1001,7 +1138,9 @@ async function callTool(name, args) {
             `${report.entryPoints?.length ?? 0} entry point(s), ` +
             `${report.riskHotspots?.length ?? 0} risk hotspot(s)` +
             (graphStaleness ? `\n\n${graphStaleness}` : "");
-        return toolText(summary, graphStaleness ? { ...report, graphStalenessNote: graphStaleness } : report, true);
+        return toolText(summary, graphStaleness
+            ? { ...report, graphStalenessNote: graphStaleness }
+            : report, true);
     }
     if (name === "pilens_read_symbol") {
         const file = typeof args.file === "string" ? args.file : "";
@@ -1032,13 +1171,20 @@ async function callTool(name, args) {
             ? ` (${result.ambiguous.count} matches — returned the ${result.kind}; pass \`kind\` to disambiguate: ${result.ambiguous.kinds.join(", ")})`
             : "";
         const header = `${result.kind} ${result.name}${ambiguityNote}${sigSuffix}  ${path.relative(cwd, result.path)}:${result.startLine}-${result.endLine}`;
-        return { content: [{ type: "text", text: `${header}\n\n${result.source ?? ""}` }] };
+        return {
+            content: [
+                { type: "text", text: `${header}\n\n${result.source ?? ""}` },
+            ],
+        };
     }
     if (name === "pilens_read_enclosing") {
         const file = typeof args.file === "string" ? args.file : "";
         const line = typeof args.line === "number" ? args.line : Number.NaN;
         if (!file.trim() || !Number.isFinite(line)) {
-            return { ...toolText("Provide `file` and a numeric `line`."), isError: true };
+            return {
+                ...toolText("Provide `file` and a numeric `line`."),
+                isError: true,
+            };
         }
         const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
         const kinds = Array.isArray(args.kinds)
@@ -1082,7 +1228,11 @@ async function callTool(name, args) {
             ? `${result.startLine}-${result.endLine} (partial of ${result.enclosingStartLine}-${result.enclosingEndLine})`
             : `${result.startLine}-${result.endLine}`;
         const header = `${result.kind} ${result.name}  ${path.relative(cwd, result.path)}:${range}`;
-        return { content: [{ type: "text", text: `${header}\n\n${result.source ?? ""}` }] };
+        return {
+            content: [
+                { type: "text", text: `${header}\n\n${result.source ?? ""}` },
+            ],
+        };
     }
     if (name === "pilens_health") {
         const { aliveClients, servers, brokenServers } = lspStatus();
@@ -1090,6 +1240,13 @@ async function callTool(name, args) {
         const stats = diagnosticStats();
         const autoSession = getAutoSessionStatus();
         const treeSitter = treeSitterRuntimeStatus();
+        const degradations = getDegradationSummary();
+        // #1272, following the #544 precedent: the Stop hook is a separate,
+        // short-lived process, so a turn-end it skipped left no trace here at all
+        // — a dead integration looked exactly like a clean turn, forever. The
+        // hook records its outcome per workspace; this is where it becomes
+        // visible without `claude --debug` log spelunking.
+        const turnEnd = readTurnEndStatus(DEFAULT_CWD) ?? null;
         // #620: best-effort — a footprint read failure must never break the rest
         // of pilens_health's (much older, more load-bearing) reporting.
         const footprint = await resourceFootprint().catch(() => null);
@@ -1098,8 +1255,12 @@ async function callTool(name, args) {
                 ? `Tree-sitter: DEGRADED — WASM runtime aborted${treeSitter.abortedAt ? ` at ${treeSitter.abortedAt}` : ""}; restart this server to recover`
                 : "Tree-sitter: available",
             `LSP: ${aliveClients} alive client(s)`,
-            ...servers.map((server) => `  ${server.connected ? "✓" : "✗"} ${server.serverId} (${server.root})`),
+            ...servers.flatMap((server) => [
+                `  ${server.connected ? "✓" : "✗"} ${server.serverId} (${server.root})`,
+                ...server.pullFailureHistory.slice(-1).map((failure) => `    ⚠ diagnostics pull failed: ${failure.method}${failure.code !== undefined ? ` (${failure.code})` : ""} — ${failure.message.length > 200 ? `${failure.message.slice(0, 200)}…` : failure.message}`),
+            ]),
             ...renderLspBrokenStatusLines(brokenServers),
+            ...renderDegradationLines(degradations),
             last
                 ? `Last dispatch: ${path.basename(last.filePath)} — ${last.totalDurationMs}ms, ${last.totalDiagnostics} diagnostic(s)`
                 : "Last dispatch: none yet",
@@ -1107,6 +1268,11 @@ async function callTool(name, args) {
             autoSession
                 ? `Auto session_start: ${autoSession.succeeded ? "succeeded" : autoSession.error ? "FAILED" : autoSession.attempted ? "in progress" : "not yet attempted"}${autoSession.firedAt ? ` (fired ${autoSession.firedAt})` : ""}${autoSession.error ? ` — ${autoSession.error}` : ""}`
                 : "Auto session_start: disabled (PI_LENS_MCP_AUTO_SESSION not set)",
+            turnEnd
+                ? `Stop-hook turn-end: ${turnEnd.ran} ran · ${turnEnd.skipped} skipped` +
+                    `${turnEnd.lastRunAt ? ` (last ran ${turnEnd.lastRunAt})` : ""}` +
+                    `${turnEnd.lastSkipReason ? ` — last skip: ${turnEnd.lastSkipReason}${turnEnd.lastSkipAt ? ` at ${turnEnd.lastSkipAt}` : ""}` : ""}`
+                : "Stop-hook turn-end: no activity recorded (hook not installed, or no Stop yet)",
             footprint
                 ? `Resource footprint: ${footprint.instanceCount} pi-lens instance(s) · ` +
                     `${(footprint.totalRssBytes / 1024 / 1024).toFixed(0)}MB RSS · ` +
@@ -1132,7 +1298,9 @@ async function callTool(name, args) {
             },
             autoSession,
             treeSitter,
+            turnEnd,
             resourceFootprint: footprint,
+            degradations,
         });
     }
     if (name === "pilens_diagnostics") {
@@ -1186,7 +1354,9 @@ async function callTool(name, args) {
     }
     if (name === "pilens_ast_grep_search" || name === "pilens_ast_grep_replace") {
         const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
-        const tool = name === "pilens_ast_grep_search" ? astGrepSearchTool : astGrepReplaceTool;
+        const tool = name === "pilens_ast_grep_search"
+            ? astGrepSearchTool
+            : astGrepReplaceTool;
         const out = (await tool.execute("mcp", args, new AbortController().signal, undefined, { cwd }));
         return { content: out.content };
     }
@@ -1270,7 +1440,10 @@ function withStaleWarning(result) {
         ...result,
         content: [
             ...result.content.slice(0, -1),
-            { ...last, text: `${last.text}\n\nwarmCodeStale: true\n${STALE_WARN_ONLY}` },
+            {
+                ...last,
+                text: `${last.text}\n\nwarmCodeStale: true\n${STALE_WARN_ONLY}`,
+            },
         ],
     };
 }

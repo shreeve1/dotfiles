@@ -1,12 +1,17 @@
+import { logExtension } from "./extension-log.js";
+import { logBusEvent } from "./bus-events-logger.js";
+import { normalizeFilePath } from "./path-utils.js";
+import { createLiveBusEmitter, recordStaleBusFailure, resolveLiveBusEmitter, } from "./live-bus-emitter.js";
 export const LENS_EVENT_VERSION = 1;
 export const LENS_EVENT_NAMES = {
     analysisComplete: "pi-lens/analysis-complete",
     findings: "pi-lens/findings",
     turnFindings: "pi-lens/turn-findings",
 };
-let lensEventBus;
-export function initLensEvents(pi) {
-    lensEventBus = pi.events;
+const liveEmitter = createLiveBusEmitter();
+/** Keep deferred deliveries on the live extension activation. */
+export function initLensEventsGetter(getter) {
+    liveEmitter.wireGetter(getter);
 }
 function truncateText(value, maxChars) {
     if (value === undefined)
@@ -26,17 +31,66 @@ function normalizeDiagnostic(diagnostic) {
 function normalizeDiagnostics(diagnostics) {
     return diagnostics.map(normalizeDiagnostic);
 }
+// Dropped-emit observability (#1128 review): drops are legitimate (no bus
+// during startup/replacement windows) but must not be invisible. One line per
+// process — enough to notice a permanently-missing bus without spamming.
+let _droppedEmitLogged = false;
+// Emit-failure gating (H1, #1415 review): occurrence-scoped, matching every
+// other producer's `hasLoggedFailure` guard (see clients/bus-publish.ts) and
+// AGENTS.md's "one bus-stale degradation per occurrence" invariant. A success
+// re-arms it, so a later failure records a fresh degradation rather than
+// being silently absorbed by an earlier one.
+let hasLoggedFailure = false;
+/** Test-only: reset module state between test files. */
+export function _resetForTests() {
+    liveEmitter.reset();
+    _droppedEmitLogged = false;
+    hasLoggedFailure = false;
+}
 function emitLensEvent(eventName, payload) {
-    const emit = lensEventBus?.emit;
-    if (!emit)
-        return;
     setImmediate(() => {
-        try {
-            emit.call(lensEventBus, eventName, payload);
+        const rawCwd = payload.cwd ?? process.cwd();
+        // M1: normalizeFilePath is a sync realpathSync.native on Windows — build
+        // the resolveLiveBusEmitter log entry lazily so the ready-path (the
+        // common case) never pays it. Only the stale-session branch needs it.
+        const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+            event: eventName,
+            cwd: normalizeFilePath(rawCwd),
+        }));
+        if (resolution.outcome === "stale-session")
+            return;
+        if (resolution.outcome === "unwired") {
+            if (!_droppedEmitLogged) {
+                _droppedEmitLogged = true;
+                logExtension({
+                    subsystem: "lens-events",
+                    level: "warn",
+                    message: `lens event dropped (no live bus): ${eventName} — further drops logged once per process`,
+                    metadata: { eventName },
+                });
+            }
+            return;
         }
-        catch {
+        const cwd = normalizeFilePath(rawCwd);
+        try {
+            resolution.emit(eventName, payload);
+            hasLoggedFailure = false;
+            logBusEvent({ event: eventName, outcome: "emitted", cwd });
+        }
+        catch (err) {
+            logBusEvent({
+                event: eventName,
+                outcome: "emit_failed",
+                cwd,
+                error: String(err),
+                ctxSource: resolution.ctxSource,
+            });
+            if (!hasLoggedFailure) {
+                hasLoggedFailure = true;
+                recordStaleBusFailure(eventName, err);
+            }
             // Inter-extension events are observational. A listener must never break
-            // the pi-lens hook path or delay agent progress with error handling noise.
+            // the pi-lens hook path or delay agent progress.
         }
     });
 }

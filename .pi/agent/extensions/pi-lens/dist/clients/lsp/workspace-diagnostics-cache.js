@@ -1,9 +1,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectDataDir } from "../file-utils.js";
+import { writeFileAtomic } from "../atomic-write.js";
 import { readJsonCache } from "../json-cache-read.js";
 import { normalizeMapKey } from "../path-utils.js";
 import { loadReverseDependencyIndexFromSnapshot } from "../reverse-deps.js";
+import { createDiskBindingCache, } from "./diagnostic-binding.js";
 /**
  * #671: per-file cache of the last CONFIRMED `runWorkspaceDiagnostics` sweep
  * result, so a repeat `lens_diagnostics mode=full` with no intervening edits
@@ -24,7 +26,12 @@ import { loadReverseDependencyIndexFromSnapshot } from "../reverse-deps.js";
  * `LSPWorkspaceDiagnosticResult.timedOut` in `./index.ts`) into
  * `WorkspaceDiagnosticsCacheEntry`.
  */
-export const WORKSPACE_DIAGNOSTICS_CACHE_VERSION = 1;
+// v2 (#1095): entries may carry an optional `contentHash` fingerprint of the
+// file bytes the cached diagnostics were computed against, so a `lookup` can
+// surface a content `binding` (boundToCurrentDisk) beyond the mtime proxy.
+// Legacy v1 entries are rejected by the version guard and re-scanned — a
+// deliberately clean break so no entry lacking the field is ever served.
+export const WORKSPACE_DIAGNOSTICS_CACHE_VERSION = 2;
 const CACHE_FILE = "lsp-workspace-diagnostics.json";
 function cachePath(cwd) {
     return path.join(getProjectDataDir(cwd), "cache", CACHE_FILE);
@@ -48,7 +55,11 @@ export function loadWorkspaceDiagnosticsCache(cwd) {
 export function saveWorkspaceDiagnosticsCache(cwd, cache) {
     const filePath = cachePath(cwd);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, JSON.stringify(cache, null, 2));
+    // bestEffort: false — persist()'s catch is the error policy here, and it
+    // must observe the failure so `dirty` stays set and the next sweep retries.
+    writeFileAtomic(filePath, JSON.stringify(cache, null, 2), {
+        bestEffort: false,
+    });
 }
 /**
  * True when `filePath`'s cached entry is still trustworthy enough to reuse
@@ -133,6 +144,8 @@ export function createWorkspaceDiagnosticsCacheContext(cwd) {
             return undefined;
         return reverseDepsIndex.imports[cacheKeyFor(filePath)] ?? [];
     };
+    // #1095: per-sweep disk-fingerprint memo (per file+mtime) for binding verify.
+    const diskBindingCache = createDiskBindingCache();
     let dirty = false;
     return {
         lookup(filePath, scopeKey) {
@@ -141,15 +154,26 @@ export function createWorkspaceDiagnosticsCacheContext(cwd) {
                 return undefined;
             if (!isEntryFresh(filePath, entry, getImports))
                 return undefined;
-            return { diagnostics: entry.diagnostics, count: entry.count };
+            return {
+                diagnostics: entry.diagnostics,
+                count: entry.count,
+                binding: {
+                    contentHash: entry.contentHash,
+                    boundToCurrentDisk: diskBindingCache.boundToCurrentDisk(filePath, {
+                        contentHash: entry.contentHash,
+                    }),
+                },
+                scannedAt: entry.scannedAt,
+            };
         },
-        record(filePath, scopeKey, diagnostics, mtimeMs) {
+        record(filePath, scopeKey, diagnostics, mtimeMs, contentHash) {
             entries[cacheKeyFor(filePath)] = {
                 diagnostics,
                 count: diagnostics.length,
                 mtimeMs,
                 scannedAt: Date.now(),
                 scopeKey,
+                ...(contentHash !== undefined && { contentHash }),
             };
             dirty = true;
         },

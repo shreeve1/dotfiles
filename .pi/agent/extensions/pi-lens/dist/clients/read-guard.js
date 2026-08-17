@@ -11,9 +11,10 @@
  */
 import * as fs from "node:fs";
 import { createFileTime } from "./file-time.js";
+import { hashDiagnosticContent } from "./lsp/diagnostic-binding.js";
 import { normalizeFilePath } from "./path-utils.js";
 import { logReadGuardEvent } from "./read-guard-logger.js";
-const READ_GUARD_STATE_VERSION = 1;
+export const READ_GUARD_STATE_VERSION = 1;
 // --- Constants ---
 const DEFAULT_CONFIG = {
     enabled: true,
@@ -28,6 +29,66 @@ const DEFAULT_CONFIG = {
 const OWN_EDIT_STALE_GRACE_MS = Math.max(0, Number.parseInt(process.env.PI_LENS_READ_GUARD_OWN_EDIT_GRACE_MS ?? "120000", 10) || 120000);
 /** Avoid hashing very large reads in the hot path. */
 const READ_HASH_MAX_LINES = Math.max(0, Number.parseInt(process.env.PI_LENS_READ_GUARD_HASH_MAX_LINES ?? "3000", 10) || 3000);
+/**
+ * Content bindings are defense in depth on a read-adjacent hot path. Cap the
+ * synchronous disk read so bridge registration never hashes an unbounded file.
+ */
+const READ_BINDING_MAX_BYTES = 4 * 1024 * 1024;
+const READ_GUARD_MAX_FILES = 256;
+// Unconsumed reads remain valid until edit or session end, but this high
+// sanity cap prevents a read-only session from growing without bound.
+const READ_GUARD_MAX_UNCONSUMED_FILES = 4096;
+const READ_GUARD_IDLE_EVICT_MS_DEFAULT = 30 * 60_000;
+export function captureReadContentBinding(filePath, offset, limit) {
+    try {
+        if (fs.statSync(filePath).size > READ_BINDING_MAX_BYTES)
+            return undefined;
+        const content = fs.readFileSync(filePath, "utf-8");
+        // Allocate at most the classification prefix first. For range bindings,
+        // splitting then stops at the requested range end rather than the EOF.
+        const lines = splitLinesThrough(content, READ_HASH_MAX_LINES + 1);
+        if (lines.length <= READ_HASH_MAX_LINES) {
+            return {
+                hash: hashDiagnosticContent(content),
+                fullFile: true,
+                offset: 1,
+                limit: lines.length,
+            };
+        }
+        const scopedOffset = Math.max(1, offset);
+        const scopedLimit = Math.min(Math.max(0, limit), READ_HASH_MAX_LINES);
+        if (scopedLimit === 0)
+            return undefined;
+        const rangeLines = splitLinesThrough(content, scopedOffset - 1 + scopedLimit);
+        const scopedContent = rangeLines
+            .slice(scopedOffset - 1, scopedOffset - 1 + scopedLimit)
+            .join("\n");
+        return {
+            hash: hashDiagnosticContent(scopedContent),
+            fullFile: false,
+            offset: scopedOffset,
+            limit: scopedLimit,
+        };
+    }
+    catch {
+        return undefined;
+    }
+}
+export function _currentContentMatchesBindingForTests(filePath, binding) {
+    try {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const boundContent = binding.fullFile
+            ? content
+            : splitLines(content)
+                .slice(binding.offset - 1, binding.offset - 1 + binding.limit)
+                .join("\n");
+        return hashDiagnosticContent(boundContent) === binding.hash;
+    }
+    catch {
+        return false;
+    }
+}
+const currentContentMatchesBinding = _currentContentMatchesBindingForTests;
 // Adaptive relocation window (findRelocation). A globally-unique hash-sequence
 // match always wins; when the content is duplicated elsewhere, we fall back to
 // a match that is unique WITHIN this window of the original position. The window
@@ -39,6 +100,28 @@ const RELOCATION_WINDOW_PER_EDIT = Math.max(0, Number.parseInt(process.env.PI_LE
 const RELOCATION_WINDOW_MAX = Math.max(RELOCATION_WINDOW_MIN, Number.parseInt(process.env.PI_LENS_READ_GUARD_RELOCATION_WINDOW_MAX ?? "400", 10) || 400);
 function splitLines(text) {
     return text.split(/\r?\n/);
+}
+/** `splitLines` semantics, but without scanning/allocating beyond `maxLines`. */
+function splitLinesThrough(text, maxLines) {
+    if (maxLines <= 0)
+        return [];
+    const lines = [];
+    let start = 0;
+    while (lines.length < maxLines) {
+        const newline = text.indexOf("\n", start);
+        if (newline === -1) {
+            lines.push(text.slice(start));
+            break;
+        }
+        const end = newline > start && text[newline - 1] === "\r" ? newline - 1 : newline;
+        lines.push(text.slice(start, end));
+        start = newline + 1;
+        if (start === text.length && lines.length < maxLines) {
+            lines.push("");
+            break;
+        }
+    }
+    return lines;
 }
 export function lineContentHash(line) {
     // FNV-1a over whitespace-stripped content. This treats no-op formatter/touch
@@ -118,6 +201,10 @@ export class ReadGuard {
     config;
     reads = new Map();
     edits = new Map();
+    fileLastUsed = new Map();
+    fileIdleTimers = new Map();
+    /** Reads remain behavior-gating until the corresponding edit is published. */
+    consumedReadFiles = new Set();
     fileTime;
     exemptions = new Set(); // One-time exemptions via /lens-allow-edit
     pendingCreations = new Map();
@@ -147,6 +234,66 @@ export class ReadGuard {
     key(filePath) {
         return normalizeFilePath(filePath);
     }
+    idleEvictMs() {
+        const value = Number.parseInt(process.env.PI_LENS_READ_GUARD_IDLE_EVICT_MS ?? "", 10);
+        return Number.isSafeInteger(value) && value > 0 ? value : READ_GUARD_IDLE_EVICT_MS_DEFAULT;
+    }
+    clearFileTimer(filePath) {
+        const timer = this.fileIdleTimers.get(filePath);
+        if (timer)
+            clearTimeout(timer);
+        this.fileIdleTimers.delete(filePath);
+    }
+    evictFile(filePath) {
+        this.clearFileTimer(filePath);
+        this.reads.delete(filePath);
+        this.edits.delete(filePath);
+        this.fileLastUsed.delete(filePath);
+        this.consumedReadFiles.delete(filePath);
+        this.writtenThisSession.delete(filePath);
+    }
+    touchFile(filePath) {
+        const now = Date.now();
+        this.fileLastUsed.set(filePath, now);
+        this.clearFileTimer(filePath);
+        // An outstanding read is enforcement state, not a rebuildable cache entry.
+        // It must survive idle time and file-cap pressure until the edit consumes it.
+        if (this.reads.has(filePath) && !this.consumedReadFiles.has(filePath))
+            return;
+        const stamp = now;
+        const timer = setTimeout(() => {
+            if (this.fileLastUsed.get(filePath) !== stamp)
+                return;
+            // Never turn an outstanding read into a zero-read block through idle
+            // eviction. Only consumed reads and rebuildable edit history may expire.
+            if (this.reads.has(filePath) && !this.consumedReadFiles.has(filePath))
+                return;
+            this.evictFile(filePath);
+        }, this.idleEvictMs());
+        timer.unref?.();
+        this.fileIdleTimers.set(filePath, timer);
+    }
+    enforceFileCap() {
+        while (this.reads.size > READ_GUARD_MAX_FILES) {
+            const victim = [...this.reads.keys()]
+                .filter((filePath) => this.consumedReadFiles.has(filePath))
+                .sort((a, b) => (this.fileLastUsed.get(a) ?? 0) - (this.fileLastUsed.get(b) ?? 0))[0];
+            if (!victim)
+                break;
+            this.evictFile(victim);
+        }
+        while (this.reads.size > READ_GUARD_MAX_UNCONSUMED_FILES) {
+            const victim = [...this.reads.keys()]
+                .filter((filePath) => !this.consumedReadFiles.has(filePath))
+                .sort((a, b) => (this.fileLastUsed.get(a) ?? 0) -
+                (this.fileLastUsed.get(b) ?? 0))[0];
+            if (!victim)
+                break;
+            // This is a normal read miss: a later edit must require a fresh read,
+            // never silently allow and never become a permanent hard-block.
+            this.evictFile(victim);
+        }
+    }
     // --- Public API ---
     /**
      * Record that a file was read.
@@ -161,8 +308,11 @@ export class ReadGuard {
                 captureLineHashes(filePath, record.effectiveOffset, record.effectiveLimit),
         };
         const arr = this.reads.get(storedRecord.filePath) ?? [];
+        this.consumedReadFiles.delete(storedRecord.filePath);
         arr.push(storedRecord);
         this.reads.set(storedRecord.filePath, arr);
+        this.touchFile(storedRecord.filePath);
+        this.enforceFileCap();
         logReadGuardEvent({
             event: "read_recorded",
             sessionId: this.sessionId,
@@ -181,6 +331,9 @@ export class ReadGuard {
                 writeIndex: storedRecord.writeIndex,
                 readCountForFile: arr.length,
                 hashLineCount: Object.keys(storedRecord.lineHashes ?? {}).length,
+                ...(storedRecord.source !== undefined && {
+                    source: storedRecord.source,
+                }),
             },
         });
         // Also update FileTime stamp for this file
@@ -228,6 +381,8 @@ export class ReadGuard {
         // Canonicalize once: every map lookup below (and every private helper this
         // passes filePath to) must agree with how recordRead keyed the read.
         filePath = this.key(filePath);
+        if (this.reads.has(filePath) || this.edits.has(filePath))
+            this.touchFile(filePath);
         // Check exemptions
         if (this.exemptions.has(filePath)) {
             this.exemptions.delete(filePath); // One-time use
@@ -268,6 +423,19 @@ export class ReadGuard {
             const verdict = this.blockOrWarn("zero-read", `🔄 RETRYABLE — Edit without read\n\nYou are trying to edit \`${filePath}\` but have not read it in this conversation.\n\nRead the file first, then retry the edit: \`read path="${filePath}"\``, undefined, effectiveMode);
             this.recordVerdict(filePath, "edit", touchedLines, verdict, {
                 reasonKind: "zero_read",
+            });
+            return verdict;
+        }
+        const lastBoundRead = [...fileReads]
+            .reverse()
+            .find((read) => read.contentBinding !== undefined);
+        if (lastBoundRead?.contentBinding &&
+            !currentContentMatchesBinding(filePath, lastBoundRead.contentBinding)) {
+            const verdict = this.blockOrWarn("file-modified", `🔄 RETRYABLE — File modified since read\n\nYou last read \`${filePath}\` at ${new Date(lastBoundRead.timestamp).toISOString()}.\nThe file content no longer matches the bridge-recorded read.\n\nYour mental model is out of sync with the actual file content.\nTo proceed:\n  1. Re-read the file: \`read path="${filePath}"\``, undefined, effectiveMode);
+            this.recordVerdict(filePath, "edit", touchedLines, verdict, {
+                reasonKind: "file_modified",
+                lastReadTimestamp: lastBoundRead.timestamp,
+                contentBindingMismatch: true,
             });
             return verdict;
         }
@@ -315,7 +483,9 @@ export class ReadGuard {
                 // If oldText was resolved (content-verified), the model demonstrably
                 // knew the content it's replacing — line drift from prior edits in
                 // the session is the likely cause. Downgrade to warn rather than block.
-                const outOfRangeMode = options?.oldTextResolved ? "warn" : effectiveMode;
+                const outOfRangeMode = options?.oldTextResolved
+                    ? "warn"
+                    : effectiveMode;
                 const verdict = this.blockOrWarn("out-of-range", `🔄 RETRYABLE — Edit outside read range\n\nYou read \`${filePath}\` lines ${lastRead.effectiveOffset}-${lastReadEnd}${lastRead.enclosingSymbol ? ` (${lastRead.enclosingSymbol.kind} \`${lastRead.enclosingSymbol.name}\`)` : ""}, but your edit touches lines ${editStart}-${editEnd}.\n\nRead the relevant section first, then retry the edit:\n  \`read path="${filePath}" offset=${Math.max(1, editStart - 5)} limit=${Math.min(30, editEnd - editStart + 10)}\``, {
                     editRange: range,
                     readRanges: fileReads.map((r) => ({
@@ -435,6 +605,10 @@ export class ReadGuard {
         filePath = this.key(filePath);
         this.fileTime.read(filePath);
         this.writtenThisSession.add(filePath);
+        if (this.reads.has(filePath))
+            this.consumedReadFiles.add(filePath);
+        this.touchFile(filePath);
+        this.enforceFileCap();
         const creation = this.pendingCreations.get(filePath);
         if (creation) {
             this.pendingCreations.delete(filePath);
@@ -496,7 +670,10 @@ export class ReadGuard {
      * Get all read records for a file (for debugging).
      */
     getReadHistory(filePath) {
-        return this.reads.get(this.key(filePath)) ?? [];
+        const key = this.key(filePath);
+        if (this.reads.has(key))
+            this.touchFile(key);
+        return this.reads.get(key) ?? [];
     }
     /**
      * Snapshot the read-set for persistence across a session resume (#1041).
@@ -579,7 +756,10 @@ export class ReadGuard {
      * Get all edit records for a file (for debugging).
      */
     getEditHistory(filePath) {
-        return this.edits.get(this.key(filePath)) ?? [];
+        const key = this.key(filePath);
+        if (this.edits.has(key))
+            this.touchFile(key);
+        return this.edits.get(key) ?? [];
     }
     // --- Private helpers ---
     injectCreationRead(filePath, turnIndex, writeIndex) {
@@ -926,6 +1106,7 @@ export class ReadGuard {
         return { action: "allow" };
     }
     recordEdit(filePath, tool, touchedLines, verdict) {
+        this.touchFile(filePath);
         const arr = this.edits.get(filePath) ?? [];
         arr.push({
             filePath,

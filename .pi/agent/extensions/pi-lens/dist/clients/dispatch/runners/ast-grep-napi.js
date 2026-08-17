@@ -19,6 +19,12 @@ import { isAuxiliaryLspAlive } from "../../lsp/index.js";
 import { resolveAstGrepNativeExe } from "../../lsp/wait-policy/index.js";
 import { PRIORITY } from "../priorities.js";
 import { calculateRuleComplexity, isOverlyBroadPattern, isStructuredRule, loadYamlRules, loadYamlRulesFresh, MAX_BLOCKING_RULE_COMPLEXITY, } from "./yaml-rule-parser.js";
+const defaultUnsupportedLanguageLog = new Set();
+const UNSUPPORTED_RULE_ID_SAMPLE_SIZE = 5;
+/** Clear per-session unsupported-language telemetry dedupe. */
+export function resetAstGrepUnsupportedLanguageLog() {
+    defaultUnsupportedLanguageLog.clear();
+}
 // Lazy load the napi package
 let sg;
 let sgLoadAttempted = false;
@@ -237,7 +243,7 @@ export function evaluateAstGrepRules(filePath, rootNode, cwd, kind, options = {}
     const maxTotalDiagnostics = options.maxTotalDiagnostics ?? MAX_TOTAL_DIAGNOSTICS;
     const blockingOnly = options.blockingOnly === true;
     const log = options.log;
-    const unsupportedLanguageLog = options.unsupportedLanguageLog ?? new Set();
+    const unsupportedLanguageLog = options.unsupportedLanguageLog ?? defaultUnsupportedLanguageLog;
     const diagnostics = [];
     const seenRuleIds = new Set();
     const suppressLinterOverlap = kind === "jsts" && hasEslintConfig(cwd);
@@ -249,15 +255,28 @@ export function evaluateAstGrepRules(filePath, rootNode, cwd, kind, options = {}
     const flushUnsupportedRuleSkips = () => {
         if (newlyUnsupported.size === 0)
             return;
+        const firstSeenLanguages = Array.from(newlyUnsupported.entries()).filter(([language]) => !unsupportedLanguageLog.has(language));
+        for (const [language] of firstSeenLanguages) {
+            unsupportedLanguageLog.add(language);
+        }
+        if (firstSeenLanguages.length === 0) {
+            newlyUnsupported.clear();
+            return;
+        }
+        for (const [language] of firstSeenLanguages)
+            unsupportedLanguageLog.add(language);
         logLatency({
             type: "phase",
             phase: "astgrep_napi_unsupported_rules_skipped",
             filePath,
             durationMs: 0,
             metadata: {
-                skippedByLanguage: Object.fromEntries(Array.from(newlyUnsupported.entries(), ([language, ruleIds]) => [
+                skippedByLanguage: Object.fromEntries(firstSeenLanguages.map(([language, ruleIds]) => [
                     language,
-                    { count: ruleIds.length, ruleIds },
+                    {
+                        count: ruleIds.length,
+                        ruleIds: ruleIds.slice(0, UNSUPPORTED_RULE_ID_SAMPLE_SIZE),
+                    },
                 ])),
             },
         });
@@ -315,8 +334,7 @@ export function evaluateAstGrepRules(filePath, rootNode, cwd, kind, options = {}
                 lang !== "typescript" &&
                 lang !== "tsx" &&
                 lang !== "javascript") {
-                if (!unsupportedLanguageLog.has(rule.id)) {
-                    unsupportedLanguageLog.add(rule.id);
+                if (!unsupportedLanguageLog.has(lang)) {
                     const ids = newlyUnsupported.get(lang) ?? [];
                     ids.push(rule.id);
                     newlyUnsupported.set(lang, ids);

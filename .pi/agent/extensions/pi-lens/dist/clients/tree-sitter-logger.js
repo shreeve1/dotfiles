@@ -53,6 +53,27 @@ export function logTreeSitterCacheStats(options) {
         },
     });
 }
+/**
+ * The tree-sitter stack's terminal-safe diagnostic sink (#1333).
+ *
+ * pi owns the terminal, so nothing under `clients/` may `console.error`. The
+ * tree-sitter subsystem already owns `tree-sitter.log`, so its diagnostics stay
+ * there rather than moving to the generic `extension.log` — one log per
+ * subsystem, per the AGENTS.md logger invariant.
+ *
+ * `filePath` is optional because several of these fire process-wide (WASM
+ * abort, grammar fetch, rule compile) with no file in hand.
+ */
+export function logTreeSitterDiagnostic(entry) {
+    logTreeSitter({
+        phase: "diagnostic",
+        filePath: entry.filePath ?? "<tree-sitter>",
+        ...(entry.languageId ? { languageId: entry.languageId } : {}),
+        status: entry.level ?? "error",
+        reason: entry.message,
+        metadata: { subsystem: entry.subsystem, ...(entry.metadata ?? {}) },
+    });
+}
 export function getTreeSitterLogPath() {
     return TREE_SITTER_LOG_FILE;
 }

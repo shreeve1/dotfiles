@@ -4,9 +4,16 @@ import * as path from "node:path";
 import { applyWorkspaceEdit } from "./lsp/edits.js";
 import { getLSPService } from "./lsp/index.js";
 import { normalizeMapKey } from "./path-utils.js";
+import { recordLspMutationBatch, } from "./lsp-mutation.js";
 import { toRunnerDisplayPath } from "./dispatch/runner-context.js";
 import { logActionableWarningsEvent } from "./actionable-warnings-logger.js";
 import { getProjectDataDir } from "./file-utils.js";
+import { commitDurableStore } from "./durable-store.js";
+let beforeWarningStateLockForTests = null;
+/** Test seam for a sibling process commit immediately before lock acquisition. */
+export function _setBeforeWarningStateLockForTests(hook) {
+    beforeWarningStateLockForTests = hook;
+}
 function normalizeMessage(message) {
     return message.replace(/\s+/g, " ").trim().toLowerCase();
 }
@@ -53,10 +60,9 @@ function serializeAction(action) {
         skipReason: safety.reason,
     };
 }
-function readSuppressionState(cwd) {
-    const statePath = path.join(getProjectDataDir(cwd), "cache", "actionable-warning-state.json");
+function deserializeSuppressionState(contents) {
     try {
-        const parsed = JSON.parse(fs.readFileSync(statePath, "utf-8"));
+        const parsed = JSON.parse(contents ?? "");
         return parsed && typeof parsed === "object"
             ? parsed
             : {};
@@ -65,23 +71,49 @@ function readSuppressionState(cwd) {
         return {};
     }
 }
+function readSuppressionState(cwd) {
+    const statePath = path.join(getProjectDataDir(cwd), "cache", "actionable-warning-state.json");
+    try {
+        return deserializeSuppressionState(fs.readFileSync(statePath, "utf8"));
+    }
+    catch {
+        return {};
+    }
+}
 function updateWarningState(cwd, warnings) {
     const statePath = path.join(getProjectDataDir(cwd), "cache", "actionable-warning-state.json");
-    const now = new Date().toISOString();
-    const state = readSuppressionState(cwd);
-    state.warnings ??= {};
-    for (const warning of warnings) {
-        const existing = state.warnings[warning.id] ?? {};
-        state.warnings[warning.id] = {
-            ...existing,
-            status: existing.status ?? "active",
-            firstSeenAt: existing.firstSeenAt ?? now,
-            lastSeenAt: now,
-            seenCount: (existing.seenCount ?? 0) + 1,
-        };
-    }
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+    const hook = beforeWarningStateLockForTests;
+    beforeWarningStateLockForTests = null;
+    hook?.();
+    commitDurableStore({
+        path: statePath,
+        deserialize: deserializeSuppressionState,
+        merge: (state) => {
+            const now = new Date().toISOString();
+            state.warnings ??= {};
+            for (const warning of warnings) {
+                const existing = state.warnings[warning.id] ?? {};
+                state.warnings[warning.id] = {
+                    ...existing,
+                    status: existing.status ?? "active",
+                    firstSeenAt: existing.firstSeenAt ?? now,
+                    lastSeenAt: now,
+                    seenCount: (existing.seenCount ?? 0) + 1,
+                };
+            }
+            return state;
+        },
+        serialize: (state) => JSON.stringify(state, null, 2),
+        waitMs: 2_000,
+        retryMs: 10,
+        timeoutMessage: "timed out acquiring actionable warning store lock",
+        onContention: "skip-log",
+        logContention: () => logActionableWarningsEvent({
+            event: "warning_state_write_dropped",
+            metadata: { reason: "lock_contention" },
+        }),
+    });
 }
 function suppressionFor(cwd, id) {
     const entry = readSuppressionState(cwd).warnings?.[id];
@@ -452,6 +484,8 @@ export async function applyConservativeActionableWarningFixes(args) {
         skipped: [],
     };
     const changedFiles = new Set();
+    const appliedResults = [];
+    let failedCount = 0;
     const lspService = getLSPService();
     const maxFixes = Math.max(0, args.maxFixes ?? 5);
     for (const file of args.report.files) {
@@ -504,12 +538,23 @@ export async function applyConservativeActionableWarningFixes(args) {
                     continue;
                 }
                 const edit = selected.edit;
-                const applied = await applyWorkspaceEdit(edit, args.cwd);
+                const applied = await applyWorkspaceEdit(edit, args.cwd, args.mutationContext
+                    ? { mutationContext: { ...args.mutationContext, emitSummary: false } }
+                    : undefined);
+                appliedResults.push(applied);
                 for (const changedFile of applied.files)
                     changedFiles.add(changedFile);
                 summary.applied++;
             }
             catch (err) {
+                failedCount++;
+                const partial = err
+                    .appliedWorkspaceEdit;
+                if (partial) {
+                    appliedResults.push(partial);
+                    for (const changedFile of partial.files)
+                        changedFiles.add(changedFile);
+                }
                 const message = err instanceof Error ? err.message : String(err);
                 args.dbg?.(`actionable_warnings_autofix failed for ${warning.id}: ${message}`);
                 summary.skipped.push({ id: warning.id, reason: "apply_failed" });
@@ -517,6 +562,16 @@ export async function applyConservativeActionableWarningFixes(args) {
         }
     }
     summary.changedFiles = [...changedFiles];
+    if (args.mutationContext && (summary.considered > 0 || appliedResults.length > 0)) {
+        recordLspMutationBatch(args.mutationContext, {
+            results: appliedResults,
+            considered: summary.considered,
+            completed: summary.applied,
+            failedCount,
+            status: failedCount > 0 ? "failed" : appliedResults.length > 0 ? "success" : "skipped",
+            bookkeep: false,
+        });
+    }
     return summary;
 }
 export function formatActionableWarningsAdvisory(report) {

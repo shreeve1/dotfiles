@@ -3,6 +3,7 @@ import { safeSpawnAsync } from "../../safe-spawn.js";
 import { getLinterPolicyForCwd } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import { createAvailabilityChecker, resolveToolCommandWithInstallFallback, } from "./utils/runner-helpers.js";
+import { spawnFailedWithNoOutput } from "./utils/spawn-outcome.js";
 const hadolint = createAvailabilityChecker("hadolint", ".exe");
 function parseHadolintOutput(raw, filePath) {
     try {
@@ -52,7 +53,7 @@ const hadolintRunner = {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
         const result = await safeSpawnAsync(cmd, ["--format", "json", "--no-fail", path.resolve(cwd, ctx.filePath)], { cwd });
-        if (result.error && !result.stdout) {
+        if (spawnFailedWithNoOutput(result)) {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
         const output = result.stdout || "";

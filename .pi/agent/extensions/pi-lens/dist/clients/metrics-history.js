@@ -10,6 +10,7 @@ import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getProjectDataDir } from "./file-utils.js";
+import { writeFileAtomic } from "./atomic-write.js";
 // --- Constants ---
 const HISTORY_FILE = "metrics-history.json";
 const MAX_HISTORY_PER_FILE = 20;
@@ -82,7 +83,7 @@ export function saveHistory(history) {
     }
     history.capturedAt = new Date().toISOString();
     const historyPath = path.join(historyDir, "metrics-history.json");
-    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2));
+    writeFileAtomic(historyPath, JSON.stringify(history, null, 2));
 }
 // In-memory cache to avoid loading/saving on every capture
 let pendingHistory = null;

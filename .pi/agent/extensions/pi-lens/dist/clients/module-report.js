@@ -37,10 +37,23 @@ import { detectFileKind } from "./file-kinds.js";
 import { logLatency } from "./latency-logger.js";
 import { annotateMiddleMan } from "./middle-man-analysis.js";
 import { normalizeMapKey, toProjectRelativePath } from "./path-utils.js";
+import { loadCallGraph, } from "./call-graph.js";
 import { resolveImportToFiles } from "./review-graph/import-resolvers.js";
 import { buildSymbolId } from "./review-graph/symbol-id.js";
 import { getSharedTreeSitterClient, resolveTreeSitterLanguage, } from "./tree-sitter-shared.js";
 import { TreeSitterSymbolExtractor, } from "./tree-sitter-symbol-extractor.js";
+// NOTE: live-LSP enrichment is NO LONGER called on this read path (#256). Firing
+// LSP per read — speculatively, on the agent's fan-out path — repeatedly OOM'd
+// pi. The enrichment logic is kept as a separate module (clients/module-report-
+// lsp.ts) to be re-homed in #236, where LSP writes provenance-tagged edges INTO
+// the review graph (computed once, persisted) so this path just reads them.
+/** Hard payload bound for the per-symbol who-uses-this section. */
+export const MAX_MODULE_REPORT_REFS = 100;
+function normalizeMaxRefsPerSymbol(value) {
+    if (value === undefined || !Number.isFinite(value))
+        return 10;
+    return Math.min(MAX_MODULE_REPORT_REFS, Math.max(1, Math.floor(value)));
+}
 // kind -> tree-sitter languageId. The languageId keys BOTH the grammar map
 // (tree-sitter-client) and SYMBOL_QUERIES (tree-sitter-symbol-extractor), so it
 // must match a key present in both. jsts/cxx are extension-split kinds resolved
@@ -225,7 +238,9 @@ function resolveUsedBy(graph, symbolNodeId, cap, projectRoot) {
             symbol,
             line,
             relation: edge.kind,
-            ...(edge.resolution ? { resolution: edge.resolution } : {}),
+            ...(edge.resolution && edge.resolution !== "unresolved"
+                ? { resolution: edge.resolution }
+                : {}),
         });
         if (out.length >= cap)
             break;
@@ -1143,6 +1158,120 @@ function extractCallbacks(root, entries, languageId, warnings) {
     }
     return callbacks.slice(0, callbackCap);
 }
+const CALL_GRAPH_DEFAULT_ENTRY_CAP = 20;
+const CALL_GRAPH_MAX_ENTRY_CAP = 100;
+function unavailableCallGraph(reason) {
+    return {
+        available: false,
+        reason,
+        callers: [],
+        callees: [],
+        truncated: false,
+        coverage: { status: "unavailable", complete: false },
+    };
+}
+function callGraphCoverage(coverage) {
+    const languages = coverage.languages;
+    const complete = coverage.complete && Object.values(languages ?? {}).every((status) => status === "complete");
+    return {
+        status: complete ? "complete" : "partial",
+        complete,
+        totalEvidence: coverage.totalEvidence,
+        callsEvidence: coverage.callsEvidence,
+        referencesEvidence: coverage.referencesEvidence,
+        eligibleEvidence: coverage.eligibleEvidence,
+        resolvedEvidence: coverage.resolvedEvidence,
+        unresolvedEvidence: coverage.unresolvedEvidence,
+        typeOnlyEvidence: coverage.typeOnlyEvidence,
+        unsupportedEvidence: coverage.unsupportedEvidence,
+        sameFileEvidence: coverage.sameFileEvidence,
+        duplicateEvidence: coverage.duplicateEvidence,
+        ...(languages ? { languages } : {}),
+    };
+}
+function callGraphRelation(edge, kind, projectRoot) {
+    const caller = kind === "caller";
+    return {
+        symbolId: caller ? edge.callerKey : edge.calleeKey,
+        targetSymbolId: caller ? edge.calleeKey : edge.callerKey,
+        file: toDisplayPath(caller ? edge.callerFile : edge.calleeFile, projectRoot),
+        ...(caller
+            ? {
+                symbol: edge.callerSymbol,
+                kind: edge.callerKind,
+                line: edge.callerLine,
+            }
+            : {
+                symbol: edge.calleeSymbol,
+                kind: edge.calleeKind,
+                line: edge.calleeLine,
+            }),
+        ...(edge.evidenceKind ? { evidenceKind: edge.evidenceKind } : {}),
+        ...(edge.resolution ? { resolution: edge.resolution } : {}),
+        ...(edge.evidenceCount && edge.evidenceCount > 1
+            ? { evidenceCount: edge.evidenceCount }
+            : {}),
+        ...(edge.weight !== 1 ? { weight: edge.weight } : {}),
+    };
+}
+/**
+ * Read the separately persisted FunctionCallGraph projection. This accessor is
+ * deliberately conservative: the module-report path never walks/builds the
+ * review graph, and a changed source file invalidates the projection rather
+ * than being reported as a clean zero-call result.
+ */
+function readCallGraph(projectRoot, normalizedPath, maxEntries, graphFileCap, identity, reviewGraph) {
+    if (graphFileCap !== undefined)
+        return unavailableCallGraph("file-cap");
+    // The canonical review graph is the only freshness authority. This path is
+    // read-only: do not walk source files or compare an independent mtime map.
+    if (!reviewGraph)
+        return unavailableCallGraph("review-graph-missing");
+    if (reviewGraph.persistCoverage?.partial || reviewGraph.persistCoverage?.inProgress) {
+        return unavailableCallGraph("partial");
+    }
+    if (!identity)
+        return unavailableCallGraph("identity-missing");
+    if (!reviewGraph.fileNodes.has(normalizedPath))
+        return unavailableCallGraph("stale");
+    const cached = loadCallGraph(projectRoot, identity);
+    if (!cached)
+        return unavailableCallGraph("stale");
+    const callers = [];
+    const callees = [];
+    for (const edge of cached.graph.edges) {
+        if (normalizeMapKey(edge.calleeFile) === normalizedPath) {
+            callers.push(callGraphRelation(edge, "caller", projectRoot));
+        }
+        if (normalizeMapKey(edge.callerFile) === normalizedPath) {
+            callees.push(callGraphRelation(edge, "callee", projectRoot));
+        }
+    }
+    const stable = (left, right) => left.targetSymbolId.localeCompare(right.targetSymbolId) ||
+        (left.line ?? 0) - (right.line ?? 0) ||
+        left.symbolId.localeCompare(right.symbolId);
+    callers.sort(stable);
+    callees.sort(stable);
+    return {
+        available: true,
+        callers: callers.slice(0, maxEntries),
+        callees: callees.slice(0, maxEntries),
+        truncated: callers.length > maxEntries || callees.length > maxEntries,
+        coverage: callGraphCoverage(cached.graph.coverage ?? {
+            totalEvidence: cached.graph.totalRefs,
+            callsEvidence: cached.graph.totalRefs,
+            referencesEvidence: 0,
+            eligibleEvidence: cached.graph.totalRefs,
+            resolvedEvidence: cached.graph.totalRefs,
+            unresolvedEvidence: cached.graph.unresolvedRefs,
+            typeOnlyEvidence: 0,
+            unsupportedEvidence: 0,
+            sameFileEvidence: 0,
+            duplicateEvidence: 0,
+            complete: false,
+        }),
+    };
+}
 function unavailableReport(displayPath, error) {
     return {
         available: false,
@@ -1168,7 +1297,8 @@ function unavailableReport(displayPath, error) {
  */
 export async function moduleReport(file, cwd, options) {
     const startedAt = Date.now();
-    const maxRefs = Math.max(1, options?.maxRefsPerSymbol ?? 10);
+    const maxRefs = normalizeMaxRefsPerSymbol(options?.maxRefsPerSymbol);
+    const maxCallGraphEntries = Math.min(CALL_GRAPH_MAX_ENTRY_CAP, Math.max(1, Math.floor(options?.maxCallGraphEntries ?? CALL_GRAPH_DEFAULT_ENTRY_CAP)));
     const absPath = path.resolve(cwd, file);
     const normalizedPath = normalizeMapKey(absPath);
     let content;
@@ -1199,13 +1329,26 @@ export async function moduleReport(file, cwd, options) {
     // jsts) and two racing builds OOM'd pi (#256). Cold cache → outline-only.
     let graph;
     let graphFileCap;
+    let callGraphIdentity;
     try {
-        const { getCachedReviewGraph, getReviewGraphSizeSkipVerdict } = await import("./review-graph/builder.js");
+        const { getCachedReviewGraph, getReviewGraphCacheIdentity, getReviewGraphSizeSkipVerdict, } = await import("./review-graph/builder.js");
         graph = getCachedReviewGraph(cwd);
         graphFileCap = getReviewGraphSizeSkipVerdict(cwd)?.maxFileCount;
+        callGraphIdentity = graph
+            ? (() => {
+                const identity = getReviewGraphCacheIdentity(cwd, graph);
+                return identity
+                    ? {
+                        reviewGraphVersion: identity.version,
+                        reviewGraphSignature: identity.signature,
+                    }
+                    : undefined;
+            })()
+            : undefined;
     }
     catch {
         graph = undefined;
+        callGraphIdentity = undefined;
     }
     // Drop function-local declarations (a nested const/arrow/function) from the
     // outline — they're implementation detail of a parent symbol, not navigable
@@ -1277,6 +1420,9 @@ export async function moduleReport(file, cwd, options) {
     const blastRadius = options?.blastRadius && graph && hasGraphNode
         ? await computeBlastRadius(graph, normalizedPath, cwd, Math.max(1, options.blastRadiusDepth ?? 3))
         : undefined;
+    const callGraph = options?.callGraph
+        ? readCallGraph(cwd, normalizedPath, maxCallGraphEntries, graphFileCap, callGraphIdentity, graph)
+        : undefined;
     const view = options?.view ?? "default";
     const summaryView = view === "summary";
     // "compact" computes the same full data as "default" — it's a rendering
@@ -1297,6 +1443,11 @@ export async function moduleReport(file, cwd, options) {
     const blastRadiusProvenance = blastRadius
         ? "cached-review-graph"
         : unavailableGraphProvenance;
+    const callGraphProvenance = callGraph?.available
+        ? "cached-call-graph"
+        : callGraph?.reason === "file-cap"
+            ? "unavailable:file-cap"
+            : "none";
     const report = {
         available: entries.length > 0 || hasGraphNode,
         staleness: entries.length === 0 && !hasGraphNode ? "unavailable" : "fresh",
@@ -1318,6 +1469,7 @@ export async function moduleReport(file, cwd, options) {
         ...(summaryView ? { view: "summary" } : {}),
         ...(compactView ? { view: "compact" } : {}),
         ...(blastRadius && !summaryView ? { blastRadius } : {}),
+        ...(callGraph ? { callGraph } : {}),
         ...(graph ? { graphBuiltAt: graph.builtAt } : {}),
         provenance: {
             symbols: languageId ? "syntax" : "none",
@@ -1329,6 +1481,7 @@ export async function moduleReport(file, cwd, options) {
             ...(options?.blastRadius
                 ? { blastRadius: blastRadiusProvenance }
                 : {}),
+            ...(options?.callGraph ? { callGraph: callGraphProvenance } : {}),
         },
         semantic: {
             // Provenance of who-uses-this / references. The AST review graph is the
@@ -1470,6 +1623,18 @@ export function renderCompactModuleReport(report) {
         lines.push("CALLBACKS:");
         for (const callback of report.callbacks) {
             lines.push(compactCallbackLine(callback, width));
+        }
+    }
+    if (report.callGraph) {
+        const callGraph = report.callGraph;
+        const suffix = callGraph.truncated ? " (truncated)" : "";
+        lines.push("CALL GRAPH:");
+        if (!callGraph.available) {
+            lines.push(`  unavailable (${callGraph.reason ?? "unknown"})`);
+        }
+        else {
+            lines.push(`  callers: ${callGraph.callers.length} · callees: ${callGraph.callees.length}` +
+                ` · coverage: ${callGraph.coverage.status}${suffix}`);
         }
     }
     if (report.recommendedReads.length > 0) {

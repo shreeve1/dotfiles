@@ -1,9 +1,13 @@
 import { randomBytes } from "node:crypto";
+import * as fs from "node:fs";
 import * as path from "node:path";
+import { logCascade } from "./cascade-logger.js";
 import { normalizeMapKey } from "./path-utils.js";
+import { PathKeyedMap } from "./path-keyed-map.js";
 import { ReadGuard } from "./read-guard.js";
 import { RUNTIME_CONFIG } from "./runtime-config.js";
 import { TurnSummaryCollector } from "./turn-summary.js";
+import { deriveProviderFromModelId } from "./model-provider.js";
 export class RuntimeCoordinator {
     _projectRoot = normalizeMapKey(process.cwd());
     _sessionGeneration = 0;
@@ -23,7 +27,9 @@ export class RuntimeCoordinator {
         coldSnapshotTouches: 0,
     };
     _complexityBaselines = new Map();
-    _fixedThisTurn = new Set();
+    _fixedThisTurn = new PathKeyedMap(normalizeMapKey);
+    _writtenThisTurn = new PathKeyedMap(normalizeMapKey);
+    _autofixDemotedThisTurn = new PathKeyedMap(normalizeMapKey);
     _reportedThisTurn = new Set();
     _projectRulesScan = {
         rules: [],
@@ -33,6 +39,19 @@ export class RuntimeCoordinator {
     _lifecycleReason;
     _hasStableSessionId = false;
     _telemetryModel = "unknown";
+    // Raw model/provider identity, separate from the combined `provider/model`
+    // display string above — worklog/disposition attribution (#1448) wants the
+    // two fields apart, blank when the host never supplied them. `_telemetryProvider`
+    // is the explicit host value when given, else derived from the model id
+    // (deriveProviderFromModelId, blank on ambiguity — never guessed).
+    _telemetryModelId = "";
+    _telemetryProvider = "";
+    // True once a host has supplied an explicit provider this session. An
+    // explicit provider is never downgraded by a derivation from a later
+    // model-only call; a DERIVED provider, by contrast, is re-derived on
+    // every model-only call so a mid-session model switch (e.g. gpt-5-mini →
+    // claude-sonnet-4-5) doesn't leave a stale provider from the old model.
+    _telemetryProviderIsExplicit = false;
     _turnIndex = 0;
     _writeIndex = 0;
     _projectSeq = 0;
@@ -45,12 +64,13 @@ export class RuntimeCoordinator {
     _fileLastProjectSeq = new Map();
     _gitGuardHasBlockers = false;
     _gitGuardSummary = "";
+    _gitGuardCacheUnknownReason;
     callGraph = null;
     wordIndex = null;
     _readGuard = null;
-    _pendingDeferredFormatFiles = new Map();
+    _pendingDeferredMutations = new PathKeyedMap(normalizeMapKey);
     _lspReadWarmState = new Map();
-    _pendingInlineBlockers = new Map();
+    _pendingInlineBlockers = new PathKeyedMap(normalizeMapKey);
     _actionableWarningsThisTurn = new Map();
     _codeQualityWarningsThisTurn = new Map();
     // #484: opt-in per-RUN summary of diagnostics/autofixes/formats,
@@ -75,10 +95,15 @@ export class RuntimeCoordinator {
             coldSnapshotTouches: 0,
         };
         this._fixedThisTurn.clear();
+        this._writtenThisTurn.clear();
+        this._autofixDemotedThisTurn.clear();
         this._reportedThisTurn.clear();
         this._telemetrySessionId = `lens-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
         this._hasStableSessionId = false;
         this._telemetryModel = "unknown";
+        this._telemetryModelId = "";
+        this._telemetryProvider = "";
+        this._telemetryProviderIsExplicit = false;
         this._turnIndex = 0;
         this._writeIndex = 0;
         this._projectSeq = 0;
@@ -87,8 +112,9 @@ export class RuntimeCoordinator {
         this._fileLastProjectSeq.clear();
         this._gitGuardHasBlockers = false;
         this._gitGuardSummary = "";
+        this._gitGuardCacheUnknownReason = undefined;
         this._readGuard = null;
-        this._pendingDeferredFormatFiles.clear();
+        this._pendingDeferredMutations.clear();
         this._lspReadWarmState.clear();
         this._pendingInlineBlockers.clear();
         this._actionableWarningsThisTurn.clear();
@@ -107,8 +133,12 @@ export class RuntimeCoordinator {
         this._cascadeSessionStats.coldSnapshotTouches += coldSnapshotTouches;
     }
     updateGitGuardStatus(hasBlockers, output) {
-        this._gitGuardHasBlockers = hasBlockers;
-        if (!hasBlockers) {
+        // The status is an aggregate over the current per-file map. A clean B
+        // result must not erase an unresolved A result; the pipeline records/clears
+        // the edited file immediately before this method runs.
+        this._gitGuardHasBlockers =
+            hasBlockers || this.getInlineBlockersSnapshot().length > 0;
+        if (!this._gitGuardHasBlockers) {
             this._gitGuardSummary = "";
             return;
         }
@@ -116,7 +146,10 @@ export class RuntimeCoordinator {
             .split("\n")
             .map((line) => line.trim())
             .find((line) => line.length > 0);
-        this._gitGuardSummary = (firstLine ?? "Unresolved blockers detected").slice(0, 160);
+        const summaries = this.getInlineBlockersSnapshot()
+            .map((entry) => entry.summary.trim())
+            .filter(Boolean);
+        this._gitGuardSummary = (summaries[0] ?? firstLine ?? "Unresolved blockers detected").slice(0, 160);
     }
     get gitGuardHasBlockers() {
         return this._gitGuardHasBlockers;
@@ -124,14 +157,48 @@ export class RuntimeCoordinator {
     get gitGuardSummary() {
         return this._gitGuardSummary;
     }
+    markGitGuardCacheUnknown(reason) {
+        this._gitGuardCacheUnknownReason = reason;
+    }
+    clearGitGuardCacheUnknown() {
+        this._gitGuardCacheUnknownReason = undefined;
+    }
+    get gitGuardCacheUnknownReason() {
+        return this._gitGuardCacheUnknownReason;
+    }
     beginTurn() {
-        this._cascadeRuns = [];
+        // #1443: runs sitting here at turn_start were appended AFTER the last
+        // turn_end drained them (consumeCascadeRuns) — the quiet-window reconcile's
+        // late re-injection (`onResolvedFound`, clients/lsp/cascade-tier.ts) lands
+        // in exactly that window. Wiping them dead-ended that delivery path: the
+        // finding was computed, formatted, appended, and then deleted before any
+        // turn_end could render it. Carry them into THIS turn instead, exactly
+        // once: `carriedTurns` is stamped on the way through and a run that the
+        // next turn_end still did not consume is dropped here with a log line
+        // rather than queued forever (a stale finding must not outlive the state
+        // it describes, and an unbounded queue would replay it every turn).
+        this._cascadeRuns = this._cascadeRuns.flatMap((run) => {
+            const carriedTurns = (run.carriedTurns ?? 0) + 1;
+            if (carriedTurns > 1) {
+                logCascade({
+                    phase: "cascade_carry_over_drop",
+                    filePath: run.filePath,
+                    neighborCount: run.neighborCount,
+                    diagnosticCount: run.diagnosticCount,
+                    metadata: { carriedTurns, turnIndex: this._turnIndex },
+                });
+                return [];
+            }
+            return [{ ...run, carriedTurns }];
+        });
         // _pendingCascadeRuns is deliberately NOT cleared here: a cascade compute
         // still in flight past last turn_end's settle cap (fresh graph builds have
         // measured up to ~19s) must surface on the NEXT turn_end, not be dropped —
         // pre-#450 those findings were always awaited, never lost. Session reset
         // still clears it.
-        this._pendingInlineBlockers.clear();
+        // Inline blockers are session-scoped per-file state. They are cleared only
+        // when that file is re-analyzed clean or the session resets; a new turn must
+        // not let a clean unrelated file erase an unresolved blocker.
         this._actionableWarningsThisTurn.clear();
         this._codeQualityWarningsThisTurn.clear();
         // _turnSummary is deliberately NOT cleared here (#484 rework): the
@@ -144,6 +211,25 @@ export class RuntimeCoordinator {
         this._turnIndex += 1;
         this._writeIndex = 0;
         this._reportedThisTurn.clear();
+        this._writtenThisTurn.clear();
+        this._autofixDemotedThisTurn.clear();
+    }
+    /** Atomically records write/edit ordering before debounce can coalesce it. */
+    recordMutationToolReceipt(filePath, toolName) {
+        if (toolName === "write") {
+            this._writtenThisTurn.set(filePath, true);
+        }
+        else if (this._writtenThisTurn.has(filePath)) {
+            this._autofixDemotedThisTurn.set(filePath, true);
+            // A later edit establishes a new final state that must be eligible for
+            // the deferred pass even if the preceding write was fixed immediately.
+            this._fixedThisTurn.delete(filePath);
+        }
+        return {
+            autofixMode: toolName === "edit" || this._autofixDemotedThisTurn.has(filePath)
+                ? "deferred"
+                : "immediate",
+        };
     }
     get reportedThisTurn() {
         return this._reportedThisTurn;
@@ -169,6 +255,23 @@ export class RuntimeCoordinator {
         }
         else if (provider) {
             this._telemetryModel = provider;
+        }
+        if (model)
+            this._telemetryModelId = model;
+        if (provider) {
+            this._telemetryProvider = provider;
+            this._telemetryProviderIsExplicit = true;
+        }
+        else if (model && !this._telemetryProviderIsExplicit) {
+            // No explicit provider has ever been reported this session, so the
+            // provider is (still) a derivation — re-derive it from the CURRENT
+            // model id every time. Without this, a stale derived provider from
+            // an earlier model would survive a mid-session model switch (e.g.
+            // gpt-5-mini → claude-sonnet-4-5 with no explicit provider on
+            // either call) because the old "has any provider ever been set"
+            // guard treated the derived value as sticky. An explicit provider,
+            // once set, is never touched here regardless of later model calls.
+            this._telemetryProvider = deriveProviderFromModelId(model);
         }
     }
     get telemetrySessionId() {
@@ -197,6 +300,17 @@ export class RuntimeCoordinator {
     }
     get telemetryModel() {
         return this._telemetryModel;
+    }
+    /** Raw model id (never the combined `provider/model` display string), blank
+     * when the host hasn't reported one this session. Worklog/disposition
+     * attribution (#1448) reads this, not {@link telemetryModel}. */
+    get telemetryModelId() {
+        return this._telemetryModelId;
+    }
+    /** Explicit host-reported provider, or a conservative derivation from the
+     * model id (see clients/model-provider.ts), blank when neither is known. */
+    get telemetryProviderId() {
+        return this._telemetryProvider;
     }
     get turnIndex() {
         return this._turnIndex;
@@ -356,6 +470,26 @@ export class RuntimeCoordinator {
         this._cascadeRuns = [];
         return runs;
     }
+    /**
+     * R1 (#1443 follow-up): non-destructive peek used by turn_end's read-only
+     * fast path. A carried cascade run (or one still in flight) represents a
+     * DELIVERY OPPORTUNITY, not turn activity — an agent that answers a question
+     * without editing anything must still get yesterday's late finding. Before
+     * this, the files-empty early return skipped `settleCascadeRuns` /
+     * `consumeCascadeRuns` entirely on a read-only turn, so `beginTurn`'s next
+     * carry pass saw the run as having survived a turn_start with no offsetting
+     * drain and dropped it — burning the one-turn carry allowance on a turn that
+     * never had a chance to deliver.
+     */
+    hasCascadeRuns() {
+        // Carried, ALREADY-BUILT runs only. Pending (still-settling) computes are
+        // deliberately excluded: a read-only turn that fell through for a pending
+        // run would block on the full settle cap — every turn, forever, when the
+        // compute never resolves (re-review finding F1). A pending run loses
+        // nothing by waiting: settleCascadeRuns re-parks it and the next turn
+        // that actually settles it delivers it.
+        return this._cascadeRuns.length > 0;
+    }
     recordInlineBlockers(filePath, summary) {
         this._pendingInlineBlockers.set(path.resolve(filePath), {
             filePath,
@@ -365,8 +499,45 @@ export class RuntimeCoordinator {
     clearInlineBlockers(filePath) {
         this._pendingInlineBlockers.delete(path.resolve(filePath));
     }
+    reconcileInlineBlockers() {
+        // Rebuild, never delete-in-place: `PathKeyedMap.delete()` re-normalizes
+        // the key, and `normalizeMapKey` realpaths a live file but lowercases
+        // the tail of a deleted one — so on Windows a mixed-case filename gets
+        // a DIFFERENT delete-time key than its set-time key and the delete
+        // misses (#1245, verified live: `MyCase.ts` survived reconcile).
+        // Existence-checking the display path and rebuilding survivors avoids
+        // the key-mismatch entirely; live survivors re-set to identical keys
+        // (both realpath), so only the stale entries are dropped.
+        const survivors = [];
+        for (const [displayPath, value] of this._pendingInlineBlockers.entries()) {
+            if (fs.existsSync(displayPath))
+                survivors.push([displayPath, value]);
+        }
+        if (survivors.length !== this._pendingInlineBlockers.size) {
+            this._pendingInlineBlockers.clear();
+            for (const [displayPath, value] of survivors) {
+                this._pendingInlineBlockers.set(displayPath, value);
+            }
+        }
+    }
+    /**
+     * Stale-entry reconcile (#1245): a blocker recorded for a file that has
+     * since been deleted can never be cleared — `clearInlineBlockers` fires
+     * only on a LATER dispatch of the same path, which a deleted file never
+     * gets. Every read of the blocker map (turn_end injection, git-guard
+     * size/summary, `syncGitGuardRecord`) therefore drops entries whose file no
+     * longer exists on disk: a blocker for a deleted file is stale by
+     * definition (the agent cannot fix it), so it must not re-surface every
+     * turn or gate a commit. The map is tiny (per-turn blockers) and reads are
+     * bounded (once per turn_end / tool_result), so the probe cost is
+     * negligible.
+     */
+    getInlineBlockersSnapshot() {
+        this.reconcileInlineBlockers();
+        return [...this._pendingInlineBlockers.values()];
+    }
     consumeInlineBlockers() {
-        const entries = [...this._pendingInlineBlockers.values()];
+        const entries = this.getInlineBlockersSnapshot();
         this._pendingInlineBlockers.clear();
         return entries;
     }
@@ -403,7 +574,19 @@ export class RuntimeCoordinator {
         return this._complexityBaselines;
     }
     get fixedThisTurn() {
-        return this._fixedThisTurn;
+        // Self-referencing local so chained add() returns the same facade
+        // instead of re-entering this getter and allocating a new one per call
+        // (sonar S7725).
+        const facade = {
+            add: (filePath) => {
+                this._fixedThisTurn.set(filePath, true);
+                return facade;
+            },
+            has: (filePath) => this._fixedThisTurn.has(filePath),
+            delete: (filePath) => this._fixedThisTurn.delete(filePath),
+            clear: () => this._fixedThisTurn.clear(),
+        };
+        return facade;
     }
     get projectRulesScan() {
         return this._projectRulesScan;
@@ -416,39 +599,47 @@ export class RuntimeCoordinator {
         return this._readGuard;
     }
     /**
-     * Queue `filePath` for deferred formatting at `agent_end`. Returns `true`
-     * when this call created a NEW pending entry, `false` when it re-touched
-     * an already-queued file. #673: the caller uses this to publish
-     * `pilens:format:queued` only on first queue entry, so repeated edits to
-     * the same already-queued file before `agent_end` don't spam the bus.
+     * Queue one mutation kind for `filePath` at `agent_end`. Returns `true`
+     * when this call created a pending entry or added a new kind, and `false`
+     * for a same-kind re-touch. Callers publish each kind's first transition
+     * without spamming repeated edits before `agent_end`.
      */
-    deferFormat(filePath, cwd, toolName, turnStateCwd, ownerSessionId) {
+    deferMutation(filePath, cwd, toolName, turnStateCwd, kind, ownerSessionId) {
         const key = path.resolve(filePath);
         const now = Date.now();
-        const existing = this._pendingDeferredFormatFiles.get(key);
+        const existing = this._pendingDeferredMutations.get(key);
         if (existing) {
+            const addedKind = !existing.kinds.has(kind);
             existing.lastTouchedAt = now;
             existing.cwd = cwd;
             existing.turnStateCwd = turnStateCwd;
             existing.toolNames.add(toolName);
+            existing.kinds.add(kind);
             existing.queuedTurnIndex = this._turnIndex;
             existing.ownerSessionId = ownerSessionId;
-            return false;
+            return addedKind;
         }
-        this._pendingDeferredFormatFiles.set(key, {
+        this._pendingDeferredMutations.set(key, {
             filePath: key,
             cwd,
             turnStateCwd,
             firstTouchedAt: now,
             lastTouchedAt: now,
             toolNames: new Set([toolName]),
+            kinds: new Set([kind]),
             queuedTurnIndex: this._turnIndex,
             ownerSessionId,
         });
         return true;
     }
+    deferFormat(filePath, cwd, toolName, turnStateCwd, ownerSessionId) {
+        return this.deferMutation(filePath, cwd, toolName, turnStateCwd, "format", ownerSessionId);
+    }
     get pendingDeferredFormatCount() {
-        return this._pendingDeferredFormatFiles.size;
+        return this._pendingDeferredMutations.size;
+    }
+    get pendingDeferredMutationCount() {
+        return this._pendingDeferredMutations.size;
     }
     /**
      * Legacy unconditional drain — still exposed for any caller that
@@ -456,8 +647,8 @@ export class RuntimeCoordinator {
      * flush call sites should prefer {@link claimDeferredFormatFiles}.
      */
     consumeDeferredFormatFiles() {
-        const records = [...this._pendingDeferredFormatFiles.values()];
-        this._pendingDeferredFormatFiles.clear();
+        const records = [...this._pendingDeferredMutations.values()];
+        this._pendingDeferredMutations.clear();
         return records;
     }
     /**
@@ -481,24 +672,49 @@ export class RuntimeCoordinator {
         const claimed = [];
         const staleClaimed = [];
         const deferredToOwner = [];
-        for (const [key, record] of this._pendingDeferredFormatFiles) {
+        for (const [key, record] of this._pendingDeferredMutations) {
             const sameSession = record.ownerSessionId === undefined ||
                 currentSessionId === undefined ||
                 record.ownerSessionId === currentSessionId;
             if (sameSession) {
                 claimed.push(record);
-                this._pendingDeferredFormatFiles.delete(key);
+                this._pendingDeferredMutations.delete(key);
                 continue;
             }
             const age = now - record.lastTouchedAt;
             if (age > staleAfterMs) {
                 staleClaimed.push(record);
-                this._pendingDeferredFormatFiles.delete(key);
+                this._pendingDeferredMutations.delete(key);
                 continue;
             }
             deferredToOwner.push(record);
         }
         return { claimed, staleClaimed, deferredToOwner };
+    }
+    /** Return claimed records that were never started by an aborted drain. */
+    requeueDeferredFormatFiles(records) {
+        for (const record of records) {
+            const key = path.resolve(record.filePath);
+            const existing = this._pendingDeferredMutations.get(key);
+            if (existing) {
+                for (const kind of record.kinds)
+                    existing.kinds.add(kind);
+                for (const toolName of record.toolNames)
+                    existing.toolNames.add(toolName);
+                continue;
+            }
+            this._pendingDeferredMutations.set(key, {
+                ...record,
+                kinds: new Set(record.kinds),
+                toolNames: new Set(record.toolNames),
+            });
+        }
+    }
+    claimDeferredMutations(currentSessionId, now, staleAfterMs) {
+        return this.claimDeferredFormatFiles(currentSessionId, now, staleAfterMs);
+    }
+    requeueDeferredMutations(records) {
+        this.requeueDeferredFormatFiles(records);
     }
     shouldWarmLspOnRead(filePath, maxAgeMs = 120_000) {
         const state = this._lspReadWarmState.get(path.resolve(filePath));

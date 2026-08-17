@@ -7,14 +7,16 @@
  * Requires: npm install -D jscpd
  * Docs: https://github.com/kucherenko/jscpd
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import { mkdtempSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getExcludedDirGlobs, getGlobalPiLensDir, getProjectIgnoreGlobs, getProjectIgnoreMatcher, } from "./file-utils.js";
+import { getExcludedDirGlobs, getProjectIgnoreGlobs, getProjectIgnoreMatcher, } from "./file-utils.js";
 import { findNodeToolBinary } from "./package-manager.js";
-import { isAtOrAboveHomeDir } from "./path-utils.js";
+import { isAtOrAboveHomeDir, isFullyQualified } from "./path-utils.js";
 import { getJscpdMaxEntriesDerived } from "./project-scale.js";
+import { createAvailabilityChecker, findManagedNodeToolBinary, resolveAvailableOrInstall, } from "./dispatch/runners/utils/runner-helpers.js";
 import { safeSpawnAsync } from "./safe-spawn.js";
 import { shouldRecurseIntoDir, walkTreeStackSync } from "./source-walker.js";
 const EMPTY_RESULT = {
@@ -25,14 +27,25 @@ const EMPTY_RESULT = {
     percentage: 0,
 };
 const SCAN_TIMEOUT_MS = 30_000;
+const jscpdAvailability = createAvailabilityChecker("jscpd", "", ["--version"], {
+    probeTimeout: 1500,
+    // One definition of the managed-shim fast path, shared with knip (#1476).
+    fastPath: () => findManagedNodeToolBinary("jscpd"),
+});
 // --- Client ---
 export class JscpdClient {
-    available = null;
-    ensureInFlight = null;
+    // Absolute path of a MANAGED jscpd (the global ~/.pi-lens tools shim
+    // discovered by the availability fast path, or the ensureTool install
+    // result), else null. Nullable on purpose: a bare-name sentinel can't
+    // distinguish "resolved" from "on PATH" — ensureTool may legitimately
+    // return a bare command for an already-spawnable tool (#1289 review).
+    // Project-local binaries are NOT stored; each scan resolves those against
+    // its own cwd via findNodeToolBinary.
+    jscpdManagedPath = null;
     inFlight = new Map();
     log;
     constructor(verbose = false) {
-        this.log = verbose ? (msg) => console.error(`[jscpd] ${msg}`) : () => { };
+        this.log = verbose ? createSubsystemLogger("jscpd") : () => { };
     }
     /**
      * Fast recursive source file presence check.
@@ -89,55 +102,12 @@ export class JscpdClient {
      * Check if jscpd is available, auto-install if not
      */
     async ensureAvailable() {
-        // Fast path: already checked
-        if (this.available !== null)
-            return this.available;
-        // Deduplicate concurrent calls
-        if (this.ensureInFlight)
-            return this.ensureInFlight;
-        this.ensureInFlight = this.doEnsureAvailable();
-        try {
-            return await this.ensureInFlight;
-        }
-        finally {
-            this.ensureInFlight = null;
-        }
-    }
-    async doEnsureAvailable() {
-        // Fast path: check local install before any spawn
-        const isWin = process.platform === "win32";
-        const localBase = path.join(getGlobalPiLensDir(), "tools", "node_modules", ".bin", "jscpd");
-        const localCandidates = isWin
-            ? [`${localBase}.cmd`, `${localBase}.exe`, localBase]
-            : [localBase];
-        for (const candidate of localCandidates) {
-            try {
-                if (fs.existsSync(candidate)) {
-                    this.available = true;
-                    return true;
-                }
-            }
-            catch {
-                // continue
-            }
-        }
-        // Check if available in PATH (short timeout — if not instantly available, it's not in PATH)
-        const result = await safeSpawnAsync("jscpd", ["--version"], {
-            timeout: 1500,
-        });
-        this.available = !result.error && result.status === 0;
-        if (this.available) {
-            return true;
-        }
-        // Auto-install via pi-lens installer
-        const { ensureTool } = await import("./installer/index.js");
-        const installedPath = await ensureTool("jscpd");
-        if (installedPath) {
-            this.available = true;
-            return true;
-        }
-        this.available = false;
-        return false;
+        const resolved = await resolveAvailableOrInstall(jscpdAvailability, "jscpd", process.cwd());
+        if (!resolved)
+            return false;
+        if (isFullyQualified(resolved))
+            this.jscpdManagedPath = resolved;
+        return true;
     }
     /**
      * Scan a directory for duplicate code blocks.
@@ -210,7 +180,9 @@ export class JscpdClient {
             const bin = await findNodeToolBinary("jscpd", cwd);
             const { cmd, prefix } = bin
                 ? { cmd: bin, prefix: [] }
-                : { cmd: "npx", prefix: ["jscpd"] };
+                : this.jscpdManagedPath
+                    ? { cmd: this.jscpdManagedPath, prefix: [] }
+                    : { cmd: "npx", prefix: ["jscpd"] };
             const result = await safeSpawnAsync(cmd, [
                 ...prefix,
                 ".",

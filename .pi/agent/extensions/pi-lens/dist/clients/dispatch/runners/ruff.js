@@ -6,10 +6,9 @@
  * mutating files mid-dispatch after LSP sync has already happened.
  * Supports venv-local installations.
  */
-import { resolvePackagePath } from "../../package-root.js";
 import { safeSpawnAsync } from "../../safe-spawn.js";
 import { stripAnsi } from "../../sanitize.js";
-import { getAutofixCapability, getLinterPolicyForCwd, hasRuffConfig, } from "../../tool-policy.js";
+import { getAutofixCapability, getLinterPolicyForCwd, ruffConfigArgs, } from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import { parseRuffOutput } from "./utils/diagnostic-parsers.js";
 import { createAvailabilityChecker, resolveAvailableOrInstall, } from "./utils/runner-helpers.js";
@@ -61,12 +60,9 @@ const ruffRunner = {
         if (!cmd) {
             return { status: "skipped", diagnostics: [], semantic: "none" };
         }
-        const configArgs = hasRuffConfig(cwd)
-            ? []
-            : [
-                "--config",
-                resolvePackagePath(import.meta.url, "config/ruff/core.toml"),
-            ];
+        // Shared config-args seam (#1247): the autofix path consumes the same
+        // builder, so the package-owned fallback config can never drift.
+        const configArgs = ruffConfigArgs(cwd);
         // Step 1: Capture diagnostics (before fixing) — teaching signal for the agent
         const checkResult = await safeSpawnAsync(cmd, ["check", "--output-format", "json", ...configArgs, ctx.filePath], { timeout: 30000 });
         const raw = stripAnsi(checkResult.stdout + checkResult.stderr);

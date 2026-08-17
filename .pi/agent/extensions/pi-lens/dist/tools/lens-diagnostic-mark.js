@@ -162,7 +162,10 @@ function verifyLine(content, absPath, tool, rule, message, callerLine) {
         };
     }
 }
-export function createLensDiagnosticMarkTool(getCwd) {
+export function createLensDiagnosticMarkTool(getCwd, 
+/** Runtime telemetry identity, when known (#1448 class sweep) — attributed
+ * onto the disposition log alongside the mark. */
+getIdentity) {
     return {
         name: "lens_diagnostic_mark",
         label: "Mark Diagnostic",
@@ -326,7 +329,7 @@ export function createLensDiagnosticMarkTool(getCwd) {
                 message,
                 line: verifiedLine,
                 content,
-            }, disposition, reason);
+            }, disposition, reason, getIdentity?.());
             const verb = disposition === "suppress"
                 ? `suppressed (inline pi-lens-ignore comment written above line ${verifiedLine})`
                 : disposition === "defer"

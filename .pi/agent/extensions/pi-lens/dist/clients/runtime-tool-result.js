@@ -1,18 +1,23 @@
 import * as nodeCrypto from "node:crypto";
 import * as nodeFs from "node:fs";
 import * as path from "node:path";
-import { extractGrepSearchReadsFromOutput, extractWrittenPathsFromCommand, } from "./bash-file-access.js";
+import { extractReadPathsFromCommand, extractGrepSearchReadsFromOutput, extractWrittenPathsFromCommand, } from "./bash-file-access.js";
 import { registerSearchReads, } from "./search-read-registration.js";
 import { createFileTime } from "./file-time.js";
 import { publishFormatQueued } from "./format-events-publish.js";
 import { isPathIgnoredByProject } from "./file-utils.js";
 import { getFormatService } from "./format-service.js";
-import { isExternalOrVendorFile } from "./path-utils.js";
+import { isExternalOrVendorFile, normalizeEphemeralMapKey } from "./path-utils.js";
+import { PathKeyedMap } from "./path-keyed-map.js";
 import { resolveLanguageRootForFile } from "./language-profile.js";
 import { logLatency } from "./latency-logger.js";
+import { boundedIndexesForCount, createReadGuardEditBatchSummary, getReadGuardCorrelationId, logReadGuardEvent, } from "./read-guard-logger.js";
 import { runPipeline } from "./pipeline.js";
 import { appendProjectChange, } from "./project-changes.js";
+import { syncGitGuardRecord } from "./git-guard.js";
 import { scheduleWordIndexPersist } from "./word-index.js";
+import { RUNTIME_CONFIG } from "./runtime-config.js";
+const AUTHORITATIVE_CONTENT_MAX_BYTES = RUNTIME_CONFIG.pipeline.lspMaxFileBytes;
 function parseDiffRanges(diff) {
     const changedLines = [];
     for (const line of diff.split("\n")) {
@@ -40,19 +45,23 @@ function parseDiffRanges(diff) {
     ranges.push({ start: rangeStart, end: rangeEnd });
     return ranges;
 }
-// Deduplicates tool_result calls for the same post-write file state.
-// The pi framework can emit one tool_result per edit hunk; those events often
-// observe the same final file content. Deduping by file alone is unsafe because
-// a later same-turn edit to the same file must still run the pipeline.
-const inFlightPipelines = new Map();
-const lastAnalyzedStateByFile = new Map();
+// Keyed by (normalized) filePath, then by the raw stateHash — the path portion
+// needs normalizing (divergent Windows spellings must collapse to one entry),
+// the stateHash suffix must NOT be folded into the path key (a real content
+// change for the same file has to stay a distinct entry). A flat
+// `PathKeyedMap<InFlightPipeline>` keyed by a composite `${filePath}:${hash}`
+// string can't express that split cleanly (the normalizer only sees the whole
+// composite string, so it can't fold the path half without also mangling the
+// hash half); nesting keeps each axis normalized/compared with its own rules.
+const inFlightPipelines = new PathKeyedMap(normalizeEphemeralMapKey);
+const lastAnalyzedStateByFile = new PathKeyedMap(normalizeEphemeralMapKey);
 // Called at turn_start — entries from the previous turn can never match the new
 // turnIndex so they're dead weight. Clearing here keeps the map bounded to the
 // files touched in the current turn only (typically < 20).
 export function clearLastAnalyzedStateCache() {
     lastAnalyzedStateByFile.clear();
 }
-const debouncedPipelines = new Map();
+const debouncedPipelines = new PathKeyedMap(normalizeEphemeralMapKey);
 const DEFAULT_DEBOUNCE_MS = 0;
 const MAX_DEBOUNCE_MS = 1000;
 function getDebounceMs() {
@@ -98,7 +107,13 @@ function scheduleDebounced(filePath, debounceMs, deps) {
     const existing = debouncedPipelines.get(filePath);
     if (existing) {
         clearTimeout(existing.timer);
-        existing.latestDeps = deps;
+        const incomingId = deps._telemetryParticipantIds?.[0] ?? getReadGuardCorrelationId(deps.event);
+        const priorIds = existing.latestDeps._telemetryParticipantIds ?? [];
+        existing.latestDeps = {
+            ...deps,
+            _telemetryParticipantIds: [...priorIds, incomingId].slice(0, 100),
+            _telemetryParticipantTotal: (existing.latestDeps._telemetryParticipantTotal ?? priorIds.length) + 1,
+        };
         existing.coalescedCount += 1;
         existing.timer = setTimeout(() => {
             debouncedPipelines.delete(filePath);
@@ -114,6 +129,7 @@ function scheduleDebounced(filePath, debounceMs, deps) {
         resolveFn = res;
         rejectFn = rej;
     });
+    const initialParticipantIds = deps._telemetryParticipantIds ?? [getReadGuardCorrelationId(deps.event)];
     const entry = {
         timer: setTimeout(() => {
             debouncedPipelines.delete(filePath);
@@ -122,7 +138,11 @@ function scheduleDebounced(filePath, debounceMs, deps) {
         promise,
         resolve: resolveFn,
         reject: rejectFn,
-        latestDeps: deps,
+        latestDeps: {
+            ...deps,
+            _telemetryParticipantIds: initialParticipantIds.slice(0, 100),
+            _telemetryParticipantTotal: deps._telemetryParticipantTotal ?? initialParticipantIds.length,
+        },
         scheduledAt: Date.now(),
         coalescedCount: 1,
     };
@@ -138,6 +158,15 @@ function getFileStateHash(filePath) {
         const code = err.code ?? "unknown";
         return `unreadable:${code}`;
     }
+}
+function getRequestedEditCount(event) {
+    if (event.toolName === "write")
+        return 1;
+    const edits = event.input?.edits;
+    return Array.isArray(edits) && edits.length > 0 ? edits.length : 1;
+}
+function getRequestedEditIndexes(event) {
+    return boundedIndexesForCount(getRequestedEditCount(event));
 }
 function sourceForToolName(toolName, details) {
     if (details
@@ -180,6 +209,8 @@ export async function handleToolResult(deps) {
             : path.resolve(workspaceRoot, rawFilePath)
         : rawFilePath;
     const behaviorWarnings = agentBehaviorRecord(event.toolName, filePath);
+    const syntheticWriteContent = [];
+    let syntheticAttachmentBytes = 0;
     // Bash writes (redirects, tee, sed -i, cp/mv, touch, git checkout/restore) —
     // these change file content but never go through the edit tool, so bash
     // early-returns before the dispatch pipeline below. For each in-project file
@@ -191,23 +222,91 @@ export async function handleToolResult(deps) {
     if (event.toolName === "bash" &&
         typeof event.input.command === "string") {
         const command = event.input.command;
-        const written = extractWrittenPathsFromCommand(command, workspaceRoot).filter((wp) => !isExternalOrVendorFile(wp, workspaceRoot) &&
+        const written = extractWrittenPathsFromCommand(command, workspaceRoot).filter((wp) => event.isError !== true &&
+            !isExternalOrVendorFile(wp, workspaceRoot) &&
             !isPathIgnoredByProject(wp, workspaceRoot, false));
         for (const wp of written) {
             if (!getFlag("no-read-guard"))
                 deps.readGuard?.recordWritten(wp);
-            await handleToolResult({
+            const receipt = runtime.recordMutationToolReceipt;
+            const autofixMode = receipt
+                ? receipt.call(runtime, wp, "write").autofixMode
+                : "immediate";
+            const syntheticResult = await handleToolResult({
                 ...deps,
                 event: { ...event, toolName: "write", input: { path: wp } },
                 _bypassDebounce: true,
+                _autofixMode: autofixMode,
             });
+            if (syntheticResult) {
+                // The per-attachment cap bounds each file, but a multi-file bash
+                // write (`sed -i` over globs, `;`-chained rewrites) appends one
+                // attachment per path — share ONE authoritative-content budget
+                // across the whole command so the aggregate tool result stays
+                // bounded too. Past the budget, degrade to the re-read warning.
+                for (const block of syntheticResult.content.slice(event.content.length)) {
+                    const blockBytes = typeof block.text === "string"
+                        ? Buffer.byteLength(block.text, "utf-8")
+                        : 0;
+                    const isAuthoritativeAttachment = typeof block.text === "string" &&
+                        block.text.startsWith("pi-lens applied autofix to ");
+                    if (isAuthoritativeAttachment &&
+                        syntheticAttachmentBytes + blockBytes >
+                            AUTHORITATIVE_CONTENT_MAX_BYTES) {
+                        // S3e (#1432 review): this is the SECOND
+                        // `authoritative_content_attachment_decision` row for `wp` —
+                        // the synthetic `handleToolResult` call above already logged
+                        // an "attached" row for the same path under its per-file
+                        // cap. This outer, aggregate-budget row is logged later and
+                        // is the one that matches what the caller actually sees
+                        // (the re-read warning below, not the attachment), so it
+                        // wins for `wp`; the inner "attached" row is a stale
+                        // per-file view superseded by this shared-budget decision.
+                        logLatency({
+                            type: "phase",
+                            phase: "authoritative_content_attachment_decision",
+                            filePath: wp,
+                            durationMs: 0,
+                            metadata: { path: wp, bytes: blockBytes, decision: "aggregate-budget-degraded" },
+                        });
+                        syntheticWriteContent.push({
+                            type: "text",
+                            text: `⚠️ **File was modified by auto-format/fix. You MUST re-read ${wp} before making any further edits — the aggregate authoritative content for this command is too large to attach.**`,
+                        });
+                        continue;
+                    }
+                    if (isAuthoritativeAttachment) {
+                        syntheticAttachmentBytes += blockBytes;
+                    }
+                    syntheticWriteContent.push(block);
+                }
+            }
+        }
+        if (event.isError !== true && !getFlag("no-read-guard")) {
+            for (const span of extractReadPathsFromCommand(command, workspaceRoot)) {
+                if (isExternalOrVendorFile(span.filePath, workspaceRoot))
+                    continue;
+                if (isPathIgnoredByProject(span.filePath, workspaceRoot, false))
+                    continue;
+                deps.readGuard?.recordRead({
+                    filePath: span.filePath,
+                    requestedOffset: span.offset,
+                    requestedLimit: span.limit,
+                    effectiveOffset: span.offset,
+                    effectiveLimit: span.limit,
+                    expandedByLsp: false,
+                    turnIndex: runtime.turnIndex,
+                    writeIndex: runtime.peekWriteIndex(),
+                    timestamp: Date.now(),
+                });
+            }
         }
     }
     // Search tools reveal specific lines (file:line) the agent then edits — register
     // those shown lines (± context) as reads so the follow-up edit isn't blocked (#169).
     // Our tools attach locations as `details.searchReads`; bash grep is parsed from
     // `grep -n` output. Only shown lines are registered, never the whole file.
-    if (deps.readGuard && !getFlag("no-read-guard")) {
+    if (deps.readGuard && event.isError !== true && !getFlag("no-read-guard")) {
         const searchReads = [];
         const detailSearchReads = event.details?.searchReads;
         if (Array.isArray(detailSearchReads))
@@ -230,7 +329,9 @@ export async function handleToolResult(deps) {
     }
     if (event.toolName !== "write" && event.toolName !== "edit") {
         dbg(`tool_result: skipped turn tracking - toolName="${event.toolName}" (not write/edit)`);
-        return;
+        return syntheticWriteContent.length > 0
+            ? { content: [...event.content, ...syntheticWriteContent] }
+            : undefined;
     }
     if (!filePath) {
         dbg(`tool_result: skipped turn tracking - no filePath for toolName="${event.toolName}"`);
@@ -240,13 +341,65 @@ export async function handleToolResult(deps) {
         dbg(`tool_result: skipped pipeline - file outside project root or in node_modules: ${filePath}`);
         return;
     }
+    const readGuardCorrelationId = getReadGuardCorrelationId(event);
+    const resultDetails = (event.details ?? {});
+    const isPartialApplyResult = resultDetails.piLensPartialApply === true;
+    const requestedEditIndexes = getRequestedEditIndexes(event);
+    const requestedEditTotal = getRequestedEditCount(event);
+    const participantIds = [
+        ...(deps._telemetryParticipantIds ?? []),
+        readGuardCorrelationId,
+    ].slice(0, 100);
+    const participantTotal = (deps._telemetryParticipantTotal ?? 0) +
+        (deps._telemetryParticipantIds?.includes(readGuardCorrelationId) ? 0 : 1);
+    const hostToolResultFailed = event.isError === true || resultDetails.isError === true;
+    if (hostToolResultFailed) {
+        logReadGuardEvent({
+            event: "edit_batch_summary",
+            correlationId: readGuardCorrelationId,
+            filePath,
+            metadata: {
+                tool: event.toolName,
+                source: "host_tool_result",
+                editBatchSummary: createReadGuardEditBatchSummary({
+                    requestedIndexes: requestedEditIndexes,
+                    requestedTotal: requestedEditTotal,
+                    rejectedReasons: requestedEditIndexes.map((index) => ({
+                        index,
+                        code: "write_failed",
+                    })),
+                    rejectedTotal: requestedEditTotal,
+                    participantIds: [readGuardCorrelationId],
+                    participantTotal: 1,
+                    commitStatus: "failed",
+                    terminalStatus: "failed",
+                }),
+            },
+        });
+        return { content: event.content, isError: true };
+    }
+    // Must happen before debounce admission: latestDeps intentionally retains only
+    // the latest event, but write -> edit is a sticky turn transition.
+    const receipt = runtime.recordMutationToolReceipt;
+    const autofixMode = deps._bypassDebounce
+        ? (deps._autofixMode ?? (event.toolName === "edit" ? "deferred" : "immediate"))
+        : receipt
+            ? receipt.call(runtime, filePath, event.toolName).autofixMode
+            : event.toolName === "edit"
+                ? "deferred"
+                : "immediate";
     // Coalesce sequential edits to the same file into one pipeline run against
     // the final state. Only the debounce-fired call (with _bypassDebounce=true)
     // proceeds to the pipeline body; in-window callers share its promise.
     if (!deps._bypassDebounce) {
         const debounceMs = getDebounceMs();
         if (debounceMs > 0) {
-            return scheduleDebounced(filePath, debounceMs, deps);
+            return scheduleDebounced(filePath, debounceMs, {
+                ...deps,
+                _autofixMode: autofixMode,
+                _telemetryParticipantIds: [readGuardCorrelationId],
+                _telemetryParticipantTotal: 1,
+            });
         }
     }
     // Refresh the read-guard's FileTime stamp so that the model's own write
@@ -275,13 +428,18 @@ export async function handleToolResult(deps) {
         }
     }
     const initialStateHash = getFileStateHash(filePath);
-    const pipelineDedupeKey = `${filePath}:${initialStateHash}`;
     // Deduplicate concurrent calls for the same final file state (pi can fire one
     // tool_result per edit hunk). Do not dedupe by file alone: a distinct later
     // same-turn edit to this file must still be analyzed.
-    if (inFlightPipelines.has(pipelineDedupeKey)) {
+    const inFlight = inFlightPipelines.get(filePath)?.get(initialStateHash);
+    if (inFlight) {
         dbg(`tool_result: skipping duplicate concurrent state for ${filePath}`);
-        await inFlightPipelines.get(pipelineDedupeKey);
+        const duplicateId = readGuardCorrelationId;
+        if (inFlight.participantIds.length < 100) {
+            inFlight.participantIds.push(duplicateId);
+        }
+        inFlight.participantTotal += 1;
+        await inFlight.promise;
         return;
     }
     // Deduplicate sequential duplicate events for the same post-write state in the
@@ -319,6 +477,13 @@ export async function handleToolResult(deps) {
     const writeIndex = runtime.nextWriteIndex();
     let modifiedRanges;
     try {
+        // #1334 S6: the host DECLARES this payload (`EditToolDetails`, a
+        // type-only export), so use it instead of re-declaring `{ diff?: string }`
+        // here — the ad-hoc shape hid the sibling `patch`/`firstChangedLine`
+        // fields. `Partial<>` keeps the defensive posture: the host types mark
+        // `diff` required, but this runs against whatever a live host actually
+        // sent, and the `details?.diff` truthiness check below is what the code
+        // has always relied on.
         const details = event.details;
         dbg(`tool_result: details.diff=${details?.diff ? "present" : "missing"}, details keys: ${Object.keys(event.details || {}).join(", ")}`);
         if (event.toolName === "edit" && details?.diff) {
@@ -367,13 +532,17 @@ export async function handleToolResult(deps) {
     const pipelinePromise = runPipeline({
         filePath,
         cwd: dispatchCwd,
+        projectRoot: turnStateCwd,
         toolName: event.toolName,
+        autofixMode,
         modifiedRanges,
         telemetry: {
             model: runtime.telemetryModel,
             sessionId: runtime.telemetrySessionId,
             turnIndex: runtime.turnIndex,
             writeIndex,
+            modelId: runtime.telemetryModelId,
+            provider: runtime.telemetryProviderId,
         },
         getFlag,
         getFlagSource,
@@ -404,12 +573,57 @@ export async function handleToolResult(deps) {
         getFormatService,
         fixedThisTurn: runtime.fixedThisTurn,
     });
-    inFlightPipelines.set(pipelineDedupeKey, pipelinePromise);
+    const pipelineTelemetry = {
+        promise: pipelinePromise,
+        participantIds: [...new Set(participantIds)].slice(0, 100),
+        participantTotal,
+    };
+    let filePipelines = inFlightPipelines.get(filePath);
+    if (!filePipelines) {
+        filePipelines = new Map();
+        inFlightPipelines.set(filePath, filePipelines);
+    }
+    filePipelines.set(initialStateHash, pipelineTelemetry);
     try {
         result = await pipelinePromise;
     }
     catch (pipelineErr) {
+        if (getFlag("lens-guard")) {
+            runtime.markGitGuardCacheUnknown("pipeline_crash");
+        }
         dbg(`runPipeline crashed: ${pipelineErr}`);
+        logReadGuardEvent({
+            event: "edit_post_edit_pipeline_failed",
+            correlationId: readGuardCorrelationId,
+            filePath,
+            metadata: {
+                tool: event.toolName,
+                commitStatus: "committed",
+                reasonCode: "pipeline_failed",
+            },
+        });
+        logReadGuardEvent({
+            event: "edit_batch_summary",
+            correlationId: readGuardCorrelationId,
+            filePath,
+            metadata: {
+                tool: event.toolName,
+                editBatchSummary: createReadGuardEditBatchSummary({
+                    requestedIndexes: requestedEditIndexes,
+                    requestedTotal: requestedEditTotal,
+                    resolvedIndexes: requestedEditIndexes,
+                    resolvedTotal: requestedEditTotal,
+                    appliedIndexes: requestedEditIndexes,
+                    appliedTotal: requestedEditTotal,
+                    participantIds: pipelineTelemetry.participantIds,
+                    participantTotal: pipelineTelemetry.participantTotal,
+                    commitStatus: "committed",
+                    postEditStatus: "failed",
+                    terminalStatus: "failed",
+                    durationMs: Date.now() - toolResultStart,
+                }),
+            },
+        });
         dbg(`runPipeline crash stack: ${pipelineErr.stack}`);
         if (!getFlag("no-lsp")) {
             resetLSPService({ fast: true, reason: "pipeline_crash" });
@@ -422,14 +636,57 @@ export async function handleToolResult(deps) {
             result: "pipeline_crash",
         });
         const notice = runtime.formatPipelineCrashNotice(filePath, pipelineErr);
-        if (!notice)
-            return;
         return {
-            content: [...event.content, { type: "text", text: notice }],
+            content: notice
+                ? [...event.content, { type: "text", text: notice }]
+                : event.content,
+            isError: true,
         };
     }
     finally {
-        inFlightPipelines.delete(pipelineDedupeKey);
+        // Prune the per-file inner map once it's empty so a file touched once
+        // this session doesn't leave a permanent empty entry in the outer map.
+        filePipelines.delete(initialStateHash);
+        if (filePipelines.size === 0) {
+            inFlightPipelines.delete(filePath);
+        }
+    }
+    if (!isPartialApplyResult) {
+        const postEditStatus = result.isError ? "failed" : "succeeded";
+        if (result.isError) {
+            logReadGuardEvent({
+                event: "edit_post_edit_pipeline_failed",
+                correlationId: readGuardCorrelationId,
+                filePath,
+                metadata: {
+                    tool: event.toolName,
+                    commitStatus: "committed",
+                    reasonCode: "pipeline_failed",
+                },
+            });
+        }
+        logReadGuardEvent({
+            event: "edit_batch_summary",
+            correlationId: readGuardCorrelationId,
+            filePath,
+            metadata: {
+                tool: event.toolName,
+                editBatchSummary: createReadGuardEditBatchSummary({
+                    requestedIndexes: requestedEditIndexes,
+                    requestedTotal: requestedEditTotal,
+                    resolvedIndexes: requestedEditIndexes,
+                    resolvedTotal: requestedEditTotal,
+                    appliedIndexes: requestedEditIndexes,
+                    appliedTotal: requestedEditTotal,
+                    participantIds: pipelineTelemetry.participantIds,
+                    participantTotal: pipelineTelemetry.participantTotal,
+                    commitStatus: "committed",
+                    postEditStatus,
+                    terminalStatus: postEditStatus === "failed" ? "failed" : "success",
+                    durationMs: Date.now() - toolResultStart,
+                }),
+            },
+        });
     }
     lastAnalyzedStateByFile.set(filePath, {
         turnIndex: runtime.turnIndex,
@@ -449,11 +706,19 @@ export async function handleToolResult(deps) {
             }
         }
     }
+    let autofixNewlyQueued = false;
+    if (!result.isError && autofixMode === "deferred" && nodeFs.existsSync(filePath)) {
+        autofixNewlyQueued =
+            runtime.deferMutation?.call(runtime, filePath, dispatchCwd, event.toolName, turnStateCwd, "autofix", deps.sessionId) ?? false;
+        dbg(`tool_result: queued deferred autofix for ${filePath}`);
+    }
+    let formatQueued = false;
     if (!result.isError &&
         !getFlag("no-autoformat", filePath) &&
-        !getFlag("immediate-format") &&
+        (autofixMode === "deferred" || !getFlag("immediate-format")) &&
         nodeFs.existsSync(filePath)) {
         const isNewlyQueued = runtime.deferFormat(filePath, dispatchCwd, event.toolName, turnStateCwd, deps.sessionId);
+        formatQueued = true;
         dbg(`tool_result: queued deferred format for ${filePath}`);
         logLatency({
             type: "phase",
@@ -463,18 +728,20 @@ export async function handleToolResult(deps) {
             durationMs: 0,
             metadata: { cwd: dispatchCwd },
         });
-        // #673: only publish on first queue entry — a re-touch of an already
-        // queued file (a second edit before agent_end) is a structural no-op
-        // for a listener that just wants to know "has this file entered the
-        // queue", so re-emitting would be spam with zero new information.
-        if (isNewlyQueued) {
+        // Publish a file's first queue entry and each newly added kind. A same-kind
+        // re-touch before agent_end carries no new information and stays silent.
+        if (isNewlyQueued || autofixNewlyQueued) {
             publishFormatQueued({
                 filePath,
                 cwd: dispatchCwd,
                 tool: event.toolName,
                 dbg,
+                kinds: autofixMode === "deferred" ? ["autofix", "format"] : ["format"],
             });
         }
+    }
+    if (autofixNewlyQueued && !formatQueued) {
+        publishFormatQueued({ filePath, cwd: dispatchCwd, tool: event.toolName, kinds: ["autofix"], dbg });
     }
     for (const changedFile of result.changedFiles ?? []) {
         const resolvedChanged = path.resolve(changedFile);
@@ -549,6 +816,13 @@ export async function handleToolResult(deps) {
     else {
         runtime.clearInlineBlockers(filePath);
     }
+    runtime.updateGitGuardStatus(result.hasBlockers, result.output);
+    if (getFlag("lens-guard")) {
+        syncGitGuardRecord(runtime, cacheManager, turnStateCwd, filePath);
+        if (result.isError && !result.hasBlockers) {
+            runtime.markGitGuardCacheUnknown("pipeline_error");
+        }
+    }
     if (result.isError) {
         return {
             content: [...event.content, { type: "text", text: result.output }],
@@ -556,7 +830,6 @@ export async function handleToolResult(deps) {
         };
     }
     let output = result.output;
-    runtime.updateGitGuardStatus(result.hasBlockers, result.output);
     if (behaviorWarnings.length > 0 && !result.hasBlockers) {
         output += `\n\n${formatBehaviorWarnings(behaviorWarnings)}`;
     }
@@ -569,9 +842,45 @@ export async function handleToolResult(deps) {
         result: output ? "completed" : "no_output",
     });
     runtime.reportedThisTurn.add(filePath);
-    if (!output)
+    const postMutation = result.postMutation;
+    const attachAuthoritativeContent = postMutation !== undefined &&
+        Buffer.byteLength(postMutation.content, "utf-8") <= AUTHORITATIVE_CONTENT_MAX_BYTES;
+    if (postMutation) {
+        const bytes = Buffer.byteLength(postMutation.content, "utf-8");
+        // S3e (#1432 review): when this call is the synthetic per-file
+        // `handleToolResult` recursion a multi-file bash write drives (see the
+        // bash branch above), the OUTER aggregate-budget loop may log a SECOND
+        // `authoritative_content_attachment_decision` row for this same
+        // `filePath` right after this one, downgrading an "attached" here to
+        // "aggregate-budget-degraded" once the shared budget is exhausted.
+        // Both rows are intentional (this one reflects the per-file cap
+        // decision; the outer one reflects the aggregate-budget decision that
+        // can override it) — the outer row, logged later, wins for that path.
+        logLatency({
+            type: "phase",
+            phase: "authoritative_content_attachment_decision",
+            filePath: postMutation.filePath,
+            durationMs: 0,
+            metadata: { path: postMutation.filePath, bytes, decision: attachAuthoritativeContent ? "attached" : "size-capped" },
+        });
+    }
+    const returnedContent = attachAuthoritativeContent
+        ? [
+            ...event.content,
+            {
+                type: "text",
+                text: `pi-lens applied autofix to ${postMutation.filePath}. The following full content is authoritative for subsequent edits:\n\n${postMutation.content}`,
+            },
+        ]
+        : event.content;
+    if (postMutation && !attachAuthoritativeContent) {
+        output = `${output ? `${output}\n\n` : ""}⚠️ **File was modified by auto-format/fix. You MUST re-read ${postMutation.filePath} before making any further edits — the authoritative content is too large to attach.**`;
+    }
+    if (!output && !result.postMutation)
         return;
     return {
-        content: [...event.content, { type: "text", text: output }],
+        content: output
+            ? [...returnedContent, { type: "text", text: output }]
+            : returnedContent,
     };
 }

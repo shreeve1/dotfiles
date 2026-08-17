@@ -4,8 +4,9 @@ import * as path from "node:path";
 import { readInstanceRegistry, } from "./instance-registry.js";
 import { realIsPidAlive, STALE_HEARTBEAT_MS, } from "./instance-reaper.js";
 import { logLatency } from "./latency-logger.js";
-import { getLSPService } from "./lsp/index.js";
-import { contentHash, diagnosticsIpcPathForCwd, requestWarmCodeActions, requestWarmDiagnostics, WARM_CODE_ACTION_LOOKUP_LIMIT, WARM_DIAGNOSTICS_SCHEMA_VERSION, } from "./mcp/ipc.js";
+import { touchCoverageGap } from "./lsp/diagnostic-binding.js";
+import { loadLspService } from "./lsp-lazy.js";
+import { contentHash, createWarmIpcLineReader, diagnosticsIpcPathForCwd, requestWarmCodeActions, requestWarmDiagnostics, WARM_CODE_ACTION_LOOKUP_LIMIT, WARM_DIAGNOSTICS_SCHEMA_VERSION, } from "./mcp/ipc.js";
 import { normalizeFilePath } from "./path-utils.js";
 const state = { local: true, servedDiagnosticHashes: new Map() };
 function record(event, cwd, reason, pid, source) {
@@ -41,7 +42,7 @@ async function serveRequest(req) {
                 if (Date.now() > req.deadlineAt) {
                     throw new Error("deadline exceeded");
                 }
-                return getLSPService().codeAction(req.file, range.start.line, range.start.character, range.end.line, range.end.character);
+                return (await loadLspService()).getLSPService().codeAction(req.file, range.start.line, range.start.character, range.end.line, range.end.character);
             }));
             const servedAt = Date.now();
             if (servedAt > req.deadlineAt)
@@ -67,7 +68,7 @@ async function serveRequest(req) {
     if (Date.now() > req.deadlineAt || contentHash(req.content) !== req.contentHash) {
         return { error: "stale request" };
     }
-    const touched = await getLSPService().touchFile(req.file, req.content, {
+    const touched = await (await loadLspService()).getLSPService().touchFile(req.file, req.content, {
         diagnostics: "document",
         collectDiagnostics: true,
         clientScope: "with-auxiliary",
@@ -76,6 +77,11 @@ async function serveRequest(req) {
         source: "warm-attach-incumbent",
     });
     const servedAt = Date.now();
+    // #1470: the coverage gap is read through the shared helper, never re-derived
+    // from `confirmation === "partial"`. The two fields are set together today, so
+    // either test passes — which is exactly the coincidence `touchCoverageGap`'s
+    // own doc comment warns against. One reader, one rule.
+    const coverageGap = touchCoverageGap(touched);
     if (servedAt <= req.deadlineAt && touched !== undefined && !touched.inconclusive) {
         state.servedDiagnosticHashes.set(normalizeFilePath(req.file), req.contentHash);
     }
@@ -83,11 +89,34 @@ async function serveRequest(req) {
         result: {
             route: "diagnostics",
             version: WARM_DIAGNOSTICS_SCHEMA_VERSION,
-            diagnostics: touched ?? [],
+            // #1179: `touchFile` now returns the `{ diags, inconclusive, binding }`
+            // wrapper — take the array off `.diags`. This is the canonical shape-5
+            // serialization boundary: the diagnostics array crosses the IPC socket
+            // and `inconclusive` is re-surfaced below as an EXPLICIT enumerable DTO
+            // field (no side-channel survives `JSON.stringify`).
+            diagnostics: touched?.diags ?? [],
             contentHash: req.contentHash,
             servedAt,
             fresh: servedAt <= req.deadlineAt && touched !== undefined,
             inconclusive: touched?.inconclusive === true,
+            // #1253: carry the touch's own confirmation verdict across the socket
+            // as an explicit enumerable field (same doctrine as `inconclusive`) —
+            // without it, an incumbent-served empty result from a silent-on-clean
+            // server is indistinguishable from "never answered" on the far side.
+            ...(touched?.confirmation === "confirmed"
+                ? { confirmation: "confirmed" }
+                : {}),
+            // #1470: a PARTIAL touch crosses the socket as itself rather than as a
+            // missing key. Omitting it would still fail closed on the far side, but it
+            // would be indistinguishable from an old incumbent that never sent the
+            // field — and the whole point of narrowing is that the reader can tell
+            // which coverage is real.
+            ...(coverageGap.length > 0
+                ? {
+                    confirmation: "partial",
+                    unconfirmedServerIds: [...coverageGap],
+                }
+                : {}),
         },
     };
 }
@@ -104,22 +133,22 @@ function startServer(cwd) {
     }
     const server = net.createServer((socket) => {
         socket.setEncoding("utf8");
-        let buffer = "";
-        socket.on("data", (chunk) => {
-            buffer += chunk;
-            const newline = buffer.indexOf("\n");
-            if (newline === -1)
-                return;
+        // One-shot per connection (#1219 family): the same defect shape as the
+        // MCP warm socket — clients write exactly one request and read one
+        // reply, so a handler that kept re-reading the same buffered line
+        // re-dispatched the request on stray bytes. The shared reader consumes
+        // the line and ignores anything after it.
+        socket.on("data", createWarmIpcLineReader((line) => {
             void (async () => {
                 try {
-                    const req = JSON.parse(buffer.slice(0, newline));
+                    const req = JSON.parse(line);
                     socket.end(`${JSON.stringify(await serveRequest(req))}\n`);
                 }
                 catch (error) {
                     socket.end(`${JSON.stringify({ error: String(error) })}\n`);
                 }
             })();
-        });
+        }));
     });
     server.on("error", (error) => {
         record("listener-error", cwd, String(error));
@@ -202,3 +231,11 @@ export function _setWarmAttachForTests(cwd, incumbentPid) {
     state.incumbentPid = incumbentPid;
     state.local = false;
 }
+/**
+ * The incumbent-side request handler, exposed for tests. The socket wiring
+ * around it (`startServer`) can only be exercised by a test that actually
+ * binds a unix socket, which is not available in every sandbox — this seam
+ * lets the DTO-composition half (notably the #1253 `confirmation` field, whose
+ * absence is what a consumer reads as unconfirmed) be pinned directly.
+ */
+export const _serveWarmRequestForTests = serveRequest;

@@ -1,3 +1,4 @@
+import { logExtension } from "./extension-log.js";
 let bootstrapPromise = null;
 /**
  * A stand-in for an analysis client whose module failed to load (an unresolved
@@ -28,11 +29,19 @@ export function degradedClient() {
  */
 async function logBootstrapFailures(failures) {
     for (const { name, err } of failures) {
-        console.error(`[pi-lens] analyzer "${name}" disabled (degraded mode): ${err?.message ?? String(err)}`);
+        logExtension({
+            subsystem: "bootstrap",
+            message: `analyzer "${name}" disabled (degraded mode): ${err?.message ?? String(err)}`,
+            metadata: { analyzer: name },
+        });
     }
     try {
         const { collectInstallDiagnostics, formatInstallDiagnostics } = await import("./install-diagnostics.js");
-        console.error(formatInstallDiagnostics(collectInstallDiagnostics(), failures[0]?.err));
+        logExtension({
+            subsystem: "bootstrap",
+            message: formatInstallDiagnostics(collectInstallDiagnostics(), failures[0]?.err),
+            metadata: { kind: "install_diagnostics" },
+        });
     }
     catch {
         // the per-analyzer lines above already named the failures

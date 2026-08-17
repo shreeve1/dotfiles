@@ -57,6 +57,8 @@
  * patterns apply to files inside that package, in addition to (and with
  * higher precedence than) the root config's `ignore` patterns.
  */
+import { logExtension } from "./extension-log.js";
+import { notifyUserDegradation } from "./user-notify.js";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -107,11 +109,17 @@ export function loadPiLensProjectConfig(startDir, preloadedInfo = findPiLensProj
     if (!configInfo)
         return EMPTY_PROJECT_CONFIG;
     const cached = configCache.get(configInfo.path);
-    if (cached && cached.mtimeMs === configInfo.mtimeMs) {
+    if (cached &&
+        cached.mtimeMs === configInfo.mtimeMs &&
+        cached.size === configInfo.size) {
         return cached.config;
     }
     const config = parseConfigFile(configInfo.path);
-    configCache.set(configInfo.path, { mtimeMs: configInfo.mtimeMs, config });
+    configCache.set(configInfo.path, {
+        mtimeMs: configInfo.mtimeMs,
+        size: configInfo.size,
+        config,
+    });
     return config;
 }
 /** For tests + callers that need to force a re-read (e.g. config-watcher hooks). */
@@ -137,7 +145,12 @@ export function findPiLensConfigInDir(dir) {
     const marker = findPiLensConfigMarkerInDir(dir);
     if (!marker)
         return undefined;
-    return { path: marker.path, dir: marker.dir, mtimeMs: marker.mtimeMs };
+    return {
+        path: marker.path,
+        dir: marker.dir,
+        mtimeMs: marker.mtimeMs,
+        size: marker.size,
+    };
 }
 /**
  * Find the closest config, between an edited file and the project root, that
@@ -174,11 +187,11 @@ export function loadPiLensConfigInDir(dir) {
     if (!info)
         return EMPTY_PROJECT_CONFIG;
     const cached = configCache.get(info.path);
-    if (cached && cached.mtimeMs === info.mtimeMs) {
+    if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
         return cached.config;
     }
     const config = parseConfigFile(info.path);
-    configCache.set(info.path, { mtimeMs: info.mtimeMs, config });
+    configCache.set(info.path, { mtimeMs: info.mtimeMs, size: info.size, config });
     return config;
 }
 export function findPiLensProjectConfig(startDir) {
@@ -189,7 +202,7 @@ export function findPiLensProjectConfig(startDir) {
             return undefined;
         const stat = safeFileStat(cached.info.path);
         if (stat?.isFile())
-            return { ...cached.info, mtimeMs: stat.mtimeMs };
+            return { ...cached.info, mtimeMs: stat.mtimeMs, size: stat.size };
     }
     const discovered = discoverPiLensProjectConfig(cacheKey);
     discoveryCache.set(cacheKey, discovered);
@@ -223,7 +236,7 @@ function discoverPiLensProjectConfig(startDir) {
             const stat = safeFileStat(candidate);
             if (stat?.isFile()) {
                 return {
-                    info: { path: candidate, dir, mtimeMs: stat.mtimeMs },
+                    info: { path: candidate, dir, mtimeMs: stat.mtimeMs, size: stat.size },
                     dirMtimes,
                 };
             }
@@ -236,7 +249,41 @@ function warnInvalidConfigOnce(configPath, reason) {
     if (warnedInvalidConfigs.has(key))
         return;
     warnedInvalidConfigs.add(key);
-    console.error(`[pi-lens] ignoring invalid project config ${configPath}: ${reason}`);
+    const message = `ignoring invalid project config ${configPath}: ${reason}`;
+    logExtension({
+        subsystem: "project-lens-config",
+        level: "warn",
+        message,
+        metadata: { configPath, reason },
+    });
+    // HUMAN-audience too: the user's own `.pi-lens.json` is being ignored.
+    notifyUserDegradation(`pi-lens: ${message}`);
+}
+function parseRulePolicyList(configPath, ruleId, key, value) {
+    if (!Array.isArray(value)) {
+        warnInvalidConfigOnce(configPath, `rules.${ruleId}.${key} must be an array of strings`);
+        return { list: [], invalid: true };
+    }
+    const list = [];
+    for (const entry of value) {
+        if (typeof entry !== "string")
+            continue;
+        const trimmed = entry.trim();
+        if (trimmed.length > 0)
+            list.push(trimmed);
+    }
+    if (list.length === 0) {
+        // #1087: an explicitly empty array (`"disable": []`) is a well-formed
+        // no-op, not an error — don't warn. Only warn when the array HAD entries
+        // but none were usable strings (all blank / non-string), which is a real
+        // authoring mistake that must not fail silently.
+        if (value.length > 0) {
+            warnInvalidConfigOnce(configPath, `rules.${ruleId}.${key} must contain at least one non-empty string`);
+            return { list: [], invalid: true };
+        }
+        return { list: [], invalid: false };
+    }
+    return { list, invalid: false };
 }
 function parseConfigFile(configPath) {
     let raw;
@@ -264,17 +311,47 @@ function parseConfigFile(configPath) {
     if (obj.rules && typeof obj.rules === "object" && !Array.isArray(obj.rules)) {
         const rawRules = obj.rules;
         for (const [ruleId, ruleCfg] of Object.entries(rawRules)) {
+            // #444's own example writes the lists directly under `rules` (`rules.
+            // disable`), which lands here as an array and would otherwise be
+            // dropped without a word — the one shape a user is most likely to try.
             if (!ruleCfg || typeof ruleCfg !== "object" || Array.isArray(ruleCfg)) {
+                warnInvalidConfigOnce(configPath, `rules.${ruleId} must be an object with threshold, disable, or select; ignored`);
                 continue;
             }
             const r = ruleCfg;
+            const entry = {};
             if (typeof r.threshold === "number" &&
                 Number.isFinite(r.threshold) &&
                 r.threshold > 0) {
-                rules[ruleId] = { threshold: r.threshold };
+                entry.threshold = r.threshold;
             }
             else if ("threshold" in r) {
                 warnInvalidConfigOnce(configPath, `rules.${ruleId}.threshold must be a positive finite number`);
+            }
+            if ("disable" in r) {
+                const parsed = parseRulePolicyList(configPath, ruleId, "disable", r.disable);
+                // #1087: an explicitly empty list is valid-but-empty (no warning);
+                // don't store a pointless no-op entry for it.
+                if (!parsed.invalid && parsed.list.length > 0)
+                    entry.disable = parsed.list;
+            }
+            if ("select" in r) {
+                const parsed = parseRulePolicyList(configPath, ruleId, "select", r.select);
+                if (!parsed.invalid && parsed.list.length > 0)
+                    entry.select = parsed.list;
+            }
+            // Honor both threshold-only and policy-only entries; only drop if
+            // the entry had no recognized fields at all (e.g. { unrelated: true }).
+            // A recognized-but-malformed field already warned above, so only warn
+            // here when nothing recognized was spelled at all — #444 proposed
+            // `only` rather than `select`, and that typo must not fail silent.
+            if (entry.threshold !== undefined || entry.disable || entry.select) {
+                rules[ruleId] = entry;
+            }
+            else if (!("threshold" in r) &&
+                !("disable" in r) &&
+                !("select" in r)) {
+                warnInvalidConfigOnce(configPath, `rules.${ruleId} has no recognized setting (threshold, disable, select); ignored`);
             }
         }
     }

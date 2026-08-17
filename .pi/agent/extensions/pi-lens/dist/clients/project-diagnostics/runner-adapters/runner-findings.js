@@ -1,3 +1,6 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { advisoryPathKey, validateAdvisoryProvenance, } from "../../advisory-provenance.js";
 function failureMessage(failure) {
     const firstLine = failure.message.split("\n")[0]?.slice(0, 300) ?? "";
     return firstLine ? `${failure.name}: ${firstLine}` : failure.name;
@@ -71,8 +74,26 @@ export function testResultToProjectDiagnostics(result, stale = false) {
         },
     ];
 }
-export function testRunnerFindingsToProjectDiagnostics(cache) {
+export function testRunnerFindingsToProjectDiagnostics(cache, cwd, runtime) {
     if (!cache.results || cache.results.length === 0)
         return [];
-    return cache.results.flatMap((r) => testResultToProjectDiagnostics(r, cache.stale));
+    const validation = cwd
+        ? validateAdvisoryProvenance(cache, cwd, runtime)
+        : { status: "unknown", reasons: ["validation-context-missing"] };
+    const root = cwd ?? process.cwd();
+    const missingKeys = new Set((cache.provenance?.files ?? [])
+        .filter((file) => !fs.existsSync(path.resolve(root, file.path)))
+        .map((file) => advisoryPathKey(file.path, root)));
+    const historical = cache.superseded === true || cache.stale === true || validation.status !== "current";
+    return cache.results
+        .filter((result) => !missingKeys.has(advisoryPathKey(result.file, root)))
+        .flatMap((result) => testResultToProjectDiagnostics(result, historical))
+        .map((diagnostic) => historical ? {
+        ...diagnostic,
+        severity: "info",
+        semantic: "none",
+        message: diagnostic.message.startsWith("[stale")
+            ? diagnostic.message
+            : `[historical — re-run to confirm] ${diagnostic.message}`,
+    } : diagnostic);
 }

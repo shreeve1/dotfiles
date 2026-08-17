@@ -20,9 +20,10 @@
 import { logBusEvent } from "./bus-events-logger.js";
 import { normalizeFilePath } from "./path-utils.js";
 import { appendRecentTouches } from "./recent-touches.js";
+import { createLiveBusEmitter, recordStaleBusFailure, resolveLiveBusEmitter, } from "./live-bus-emitter.js";
 export const BUS_FILES_TOUCHED_EVENT = "pilens:files:touched";
 export const BUS_FILES_TOUCHED_VERSION = 1;
-let busEmit;
+const liveEmitter = createLiveBusEmitter();
 let hasLoggedFailure = false;
 // Log-once-per-process guards for the two structural-no-op outcomes below
 // (see bus-events-logger.ts's module doc for why these aren't logged on
@@ -38,11 +39,14 @@ let hasLoggedDisabled = false;
  * no `pi.events`).
  */
 export function wireBusEmitter(emitFn) {
-    busEmit = emitFn;
+    liveEmitter.wire(emitFn);
+}
+export function wireBusEmitterGetter(getter) {
+    liveEmitter.wireGetter(getter);
 }
 /** Test-only: reset module state between test files. */
 export function _resetForTests() {
-    busEmit = undefined;
+    liveEmitter.reset();
     hasLoggedFailure = false;
     hasLoggedUnwired = false;
     hasLoggedDisabled = false;
@@ -102,7 +106,14 @@ export function publishFilesTouched(args) {
     }).catch((err) => {
         args.dbg?.(`bus-publish: recent-touches append failed: ${err}`);
     });
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_FILES_TOUCHED_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+        reason: args.reason,
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedUnwired) {
             hasLoggedUnwired = true;
             logBusEvent({
@@ -114,6 +125,7 @@ export function publishFilesTouched(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const payload = {
             v: BUS_FILES_TOUCHED_VERSION,
@@ -129,6 +141,7 @@ export function publishFilesTouched(args) {
             }));
         }
         busEmit(BUS_FILES_TOUCHED_EVENT, payload);
+        hasLoggedFailure = false;
         logBusEvent({
             event: BUS_FILES_TOUCHED_EVENT,
             outcome: "emitted",
@@ -144,9 +157,11 @@ export function publishFilesTouched(args) {
             cwd: normalizeFilePath(args.cwd),
             reason: args.reason,
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedFailure) {
             hasLoggedFailure = true;
+            recordStaleBusFailure(BUS_FILES_TOUCHED_EVENT, err);
             args.dbg?.(`bus-publish: pilens:files:touched emit failed (further failures suppressed): ${err}`);
         }
     }

@@ -127,6 +127,12 @@ const SNAPSHOT_PARSE_CACHE_MAX = 4;
 // against the UNCOMPRESSED body size, never the (much smaller) gz file size.
 const SNAPSHOT_PARSE_CACHE_MAX_BYTES = 24 * 1024 * 1024;
 const snapshotParseCache = new Map();
+function withoutWordIndex(snapshot) {
+    if (!snapshot?.wordIndex)
+        return snapshot;
+    const { wordIndex: _releasedPostings, ...stripped } = snapshot;
+    return stripped;
+}
 function cacheParsedSnapshot(snapshotPath, entry) {
     // Refresh recency (Map preserves insertion order).
     snapshotParseCache.delete(snapshotPath);
@@ -139,10 +145,63 @@ function cacheParsedSnapshot(snapshotPath, entry) {
     }
 }
 const authoritativeSnapshots = new Map();
+const PROJECT_SNAPSHOT_MAX_WARM_ROOTS = 8;
+const PROJECT_SNAPSHOT_IDLE_EVICT_MS_DEFAULT = 20 * 60_000;
+function projectSnapshotIdleEvictMs() {
+    const value = Number.parseInt(process.env.PI_LENS_PROJECT_SNAPSHOT_IDLE_EVICT_MS ?? "", 10);
+    return Number.isSafeInteger(value) && value > 0 ? value : PROJECT_SNAPSHOT_IDLE_EVICT_MS_DEFAULT;
+}
+function clearAuthoritativeSnapshotTimer(entry) {
+    if (entry.idleTimer)
+        clearTimeout(entry.idleTimer);
+    entry.idleTimer = undefined;
+}
+function deleteAuthoritativeSnapshot(key) {
+    const entry = authoritativeSnapshots.get(key);
+    if (entry)
+        clearAuthoritativeSnapshotTimer(entry);
+    authoritativeSnapshots.delete(key);
+}
+function scheduleAuthoritativeSnapshotEviction(key, entry) {
+    clearAuthoritativeSnapshotTimer(entry);
+    const generation = entry.lastUsedAt;
+    entry.idleTimer = setTimeout(() => {
+        entry.idleTimer = undefined;
+        if (authoritativeSnapshots.get(key) !== entry || entry.lastUsedAt !== generation)
+            return;
+        deleteAuthoritativeSnapshot(key);
+    }, projectSnapshotIdleEvictMs());
+    entry.idleTimer.unref?.();
+}
+function touchAuthoritativeSnapshot(key, entry) {
+    entry.lastUsedAt = Date.now();
+    scheduleAuthoritativeSnapshotEviction(key, entry);
+}
+function enforceAuthoritativeSnapshotCap() {
+    while (authoritativeSnapshots.size > PROJECT_SNAPSHOT_MAX_WARM_ROOTS) {
+        const victim = [...authoritativeSnapshots.entries()].sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)[0];
+        if (!victim)
+            return;
+        clearAuthoritativeSnapshotTimer(victim[1]);
+        deleteAuthoritativeSnapshot(victim[0]);
+    }
+}
+/** Test-only cache keys, in LRU order from oldest to newest. */
+export function _getAuthoritativeSnapshotCacheKeysForTests() {
+    return [...authoritativeSnapshots.entries()]
+        .sort(([, a], [, b]) => a.lastUsedAt - b.lastUsedAt)
+        .map(([key]) => key);
+}
 /** Test hook: drop all cached parses + authoritative writes (per-worker isolation). */
 export function _resetProjectSnapshotParseCacheForTests() {
     snapshotParseCache.clear();
+    for (const entry of authoritativeSnapshots.values())
+        clearAuthoritativeSnapshotTimer(entry);
     authoritativeSnapshots.clear();
+}
+/** Test hook: prove the parse-cache tier never owns serialized postings. */
+export function _projectSnapshotParseCacheRetainsWordIndexForTests() {
+    return [...snapshotParseCache.values()].some((entry) => entry.snapshot?.wordIndex !== undefined);
 }
 /** Resolve which body file is currently on disk: gz canonical, else legacy. */
 function resolveSnapshotBodyPath(cwd) {
@@ -219,7 +278,7 @@ function readSnapshotBody(bodyPath, gz) {
         return { snapshot: null, rawBytes: 0 };
     }
 }
-export function loadProjectSnapshot(cwd) {
+function loadProjectSnapshotInternal(cwd, requireWordIndex) {
     const key = normalizeMapKey(cwd);
     const body = resolveSnapshotBodyPath(cwd);
     // Authoritative in-process write wins while our own (possibly still
@@ -230,11 +289,12 @@ export function loadProjectSnapshot(cwd) {
     if (authoritative) {
         const diskMtime = body ? body.mtimeMs : Number.NEGATIVE_INFINITY;
         if (diskMtime <= authoritative.knownMtime) {
+            touchAuthoritativeSnapshot(key, authoritative);
             return authoritative.snapshot;
         }
         // An external writer moved past our write — honor disk and stop
         // serving the now-stale in-memory object.
-        authoritativeSnapshots.delete(key);
+        deleteAuthoritativeSnapshot(key);
     }
     if (!body) {
         snapshotParseCache.delete(getProjectSnapshotPath(cwd));
@@ -246,14 +306,21 @@ export function loadProjectSnapshot(cwd) {
     // SnapshotParseCacheEntry for why: coarse FAT/exFAT mtime resolution can
     // otherwise alias a just-rewritten file onto a stale cache entry).
     if (cached && cached.mtimeMs === body.mtimeMs && cached.size === body.size) {
-        return cached.snapshot;
+        if (!requireWordIndex || !cached.snapshot || cached.snapshot.wordIndex) {
+            return cached.snapshot;
+        }
     }
     const { snapshot, rawBytes } = readSnapshotBody(body.path, body.gz);
-    if (rawBytes > 0 && rawBytes <= SNAPSHOT_PARSE_CACHE_MAX_BYTES) {
+    // Serialized postings expand into a much larger object graph. Cache only a
+    // shallow postings-stripped body: metadata/report consumers stay warm while
+    // the live warm WordIndex remains the sole retained postings graph (#1370).
+    const cacheSnapshot = withoutWordIndex(snapshot);
+    if (rawBytes > 0 &&
+        (rawBytes <= SNAPSHOT_PARSE_CACHE_MAX_BYTES || snapshot?.wordIndex)) {
         cacheParsedSnapshot(cacheKey, {
             mtimeMs: body.mtimeMs,
             size: body.size,
-            snapshot,
+            snapshot: cacheSnapshot,
         });
     }
     else {
@@ -261,11 +328,24 @@ export function loadProjectSnapshot(cwd) {
     }
     return snapshot;
 }
+/** Load the canonical body, including serialized postings when present. */
+export function loadProjectSnapshot(cwd) {
+    return loadProjectSnapshotInternal(cwd, true);
+}
+/**
+ * Load snapshot metadata without retaining or re-reading serialized postings.
+ * After publication this is served by the postings-stripped parse cache.
+ */
+export function loadProjectSnapshotWithoutWordIndex(cwd) {
+    return loadProjectSnapshotInternal(cwd, false);
+}
 const _snapshotGenerations = new Map();
 const _snapshotWorkerRequests = new Map();
 let _snapshotPersistWorker;
 let _snapshotWorkerRequestId = 0;
 let _snapshotWorkerDisabled = false;
+let _snapshotGenerationGateEnabledForTests = true;
+let _snapshotPromotionSeamForTests;
 let _lastSnapshotPersistErrorForTests;
 function snapshotWorkerEnabled() {
     // The synchronous fallback writer is a legitimate degraded mode (hosts that
@@ -281,7 +361,7 @@ function recordSnapshotPersistFailure(cwd, error) {
     // seq), and dropping the authoritative entry means the next load reflects
     // what is ACTUALLY on disk rather than the object we failed to persist.
     _lastSnapshotPersistErrorForTests = error;
-    authoritativeSnapshots.delete(normalizeMapKey(cwd));
+    deleteAuthoritativeSnapshot(normalizeMapKey(cwd));
     logLatency({
         type: "phase",
         phase: "project_snapshot_persist_failed",
@@ -289,7 +369,8 @@ function recordSnapshotPersistFailure(cwd, error) {
         durationMs: 0,
         metadata: { error },
     });
-    console.error("[project-snapshot] body persist failed:", error);
+    // #1333: the logLatency call above already carries this failure to
+    // latency.log — the console.error was a duplicate RAW write into pi's frame.
 }
 function logSnapshotPersistSuccess(pending, stats) {
     logLatency({
@@ -312,6 +393,33 @@ function reconcileAuthoritativeAfterWrite(pending, rawBytes) {
     // a superseding save already replaced it with a newer object.
     if (!entry || entry.snapshot !== pending.snapshot)
         return;
+    // The worker needs the serialized snapshot until promotion completes, but
+    // retaining it afterward duplicates the mutable warm index's postings. A
+    // shared reference is unsafe: ProjectSnapshot stores serialized arrays while
+    // WordIndex owns mutable Map/PathKeyedMap state. Drop the authoritative copy
+    // after publication; later merge-writers rehydrate the canonical disk body.
+    if (pending.snapshot.wordIndex) {
+        try {
+            const stat = fs.statSync(pending.gzPath);
+            cacheParsedSnapshot(pending.gzPath, {
+                mtimeMs: stat.mtimeMs,
+                size: stat.size,
+                snapshot: withoutWordIndex(pending.snapshot),
+            });
+        }
+        catch {
+            // A cache miss is safe: the first metadata consumer reconstructs it.
+        }
+        deleteAuthoritativeSnapshot(pending.key);
+        logLatency({
+            type: "phase",
+            phase: "project_snapshot_word_index_released",
+            filePath: pending.gzPath,
+            durationMs: 0,
+            metadata: { rawBytes },
+        });
+        return;
+    }
     if (rawBytes > SNAPSHOT_PARSE_CACHE_MAX_BYTES) {
         // Benign but invisible otherwise: the next load will re-parse this body
         // from disk instead of serving the in-process object.
@@ -322,7 +430,7 @@ function reconcileAuthoritativeAfterWrite(pending, rawBytes) {
             durationMs: 0,
             metadata: { rawBytes, maxBytes: SNAPSHOT_PARSE_CACHE_MAX_BYTES },
         });
-        authoritativeSnapshots.delete(pending.key);
+        deleteAuthoritativeSnapshot(pending.key);
         return;
     }
     try {
@@ -378,6 +486,19 @@ function writeSnapshotBodyOnMainThread(pending, reason) {
         recordSnapshotPersistFailure(pending.cwd, err instanceof Error ? err.message : String(err));
     }
 }
+/**
+ * The ForTests promotion seam covers worker-message and every main-thread
+ * fallback promotion. It stays sync and seam-free in production, identical to
+ * calling the writer directly. The process-exit hook is deliberately the sole
+ * direct write because an exit handler cannot await this asynchronous seam.
+ */
+function dispatchMainThreadWriteThroughSeam(pending, reason) {
+    if (_snapshotPromotionSeamForTests) {
+        void _snapshotPromotionSeamForTests().then(() => writeSnapshotBodyOnMainThread(pending, reason));
+        return;
+    }
+    writeSnapshotBodyOnMainThread(pending, reason);
+}
 function handleSnapshotWorkerResult(result) {
     const pending = _snapshotWorkerRequests.get(result.id);
     if (!pending) {
@@ -391,12 +512,15 @@ function handleSnapshotWorkerResult(result) {
         result.serializeMs === undefined ||
         result.writeMs === undefined) {
         fs.rm(result.stagePath, { force: true }, () => { });
-        writeSnapshotBodyOnMainThread(pending, result.error ?? "invalid worker result");
+        dispatchMainThreadWriteThroughSeam(pending, result.error ?? "invalid worker result");
         return;
     }
     // Generation gate: a newer save already superseded this one — discard the
     // stale stage file rather than promote it over the fresher body.
-    if (_snapshotGenerations.get(pending.key) !== result.generation) {
+    if (_snapshotGenerationGateEnabledForTests &&
+        _snapshotGenerations.get(pending.key) !== result.generation) {
+        // The stale stage is part of the promotion transaction: remove it before
+        // returning so a superseded save cannot leave an orphan behind.
         fs.rm(result.stagePath, { force: true }, () => { });
         return;
     }
@@ -414,7 +538,7 @@ function handleSnapshotWorkerResult(result) {
     }
     catch (err) {
         fs.rm(result.stagePath, { force: true }, () => { });
-        writeSnapshotBodyOnMainThread(pending, err instanceof Error ? err.message : String(err));
+        dispatchMainThreadWriteThroughSeam(pending, err instanceof Error ? err.message : String(err));
     }
 }
 function handleSnapshotWorkerDeath(reason) {
@@ -423,7 +547,7 @@ function handleSnapshotWorkerDeath(reason) {
     const requests = [..._snapshotWorkerRequests.values()];
     _snapshotWorkerRequests.clear();
     for (const pending of requests)
-        writeSnapshotBodyOnMainThread(pending, reason);
+        dispatchMainThreadWriteThroughSeam(pending, reason);
 }
 function resolveSnapshotPersistWorkerPath() {
     // esbuild does NOT rewrite new URL(...) asset refs, so from the bundled
@@ -460,8 +584,17 @@ function getSnapshotPersistWorker() {
             return undefined;
         }
         const worker = new Worker(workerPath);
-        worker.unref();
-        worker.on("message", handleSnapshotWorkerResult);
+        // The ForTests promotion seam wraps ONLY when set — the production path
+        // binds the sync handler directly, so scheduling is byte-identical when
+        // no test seam is installed (the async-handler variant of this shifted
+        // promotion timing under full-suite load and flaked the round-trip test).
+        worker.on("message", (result) => {
+            if (_snapshotPromotionSeamForTests) {
+                void _snapshotPromotionSeamForTests().then(() => handleSnapshotWorkerResult(result));
+                return;
+            }
+            handleSnapshotWorkerResult(result);
+        });
         worker.on("error", (err) => handleSnapshotWorkerDeath(err.message));
         worker.on("exit", (code) => {
             if (_snapshotPersistWorker === worker)
@@ -475,7 +608,7 @@ function getSnapshotPersistWorker() {
             if (stranded.length > 0) {
                 _snapshotWorkerRequests.clear();
                 for (const pending of stranded) {
-                    writeSnapshotBodyOnMainThread(pending, `persist worker exited with code ${code}`);
+                    dispatchMainThreadWriteThroughSeam(pending, `persist worker exited with code ${code}`);
                 }
             }
             // Only an ABNORMAL exit disables respawning; a clean idle exit (nothing
@@ -483,6 +616,9 @@ function getSnapshotPersistWorker() {
             if (code !== 0)
                 _snapshotWorkerDisabled = true;
         });
+        // #1148: adding a message listener refs the Worker's public MessagePort.
+        // Unref only after every listener is installed so it stays background-only.
+        worker.unref();
         _snapshotPersistWorker = worker;
         return worker;
     }
@@ -585,7 +721,14 @@ export function saveProjectSnapshot(cwd, snapshot) {
     // legacy body to a merge-consumer, silently dropping this snapshot's fields.
     const priorBody = resolveSnapshotBodyPath(cwd);
     const knownMtime = priorBody ? priorBody.mtimeMs : Number.NEGATIVE_INFINITY;
-    authoritativeSnapshots.set(key, { snapshot, knownMtime });
+    const authoritativeEntry = {
+        snapshot,
+        knownMtime,
+        lastUsedAt: Date.now(),
+    };
+    authoritativeSnapshots.set(key, authoritativeEntry);
+    scheduleAuthoritativeSnapshotEviction(key, authoritativeEntry);
+    enforceAuthoritativeSnapshotCap();
     // A stale disk-parse-cache entry for this path must not out-vote the fresh
     // authoritative write once the latter is dropped (oversized bodies).
     snapshotParseCache.delete(gzPath);
@@ -604,12 +747,12 @@ export function saveProjectSnapshot(cwd, snapshot) {
     sweepStaleSnapshotStageFiles(cacheDir);
     ensureSnapshotPersistExitHook();
     if (!snapshotWorkerEnabled()) {
-        writeSnapshotBodyOnMainThread(pending);
+        dispatchMainThreadWriteThroughSeam(pending, undefined);
         return;
     }
     const worker = getSnapshotPersistWorker();
     if (!worker) {
-        writeSnapshotBodyOnMainThread(pending, "persist worker unavailable");
+        dispatchMainThreadWriteThroughSeam(pending, "persist worker unavailable");
         return;
     }
     const id = ++_snapshotWorkerRequestId;
@@ -640,7 +783,7 @@ export function flushProjectSnapshotPersistsForTests() {
     for (const pending of requests) {
         if (_snapshotGenerations.get(pending.key) !== pending.generation)
             continue;
-        writeSnapshotBodyOnMainThread(pending);
+        dispatchMainThreadWriteThroughSeam(pending, undefined);
     }
 }
 /** Test-only: exercise the degraded worker-death path. */
@@ -652,10 +795,20 @@ export async function terminateProjectSnapshotPersistWorkerForTests() {
 /** Test-only: restore worker creation + clear generation state after a deliberate death. */
 export function resetProjectSnapshotPersistWorkerForTests() {
     _snapshotWorkerDisabled = false;
+    _snapshotGenerationGateEnabledForTests = true;
+    _snapshotPromotionSeamForTests = undefined;
     _snapshotPersistWorker = undefined;
     _snapshotWorkerRequests.clear();
     _snapshotGenerations.clear();
     _lastSnapshotPersistErrorForTests = undefined;
+}
+/** Test-only mutation switch for proving the supersession invariant. */
+export function setProjectSnapshotGenerationGateForTests(enabled) {
+    _snapshotGenerationGateEnabledForTests = enabled;
+}
+/** Test-only seam immediately before generation-gated promotion. */
+export function setProjectSnapshotPromotionSeamForTests(seam) {
+    _snapshotPromotionSeamForTests = seam;
 }
 export function getProjectSnapshotPersistErrorForTests() {
     return _lastSnapshotPersistErrorForTests;
@@ -730,7 +883,9 @@ export function saveRuntimeProjectSnapshot(args) {
             // isProjectSnapshotFresh on load, seq mismatch) would get silently
             // re-stamped with the CURRENT seq by this save, "laundering" a stale
             // index into looking fresh before the word-index task even runs.
-            if (!snapshot.wordIndex && existing.wordIndex && existing.seq === snapshot.seq) {
+            if (!snapshot.wordIndex &&
+                existing.wordIndex &&
+                existing.seq === snapshot.seq) {
                 snapshot.wordIndex = existing.wordIndex;
             }
         }

@@ -24,9 +24,10 @@
 import { logBusEvent } from "./bus-events-logger.js";
 import { isBusPublishEnabled } from "./bus-publish.js";
 import { normalizeFilePath } from "./path-utils.js";
+import { createLiveBusEmitter, recordStaleBusFailure, resolveLiveBusEmitter, } from "./live-bus-emitter.js";
 export const BUS_DISPOSITION_EVENT = "pilens:diagnostic:disposition";
 export const BUS_DISPOSITION_VERSION = 1;
-let busEmit;
+const liveEmitter = createLiveBusEmitter();
 let hasLoggedFailure = false;
 let hasLoggedUnwired = false;
 let hasLoggedDisabled = false;
@@ -38,11 +39,14 @@ let hasLoggedDisabled = false;
  * the MCP server path run in (no pi host, no `pi.events`).
  */
 export function wireDispositionBusEmitter(emitFn) {
-    busEmit = emitFn;
+    liveEmitter.wire(emitFn);
+}
+export function wireDispositionBusEmitterGetter(getter) {
+    liveEmitter.wireGetter(getter);
 }
 /** Test-only: reset module state between test files. */
 export function _resetDispositionPublishForTests() {
-    busEmit = undefined;
+    liveEmitter.reset();
     hasLoggedFailure = false;
     hasLoggedUnwired = false;
     hasLoggedDisabled = false;
@@ -63,7 +67,13 @@ export function publishDisposition(args) {
         }
         return;
     }
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_DISPOSITION_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedUnwired) {
             hasLoggedUnwired = true;
             logBusEvent({
@@ -74,6 +84,7 @@ export function publishDisposition(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const payload = {
             v: BUS_DISPOSITION_VERSION,
@@ -88,6 +99,7 @@ export function publishDisposition(args) {
             reason: args.reason,
         };
         busEmit(BUS_DISPOSITION_EVENT, payload);
+        hasLoggedFailure = false;
         logBusEvent({
             event: BUS_DISPOSITION_EVENT,
             outcome: "emitted",
@@ -100,9 +112,11 @@ export function publishDisposition(args) {
             outcome: "emit_failed",
             cwd: normalizeFilePath(args.cwd),
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedFailure) {
             hasLoggedFailure = true;
+            recordStaleBusFailure(BUS_DISPOSITION_EVENT, err);
             args.dbg?.(`disposition-publish: pilens:diagnostic:disposition emit failed (further failures suppressed): ${err}`);
         }
     }

@@ -7,12 +7,13 @@
  * Requires: npm install -D @ast-grep/cli
  * Rules: ./rules/ directory
  */
+import { createSubsystemLogger } from "./extension-log.js";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { AstGrepRuleManager } from "./ast-grep-rule-manager.js";
 import { resolvePackagePath } from "./package-root.js";
-import { SgRunner } from "./sg-runner.js";
+import { SgRunner, } from "./sg-runner.js";
 // --- Client ---
 function extractDebugAst(raw) {
     const lines = raw.split(/\r?\n/);
@@ -53,7 +54,7 @@ const VALIDATION_SNIPPETS = {
     html: { ext: "html", source: "<main>pi-lens</main>\n" },
     java: { ext: "java", source: "class Main { void run() {} }\n" },
     javascript: { ext: "js", source: "const piLensValidate = 1;\n" },
-    json: { ext: "json", source: "{\"piLensValidate\":true}\n" },
+    json: { ext: "json", source: '{"piLensValidate":true}\n' },
     kotlin: { ext: "kt", source: "fun main() {}\n" },
     lua: { ext: "lua", source: "local pi_lens_validate = 1\n" },
     php: { ext: "php", source: "<?php $piLensValidate = 1;\n" },
@@ -66,7 +67,10 @@ const VALIDATION_SNIPPETS = {
 };
 function validationSnippetFor(language) {
     const key = language.toLowerCase().replace(/^"|"$/g, "");
-    return VALIDATION_SNIPPETS[key] ?? { ext: key.replace(/[^a-z0-9_-]/gi, "") || "txt", source: "pi_lens_validate\n" };
+    return (VALIDATION_SNIPPETS[key] ?? {
+        ext: key.replace(/[^a-z0-9_-]/gi, "") || "txt",
+        source: "pi_lens_validate\n",
+    });
 }
 function validateInputShape(value, maxChars, label) {
     if (value.includes("\0"))
@@ -110,7 +114,7 @@ export class AstGrepClient {
                     ? projectRuleDir
                     : resolvePackagePath(import.meta.url, "rules"));
         this.log = verbose
-            ? (msg) => console.error(`[ast-grep] ${msg}`)
+            ? createSubsystemLogger("ast-grep")
             : () => { };
         this.ruleManager = new AstGrepRuleManager(this.ruleDir, this.log);
         this.runner = new SgRunner(verbose);
@@ -129,9 +133,18 @@ export class AstGrepClient {
         const allMatches = [];
         for (const scanPath of paths) {
             if (apply) {
-                // Stale-preview check: dry-run first
-                const preCheck = await this.runner.tempScanAsync(scanPath, "agent-rule", ruleYaml);
-                if (preCheck.length === 0) {
+                // Stale-preview check: dry-run first. Preserve CLI failures instead of
+                // treating an invalid rule as a stale, no-match preview.
+                const preCheck = await this.tempScanDetailed(scanPath, ruleYaml);
+                if (preCheck.failure || preCheck.error) {
+                    return {
+                        matches: allMatches,
+                        totalMatches: allMatches.length,
+                        applied: false,
+                        error: preCheck.error ?? "ast-grep preview failed",
+                    };
+                }
+                if (preCheck.matches.length === 0) {
                     return {
                         matches: [],
                         totalMatches: 0,
@@ -162,12 +175,31 @@ export class AstGrepClient {
      * Routes through sg scan --config rather than sg run -p.
      * Each path is scanned independently; results are merged.
      */
-    async searchWithRule(ruleYaml, paths) {
+    async tempScanDetailed(dir, ruleYaml, options = {}) {
+        // Keep tests and older embedders that replace the runner with the historic
+        // match-only seam working. The production SgRunner always has the detailed
+        // method, so failures cannot be mistaken for an empty result there.
+        const detailed = this.runner.tempScanDetailedAsync;
+        if (detailed) {
+            return detailed.call(this.runner, dir, "agent-rule", ruleYaml, 30_000, options);
+        }
+        const matches = await this.runner.tempScanAsync(dir, "agent-rule", ruleYaml, 30_000, options);
+        return { matches, status: 0 };
+    }
+    async searchWithRule(ruleYaml, paths, options = {}) {
         const allMatches = [];
         for (const scanPath of paths) {
             try {
-                const results = await this.runner.tempScanAsync(scanPath, "agent-rule", ruleYaml);
-                allMatches.push(...results);
+                const results = await this.tempScanDetailed(scanPath, ruleYaml, options);
+                if (results.failure || results.error) {
+                    return {
+                        matches: allMatches,
+                        totalMatches: allMatches.length,
+                        error: results.error ||
+                            `ast-grep scan failed (${results.failure ?? "unknown failure"})`,
+                    };
+                }
+                allMatches.push(...results.matches);
             }
             catch (err) {
                 return {
@@ -227,11 +259,24 @@ export class AstGrepClient {
             if (options?.strictness)
                 args.push("--strictness", options.strictness);
             args.push(tmpFile);
-            const result = await this.runner.execRaw(args);
+            const result = await this.runner.execRaw(args, 10_000, options);
             const stderr = result.stderr.trim();
             const stdout = result.stdout.trim();
             if (result.error)
                 return { valid: false, error: result.error };
+            if (result.status !== 0 && !(result.status === 1 && !stderr)) {
+                return {
+                    valid: false,
+                    error: stderr ||
+                        `ast-grep validation failed with exit code ${result.status}`,
+                };
+            }
+            if (result.outputTruncated) {
+                return {
+                    valid: false,
+                    error: "ast-grep validation output was truncated",
+                };
+            }
             if (stderrHasError(stderr))
                 return { valid: false, error: stderr };
             const warning = stderr || stdout || undefined;
@@ -249,7 +294,7 @@ export class AstGrepClient {
             }
         }
     }
-    async validateRule(ruleYaml) {
+    async validateRule(ruleYaml, options = {}) {
         const shapeError = validateInputShape(ruleYaml, MAX_VALIDATE_RULE_CHARS, "rule");
         if (shapeError)
             return { valid: false, error: shapeError };
@@ -258,7 +303,14 @@ export class AstGrepClient {
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-lens-sg-rule-"));
         try {
             fs.writeFileSync(path.join(tmpDir, `snippet.${snippet.ext}`), snippet.source, "utf-8");
-            await this.runner.tempScanAsync(tmpDir, "agent-rule", ruleYaml, 10000);
+            const result = await this.tempScanDetailed(tmpDir, ruleYaml, options);
+            if (result.failure || result.error) {
+                return {
+                    valid: false,
+                    error: result.error ||
+                        `ast-grep rule validation failed (${result.failure ?? "unknown failure"})`,
+                };
+            }
             return { valid: true };
         }
         catch (err) {
@@ -332,7 +384,7 @@ export class AstGrepClient {
             args.push("--strictness", options.strictness);
         }
         args.push(...paths);
-        const result = await this.runner.exec(args);
+        const result = await this.runner.exec(args, options);
         return {
             matches: result.matches,
             totalMatches: result.totalMatches,
@@ -505,8 +557,8 @@ message: found
         }
         return exports;
     }
-    formatMatches(matches, isDryRun = false, showModeIndicator = false) {
-        return this.runner.formatMatches(matches, isDryRun, 50, showModeIndicator);
+    formatMatches(matches, isDryRun = false, showModeIndicator = false, maxItems = 50) {
+        return this.runner.formatMatches(matches, isDryRun, maxItems, showModeIndicator);
     }
     /**
      * Format diagnostics for LLM consumption

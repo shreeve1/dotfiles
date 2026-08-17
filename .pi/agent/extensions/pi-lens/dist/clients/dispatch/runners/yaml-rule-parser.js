@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import yaml from "../../deps/js-yaml.js";
+import { BoundedLruCache } from "../../bounded-cache.js";
 // --- Constants ---
 /** Overly broad patterns that match everything (cause false positive explosions) */
 export const OVERLY_BROAD_PATTERNS = [
@@ -28,10 +29,10 @@ export const OVERLY_BROAD_PATTERNS = [
 /** Maximum complexity score for rules in blockingOnly mode */
 export const MAX_BLOCKING_RULE_COMPLEXITY = 8;
 // --- Caches ---
-const rulesCache = new Map();
-const blockingRulesCache = new Map();
-const contentRulesCache = new Map();
-const contentBlockingRulesCache = new Map();
+const rulesCache = new BoundedLruCache(64);
+const blockingRulesCache = new BoundedLruCache(64);
+const contentRulesCache = new BoundedLruCache(64);
+const contentBlockingRulesCache = new BoundedLruCache(64);
 // --- Public API ---
 export function clearRulesCache() {
     rulesCache.clear();

@@ -21,10 +21,9 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { ensureTool } from "../../installer/index.js";
 import { safeSpawnAsync } from "../../safe-spawn.js";
 import { PRIORITY } from "../priorities.js";
-import { createAvailabilityChecker, lspPrimaryCoversFile, } from "./utils/runner-helpers.js";
+import { createAvailabilityChecker, lspPrimaryCoversFile, resolveAvailableOrInstall, } from "./utils/runner-helpers.js";
 const shellcheck = createAvailabilityChecker("shellcheck", ".exe");
 function findShellcheckConfig(cwd) {
     const local = path.join(cwd, ".shellcheckrc");
@@ -127,7 +126,7 @@ const shellcheckRunner = {
             cmd = shellcheck.getCommand(cwd);
         }
         else {
-            const managed = await ensureTool("shellcheck");
+            const managed = await resolveAvailableOrInstall(shellcheck, "shellcheck", cwd);
             if (managed)
                 cmd = managed;
         }

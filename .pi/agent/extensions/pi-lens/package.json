@@ -1,6 +1,6 @@
 {
   "name": "pi-lens",
-  "version": "3.8.74",
+  "version": "4.0.1",
   "type": "module",
   "description": "Real-time code feedback for pi — LSP, linters, formatters, type-checking, structural analysis & booboo",
   "repository": {
@@ -20,9 +20,9 @@
     "prepare": "npm run build:dist && node scripts/download-grammars.js --core --dest grammars",
     "lint": "tsc --project tsconfig.json",
     "watch": "tsc --watch",
-    "test": "vitest run",
-    "test:unit": "vitest run --ignore tests/index-integration.test.ts --ignore tests/clients/lsp/integration.test.ts",
-    "test:integration": "vitest run tests/index-integration.test.ts tests/clients/lsp/integration.test.ts",
+    "test": "node scripts/with-test-lock.mjs -- vitest run",
+    "test:unit": "node scripts/with-test-lock.mjs -- vitest run",
+    "test:integration": "node scripts/with-test-lock.mjs -- vitest run tests/index-integration.test.ts tests/clients/lsp/integration.test.ts",
     "test:watch": "vitest",
     "check": "node scripts/check-extensions.mjs",
     "selftest:install": "node scripts/install-selftest.mjs",
@@ -34,7 +34,7 @@
     "audit:astgrep-rule-pairs": "node scripts/audit-astgrep-rule-pairs.mjs",
     "audit:playground": "node scripts/playground-verify-rule.mjs",
     "logs:smells": "node scripts/analyze-pi-lens-logs.mjs",
-    "changelog:check": "node scripts/changelog-release.mjs --check",
+    "changelog:check": "node scripts/rollup-changelog.mjs --check",
     "changelog:release": "node scripts/changelog-release.mjs",
     "changelog:extract": "node scripts/changelog-extract.mjs",
     "release:backfill-notes": "node scripts/backfill-github-releases.mjs",
@@ -85,9 +85,9 @@
   "dependencies": {
     "@ast-grep/cli": "^0.45.0",
     "@ast-grep/napi": "^0.45.0",
-    "@earendil-works/pi-tui": "^0.82.1",
+    "@earendil-works/pi-tui": "^0.84.1",
     "js-yaml": "^5.2.2",
-    "minimatch": "^10.2.5",
+    "minimatch": "^10.2.6",
     "pidusage": "^4.0.1",
     "typebox": "^1.0.0",
     "vscode-jsonrpc": "^9.0.0"
@@ -105,7 +105,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",
-    "@earendil-works/pi-coding-agent": "^0.82.1",
+    "@earendil-works/pi-coding-agent": "^0.84.1",
     "@types/node": "^26.0.0",
     "@types/pidusage": "^2.0.5",
     "@vitest/coverage-v8": "^4.1.5",
@@ -134,8 +134,8 @@
     ]
   },
   "allowScripts": {
-    "@ast-grep/cli@0.44.1": true,
+    "@ast-grep/cli@0.45.1": true,
     "@google/genai@1.52.0": true,
-    "protobufjs@7.6.4": true
+    "protobufjs@7.6.5": true
   }
 }

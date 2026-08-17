@@ -34,8 +34,8 @@
  * into symbol-node metadata so this path can read it for free.
  */
 import * as path from "node:path";
-import { normalizeMapKey } from "./path-utils.js";
-import { loadProjectSnapshot } from "./project-snapshot.js";
+import { normalizeMapKey, toProjectRelativePath } from "./path-utils.js";
+import { loadProjectSnapshotWithoutWordIndex } from "./project-snapshot.js";
 const DEFAULT_LIMIT = 10;
 const STALE_THRESHOLD_MS = 15 * 60_000; // 15 minutes
 const LOW_COVERAGE_THRESHOLD = 0.8;
@@ -47,14 +47,19 @@ function clampLimit(limit) {
 }
 // Same display-path convention as module-report.ts's toDisplayPath: cwd-relative
 // + forward-slashed under the project root, else the absolute (slash-normalized)
-// path.
+// path. Delegates to the shape-aware toProjectRelativePath (#1163/#1194) instead
+// of hand-rolling with host-default path.isAbsolute/path.relative, which
+// mis-parses a Windows-shaped path (e.g. a persisted graph symbol-key path) on
+// Linux CI: path.isAbsolute("C:\\repo\\x.ts") is false there, short-circuiting
+// to the raw absolute path instead of relativizing (#1024 divergence class).
 function toDisplayPath(p, projectRoot) {
-    if (!path.isAbsolute(p))
-        return p.replace(/\\/g, "/");
-    const rel = path.relative(projectRoot, p);
-    return rel && !rel.startsWith("..")
-        ? rel.replace(/\\/g, "/")
-        : p.replace(/\\/g, "/");
+    return toProjectRelativePath(p, projectRoot);
+}
+/** Test-only export (refs #1194) so the shape-aware delegation can be verified
+ * directly without standing up a full review graph — mirrors the
+ * `_reset*ForTests` underscore convention used elsewhere in this file. */
+export function _toDisplayPathForTests(p, projectRoot) {
+    return toDisplayPath(p, projectRoot);
 }
 function suggestedNext(displayPath) {
     return { tool: "module_report", path: displayPath };
@@ -110,9 +115,10 @@ function buildFileDegrees(graph) {
 // --- section 1: trust header --------------------------------------------------
 function computeTrust(graph, cwd) {
     const filesCovered = graph.fileNodes.size;
-    const snapshot = loadProjectSnapshot(cwd);
+    const snapshot = loadProjectSnapshotWithoutWordIndex(cwd);
     const snapshotFileCount = snapshot ? Object.keys(snapshot.files).length : 0;
-    const filesTotal = Math.max(filesCovered, snapshotFileCount);
+    const persistedTotal = graph.persistCoverage?.totalFiles ?? 0;
+    const filesTotal = Math.max(filesCovered, snapshotFileCount, persistedTotal);
     const coverage = filesTotal > 0 ? filesCovered / filesTotal : 1;
     let exact = 0;
     let imp = 0;
@@ -142,7 +148,8 @@ function computeTrust(graph, cwd) {
     const frac = (n) => (sampleSize > 0 ? n / sampleSize : 0);
     const ageMs = Date.now() - Date.parse(graph.builtAt);
     const stale = Number.isFinite(ageMs) && ageMs > STALE_THRESHOLD_MS;
-    const lowCoverage = coverage < LOW_COVERAGE_THRESHOLD || graph.persistCoverage?.partial === true;
+    const lowCoverage = coverage < LOW_COVERAGE_THRESHOLD ||
+        graph.persistCoverage?.partial === true;
     const notes = [];
     if (stale) {
         const ageMin = Math.round(ageMs / 60_000);
@@ -151,7 +158,14 @@ function computeTrust(graph, cwd) {
     if (lowCoverage) {
         if (graph.persistCoverage?.partial) {
             const p = graph.persistCoverage;
-            notes.push(`Partial persisted graph: ${p.persistedNodes}/${p.totalNodes} nodes and ${p.persistedEdges}/${p.totalEdges} edges were retained under the ${p.cap}-element cap — whole subsystems may be invisible below.`);
+            const totalFiles = p.totalFiles ?? filesCovered;
+            const persistedFiles = p.persistedFiles ?? filesCovered;
+            if (p.sourceFilesTruncated) {
+                notes.push(`Partial source walk: at least ${totalFiles} source files were represented before the visited-entry budget stopped enumeration; ${persistedFiles} files are in this graph.`);
+            }
+            else {
+                notes.push(`Partial persisted graph: ${p.persistedNodes}/${p.totalNodes} nodes, ${p.persistedEdges}/${p.totalEdges} edges, and ${persistedFiles}/${totalFiles} files were retained under the ${p.cap}-element cap — whole subsystems may be invisible below.`);
+            }
         }
         else {
             notes.push(`Low coverage: only ${filesCovered}/${filesTotal} project files (${Math.round(coverage * 100)}%) are in the graph — whole subsystems may be invisible below.`);

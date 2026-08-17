@@ -59,7 +59,15 @@
  * New optional fields may be added under the same `v: 1` for any of the three
  * events; a breaking change to an existing field's meaning must bump that
  * event's `v` independently (each event versions separately since they're
- * unrelated payloads).
+ * unrelated payloads). `FormatQueuedPayload.kinds` (S3d, #1432 review) is now
+ * an always-present required field at `publishFormatQueued`'s call boundary —
+ * both in-repo callers already passed it, so the `?? ["format"]` fallback
+ * was fabricating data no caller asked for. This is NOT a `v` bump: `kinds`
+ * was already part of the v1 payload shape and every wire-format consumer
+ * still reads the same field; a v1 emitter built against an older copy of
+ * this module that omits `kinds` at the call site now fails to compile
+ * rather than silently emitting a guessed value, and any reader written
+ * against v1 that still treats `kinds` as possibly-absent remains correct.
  *
  * Fire-and-forget: publishing must never affect the write path's or
  * `agent_end`'s success or latency. Any failure (bus unavailable, emit
@@ -70,13 +78,14 @@
 import { logBusEvent } from "./bus-events-logger.js";
 import { isBusPublishEnabled } from "./bus-publish.js";
 import { normalizeFilePath } from "./path-utils.js";
+import { createLiveBusEmitter, recordStaleBusFailure, resolveLiveBusEmitter, } from "./live-bus-emitter.js";
 export const BUS_FORMAT_QUEUED_EVENT = "pilens:format:queued";
 export const BUS_FORMAT_QUEUED_VERSION = 1;
 export const BUS_FORMAT_START_EVENT = "pilens:format:start";
 export const BUS_FORMAT_START_VERSION = 1;
 export const BUS_AUTOFIX_START_EVENT = "pilens:autofix:start";
 export const BUS_AUTOFIX_START_VERSION = 1;
-let busEmit;
+const liveEmitter = createLiveBusEmitter();
 let hasLoggedQueuedFailure = false;
 let hasLoggedQueuedUnwired = false;
 let hasLoggedQueuedDisabled = false;
@@ -93,11 +102,14 @@ let hasLoggedAutofixStartDisabled = false;
  * identical `pi.events.emit` binding, wired separately per producer.
  */
 export function wireFormatEventsBusEmitter(emitFn) {
-    busEmit = emitFn;
+    liveEmitter.wire(emitFn);
+}
+export function wireFormatEventsBusEmitterGetter(getter) {
+    liveEmitter.wireGetter(getter);
 }
 /** Test-only: reset module state between test files. */
 export function _resetFormatEventsPublishForTests() {
-    busEmit = undefined;
+    liveEmitter.reset();
     hasLoggedQueuedFailure = false;
     hasLoggedQueuedUnwired = false;
     hasLoggedQueuedDisabled = false;
@@ -127,7 +139,13 @@ export function publishFormatQueued(args) {
         }
         return;
     }
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_FORMAT_QUEUED_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedQueuedUnwired) {
             hasLoggedQueuedUnwired = true;
             logBusEvent({
@@ -138,6 +156,7 @@ export function publishFormatQueued(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const payload = {
             v: BUS_FORMAT_QUEUED_VERSION,
@@ -145,8 +164,10 @@ export function publishFormatQueued(args) {
             filePath: normalizeFilePath(args.filePath),
             cwd: normalizeFilePath(args.cwd),
             tool: args.tool,
+            kinds: args.kinds,
         };
         busEmit(BUS_FORMAT_QUEUED_EVENT, payload);
+        hasLoggedQueuedFailure = false;
         logBusEvent({
             event: BUS_FORMAT_QUEUED_EVENT,
             outcome: "emitted",
@@ -160,9 +181,11 @@ export function publishFormatQueued(args) {
             outcome: "emit_failed",
             cwd: normalizeFilePath(args.cwd),
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedQueuedFailure) {
             hasLoggedQueuedFailure = true;
+            recordStaleBusFailure(BUS_FORMAT_QUEUED_EVENT, err);
             args.dbg?.(`format-events-publish: pilens:format:queued emit failed (further failures suppressed): ${err}`);
         }
     }
@@ -189,7 +212,13 @@ export function publishFormatStart(args) {
         }
         return;
     }
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_FORMAT_START_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedStartUnwired) {
             hasLoggedStartUnwired = true;
             logBusEvent({
@@ -200,6 +229,7 @@ export function publishFormatStart(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const paths = args.paths.map((p) => normalizeFilePath(p));
         const payload = {
@@ -208,8 +238,10 @@ export function publishFormatStart(args) {
             cwd: normalizeFilePath(args.cwd),
             paths,
             fileCount: paths.length,
+            kinds: args.kinds ?? ["format"],
         };
         busEmit(BUS_FORMAT_START_EVENT, payload);
+        hasLoggedStartFailure = false;
         logBusEvent({
             event: BUS_FORMAT_START_EVENT,
             outcome: "emitted",
@@ -223,9 +255,11 @@ export function publishFormatStart(args) {
             outcome: "emit_failed",
             cwd: normalizeFilePath(args.cwd),
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedStartFailure) {
             hasLoggedStartFailure = true;
+            recordStaleBusFailure(BUS_FORMAT_START_EVENT, err);
             args.dbg?.(`format-events-publish: pilens:format:start emit failed (further failures suppressed): ${err}`);
         }
     }
@@ -255,7 +289,13 @@ export function publishAutofixStart(args) {
         }
         return;
     }
-    if (!busEmit) {
+    const resolution = resolveLiveBusEmitter(liveEmitter, () => ({
+        event: BUS_AUTOFIX_START_EVENT,
+        cwd: normalizeFilePath(args.cwd),
+    }));
+    if (resolution.outcome === "stale-session")
+        return;
+    if (resolution.outcome === "unwired") {
         if (!hasLoggedAutofixStartUnwired) {
             hasLoggedAutofixStartUnwired = true;
             logBusEvent({
@@ -266,6 +306,7 @@ export function publishAutofixStart(args) {
         }
         return;
     }
+    const busEmit = resolution.emit;
     try {
         const paths = args.paths.map((p) => normalizeFilePath(p));
         const payload = {
@@ -277,6 +318,7 @@ export function publishAutofixStart(args) {
             eligibleCount: args.eligibleCount,
         };
         busEmit(BUS_AUTOFIX_START_EVENT, payload);
+        hasLoggedAutofixStartFailure = false;
         logBusEvent({
             event: BUS_AUTOFIX_START_EVENT,
             outcome: "emitted",
@@ -290,9 +332,11 @@ export function publishAutofixStart(args) {
             outcome: "emit_failed",
             cwd: normalizeFilePath(args.cwd),
             error: String(err),
+            ctxSource: resolution.ctxSource,
         });
         if (!hasLoggedAutofixStartFailure) {
             hasLoggedAutofixStartFailure = true;
+            recordStaleBusFailure(BUS_AUTOFIX_START_EVENT, err);
             args.dbg?.(`format-events-publish: pilens:autofix:start emit failed (further failures suppressed): ${err}`);
         }
     }

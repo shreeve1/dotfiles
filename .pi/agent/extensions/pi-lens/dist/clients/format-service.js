@@ -10,10 +10,11 @@
  * - FileTime integration for safety
  * - Explicit config wins; otherwise smart defaults apply
  */
+import { logExtension } from "./extension-log.js";
 import * as path from "node:path";
 import { recordFormatter } from "./widget-state.js";
 import { FileTime } from "./file-time.js";
-import { clearFormatterRuntimeState, formatFile, getFormattersForFile, } from "./formatters.js";
+import { loadFormatters } from "./formatters-lazy.js";
 // --- Configuration ---
 /** Reserved for future batching; formatting currently runs one selected formatter per file. */
 const DEFAULT_FORMATTER_CONCURRENCY = 1;
@@ -42,7 +43,12 @@ export class FormatService {
         }
         // Check if file was modified externally (safety check)
         if (this.fileTime.hasChanged(absolutePath)) {
-            console.warn(`[format] File ${absolutePath} modified externally, skipping format`);
+            logExtension({
+                subsystem: "format",
+                level: "warn",
+                message: `File ${absolutePath} modified externally, skipping format`,
+                metadata: { filePath: absolutePath },
+            });
             return {
                 filePath: absolutePath,
                 formatters: [],
@@ -53,7 +59,7 @@ export class FormatService {
         // Get formatters for this file
         const formatters = options.formatters
             ? await this.getFormattersByName(options.formatters)
-            : await getFormattersForFile(absolutePath, cwd);
+            : await (await loadFormatters()).getFormattersForFile(absolutePath, cwd);
         if (formatters.length === 0) {
             return {
                 filePath: absolutePath,
@@ -90,13 +96,19 @@ export class FormatService {
     async runFormattersWithConcurrency(filePath, formatters, _concurrency = DEFAULT_FORMATTER_CONCURRENCY) {
         const results = [];
         for (const formatter of formatters) {
+            // #1097: keep the timer handle so it can be cleared once the race
+            // settles. An uncleared, REF'D 30s setTimeout that outlives a fast
+            // `formatFile` win would keep a one-shot `pi --print` process alive for
+            // up to 30s after completion (same uncleared-race-timeout class as the
+            // LSP client-wait leak fixed in clients/lsp/index.ts).
+            let formatTimer;
             try {
                 const timeoutMs = 30000;
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error(`Formatter ${formatter.name} timed out after ${timeoutMs}ms`)), timeoutMs);
+                    formatTimer = setTimeout(() => reject(new Error(`Formatter ${formatter.name} timed out after ${timeoutMs}ms`)), timeoutMs);
                 });
                 const result = await Promise.race([
-                    formatFile(filePath, formatter),
+                    loadFormatters().then(({ formatFile }) => formatFile(filePath, formatter)),
                     timeoutPromise,
                 ]);
                 results.push(result);
@@ -108,6 +120,10 @@ export class FormatService {
                     error: error instanceof Error ? error.message : String(error),
                 });
             }
+            finally {
+                if (formatTimer)
+                    clearTimeout(formatTimer);
+            }
         }
         return results;
     }
@@ -115,7 +131,7 @@ export class FormatService {
      * Get formatters by name (for explicit formatter selection)
      */
     async getFormattersByName(names) {
-        const { listAllFormatters, ...formatters } = await import("./formatters.js");
+        const { listAllFormatters, ...formatters } = await loadFormatters();
         const allNames = listAllFormatters();
         return names
             .filter((name) => allNames.includes(name))
@@ -151,7 +167,7 @@ export class FormatService {
      * Clear detection cache
      */
     clearCache() {
-        clearFormatterRuntimeState();
+        void loadFormatters().then(({ clearFormatterRuntimeState }) => clearFormatterRuntimeState());
     }
 }
 // --- Singleton Instance ---
@@ -169,7 +185,7 @@ export function getFormatService(sessionID, enabled = true) {
     return globalFormatService;
 }
 export function resetFormatService() {
-    clearFormatterRuntimeState();
+    void loadFormatters().then(({ clearFormatterRuntimeState }) => clearFormatterRuntimeState());
     globalFormatService = null;
     currentSessionID = null;
 }
