@@ -61,6 +61,7 @@ rules below are the ones that silently break things if violated:
   a delegation allowlist; mutations go through `bin/pi-delegate`. Toggle with
   `claude-fusion on|off|status` from your shell (not runnable by the agent), or drop
   `.claude/.fusion-off` per-repo.
+- **Don't fight pi-lens autoformat.** If editing a file produces whole-file whitespace churn, conform first-party files to the formatter or exempt vendored ones — never commit around recurring reflow. See `docs/pi-extensions.md`.
 
 ## Editing rules
 

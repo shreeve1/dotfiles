@@ -257,3 +257,4 @@ requirements" carries the short must-not-break rules and points here.
   - **Gotcha:** the block hook depends on jiti + `fusion/index.ts` being present
     (both vendored, installed by `bash install.sh`). It fails CLOSED if the
     policy engine can't load — toggle `claude=off` or drop `.claude/.fusion-off`.
+- **Don't fight pi-lens autoformat.** pi-lens formats on edit (biome for JS/TS/JSON/CSS, shfmt for shell, honoring `.editorconfig`). Whole-file whitespace churn on edit means the file disagrees with the formatter — resolve it, don't commit around it. **First-party** files: conform the file to the formatter (e.g. reindent to `.editorconfig`, as `ralph-loop.sh` was). **Vendored/upstream** files: suppress the formatter instead (local `biome.json`, `.editorconfig` override) so re-syncs stay clean — never reflow vendored code for "uniformity."
