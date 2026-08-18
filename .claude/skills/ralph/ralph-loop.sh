@@ -62,7 +62,7 @@ TMUX_SOCKET="${RALPH_TMUX_SOCKET:-$SOCKET_DIR/ralph.sock}"
 USE_NORMAL_TMUX="${RALPH_USE_NORMAL_TMUX:-true}"
 
 usage() {
-	cat <<EOF
+  cat <<EOF
 Ralph Loop - Background tmux driver that runs Ralph until no issues remain
 
 Usage: ralph-loop.sh [OPTIONS] [ADAPTER] [SESSION_NAME]
@@ -103,118 +103,118 @@ EOF
 }
 
 while [[ $# -gt 0 ]]; do
-	case $1 in
-	--force)
-		FORCE_MODE=true
-		shift
-		;;
-	--continue-on-error)
-		CONTINUE_ON_ERROR=true
-		shift
-		;;
-	--sleep-interval)
-		SLEEP_INTERVAL="${2:-3}"
-		shift 2
-		;;
-	--ready-delay)
-		READY_DELAY="${2:-1}"
-		shift 2
-		;;
-	--ready-timeout)
-		READY_TIMEOUT="${2:-60}"
-		shift 2
-		;;
-	--iteration-timeout)
-		ITERATION_TIMEOUT="${2:-7200}"
-		shift 2
-		;;
-	--agent-cmd)
-		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
-			echo "❌ Error: --agent-cmd requires a command" >&2
-			exit 1
-		fi
-		AGENT_CMD="$2"
-		AGENT_CMD_EXPLICIT=true
-		shift 2
-		;;
-	--review-model)
-		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
-			echo "❌ Error: --review-model requires a model id" >&2
-			exit 1
-		fi
-		RALPH_REVIEW_MODEL="$2"
-		shift 2
-		;;
-	--agent-prompt)
-		AGENT_PROMPT="${2:-}"
-		AGENT_PROMPT_EXPLICIT=true
-		shift 2
-		;;
-	--review-loop)
-		REVIEW_LOOP=true
-		shift
-		;;
-	--skip-blocked)
-		SKIP_BLOCKED=true
-		shift
-		;;
-	--auto-review-blocked)
-		AUTO_REVIEW_BLOCKED=true
-		shift
-		;;
-	--no-auto-review-blocked)
-		AUTO_REVIEW_BLOCKED=false
-		shift
-		;;
-	--review-each)
-		REVIEW_EACH=true
-		shift
-		;;
-	--no-review-each)
-		REVIEW_EACH=false
-		shift
-		;;
-	--unattended)
-		UNATTENDED=true
-		shift
-		;;
-	--lsp-check-cmd)
-		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
-			echo "❌ Error: --lsp-check-cmd requires a command" >&2
-			exit 1
-		fi
-		LSP_CHECK_CMD="$2"
-		shift 2
-		;;
-	--no-checkpoint-dirty)
-		CHECKPOINT_DIRTY=false
-		shift
-		;;
-	--socket)
-		if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
-			echo "❌ Error: --socket requires a path" >&2
-			exit 1
-		fi
-		TMUX_SOCKET="$2"
-		USE_NORMAL_TMUX=false
-		shift 2
-		;;
-	--private-tmux)
-		USE_NORMAL_TMUX=false
-		shift
-		;;
-	--normal-tmux)
-		USE_NORMAL_TMUX=true
-		shift
-		;;
-	--help)
-		usage
-		exit 0
-		;;
-	*)
-		break
-		;;
-	esac
+  case $1 in
+  --force)
+    FORCE_MODE=true
+    shift
+    ;;
+  --continue-on-error)
+    CONTINUE_ON_ERROR=true
+    shift
+    ;;
+  --sleep-interval)
+    SLEEP_INTERVAL="${2:-3}"
+    shift 2
+    ;;
+  --ready-delay)
+    READY_DELAY="${2:-1}"
+    shift 2
+    ;;
+  --ready-timeout)
+    READY_TIMEOUT="${2:-60}"
+    shift 2
+    ;;
+  --iteration-timeout)
+    ITERATION_TIMEOUT="${2:-7200}"
+    shift 2
+    ;;
+  --agent-cmd)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --agent-cmd requires a command" >&2
+      exit 1
+    fi
+    AGENT_CMD="$2"
+    AGENT_CMD_EXPLICIT=true
+    shift 2
+    ;;
+  --review-model)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --review-model requires a model id" >&2
+      exit 1
+    fi
+    RALPH_REVIEW_MODEL="$2"
+    shift 2
+    ;;
+  --agent-prompt)
+    AGENT_PROMPT="${2:-}"
+    AGENT_PROMPT_EXPLICIT=true
+    shift 2
+    ;;
+  --review-loop)
+    REVIEW_LOOP=true
+    shift
+    ;;
+  --skip-blocked)
+    SKIP_BLOCKED=true
+    shift
+    ;;
+  --auto-review-blocked)
+    AUTO_REVIEW_BLOCKED=true
+    shift
+    ;;
+  --no-auto-review-blocked)
+    AUTO_REVIEW_BLOCKED=false
+    shift
+    ;;
+  --review-each)
+    REVIEW_EACH=true
+    shift
+    ;;
+  --no-review-each)
+    REVIEW_EACH=false
+    shift
+    ;;
+  --unattended)
+    UNATTENDED=true
+    shift
+    ;;
+  --lsp-check-cmd)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --lsp-check-cmd requires a command" >&2
+      exit 1
+    fi
+    LSP_CHECK_CMD="$2"
+    shift 2
+    ;;
+  --no-checkpoint-dirty)
+    CHECKPOINT_DIRTY=false
+    shift
+    ;;
+  --socket)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --socket requires a path" >&2
+      exit 1
+    fi
+    TMUX_SOCKET="$2"
+    USE_NORMAL_TMUX=false
+    shift 2
+    ;;
+  --private-tmux)
+    USE_NORMAL_TMUX=false
+    shift
+    ;;
+  --normal-tmux)
+    USE_NORMAL_TMUX=true
+    shift
+    ;;
+  --help)
+    usage
+    exit 0
+    ;;
+  *)
+    break
+    ;;
+  esac
 done
 
 case "${USE_NORMAL_TMUX,,}" in
@@ -223,9 +223,9 @@ true | 1 | yes | y | on) USE_NORMAL_TMUX=true ;;
 esac
 
 if [[ "$REVIEW_LOOP" == "true" && -z "${RALPH_AGENT_PROMPT:-}" && "$AGENT_PROMPT_EXPLICIT" != "true" ]]; then
-	AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after one issue. Print the required RALPH_RESULT sentinel."
+  AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after one issue. Print the required RALPH_RESULT sentinel."
 elif [[ "$REVIEW_LOOP" == "true" && -n "${RALPH_AGENT_PROMPT:-}" && "$AGENT_PROMPT_EXPLICIT" != "true" ]]; then
-	echo "⚠️  RALPH_AGENT_PROMPT is set; appending review-loop framing via shared prompt reminder." >&2
+  echo "⚠️  RALPH_AGENT_PROMPT is set; appending review-loop framing via shared prompt reminder." >&2
 fi
 
 ADAPTER="${1:-tmux}"
@@ -233,134 +233,134 @@ SESSION_NAME="${2:-ralph-loop}"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ "$SESSION_NAME" =~ [.:] ]]; then
-	echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
-	exit 1
+  echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
+  exit 1
 fi
 
 if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
-	printf -v skill_dir_q '%q' "$SKILL_DIR"
-	AGENT_CMD="pi --skill $skill_dir_q"
-	if [[ -n "$RALPH_MODEL" ]]; then
-		printf -v model_q '%q' "$RALPH_MODEL"
-		AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
-	fi
+  printf -v skill_dir_q '%q' "$SKILL_DIR"
+  AGENT_CMD="pi --skill $skill_dir_q"
+  if [[ -n "$RALPH_MODEL" ]]; then
+    printf -v model_q '%q' "$RALPH_MODEL"
+    AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
+  fi
 fi
 
 case "$ADAPTER" in
 pi | tmux)
-	;;
+  ;;
 *)
-	echo "❌ Error: unsupported adapter '$ADAPTER' (expected pi or tmux)" >&2
-	exit 1
-	;;
+  echo "❌ Error: unsupported adapter '$ADAPTER' (expected pi or tmux)" >&2
+  exit 1
+  ;;
 esac
 
 if ! command -v tmux >/dev/null 2>&1; then
-	echo "❌ Error: tmux not found in PATH" >&2
-	exit 1
+  echo "❌ Error: tmux not found in PATH" >&2
+  exit 1
 fi
 
 if [[ "$ADAPTER" == "pi" ]] && ! command -v pi >/dev/null 2>&1; then
-	echo "❌ Error: pi not found in PATH" >&2
-	exit 1
+  echo "❌ Error: pi not found in PATH" >&2
+  exit 1
 fi
 
 if [[ "$ADAPTER" == "tmux" && -z "$AGENT_CMD" ]]; then
-	echo "❌ Error: --agent-cmd or RALPH_AGENT_CMD is required for tmux adapter" >&2
-	exit 1
+  echo "❌ Error: --agent-cmd or RALPH_AGENT_CMD is required for tmux adapter" >&2
+  exit 1
 fi
 
 tmux_cmd() {
-	if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
-		tmux "$@"
-	else
-		tmux -S "$TMUX_SOCKET" "$@"
-	fi
+  if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+    tmux "$@"
+  else
+    tmux -S "$TMUX_SOCKET" "$@"
+  fi
 }
 
 tmux_display() {
-	if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
-		echo "tmux"
-	else
-		echo "tmux -S '$TMUX_SOCKET'"
-	fi
+  if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
+    echo "tmux"
+  else
+    echo "tmux -S '$TMUX_SOCKET'"
+  fi
 }
 
 TMUX_DISPLAY="$(tmux_display)"
 if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
-	RESTART_CMD="$0 --normal-tmux $ADAPTER $SESSION_NAME"
+  RESTART_CMD="$0 --normal-tmux $ADAPTER $SESSION_NAME"
 else
-	RESTART_CMD="$0 $ADAPTER $SESSION_NAME"
+  RESTART_CMD="$0 $ADAPTER $SESSION_NAME"
 fi
 
 if [[ "$USE_NORMAL_TMUX" != "true" ]]; then
-	mkdir -p "$(dirname "$TMUX_SOCKET")"
+  mkdir -p "$(dirname "$TMUX_SOCKET")"
 fi
 mkdir -p "$HOME/.cache"
 
 if tmux_cmd has-session -t "$SESSION_NAME" 2>/dev/null; then
-	echo "⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY"
-	echo ""
-	echo "Options:"
-	echo "  1. Attach to existing session:  $TMUX_DISPLAY attach -t '$SESSION_NAME'"
-	echo "  2. Kill and restart:            $TMUX_DISPLAY kill-session -t '$SESSION_NAME' && $RESTART_CMD"
-	echo "  3. Use different name:          $0 $ADAPTER <different-name>"
-	exit 1
+  echo "⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY"
+  echo ""
+  echo "Options:"
+  echo "  1. Attach to existing session:  $TMUX_DISPLAY attach -t '$SESSION_NAME'"
+  echo "  2. Kill and restart:            $TMUX_DISPLAY kill-session -t '$SESSION_NAME' && $RESTART_CMD"
+  echo "  3. Use different name:          $0 $ADAPTER <different-name>"
+  exit 1
 fi
 
 if [[ ! -d .kanban ]]; then
-	echo "❌ Error: No .kanban/ directory found in current directory" >&2
-	echo "   Run this from a project with a kanban board" >&2
-	exit 1
+  echo "❌ Error: No .kanban/ directory found in current directory" >&2
+  echo "   Run this from a project with a kanban board" >&2
+  exit 1
 fi
 
 if [[ ! -d .kanban/issues ]]; then
-	echo "❌ Error: No .kanban/issues/ directory found" >&2
-	echo "   The kanban board structure is incomplete" >&2
-	exit 1
+  echo "❌ Error: No .kanban/issues/ directory found" >&2
+  echo "   The kanban board structure is incomplete" >&2
+  exit 1
 fi
 
 if [[ ! -f .kanban/progress.md ]]; then
-	echo "⚠️  Warning: .kanban/progress.md not found, creating empty file" >&2
-	mkdir -p .kanban
-	{
-		echo "# Ralph Progress Log"
-		echo ""
-		echo "This file tracks implementation notes across Ralph iterations."
-		echo ""
-	} >.kanban/progress.md
+  echo "⚠️  Warning: .kanban/progress.md not found, creating empty file" >&2
+  mkdir -p .kanban
+  {
+    echo "# Ralph Progress Log"
+    echo ""
+    echo "This file tracks implementation notes across Ralph iterations."
+    echo ""
+  } >.kanban/progress.md
 fi
 
 if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain -- . ':(exclude).pi-lens' ':(exclude).sessions')" ]]; then
-	echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
-	echo "   Ralph will auto-commit all non-ignored changes except .pi-lens before launching each worker." >&2
-	echo "" >&2
-	git status --short -- . ':(exclude).pi-lens' ':(exclude).sessions' >&2
-	echo "" >&2
+  echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
+  echo "   Ralph will auto-commit all non-ignored changes except .pi-lens before launching each worker." >&2
+  echo "" >&2
+  git status --short -- . ':(exclude).pi-lens' ':(exclude).sessions' >&2
+  echo "" >&2
 fi
 
 ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
 if [[ -n "$ACTIVE_ISSUES" && "$FORCE_MODE" != "true" ]]; then
-	echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
-	echo "" >&2
-	echo "$ACTIVE_ISSUES" >&2
-	echo "" >&2
-	if [[ "$REVIEW_LOOP" == "true" ]]; then
-		echo "Ralph review-loop will process these active issues per the Actionable Review Loop." >&2
-	else
-		echo "Ralph will resume the active issue instead of resetting it to pending." >&2
-		echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
-	fi
+  echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
+  echo "" >&2
+  echo "$ACTIVE_ISSUES" >&2
+  echo "" >&2
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    echo "Ralph review-loop will process these active issues per the Actionable Review Loop." >&2
+  else
+    echo "Ralph will resume the active issue instead of resetting it to pending." >&2
+    echo "If you really want to abandon it, edit the issue status manually or restore from .kanban/backups." >&2
+  fi
 fi
 
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
 if [[ "$REVIEW_LOOP" == "true" ]]; then
-	SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+  SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 else
-	SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
+  SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Follow the Ralph skill/protocol. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. If that filtered git status is dirty before implementation, clean known ephemeral artifacts and stop with FAIL if anything remains. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 fi
@@ -1535,18 +1535,18 @@ PROJECT_DIR="$(pwd)"
 # Every INNER_ARGS element must be printf %q-escaped before joining into the tmux shell command.
 INNER_ARGS=()
 for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
-	"$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
-	"$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
-	"$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-	"$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
-	"$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED"; do
-	printf -v arg_q '%q' "$arg"
-	INNER_ARGS+=("$arg_q")
+  "$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
+  "$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
+  "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
+  "$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
+  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED"; do
+  printf -v arg_q '%q' "$arg"
+  INNER_ARGS+=("$arg_q")
 done
 
 printf -v loop_script_q '%q' "$LOOP_SCRIPT"
 tmux_cmd new-session -d -s "$SESSION_NAME" \
-	"bash $loop_script_q ${INNER_ARGS[*]}"
+  "bash $loop_script_q ${INNER_ARGS[*]}"
 
 echo "✅ Ralph loop started in tmux session '$SESSION_NAME'"
 echo ""
@@ -1565,10 +1565,10 @@ echo "  Tmux: $TMUX_DISPLAY"
 echo "  Model: $RALPH_MODEL"
 echo "  Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
 if [[ -n "$LSP_CHECK_CMD" ]]; then
-	echo "  LSP check command: $LSP_CHECK_CMD"
+  echo "  LSP check command: $LSP_CHECK_CMD"
 fi
 if [[ "$ADAPTER" == "tmux" ]]; then
-	echo "  Agent command: $AGENT_CMD"
+  echo "  Agent command: $AGENT_CMD"
 fi
 echo ""
 echo "Monitor:"
