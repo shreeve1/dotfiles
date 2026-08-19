@@ -16,6 +16,8 @@
 #   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
 #   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
 #   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
+#   --plan-each           Before each implement, run a fresh planner session that writes a committed ## Plan into the next eligible issue (default: on; ~3x worker cost)
+#   --no-plan-each        Disable the planner stage before each implement; implementer plans inline instead
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -41,13 +43,16 @@ REVIEW_LOOP=false
 SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
 AUTO_REVIEW_BLOCKED="${RALPH_AUTO_REVIEW_BLOCKED:-true}"
 REVIEW_EACH="${RALPH_REVIEW_EACH:-true}"
+PLAN_EACH="${RALPH_PLAN_EACH:-true}"
 # Unattended mode (set by the systemd supervisor): on a worker timeout/FAIL the
 # loop exits non-zero instead of leaving an idle keepalive session, so the
 # supervisor relaunches and continues. MAX_ISSUE_FAILS bounds retries — an issue
 # that fails this many launch attempts is auto-blocked so the loop moves on.
 UNATTENDED="${RALPH_UNATTENDED:-false}"
 MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
+# shellcheck disable=SC2034  # populated/consumed by the inner LOOP_SCRIPT heredoc
 REVIEW_BASE_SHA=""
+# shellcheck disable=SC2034  # ditto
 BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}"
@@ -83,6 +88,8 @@ OPTIONS:
   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
   --review-model ID     Model id for the per-issue review-on-DONE only (env RALPH_REVIEW_MODEL); implementer + repair keep RALPH_MODEL
+  --plan-each           Before each implement, run a fresh planner session that writes a committed ## Plan into the next eligible issue (default: on; ~3x worker cost)
+  --no-plan-each        Disable the planner stage before each implement; implementer plans inline instead
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -172,6 +179,14 @@ while [[ $# -gt 0 ]]; do
     ;;
   --no-review-each)
     REVIEW_EACH=false
+    shift
+    ;;
+  --plan-each)
+    PLAN_EACH=true
+    shift
+    ;;
+  --no-plan-each)
+    PLAN_EACH=false
     shift
     ;;
   --unattended)
@@ -394,6 +409,7 @@ REVIEW_EACH="${22:-true}"
 RALPH_REVIEW_MODEL="${23:-}"
 AGENT_CMD_EXPLICIT="${24:-false}"
 SKIP_BLOCKED="${25:-false}"
+PLAN_EACH="${26:-true}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -414,6 +430,8 @@ BASE_REMINDER=""
 REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
+
+PLAN_PROMPT_REMINDER='Run the Ralph PLANNING stage for exactly one issue in this repository. Select the next eligible issue using the Ralph board scan rules (resume any active in-progress/review issue; otherwise the lowest-priority-then-lowest-id pending issue whose blocked_by are all done). Do NOT implement anything, do NOT write or change code, and do NOT change the issue status. Your only job: read the selected issue and the relevant code, then append a concise "## Plan" section (the implementation approach: key files, seams, and the order of work — a few sentences to a short list, not a full design doc) to that issue file, and commit ONLY that issue file with: git commit -m "plan(#ID): brief description". This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits. Ignore .pi-lens entirely. Do NOT print any RALPH_RESULT sentinel line — planning emits no sentinel.'
 
 tmux_cmd() {
   if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
@@ -978,6 +996,42 @@ set_issue_status() {
   perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
 }
 
+# Planner stage: a fresh planning session writes a ## Plan section into the next
+# eligible issue ticket and commits it as plan(#ID), so the implementer that
+# follows can read the plan instead of re-planning cold. Best-effort: planning
+# always returns 0 so it never fails an iteration; on a nonzero adapter rc we
+# just log a warning and the loop continues. The planner prints NO
+# RALPH_RESULT sentinel — run_pi_adapter treats exit 0 without a sentinel as
+# success, so the driver regexes (DONE/NO_WORK/BLOCKED/FAIL) never see it.
+run_planner() {
+  local saved_prompt="$AGENT_PROMPT"
+  local saved_reminder="$SHARED_PROMPT_REMINDER"
+  local plan_out rc=0
+
+  SHARED_PROMPT_REMINDER="$PLAN_PROMPT_REMINDER"
+  AGENT_PROMPT="Run the Ralph planning stage for exactly one issue in this repository. Select the next eligible issue per the Ralph board scan rules, append a ## Plan section to it, and commit only that issue file as plan(#ID). Do not implement. Do not change status. Print no sentinel."
+
+  plan_out=$(mktemp)
+  case "$ADAPTER" in
+    pi)
+      run_pi_adapter "$plan_out" || rc=$?
+      ;;
+    tmux)
+      run_tmux_adapter "$plan_out" "${ITERATION}p" || rc=$?
+      ;;
+  esac
+
+  if [[ $rc -ne 0 ]]; then
+    echo "⚠️  Planner stage did not complete cleanly (rc=$rc); continuing loop (planning is best-effort)" | tee -a "$LOG_FILE"
+  fi
+
+  rm -f "$plan_out"
+  AGENT_PROMPT="$saved_prompt"
+  SHARED_PROMPT_REMINDER="$saved_reminder"
+
+  return 0
+}
+
 # Spawn a fresh actionable-review/repair worker against a single issue, then
 # return so the implement loop can continue. Never fatal: if the worker cannot
 # confirm the issue it stays blocked (parked) and the loop moves on.
@@ -1164,6 +1218,7 @@ reset_active_issues_to_pending() {
   echo "Review loop: $REVIEW_LOOP"
   echo "Auto-review blocked: $AUTO_REVIEW_BLOCKED"
   echo "Review each (per-issue review on DONE): $REVIEW_EACH"
+  echo "Plan each (planner stage before implement): $PLAN_EACH"
   echo "Sleep interval: ${SLEEP_INTERVAL}s"
   echo "Ready delay: ${READY_DELAY}s"
   echo "Ready timeout: ${READY_TIMEOUT}s"
@@ -1340,6 +1395,16 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   if ! checkpoint_dirty_worktree; then
     echo "Stopping loop" | tee -a "$LOG_FILE"
     break
+  fi
+
+  # Planner stage (default on): a fresh session plans the next eligible issue and
+  # writes a committed ## Plan into its ticket before the implementer runs. Only
+  # on a fresh start (no active issue being resumed) and only when eligible
+  # pending work exists. Runs before REVIEW_BASE_SHA capture so the plan(#ID)
+  # commit is part of the review base and never pollutes the reviewer diff.
+  if [[ "$REVIEW_LOOP" != "true" && "$PLAN_EACH" == "true" && $ACTIVE_COUNT -eq 0 && $UNBLOCKED_COUNT -gt 0 ]]; then
+    echo "🧭 Planner stage: planning the next eligible issue before implementation" | tee -a "$LOG_FILE"
+    run_planner || true
   fi
 
   # Record the clean HEAD before the worker implements. The fresh reviewer must
@@ -1539,7 +1604,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
   "$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
   "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
   "$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
-  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED"; do
+  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" "$PLAN_EACH"; do
   printf -v arg_q '%q' "$arg"
   INNER_ARGS+=("$arg_q")
 done
@@ -1557,6 +1622,7 @@ echo "  Continue on error: $CONTINUE_ON_ERROR"
 echo "  Review loop: $REVIEW_LOOP"
 echo "  Auto-review blocked: $AUTO_REVIEW_BLOCKED"
 echo "  Review each (per-issue review on DONE): $REVIEW_EACH"
+echo "  Plan each (planner stage before implement): $PLAN_EACH"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo "  Ready delay: ${READY_DELAY}s"
 echo "  Ready timeout: ${READY_TIMEOUT}s"

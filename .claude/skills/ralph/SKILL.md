@@ -164,6 +164,7 @@ git status --porcelain
 Before launching any worker, `ralph-loop.sh` must start from a clean git worktree.
 
 Loop-level behavior when there are uncommitted non-ignored changes outside `.pi-lens/`:
+
 - **Auto-commit all of them before implementation starts.** This includes tracked edits, deletions, and untracked non-ignored files, after cleaning known ephemeral artifacts.
 - Run `git add -A -- . ':(exclude).pi-lens'` and commit with a checkpoint message such as `chore(ralph): checkpoint worktree before worker`.
 - Verify `git status --porcelain -- . ':(exclude).pi-lens'` is empty after the checkpoint commit.
@@ -171,6 +172,7 @@ Loop-level behavior when there are uncommitted non-ignored changes outside `.pi-
 - Ignored files and `.pi-lens/` may remain; they are outside the git worktree cleanliness gate.
 
 Worker-level behavior after launch:
+
 - Do **not** create another pre-worker checkpoint commit. The loop already did that before launching the worker.
 - Ignore `.pi-lens/` entirely. Use `git status --porcelain -- . ':(exclude).pi-lens'` for cleanliness checks.
 - If filtered `git status` is dirty before implementation, clean known ephemeral artifacts and stop with `RALPH_RESULT: FAIL #<id>` if anything remains.
@@ -188,6 +190,7 @@ Ralph may delete these untracked generated artifacts without asking because they
 - `htmlcov/`
 
 Rules:
+
 - Delete only if untracked (`git ls-files -- <path>` returns nothing).
 - Never delete tracked files or directories containing tracked files.
 - Log what was removed.
@@ -198,6 +201,7 @@ Rules:
 ### 2. Stale lock recovery
 
 Check for issues with `status: in-progress` where `updated` is older than the loop's per-issue iteration timeout (`--iteration-timeout`, default 3600s / 60 min). Do not use a shorter threshold than the iteration timeout, or a legitimately long-running worker will be treated as a stale lock and reset mid-flight.
+
 ```
 Stale lock detected: #2 Auth API (in-progress for 75 min, past the 60 min timeout)
 Reset to pending? [Y/n]
@@ -210,6 +214,7 @@ If the user confirms (or if running unattended), reset to `status: pending` and 
 Before scanning for new pending issues, check for issues with `status: in-progress` or `status: review`.
 
 If exactly one active issue exists:
+
 - Treat it as an interrupted prior Ralph run and resume it instead of declaring `0 ready`.
 - If `status: review`, run the mandatory fresh review and then mark done/blocked from the review result.
 - If `status: in-progress`, inspect the issue, recent commits, and `git status`:
@@ -222,6 +227,7 @@ If multiple active issues exist, stop and ask which one to resume. Do not reset 
 ### 3. Board validation
 
 Run a quick validation:
+
 - All `blocked_by` IDs reference existing issues
 - No cycles in the dependency graph
 - Required fields present
@@ -235,12 +241,14 @@ If validation fails, report errors and stop. Do not implement on a broken board.
 `ralph-loop.sh --review-loop` runs an action-taking reviewer/unblocker. It is not read-only. It processes exactly one issue per invocation, then prints a `RALPH_RESULT` sentinel.
 
 Selection order:
+
 1. `blocked` — attempt to fix the blocker, verify, commit, and move through review to `done` if fixed. If still blocked, update `## Blocker`, commit blocker notes, and print `RALPH_RESULT: BLOCKED #<id>`.
 2. `review` — run the review, fix any gaps found, verify, commit, and mark `done`; if not fixable, mark `blocked` with notes.
 3. `in-progress` — finish or repair the implementation, verify, commit, then review.
 4. `done` without valid `action_reviewed: YYYY-MM-DD` frontmatter — audit completed work. If correct, add `action_reviewed: <today>`, commit the issue metadata, and print `RALPH_RESULT: DONE #<id>`. If gaps are found, fix them, verify, commit, keep/mark `done`, add `action_reviewed: <today>`, and print `RALPH_RESULT: DONE #<id>`. If gaps cannot be fixed, mark `blocked` and print `RALPH_RESULT: BLOCKED #<id>`.
 
 Actionable review rules:
+
 - You may edit code, tests, issue files, and progress notes when review finds gaps or blockers.
 - Do not create another pre-worker checkpoint commit; the loop already handled that.
 - Ignore `.pi-lens/` entirely for cleanliness gates.
@@ -257,6 +265,7 @@ If no blocked, review, in-progress, or unreviewed done issue exists, print `RALP
 ### 1. Scan the board
 
 Read all `.kanban/issues/*.md` files. First resume any active `in-progress` or `review` issue per **Active issue resume** above. If there is no active issue, find issues where:
+
 - `status: pending`
 - All `blocked_by` IDs have `status: done` (or are archived)
 - All children are `done` (if this is a parent)
@@ -279,6 +288,18 @@ Verification: npm test && npm run typecheck
 3. Skip to next
 ```
 
+### Planner stage (loop only, optional)
+
+When the loop is driving Ralph and `PLAN_EACH` is on (default), a fresh planning
+session runs before the implementer: it selects the next eligible issue by the
+same scan rules (resume active; else lowest-priority-then-lowest-id pending
+issue whose `blocked_by` are all done), appends a `## Plan` section to the
+issue file, commits it as `plan(#ID): ...`, changes no status, implements
+nothing, and prints no `RALPH_RESULT` sentinel. The implementer that follows
+reads that plan in step 5 instead of re-planning. Skipped when an active issue
+is being resumed (already planned). Disable with `--no-plan-each` or
+`RALPH_PLAN_EACH=false`.
+
 ### 3. Implement (single issue, fresh context)
 
 For the selected issue:
@@ -287,16 +308,18 @@ For the selected issue:
 2. **Set `status: in-progress`** — update the issue file immediately before starting work. This makes stale lock recovery work if the session crashes mid-implementation.
 3. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
 4. **Explore** the relevant code — understand current state.
-5. **Plan** — brief implementation approach (2-3 sentences max, not a full plan doc).
+5. **Read the plan** — if the issue file has a `## Plan` section (written by the planner stage), follow it. It is the implementation approach; you do not need to re-plan.
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them. Check critical LSP diagnostics for touched files and fix real type/call/signature/import errors before proceeding; only environment-only missing-import noise may be documented instead of fixed.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:
+
    ```bash
    git status --porcelain -- . ':(exclude).pi-lens'  # should show only current issue changes
    git add <issue-file-1> <issue-file-2>             # stage only files changed for this issue
    git commit -m "feat(#ID): brief description"
    git status --porcelain -- . ':(exclude).pi-lens'  # MUST be empty after cleanup
    ```
+
    If filtered `git status` shows new uncommitted changes after this step, first clean allowed ephemeral artifacts. If anything else remains, commit or fix it before review. Do not proceed to review with uncommitted issue work.
 
    This commit is NOT optional and NOT conditional on "if the project uses git". Ralph is only invoked inside git-tracked projects. If the working dir is not a git repo, abort the whole skill at pre-flight. During normal issue commits, stage only files changed for the current issue; the loop-level pre-worker checkpoint is the only place that stages all dirty work.
@@ -337,6 +360,7 @@ For the selected issue:
    RALPH_REVIEW: PASS
    RALPH_REVIEW: PASS_WITH_NOTES
    RALPH_REVIEW: FAIL
+
    ```
 
    The reviewer reads `.kanban/issues/<file>`, diffs the implementation against the base commit (per the diff-base rules above, not `HEAD~1`), re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain -- . ':(exclude).pi-lens'` before and after review and fail if the reviewer changed files outside `.pi-lens/`.
@@ -356,6 +380,7 @@ For the selected issue:
    Use whichever local agent CLI is available. The required invariant is fresh context plus the `RALPH_REVIEW` sentinel.
 
 **Review outcomes:**
+
 - PASS → `status: done`, check all boxes, write progress
 - PASS WITH NOTES → `status: done`, but log notes for future reference
 - FAIL → `status: blocked`, add `## Blocker` section explaining what failed. Do NOT retry in this session; the user invokes Ralph again after addressing the blocker.
@@ -363,6 +388,7 @@ For the selected issue:
 ### 5. Mark done + write progress
 
 Update the issue file:
+
 - `status: done`
 - Each acceptance criterion checkbox: `- [x]`
 - `updated: <today>`
@@ -370,6 +396,7 @@ Update the issue file:
 - Add `## Implementation Notes` section with what was done
 
 Append to `.kanban/progress.md`:
+
 ```markdown
 ## #2 Auth API endpoint — 2026-04-26
 
@@ -381,6 +408,7 @@ Append to `.kanban/progress.md`:
 ```
 
 Key additions to progress notes beyond what changed:
+
 - **Conventions established** — so later issues stay consistent
 - **Decisions** — architectural choices that affect later issues
 - **Notes for next iteration** — things the next implementer needs to know
@@ -388,10 +416,11 @@ Key additions to progress notes beyond what changed:
 Progress notes are the continuity mechanism between context windows. This is how architectural decisions survive the Memento approach.
 
 **Keep `progress.md` bounded.** Every fresh session reads the whole file, so it must not grow without limit. Structure it as two parts:
+
 - A stable `# Conventions & Decisions` section at the top — the durable, still-true conventions and architectural decisions, deduplicated. Promote anything from a per-issue note that later issues must keep honoring into this section, and drop it from the chronological log.
 - A `# Iteration Log` section below — the chronological per-issue entries. When the log gets long (rough guide: more than ~30 entries or the file is uncomfortably large to read in one pass), summarize the oldest entries into one-line digests and move the full text to `.kanban/archive/progress-archive.md`. The durable facts already live in the Conventions section, so the log can be trimmed safely.
 
-### 6. Stop. One issue per invocation.
+### 6. Stop. One issue per invocation
 
 After completing an issue, report:
 
@@ -424,6 +453,7 @@ If the session is interrupted (crash, timeout, user cancel):
 ## Error handling
 
 If implementation fails:
+
 1. Do NOT mark the issue as `done` or `review`
 2. Set status to `blocked`
 3. Add a `## Blocker` section to the issue describing what went wrong
@@ -434,6 +464,7 @@ If implementation fails:
 ## Stop conditions (from Matt's AGENTS.md)
 
 Immediately stop and escalate if:
+
 - The task is ambiguous — you're not sure what to do
 - The implementation requires deleting files outside the issue's stated scope
 - Tests are failing and you can't fix them within scope
