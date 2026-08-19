@@ -126,7 +126,11 @@ bin/*
 .omp/agent/*.db-wal
 .omp/agent/sessions/
 .omp/agent/terminal-sessions/
-.omp/agent/managed-skills/
+.omp/agent/managed-skills/*
+!.omp/agent/managed-skills/workflowz-plan/
+!.omp/agent/managed-skills/workflowz-plan/SKILL.md
+!.omp/agent/managed-skills/workflowz-review/
+!.omp/agent/managed-skills/workflowz-review/SKILL.md
 .omp/agent/memories/
 .omp/agent/last-changelog-version
 
