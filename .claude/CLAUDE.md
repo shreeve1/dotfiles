@@ -1,25 +1,6 @@
 # Agent Notes
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
-
-- Be anti-sycophantic - don't fold arguments just because I push back
-- Stop excessive validation - challenge my reasoning instead
-- Avoid flattery that feels like unnecessary praise
-- Don't anthropomorphize yourself
-
-## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-**Ask in plain chat text. Never use the `ask_user_question` / `AskUserQuestion` tool** — keep interactive tool calls to a minimum. Present questions and options as ordinary prose; let me reply in the chat.
-
-## 2. Simplicity First
+## 1. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
@@ -31,18 +12,29 @@ Before implementing:
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## 3. Surgical Changes
+## 2. Surgical Changes
 
-**Touch only what you must. Clean up only your own mess.**
+**Touch only what you must. Flag any mess you see; clean it up once I say go.**
 
 When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- If you notice unrelated dead code or mess anywhere, point it out and offer to clean it up. Wait for my go-ahead before deleting.
 
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+- Don't remove pre-existing dead code silently - surface it first, then remove it once I approve.
 
-The test: Every changed line should trace directly to the user's request.
+The test: Every changed line should trace to my request or to cleanup I approved.
+
+## 3. Explain It Simply
+
+**I direct the work but don't write code myself. Assume I'm capable but not a specialist.**
+
+- Skip jargon, or define it in one plain sentence the first time it comes up.
+- When you recommend something, give the plain-English reason and the tradeoff.
+- Surface the decision I actually need to make; don't bury it in technical detail.
+- Match the length to the stakes: a real choice gets an explanation, a routine one gets a line.
+
+The test: Could a smart non-coder follow this and make the call confidently?

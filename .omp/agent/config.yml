@@ -1,17 +1,17 @@
 setupVersion: 1
 modelRoles: 
-  default: deepseek/deepseek-v4-flash:high
+  default: openai-codex/gpt-5.6-terra:medium
   smol: minimax/MiniMax-M3:low
   vision: cliproxy/claude-sonnet-4-6:high
   advisor: openai-codex/gpt-5.6-sol:high
   task: minimax/MiniMax-M3:high
-  slow: cliproxy/claude-opus-4-8:high
+  slow: openai-codex/gpt-5.6-sol:high
   designer: cliproxy/claude-opus-4-8:high
   commit: minimax/MiniMax-M3:low
   tiny: minimax/MiniMax-M3:low
   plan: cliproxy/claude-opus-4-8:high
 theme: 
-  dark: dark-retro
+  dark: neon80s
 statusLine: 
   separator: powerline
   preset: compact
