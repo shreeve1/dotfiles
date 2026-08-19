@@ -1,0 +1,27 @@
+setupVersion: 1
+modelRoles: 
+  default: deepseek/deepseek-v4-flash:high
+  smol: minimax/MiniMax-M3:low
+  vision: cliproxy/claude-sonnet-4-6:high
+  advisor: openai-codex/gpt-5.6-sol:high
+  task: minimax/MiniMax-M3:high
+  slow: cliproxy/claude-opus-4-8:high
+  designer: cliproxy/claude-opus-4-8:high
+  commit: minimax/MiniMax-M3:low
+  tiny: minimax/MiniMax-M3:low
+  plan: cliproxy/claude-opus-4-8:high
+theme: 
+  dark: dark-retro
+statusLine: 
+  separator: powerline
+  preset: compact
+memory: 
+  backend: local
+autolearn: 
+  enabled: true
+  autoContinue: true
+astGrep: 
+  enabled: true
+task: 
+  eager: always
+  enableLsp: true
