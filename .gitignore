@@ -118,8 +118,16 @@ bin/*
 .codex/memories/
 .codex/skills/.system/
 
-# oh-my-pi (omp) runtime/config is machine-local
-.omp/
+# oh-my-pi (omp) — track config, ignore secrets and runtime state
+# Live models.yml holds a real apiKey; commit models.yml.template instead.
+.omp/agent/models.yml
+.omp/agent/*.db
+.omp/agent/*.db-shm
+.omp/agent/*.db-wal
+.omp/agent/sessions/
+.omp/agent/terminal-sessions/
+.omp/agent/managed-skills/
+.omp/agent/last-changelog-version
 
 # Backup / temp files
 *.bak

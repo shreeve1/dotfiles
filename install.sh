@@ -300,6 +300,14 @@ else
   printf 'warn: Pi subagent setup incomplete; pull latest dotfiles and rerun bash install.sh\n'
 fi
 
+# ─── oh-my-pi (omp) Agent ──────────────────────────────────
+# Symlink the whole agent dir into the repo. Runtime state (dbs, sessions,
+# terminal-sessions) and the live models.yml live inside it but are
+# gitignored. The live models.yml carries a real apiKey, so it is seeded
+# from models.yml.template (copy, not link) and edited locally.
+link_path ".omp/agent" ".omp/agent"
+seed_path ".omp/agent/models.yml.template" ".omp/agent/models.yml"
+
 # Pi uses ~/.pi/agent/package.json for extension/runtime dependencies. On fresh
 # machines, install deps for ~/.pi/agent and any extension package with its own
 # package.json. Set INSTALL_PI_NPM=0 to skip network installs, or
