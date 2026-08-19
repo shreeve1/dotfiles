@@ -25,3 +25,7 @@ astGrep:
 task: 
   eager: always
   enableLsp: true
+  agentModelOverrides:
+    scout: "@smol"
+    task: "@task"
+    reviewer: "@task"
