@@ -127,6 +127,7 @@ bin/*
 .omp/agent/sessions/
 .omp/agent/terminal-sessions/
 .omp/agent/managed-skills/
+.omp/agent/memories/
 .omp/agent/last-changelog-version
 
 # Backup / temp files
