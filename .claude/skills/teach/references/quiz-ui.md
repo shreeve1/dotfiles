@@ -80,4 +80,4 @@ question
 
 ## Scoring after the tool returns
 
-Map the selected label to A/B/C/D only in the **map file**, not in the next chat turn as a new quiz. Then update `.alvar/maps/<slug>.md` and continue.
+Map the selected label to A/B/C/D only in the **map file**, not in the next chat turn as a new quiz. Then update `.teach/<subject>/maps/<slug>.md` and continue.

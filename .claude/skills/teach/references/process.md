@@ -14,7 +14,7 @@ Measure the edge of understanding before teaching.
 - Ask 1–3 questions at a time. Wait for the tool. Do not dump a long exam.
 - Let the learner talk through reasoning in a note or in chat. Treat that as signal.
 - If they already stated solid ground, skip those strands.
-- Write the map to `.alvar/maps/<topic>.md`.
+- Write the map to `.teach/<subject>/maps/<topic>.md`.
 - A long probe is a feature when context is thin. It is also a warm-up.
 
 Stop when each dependency strand is labeled `known`, `edge`, `unknown`, or `blocked`.
@@ -27,7 +27,7 @@ Reason how to teach **this mind** **this goal**. Do not wing it.
 - Start from `known`. Path through `edge`. Do not start in `unknown` with no ramp.
 - Verify claims the plan will treat as fact (use `learn-verify` when the domain is empirical, historical, or you are unsure). Math still gets a pass for named theorems if you would otherwise invent them.
 - Show the plan as a mermaid graph **before** teaching. Two jobs: the learner sees what is coming; the graph forces you to finish the reasoning.
-- Write the plan into `.alvar/sessions/<date>-<topic>.md`.
+- Write the plan into `.teach/<subject>/sessions/<date>-<topic>.md`.
 - Ask if they want the graph changed. Then freeze it until a quiz failure forces a new node.
 
 ## Phase 3 — Teach

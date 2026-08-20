@@ -20,6 +20,6 @@ Fill this in (or let `/learn-profile` interview you). The teacher reads it every
 - Current: _
 
 ## Artifacts
-- Write maps and sessions under `.alvar/`
+- Write maps and sessions under `.teach/<subject>/` (LEARNER.md stays at `.teach/`)
 - Visuals: SVG when a picture would lock the idea
 - I read session markdown in: editor / Obsidian / other
