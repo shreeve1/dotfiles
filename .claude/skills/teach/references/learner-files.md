@@ -3,14 +3,15 @@
 All session state lives in the **learner's working directory**, not in this skill repo.
 
 ```
-.alvar/
-  LEARNER.md                 # how this mind wants to be taught
-  maps/<slug>.md             # probe results for one goal
-  sessions/<date>-<slug>.md  # plan + steps + quizzes
-  visuals/<slug>-<n>.svg     # diagrams from learn-visual
+.teach/
+  LEARNER.md                       # how this mind wants to be taught (shared across subjects)
+  <subject>/                       # one folder per subject, e.g. .teach/linear-algebra/
+    maps/<slug>.md                 # probe results for one goal
+    sessions/<date>-<slug>.md      # plan + steps + quizzes
+    visuals/<slug>-<n>.svg         # diagrams from learn-visual
 ```
 
-Create `.alvar/` on first use.
+Create `.teach/` on first use, and `.teach/<subject>/` when a subject begins. Pick a short kebab-case `<subject>` slug from the goal and confirm it with the learner so multiple subjects stay separate. `LEARNER.md` is shared across all subjects; maps, sessions, and visuals are scoped to their subject folder.
 
 ## LEARNER.md
 
