@@ -50,6 +50,122 @@ function messageText(content: unknown): string {
     .join("\n")
     .trim();
 }
+type LedgerCall = { name: string; args: object };
+
+const INTERNAL_URI_PREFIXES = ["local://", "artifact://", "xd://"];
+const VERIFICATION_RE =
+  /^(?:(?:uv\s+run\s+)?pytest|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|bun\s+test|vitest|jest|mocha|cargo\s+test|go\s+test|make\s+(?:test|build)|(?:npm|pnpm|yarn|bun)\s+run\s+build|cargo\s+build|go\s+build|eslint|biome\s+lint|ruff\s+check|cargo\s+clippy|golangci-lint\s+run|prettier\s+--check|tsc|mypy)\b/;
+
+function verificationOutcome(content: unknown): string {
+  const text = messageText(content);
+  const testSummary = text.match(
+    /\b\d+ passed(?:,\s*\d+ skipped)?(?:\s+in\s+[\d.]+s)?\b/,
+  );
+  if (testSummary) return testSummary[0];
+  return text.split("\n").map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 100) || "ok";
+}
+
+function buildWorkRecord(
+  entries: readonly SessionEntry[],
+  sessionsDir: string,
+): string {
+  const calls = new Map<string, LedgerCall>();
+  const modified: string[] = [];
+  const verified: string[] = [];
+  const progress: string[] = [];
+  let todo: string | null = null;
+
+  for (const entry of entries) {
+    if (entry.type !== "message") continue;
+    const message: unknown = entry.message;
+    if (!message || typeof message !== "object" || !("role" in message)) continue;
+
+    if (message.role === "assistant" && "content" in message && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (!block || typeof block !== "object" || !("type" in block)) continue;
+        if (
+          block.type === "toolCall" &&
+          "id" in block && typeof block.id === "string" &&
+          "name" in block && typeof block.name === "string" &&
+          "arguments" in block && block.arguments && typeof block.arguments === "object"
+        ) {
+          calls.set(block.id, { name: block.name, args: block.arguments });
+        } else if (block.type === "text" && "text" in block && typeof block.text === "string") {
+          const text = block.text.trim().replace(/\s+/g, " ");
+          if (text) progress.push(text.slice(0, 140));
+        }
+      }
+      continue;
+    }
+
+    if (
+      message.role !== "toolResult" ||
+      !("toolCallId" in message) || typeof message.toolCallId !== "string" ||
+      !("toolName" in message) || typeof message.toolName !== "string" ||
+      ("isError" in message && message.isError === true)
+    ) {
+      continue;
+    }
+
+    const call = calls.get(message.toolCallId);
+    const content = "content" in message ? message.content : undefined;
+    if (message.toolName === "todo") {
+      const match = messageText(content).match(
+        /Overall:\s*(\d+)\/(\d+)\s+done,\s*(\d+)\s+open/i,
+      );
+      if (match) todo = `${match[1]} done, ${match[3]} open`;
+    }
+    if (!call) continue;
+
+    if (call.name === "bash" && "command" in call.args && typeof call.args.command === "string") {
+      if (VERIFICATION_RE.test(call.args.command) && verified.length < 5) {
+        verified.push(`\`${call.args.command}\` — ${verificationOutcome(content)}`);
+      }
+      continue;
+    }
+
+    const paths =
+      call.name === "edit" && "input" in call.args && typeof call.args.input === "string"
+        ? [...call.args.input.matchAll(/^\[([^#\]]+)#[0-9A-F]{4}\]$/gm)].map((match) => match[1])
+        : call.name === "write" && "path" in call.args && typeof call.args.path === "string"
+          ? [call.args.path]
+          : call.name === "ast_edit" && "paths" in call.args && Array.isArray(call.args.paths)
+            ? call.args.paths.filter((path): path is string => typeof path === "string")
+            : call.name === "lsp" && "action" in call.args && "file" in call.args &&
+                typeof call.args.file === "string" &&
+                (call.args.action === "rename_file" ||
+                  (call.args.action === "rename" &&
+                    (!("apply" in call.args) || call.args.apply !== false)) ||
+                  (call.args.action === "code_actions" &&
+                    "apply" in call.args && call.args.apply === true))
+              ? [call.args.file]
+              : [];
+    for (const path of paths) {
+      if (
+        INTERNAL_URI_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+        path.startsWith(`${sessionsDir}/`) ||
+        path.startsWith(".sessions/") ||
+        modified.includes(path)
+      ) {
+        continue;
+      }
+      modified.push(path);
+    }
+  }
+
+  progress.pop(); // Final assistant response is written below, not duplicated here.
+  const sections: string[] = [];
+  if (modified.length) {
+    const displayed = modified.slice(0, 10).map((path) => `\`${path}\``);
+    if (modified.length > displayed.length) displayed.push(`+${modified.length - displayed.length} more`);
+    sections.push(`**Modified**: ${displayed.join(", ")}`);
+  }
+  if (verified.length) sections.push(`**Verified**: ${verified.join("; ")}`);
+  if (todo) sections.push(`**Todo state**: ${todo}`);
+  if (progress.length) sections.push(`**Reported progress**: ${progress.slice(-3).join(" | ")}`);
+  return sections.length ? `\n## Work record\n\n${sections.join("\n")}\n` : "";
+}
+
 
 async function makeSlug(
   ctx: ExtensionContext,
@@ -188,7 +304,7 @@ export default function (pi: ExtensionAPI) {
           n = 1;
         }
       }
-      const iso = new Date().toISOString();
+      const workRecord = buildWorkRecord(entries, dir);
 
       mkdirSync(dir, { recursive: true });
 
@@ -197,9 +313,9 @@ export default function (pi: ExtensionAPI) {
         out += `# Session ${sessionId}\n\n- cwd: ${ctx.cwd}\n- started: ${iso}\n`;
       }
       out +=
-        `\n## Turn ${n} — ${iso}\n\n` +
-        `**Prompt:**\n\n${prompt}\n\n` +
-        `**Response:**\n\n${answer}\n\n---\n`;
+        `**Prompt:**\n\n${prompt}\n` +
+        workRecord +
+        `\n**Response:**\n\n${answer}\n\n---\n`;
 
       appendFileSync(outFile, out);
       turnCounts.set(sessionId, { file: outFile, n });
