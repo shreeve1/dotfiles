@@ -27,7 +27,7 @@ Skip a full search only when you can derive the statement in-session and the lea
 ## Method
 
 1. Write the claim in one falsifiable sentence.
-2. Fetch or search primary-ish sources (paper, textbook, official docs, standard reference). Do not cite a URL you did not open.
+2. Search sources with the `web_search` tool, then open the best hits with `read` (paper, textbook, official docs, standard reference). Do not cite a URL you did not open.
 3. Quote or paraphrase the supporting line. Note edition / year if it matters.
 4. Mark disagreements. Prefer the source the field actually uses.
 5. Return a verdict.
