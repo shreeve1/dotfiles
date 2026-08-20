@@ -4,7 +4,6 @@ import type {
   SessionEntry,
 } from "@oh-my-pi/pi-coding-agent";
 import { completeSimple } from "@oh-my-pi/pi-ai";
-import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
@@ -149,12 +148,10 @@ export default function (pi: ExtensionAPI) {
       const root = findProjectRoot(ctx.cwd);
       const dir = join(root, SESSIONS_DIRNAME);
       const base = basename(sessionFile);
-      const isoPrefix = base.slice(0, base.indexOf("_"));
-      const date = isoPrefix.includes("T")
-        ? isoPrefix.slice(0, isoPrefix.indexOf("T"))
-        : isoPrefix;
-      const hash6 = createHash("sha1").update(sessionId).digest("hex").slice(0, 6);
-      const uuidName = `${date}_${sessionId}.md`;
+      const sessionStart = base.slice(0, base.indexOf("_"));
+      const startTime = sessionStart.includes("T")
+        ? sessionStart.slice(0, 19).replace("T", "_")
+        : sessionStart;
       const cached = turnCounts.get(sessionId);
       let outFile: string;
       let n: number;
@@ -168,7 +165,8 @@ export default function (pi: ExtensionAPI) {
           try {
             existing = readdirSync(dir).find(
               (entry) =>
-                entry.endsWith(`-${hash6}.md`) || entry.endsWith(`_${sessionId}.md`),
+                (entry.startsWith(`${startTime}_`) && entry.endsWith(".md")) ||
+                entry.endsWith(`_${sessionId}.md`),
             );
           } catch {
             // Treat an unreadable sessions directory as having no existing log.
@@ -185,7 +183,7 @@ export default function (pi: ExtensionAPI) {
             .replace(/^-+|-+$/g, "")
             .slice(0, 40)
             .replace(/-+$/, "");
-          const fileName = slug ? `${date}_${slug}-${hash6}.md` : uuidName;
+          const fileName = slug ? `${startTime}_${slug}.md` : `${startTime}_${sessionId}.md`;
           outFile = join(dir, fileName);
           n = 1;
         }
