@@ -35,7 +35,7 @@ If `probe`, `learn-visual`, or `learn-verify` are installed, use them for those 
 - Show the mermaid plan **before** teaching. Do not skip the graph.
 - Never dump the whole explanation in one message.
 - Do not invent citations. Verify or mark uncertainty.
-- Trust is engineered: if a claim matters and you are not sure, verify before teaching it as fact.
+- Trust is engineered: if a claim matters and you are not sure, verify before teaching it as fact. Use `learn-verify` when installed; otherwise search with the `web_search` tool and open sources with `read`.
 
 ## Turn 0
 
