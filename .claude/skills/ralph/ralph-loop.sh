@@ -424,6 +424,7 @@ cd "$PROJECT_DIR"
 # aborts the whole (sole-session) driver and the tmux server vanishes.
 REVIEW_BASE_SHA=""
 BASE_REMINDER=""
+PLAN_MODE=false
 
 # Prompt framing used when an inline auto-review/repair worker is spawned for a
 # blocked issue. Mirrors the review-loop reminder built by the outer script.
@@ -431,7 +432,7 @@ REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue i
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 
-PLAN_PROMPT_REMINDER='Run the Ralph PLANNING stage for exactly one issue in this repository. Select the next eligible issue using the Ralph board scan rules (resume any active in-progress/review issue; otherwise the lowest-priority-then-lowest-id pending issue whose blocked_by are all done). Do NOT implement anything, do NOT write or change code, and do NOT change the issue status. Your only job: read the selected issue and the relevant code, then append a concise "## Plan" section (the implementation approach: key files, seams, and the order of work — a few sentences to a short list, not a full design doc) to that issue file, and commit ONLY that issue file with: git commit -m "plan(#ID): brief description". This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits. Ignore .pi-lens entirely. Do NOT print any RALPH_RESULT sentinel line — planning emits no sentinel.'
+PLAN_PROMPT_REMINDER='Run the Ralph PLANNING stage for exactly one issue in this repository. Select the next eligible issue using the Ralph board scan rules (resume any active in-progress/review issue; otherwise the lowest-priority-then-lowest-id pending issue whose blocked_by are all done). Do NOT implement anything, do NOT write or change code, and do NOT change the issue status. Your only job: read the selected issue and the relevant code, then append a concise "## Plan" section (the implementation approach: key files, seams, and the order of work — a few sentences to a short list, not a full design doc) to that issue file, and commit ONLY that issue file with: git commit -m "plan(#ID): brief description". This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits. Ignore .pi-lens entirely. As the only final line, print the planner sentinel exactly: RALPH_RESULT: PLAN #<id> (the id of the issue you planned). Do NOT print a DONE, NO_WORK, BLOCKED, or FAIL sentinel — PLAN is the planner'\''s only terminal line.'
 
 tmux_cmd() {
   if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
@@ -654,6 +655,16 @@ has_hard_fail_result() {
   grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
+# Planner-stage terminal sentinel. The planner writes no DONE/NO_WORK/BLOCKED/
+# FAIL line (it changes no status and implements nothing), so the tmux adapter
+# would otherwise never see a completion signal and would nudge the finished
+# worker until the stall cap. run_planner sets PLAN_MODE=true and the adapter
+# treats this line as terminal success.
+has_plan_result() {
+  local file="$1"
+  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: PLAN(:| #)?[[:space:]]*#?[0-9A-Za-z]*[[:space:]]*$' "$file" 2>/dev/null
+}
+
 # A BLOCKED sentinel is non-fatal (keep looping instead of stopping) when running
 # the review loop, when --skip-blocked is set, or when auto-review-blocked is on
 # (in which case the main loop will spawn an inline repair worker first), as long
@@ -834,6 +845,11 @@ run_tmux_adapter() {
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
         return 0
       fi
+      if [[ "$PLAN_MODE" == "true" ]] && has_plan_result "$output_file"; then
+        rm -f "$result_file"
+        tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+        return 0
+      fi
       if blocked_is_skippable "$output_file"; then
         rm -f "$result_file"
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
@@ -850,6 +866,12 @@ run_tmux_adapter() {
     printf '%s\n' "$pane" > "$output_file"
 
     if has_success_result "$output_file"; then
+      cat "$output_file" >> "$LOG_FILE"
+      tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
+      return 0
+    fi
+
+    if [[ "$PLAN_MODE" == "true" ]] && has_plan_result "$output_file"; then
       cat "$output_file" >> "$LOG_FILE"
       tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
       return 0
@@ -1001,17 +1023,22 @@ set_issue_status() {
 # follows can read the plan instead of re-planning cold. Best-effort: planning
 # always returns 0 so it never fails an iteration; on a nonzero adapter rc we
 # just log a warning and the loop continues. The planner prints NO
-# RALPH_RESULT sentinel — run_pi_adapter treats exit 0 without a sentinel as
-# success, so the driver regexes (DONE/NO_WORK/BLOCKED/FAIL) never see it.
+# DONE/NO_WORK/BLOCKED/FAIL sentinel (it changes no status and implements
+# nothing). Instead it emits a distinct `RALPH_RESULT: PLAN #<id>`
+# line: for the pi adapter that line is ignored (exit 0 without a
+# DONE/NO_WORK/BLOCKED/FAIL match is success); for the tmux adapter PLAN_MODE
+# makes has_plan_result terminal, so the finished planner is not nudged until
+# the stall cap. PLAN_MODE is scoped to the adapter call and always cleared.
 run_planner() {
   local saved_prompt="$AGENT_PROMPT"
   local saved_reminder="$SHARED_PROMPT_REMINDER"
   local plan_out rc=0
 
   SHARED_PROMPT_REMINDER="$PLAN_PROMPT_REMINDER"
-  AGENT_PROMPT="Run the Ralph planning stage for exactly one issue in this repository. Select the next eligible issue per the Ralph board scan rules, append a ## Plan section to it, and commit only that issue file as plan(#ID). Do not implement. Do not change status. Print no sentinel."
+  AGENT_PROMPT="Run the Ralph planning stage for exactly one issue in this repository. Select the next eligible issue per the Ralph board scan rules, append a ## Plan section to it, and commit only that issue file as plan(#ID). Do not implement. Do not change status. As the only final line, print the planner sentinel exactly: RALPH_RESULT: PLAN #<id> (the id of the issue you planned). Do NOT print DONE, NO_WORK, BLOCKED, or FAIL."
 
   plan_out=$(mktemp)
+  PLAN_MODE=true
   case "$ADAPTER" in
     pi)
       run_pi_adapter "$plan_out" || rc=$?
@@ -1020,6 +1047,7 @@ run_planner() {
       run_tmux_adapter "$plan_out" "${ITERATION}p" || rc=$?
       ;;
   esac
+  PLAN_MODE=false
 
   if [[ $rc -ne 0 ]]; then
     echo "⚠️  Planner stage did not complete cleanly (rc=$rc); continuing loop (planning is best-effort)" | tee -a "$LOG_FILE"
