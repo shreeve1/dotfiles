@@ -117,3 +117,61 @@ PreToolUse hook denial (Claude has no Pi-style `setActiveTools`). See
 - **Switch**: `claude` key in `~/.config/fusion/config.json` (falls back to
   `defaultMode`); read live per call; human-driven only (the caged brain
   cannot unblock itself); `.claude/.fusion-off` per-project escape hatch.
+
+## Orchestration mode — omp Fusion
+
+**omp Fusion** ports Fusion's intent to Oh My Pi (`omp`): the same
+shrink-the-orchestrator design as Pi Fusion, adapted to omp's runtime. The
+main agent owns intent / architecture / spec / diff review / verification
+and delegates all discovery and mutation to children via the built-in
+`task` tool. Extension: `.omp/agent/extensions/fusion/index.ts` (a separate
+file from the Pi original — the child-detection mechanism differs; see
+`docs/adr/0006-omp-fusion.md`). Activation mirrors Pi: `/fusion on|off|status`,
+`/fusion default on|off`, CLI flag `omp --fusion`.
+
+**Orchestrator session** — the top-level omp session Fusion enforces on.
+Identified by its `sessionManager.getSessionId()`, captured (claimed) the
+first time the extension activates. Every later `tool_call` /
+`before_agent_start` handler enforces only when the handler's own session id
+equals the claimed one.
+_Avoid_: "parent process" — omp runs children in-process, so process
+identity does not distinguish orchestrator from worker.
+
+**Child session** — an in-process subagent session created by the `task`
+tool via `createAgentSession`. It has its own `SessionManager` (distinct
+session id) and `hasUI: false`, and it loads the same user extensions as the
+orchestrator. Because its session id differs from the claimed orchestrator
+id, Fusion's enforcement handlers no-op inside it — the omp equivalent of Pi
+Fusion's `PI_SUBAGENT_CHILD=1` self-disable.
+
+**Orchestrator allowed tools** while omp Fusion is active: `read`, `task`,
+`todo`, `hub`. No `bash`, `edit`, or `write` on the orchestrator — omp has
+no read-only bash gate to port; withholding `bash` entirely is the
+enforcement. Verification bash runs inside children, not the orchestrator.
+_Avoid_: "parent allowlist includes bash (restricted)" — that is the Pi
+model, not omp Fusion.
+
+**Roles under omp Fusion** — models are wired in `.omp/agent/config.yml`,
+never in the extension or agent frontmatter (a frontmatter `model:` pin
+shadows the override):
+
+- `scout` — pre-work code discovery (read-only); built-in agent.
+- `task` — the worker; the only writer per file set; built-in agent
+  (model override `@task` → minimax-m3).
+- `planner` — created for omp (no bundled planner ships); writes `plan.md`
+  as the worker's spec; model override → claude-opus-4-8.
+- `reviewer` — risk-based review only; built-in agent; model override →
+  claude-opus-4-8 (initial setup).
+
+Role model map (all in `config.yml`, so it travels with the repo):
+orchestrator = `modelRoles.default` (deepseek-v4-flash); `task` = minimax-m3;
+`planner` = claude-opus-4-8; `reviewer` = claude-opus-4-8.
+
+**Repo-tracked default** — unlike Pi Fusion, whose `defaultMode` lives in the
+un-synced `$XDG_CONFIG_HOME/fusion/config.json`, omp Fusion reads its
+default from a git-tracked `.omp/agent/fusion.json` (`{ "defaultMode":
+"on|off" }`) resolved relative to the repo root, so a `git pull` on another
+machine reproduces the default-on behavior with no local setup. `/fusion
+default on` writes that tracked file. State precedence on session start:
+latest `fusion-state` session entry > `--fusion` flag > `.omp/agent/fusion.json`
+> off.
