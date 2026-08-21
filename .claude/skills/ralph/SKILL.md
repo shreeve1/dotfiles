@@ -28,13 +28,13 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default Pi agent (uses Pi's configured default model)
+tralph                                      # normal tmux, default Pi agent (uses minimax/MiniMax-M3)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --no-auto-review-blocked             # disable inline auto-repair; a BLOCKED issue stops the loop
 tralph --no-review-each                     # disable the default per-issue review on DONE (trust the implementer)
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'pi --model deepseek/deepseek-v4-pro' tmux  # explicit model override
+tralph --agent-cmd 'pi --model minimax/MiniMax-M3' tmux  # explicit model override
 tralph pi                                   # Pi non-interactive adapter
 ```
 

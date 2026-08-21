@@ -333,8 +333,8 @@ alias tmk='tmux kill-session -t'
 
 # Ralph loop - background tmux session running /ralph until all issues done
 tralph() {
-	RALPH_MODEL="${RALPH_MODEL:-deepseek/deepseek-v4-flash}" \
-	RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-deepseek/deepseek-v4-flash}" \
+	RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}" \
+	RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-minimax/MiniMax-M3}" \
 		~/.claude/skills/ralph/ralph-loop.sh "$@"
 }
 
