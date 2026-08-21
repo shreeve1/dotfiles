@@ -1,0 +1,28 @@
+[Unit]
+Description=Ralph loop supervisor (keeps the Ralph driver tmux session alive)
+Documentation=file:///home/james/.claude/skills/ralph/ralph-supervise.sh
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/james/symphony
+# Driver + workers run on the user's default tmux server, so they stay
+# attachable (tmux attach -t ralph-loop). PATH includes the npm-global bin so
+# the worker `pi` binary resolves; TMUX_TMPDIR pins the default socket.
+Environment=PATH=/home/james/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TMUX_TMPDIR=/tmp
+Environment=RALPH_SESSION_NAME=ralph-loop
+Environment=RALPH_MODEL=minimax/MiniMax-M3
+Environment=RALPH_REVIEW_MODEL=minimax/MiniMax-M3
+# Worktree isolation: runs in ~/symphony-ralph on branch ralph/run, branched
+# from ~/symphony main, so the live checkout symphony-host runs from is never
+# touched. Land a finished batch with the rpiv-merge skill (ralph/run -> main).
+Environment=RALPH_BASE_REPO=/home/james/symphony
+Environment=RALPH_WORKTREE=/home/james/symphony-ralph
+Environment=RALPH_BRANCH=ralph/run
+ExecStart=/home/james/.claude/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
