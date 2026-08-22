@@ -7,9 +7,12 @@ After=default.target
 Type=simple
 WorkingDirectory=/home/james/symphony
 # Driver + workers run on the user's default tmux server, so they stay
-# attachable (tmux attach -t ralph-loop). PATH includes the npm-global bin so
-# the worker `pi` binary resolves; TMUX_TMPDIR pins the default socket.
-Environment=PATH=/home/james/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# attachable (tmux attach -t ralph-loop). PATH includes the bun and npm-global bins so
+# the worker `omp` binary resolves; TMUX_TMPDIR pins the default socket.
+Environment=PATH=/home/james/.bun/bin:/home/james/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# Worker model credentials (MINIMAX_API_KEY); '-' prefix keeps the unit bootable
+# on machines without the file.
+EnvironmentFile=-%h/.config/ralph-loop.env
 Environment=TMUX_TMPDIR=/tmp
 Environment=RALPH_SESSION_NAME=ralph-loop
 Environment=RALPH_MODEL=minimax/MiniMax-M3
