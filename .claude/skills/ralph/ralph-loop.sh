@@ -251,6 +251,21 @@ if [[ "$SESSION_NAME" =~ [.:] ]]; then
   echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
   exit 1
 fi
+IMPLEMENT_SKILL_DIR="$(dirname "$SKILL_DIR")/implement"
+# Load+invoke the implement skill only when we control the worker pi command and
+# the skill is present. For the pi adapter run_pi_adapter always builds the
+# command, so we can always add it. For the tmux adapter we only build AGENT_CMD
+# when neither --agent-cmd nor RALPH_AGENT_CMD is set; if the user supplied their
+# own command we cannot guarantee the skill is loaded, so don't invoke it (a
+# /skill:implement prefix would otherwise pass through as literal text).
+USE_IMPLEMENT_SKILL=false
+if [[ -f "$IMPLEMENT_SKILL_DIR/SKILL.md" ]]; then
+  if [[ "$ADAPTER" == "pi" ]]; then
+    USE_IMPLEMENT_SKILL=true
+  elif [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
+    USE_IMPLEMENT_SKILL=true
+  fi
+fi
 
 if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
   printf -v skill_dir_q '%q' "$SKILL_DIR"
@@ -259,8 +274,15 @@ if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT"
     printf -v model_q '%q' "$RALPH_MODEL"
     AGENT_CMD="pi --model $model_q --skill $skill_dir_q"
   fi
+  if [[ "$USE_IMPLEMENT_SKILL" == "true" ]]; then
+    printf -v impl_skill_q '%q' "$IMPLEMENT_SKILL_DIR"
+    AGENT_CMD="$AGENT_CMD --skill $impl_skill_q"
+  fi
 fi
 
+if [[ "$USE_IMPLEMENT_SKILL" == "true" && "$REVIEW_LOOP" != "true" && "$AGENT_PROMPT" != /skill:* ]]; then
+  AGENT_PROMPT="/skill:implement $AGENT_PROMPT"
+fi
 case "$ADAPTER" in
 pi | tmux)
   ;;
@@ -410,6 +432,8 @@ RALPH_REVIEW_MODEL="${23:-}"
 AGENT_CMD_EXPLICIT="${24:-false}"
 SKIP_BLOCKED="${25:-false}"
 PLAN_EACH="${26:-true}"
+IMPLEMENT_SKILL_DIR="${27:-}"
+USE_IMPLEMENT_SKILL="${28:-false}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -685,10 +709,14 @@ run_pi_adapter() {
   local output_file="$1"
   local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"
   local cmd
+  local -a skill_args=(--skill "$SKILL_DIR")
+  if [[ "$USE_IMPLEMENT_SKILL" == "true" ]]; then
+    skill_args+=(--skill "$IMPLEMENT_SKILL_DIR")
+  fi
   if [[ -n "$RALPH_MODEL" ]]; then
-    cmd=(pi --no-session --model "$RALPH_MODEL" --skill "$SKILL_DIR" -p "$full_prompt")
+    cmd=(pi --no-session --model "$RALPH_MODEL" "${skill_args[@]}" -p "$full_prompt")
   else
-    cmd=(pi --no-session --skill "$SKILL_DIR" -p "$full_prompt")
+    cmd=(pi --no-session "${skill_args[@]}" -p "$full_prompt")
   fi
   local rc=0
   PI_SUBAGENT_CHILD=1 "${cmd[@]}" 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
@@ -1632,7 +1660,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
   "$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
   "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
   "$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
-  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" "$PLAN_EACH"; do
+  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" "$PLAN_EACH" "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL"; do
   printf -v arg_q '%q' "$arg"
   INNER_ARGS+=("$arg_q")
 done
