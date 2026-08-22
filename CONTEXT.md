@@ -32,6 +32,11 @@ Requires a "what's missing?" stance and benefits from re-reading the code fresh.
 Expensive; run at task boundaries, not every turn.
 _Avoid_: gap analysis, audit.
 
+**Verification gate (Ralph)**:
+The ralph-loop driver re-runs an issue's `## Verification` command after the
+DONE sentinel and overrides done→blocked on failure; deterministic, complements
+(not replaces) the fresh-session review.
+
 ## Context axis
 
 **In-band verifier**:
