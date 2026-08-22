@@ -23,17 +23,17 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 `ralph-loop.sh` can drive Ralph repeatedly with either:
 
 - `tmux` — generic interactive agent controlled with `tmux send-keys` (default, normal tmux server)
-- `pi` — fresh non-interactive Pi turn per issue
+- `omp` — fresh non-interactive omp turn per issue
 
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default Pi agent (uses minimax/MiniMax-M3)
+tralph                                      # normal tmux, default omp agent (uses minimax/MiniMax-M3)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'pi --model minimax/MiniMax-M3' tmux  # explicit model override
-tralph pi                                   # Pi non-interactive adapter
+tralph --agent-cmd 'omp --model minimax/MiniMax-M3' tmux  # explicit model override
+tralph omp                                  # omp non-interactive adapter
 ```
 
 ### Driver verification gate (on DONE)
@@ -55,7 +55,7 @@ sees it.
 
 ### Stall handling (tmux adapter)
 
-Pi workers sometimes auto-compact at high context and then sit idle instead of
+Workers sometimes auto-compact at high context and then sit idle instead of
 resuming the turn — previously the driver would poll fruitlessly until the
 `ITERATION_TIMEOUT` (3600s) and waste the whole hour. The tmux monitor now
 detects this: it hashes the visible pane each poll, and if the pane is
@@ -300,11 +300,11 @@ For the selected issue:
    Concrete spawn examples:
 
    ```bash
-   # Pi non-interactive reviewer
-   pi --no-session -p "$(cat reviewer-prompt.txt)"
+   # omp non-interactive reviewer
+   omp --no-extensions --no-session -p "$(cat reviewer-prompt.txt)"
 
    # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi"
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec omp"
    tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
    tmux send-keys -t ralph-review-<ID>:0.0 Enter
    ```
