@@ -1,6 +1,6 @@
 # Migrate Ralph loop workers from pi to omp
 
-Date: 2026-08-22 · Status: awaiting approval · Precedes: one conventional commit `refactor(ralph): migrate loop workers from pi to omp`
+Date: 2026-08-22 · Status: executed in 0dad274 · Precedes: one conventional commit `refactor(ralph): migrate loop workers from pi to omp`
 
 ## Decisions (evidence-settled 2026-08-22; shape + auth pending user approval)
 
