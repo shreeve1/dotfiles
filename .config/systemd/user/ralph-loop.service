@@ -13,7 +13,6 @@ Environment=PATH=/home/james/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 Environment=TMUX_TMPDIR=/tmp
 Environment=RALPH_SESSION_NAME=ralph-loop
 Environment=RALPH_MODEL=minimax/MiniMax-M3
-Environment=RALPH_REVIEW_MODEL=minimax/MiniMax-M3
 # Worktree isolation: runs in ~/symphony-ralph on branch ralph/run, branched
 # from ~/symphony main, so the live checkout symphony-host runs from is never
 # touched. Land a finished batch with the rpiv-merge skill (ralph/run -> main).

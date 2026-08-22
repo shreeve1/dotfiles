@@ -1,6 +1,6 @@
 # 0005 — Ralph loop planner stage
 
-**Status:** proposed (2026-07-24)
+**Status:** Superseded by [0007](./0007-ralph-single-worker-per-issue.md) (2026-08-22)
 
 Add a dedicated planner stage to the `tralph` / `ralph-loop.sh` driver so each
 implemented issue is planned in its own fresh session and the plan is persisted

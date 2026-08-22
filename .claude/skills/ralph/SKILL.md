@@ -30,84 +30,28 @@ Useful runner examples:
 ```bash
 tralph                                      # normal tmux, default Pi agent (uses minimax/MiniMax-M3)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
-tralph --no-auto-review-blocked             # disable inline auto-repair; a BLOCKED issue stops the loop
-tralph --no-review-each                     # disable the default per-issue review on DONE (trust the implementer)
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
 tralph --agent-cmd 'pi --model minimax/MiniMax-M3' tmux  # explicit model override
 tralph pi                                   # Pi non-interactive adapter
 ```
 
-### Inline auto-review on block (default)
+### Driver verification gate (on DONE)
 
-By default (`AUTO_REVIEW_BLOCKED=true`), when an implement worker returns
-`RALPH_RESULT: BLOCKED #<id>`, `ralph-loop.sh` does **not** stop. It spawns a
-fresh actionable-review/repair worker (the same protocol `--review-loop` uses)
-against that exact issue, then continues the implement loop:
+Every `DONE` is not trusted on faith. After the implementation is committed, the
+driver itself re-runs the issue's cleanly-runnable `## Verification` command
+(a backtick-quoted shell line joined by connectives, e.g. `` `uv run pytest tests/x.py` and `uv run python -m py_compile y.py` ``): pass → ensure `done`;
+fail → override `done→blocked` and append a `## Blocker` note naming the failing
+command; prose verification → the worker's DONE stands (no script to run).
 
-- repair succeeds → issue goes `done`, the loop keeps implementing (and any
-  downstream issues it just unblocked become eligible);
-- repair cannot fix it → the issue stays `blocked` (parked) and the loop moves
-  on to the next eligible pending issue.
-
-This makes a single `tralph` run self-healing instead of requiring the manual
-`tralph` → block → `tralph --review-loop` → `tralph` ping-pong. Opt out with
-`--no-auto-review-blocked` (BLOCKED becomes fatal again) or
-`RALPH_AUTO_REVIEW_BLOCKED=false`. `--skip-blocked` still means *park without
-repairing*, and in `--review-loop` mode the flag is a no-op (it is already a
-repair loop).
-
-It also drains **pre-existing** `blocked` issues: once a run has no fresh
-pending or active work left, the loop repairs already-`blocked` issues one at a
-time (lowest priority, then id) via the same repair worker, then re-scans — a
-repaired blocker may unblock downstream pending work the loop then implements.
-Each blocked issue is attempted at most once per run; if it still can't be
-fixed it stays `blocked` (parked) and the run completes. So a plain `tralph`
-now covers what previously required a separate `--review-loop` pass. A blocked
-issue is never re-selected by the implement scan (it is no longer `pending`),
-and the per-run attempt set prevents repair/implement cycling.
-
-### Per-issue review on DONE (default on)
-
-Every `DONE` gets an independent fresh-session review — the implementer never
-just self-certifies. Without this, the only independent reviewer fires on
-`BLOCKED` (above) or in the separate `--review-loop` pass, leaving a gap: a
-silently wrong "done" issue is accepted and later issues get built on top of it
-before any out-of-band review runs.
-
-After every `DONE`, once the implementation is committed, the loop spawns a
-fresh reviewer scoped to that issue, diffing the pre-worker base
-(`REVIEW_BASE_SHA` captured before the worker ran) against `HEAD` so it sees the
-whole implementation. The reviewer may edit/test/commit fixes in place:
-
-- review confirms or repairs → issue stays `done`, loop continues;
-- reviewer finds an unfixable gap → it flips the issue back to `blocked`
-  itself, and the next scan (or `--auto-review-blocked` drain) handles it;
-- the review worker times out / dies without a `DONE` sentinel → the driver
-  parks the issue `done→blocked` with a Blocker note rather than trusting the
-  unconfirmed completion.
-
-**Verification is enforced at the review step, two ways:**
-
-1. **Prompt mandate (all issue types).** The reviewer must run the issue's
-   `## Verification` command exactly as written and may only emit `DONE` if it
-   exits 0; otherwise it marks `BLOCKED`/`FAIL`. This covers prose verifications
-   (e.g. "restart the service and confirm logs") that no script can run, because
-   the reviewer is an agent that interprets them.
-2. **Driver backstop (cleanly-runnable commands).** After the reviewer returns
-   `DONE`, the driver itself re-runs the issue's `## Verification` command when
-   it is composed only of backtick-quoted commands joined by connectives
-   (e.g. `` `uv run pytest tests/x.py` and `uv run python -m py_compile y.py` ``).
-   If it exits non-zero the driver overrides `DONE→blocked` and records the
-   failing command — the reviewer's `DONE` is not trusted on faith. Prose
-   verifications have no runnable command, so they fall back to the agent mandate
-   above (`extract_runnable_verification` prints nothing and the gate is skipped).
-
-Each issue is reviewed at most once per run (shares the
-`ATTEMPTED_REVIEW_ISSUES` guard with the block-repair paths). Cost is roughly
-**2x workers per issue** (implement + review). Disable with `--no-review-each`
-(env `RALPH_REVIEW_EACH=false`) if you want to trust the implementer's own
-`DONE` sentinel — e.g. a throwaway run where review latency/cost isn't worth it.
+This is **one worker per issue**. The review layer is the fresh-session reviewer
+the worker itself spawns per Ralph protocol §4 (this SKILL, below) — a separate
+process that re-derives from the repo and emits `RALPH_REVIEW: PASS|PASS_WITH_NOTES|FAIL`.
+The driver verification gate is a deterministic backstop on top of that review
+for cleanly-runnable verifications: the worker's `DONE` already passed the
+fresh-session reviewer, and now it also has to pass a script the driver runs.
+The driver commits any status flip immediately so the worktree-merge finalizer
+sees it.
 
 ### Stall handling (tmux adapter)
 
@@ -288,18 +232,6 @@ Verification: npm test && npm run typecheck
 3. Skip to next
 ```
 
-### Planner stage (loop only, optional)
-
-When the loop is driving Ralph and `PLAN_EACH` is on (default), a fresh planning
-session runs before the implementer: it selects the next eligible issue by the
-same scan rules (resume active; else lowest-priority-then-lowest-id pending
-issue whose `blocked_by` are all done), appends a `## Plan` section to the
-issue file, commits it as `plan(#ID): ...`, changes no status, implements
-nothing, and prints no `RALPH_RESULT` sentinel. The implementer that follows
-reads that plan in step 5 instead of re-planning. Skipped when an active issue
-is being resumed (already planned). Disable with `--no-plan-each` or
-`RALPH_PLAN_EACH=false`.
-
 ### 3. Implement (single issue, fresh context)
 
 For the selected issue:
@@ -308,7 +240,7 @@ For the selected issue:
 2. **Set `status: in-progress`** — update the issue file immediately before starting work. This makes stale lock recovery work if the session crashes mid-implementation.
 3. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
 4. **Explore** the relevant code — understand current state.
-5. **Read the plan** — if the issue file has a `## Plan` section (written by the planner stage), follow it. It is the implementation approach; you do not need to re-plan.
+5. **Read the plan** — if the issue file has a `## Plan` section, follow it. It is the implementation approach; you do not need to re-plan.
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them. Check critical LSP diagnostics for touched files and fix real type/call/signature/import errors before proceeding; only environment-only missing-import noise may be documented instead of fixed.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:

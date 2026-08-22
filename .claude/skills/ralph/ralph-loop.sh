@@ -12,12 +12,6 @@
 #   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: Pi with its configured default model)
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
-#   --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
-#   --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
-#   --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
-#   --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
-#   --plan-each           Before each implement, run a fresh planner session that writes a committed ## Plan into the next eligible issue (default: on; ~3x worker cost)
-#   --no-plan-each        Disable the planner stage before each implement; implementer plans inline instead
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -41,25 +35,14 @@ AGENT_CMD_EXPLICIT=false
 AGENT_PROMPT_EXPLICIT=false
 REVIEW_LOOP=false
 SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
-AUTO_REVIEW_BLOCKED="${RALPH_AUTO_REVIEW_BLOCKED:-true}"
-REVIEW_EACH="${RALPH_REVIEW_EACH:-true}"
-PLAN_EACH="${RALPH_PLAN_EACH:-true}"
 # Unattended mode (set by the systemd supervisor): on a worker timeout/FAIL the
 # loop exits non-zero instead of leaving an idle keepalive session, so the
 # supervisor relaunches and continues. MAX_ISSUE_FAILS bounds retries — an issue
 # that fails this many launch attempts is auto-blocked so the loop moves on.
 UNATTENDED="${RALPH_UNATTENDED:-false}"
 MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
-# shellcheck disable=SC2034  # populated/consumed by the inner LOOP_SCRIPT heredoc
-REVIEW_BASE_SHA=""
-# shellcheck disable=SC2034  # ditto
-BASE_REMINDER=""
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}"
-# Optional stronger model used ONLY for the per-issue independent review-on-DONE
-# (mode=review). The implementer and the BLOCKED-drain repair path (mode=repair)
-# keep using RALPH_MODEL. Unset => the reviewer inherits RALPH_MODEL.
-RALPH_REVIEW_MODEL="${RALPH_REVIEW_MODEL:-minimax/MiniMax-M3}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Follow the loaded Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
@@ -83,13 +66,6 @@ OPTIONS:
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
-  --auto-review-blocked Inline review/repair worker when an issue blocks, then continue (default: on)
-  --no-auto-review-blocked Disable inline auto-review; a BLOCKED issue stops the loop (old behavior)
-  --review-each         After every DONE, run a fresh independent reviewer over that issue's diff; repair gaps in place, then continue (default: on; ~2x worker cost)
-  --no-review-each      Disable per-issue review on DONE; trust the implementer's own DONE sentinel
-  --review-model ID     Model id for the per-issue review-on-DONE only (env RALPH_REVIEW_MODEL); implementer + repair keep RALPH_MODEL
-  --plan-each           Before each implement, run a fresh planner session that writes a committed ## Plan into the next eligible issue (default: on; ~3x worker cost)
-  --no-plan-each        Disable the planner stage before each implement; implementer plans inline instead
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -144,14 +120,6 @@ while [[ $# -gt 0 ]]; do
     AGENT_CMD_EXPLICIT=true
     shift 2
     ;;
-  --review-model)
-    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
-      echo "❌ Error: --review-model requires a model id" >&2
-      exit 1
-    fi
-    RALPH_REVIEW_MODEL="$2"
-    shift 2
-    ;;
   --agent-prompt)
     AGENT_PROMPT="${2:-}"
     AGENT_PROMPT_EXPLICIT=true
@@ -163,30 +131,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-blocked)
     SKIP_BLOCKED=true
-    shift
-    ;;
-  --auto-review-blocked)
-    AUTO_REVIEW_BLOCKED=true
-    shift
-    ;;
-  --no-auto-review-blocked)
-    AUTO_REVIEW_BLOCKED=false
-    shift
-    ;;
-  --review-each)
-    REVIEW_EACH=true
-    shift
-    ;;
-  --no-review-each)
-    REVIEW_EACH=false
-    shift
-    ;;
-  --plan-each)
-    PLAN_EACH=true
-    shift
-    ;;
-  --no-plan-each)
-    PLAN_EACH=false
     shift
     ;;
   --unattended)
@@ -424,16 +368,12 @@ RALPH_MODEL="${15}"
 CHECKPOINT_DIRTY="${16}"
 REVIEW_LOOP="${17}"
 LSP_CHECK_CMD="${18}"
-AUTO_REVIEW_BLOCKED="${19}"
-UNATTENDED="${20:-false}"
-MAX_ISSUE_FAILS="${21:-2}"
-REVIEW_EACH="${22:-true}"
-RALPH_REVIEW_MODEL="${23:-}"
-AGENT_CMD_EXPLICIT="${24:-false}"
-SKIP_BLOCKED="${25:-false}"
-PLAN_EACH="${26:-true}"
-IMPLEMENT_SKILL_DIR="${27:-}"
-USE_IMPLEMENT_SKILL="${28:-false}"
+UNATTENDED="${19:-false}"
+MAX_ISSUE_FAILS="${20:-2}"
+AGENT_CMD_EXPLICIT="${21:-false}"
+SKIP_BLOCKED="${22:-false}"
+IMPLEMENT_SKILL_DIR="${23:-}"
+USE_IMPLEMENT_SKILL="${24:-false}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -442,21 +382,6 @@ mkdir -p "$HOME/.cache"
 cd "$PROJECT_DIR"
 : > "$LOG_FILE"
 
-# Review base state used by run_inline_review / prompt construction. Set per
-# iteration in the main loop, but the blocked-issue drain path calls
-# run_inline_review BEFORE the loop assigns them, so initialize here or `set -u`
-# aborts the whole (sole-session) driver and the tmux server vanishes.
-REVIEW_BASE_SHA=""
-BASE_REMINDER=""
-PLAN_MODE=false
-
-# Prompt framing used when an inline auto-review/repair worker is spawned for a
-# blocked issue. Mirrors the review-loop reminder built by the outer script.
-REVIEW_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Operate only on the explicit review target path provided by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify the wiring from configuration and document it instead of firing a live alert. You may edit, test, and commit fixes when review finds gaps or blockers. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits inside this worker. Ignore .pi-lens entirely; use git status --porcelain -- . '\'':(exclude).pi-lens'\'' '\'':(exclude).sessions'\'' for cleanliness checks. Before any DONE/PASS outcome you MUST run the verification command from the issue ## Verification section exactly as written (never swap a bare runner for the repo wrapper); it MUST exit 0, otherwise mark BLOCKED/FAIL instead of DONE. Before any DONE/PASS outcome, check critical LSP diagnostics for files touched by the issue and fix real errors; environment-only missing-import noise may be documented, but new/touched-file type/call/signature/import errors must be fixed or the issue stays BLOCKED/FAIL. Print exactly one final sentinel line.
-Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
-The final line must start with RALPH_RESULT followed by colon and one space.'
-
-PLAN_PROMPT_REMINDER='Run the Ralph PLANNING stage for exactly one issue in this repository. Select the next eligible issue using the Ralph board scan rules (resume any active in-progress/review issue; otherwise the lowest-priority-then-lowest-id pending issue whose blocked_by are all done). Do NOT implement anything, do NOT write or change code, and do NOT change the issue status. Your only job: read the selected issue and the relevant code, then append a concise "## Plan" section (the implementation approach: key files, seams, and the order of work — a few sentences to a short list, not a full design doc) to that issue file, and commit ONLY that issue file with: git commit -m "plan(#ID): brief description". This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt. The loop already checkpointed the worktree before launching you; do not create pre-worker checkpoint commits. Ignore .pi-lens entirely. As the only final line, print the planner sentinel exactly: RALPH_RESULT: PLAN #<id> (the id of the issue you planned). Do NOT print a DONE, NO_WORK, BLOCKED, or FAIL sentinel — PLAN is the planner'\''s only terminal line.'
 
 tmux_cmd() {
   if [[ "$USE_NORMAL_TMUX" == "true" ]]; then
@@ -596,28 +521,6 @@ select_actionable_review_target() {
   return 1
 }
 
-# Default-mode blocked drain: pick the next blocked issue not yet attempted this
-# run (lowest priority, then lowest id). Returns the issue file path, or 1 if
-# none remain. Used by the implement loop to repair blocked issues once there is
-# no fresh pending/active work, so a single `tralph` run is self-healing without
-# a separate `--review-loop` pass.
-select_next_blocked_target() {
-  local issue_file status id priority candidate
-  candidate=$(
-    for issue_file in .kanban/issues/*.md; do
-      [[ -f "$issue_file" ]] || continue
-      status=$(issue_status_for_file "$issue_file")
-      [[ "$status" == "blocked" ]] || continue
-      id=$(issue_id_for_file "$issue_file")
-      [[ -n "$id" ]] || continue
-      review_issue_attempted "$id" && continue
-      priority=$(issue_priority_for_file "$issue_file")
-      printf '%06d %012d %s\n' "$priority" "$(normalize_issue_id "$id")" "$issue_file"
-    done | sort -k1,1n -k2,2n | head -1 | cut -d' ' -f3-
-  )
-  [[ -n "$candidate" ]] || return 1
-  printf '%s' "$candidate"
-}
 
 count_unblocked_pending() {
   local count=0
@@ -679,25 +582,13 @@ has_hard_fail_result() {
   grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: FAIL( #?[0-9][0-9A-Za-z]*)?[[:space:]]*$' "$file" 2>/dev/null
 }
 
-# Planner-stage terminal sentinel. The planner writes no DONE/NO_WORK/BLOCKED/
-# FAIL line (it changes no status and implements nothing), so the tmux adapter
-# would otherwise never see a completion signal and would nudge the finished
-# worker until the stall cap. run_planner sets PLAN_MODE=true and the adapter
-# treats this line as terminal success.
-has_plan_result() {
-  local file="$1"
-  grep -Eq '^[^A-Za-z0-9]*RALPH_RESULT: PLAN(:| #)?[[:space:]]*#?[0-9A-Za-z]*[[:space:]]*$' "$file" 2>/dev/null
-}
-
 # A BLOCKED sentinel is non-fatal (keep looping instead of stopping) when running
-# the review loop, when --skip-blocked is set, or when auto-review-blocked is on
-# (in which case the main loop will spawn an inline repair worker first), as long
-# as there is no FAIL.
+# the review loop or when --skip-blocked is set, as long as there is no FAIL.
 blocked_is_skippable() {
   local file="$1"
   has_blocked_result "$file" || return 1
   has_hard_fail_result "$file" && return 1
-  [[ "$REVIEW_LOOP" == "true" || "$SKIP_BLOCKED" == "true" || "$AUTO_REVIEW_BLOCKED" == "true" ]]
+  [[ "$REVIEW_LOOP" == "true" || "$SKIP_BLOCKED" == "true" ]]
 }
 
 extract_result_issue() {
@@ -707,7 +598,7 @@ extract_result_issue() {
 
 run_pi_adapter() {
   local output_file="$1"
-  local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"
+  local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"
   local cmd
   local -a skill_args=(--skill "$SKILL_DIR")
   if [[ "$USE_IMPLEMENT_SKILL" == "true" ]]; then
@@ -839,7 +730,7 @@ run_tmux_adapter() {
   wait_for_agent_ready "$target" || true
   sleep "$READY_DELAY"
 
-  prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER""$BASE_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
+  prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"$'\n'"Also write the exact same final RALPH_RESULT line to: $result_file"
   prompt_line=$(printf '%s' "$prompt" | tr '\n' ' ' | sed 's/[[:space:]][[:space:]]*/ /g')
 
   echo "⌨️  Sending Ralph prompt to $agent_session" | tee -a "$LOG_FILE"
@@ -873,11 +764,6 @@ run_tmux_adapter() {
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
         return 0
       fi
-      if [[ "$PLAN_MODE" == "true" ]] && has_plan_result "$output_file"; then
-        rm -f "$result_file"
-        tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
-        return 0
-      fi
       if blocked_is_skippable "$output_file"; then
         rm -f "$result_file"
         tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
@@ -894,12 +780,6 @@ run_tmux_adapter() {
     printf '%s\n' "$pane" > "$output_file"
 
     if has_success_result "$output_file"; then
-      cat "$output_file" >> "$LOG_FILE"
-      tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
-      return 0
-    fi
-
-    if [[ "$PLAN_MODE" == "true" ]] && has_plan_result "$output_file"; then
       cat "$output_file" >> "$LOG_FILE"
       tmux_cmd kill-session -t "$agent_session" 2>/dev/null || true
       return 0
@@ -1034,7 +914,7 @@ extract_runnable_verification() {
 
 # Set the frontmatter `status:` of an issue file to a new value (first status
 # line only). Mirrors the park-to-blocked rewrites. Callers persist the change
-# (run_inline_review commits it before returning). Idempotent if already at $2.
+# (e.g. run_verification_gate commits it before returning). Idempotent if already at $2.
 set_issue_status() {
   local file="$1" new="$2"
   [[ -f "$file" ]] || return 1
@@ -1046,200 +926,40 @@ set_issue_status() {
   perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
 }
 
-# Planner stage: a fresh planning session writes a ## Plan section into the next
-# eligible issue ticket and commits it as plan(#ID), so the implementer that
-# follows can read the plan instead of re-planning cold. Best-effort: planning
-# always returns 0 so it never fails an iteration; on a nonzero adapter rc we
-# just log a warning and the loop continues. The planner prints NO
-# DONE/NO_WORK/BLOCKED/FAIL sentinel (it changes no status and implements
-# nothing). Instead it emits a distinct `RALPH_RESULT: PLAN #<id>`
-# line: for the pi adapter that line is ignored (exit 0 without a
-# DONE/NO_WORK/BLOCKED/FAIL match is success); for the tmux adapter PLAN_MODE
-# makes has_plan_result terminal, so the finished planner is not nudged until
-# the stall cap. PLAN_MODE is scoped to the adapter call and always cleared.
-run_planner() {
-  local saved_prompt="$AGENT_PROMPT"
-  local saved_reminder="$SHARED_PROMPT_REMINDER"
-  local plan_out rc=0
-
-  SHARED_PROMPT_REMINDER="$PLAN_PROMPT_REMINDER"
-  AGENT_PROMPT="Run the Ralph planning stage for exactly one issue in this repository. Select the next eligible issue per the Ralph board scan rules, append a ## Plan section to it, and commit only that issue file as plan(#ID). Do not implement. Do not change status. As the only final line, print the planner sentinel exactly: RALPH_RESULT: PLAN #<id> (the id of the issue you planned). Do NOT print DONE, NO_WORK, BLOCKED, or FAIL."
-
-  plan_out=$(mktemp)
-  PLAN_MODE=true
-  case "$ADAPTER" in
-    pi)
-      run_pi_adapter "$plan_out" || rc=$?
-      ;;
-    tmux)
-      run_tmux_adapter "$plan_out" "${ITERATION}p" || rc=$?
-      ;;
-  esac
-  PLAN_MODE=false
-
-  if [[ $rc -ne 0 ]]; then
-    echo "⚠️  Planner stage did not complete cleanly (rc=$rc); continuing loop (planning is best-effort)" | tee -a "$LOG_FILE"
-  fi
-
-  rm -f "$plan_out"
-  AGENT_PROMPT="$saved_prompt"
-  SHARED_PROMPT_REMINDER="$saved_reminder"
-
-  return 0
-}
-
-# Spawn a fresh actionable-review/repair worker against a single issue, then
-# return so the implement loop can continue. Never fatal: if the worker cannot
-# confirm the issue it stays blocked (parked) and the loop moves on.
-#   $1 issue id
-#   $2 forced review base SHA (optional). When set, the reviewer diffs this base
-#      against HEAD instead of HEAD-at-review-start. Used by the per-issue
-#      review-on-DONE path so the reviewer sees the whole implementation.
-#   $3 mode label: "repair" (default, BLOCKED path) or "review" (DONE path).
-run_inline_review() {
-  local target_id target_file review_out rc
-  local forced_base="${2:-}"
-  local mode="${3:-repair}"
-  local verb="repair of blocked"; local done_verb="repaired"
-  if [[ "$mode" == "review" ]]; then
-    verb="independent review of"; done_verb="confirmed/repaired"
-  fi
-  target_id=$(normalize_issue_id "${1:-}")
-  if [[ -z "${1:-}" ]]; then
-    echo "⚠️  Inline review: no issue id; skipping" | tee -a "$LOG_FILE"
-    return 0
-  fi
+# Driver verification gate: after a worker prints RALPH_RESULT: DONE #<id>, the
+# driver itself re-runs the issue's cleanly-runnable ## Verification command and
+# overrides to blocked on failure — the worker's DONE is not trusted on faith.
+# Prose verifications have no runnable command, so the DONE stands (the worker's
+# own protocol §4 fresh review remains the review layer). Driver-authored status
+# changes are committed immediately so the worktree-merge finalizer sees them.
+run_verification_gate() {
+  local output_file="$1" raw_id target_id target_file verify_cmd
+  raw_id=$(extract_completed_issue "$output_file")
+  [[ -n "$raw_id" ]] || return 0
+  target_id=$(normalize_issue_id "$raw_id")
   target_file=$(grep -l "^id: ${target_id}$" .kanban/issues/*.md 2>/dev/null | head -1 || true)
-  if [[ -z "$target_file" ]]; then
-    echo "⚠️  Inline review: issue #$target_id not found; skipping" | tee -a "$LOG_FILE"
-    return 0
-  fi
-
-  echo "" | tee -a "$LOG_FILE"
-  echo "🩹 Inline review: attempting $verb issue #$target_id" | tee -a "$LOG_FILE"
-
-  if ! checkpoint_dirty_worktree; then
-    echo "⚠️  Inline review: worktree not clean; skipping #$target_id" | tee -a "$LOG_FILE"
-    return 0
-  fi
-
-  local saved_prompt="$AGENT_PROMPT"
-  local saved_reminder="$SHARED_PROMPT_REMINDER"
-  local saved_base="$REVIEW_BASE_SHA"
-  local saved_base_reminder="$BASE_REMINDER"
-  local saved_agent_cmd="$AGENT_CMD"
-  local saved_ralph_model="$RALPH_MODEL"
-
-  # Per-issue review-on-DONE (mode=review) may run on a stronger reviewer model.
-  # The implementer and the BLOCKED-drain repair path keep RALPH_MODEL. Respect
-  # an explicit --agent-cmd / RALPH_AGENT_CMD (do not clobber a user command).
-  if [[ "$mode" == "review" && -n "$RALPH_REVIEW_MODEL" ]]; then
-    if [[ "$ADAPTER" == "tmux" && ( "$AGENT_CMD_EXPLICIT" == "true" || -n "${RALPH_AGENT_CMD:-}" ) ]]; then
-      # An explicit agent command controls the tmux model; the swap would be
-      # inert, so leave everything on the implementer command and say so.
-      echo "ℹ️  Review model $RALPH_REVIEW_MODEL ignored: explicit --agent-cmd/RALPH_AGENT_CMD controls the model" | tee -a "$LOG_FILE"
+  [[ -n "$target_file" ]] || return 0
+  verify_cmd=$(extract_runnable_verification "$target_file")
+  if [[ -n "$verify_cmd" ]]; then
+    echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
+    if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
+      set_issue_status "$target_file" done
+      echo "✅ Verification gate passed for #$target_id (status: done)" | tee -a "$LOG_FILE"
     else
-      RALPH_MODEL="$RALPH_REVIEW_MODEL"
-      if [[ "$ADAPTER" == "tmux" ]]; then
-        local rm_skill_q rm_model_q
-        printf -v rm_skill_q '%q' "$SKILL_DIR"
-        printf -v rm_model_q '%q' "$RALPH_REVIEW_MODEL"
-        AGENT_CMD="pi --model $rm_model_q --skill $rm_skill_q"
-      fi
-      echo "🧠 Review model: $RALPH_REVIEW_MODEL (implementer/repair stay on ${saved_ralph_model:-pi default})" | tee -a "$LOG_FILE"
-    fi
-  fi
-
-  REVIEW_BASE_SHA=""
-  BASE_REMINDER=""
-  if [[ -n "$forced_base" ]]; then
-    REVIEW_BASE_SHA="$forced_base"
-    BASE_REMINDER=$'\n'"Implementation base commit (HEAD before the implementer started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1'."
-  elif git rev-parse --git-dir >/dev/null 2>&1; then
-    REVIEW_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
-    if [[ -n "$REVIEW_BASE_SHA" ]]; then
-      BASE_REMINDER=$'\n'"Implementation base commit (HEAD before this worker started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1'."
-    fi
-  fi
-
-  SHARED_PROMPT_REMINDER="$REVIEW_PROMPT_REMINDER"
-  AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $target_file (issue #$target_id). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
-
-  review_out=$(mktemp)
-  rc=0
-  case "$ADAPTER" in
-    pi)
-      run_pi_adapter "$review_out" || rc=$?
-      ;;
-    tmux)
-      run_tmux_adapter "$review_out" "${ITERATION}r" || rc=$?
-      ;;
-  esac
-
-  if grep -Eq "^[^A-Za-z0-9]*RALPH_RESULT: DONE #?${target_id}[[:space:]]*$" "$review_out" 2>/dev/null; then
-    # Layer 2 backstop: on a DONE-path review, the driver itself re-runs the
-    # issue's verification command (when cleanly runnable) and overrides to
-    # blocked if it fails — the reviewer's DONE is not trusted on faith.
-    local verify_cmd=""
-    if [[ "$mode" == "review" ]]; then verify_cmd=$(extract_runnable_verification "$target_file"); fi
-    if [[ -n "$verify_cmd" ]]; then
-      echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
-      if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
-        set_issue_status "$target_file" done
-        echo "✅ Inline review $done_verb issue #$target_id (verification passed)" | tee -a "$LOG_FILE"
-      else
-        echo "❌ Verification FAILED after review for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
-        if [[ -f "$target_file" ]]; then
-          set_issue_status "$target_file" blocked
-          printf '\n## Blocker\n\nReview reported DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
-        fi
-      fi
-    else
-      # Repair mode (BLOCKED-drain) stays worker-authoritative for status: only
-      # the review-each (mode==review) path makes the driver author the terminal
-      # `done`. A prose-verification review issue has no runnable verify_cmd and
-      # lands here too, so it must still be finalized to done.
-      if [[ "$mode" == "review" ]]; then
-        set_issue_status "$target_file" done
-      fi
-      echo "✅ Inline review $done_verb issue #$target_id" | tee -a "$LOG_FILE"
-    fi
-  elif [[ "$mode" == "review" ]]; then
-    # DONE-path review did not confirm (timeout / BLOCKED / FAIL). Genuinely park
-    # the issue instead of silently leaving it done, so completion is never
-    # trusted on an unconfirmed review. The next scan / blocked-drain picks it up.
-    if [[ -f "$target_file" ]]; then
+      echo "❌ Verification FAILED for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
       set_issue_status "$target_file" blocked
-      printf '\n## Blocker\n\nAuto-parked by review-each: the independent review worker returned no DONE sentinel (timeout, BLOCKED, or FAIL), so completion is unconfirmed. Re-run review or inspect `git diff %s HEAD` before marking done.\n' "$REVIEW_BASE_SHA" >> "$target_file"
-      echo "↪️  Inline review did not confirm #$target_id; parked review→blocked for review" | tee -a "$LOG_FILE"
-    else
-      echo "↪️  Inline review did not confirm #$target_id; issue file missing, left as-is" | tee -a "$LOG_FILE"
+      printf '\n## Blocker\n\nWorker printed DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
     fi
   else
-    echo "↪️  Inline review could not repair #$target_id; leaving blocked and continuing" | tee -a "$LOG_FILE"
+    set_issue_status "$target_file" done
+    echo "✅ Verification gate: prose verification for #$target_id — trusting worker DONE (status: done)" | tee -a "$LOG_FILE"
   fi
-
-  # Persist any driver-authored terminal status immediately. The pre-worker
-  # checkpoint only runs at the TOP of the next iteration, so on the final
-  # issue (loop then breaks on NO_WORK) the status would otherwise stay
-  # uncommitted and be invisible to the worktree-merge finalizer. Stage only
-  # the issue file (SKILL.md convention); ignore failures (e.g. not a git repo
-  # or nothing staged).
-  if [[ -f "$target_file" ]] && git rev-parse --git-dir >/dev/null 2>&1; then
+  if git rev-parse --git-dir >/dev/null 2>&1; then
     if ! git diff --quiet -- "$target_file" 2>/dev/null; then
       git add -- "$target_file" 2>/dev/null \
-        && git commit -m "review(#$target_id): driver-authored status after inline review" 2>&1 | tee -a "$LOG_FILE" || true
+        && git commit -m "review(#$target_id): driver-authored status after verification gate" 2>&1 | tee -a "$LOG_FILE" || true
     fi
   fi
-
-  rm -f "$review_out"
-
-  AGENT_PROMPT="$saved_prompt"
-  SHARED_PROMPT_REMINDER="$saved_reminder"
-  REVIEW_BASE_SHA="$saved_base"
-  BASE_REMINDER="$saved_base_reminder"
-  AGENT_CMD="$saved_agent_cmd"
-  RALPH_MODEL="$saved_ralph_model"
   return 0
 }
 
@@ -1272,9 +992,6 @@ reset_active_issues_to_pending() {
   echo "Session: $SESSION_NAME"
   echo "Continue on error: $CONTINUE_ON_ERROR"
   echo "Review loop: $REVIEW_LOOP"
-  echo "Auto-review blocked: $AUTO_REVIEW_BLOCKED"
-  echo "Review each (per-issue review on DONE): $REVIEW_EACH"
-  echo "Plan each (planner stage before implement): $PLAN_EACH"
   echo "Sleep interval: ${SLEEP_INTERVAL}s"
   echo "Ready delay: ${READY_DELAY}s"
   echo "Ready timeout: ${READY_TIMEOUT}s"
@@ -1412,22 +1129,6 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       break
     fi
   elif [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
-    # No fresh pending/active work. Before declaring done, drain blocked issues
-    # via the actionable-review/repair worker so a single `tralph` run is
-    # self-healing without a separate `--review-loop` pass. A repaired blocker
-    # may unblock downstream pending work, which the next scan will pick up.
-    if [[ "$AUTO_REVIEW_BLOCKED" == "true" ]]; then
-      DRAIN_TARGET=$(select_next_blocked_target || true)
-      if [[ -n "$DRAIN_TARGET" ]]; then
-        DRAIN_ID=$(issue_id_for_file "$DRAIN_TARGET")
-        echo "" | tee -a "$LOG_FILE"
-        echo "🛠️  No pending work left; draining blocked issue #$DRAIN_ID via auto-review/repair" | tee -a "$LOG_FILE"
-        ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$DRAIN_ID")"
-        run_inline_review "$DRAIN_ID"
-        sleep "$SLEEP_INTERVAL"
-        continue
-      fi
-    fi
     echo "" | tee -a "$LOG_FILE"
     echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
     echo "Ralph loop complete!" | tee -a "$LOG_FILE"
@@ -1453,29 +1154,6 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     break
   fi
 
-  # Planner stage (default on): a fresh session plans the next eligible issue and
-  # writes a committed ## Plan into its ticket before the implementer runs. Only
-  # on a fresh start (no active issue being resumed) and only when eligible
-  # pending work exists. Runs before REVIEW_BASE_SHA capture so the plan(#ID)
-  # commit is part of the review base and never pollutes the reviewer diff.
-  if [[ "$REVIEW_LOOP" != "true" && "$PLAN_EACH" == "true" && $ACTIVE_COUNT -eq 0 && $UNBLOCKED_COUNT -gt 0 ]]; then
-    echo "🧭 Planner stage: planning the next eligible issue before implementation" | tee -a "$LOG_FILE"
-    run_planner || true
-  fi
-
-  # Record the clean HEAD before the worker implements. The fresh reviewer must
-  # diff this base against HEAD, not HEAD~1: the worker adds a status:review
-  # commit on top of its implementation commit(s), so HEAD~1 would show only the
-  # status flip and hide the actual code under review.
-  REVIEW_BASE_SHA=""
-  BASE_REMINDER=""
-  if git rev-parse --git-dir >/dev/null 2>&1; then
-    REVIEW_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
-    if [[ -n "$REVIEW_BASE_SHA" ]]; then
-      BASE_REMINDER=$'\n'"Implementation base commit (HEAD before this worker started): $REVIEW_BASE_SHA. The fresh review session MUST inspect the implementation via 'git diff $REVIEW_BASE_SHA HEAD' and read every file it changed. Do NOT use 'git diff HEAD~1' — the status:review commit sits on top of the implementation, so HEAD~1 would show only the status flip."
-    fi
-  fi
-
   if [[ "$REVIEW_LOOP" == "true" ]]; then
     AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $CURRENT_REVIEW_TARGET (issue #$CURRENT_REVIEW_TARGET_ID). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
   fi
@@ -1498,15 +1176,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   if [[ $LAST_EXIT_CODE -eq 0 ]] && blocked_is_skippable "$RALPH_OUTPUT"; then
     BLOCKED_ISSUE=$(extract_result_issue "$RALPH_OUTPUT")
-    if [[ "$AUTO_REVIEW_BLOCKED" == "true" && "$REVIEW_LOOP" != "true" && "$SKIP_BLOCKED" != "true" ]]; then
-      echo "🛠️  Issue #${BLOCKED_ISSUE:-?} BLOCKED — running inline auto-review/repair before continuing" | tee -a "$LOG_FILE"
-      if [[ -n "${BLOCKED_ISSUE:-}" ]]; then
-        ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$BLOCKED_ISSUE")"
-      fi
-      run_inline_review "${BLOCKED_ISSUE:-}"
-    else
-      echo "⏭️  Issue #${BLOCKED_ISSUE:-?} BLOCKED — skipping and continuing to the next eligible issue" | tee -a "$LOG_FILE"
-    fi
+    echo "⏭️  Issue #${BLOCKED_ISSUE:-?} BLOCKED — skipping and continuing to the next eligible issue" | tee -a "$LOG_FILE"
   fi
 
   NO_WORK=false
@@ -1541,17 +1211,11 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     fi
   fi
 
-  # Per-issue independent review on DONE (opt-in via --review-each). A fresh
-  # reviewer inspects the just-completed implementation (REVIEW_BASE_SHA..HEAD,
-  # captured before this worker ran) against the issue and repairs gaps in place
-  # before the loop builds further work on top. The reviewer flips the issue back
-  # to blocked itself if it finds an unfixable gap.
-  if [[ "$REVIEW_EACH" == "true" && "$REVIEW_LOOP" != "true" && $LAST_EXIT_CODE -eq 0 ]]; then
-    REVIEW_EACH_ID=$(extract_completed_issue "$RALPH_OUTPUT")
-    if [[ -n "$REVIEW_EACH_ID" ]] && ! review_issue_attempted "$REVIEW_EACH_ID"; then
-      ATTEMPTED_REVIEW_ISSUES="$ATTEMPTED_REVIEW_ISSUES $(normalize_issue_id "$REVIEW_EACH_ID")"
-      run_inline_review "$REVIEW_EACH_ID" "$REVIEW_BASE_SHA" "review"
-    fi
+  # Driver verification gate: a DONE sentinel is not trusted on faith. Re-run the
+  # issue's cleanly-runnable ## Verification command; pass → ensure done, fail →
+  # blocked with a Blocker note. Prose verifications stay worker-authoritative.
+  if [[ "$REVIEW_LOOP" != "true" && $LAST_EXIT_CODE -eq 0 ]]; then
+    run_verification_gate "$RALPH_OUTPUT"
   fi
 
   if [[ "$REVIEW_LOOP" == "true" && -n "$CURRENT_REVIEW_TARGET_ID" ]]; then
@@ -1659,8 +1323,8 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
   "$SLEEP_INTERVAL" "$READY_DELAY" "$ITERATION_TIMEOUT" "$READY_TIMEOUT" \
   "$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
   "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
-  "$AUTO_REVIEW_BLOCKED" "$UNATTENDED" "$MAX_ISSUE_FAILS" "$REVIEW_EACH" \
-  "$RALPH_REVIEW_MODEL" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" "$PLAN_EACH" "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL"; do
+  "$UNATTENDED" "$MAX_ISSUE_FAILS" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" \
+  "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL"; do
   printf -v arg_q '%q' "$arg"
   INNER_ARGS+=("$arg_q")
 done
@@ -1670,15 +1334,9 @@ tmux_cmd new-session -d -s "$SESSION_NAME" \
   "bash $loop_script_q ${INNER_ARGS[*]}"
 
 echo "✅ Ralph loop started in tmux session '$SESSION_NAME'"
-echo ""
-echo "Configuration:"
-echo "  Adapter: $ADAPTER"
 echo "  Force mode: $FORCE_MODE"
 echo "  Continue on error: $CONTINUE_ON_ERROR"
 echo "  Review loop: $REVIEW_LOOP"
-echo "  Auto-review blocked: $AUTO_REVIEW_BLOCKED"
-echo "  Review each (per-issue review on DONE): $REVIEW_EACH"
-echo "  Plan each (planner stage before implement): $PLAN_EACH"
 echo "  Sleep interval: ${SLEEP_INTERVAL}s"
 echo "  Ready delay: ${READY_DELAY}s"
 echo "  Ready timeout: ${READY_TIMEOUT}s"
