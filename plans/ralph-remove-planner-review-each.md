@@ -1,6 +1,6 @@
 # Remove planner + review-each driver stages from ralph-loop.sh
 
-Date: 2026-08-22 · Status: awaiting approval · Precedes: one conventional commit `refactor(ralph): drop planner and review-each stages, keep driver verification gate`
+Date: 2026-08-22 · Status: executed in 43ff704 · Precedes: one conventional commit `refactor(ralph): drop planner and review-each stages, keep driver verification gate`
 
 ## Decisions (settled with user 2026-08-22)
 
