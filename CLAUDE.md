@@ -21,6 +21,7 @@ commands).
   by OpenCode via `~/.claude/skills` fallback).
 - Hooks: `.claude/hooks/` (Claude Code hook scripts).
 - See `README.md` § "Canonical vs tool-specific" for the full table.
+- Self-hosted DeepSeek Harness (dsh) web UI on `aidev`: see `docs/deepseek-harness.md` (access, architecture, recovery).
 
 ## Non-obvious requirements
 
