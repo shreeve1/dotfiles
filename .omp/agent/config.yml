@@ -28,5 +28,5 @@ task:
   agentModelOverrides:
     scout: "@smol"
     task: "@task"
-    reviewer: "@slow"
+    reviewer: "deepseek/deepseek-v4-flash:high"
     planner: "@plan"
