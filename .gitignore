@@ -199,3 +199,4 @@ bin/*
 /tests/
 .claude/.fusion-off
 .claude/.harness-unlock
+.omp/agent/blobs/
