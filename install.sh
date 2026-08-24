@@ -192,6 +192,7 @@ install_npm_deps_if_needed() {
 }
 
 link_path ".zshrc" ".zshrc"
+link_path ".bashrc" ".bashrc"
 
 # ─── XDG config ────────────────────────────────────────────
 link_path ".config/starship.toml" ".config/starship.toml"
