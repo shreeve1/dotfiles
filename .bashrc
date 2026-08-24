@@ -2,7 +2,18 @@
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
-# If not running interactively, don't do anything
+# ── Environment for ALL shells (must run before the non-interactive return
+#    below, so agent/tool bash sessions get these too) ──────────────────────
+# npm global binaries (dsh, codex, pi, etc.) — mirrors .zshrc
+export PATH="$HOME/.npm-global/bin:$PATH"
+# systemd --user bus: so `systemctl --user` works in non-login shells
+# (user lingers, no seat session). Guarded: only set when unset.
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+: "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
+export DBUS_SESSION_BUS_ADDRESS
+
+# If not running interactively, don't do anything further
 case $- in
     *i*) ;;
       *) return;;
@@ -120,8 +131,12 @@ fi
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-# npm global binaries (dsh, codex, pi, etc.) — mirrors .zshrc so tool/bash sessions find them
-export PATH="$HOME/.npm-global/bin:$PATH"
+# mirrors .zshrc: personal bin (login shells get this via .profile; interactive-only misses it) + opencode CLI
+export PATH="$HOME/bin:$PATH"
+export PATH="$HOME/.opencode/bin:$PATH"
+
+# secrets (same single source of truth as .zshrc) — MINIMAX_API_KEY etc. for omp/model auth
+[[ -f "$HOME/.zshrc.secrets" ]] && . "$HOME/.zshrc.secrets"
 
 . "$HOME/.local/bin/env"
 
