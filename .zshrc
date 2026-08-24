@@ -359,3 +359,10 @@ export PATH="$HOME/.opencode/bin:$PATH"
 
 # OpenWork endpoint env
 [ -f "/Users/james/.config/openwork/aidev.env" ] && . "/Users/james/.config/openwork/aidev.env"
+
+# systemd --user bus: ensure XDG_RUNTIME_DIR / DBUS address are set so
+# `systemctl --user` works in non-login shells (user lingers, no seat session).
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+export XDG_RUNTIME_DIR
+: "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
+export DBUS_SESSION_BUS_ADDRESS
