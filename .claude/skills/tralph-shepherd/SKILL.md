@@ -1,6 +1,7 @@
 ---
 name: tralph-shepherd
-description: Periodic owner of a tralph (Ralph) tmux loop — every RALPH_SHEPHERD_INTERVAL seconds, drive the board: start the loop if it isn't running, triage blocked tickets (delegate implementation to a ralph worker or a single sub-agent, escalate judgment calls), relaunch the driver if it parked. Stop when the board is done or a judgment call is escalated to the user. The shepherd's own context stays minimal — its only writes are kanban ticket status/body and .kanban/progress.md; it does not edit source/test code, run the build/test suite, or commit code.
+description: |
+  Periodic owner of a tralph (Ralph) tmux loop — every RALPH_SHEPHERD_INTERVAL seconds, drive the board: start the loop if it isn't running, triage blocked tickets (delegate implementation to a ralph worker or a single sub-agent, escalate judgment calls), relaunch the driver if it parked. Stop when the board is done or a judgment call is escalated to the user. The shepherd's own context stays minimal — its only writes are kanban ticket status/body and .kanban/progress.md; it does not edit source/test code, run the build/test suite, or commit code.
 ---
 
 # tralph-shepherd
@@ -37,7 +38,11 @@ Each pass, in order:
    10 min default; override via the env var. If your environment caps a
    single command's duration, loop several shorter sleeps totalling the
    interval instead — but you MUST wait the full interval before
-   re-checking, so you don't hammer the board or the log.
+   re-checking, so you don't hammer the board or the log. Raising
+   `RALPH_SHEPHERD_INTERVAL` is appropriate when the last pass showed a
+   healthy, progressing worker (spinner/▶ advancing, cost counter
+   climbing) — a wider interval cuts shepherd cost and context growth; the
+   tight default only earns its keep near park/stall boundaries.
 4. **Go back to step 1.**
 
 Exit the loop ONLY by: Termination (board done), Raise (judgment call →
@@ -76,6 +81,9 @@ tmux ls
 # 3. Worker session name pattern: ralph-ralph-loop-<N> (N = iteration).
 #    Driver session: ralph-loop. Active worker (if any) is the highest-N.
 #    Capture only when one exists; capture-pane on a missing target errors.
+#    ~25-30 pane lines (the -S -30 below) is enough for a spinner/progress
+#    check; do NOT widen the capture — larger grabs are the main driver of
+#    shepherd context growth across a long run.
 WORKER=$(tmux ls -F '#{session_name}' 2>/dev/null \
   | grep '^ralph-ralph-loop-[0-9]' | sort -V | tail -1)
 if [[ -n "$WORKER" ]]; then
@@ -145,7 +153,7 @@ Each "**Sleep.**" row above means proceed to step 3 (arm the interval timer) and
 #### Delegate-or-raise or relaunch path (board has work, driver parked)
 
 1. **Blocked issues present?** `grep -l '^status: blocked$' .kanban/issues/*.md`. For each: see "Delegate or raise?" below. Then return to step 0 next cycle.
-2. **No blocked issues, but pending/in-progress/review exist?** Diagnose why the loop parked: read the last `Stopping loop`/`Ralph Loop finished at` line and the worker pane. The cause is a code-local defect (worker stall, timeout, sentinel failure) — surface it as a blocker via the loop's own failure path or by raising to the user. Then see "Relaunch".
+2. **No blocked issues, but pending/in-progress/review exist?** First know the normal case: under the default `CONTINUE_ON_ERROR=false`, a worker's `RALPH_RESULT: FAIL` or `RALPH_RESULT: BLOCKED` sentinel makes the loop exit non-zero (`Stopping loop`) and park — even when other pending work remains on the board. That is the loop's intended handoff to the shepherd, not a defect; the ticket the worker just failed/blocked is the one to triage (it will now carry `status: blocked` — see "Delegate or raise?"). Only if the park has NO such sentinel do you diagnose a genuine code-local defect: read the last `Stopping loop`/`Ralph Loop finished at` line and the worker pane. The cause is a code-local defect (worker stall, timeout, sentinel failure) — surface it as a blocker via the loop's own failure path or by raising to the user. Then see "Relaunch".
 3. **Worker session still alive but stale** (`tmux has-session -t ralph-ralph-loop-<N>` true, pane dead): the driver has not parked yet but the worker is hung. Wait one cycle before deciding; if the next cycle still shows the same dead worker, treat as parked.
 
 ### Fixing blocked issues
@@ -175,11 +183,15 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
   already names concrete, code-local fix paths a single-ticket loop
   worker can execute (a ralph-review FAIL block is the canonical
   example: the reviewer wrote fix paths meant for the next Ralph pass),
-  the shepherd's job is just to hand it back. Edit the ticket:
+  the shepherd's job is just to hand it back. Read the ticket
+  immediately before editing its frontmatter so you obtain the file's
+  current content-hash tag — the edit tool requires a live
+  `[PATH#TAG]` header and rejects a guessed/placeholder tag, forcing a
+  wasted round-trip otherwise. Edit the ticket:
   frontmatter `status: blocked` → `status: pending`, and `updated:`
   to today's date. Append a one-line record to `.kanban/progress.md`:
   `#NNN unblocked <date>: <root cause>`.
-  This line is the durable retry-bound record for loop-only delegation.
+  This line is the durable retry-bound record for loop-only delegation — keep it to ONE line: its only job is retry-bound detection on rerun, and the worker re-reads the ticket's `## Blocker` anyway, so do NOT restate the Blocker's fix paths here (that bloats progress.md).
   Then relaunch the driver (Relaunch section) so a fresh-context ralph
   worker picks the ticket up, reads the Blocker, implements via
   `skill://implement`, and the worker's DONE verification gate runs the
