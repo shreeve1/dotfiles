@@ -62,6 +62,49 @@ optional.
   plugin running *inside* dsh, with `autoRestore: true`, so it comes back on
   reboot with the web service. No `dsh-netbird-proxy` service anymore.
 
+## Sidebar workbench & plugins (`profiles/web`)
+
+The web profile's plugin set lives in `~/.dsh/profiles/web/package.json`:
+`dependencies` (what pnpm installs) **and** `dsh.profile.bundles` (the ordered
+mount list cordis actually loads). `dsh plugin --profile web add <spec>`
+coordinates both; a plugin missing from `bundles` won't load even if installed.
+
+**Sidebar stack: `dsh-better-sidebar`** (npm, `node-pty` native dep). This is a
+full VSCode-style workbench — file explorer + CodeMirror editor/viewers,
+embedded browser, real terminal (xterm + node-pty), Git panel, background-tasks/
+subagent page, side chat. It exposes `ctx.betterSidebar` (`registerTab` /
+`registerFileViewer`) that the ecosystem plugins below register against, so it
+**must come before them in `bundles`**.
+
+- It **replaced the `dock-*` family** (`dock-base`/`-editor`/`-files`/`-git`,
+  the old `ctx.workbench` dock). Running both = two docks / duplicate-loader
+  conflicts. Those four are removed from both `dependencies` and `bundles`.
+- Install dance (pnpm 11 blocks `node-pty`'s build script on first `add`):
+  `add dsh-better-sidebar@latest` (fails) → `cd ~/.dsh/profiles/web &&
+  pnpm approve-builds --all` → `add` again (succeeds). If the terminal later
+  complains "node-pty failed to load", re-run `pnpm approve-builds --all &&
+  pnpm rebuild node-pty` in the profile dir.
+
+**Ecosystem plugins registered via `ctx.betterSidebar`** (each ordered *after*
+`dsh-better-sidebar`; client changes hot-load, so hard-refresh the browser after
+install — no restart needed unless a host half changed):
+
+| Plugin | Source spec | Adds |
+|---|---|---|
+| `dsh-file-review-tab` | npm | "File Review" tab: per-turn line-level diffs + undo |
+| `dsh-media-preview` | `github:tsonglew/dsh-media-preview` | audio/video FileViewer, HTTP Range streaming |
+| `dsh-workspace-search` | `github:tsonglew/dsh-workspace-search` | VSCode-style "Search" tab (glob/regex, name+content). README's `./plugins/...` path is wrong for us — use the `github:` spec |
+| `dsh-md-annotator` | `github:3361805598-gif/dsh-md-annotator` | per-block/text-range `.md` annotations → structured revision text into chat |
+
+- **`dsh-md-annotator` takes over `.md` preview** while enabled (built-in
+  Markdown edit mode is suspended; toggle it off in *Settings → Side Cards* to
+  restore). UI is Chinese-only. Installed from the `github:` source (prebuilt
+  `lib/` is committed); a SHA-256-pinned release tarball via `vendor/` is the
+  alternative (see its README).
+- After adding any of these, verify none got auto-disabled: check
+  `cordis.patch.yml` for a fresh `auto-disabled by dsh-startup-guard` entry (see
+  the dsh-diagram note in Gotchas). A clean load leaves no new `disabled: true`.
+
 ## Key files (`~/.dsh/`)
 
 | Path | What | Mode |
@@ -136,6 +179,14 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   The plugin uses a runtime proxy (not node_modules patches) so it usually
   survives, but if the fence self-check fails after an upgrade, check the
   plugin's compatibility note / reinstall it.
+- **Crash loop `duplicate loader entry id: storage`:** caused by
+  `dsh-background-agents@0.5.6` — its `cordis.patch.yml` re-inserts the
+  `storage` / `storage-json` / `storage-domain` loader rows already owned by
+  `@deepseek-ai/dsh-web-app`, and cordis-plugin-loader's `EntryGroup.update`
+  throws on duplicate ids. Fix: remove the plugin (`dsh plugin --profile web
+  remove dsh-background-agents`) AND drop its entry from `dsh.profile.bundles`
+  in `~/.dsh/profiles/web/package.json`. `dsh plugin remove` alone is
+  *not* sufficient if you ever installed manually — always verify both.
 - **Forgot the token:** `cat ~/.dsh/reverse-proxy.json` (loopback/on-box), or
   rotate a new one.
 - **Disable remote access entirely:** stop the proxy via
