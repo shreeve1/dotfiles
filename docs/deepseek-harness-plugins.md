@@ -1,5 +1,13 @@
 # DSH Plugin Install Runbook — Headless, Self-Sufficient Stack
 
+> **Live-state source of truth is [`deepseek-harness.md`](deepseek-harness.md).**
+> This file is the *install procedure* (how to build a headless stack from
+> scratch, phase by phase); that file is the *reference* for what's actually
+> deployed on `aidev`. Reconciled to the live stack 2026-08-26: the
+> orchestration and file-surface phases were rewritten to match what's really
+> installed (native subagents + `dsh-better-sidebar`), replacing the earlier
+> planned picks (`dsh-team`, `dsh-background-agents`, the workbench plugin).
+
 Target: a self-hosted DeepSeek Harness (dsh) **web** profile on a **headless Linux**
 server. Goal: dsh stands alone (orchestration, files, browser, self-heal) and
 **reuses Claude Code skills only** — hooks/agents handled by native DSH plugins.
@@ -55,10 +63,9 @@ Two npm packages, installed directly. **No junction hub / no `file:///` hot-moun
 `.claude/` remains the single source of truth; this loads at runtime, never writes back.
 
 ```bash
-# Shared parser first (cc-skills depends on it)
-dsh plugin --profile web add dsh-cc-loader
-
-# Skills + slash-commands + rules loader (project + global ~/.claude)
+# Skills + slash-commands + rules loader (project + global ~/.claude).
+# dsh-cc-loader is pulled in automatically as a library dependency of
+# cc-skills (it is NOT a separate plugin — do not add it to bundles).
 dsh plugin --profile web add dsh-cc-skills
 ```
 
@@ -108,56 +115,67 @@ Restart + verify: trigger a tool call, confirm a `hook/invoked` + `hook/result`
 appears in the session log.
 
 > **Conflict to watch (#1):** a pre-tool hook that blocks certain commands can
-> block the Phase-4 workbench `git_*` tools. Scope hook rules narrowly to what you
-> actually want gated.
+> block the Phase-4 sidebar's git panel / terminal `git` calls. Scope hook rules
+> narrowly to what you actually want gated.
 
 ---
 
-## Phase 3 — Orchestration / subagents / tasks (your native agent layer)
+## Phase 3 — Orchestration / subagents (native preset tools, no plugin)
 
-```bash
-# Persistent named teammates, shared task list, mailbox, team-room tab
-dsh plugin --profile web add github:huxint/dsh-team
+**No third-party orchestration plugin.** The live deployment uses the agent
+preset's **native** `subagent` / `subagent_fork` / `workflow` / `ralph` tools —
+the `standard` preset's `delegation` isolate already grants them. Two
+third-party options were trialled and dropped, and one crashed on install:
 
-# Durable, interruptible background children on the official subagent seam
-dsh plugin --profile web add github:PerryLink/dsh-background-agents
+- `@nanmicoder/dsh-agent-teams` and `dsh-maestro` — removed; maestro never
+  restricted the main agent's tools (so it didn't *force* orchestration-only)
+  and shipped a hardcoded-Chinese UI.
+- `dsh-background-agents@0.5.6` — **crashes the host** (`duplicate loader entry
+  id: storage`); do not install. See `deepseek-harness.md` Gotchas.
 
-# OPTIONAL — per-call model/provider/persona/tool overrides for delegation
-# dsh plugin --profile web add github:lynx-gt/dsh-subagent-tools
-```
+The reason the main agent under-delegated wasn't a missing tool — it was missing
+*instruction* to prefer delegation (the web persona is minimal and
+`agent-instructions` is disabled in the web profile). Fix that with guidance, or
+change the agent preset to drop mutation tools; don't reach for a delegation
+plugin. Full analysis: `deepseek-harness.md` § "Delegation / subagent
+orchestration".
 
-Restart + verify:
-
-```bash
-dsh web
-```
-
-- Team-room tab appears; create a teammate and a shared task.
-- Start a background agent; confirm it shows in the Web UI sidebar and can be
-  messaged / interrupted.
-
-> **Conflict to watch (#2):** `cc-skills` rule injection is **top-level-session
-> only**. Teammates spawned by `dsh-team` may not receive CC rule context. If you
-> rely on CC rules shaping subagent behavior, verify — and remember you set
-> `enableRules` deliberately in Phase 1.
+Verify (no restart needed — nothing installed): in a session, confirm
+`subagent` / `subagent_fork` are in the tool catalog.
 
 ---
 
-## Phase 4 — File browsing / editing / git (replaces orca's file surface)
+## Phase 4 — File browsing / editing / git + sidebar workbench
 
 ```bash
-dsh plugin --profile web add github:loadingvx/deepseek-harness-workbench-plugin
+# VSCode-style workbench: explorer + CodeMirror editor, embedded browser, real
+# terminal (xterm + node-pty), git panel, subagent page. MUST come before its
+# ecosystem plugins in `bundles` (it exposes ctx.betterSidebar).
+dsh plugin --profile web add dsh-better-sidebar@latest
+# pnpm 11 blocks node-pty's build on first add — approve, then re-add:
+( cd ~/.dsh/profiles/web && pnpm approve-builds --all )
+dsh plugin --profile web add dsh-better-sidebar@latest
+
+# Ecosystem tabs (each ordered AFTER dsh-better-sidebar):
+dsh plugin --profile web add dsh-file-review-tab                        # per-turn line diffs + undo
+dsh plugin --profile web add github:tsonglew/dsh-media-preview          # audio/video viewer
+dsh plugin --profile web add github:tsonglew/dsh-workspace-search       # glob/regex search tab
+dsh plugin --profile web add github:3361805598-gif/dsh-md-annotator     # .md annotations → chat
 ```
 
-3-pane chat / Monaco editor / files+git, multi-tab editing, **workspace terminal**
-(useful on a headless box), full SCM (stage/commit/push/pull/branch/graph), and
-model-facing `git_*` tools.
+Full VSCode-style workbench with a **workspace terminal** (useful on a headless
+box), git panel, and the file/review/search/media ecosystem. Replaced the old
+`dock-*` family; running both = duplicate-loader conflicts.
 
-Restart + verify: open the workbench, browse the file tree, make an edit, run a
-`git status` via the panel. Confirm the terminal opens.
+Restart + verify: open the sidebar, browse the file tree, make an edit, run a
+`git status` in the terminal. Confirm the terminal opens (if it complains
+"node-pty failed to load", re-run `pnpm approve-builds --all && pnpm rebuild
+node-pty` in the profile dir).
 
-> Re-check Conflict #1 here: if a hook blocks `git`, the workbench SCM will fail
+> Re-check Conflict #1 here: if a hook blocks `git`, the SCM panel will fail
 > silently. Test a commit end-to-end.
+> Note: `dsh-md-annotator` takes over `.md` preview (Chinese-only UI); toggle it
+> off in Settings → Side Cards to restore the built-in Markdown editor.
 
 ---
 
@@ -190,12 +208,13 @@ curl -s http://127.0.0.1:3080/api/pluginInventory/list \
 Then run the **Doctor** panel once more for a clean bill of health, and do one
 end-to-end smoke test that exercises multiple layers at once, e.g.:
 
-> "Spin up a teammate to open example.com in the browser, save the page text to
->  a file in the workspace, then git-commit it."
+> "Delegate to a subagent: open example.com in the browser, save the page text
+>  to a file in the workspace, then git-commit it."
 
-That single task touches: `dsh-team` (teammate) → `dsh-pilot` (browser) →
-workbench (file write + `git_*`) → `dsh-plugin-hooks` (pre-tool gate) — plus any
-CC skill it decides to invoke. If it completes, the stack composes.
+That single task touches: native `subagent` (delegation) → `dsh-pilot` (browser)
+→ `dsh-better-sidebar` (file write + git panel) → `dsh-plugin-hooks` (pre-tool
+gate) — plus any CC skill it decides to invoke. If it completes, the stack
+composes.
 
 ---
 
