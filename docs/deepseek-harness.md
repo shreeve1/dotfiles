@@ -132,6 +132,47 @@ duplicate-loader conflicts.
   `cordis.patch.yml` for a fresh `auto-disabled by dsh-startup-guard` entry (see
   Gotchas). A clean load leaves no new `disabled: true`.
 
+### Install best practices (lessons learned)
+
+Prefer `dsh plugin --profile web add <spec>` for every install — it places the
+package in the profile's own `node_modules/` (the first bundle-resolution anchor
+the boot loader checks) and coordinates `dependencies` + `bundles` together.
+Rules that keep the profile bootable:
+
+- **One plugin (or one phase) per restart.** Never batch-install then restart
+  once — a boot failure becomes unattributable. (2026-08-26: a 15-package
+  `@dsh-pro` suite staged all at once crash-looped `dsh-web.service` ~200× with
+  no way to blame a single plugin.)
+- **Only `dsh.bundle` packages belong in `dsh.profile.bundles`.** The loader
+  (`@deepseek-ai/dsh-app-boot` `loadProfile`) hard-throws `profile bundle "X"
+  declares no dsh.bundle` on any bundles entry that declares only `dsh.client`.
+  Client-only plugins mount via `- insert:` rows in `cordis.patch.yml` plus a
+  `dependencies` entry, never the bundles list. A suite whose plugins self-mount
+  via insert rows will legitimately show as `INSTALLED not bundled` in the
+  cross-check below — that is expected, not dead weight.
+- **Install into the profile's `node_modules`, not a parent.** Bundles resolve
+  from `~/.dsh/profiles/web/node_modules` first, then the dsh app dir
+  (`resolveBundleDir`). A manual/staged install that lands packages in
+  `~/.dsh/profiles/node_modules` (the parent) may resolve today but breaks on
+  the next `pnpm` / `dsh plugin install`.
+  This bit the `@dsh-pro/*` suite (2026-08-26): its installer staged the
+  packages into `~/.dsh/profiles/node_modules` (the parent). They resolved for
+  cordis via Node's walk-up, but `dsh-startup-guard` checks ONLY
+  `web/node_modules/<name>` (`bundleDirResolves`), decided the insert rows
+  "no longer resolve", and auto-disabled all 15 — killing the `layout` service
+  and every client entry that waits on it. Fix: move the suite into
+  `~/.dsh/profiles/web/node_modules/@dsh-pro`. Peers still resolve (they are
+  `@deepseek-ai/*` or `react`, found further up the walk-up), and the guard
+  stops disabling the rows. The `@dsh-pro/updates` watcher still logs the parent
+  path as its release target — harmless; only the package dirs must live under
+  the profile.
+- **Keep the Phase-0 self-heal layer installed** (`dsh-startup-guard`,
+  `dsh-hot-reload`, `dsh-smart-restart`) so the next bad install quarantines
+  instead of bricking boot.
+- When you must stage a private suite manually, afterward run the cross-check
+  below AND confirm every `bundles` entry declares `dsh.bundle` and resolves
+  from the profile `node_modules`.
+
 ### Auditing the plugin set
 
 Cross-check `dependencies` against `bundles` (run in `~/.dsh/profiles/web`):

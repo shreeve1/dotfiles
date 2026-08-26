@@ -9,6 +9,15 @@ The self-hosted DeepSeek Harness (dsh) web UI on `aidev` is the user's main agen
 surface; the other tool configs here support it and legacy workflows. See
 `docs/deepseek-harness.md` for access, architecture, and recovery.
 
+**Building or installing dsh plugins?** Load the `dsh-plugin-build` skill
+first (`.claude/skills/dsh-plugin-build/SKILL.md`) — a dispatcher to the
+`dsh-plugin-guide` skill (the plugin contract) and to `docs/deepseek-harness.md`
+(the deployment's install/audit rules). Always install via `dsh plugin
+--profile web add <spec>`; never hand-stage packages into `node_modules`.
+One plugin per restart, and only packages that declare `dsh.bundle` go in
+`dsh.profile.bundles` — client-only plugins mount via `- insert:` rows.
+See that doc's "Install best practices" for the full list.
+
 ## On a fresh machine
 
 Run `bash install.sh` from the repo root. See `README.md` for the full setup
