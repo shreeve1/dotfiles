@@ -6,6 +6,11 @@ Reference for the self-hosted DeepSeek Harness web UI running on `aidev`
 diagnose it without re-deriving everything. Versions at time of writing:
 `@deepseek-ai/dsh` **0.1.1-rc.2**, `dsh-full-remote` plugin **0.3.7**.
 
+> **Plugin inventory last reconciled against the live box: 2026-08-26.** The web
+> profile now bundles **24** plugins (see the full table below); an earlier
+> version of this doc described only ~7. If you touch the plugin set, re-run the
+> cross-check in *Auditing the plugin set* and update the table.
+
 ## TL;DR — how to reach it
 
 - **URL:** `https://100.95.230.15:3080` (netbird) — also bound only to that IP.
@@ -62,48 +67,136 @@ optional.
   plugin running *inside* dsh, with `autoRestore: true`, so it comes back on
   reboot with the web service. No `dsh-netbird-proxy` service anymore.
 
-## Sidebar workbench & plugins (`profiles/web`)
+## Plugins (`profiles/web`)
 
 The web profile's plugin set lives in `~/.dsh/profiles/web/package.json`:
 `dependencies` (what pnpm installs) **and** `dsh.profile.bundles` (the ordered
 mount list cordis actually loads). `dsh plugin --profile web add <spec>`
 coordinates both; a plugin missing from `bundles` won't load even if installed.
+`bundles` is order-sensitive: a plugin that registers an extension point must
+come before the plugins that register against it.
 
-**Sidebar stack: `dsh-better-sidebar`** (npm, `node-pty` native dep). This is a
-full VSCode-style workbench — file explorer + CodeMirror editor/viewers,
-embedded browser, real terminal (xterm + node-pty), Git panel, background-tasks/
-subagent page, side chat. It exposes `ctx.betterSidebar` (`registerTab` /
-`registerFileViewer`) that the ecosystem plugins below register against, so it
-**must come before them in `bundles`**.
+### Full bundled inventory (24, in mount order)
 
-- It **replaced the `dock-*` family** (`dock-base`/`-editor`/`-files`/`-git`,
-  the old `ctx.workbench` dock). Running both = two docks / duplicate-loader
-  conflicts. Those four are removed from both `dependencies` and `bundles`.
-- Install dance (pnpm 11 blocks `node-pty`'s build script on first `add`):
-  `add dsh-better-sidebar@latest` (fails) → `cd ~/.dsh/profiles/web &&
-  pnpm approve-builds --all` → `add` again (succeeds). If the terminal later
-  complains "node-pty failed to load", re-run `pnpm approve-builds --all &&
-  pnpm rebuild node-pty` in the profile dir.
+`@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` are the two
+installation-owned base bundles and lead the list; the 24 below follow.
 
-**Ecosystem plugins registered via `ctx.betterSidebar`** (each ordered *after*
-`dsh-better-sidebar`; client changes hot-load, so hard-refresh the browser after
-install — no restart needed unless a host half changed):
+| # | Plugin | Ver | Source spec | What it adds |
+|--:|---|---|---|---|
+| 1 | `dsh-ponytail-skills` | 0.1.3 | `github:gongyijie85/dsh-ponytail` | 6 ponytail "lazy senior dev" skills |
+| 2 | `dsh-full-remote` | 0.3.7 | npm | token-gated TLS reverse proxy (remote access — see above) |
+| 3 | `dshmarket` | 1.20.2 | npm | in-app visual plugin market (browse/search/one-click install) |
+| 4 | `dsh-hot-reload` | 0.2.4 | `github:stuarthu/dsh-hot-reload#006d915` | live-reload upgraded plugins without restarting dsh |
+| 5 | `dsh-startup-guard` | 1.0.0 | `github:aokamoaki/dsh-startup-guard#82cead8` | boot-time guard: repairs session logs, auto-disables broken bundles (see Gotchas) |
+| 6 | `dsh-cc-skills` | 0.1.0 | npm | loads Claude Code `.claude/` skills/commands/rules (project + `~/.claude`) into dsh |
+| 7 | `dsh-pilot` | 0.4.1 | `github:guo6x/dsh-pilot#9103a2d` | browser automation: drives Edge/Chrome over CDP from chat (`pilot_*` tools) |
+| 8 | `dsh-plugin-hooks` | 0.1.1 | `github:truelove-dreamer/dsh-plugin-hooks#6cf763e` | Claude-Code-style lifecycle shell hooks |
+| 9 | `@moonquake2004/dsh-doctor` | 0.4.3 | `github:moonquake2004/dsh-doctor#path:/plugin` | offline diagnostic (28+ built-in checks across env/profile) |
+| 10 | `dsh-smart-restart` | 0.5.1 | `github:edusrez/dsh-smart-restart#bde38b3` | detects service restart, wakes the interrupted session (`smart_restart` tool) |
+| 11 | `@liustack/modlens` | 3.24.0 | npm | plug-in vision for text-only LLMs (`modlens_read_image`) |
+| 12 | `@liustack/modsearch` | 5.9.0 | npm | web + X search and page reading (`web_search` / `x_search` / `read_page`) |
+| 13 | `dsh-diagram` | 0.3.4 | npm | editable Excalidraw canvases from articles (`diagram_create`). Excluded from startup-guard — see Gotchas |
+| 14 | `dsh-status-rotator` | 0.6.6 | npm | rotates the chat turn-status label through custom phrases |
+| 15 | `@tecfancy/dsh-mobile` | 0.1.7 | npm | mobile shell adapter (overlay drawers, responsive composer) |
+| 16 | `dsh-better-sidebar` | 0.15.2 | npm | VSCode-style workbench (explorer/editor/terminal/git/browser). Exposes `ctx.betterSidebar`; **must precede its ecosystem plugins** (18-21) |
+| 17 | `dsh-file-review-tab` | 0.1.2 | npm | "File Review" tab: per-turn line-level diffs + undo |
+| 18 | `dsh-media-preview` | 0.1.0 | `github:tsonglew/dsh-media-preview` | audio/video FileViewer, HTTP Range streaming |
+| 19 | `dsh-workspace-search` | 0.1.0 | `github:tsonglew/dsh-workspace-search` | VSCode-style "Search" tab. README's `./plugins/...` path is wrong for us — use the `github:` spec |
+| 20 | `dsh-md-annotator` | 0.6.0 | `github:3361805598-gif/dsh-md-annotator` | per-block/text-range `.md` annotations → revision text into chat |
+| 21 | `@changfenhuang/dsh-genui` | 0.9.2 | npm | interactive GenUI components rendered inline in replies (`render_ui`). Excluded from startup-guard — see Gotchas |
+| 22 | `dsh-ui-translate` | link | `link:~/.dsh/plugins-src/dsh-ui-translate` | browser-local OPUS-MT translator (see boundary note below) |
+| 23 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
+| 24 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
 
-| Plugin | Source spec | Adds |
-|---|---|---|
-| `dsh-file-review-tab` | npm | "File Review" tab: per-turn line-level diffs + undo |
-| `dsh-media-preview` | `github:tsonglew/dsh-media-preview` | audio/video FileViewer, HTTP Range streaming |
-| `dsh-workspace-search` | `github:tsonglew/dsh-workspace-search` | VSCode-style "Search" tab (glob/regex, name+content). README's `./plugins/...` path is wrong for us — use the `github:` spec |
-| `dsh-md-annotator` | `github:3361805598-gif/dsh-md-annotator` | per-block/text-range `.md` annotations → structured revision text into chat |
+**Not a plugin bundle, but present:** `dsh-cc-loader` (0.1.1) is a **shared
+library**, not a mountable plugin — `dsh-cc-skills` imports its parse layer
+(`import { loadClaude, parseFrontmatter } from 'dsh-cc-loader'`). pnpm installs
+it as a transitive dep of `dsh-cc-skills`; it must **not** appear in `bundles`
+and should **not** carry a redundant top-level `dependencies` entry (a stray one
+was removed 2026-08-26 — it made cc-loader look like an unbundled plugin).
+
+**`dsh-better-sidebar` install dance** (pnpm 11 blocks `node-pty`'s build script
+on first `add`): `add dsh-better-sidebar@latest` (fails) → `cd
+~/.dsh/profiles/web && pnpm approve-builds --all` → `add` again (succeeds). The
+build is now allowlisted in `pnpm-workspace.yaml` (`allowBuilds: node-pty`). If
+the terminal later complains "node-pty failed to load", re-run `pnpm
+approve-builds --all && pnpm rebuild node-pty` in the profile dir. It replaced
+the old `dock-*` family (`dock-base`/`-editor`/`-files`/`-git`); running both =
+duplicate-loader conflicts.
 
 - **`dsh-md-annotator` takes over `.md` preview** while enabled (built-in
   Markdown edit mode is suspended; toggle it off in *Settings → Side Cards* to
-  restore). UI is Chinese-only. Installed from the `github:` source (prebuilt
-  `lib/` is committed); a SHA-256-pinned release tarball via `vendor/` is the
-  alternative (see its README).
-- After adding any of these, verify none got auto-disabled: check
+  restore). UI is Chinese-only. Prebuilt `lib/` is committed in the `github:`
+  source.
+- After adding any plugin, verify none got auto-disabled: check
   `cordis.patch.yml` for a fresh `auto-disabled by dsh-startup-guard` entry (see
-  the dsh-diagram note in Gotchas). A clean load leaves no new `disabled: true`.
+  Gotchas). A clean load leaves no new `disabled: true`.
+
+### Auditing the plugin set
+
+Cross-check `dependencies` against `bundles` (run in `~/.dsh/profiles/web`):
+
+```sh
+python3 -c "
+import json
+d=json.load(open('package.json'))
+deps=set(d['dependencies'].keys()); b=d['dsh']['profile']['bundles']
+builtins={'@deepseek-ai/dsh-base','@deepseek-ai/dsh-web-app'}
+print('deps:',len(deps),'| non-builtin bundled:',len(set(b)-builtins))
+print('INSTALLED not bundled:', sorted(deps-(set(b)-builtins)))  # library deps or dead weight
+print('BUNDLED not in deps:',   sorted((set(b)-builtins)-deps))  # should be empty
+print('duplicate bundle entries:', [x for x in b if b.count(x)>1])
+"
+```
+
+A healthy state is `deps == non-builtin bundled` with both lists empty. An
+`INSTALLED not bundled` hit is either a shared library (like `dsh-cc-loader`,
+keep) or genuine dead weight (remove from `dependencies`). Also check
+`~/.dsh/plugins-src/` for orphaned `link:`-style source drops not referenced in
+`package.json` (an orphan `dsh-a2a` was deleted here 2026-08-26). Always back up
+`package.json`/`cordis.patch.yml` before editing, and restart the web service to
+apply.
+
+## Delegation / subagent orchestration
+
+**Why the main agent wasn't delegating.** In the Web profile, dsh moves the whole
+agent-tool plane (bash, fs, skill, *and all subagent tools*) off the host plane
+and **behind agent presets** (`dsh-web-app/cordis.patch.yml` disables `tool-bash`,
+`tool-subagent`, `tool-subagent-fork`, etc. at host level; each session mounts a
+preset instead). The subagent registry + spawn/fork backends stay loaded on the
+host plane. The default agent preset is `standard`, whose `delegation` isolate
+DOES grant `subagent` / `subagent_fork` / `workflow` / `ralph`. So the tools ARE
+in the catalog — the model just wasn't *choosing* to delegate: the web
+system-prompt persona is minimal, `agent-instructions` is disabled in the web
+profile. `dsh-cc-skills` *is* bundled (it loads `.claude/` skills/commands/rules
+via the `dsh-cc-loader` library), but no CLAUDE.md/AGENTS.md *agent-guidance*
+reaches the model as a system prompt (`dsh-cc-agents` isn't installed). A capable model with
+delegation tools but no instruction to prefer them just grinds through with bash.
+To truly force orchestration-only you must change the *agent preset* to drop the
+mutation tools — a plugin can only *add* a delegate tool, not take the main
+agent's tools away.
+
+**Delegation-plugin history (both removed).** We trialled two:
+`@nanmicoder/dsh-agent-teams` (durable named-team `agent_teams_*` tools) and
+`dsh-maestro` (a `link:`-installed planner/executor plugin). Both were uninstalled
+— maestro added a delegate tool but never restricted the main agent's tools (so it
+didn't *force* orchestration-only) and shipped a hardcoded-Chinese UI. When
+removing a delegation plugin, strip it from **both** `dependencies` and `bundles`
+(verify per the agent-teams gotcha), delete any `plugins-src/<plugin>/` source and
+the dangling `node_modules/<plugin>` symlink from a `link:` install, then restart.
+Net current state: no third-party delegation plugin; the main agent has the
+preset's native `subagent` / `subagent_fork` and simply isn't told to prefer them.
+
+**ui-translate boundary (general).** `dsh-ui-translate` (browser-local OPUS-MT,
+`backend: browser-opus-mt` in `settings.yaml`) translates all visible Chinese
+*text nodes* — but **not** HTML attributes (`title` / `aria-label` tooltips) and
+**not** elements it deliberately skips. Its `REMOTE_CONTENT_SKIP_SELECTOR` includes
+`[data-slot^="conversation."]`, so any plugin chip mounted in the composer/
+conversation input slot is skipped even under the OPUS backend — its visible text
+stays in the source language. For a Chinese-only plugin whose UI you must read
+(e.g. `dsh-md-annotator`), the fallback is to translate the string literals in its
+prebuilt `lib/client.js` in place (keep a `.bak`; comments don't render); note an
+upgrade overwrites the bundle, so re-apply after any upgrade.
 
 ## Key files (`~/.dsh/`)
 
@@ -114,7 +207,11 @@ install — no restart needed unless a host half changed):
 | `dsh-tls.crt` / `dsh-tls.key` | self-signed cert, SAN=IP:100.95.230.15, 10y | key 600 |
 | `reverse-proxy.json` | plugin state: `accessToken`, `enabled`, device sessions | 600 |
 | `profiles/web/cordis.patch.yml` | plugin config override (listenHost/port, TLS paths, backend) | - |
+| `profiles/web/package.json` | plugin `dependencies` + ordered `dsh.profile.bundles` mount list | - |
+| `profiles/web/pnpm-workspace.yaml` | `nodeLinker: hoisted`, `allowBuilds` (node-pty etc.), `minimumReleaseAgeExclude` | - |
+| `dsh-startup-guard.json` | guard config: `exclude` list (diagram + genui, see Gotchas), `mode` | - |
 | `profiles/web/node_modules/dsh-full-remote/` | the installed plugin | - |
+| `plugins-src/dsh-ui-translate/` | `link:`-installed browser-local translator (only entry — orphans removed) | - |
 
 ## Model providers
 
@@ -187,6 +284,21 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   remove dsh-background-agents`) AND drop its entry from `dsh.profile.bundles`
   in `~/.dsh/profiles/web/package.json`. `dsh plugin remove` alone is
   *not* sufficient if you ever installed manually — always verify both.
+- **`dsh-startup-guard` auto-disabled `dsh-diagram` / `@changfenhuang/dsh-genui`
+  ("client bundle does not register its id via `__ModuleLoader__.load`"):** this
+  is a **false positive** — a guard bug. The guard's static id-registration
+  regex (`node_modules/dsh-startup-guard/lib/guard-core.mjs` ~line 602) uses the
+  character class `["']` and does **not** accept backtick template-literal ids,
+  so a valid bundle registering `{id:` `` `dsh-diagram` `` `}` fails the static
+  check and gets disabled before the guard's own vm load check (which passes)
+  runs. Both bundles are fine (verify: run the client `lib/client.js` in a vm
+  with an `__ModuleLoader__` recorder and confirm it registers the id). **Fix
+  (2026-08-26):** exclude both from the guard via `~/.dsh/dsh-startup-guard.json`
+  (`{"exclude":["dsh-diagram","@changfenhuang/dsh-genui"]}` — uses the *bundle
+  name*, not the loader id) and remove their `disabled: true` blocks from
+  `cordis.patch.yml`. Don't patch the vendored regex — an upgrade overwrites it;
+  the exclude survives. Drop the exclude if the guard's regex is ever fixed to
+  accept backticks. Report upstream: `github:aokamoaki/dsh-startup-guard`.
 - **Forgot the token:** `cat ~/.dsh/reverse-proxy.json` (loopback/on-box), or
   rotate a new one.
 - **Disable remote access entirely:** stop the proxy via
