@@ -6,6 +6,8 @@
 #    below, so agent/tool bash sessions get these too) ──────────────────────
 # npm global binaries (dsh, codex, pi, etc.) — mirrors .zshrc
 export PATH="$HOME/.npm-global/bin:$PATH"
+# user-local bin (dsh-plugin-dev launcher, etc.) — mirrors .zshrc
+export PATH="$HOME/.local/bin:$PATH"
 # systemd --user bus: so `systemctl --user` works in non-login shells
 # (user lingers, no seat session). Guarded: only set when unset.
 : "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
