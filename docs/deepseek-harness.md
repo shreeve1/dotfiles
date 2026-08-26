@@ -7,9 +7,15 @@ diagnose it without re-deriving everything. Versions at time of writing:
 `@deepseek-ai/dsh` **0.1.1-rc.2**, `dsh-full-remote` plugin **0.3.7**.
 
 > **Plugin inventory last reconciled against the live box: 2026-08-26.** The web
-> profile now bundles **24** plugins (see the full table below); an earlier
-> version of this doc described only ~7. If you touch the plugin set, re-run the
-> cross-check in *Auditing the plugin set* and update the table.
+> profile now bundles **24** non-builtin plugins (see the full table below); an
+> earlier version of this doc described only ~7. If you touch the plugin set,
+> re-run the cross-check in *Auditing the plugin set* and update the table.
+>
+> **Table drift note (2026-08-26):** the numbered table below still lists
+> `dsh-pilot` and `@liustack/modsearch`, which are **no longer in the live
+> `bundles`**, and predates `dsh-omp-advisor` and `dsh-client-auto-continue`
+> (both live). The authoritative list is always the live
+> `python3` cross-check in *Auditing the plugin set*, not the row numbers here.
 
 ## TL;DR — how to reach it
 
@@ -107,6 +113,12 @@ installation-owned base bundles and lead the list; the 24 below follow.
 | 22 | `dsh-ui-translate` | link | `link:~/.dsh/plugins-src/dsh-ui-translate` | browser-local OPUS-MT translator (see boundary note below) |
 | 23 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
 | 24 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
+| 25 | `dsh-omp-advisor` | 0.7.7 | `github:AndrasSama/dsh-omp-advisor` | omp advisor plugin. Has a `prepare` build, so needs an `allowBuilds` key |
+| 26 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
+
+> Rows 25–26 are live but fall outside the original 1–24 numbering (see the
+> drift note at the top). `dsh-pilot` (row 7) and `@liustack/modsearch` (row 12)
+> are **not** in the live `bundles` — treat those two rows as historical.
 
 **Not a plugin bundle, but present:** `dsh-cc-loader` (0.1.1) is a **shared
 library**, not a mountable plugin — `dsh-cc-skills` imports its parse layer
@@ -132,34 +144,6 @@ duplicate-loader conflicts.
   `cordis.patch.yml` for a fresh `auto-disabled by dsh-startup-guard` entry (see
   Gotchas). A clean load leaves no new `disabled: true`.
 
-### dsh-pro suite (15 plugins, insert-mounted)
-
-Added 2026-08-26 (release v0.1.0, commit `9070e86`, from `rodrigobaron/dsh-pro`).
-Installed under `~/.dsh/profiles/web/node_modules/@dsh-pro/` and mounted via
-`- insert:` rows in `cordis.patch.yml` — **not** in `dsh.profile.bundles`, so they
-legitimately show as `INSTALLED not bundled` in the cross-check below. Updated
-in-app by `@dsh-pro/updates`; all 15 are guard-excluded in
-`~/.dsh/dsh-startup-guard.json`. See "Install best practices" for why they must
-live under the profile `node_modules`, not the parent.
-
-| Plugin (`@dsh-pro/`) | Ver | Insert id | What it adds |
-|---|---|---|---|
-| `archived-sessions` | 0.1.4 | `archived-sessions` | Session manager in Settings: browse + archive all conversations |
-| `at-file` | 0.1.0 | `at-file` | `@path` references in the composer (workspace path search) |
-| `browser` | 0.1.0 | `browser` | Skill-gated Playwright browser automation (`browser_*` tools) |
-| `client-ui-file-canvas` | 0.1.0 | `ui-file-canvas` | File canvas: renders any workspace file in the details panel |
-| `client-ui-layout-wide` | 0.1.0 | `ui-layout-wide` | Wide resizable details column; **replaces** stock `ui-layout` (which is disabled) |
-| `context` | 0.17.0 | `context` | Context dashboard tab + `/context` command |
-| `deep-research` | 0.1.0 | `deep-research` | `/deep-research` multi-step search skill |
-| `git-review` | 0.1.0 | `git-review` | Git review tab: diff / stage / commit / push |
-| `notification` | 0.1.0 | `notification` | Desktop notifications on turn completion |
-| `rewind` | 0.1.0 | `rewind` | Rewind: durably remove a message + everything after it |
-| `rewind-picker` | 0.1.0 | `rewind-picker` | `/rewind` command + message picker |
-| `routines` | 0.1.0 | `routines` | Scheduled agent routines (host cron engine + `routines` tool) |
-| `search` | 0.1.0 | `web-search-free` | Free web search, ten engines, no API key (sets `web.searchProvider: ddg`) |
-| `tool-file-canvas` | 0.1.0 | `tool-file-canvas` (+ `host-file-canvas-route`) | `show_file` tool + the file-read route the canvas fetches |
-| `updates` | 0.1.0 | `updates` | Self-update the suite from GitHub Releases (checksum-verified) |
-
 ### Install best practices (lessons learned)
 
 Prefer `dsh plugin --profile web add <spec>` for every install — it places the
@@ -183,17 +167,16 @@ Rules that keep the profile bootable:
   (`resolveBundleDir`). A manual/staged install that lands packages in
   `~/.dsh/profiles/node_modules` (the parent) may resolve today but breaks on
   the next `pnpm` / `dsh plugin install`.
-  This bit the `@dsh-pro/*` suite (2026-08-26): its installer staged the
-  packages into `~/.dsh/profiles/node_modules` (the parent). They resolved for
-  cordis via Node's walk-up, but `dsh-startup-guard` checks ONLY
-  `web/node_modules/<name>` (`bundleDirResolves`), decided the insert rows
-  "no longer resolve", and auto-disabled all 15 — killing the `layout` service
-  and every client entry that waits on it. Fix: move the suite into
-  `~/.dsh/profiles/web/node_modules/@dsh-pro`. Peers still resolve (they are
-  `@deepseek-ai/*` or `react`, found further up the walk-up), and the guard
-  stops disabling the rows. The `@dsh-pro/updates` watcher still logs the parent
-  path as its release target — harmless; only the package dirs must live under
-  the profile.
+  A 15-package `@dsh-pro/*` suite hit exactly this on 2026-08-26: staged into
+  the parent `node_modules`, it resolved for cordis via Node walk-up but
+  `dsh-startup-guard` (which checks ONLY `web/node_modules/<name>` in
+  `bundleDirResolves`) auto-disabled every insert row, taking down the `layout`
+  service and the client entries waiting on it. The suite was ultimately removed
+  entirely (2026-08-26) after its `@dsh-pro/updates` plugin kept re-adding the
+  bundle entries on each in-app update, re-triggering `duplicate loader entry id`
+  crashes. Lesson stands: managed suites that rewrite the profile need their
+  update path understood before install, and unpublished packages need real
+  `file:` specs (never bare `"*"`, which 404s every later `pnpm install`).
 - **Keep the Phase-0 self-heal layer installed** (`dsh-startup-guard`,
   `dsh-hot-reload`, `dsh-smart-restart`) so the next bad install quarantines
   instead of bricking boot.
@@ -280,7 +263,8 @@ upgrade overwrites the bundle, so re-apply after any upgrade.
 | `profiles/web/pnpm-workspace.yaml` | `nodeLinker: hoisted`, `allowBuilds` (node-pty etc.), `minimumReleaseAgeExclude` | - |
 | `dsh-startup-guard.json` | guard config: `exclude` list (diagram + genui, see Gotchas), `mode` | - |
 | `profiles/web/node_modules/dsh-full-remote/` | the installed plugin | - |
-| `plugins-src/dsh-ui-translate/` | `link:`-installed browser-local translator (only entry — orphans removed) | - |
+| `plugins-src/dsh-ui-translate/` | `link:`-installed browser-local translator | - |
+| `plugins-src/@dsh-pro/` | source for the 15 `@dsh-pro/*` plugins; `dependencies` pin `file:` specs here (see dsh-pro suite § Pinning repair) | - |
 
 ## Model providers
 
