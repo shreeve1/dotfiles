@@ -133,5 +133,18 @@
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"
-  }
+  },
+  "SessionStart": [
+    {
+      "matcher": "startup|resume|clear",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "test -f \"$HOME/.agents/engram/hooks/session-start.sh\" && bash \"$HOME/.agents/engram/hooks/session-start.sh\" || exit 0",
+          "timeout": 10,
+          "statusMessage": "Engram: checking due reviews..."
+        }
+      ]
+    }
+  ]
 }
