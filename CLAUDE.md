@@ -3,6 +3,12 @@
 This repo is synced across the user's Linux and Mac machines. Files here become
 real config via symlinks installed by `install.sh`.
 
+## Primary agent: DeepSeek Harness (dsh)
+
+The self-hosted DeepSeek Harness (dsh) web UI on `aidev` is the user's main agent
+surface; the other tool configs here support it and legacy workflows. See
+`docs/deepseek-harness.md` for access, architecture, and recovery.
+
 ## On a fresh machine
 
 Run `bash install.sh` from the repo root. See `README.md` for the full setup
@@ -21,36 +27,20 @@ commands).
   by OpenCode via `~/.claude/skills` fallback).
 - Hooks: `.claude/hooks/` (Claude Code hook scripts).
 - See `README.md` § "Canonical vs tool-specific" for the full table.
-- Self-hosted DeepSeek Harness (dsh) web UI on `aidev`: see `docs/deepseek-harness.md` (access, architecture, recovery).
 
 ## Non-obvious requirements
 
-Full per-extension repair/rationale lore lives in **`docs/pi-extensions.md`**. Read
-it before touching, upgrading, or re-syncing any vendored Pi/Claude extension. The
-rules below are the ones that silently break things if violated:
+**Before touching, upgrading, or re-syncing any vendored Pi/Claude extension, read
+`docs/pi-extensions.md`** — it holds the full per-extension repair/rationale lore
+and the exact commands. The Pi-extension mechanics that silently break things
+(don't `pi install` vendored extensions; pi-lens needs `--ignore-scripts`;
+disabling needs a `-extensions/<name>/index.ts` exclusion *and* the `packages`
+entry removed; per-role subagent models go in `.pi/agent/settings.json`
+`subagents.agentOverrides`, not frontmatter; keep the pi-subagents `biome.json`;
+don't fight pi-lens autoformat) all live there with rationale.
 
-- **Never `pi install` a vendored extension.** Every extension under
-  `.pi/agent/extensions/` (pi-subagents, pi-lens, rpiv-*, ponytail, graphify-guard,
-  gap-review, workflows, subagent-bridge, fusion, etc.) is vendored and synced via
-  `install.sh`. `pi install` writes machine-local state that does not sync and can
-  shadow the repo copy. Repair with `bash install.sh` (or `INSTALL_PI_NPM=always
-  bash install.sh` when deps are stale).
-- **pi-lens must install with `--ignore-scripts`.** Its `prepare` script does
-  `rm -rf dist` and rebuilds from inputs the prebuilt tarball doesn't ship,
-  destroying the vendored `dist/`. `install.sh` special-cases this.
-- **Disabling an extension needs a `-extensions/<name>/index.ts` exclusion, not
-  just removing it from `packages`/`extensions`** — pi auto-discovers
-  `extensions/*/index.ts`. Package entries also resolve *before* exclusions
-  (first-entry-wins), so a `packages` entry overrides its own exclusion; remove the
-  `packages` entry too. Currently disabled this way: `rpiv-ask-user-question`,
-  `web-fetch`, `summaries`, `rpiv-advisor`, `workflows`.
-- **Per-role subagent models live in `.pi/agent/settings.json`
-  `subagents.agentOverrides`, NOT agent frontmatter** — a frontmatter `model:` pin
-  silently shadows the settings override. `.pi/agent/agents/` is intentionally empty
-  (files there shadow builtins by name).
-- **Keep `.pi/agent/extensions/pi-subagents/biome.json`** (`{"formatter":{"enabled":
-  false}}`) across re-syncs — without it pi-lens' biome reflows wide upstream files
-  into churn diffs on every edit.
+Environment facts that aren't in that doc:
+
 - **Questions are asked inline in chat**, never via `ask_user_question` /
   `AskUserQuestion` — that extension is deliberately disabled.
 - **OpenCode:** `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` and `OPENCODE_DISABLE_CLAUDE_CODE`
@@ -62,7 +52,6 @@ rules below are the ones that silently break things if violated:
   a delegation allowlist; mutations go through `bin/pi-delegate`. Toggle with
   `claude-fusion on|off|status` from your shell (not runnable by the agent), or drop
   `.claude/.fusion-off` per-repo.
-- **Don't fight pi-lens autoformat.** If editing a file produces whole-file whitespace churn, conform first-party files to the formatter or exempt vendored ones — never commit around recurring reflow. See `docs/pi-extensions.md`.
 
 ## Editing rules
 
