@@ -132,6 +132,34 @@ duplicate-loader conflicts.
   `cordis.patch.yml` for a fresh `auto-disabled by dsh-startup-guard` entry (see
   Gotchas). A clean load leaves no new `disabled: true`.
 
+### dsh-pro suite (15 plugins, insert-mounted)
+
+Added 2026-08-26 (release v0.1.0, commit `9070e86`, from `rodrigobaron/dsh-pro`).
+Installed under `~/.dsh/profiles/web/node_modules/@dsh-pro/` and mounted via
+`- insert:` rows in `cordis.patch.yml` — **not** in `dsh.profile.bundles`, so they
+legitimately show as `INSTALLED not bundled` in the cross-check below. Updated
+in-app by `@dsh-pro/updates`; all 15 are guard-excluded in
+`~/.dsh/dsh-startup-guard.json`. See "Install best practices" for why they must
+live under the profile `node_modules`, not the parent.
+
+| Plugin (`@dsh-pro/`) | Ver | Insert id | What it adds |
+|---|---|---|---|
+| `archived-sessions` | 0.1.4 | `archived-sessions` | Session manager in Settings: browse + archive all conversations |
+| `at-file` | 0.1.0 | `at-file` | `@path` references in the composer (workspace path search) |
+| `browser` | 0.1.0 | `browser` | Skill-gated Playwright browser automation (`browser_*` tools) |
+| `client-ui-file-canvas` | 0.1.0 | `ui-file-canvas` | File canvas: renders any workspace file in the details panel |
+| `client-ui-layout-wide` | 0.1.0 | `ui-layout-wide` | Wide resizable details column; **replaces** stock `ui-layout` (which is disabled) |
+| `context` | 0.17.0 | `context` | Context dashboard tab + `/context` command |
+| `deep-research` | 0.1.0 | `deep-research` | `/deep-research` multi-step search skill |
+| `git-review` | 0.1.0 | `git-review` | Git review tab: diff / stage / commit / push |
+| `notification` | 0.1.0 | `notification` | Desktop notifications on turn completion |
+| `rewind` | 0.1.0 | `rewind` | Rewind: durably remove a message + everything after it |
+| `rewind-picker` | 0.1.0 | `rewind-picker` | `/rewind` command + message picker |
+| `routines` | 0.1.0 | `routines` | Scheduled agent routines (host cron engine + `routines` tool) |
+| `search` | 0.1.0 | `web-search-free` | Free web search, ten engines, no API key (sets `web.searchProvider: ddg`) |
+| `tool-file-canvas` | 0.1.0 | `tool-file-canvas` (+ `host-file-canvas-route`) | `show_file` tool + the file-read route the canvas fetches |
+| `updates` | 0.1.0 | `updates` | Self-update the suite from GitHub Releases (checksum-verified) |
+
 ### Install best practices (lessons learned)
 
 Prefer `dsh plugin --profile web add <spec>` for every install — it places the
