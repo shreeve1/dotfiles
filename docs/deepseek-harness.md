@@ -6,16 +6,22 @@ Reference for the self-hosted DeepSeek Harness web UI running on `aidev`
 diagnose it without re-deriving everything. Versions at time of writing:
 `@deepseek-ai/dsh` **0.1.1-rc.2**, `dsh-full-remote` plugin **0.3.7**.
 
-> **Plugin inventory last reconciled against the live box: 2026-08-26.** The web
-> profile now bundles **24** non-builtin plugins (see the full table below); an
-> earlier version of this doc described only ~7. If you touch the plugin set,
-> re-run the cross-check in *Auditing the plugin set* and update the table.
+> **Plugin inventory last reconciled against the live box: 2026-08-27.** The web
+> profile now bundles **24** non-builtin plugins (live cross-check count). If you
+> touch the plugin set, re-run the cross-check in *Auditing the plugin set* and
+> update the table.
 >
-> **Table drift note (2026-08-26):** the numbered table below still lists
-> `dsh-pilot` and `@liustack/modsearch`, which are **no longer in the live
-> `bundles`**, and predates `dsh-omp-advisor` and `dsh-client-auto-continue`
-> (both live). The authoritative list is always the live
-> `python3` cross-check in *Auditing the plugin set*, not the row numbers here.
+> **Table drift note (2026-08-27):** the numbered table is approximate — treat
+> the live `python3` cross-check in *Auditing the plugin set* as authoritative,
+> not the row numbers here. Known drift: `dsh-pilot` (row 7) and
+> `@liustack/modsearch` (row 12) are **no longer in the live `bundles`**;
+> `dsh-diagram` was **removed 2026-08-27** (it was previously auto-disabled by
+> `dsh-startup-guard` due to the false-positive template-literal id regex bug;
+> its use case is now covered by `@changfenhuang/dsh-genui`'s `render_ui`); the
+> 15-plugin `@dsh-pro` suite was **removed** (the `@dsh-pro/updates` watcher
+> kept re-adding bundle rows and re-triggering `duplicate loader entry id`
+> boot crashes); `dsh-client-auto-continue`, `dsh-mini-advisor`, and
+> `dsh-fusion` are the current newest additions.
 
 ## TL;DR — how to reach it
 
@@ -82,10 +88,11 @@ coordinates both; a plugin missing from `bundles` won't load even if installed.
 `bundles` is order-sensitive: a plugin that registers an extension point must
 come before the plugins that register against it.
 
-### Full bundled inventory (24, in mount order)
+### Full bundled inventory (24 live-bundled; 26 rows below, 2 historical, in mount order)
 
 `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` are the two
-installation-owned base bundles and lead the list; the 24 below follow.
+installation-owned base bundles and lead the list; the 26 rows below follow (24
+are live-bundled — rows 7 and 12 are historical, see the footnote).
 
 | # | Plugin | Ver | Source spec | What it adds |
 |--:|---|---|---|---|
@@ -101,24 +108,26 @@ installation-owned base bundles and lead the list; the 24 below follow.
 | 10 | `dsh-smart-restart` | 0.5.1 | `github:edusrez/dsh-smart-restart#bde38b3` | detects service restart, wakes the interrupted session (`smart_restart` tool) |
 | 11 | `@liustack/modlens` | 3.24.0 | npm | plug-in vision for text-only LLMs (`modlens_read_image`) |
 | 12 | `@liustack/modsearch` | 5.9.0 | npm | web + X search and page reading (`web_search` / `x_search` / `read_page`) |
-| 13 | `dsh-diagram` | 0.3.4 | npm | editable Excalidraw canvases from articles (`diagram_create`). Excluded from startup-guard — see Gotchas |
-| 14 | `dsh-status-rotator` | 0.6.6 | npm | rotates the chat turn-status label through custom phrases |
-| 15 | `@tecfancy/dsh-mobile` | 0.1.7 | npm | mobile shell adapter (overlay drawers, responsive composer) |
-| 16 | `dsh-better-sidebar` | 0.15.2 | npm | VSCode-style workbench (explorer/editor/terminal/git/browser). Exposes `ctx.betterSidebar`; **must precede its ecosystem plugins** (18-21) |
-| 17 | `dsh-file-review-tab` | 0.1.2 | npm | "File Review" tab: per-turn line-level diffs + undo |
-| 18 | `dsh-media-preview` | 0.1.0 | `github:tsonglew/dsh-media-preview` | audio/video FileViewer, HTTP Range streaming |
-| 19 | `dsh-workspace-search` | 0.1.0 | `github:tsonglew/dsh-workspace-search` | VSCode-style "Search" tab. README's `./plugins/...` path is wrong for us — use the `github:` spec |
-| 20 | `dsh-md-annotator` | 0.6.0 | `github:3361805598-gif/dsh-md-annotator` | per-block/text-range `.md` annotations → revision text into chat |
-| 21 | `@changfenhuang/dsh-genui` | 0.9.2 | npm | interactive GenUI components rendered inline in replies (`render_ui`). Excluded from startup-guard — see Gotchas |
-| 22 | `dsh-ui-translate` | link | `link:~/.dsh/plugins-src/dsh-ui-translate` | browser-local OPUS-MT translator (see boundary note below) |
-| 23 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
-| 24 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
+| 13 | `dsh-status-rotator` | 0.6.6 | npm | rotates the chat turn-status label through custom phrases |
+| 14 | `@tecfancy/dsh-mobile` | 0.1.7 | npm | mobile shell adapter (overlay drawers, responsive composer) |
+| 15 | `dsh-better-sidebar` | 0.15.2 | npm | VSCode-style workbench (explorer/editor/terminal/git/browser). Exposes `ctx.betterSidebar`; **must precede its ecosystem plugins** (17-20) |
+| 16 | `dsh-file-review-tab` | 0.1.2 | npm | "File Review" tab: per-turn line-level diffs + undo |
+| 17 | `dsh-media-preview` | 0.1.0 | `github:tsonglew/dsh-media-preview` | audio/video FileViewer, HTTP Range streaming |
+| 18 | `dsh-workspace-search` | 0.1.0 | `github:tsonglew/dsh-workspace-search` | VSCode-style "Search" tab. README's `./plugins/...` path is wrong for us — use the `github:` spec |
+| 19 | `dsh-md-annotator` | 0.6.0 | `github:3361805598-gif/dsh-md-annotator` | per-block/text-range `.md` annotations → revision text into chat |
+| 20 | `@changfenhuang/dsh-genui` | 0.9.2 | npm | interactive GenUI components rendered inline in replies (`render_ui`). Excluded from startup-guard — see Gotchas |
+| 21 | `dsh-ui-translate` | link | `link:~/.dsh/plugins-src/dsh-ui-translate` | browser-local OPUS-MT translator (see boundary note below) |
+| 22 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
+| 23 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
+| 24 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
 | 25 | `dsh-mini-advisor` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-mini-advisor` | minimal advisor watchdog: a second model reviews each turn; can inject weighable advice, create a native DSH goal, and merge todo tasks. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
-| 26 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
+| 26 | `dsh-fusion` | 0.1.2 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) |
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
 > drift note at the top). `dsh-pilot` (row 7) and `@liustack/modsearch` (row 12)
 > are **not** in the live `bundles` — treat those two rows as historical.
+> `dsh-omp-advisor` and the `@dsh-pro` suite were also removed (see Gotchas /
+> Install best practices).
 
 **Not a plugin bundle, but present:** `dsh-cc-loader` (0.1.1) is a **shared
 library**, not a mountable plugin — `dsh-cc-skills` imports its parse layer
@@ -183,6 +192,16 @@ Rules that keep the profile bootable:
 - When you must stage a private suite manually, afterward run the cross-check
   below AND confirm every `bundles` entry declares `dsh.bundle` and resolves
   from the profile `node_modules`.
+- **A `file:`-installed bundle needs a `node_modules` purge to re-materialize,
+  not just a version bump.** pnpm keys a `file:` dep on its unchanged spec
+  (`file:~/.dsh/plugins-src/<name>`), so after you rsync a rebuilt source into
+  `plugins-src/<name>`, a plain `pnpm install` (even with the package's internal
+  `version` bumped) leaves the STALE build in `profiles/web/node_modules/<name>`.
+  Force it: `rm -rf profiles/web/node_modules/<name> profiles/web/node_modules/.pnpm/file+*<name>* && pnpm install`,
+  then verify `diff -q profiles/web/node_modules/<name>/lib/index.js plugins-src/<name>/lib/index.js`
+  is IDENTICAL before restarting. (Hit repeatedly building `dsh-fusion` 2026-08-27:
+  a "grep confirms the fix is present" check false-passed on a stale copy because
+  the searched phrase also lived in an unrelated string.)
 
 ### Auditing the plugin set
 
@@ -261,10 +280,10 @@ upgrade overwrites the bundle, so re-apply after any upgrade.
 | `profiles/web/cordis.patch.yml` | plugin config override (listenHost/port, TLS paths, backend) | - |
 | `profiles/web/package.json` | plugin `dependencies` + ordered `dsh.profile.bundles` mount list | - |
 | `profiles/web/pnpm-workspace.yaml` | `nodeLinker: hoisted`, `allowBuilds` (node-pty etc.), `minimumReleaseAgeExclude` | - |
-| `dsh-startup-guard.json` | guard config: `exclude` list (diagram + genui, see Gotchas), `mode` | - |
+| `dsh-startup-guard.json` | guard config: `exclude` list (genui, see Gotchas), `mode` | - |
 | `profiles/web/node_modules/dsh-full-remote/` | the installed plugin | - |
 | `plugins-src/dsh-ui-translate/` | `link:`-installed browser-local translator | - |
-| `plugins-src/@dsh-pro/` | source for the 15 `@dsh-pro/*` plugins; `dependencies` pin `file:` specs here (see dsh-pro suite § Pinning repair) | - |
+| `plugins-src/dsh-mini-advisor/`, `plugins-src/dsh-fusion/` | source for the two `file:`-installed bundles (`dependencies` pin `file:` specs here) | - |
 
 ## Model providers
 
@@ -337,21 +356,32 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   remove dsh-background-agents`) AND drop its entry from `dsh.profile.bundles`
   in `~/.dsh/profiles/web/package.json`. `dsh plugin remove` alone is
   *not* sufficient if you ever installed manually — always verify both.
-- **`dsh-startup-guard` auto-disabled `dsh-diagram` / `@changfenhuang/dsh-genui`
+- **`dsh-startup-guard` auto-disabled `@changfenhuang/dsh-genui`
   ("client bundle does not register its id via `__ModuleLoader__.load`"):** this
   is a **false positive** — a guard bug. The guard's static id-registration
   regex (`node_modules/dsh-startup-guard/lib/guard-core.mjs` ~line 602) uses the
   character class `["']` and does **not** accept backtick template-literal ids,
-  so a valid bundle registering `{id:` `` `dsh-diagram` `` `}` fails the static
-  check and gets disabled before the guard's own vm load check (which passes)
-  runs. Both bundles are fine (verify: run the client `lib/client.js` in a vm
-  with an `__ModuleLoader__` recorder and confirm it registers the id). **Fix
-  (2026-08-26):** exclude both from the guard via `~/.dsh/dsh-startup-guard.json`
-  (`{"exclude":["dsh-diagram","@changfenhuang/dsh-genui"]}` — uses the *bundle
-  name*, not the loader id) and remove their `disabled: true` blocks from
+  so a valid bundle registering `{id:` `` `@changfenhuang/dsh-genui` `` `}` fails
+  the static check and gets disabled before the guard's own vm load check (which
+  passes) runs. The bundle is fine (verify: run the client `lib/client.js` in a
+  vm with an `__ModuleLoader__` recorder and confirm it registers the id).
+  **Fix (2026-08-26):** exclude it from the guard via
+  `~/.dsh/dsh-startup-guard.json`
+  (`{"exclude":["@changfenhuang/dsh-genui"]}` — uses the *bundle
+  name*, not the loader id) and remove its `disabled: true` block from
   `cordis.patch.yml`. Don't patch the vendored regex — an upgrade overwrites it;
   the exclude survives. Drop the exclude if the guard's regex is ever fixed to
   accept backticks. Report upstream: `github:aokamoaki/dsh-startup-guard`.
+  (`dsh-diagram` used to hit this same false positive; uninstalled 2026-08-27 —
+  the diagram use case is now served by the in-reply `render_ui` GenUI panel.)
+- **`smart_restart` no-ops on this deployment ("cannot derive dsh binary/profile
+  for canary").** The `dsh-smart-restart` tool returns a scheduling message but
+  never actually cycles the unit here — the MainPID/start-time are unchanged
+  after the call (observed repeatedly 2026-08-27). Fall back to
+  `systemctl --user restart dsh-web.service`; it interrupts only the current
+  session's in-flight turn (the `dsh-client-auto-continue` plugin resumes it) and
+  no other live work. Worth diagnosing separately why the canary can't derive the
+  binary path on this unit.
 - **Forgot the token:** `cat ~/.dsh/reverse-proxy.json` (loopback/on-box), or
   rotate a new one.
 - **Disable remote access entirely:** stop the proxy via
@@ -368,21 +398,3 @@ per-IP login lockout. It is authorization, not a substitute for network trust �
 keep it on the tailnet, not the public internet. Reviewed the plugin source
 before install (no phone-home; only outbound is the optional, unused cloudflared
 tunnel + the loopback proxy).
-- **A `file:`-installed bundle needs a `node_modules` purge to re-materialize,
-  not just a version bump.** pnpm keys a `file:` dep on its unchanged spec
-  (`file:~/.dsh/plugins-src/<name>`), so after you rsync a rebuilt source into
-  `plugins-src/<name>`, a plain `pnpm install` (even with the package's internal
-  `version` bumped) leaves the STALE build in `profiles/web/node_modules/<name>`.
-  Force it: `rm -rf profiles/web/node_modules/<name> profiles/web/node_modules/.pnpm/file+*<name>* && pnpm install`,
-  then verify `diff -q profiles/web/node_modules/<name>/lib/index.js plugins-src/<name>/lib/index.js`
-  is IDENTICAL before restarting. (Hit repeatedly building `dsh-fusion` 2026-08-27:
-  a "grep confirms the fix is present" check false-passed on a stale copy because
-  the searched phrase also lived in an unrelated string.)
-- **`smart_restart` no-ops on this deployment ("cannot derive dsh binary/profile
-  for canary").** The `dsh-smart-restart` tool returns a scheduling message but
-  never actually cycles the unit here — the MainPID/start-time are unchanged
-  after the call (observed repeatedly 2026-08-27). Fall back to
-  `systemctl --user restart dsh-web.service`; it interrupts only the current
-  session's in-flight turn (the `dsh-client-auto-continue` plugin resumes it) and
-  no other live work. Worth diagnosing separately why the canary can't derive the
-  binary path on this unit.
