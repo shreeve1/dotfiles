@@ -368,3 +368,21 @@ per-IP login lockout. It is authorization, not a substitute for network trust â€
 keep it on the tailnet, not the public internet. Reviewed the plugin source
 before install (no phone-home; only outbound is the optional, unused cloudflared
 tunnel + the loopback proxy).
+- **A `file:`-installed bundle needs a `node_modules` purge to re-materialize,
+  not just a version bump.** pnpm keys a `file:` dep on its unchanged spec
+  (`file:~/.dsh/plugins-src/<name>`), so after you rsync a rebuilt source into
+  `plugins-src/<name>`, a plain `pnpm install` (even with the package's internal
+  `version` bumped) leaves the STALE build in `profiles/web/node_modules/<name>`.
+  Force it: `rm -rf profiles/web/node_modules/<name> profiles/web/node_modules/.pnpm/file+*<name>* && pnpm install`,
+  then verify `diff -q profiles/web/node_modules/<name>/lib/index.js plugins-src/<name>/lib/index.js`
+  is IDENTICAL before restarting. (Hit repeatedly building `dsh-fusion` 2026-08-27:
+  a "grep confirms the fix is present" check false-passed on a stale copy because
+  the searched phrase also lived in an unrelated string.)
+- **`smart_restart` no-ops on this deployment ("cannot derive dsh binary/profile
+  for canary").** The `dsh-smart-restart` tool returns a scheduling message but
+  never actually cycles the unit here â€” the MainPID/start-time are unchanged
+  after the call (observed repeatedly 2026-08-27). Fall back to
+  `systemctl --user restart dsh-web.service`; it interrupts only the current
+  session's in-flight turn (the `dsh-client-auto-continue` plugin resumes it) and
+  no other live work. Worth diagnosing separately why the canary can't derive the
+  binary path on this unit.
