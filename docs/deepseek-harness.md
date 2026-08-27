@@ -374,14 +374,82 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   accept backticks. Report upstream: `github:aokamoaki/dsh-startup-guard`.
   (`dsh-diagram` used to hit this same false positive; uninstalled 2026-08-27 —
   the diagram use case is now served by the in-reply `render_ui` GenUI panel.)
+- **Recurring "tool call interrupted / no result durably recorded / outcome
+  unknown" error (ROOT CAUSE CONFIRMED 2026-08-27).** **An agent session severs
+  itself by running `systemctl --user restart dsh-web.service` as a bash tool
+  call** — the normal final step of dsh plugin development (rebuild/redeploy a
+  plugin, then restart dsh to load the new code; this doc's own "upgrade the
+  plugin" recipe prescribes exactly that). The restart kills the dsh process
+  hosting that very session, so the in-flight tool result is never durably
+  recorded → the "outcome unknown" guard message. Any *other* live session is
+  collaterally severed at the same instant.
+  **Direct evidence:** decompressing the sessions that smart-restart logged as
+  "interrupted at shutdown" for each clean Aug-27 restart, their last assistant
+  message before sever is literally e.g. *"Now restart the web service"* + bash
+  tool-call `systemctl --user restart dsh-web.service && echo "restart issued"
+  && sleep 8 …` (session `705fa1cc`, sever-mtime 13:29:00 == the restart;
+  `cc9a8508`/`554033af` same command, sever-mtime 13:14:47–48 == that restart).
+  These were plugin-dev sessions (titles: "deploying a rebuilt dsh plugin",
+  "small client-only change to a dsh plugin, rebuilding, and redeploying").
+  **Why it looked mysterious:** clean `systemctl restart` signature (it IS that
+  command); no trace in the *interrupting* session's own recorded output (result
+  lost with the process); irregular cadence + an overnight gap (human-driven
+  plugin work, not a timer); "after a subagent finishes" (the deploy step runs
+  late in the turn). Two RED HERRINGS chased first: (a) the Aug-26 **crash-loop
+  storms** (`Main process exited, status=1/FAILURE` every 3s — a *separate*
+  boot-failure issue, now quiet); (b) **dshmarket**'s `restartAllowed()`
+  mis-detecting the supervisor (`ppid===1` fails for a user service) — real, and
+  we pinned `allowRestart: false` (route now 403), but dshmarket self-relaunches
+  via `spawn`/`setsid` (would log "Main process exited"), NOT the clean signature
+  — so it was never the cause; the "clean after 13:29" correlation was
+  coincidence (plugin work simply finished).
+  **Mitigations:** (1) prefer the `smart_restart` tool over a raw `systemctl
+  restart` for plugin deploys — it re-delivers a resume notice to the calling
+  session after reboot (its canary is fixed, see next bullet), so the turn
+  continues instead of dying "unknown"; (2) do plugin rebuild+restart in a
+  session you can afford to interrupt, or from an on-box shell
+  (`http://127.0.0.1:3080` is token-exempt) rather than mid-task in a session
+  with other live work.
+  **Confirmation (live capture — loop closed 2026-08-27 18:41:59):** a natural
+  restart was finally caught in the act, confirming the diagnosis end-to-end
+  (trap + transcript, no longer inference). The `bpftrace` execve trap logged the
+  caller chain `bash`→`bash`→`gparent pid=3425307 comm=node` running
+  `systemctl --user restart dsh-web.service`, where pid 3425307 was the dsh
+  MainPID immediately before the restart (MainPID monitor:
+  `17:37:45 MainPID=3425307` → `18:41:59 MainPID=3949374`). The severed session
+  (`30d3cd00`, dotfiles workspace) was a **dsh-fusion plugin redeploy**: its
+  transcript's final recorded event is the bash tool-call
+  `systemctl --user restart dsh-web.service && sleep 8 && curl …` (TASK 3 step 5,
+  the documented rebuild→restart recipe) with **no result event** — the result
+  died with the process → "outcome unknown". This is the diagnosed `gparent=node`
+  in-session-bash fingerprint exactly (NOT a reparented/`setsid` chain, NOT
+  `gparent=systemd`), so no alternative source is in play. (Earlier Aug-27
+  restarts 00:05…12:20 were assumed same-cause by pattern, not each transcript-
+  matched, but the mechanism is now proven.)
+  **Investigation instruments: TORN DOWN 2026-08-27** after the live capture
+  (`sudo systemctl stop dsh-restart-trap dsh-mainpid-mon`). They were a `bpftrace`
+  execve trap (`dsh-restart-trap.service`, log `/var/tmp/dsh-restart-catch.log`) +
+  a MainPID monitor (`dsh-mainpid-mon.service`, `/var/tmp/dsh-mainpid.log`), in
+  their own system cgroup so they survived dsh restarts; logs retained for the
+  record. To re-verify in future, re-arm and read the trap log: `gparent=node`
+  (dsh MainPID) confirms an in-session bash restart; a reparented/`setsid` chain
+  or `gparent=systemd` would mean a different source.
 - **`smart_restart` no-ops on this deployment ("cannot derive dsh binary/profile
-  for canary").** The `dsh-smart-restart` tool returns a scheduling message but
-  never actually cycles the unit here — the MainPID/start-time are unchanged
-  after the call (observed repeatedly 2026-08-27). Fall back to
-  `systemctl --user restart dsh-web.service`; it interrupts only the current
-  session's in-flight turn (the `dsh-client-auto-continue` plugin resumes it) and
-  no other live work. Worth diagnosing separately why the canary can't derive the
-  binary path on this unit.
+  for canary") — canary derivation fixed 2026-08-27.** The `dsh-smart-restart`
+  canary skipped because its ExecStart parser (`canary.js`
+  `deriveExecStartParams`) takes `argv[0]` as the binary — here `/usr/bin/node`
+  (the unit runs `node /…/dsh web …`) — and finds no `--profile` (web is
+  implicit). **Fix:** pin `canaryBinary: /home/james/.npm-global/bin/dsh` and
+  `canaryProfile: web` on the `smart-restart` row in
+  `~/.dsh/profiles/web/cordis.patch.yml` (`resolveExecTarget` honors explicit
+  config first). Verified end-to-end: the ephemeral canary boot
+  (`dsh --profile web --patch <overlay> --port <n>`) serves HTTP 200 in ~3s.
+  Note an empty profile also fails (`--profile <name> is required`), so BOTH
+  overrides are needed. Report upstream (`dsh-smart-restart`):
+  `deriveExecStartParams` should skip an interpreter arg (`node`/`env`) to find
+  the real dsh script. If you still need a manual cycle, use
+  `systemctl --user restart dsh-web.service` (interrupts only the current
+  session's in-flight turn; `dsh-client-auto-continue` resumes it).
 - **Forgot the token:** `cat ~/.dsh/reverse-proxy.json` (loopback/on-box), or
   rotate a new one.
 - **Disable remote access entirely:** stop the proxy via
