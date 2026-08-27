@@ -121,7 +121,7 @@ are live-bundled — rows 7 and 12 are historical, see the footnote).
 | 23 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
 | 24 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
 | 25 | `dsh-mini-advisor` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-mini-advisor` | minimal advisor watchdog: a second model reviews each turn; can inject weighable advice, create a native DSH goal, and merge todo tasks. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
-| 26 | `dsh-fusion` | 0.1.2 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) |
+| 26 | `dsh-fusion` | 0.1.6 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) |
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
 > drift note at the top). `dsh-pilot` (row 7) and `@liustack/modsearch` (row 12)
