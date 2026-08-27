@@ -445,9 +445,10 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   config first). Verified end-to-end: the ephemeral canary boot
   (`dsh --profile web --patch <overlay> --port <n>`) serves HTTP 200 in ~3s.
   Note an empty profile also fails (`--profile <name> is required`), so BOTH
-  overrides are needed. Report upstream (`dsh-smart-restart`):
-  `deriveExecStartParams` should skip an interpreter arg (`node`/`env`) to find
-  the real dsh script. If you still need a manual cycle, use
+  overrides are needed. Report upstream (`dsh-smart-restart`, STILL OPEN —
+  verified 2026-08-27 that the repo has 0 issues/PRs filed, so this was never
+  reported): `deriveExecStartParams` should skip an interpreter arg
+  (`node`/`env`) to find the real dsh script. If you still need a manual cycle, use
   `systemctl --user restart dsh-web.service` (interrupts only the current
   session's in-flight turn; `dsh-client-auto-continue` resumes it).
 - **Forgot the token:** `cat ~/.dsh/reverse-proxy.json` (loopback/on-box), or
