@@ -113,7 +113,7 @@ installation-owned base bundles and lead the list; the 24 below follow.
 | 22 | `dsh-ui-translate` | link | `link:~/.dsh/plugins-src/dsh-ui-translate` | browser-local OPUS-MT translator (see boundary note below) |
 | 23 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
 | 24 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
-| 25 | `dsh-omp-advisor` | 0.7.7 | `github:AndrasSama/dsh-omp-advisor` | omp advisor plugin. Has a `prepare` build, so needs an `allowBuilds` key |
+| 25 | `dsh-mini-advisor` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-mini-advisor` | minimal advisor watchdog: a second model reviews each turn; can inject weighable advice, create a native DSH goal, and merge todo tasks. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
 | 26 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
