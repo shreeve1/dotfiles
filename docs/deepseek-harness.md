@@ -123,8 +123,8 @@ are live-bundled — row 12 is historical, see the footnote).
 | 22 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
 | 23 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
 | 24 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
-| 25 | `dsh-goal-keeper` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-goal-keeper` | goal-keeper (formerly `dsh-mini-advisor`): a second model reviews each turn, drives the native DSH goal (create/update/**complete**) and merges todo tasks, and injects weighable advice. Settings namespace pinned to legacy `dsh-mini-advisor` key. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
-| 26 | `dsh-fusion` | 0.1.13 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance; now also carries a `tools/post-execute` empty-output fallback (replaces dsh-subagent tool-call-only output with a non-empty placeholder so the orchestrator never sees `(no output)`); adds job_output/job_list to the orchestrator allowlist (non-blocking peek at bash/background-mode jobs) plus a liveness check-in guidance paragraph (list_agents + send_message for continuable role subagents, which are not jobs); adds read-only peek_subagent (per-child model triangulation + activity tail) and verify_subagent_models (audits that each role subagent is on its assigned model — mismatch = pin didn't take) tools. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) (peek tools mounted as a child plugin `dsh-fusion-peek-tools` with its own inject: tools/agents/sessions/subagents). (0.1.11: always-on Fusion ON/OFF orchestrator marker + child fusion-delegation context injected into every continuable subagent via registerContinuableSetup, incl. the one-line-summary contract). 0.1.12: prompt review — deduped the one-line-summary contract to FUSION_CHILD_CONTEXT, dropped the redundant [FUSION MODE ACTIVE] header (the always-on Fusion ON/OFF marker covers it), added a pilot_*/web-search delegation note, merged the two monitoring paragraphs into one, and refreshed the pre-execute denial message to list the allowed read/observe tools. 0.1.13: behavioral prompt tuning so planner+reviewer actually get used — DEFAULT_GUIDANCE now leads with an explicit default workflow (delegate_scout → delegate_planner → delegate_worker → delegate_reviewer, run in order), states "Planner and reviewer are the DEFAULT, not optional add-ons" with a cheap skip-with-one-line-justification path for trivial/single-file edits, and adds a soft Gate ("do not call delegate_worker for a multi-file/interface/schema/migration change until a delegate_planner plan exists; do not declare a non-trivial change complete until delegate_reviewer has passed the diff"); the four role bullets were retuned from capabilities into workflow steps (planner = Step 2, reviewer = Step 4). Root cause was that the prior guidance listed the roles as peer capabilities with only soft conditional hints, so the model rationally shortcut to scout+worker. Guidance-only change (no hard code gate in index.ts). One test assertion updated (tests/index.test.ts: the old "Prefer the role delegation tools" pin → three pins on the new workflow/gate text); 93/93 tests pass. Dogfooded 2026-08-28 in a fresh fused session (maxConcurrentWorkers feature task): the orchestrator ran the full scout→planner→worker→reviewer loop and the reviewer caught a real bug (pre-execute deny still routes through post-execute → a plain counter over-decrements and defeats the cap), fixed with a token-keyed admittedWorkers Set. Deployed via the file:-bundle re-materialize dance + smart_restart (MainPID 1772820 → 3902244, clean boot, no auto-disable). |
+| 25 | `dsh-goal-keeper` | 0.3.2 | `file:~/.dsh/plugins-src/dsh-goal-keeper` | goal-keeper (formerly `dsh-mini-advisor`): a second model reviews each turn, drives the native DSH goal (create/update/**complete**) and merges todo tasks, and injects weighable advice. Settings namespace pinned to legacy `dsh-mini-advisor` key. `file:`-installed; prebuilt `lib/` (prepare falls back to it). 0.3.2: **in-turn reviews** — the trigger was `turn/end` ONLY, so a 56-step turn could burn 203s in a poll loop with the keeper structurally unable to speak until the damage was done (observed: first advisory landed 27s *after* the bad turn ended). Now also reviews every `reviewEverySteps` steps (new config key, default 12; 0 restores turn-boundary-only), which is sound because `agent.inject` queues context that "a running driver claims at the nearest later step boundary" — mid-turn advice lands *inside* the running turn. Adds: (a) a `HARNESS_FACTS` block in the prompt tail — the advisor had no dsh knowledge and invented remedies, e.g. advising `job_output <subagent_id>` on a continuable subagent, which is not a job (also pins send_message=queues, interrupt_agent=cancels-current-turn-only-and-does-not-extract-a-report, rising event count ≠ progress, ending a turn while children run is correct); (b) a goal-drift guard on `set_goal`, after an observed session drifted rev1 "grill the user to pin down deployment" → rev4 "build a root-owned multi-member setup" — an implementation the user never confirmed; (c) per-tool chunk elision in `renderDelta` (**note:** first written as adjacent-run collapse, which measured **0 firings** on real data — 94 peeks formed 94 runs of length 2 because the agent alternated between two children and narrated between calls; rewritten as a per-tool budget across the whole update: 11,944→7,818 chars, −35%, narration never elided); (d) advisory dedupe, required *because* of (a) — 4 reviews/turn on an unchanged transcript would re-issue the same note and become nagging. 23/23 tests |
+| 26 | `dsh-fusion` | 0.1.13 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance; now also carries a `tools/post-execute` empty-output fallback (replaces dsh-subagent tool-call-only output with a non-empty placeholder so the orchestrator never sees `(no output)`); adds job_output/job_list to the orchestrator allowlist (non-blocking peek at bash/background-mode jobs) plus a liveness check-in guidance paragraph (list_agents + send_message for continuable role subagents, which are not jobs); adds read-only peek_subagent (per-child model triangulation + activity tail) and verify_subagent_models (audits that each role subagent is on its assigned model — mismatch = pin didn't take) tools. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) (peek tools mounted as a child plugin `dsh-fusion-peek-tools` with its own inject: tools/agents/sessions/subagents). (0.1.11: always-on Fusion ON/OFF orchestrator marker + child fusion-delegation context injected into every continuable subagent via registerContinuableSetup, incl. the one-line-summary contract). 0.1.12: prompt review — deduped the one-line-summary contract to FUSION_CHILD_CONTEXT, dropped the redundant [FUSION MODE ACTIVE] header (the always-on Fusion ON/OFF marker covers it), added a pilot_*/web-search delegation note, merged the two monitoring paragraphs into one, and refreshed the pre-execute denial message to list the allowed read/observe tools. 0.1.13: behavioral prompt tuning so planner+reviewer actually get used — DEFAULT_GUIDANCE now leads with an explicit default workflow (delegate_scout → delegate_planner → delegate_worker → delegate_reviewer, run in order), states "Planner and reviewer are the DEFAULT, not optional add-ons" with a cheap skip-with-one-line-justification path for trivial/single-file edits, and adds a soft Gate ("do not call delegate_worker for a multi-file/interface/schema/migration change until a delegate_planner plan exists; do not declare a non-trivial change complete until delegate_reviewer has passed the diff"); the four role bullets were retuned from capabilities into workflow steps (planner = Step 2, reviewer = Step 4). Root cause was that the prior guidance listed the roles as peer capabilities with only soft conditional hints, so the model rationally shortcut to scout+worker. Guidance-only change (no hard code gate in index.ts). One test assertion updated (tests/index.test.ts: the old "Prefer the role delegation tools" pin → three pins on the new workflow/gate text); 93/93 tests pass. Dogfooded 2026-08-28 in a fresh fused session (maxConcurrentWorkers feature task): the orchestrator ran the full scout→planner→worker→reviewer loop and the reviewer caught a real bug (pre-execute deny still routes through post-execute → a plain counter over-decrements and defeats the cap), fixed with a token-keyed admittedWorkers Set. Deployed via the file:-bundle re-materialize dance + smart_restart (MainPID 1772820 → 3902244, clean boot, no auto-disable). 0.1.14: guidance-only fixes from a session post-mortem where the orchestrator spent **103 of 137 tool calls (75%) on `peek_subagent`** across 507s, then killed two scouts that never produced a report. Root causes, all addressed in `DEFAULT_GUIDANCE`: (1) the brief contract (Objective/Files/Interfaces/Constraints/Verification) had **no stopping condition**, so unbounded scouts explored forever — added a **Budget** field ("at most N tool calls; then stop and output your report inline, even if incomplete"); the one scout in that session given a hard 25-call cap returned a complete report in ~20 calls. (2) The old text said "keep working while they run, never block waiting", but with `bash`/`grep`/`glob`/`web_search` all withheld and everything delegated, the orchestrator had literally no other action available — polling was the only way to stay alive. Rewritten to make idling explicit: ending your turn with children running is CORRECT (the runtime wakes you on settlement) and "waiting is a legitimate action". (3) `interrupt_agent` was called 6× expecting it to extract a report — it cancels only the current turn, and queued `send_message` turns stay parked, so neither can drain a child that was never given a Budget; guidance now says one nudge, then re-delegate. (4) States plainly that `job_output` does **NOT** work on continuable subagents (a goal-keeper advisory had recommended exactly that, and `config.ts` already documented the opposite). (5) Role tools are now preferred over generic `subagent` — `delegate_scout` was allowlisted but bypassed in favor of raw `subagent`, losing the role's model pin. 104/104 tests |
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
 > drift note at the top). `@liustack/modsearch` (row 12) is **not** in the
@@ -296,8 +296,9 @@ Install details remain in row 7 of the inventory table.
 
 | Path | What | Mode |
 |---|---|---|
-| `dsh-web.env` | `CLIPROXY_API_KEY`, `DEEPSEEK_API_KEY` (referenced by settings.yaml `apiKeyEnv`) | 600 |
-| `settings.yaml` | model providers (cliproxy + deepseek), hot-reloaded; same file the Models UI writes | 600 |
+| `dsh-web.env` | `CLIPROXY_API_KEY`, `DEEPSEEK_API_KEY` (referenced by settings.yaml `apiKeyEnv`; lowest-priority fallback — `.credentials.yaml` wins) | 600 |
+| `settings.yaml` | model providers (cliproxy, deepseek, openrouter-live, zai-live), hot-reloaded; same file the Models UI writes | 600 |
+| `.credentials.yaml` | UI-entered provider API keys (`refs:` map, written by Settings' custom-provider key field; wins over env for the same ref) | 600 |
 | `dsh-tls.crt` / `dsh-tls.key` | self-signed cert, SAN=IP:100.95.230.15, 10y | key 600 |
 | `reverse-proxy.json` | plugin state: `accessToken`, `enabled`, device sessions | 600 |
 | `profiles/web/cordis.patch.yml` | plugin config override (listenHost/port, TLS paths, backend) | - |
@@ -310,20 +311,77 @@ Install details remain in row 7 of the inventory table.
 
 ## Model providers
 
-Two providers, mirroring the omp `~/dotfiles/.omp/agent/models.yml` setup, both
-`openai-completions`, defined in `~/.dsh/settings.yaml` under the
-`llm-pi-ai:` section:
+Four custom providers, all `openai-completions`, defined in `~/.dsh/settings.yaml`
+under `llm-pi-ai.providers` (cliproxy mirrors the omp
+`~/dotfiles/.omp/agent/models.yml` setup; the rest were added 2026-08-29):
 
 - **cliproxy** — `http://10.20.20.16:8317/v1`, key `CLIPROXY_API_KEY`,
   `compat.cacheControlFormat: anthropic`. Models: claude-opus-4-8, claude-opus-5,
   claude-sonnet-4-6, claude-fable-5, claude-haiku-4-5.
-- **deepseek** — `https://api.deepseek.com`, key `DEEPSEEK_API_KEY`, model
+- **deepseek** — `https://api.deepseek.com`, key `DEEPSEEK_API_KEY`. Models:
   deepseek-v4-flash.
+- **openrouter-live** — `https://openrouter.ai/api/v1`, key
+  `OPENROUTER_API_KEY`. Curated 22-model list from the live
+  `https://openrouter.ai/api/v1/models` catalog: DeepSeek (v4-pro-0813,
+  v4-flash-0731, v4-flash-vision-exp), Z.ai (glm-5.3, glm-5.3-flash, glm-5.2,
+  glm-5-turbo, glm-5v-turbo), plus OpenAI/Google/xAI/Qwen/Kimi/MiniMax
+  flagships (no Anthropic — those go through cliproxy).
+- **zai-live** — `https://api.z.ai/api/coding/paas/v4` (**Coding Plan
+  endpoint**, not the standard one — see gotcha), key `ZAI_API_KEY`. Models:
+  glm-5.3, glm-5.3-flash.
 
-dsh stores API keys as `apiKeyEnv` *references*, never literals; resolution
-order is process env (our EnvironmentFile) then `~/.dsh/.credentials.yaml`. Add
-more providers from Settings -> Models (writes settings.yaml, hot-reloaded, no
-restart), or by editing settings.yaml directly.
+### Custom provider pattern
+
+Any OpenAI-compatible API becomes a provider block under `llm-pi-ai.providers`,
+added from Settings -> Models (writes settings.yaml, hot-reloaded, no restart)
+or by editing settings.yaml directly:
+
+```yaml
+    <key>:
+      displayName: "<name>"
+      api: openai-completions
+      baseURL: <endpoint>
+      apiKeyEnv: <REF>
+      models:
+        - id: <model-id>
+          name: <display name>
+          contextWindow: <tokens>
+          maxTokens: <output tokens>
+```
+
+Notes:
+
+- `apiKeyEnv` is a **reference name**, never a literal key value.
+- The Settings UI derives the ref as `<PROVIDER>_API_KEY` (uppercase-snake of
+  the provider key) when you type a key into a custom provider's API-key field.
+- Builtin providers (e.g. openrouter) ship a **static** model catalog baked
+  into the `pi-ai` npm package at build time — it goes stale and there is no
+  built-in refresh. A custom provider with a hand-maintained `models:` list is
+  how to surface current models (build the list from the live
+  `https://openrouter.ai/api/v1/models` or the provider's own `/models`
+  listing).
+- **Z.ai Coding Plan gotcha:** coding-plan credentials only work on
+  `https://api.z.ai/api/coding/paas/v4`. Pointing the provider at the standard
+  `https://api.z.ai/api/paas/v4` returns `429 {"code":"1113","message":
+  "Insufficient balance or no resource package. Please recharge."}`.
+
+### How API keys resolve
+
+dsh stores keys as `apiKeyEnv` references, never literals. The Settings UI's
+custom-provider "API key" input calls `api.credentials.set`, writing the value
+to `~/.dsh/.credentials.yaml` under `refs:<REF>:` (mode 600, hot-published, no
+restart needed); `settings.yaml` keeps only the `apiKeyEnv: <REF>` line.
+Resolution order for an `apiKeyEnv` ref (via `dsh-credentials-local`):
+
+1. `~/.dsh/.credentials.yaml` — the writable, provider-managed store (**wins**)
+2. `<cwd>/.env` — read-only fallback
+3. `~/.dsh/.env` — read-only fallback
+4. process environment / `~/.dsh/dsh-web.env` (mode 600 EnvironmentFile) —
+   lowest-priority fallback, only for refs the store does not hold
+
+> Older text in this doc claimed the order was "process env then
+> `.credentials.yaml`" — that was inverted. The credentials store wins; a ref
+> present in both places resolves from `.credentials.yaml`.
 
 ## Common operations
 
