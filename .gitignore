@@ -200,3 +200,6 @@ bin/*
 .claude/.fusion-off
 .claude/.harness-unlock
 .omp/agent/blobs/
+
+# Machine-local review checkout of dsh-omp-advisor (49 MB — embedded .git + node_modules)
+/dsh-omp-advisor-review/
