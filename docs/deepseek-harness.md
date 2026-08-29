@@ -11,11 +11,14 @@ diagnose it without re-deriving everything. Versions at time of writing:
 > touch the plugin set, re-run the cross-check in *Auditing the plugin set* and
 > update the table.
 >
-> **Table drift note (2026-08-27):** the numbered table is approximate — treat
+> **Table drift note (2026-08-28):** the numbered table is approximate — treat
 > the live `python3` cross-check in *Auditing the plugin set* as authoritative,
-> not the row numbers here. Known drift: `dsh-pilot` (row 7) and
-> `@liustack/modsearch` (row 12) are **no longer in the live `bundles`**;
-> `dsh-diagram` was **removed 2026-08-27** (it was previously auto-disabled by
+> not the row numbers here. Known drift: `dsh-pilot` (row 7) was
+> **reinstalled 2026-08-28** at v0.7.1 / pin `#dff236a` (the previously
+> documented pin `#9103a2d` / v0.4.1 no longer exists on the remote — the
+> upstream repo was rewritten) and is now live-bundled again with a
+> hand-applied English cockpit-panel i18n patch; `@liustack/modsearch`
+> (row 12) remains **not in the live `bundles`**; `dsh-diagram` was
 > `dsh-startup-guard` due to the false-positive template-literal id regex bug;
 > its use case is now covered by `@changfenhuang/dsh-genui`'s `render_ui`); the
 > 15-plugin `@dsh-pro` suite was **removed** (the `@dsh-pro/updates` watcher
@@ -88,11 +91,11 @@ coordinates both; a plugin missing from `bundles` won't load even if installed.
 `bundles` is order-sensitive: a plugin that registers an extension point must
 come before the plugins that register against it.
 
-### Full bundled inventory (24 live-bundled; 26 rows below, 2 historical, in mount order)
+### Full bundled inventory (25 live-bundled; 26 rows below, 1 historical, in mount order)
 
 `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` are the two
-installation-owned base bundles and lead the list; the 26 rows below follow (24
-are live-bundled — rows 7 and 12 are historical, see the footnote).
+installation-owned base bundles and lead the list; the 26 rows below follow (25
+are live-bundled — row 12 is historical, see the footnote).
 
 | # | Plugin | Ver | Source spec | What it adds |
 |--:|---|---|---|---|
@@ -102,7 +105,7 @@ are live-bundled — rows 7 and 12 are historical, see the footnote).
 | 4 | `dsh-hot-reload` | 0.2.4 | `github:stuarthu/dsh-hot-reload#006d915` | live-reload upgraded plugins without restarting dsh |
 | 5 | `dsh-startup-guard` | 1.0.0 | `github:aokamoaki/dsh-startup-guard#82cead8` | boot-time guard: repairs session logs, auto-disables broken bundles (see Gotchas) |
 | 6 | `dsh-cc-skills` | 0.1.0 | npm | loads Claude Code `.claude/` skills/commands/rules (project + `~/.claude`) into dsh |
-| 7 | `dsh-pilot` | 0.4.1 | `github:guo6x/dsh-pilot#9103a2d` | browser automation: drives Edge/Chrome over CDP from chat (`pilot_*` tools) |
+| 7 | `dsh-pilot` | 0.7.1 | `github:guo6x/dsh-pilot#dff236a` | browser automation: drives Edge/Chrome over CDP from chat (`pilot_*` tools). Reinstalled 2026-08-28 (pin `#9103a2d` / v0.4.1 no longer on the remote — repo rewritten); vendored `lib/client.js` carries a hand-applied English i18n patch for the cockpit panel (12 strings), lost on any reinstall/upgrade — see *ui-translate boundary* below |
 | 8 | `dsh-plugin-hooks` | 0.1.1 | `github:truelove-dreamer/dsh-plugin-hooks#6cf763e` | Claude-Code-style lifecycle shell hooks |
 | 9 | `@moonquake2004/dsh-doctor` | 0.4.3 | `github:moonquake2004/dsh-doctor#path:/plugin` | offline diagnostic (28+ built-in checks across env/profile) |
 | 10 | `dsh-smart-restart` | 0.5.1 | `github:edusrez/dsh-smart-restart#bde38b3` | detects service restart, wakes the interrupted session (`smart_restart` tool) |
@@ -120,12 +123,13 @@ are live-bundled — rows 7 and 12 are historical, see the footnote).
 | 22 | `dsh-plugin-guide` | 0.2.0 | `github:PerryLink/dsh-plugin-guide` | registers the `dsh-plugin-guide` skill (plugin-dev knowledge base) + ships the `dsh-plugin-dev` CLI. Has a `prepare` build, so needs an `allowBuilds` key |
 | 23 | `@omdsh-dev/dsh-plugin-check` | 0.1.0 | `github:omdsh-dev/dsh-plugin-check` | `plugin_check` tool: read-only plugin-repo diagnosis (manifest / patch / build traps / hub registration) |
 | 24 | `dsh-client-auto-continue` | 0.8.1 | `github:HsiangNianian/dsh-auto-continue` | dual host+client Web-UI plugin: auto-sends "继续" when a request is interrupted by network/non-human causes. Settings card (loop-guard, adaptive backoff, per-session pause). Repo name (`dsh-auto-continue`) differs from the npm package name (`dsh-client-auto-continue`) |
-| 25 | `dsh-mini-advisor` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-mini-advisor` | minimal advisor watchdog: a second model reviews each turn; can inject weighable advice, create a native DSH goal, and merge todo tasks. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
-| 26 | `dsh-fusion` | 0.1.6 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) |
+| 25 | `dsh-goal-keeper` | 0.3.1 | `file:~/.dsh/plugins-src/dsh-goal-keeper` | goal-keeper (formerly `dsh-mini-advisor`): a second model reviews each turn, drives the native DSH goal (create/update/**complete**) and merges todo tasks, and injects weighable advice. Settings namespace pinned to legacy `dsh-mini-advisor` key. `file:`-installed; prebuilt `lib/` (prepare falls back to it) |
+| 26 | `dsh-fusion` | 0.1.13 | `file:~/.dsh/plugins-src/dsh-fusion` | Fusion orchestration mode: shrinks the orchestrator to read/delegate/coordinate + injects orchestration guidance; now also carries a `tools/post-execute` empty-output fallback (replaces dsh-subagent tool-call-only output with a non-empty placeholder so the orchestrator never sees `(no output)`); adds job_output/job_list to the orchestrator allowlist (non-blocking peek at bash/background-mode jobs) plus a liveness check-in guidance paragraph (list_agents + send_message for continuable role subagents, which are not jobs); adds read-only peek_subagent (per-child model triangulation + activity tail) and verify_subagent_models (audits that each role subagent is on its assigned model — mismatch = pin didn't take) tools. `file:`-installed; `prepare` is `tsdown` (needs an `allowBuilds` key if reinstalled from a non-built source) (peek tools mounted as a child plugin `dsh-fusion-peek-tools` with its own inject: tools/agents/sessions/subagents). (0.1.11: always-on Fusion ON/OFF orchestrator marker + child fusion-delegation context injected into every continuable subagent via registerContinuableSetup, incl. the one-line-summary contract). 0.1.12: prompt review — deduped the one-line-summary contract to FUSION_CHILD_CONTEXT, dropped the redundant [FUSION MODE ACTIVE] header (the always-on Fusion ON/OFF marker covers it), added a pilot_*/web-search delegation note, merged the two monitoring paragraphs into one, and refreshed the pre-execute denial message to list the allowed read/observe tools. 0.1.13: behavioral prompt tuning so planner+reviewer actually get used — DEFAULT_GUIDANCE now leads with an explicit default workflow (delegate_scout → delegate_planner → delegate_worker → delegate_reviewer, run in order), states "Planner and reviewer are the DEFAULT, not optional add-ons" with a cheap skip-with-one-line-justification path for trivial/single-file edits, and adds a soft Gate ("do not call delegate_worker for a multi-file/interface/schema/migration change until a delegate_planner plan exists; do not declare a non-trivial change complete until delegate_reviewer has passed the diff"); the four role bullets were retuned from capabilities into workflow steps (planner = Step 2, reviewer = Step 4). Root cause was that the prior guidance listed the roles as peer capabilities with only soft conditional hints, so the model rationally shortcut to scout+worker. Guidance-only change (no hard code gate in index.ts). One test assertion updated (tests/index.test.ts: the old "Prefer the role delegation tools" pin → three pins on the new workflow/gate text); 93/93 tests pass. Dogfooded 2026-08-28 in a fresh fused session (maxConcurrentWorkers feature task): the orchestrator ran the full scout→planner→worker→reviewer loop and the reviewer caught a real bug (pre-execute deny still routes through post-execute → a plain counter over-decrements and defeats the cap), fixed with a token-keyed admittedWorkers Set. Deployed via the file:-bundle re-materialize dance + smart_restart (MainPID 1772820 → 3902244, clean boot, no auto-disable). |
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
-> drift note at the top). `dsh-pilot` (row 7) and `@liustack/modsearch` (row 12)
-> are **not** in the live `bundles` — treat those two rows as historical.
+> drift note at the top). `@liustack/modsearch` (row 12) is **not** in the
+> live `bundles` — treat that row as historical (row 7 `dsh-pilot` was
+> reinstated 2026-08-28 and is live again).
 > `dsh-omp-advisor` and the `@dsh-pro` suite were also removed (see Gotchas /
 > Install best practices).
 
@@ -269,6 +273,25 @@ stays in the source language. For a Chinese-only plugin whose UI you must read
 prebuilt `lib/client.js` in place (keep a `.bak`; comments don't render); note an
 upgrade overwrites the bundle, so re-apply after any upgrade.
 
+**Worked example — dsh-pilot.** The same fallback was applied to the Chinese
+cockpit-panel UI in `dsh-pilot`'s prebuilt `lib/client.js`: 12 panel strings
+translated to English (pre-edit copy kept as `lib/client.js.bak.i18n`). The
+patch and re-apply procedure live at
+`~/.dsh/plugins-src/dsh-pilot/patches/` (`i18n.patch` + `README.md`); re-run
+after any `dsh-pilot` reinstall or upgrade that touches `lib/client.js`. Row 7
+of the inventory table (v0.7.1 / pin `#dff236a`) reflects this reinstall.
+
+**Pilot tool discovery.** Future dsh sessions do **not** need a prompt
+mention or a dedicated skill to see the `pilot_*` tools — once `dsh-pilot`
+is loaded the plugin auto-registers them into the harness tool catalog, and
+every new session inherits them transparently. The one operational caveat is
+Fusion's allowlist gate (`DEFAULT_ALLOW` in `dsh-fusion/src/config.ts`,
+enforced by the `tools/pre-execute` deny in `dsh-fusion/src/index.ts`): with
+Fusion ON the orchestrator/main agent is withheld `pilot_*` (and `bash`,
+`edit`, `write`, `glob`, `grep`, `web_search`) and must delegate to a worker
+to drive the browser; with Fusion OFF the main agent calls them directly.
+Install details remain in row 7 of the inventory table.
+
 ## Key files (`~/.dsh/`)
 
 | Path | What | Mode |
@@ -320,8 +343,22 @@ curl -s -X POST -H "$H" $B/rotate-token             # new token, revokes all ses
 # read current token
 python3 -c "import json;print(json.load(open('$HOME/.dsh/reverse-proxy.json'))['accessToken'])"
 
-# upgrade dsh
-npm install -g @deepseek-ai/dsh && systemctl --user restart dsh-web.service
+# upgrade dsh  (the PRIMARY empty-output fix now lives in the dsh-fusion plugin's
+# tools/post-execute listener — upgrade-safe, survives `npm install -g
+# @deepseek-ai/dsh`. apply-patch.sh is the interim node_modules safety net
+# until the upstream PR lands.)
+npm install -g @deepseek-ai/dsh \
+  && bash ~/.dsh/plugins-src/dsh-fusion/patches/apply-patch.sh \
+  && systemctl --user restart dsh-web.service
+
+# The apply-patch.sh step re-applies the empty-output fold fix to the
+# @deepseek-ai/dsh-subagent runtime files (npm install overwrites them); it is
+# idempotent and errors loudly on upstream anchor drift. The PRIMARY fix is now
+# in the dsh-fusion plugin's `tools/post-execute` listener (upgrade-safe,
+# survives `npm install -g @deepseek-ai/dsh`) — apply-patch.sh is only the
+# interim node_modules safety net until the upstream PR to
+# github.com/deepseek-ai/deepseek-harness (packages/subagent/subagent) lands;
+# see ~/.dsh/plugins-src/dsh-fusion/patches/README.md.
 
 # upgrade the plugin
 dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web.service
