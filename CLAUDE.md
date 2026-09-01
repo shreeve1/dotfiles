@@ -50,8 +50,6 @@ don't fight pi-lens autoformat) all live there with rationale.
 
 Environment facts that aren't in that doc:
 
-- **Questions are asked inline in chat**, never via `ask_user_question` /
-  `AskUserQuestion` — that extension is deliberately disabled.
 - **OpenCode:** `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` and `OPENCODE_DISABLE_CLAUDE_CODE`
   must stay **unset**, or canonical `~/.claude/skills/` are invisible. OpenCode
   silently drops skills whose `model:` isn't `provider/model` form.
