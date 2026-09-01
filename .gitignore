@@ -203,3 +203,6 @@ bin/*
 
 # Machine-local review checkout of dsh-omp-advisor (49 MB — embedded .git + node_modules)
 /dsh-omp-advisor-review/
+
+# dsh agent-teams runtime state (per-workspace team.json + mailboxes)
+.agent-teams/
