@@ -1,7 +1,6 @@
 setupVersion: 1
 modelRoles: 
-  default: zai/glm-5.3:high
-  smol: minimax/MiniMax-M3:high
+  default: minimax/MiniMax-M3:high
   vision: cliproxy/claude-sonnet-4-6:high
   advisor: openai-codex/gpt-5.6-sol:high
   task: minimax/MiniMax-M3:high
@@ -28,5 +27,5 @@ task:
   agentModelOverrides: 
     scout: "@smol"
     task: "@task"
-    reviewer: "deepseek/deepseek-v4-flash:high"
+    reviewer: deepseek/deepseek-v4-flash:high
     planner: "@plan"
