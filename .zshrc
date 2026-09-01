@@ -333,6 +333,11 @@ alias tmk='tmux kill-session -t'
 
 # Ralph loop - background tmux session running /ralph until all issues done
 tralph() {
+	# Source machine-local secrets (e.g. MINIMAX_API_KEY for omp) defensively
+	# here so the loop's tmux-launched workers inherit the provider creds
+	# even if .zshrc.secrets hasn't been sourced yet (e.g. re-source, fresh
+	# subshell, or a future edit that moves the secrets line below this fn).
+	[[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
 	RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}" \
 		~/.claude/skills/ralph/ralph-loop.sh "$@"
 }
