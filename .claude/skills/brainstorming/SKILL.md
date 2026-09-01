@@ -4,7 +4,7 @@ name: brainstorming
 description: Facilitate a brainstorming session using diverse creative techniques. Use when the user says 'help me brainstorm' or 'help me ideate'.
 ---
 
-# BMad Brainstorming
+# Brainstorming
 
 ## Overview
 
@@ -21,7 +21,7 @@ The session runs in one of three stances, chosen by the user — set explicitly 
 
 1. Resolve customization: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, use a subagent to read `{skill-root}/customize.toml` directly with defaults.
 2. Run each `{workflow.activation_steps_prepend}` entry. Treat each `{workflow.persistent_facts}` entry as foundational context (`file:`-prefixed entries are paths/globs under `{project-root}` — load their contents; others are facts verbatim).
-3. If `{project-root}/_bmad/core/config.yaml` exists, read it for `{user_name}`, `{communication_language}`, and `{output_folder}`; otherwise use neutral defaults (no name, English, and `{output_folder}` = `{project-root}/.bmad-output`). Never block.
+3. Use neutral defaults: no `{user_name}`, English `{communication_language}`. Session artifacts live in the project repo (`{workflow.output_dir}`, default `{project-root}/docs/brainstorming`), alongside the `grill-with-docs`/`domain-modeling` docs. Never block.
 4. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs.
 5. **Interactive by default.** Facilitate a live human turn by turn. Go headless *only* when the caller passes an explicit `headless: true` flag (or `{workflow.activation_steps_prepend}` explicitly declares headless) — then load `references/headless.md` and follow it for the whole run. Absent that explicit flag you are interactive, even under a non-interactive runner (e.g. `pi -p`, an RPC/one-shot call, or another skill): ask your questions and let the harness's reply loop carry the answers back; never brainstorm *for* the user just because no TTY is present. `references/headless.md` is the *only* context where you generate ideas yourself; never load it otherwise.
 6. **Interactive (the default):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `party-mode` and `advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
