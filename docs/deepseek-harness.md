@@ -288,9 +288,23 @@ every new session inherits them transparently. The one operational caveat is
 Fusion's allowlist gate (`DEFAULT_ALLOW` in `dsh-fusion/src/config.ts`,
 enforced by the `tools/pre-execute` deny in `dsh-fusion/src/index.ts`): with
 Fusion ON the orchestrator/main agent is withheld `pilot_*` (and `bash`,
-`edit`, `write`, `glob`, `grep`, `web_search`) and must delegate to a worker
-to drive the browser; with Fusion OFF the main agent calls them directly.
+`edit`, `write`, `web_search`) and must delegate to a worker to drive the
+browser; with Fusion OFF the main agent calls them directly.
 Install details remain in row 7 of the inventory table.
+
+**The effective allowlist is NOT `DEFAULT_ALLOW`.** The `allow` array in
+`profiles/web/cordis.patch.yml` **replaces** it wholesale (it does not append),
+so that file — not `config.ts` — is the source of truth for this deployment.
+It restates the defaults, adds the 13 `agent_teams_*` tools, and adds five
+more: `grep`, `glob` (read-only; no weakening of the no-mutation guarantee),
+`skill`, `smart_restart`, and `ask_user_question`. Consequence worth stating
+plainly, because a stale note in `.claude/CLAUDE.md` once claimed the opposite:
+**`ask_user_question` is mounted and usable in dsh** (`@deepseek-ai/dsh-tool-ask-user`,
+via `dsh-base`), and the orchestrator is the only caller that can use it — the
+tool rejects runtime-owned subagents with `DELEGATED_CALLER`, so withholding it
+from the orchestrator removes the capability from the whole session. Pi is the
+tool that disables its own ask-user extension; see `docs/pi-extensions.md`.
+Omitting a name from that `allow` array silently revokes it.
 
 ## Key files (`~/.dsh/`)
 
@@ -306,6 +320,7 @@ Install details remain in row 7 of the inventory table.
 | `profiles/web/pnpm-workspace.yaml` | `nodeLinker: hoisted`, `allowBuilds` (node-pty etc.), `minimumReleaseAgeExclude` | - |
 | `dsh-startup-guard.json` | guard config: `exclude` list (genui, see Gotchas), `mode` | - |
 | `profiles/web/node_modules/dsh-full-remote/` | the installed plugin | - |
+| `profiles/web/patches/dsh-full-remote.patch` | pnpm patch disabling the plugin's duplicate question overlay (see Gotchas) | - |
 | `plugins-src/dsh-ui-translate/` | `link:`-installed browser-local translator | - |
 | `plugins-src/dsh-mini-advisor/`, `plugins-src/dsh-fusion/` | source for the two `file:`-installed bundles (`dependencies` pin `file:` specs here) | - |
 
@@ -432,6 +447,23 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   NOTE: an old sidebar SESSION whose title is literally "Loading the provider
   directory failed..." is just a stale chat name from the pre-fix era, not a
   live error — delete it.
+- **Two overlays for the same `ask_user_question`:** two independent UIs render
+  the same pending question. `@deepseek-ai/dsh-client-ui-user-questions` (core)
+  takes over the `conversation.composer` slot; `dsh-full-remote` additionally
+  registers its own `InteractionOverlay` sheet on `shell.overlay`
+  (`lib/client.js` ~L2777). That sheet self-enables via
+  `shouldUseInteractionOverlay()` = `!isLoopbackHost(hostname) || width <= 720`,
+  so browsing the console at `https://100.95.230.15:3080` (non-loopback) turns
+  it on unconditionally — even on a wide desktop window — and it stacks on the
+  official composer UI. There is NO config option: the component accepts an
+  `enabled` prop but the plugin never passes one. Fixed with a durable
+  `pnpm patch` (`profiles/web/patches/dsh-full-remote.patch`, recorded in
+  `pnpm-workspace.yaml` `patchedDependencies`) injecting `enabled: false` into
+  that registration's `inject()`. Everything else in the plugin (proxy, TLS,
+  token auth, settings page) is untouched. Tradeoff: pending questions from
+  OTHER sessions no longer surface as a floating sheet — switch to that session
+  to answer. If a version bump makes the patch fail to apply, re-create it with
+  `pnpm patch dsh-full-remote`.
 - **Blank page / `crypto.randomUUID is not a function`:** you are on plain HTTP
   to a non-localhost IP (not a secure context). Use the `https://` URL.
 - **Crash loop `ELOOP: too many symbolic links ... orca-help`:** a circular

@@ -71,9 +71,11 @@ requirements" carries the short must-not-break rules and points here.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
-  `extensions` settings. Keep that exclusion: questions should be asked inline
-  in chat per `.claude/CLAUDE.md`. Removing only a `packages` entry is
-  insufficient because Pi auto-discovers `extensions/*/index.ts`.
+  `extensions` settings, to keep Pi's prompt-token load down — Pi asks inline in
+  chat instead. This is a Pi-only choice and says nothing about dsh, where
+  `ask_user_question` IS mounted and used (see `docs/deepseek-harness.md`).
+  Removing only a `packages` entry is insufficient because Pi auto-discovers
+  `extensions/*/index.ts`.
 - Pi `rpiv-advisor` is also a synced vendored extension at
   `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
   `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
