@@ -490,6 +490,10 @@ if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
 
   # Claude Code hooks.
   link_path ".claude/hooks" ".claude/hooks"
+
+  # Always-on agent rules — injected into every dsh session and every delegated
+  # subagent by the dsh-cc-skills plugin. Claude Code itself ignores this dir.
+  link_path ".claude/rules" ".claude/rules"
 else
   printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
 fi
