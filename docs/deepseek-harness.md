@@ -476,14 +476,18 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   workers 20 min after `rm`). Note the empty-result path returns early
   *without* caching, so going from no-rules to some-rules works live; every
   other transition does not.
-  **Staleness is per-cwd, so a restart is usually unnecessary** — the cache key
-  is `agent.session.header.cwd` (`:187`). Only directories already visited since
-  boot are poisoned; any *other* cwd misses the cache and rebuilds from disk. To
-  verify a rules change without disrupting live sessions, run a one-shot
-  `cron_create` agent task with `cwd` set to an unvisited directory (e.g.
-  `/tmp`) that reports whether the new text is in its context, then
-  `cron_delete` it. Restart only when you need the *current* session's cwd
-  fixed. Caveat: `smart_restart` was observed to no-op here (reported success
+  **Staleness is per-cwd** — the cache key is `agent.session.header.cwd`
+  (`:187`). Every directory already visited since boot is poisoned; only an
+  *unvisited* cwd misses the cache and rebuilds from disk. In practice that
+  means **your active project directories are exactly the stale ones**, so after
+  changing rules you do need a restart (verified 2026-09-02: `~/homelab`, worked
+  in earlier the same day, saw neither an added rules file nor a second one,
+  while a freshly-created git repo with the same `.git` + `.claude` layout saw
+  both). To *verify* a rules change without disrupting live sessions, run a
+  one-shot `cron_create` agent task with `cwd` set to an unvisited directory
+  (e.g. `/tmp/probe-<random>`) that reports whether the new text is in its
+  context, then `cron_delete` it — that proves the file is correct, but does not
+  make it live where you actually work. Caveat: `smart_restart` was observed to no-op here (reported success
   twice, MainPID unchanged; with `canary: true` it cycled only the ephemeral
   probe instance) — check `ps -eo pid,etime,cmd | grep 'dsh web'` before
   trusting it.
