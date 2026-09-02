@@ -487,10 +487,17 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   one-shot `cron_create` agent task with `cwd` set to an unvisited directory
   (e.g. `/tmp/probe-<random>`) that reports whether the new text is in its
   context, then `cron_delete` it — that proves the file is correct, but does not
-  make it live where you actually work. Caveat: `smart_restart` was observed to no-op here (reported success
-  twice, MainPID unchanged; with `canary: true` it cycled only the ephemeral
-  probe instance) — check `ps -eo pid,etime,cmd | grep 'dsh web'` before
-  trusting it.
+  make it live where you actually work. After the restart the same `~/homelab`
+  probe went 0/4 → 4/4, and global rules coexist with a project
+  `CLAUDE.md` + `AGENTS.md` (8/8 across parent and delegated worker).
+  Caveat: `smart_restart` is **very slow to act**, not a no-op — two calls
+  reported success with MainPID unchanged and `ps` still showing the old
+  process, and the restart landed roughly **80 minutes later** (895540 →
+  1258304 at 01:17:41Z, from calls made at ~00:33 and ~00:34; with
+  `canary: true` the only immediate effect was cycling the ephemeral probe
+  instance). Treat its success message as "queued", verify with
+  `ps -eo pid,etime,cmd | grep 'dsh web'`, and use
+  `systemctl --user restart dsh-web` when you need the restart now.
 - **Rules inject twice when cwd is `~/dotfiles`:** `dsh-cc-loader/src/load.js:53`
   finds the repo as *project* root and `:63` finds `~/.claude` as *global*;
   both resolve through the `~/.claude/rules -> dotfiles/.claude/rules` symlink
