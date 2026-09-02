@@ -14,19 +14,14 @@ The session runs in one of three stances, chosen by the user — set explicitly 
 
 ## Conventions
 
-- Bare paths (e.g. `references/headless.md`) resolve from `{skill-root}` (where `customize.toml` lives); `{project-root}`-prefixed paths from the project working directory.
-- `{workflow.<name>}` resolves to fields in the merged `customize.toml` `[workflow]` table.
+- Bare paths (e.g. `references/headless.md`) resolve from `{skill-root}`; `{project-root}`-prefixed paths from the project working directory.
+- Session artifacts live in the project repo under `{project-root}/docs/brainstorming/`, alongside the `grill-with-docs`/`domain-modeling` docs.
 
 ## On Activation
 
-1. Resolve customization: `uv run {skill-root}/../_shared/scripts/resolve_customization.py --skill {skill-root} --key workflow`. On failure, use a subagent to read `{skill-root}/customize.toml` directly with defaults.
-2. Run each `{workflow.activation_steps_prepend}` entry. Treat each `{workflow.persistent_facts}` entry as foundational context (`file:`-prefixed entries are paths/globs under `{project-root}` — load their contents; others are facts verbatim).
-3. Use neutral defaults: no `{user_name}`, English `{communication_language}`. Session artifacts live in the project repo (`{workflow.output_dir}`, default `{project-root}/docs/brainstorming`), alongside the `grill-with-docs`/`domain-modeling` docs. Never block.
-4. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs.
-5. **Interactive by default.** Facilitate a live human turn by turn. Go headless *only* when the caller passes an explicit `headless: true` flag (or `{workflow.activation_steps_prepend}` explicitly declares headless) — then load `references/headless.md` and follow it for the whole run. Absent that explicit flag you are interactive, even under a non-interactive runner (e.g. `pi -p`, an RPC/one-shot call, or another skill): ask your questions and let the harness's reply loop carry the answers back; never brainstorm *for* the user just because no TTY is present. `references/headless.md` is the *only* context where you generate ideas yourself; never load it otherwise.
-6. **Interactive (the default):** greet `{user_name}` in `{communication_language}` and stay in it. Note that `party-mode` and `advanced-elicitation` are available any time. Glob `{workflow.output_dir}/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
-
-Run each `{workflow.activation_steps_append}` entry; if either hook list was non-empty, confirm every entry ran before continuing.
+1. If grill-with-docs/domain-modeling docs exist — `{project-root}/CONTEXT.md`, `{project-root}/CONTEXT-MAP.md`, and/or `{project-root}/docs/adr/` — read the available context file for project vocabulary and skim relevant ADRs first. Read-only: don't modify these docs. Never block if they're absent.
+2. **Interactive by default.** Facilitate a live human turn by turn. Go headless *only* when the caller passes an explicit `headless: true` flag — then load `references/headless.md` and follow it for the whole run. Absent that explicit flag you are interactive, even under a non-interactive runner (e.g. `pi -p`, an RPC/one-shot call, or another skill): ask your questions and let the harness's reply loop carry the answers back; never brainstorm *for* the user just because no TTY is present. `references/headless.md` is the *only* context where you generate ideas yourself; never load it otherwise.
+3. **Interactive (the default):** greet the user and note that `party-mode` and `advanced-elicitation` are available any time. Glob `{project-root}/docs/brainstorming/*/.memlog.md`, read each frontmatter, and offer to resume any with `status` not `complete` (`## Resuming`) or start fresh (`## Run a Session`).
 
 ## Framing — hold this the whole run
 
@@ -44,11 +39,11 @@ These fight your defaults, in every mode; hold them deliberately. The stance you
 
 ## Run a Session
 
-Open with one compound question what are we brainstorming, and what's the goal or why behind it (along with asking if there are any inputs or special requests). The why shapes technique choice and synthesis (*kids' iPhone apps to build with your own kids* vs. *to win market share* point different ways). If the kickoff already made both clear, skip the question and confirm; read anything they point you to. Derive a kebab-case `{topic_slug}` and bind `{doc_workspace} = {workflow.output_dir}/{workflow.output_folder_name}/`.
+Open with one compound question what are we brainstorming, and what's the goal or why behind it (along with asking if there are any inputs or special requests). The why shapes technique choice and synthesis (*kids' iPhone apps to build with your own kids* vs. *to win market share* point different ways). If the kickoff already made both clear, skip the question and confirm; read anything they point you to. Derive a kebab-case `{topic_slug}` and bind `{doc_workspace} = {project-root}/docs/brainstorming/brainstorm-{topic_slug}-{date}/`.
 
 Now set the **stance** and the **technique batch** in one step — the composer page does both, so make it the default.
 
-**The composer page (primary).** The file is `{skill-root}/assets/brain-selector.html`. With a customized catalog (overridden `{workflow.brain_methods}` or any `{workflow.additional_techniques}`), regenerate it first: `uv run {skill-root}/scripts/brain.py --file {workflow.brain_methods} [--extra {doc_workspace}/extra-techniques.json] html --out {doc_workspace}/brain-selector.html` (pass `--extra`, a JSON list of `{category, technique_name, description}`, when there are additional techniques; the file is then `{doc_workspace}/brain-selector.html`). Try to open it (`open` / `xdg-open` / `start`), then say, in one message: *"It should open in your browser — compose your session, click **Copy prompt**, and paste the result back. If it didn't open, open `<path>` yourself, or say 'let's do it in chat'."* You can't see their browser, so never claim it opened.
+**The composer page (primary).** The file is `{skill-root}/assets/brain-selector.html`. Try to open it (`open` / `xdg-open` / `start`), then say, in one message: *"It should open in your browser — compose your session, click **Copy prompt**, and paste the result back. If it didn't open, open `<path>` yourself, or say 'let's do it in chat'."* You can't see their browser, so never claim it opened.
 
 Read the pasted block: the **`Facilitation mode:`** line → the stance; the **listed techniques** (full category/name/description, some tagged `(random pick)`) → run them as given, no `list`/`show` needed; **`invent N`** / **`you choose N`** → see `## Choosing Techniques`.
 
@@ -62,8 +57,8 @@ For **Facilitator** and **Creative Partner**. (In **Ideate for me** you pick and
 
 Most sessions arrive with a batch already composed on the page — run it as given (each technique's full text is in the paste; no `list`/`show` needed). Two parts of a paste delegate back to you:
 
-- **`invent N`** (Inventive Flow) — invent N brand-new techniques on the fly. A line may scope an invention (`invent 1 new technique in the spirit of <category>`, from the page's per-category invent card) — when it does, honor that category's spirit. Announce the order, log each one's name + description, and offer to save a keeper to `{workflow.additional_techniques}` at wrap-up.
-- **`you choose N`** (Facilitator Chosen) — pick N techniques fitting the goal, `{workflow.favorite_techniques}` first; confirm exact names with a scoped `uv run {skill-root}/scripts/brain.py --file {workflow.brain_methods} list --category <cat>`. Never pull the library whole into context.
+- **`invent N`** (Inventive Flow) — invent N brand-new techniques on the fly. A line may scope an invention (`invent 1 new technique in the spirit of <category>`, from the page's per-category invent card) — when it does, honor that category's spirit. Announce the order and log each one's name + description.
+- **`you choose N`** (Facilitator Chosen) — pick N techniques fitting the goal; confirm exact names with a scoped `uv run {skill-root}/scripts/brain.py --file {skill-root}/assets/brain-methods.csv list --category <cat>`. Never pull the library whole into context.
 
 If they didn't use the page, load `references/in-chat-techniques.md` and pick the batch in chat (**3–4 is the sweet spot**).
 

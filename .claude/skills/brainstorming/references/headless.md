@@ -6,14 +6,13 @@ Load this file ONLY when brainstorming is invoked headless. It is quarantined he
 
 **Interactive is the default; headless requires an explicit opt-in.** Headless is in effect *only* when one of these explicit signals holds:
 
-- the caller sets a `headless: true` flag (or the equivalent argument the harness exposes),
-- `{workflow.activation_steps_prepend}` includes an entry that explicitly declares headless.
+- the caller sets a `headless: true` flag (or the equivalent argument the harness exposes).
 
 The absence of a TTY or user message stream is **not** a headless trigger on its own — a non-interactive runner (`pi -p`, an RPC/one-shot call, Symphony, or another skill) is still interactive unless it passes the explicit flag, because the harness can carry your questions and their answers across turns. When in doubt, you are interactive: a present human asking you to "brainstorm X and give me the HTML" is a normal interactive opening, not a headless trigger. Facilitate them; do not brainstorm for them.
 
 ## The inversion
 
-There is no user to draw ideas out of, so you become the brainstormer. Run a real divergent session against the supplied topic: discover techniques with `uv run {skill-root}/scripts/brain.py --file {workflow.brain_methods} list --all` (the whole catalog is fine here — you are generating, not pacing a user; add `show "<name>"` for a technique's full method on demand), plus any `{workflow.additional_techniques}`, preferring `{workflow.favorite_techniques}` where they fit; work them, and **shift the creative domain every ~10 ideas** exactly as the interactive Stance demands — technical, then experiential, then business, then failure modes, then wildcards. Push past the obvious; the same quantity ambition (aim past 100) and anti-clustering discipline apply. The only thing that changes is that the ideas are now yours to generate. This relaxation is scoped entirely to this file — it never applies to interactive sessions.
+There is no user to draw ideas out of, so you become the brainstormer. Run a real divergent session against the supplied topic: discover techniques with `uv run {skill-root}/scripts/brain.py --file {skill-root}/assets/brain-methods.csv list --all` (the whole catalog is fine here — you are generating, not pacing a user; add `show "<name>"` for a technique's full method on demand); work them, and **shift the creative domain every ~10 ideas** exactly as the interactive Stance demands — technical, then experiential, then business, then failure modes, then wildcards. Push past the obvious; the same quantity ambition (aim past 100) and anti-clustering discipline apply. The only thing that changes is that the ideas are now yours to generate. This relaxation is scoped entirely to this file — it never applies to interactive sessions.
 
 ## Inputs the caller is expected to provide
 
@@ -23,7 +22,7 @@ Free-form structured payload in the first message; provide what applies:
 - `goal` — desired outcome / framing, if any.
 - `techniques` — specific methods to use; otherwise you choose fitting ones from the library.
 - `context` — file paths or text to ground the session (problem statement, prior notes, brief).
-- `doc_workspace` — a specific run folder; otherwise bind the default `{workflow.output_dir}/{workflow.output_folder_name}/`.
+- `doc_workspace` — a specific run folder; otherwise bind the default `{project-root}/docs/brainstorming/brainstorm-{topic_slug}-{date}/`.
 - `artifacts` — which outputs to produce: `html`, `intent`, or both. Default: both.
 
 ## Run
@@ -32,7 +31,6 @@ Free-form structured payload in the first message; provide what applies:
 2. Run the divergent session per **The inversion**, capturing each idea with `uv run {skill-root}/../_shared/scripts/memlog.py append --workspace {doc_workspace} --type idea --text "<idea>"` as it lands, and marking each technique switch with `uv run {skill-root}/../_shared/scripts/memlog.py append --workspace {doc_workspace} --type technique --text "started <name>"`.
 3. Synthesize: surface the conclusions, connections, and the few directions that matter; record them with `uv run {skill-root}/../_shared/scripts/memlog.py append --workspace {doc_workspace} --type insight --text "<insights>"`, then run `uv run {skill-root}/../_shared/scripts/memlog.py set --workspace {doc_workspace} --key status --value complete`.
 4. Produce the requested artifacts from the log — `brainstorm.html` (the imaginative, self-contained, no-template report) and/or the succinct `brainstorm-intent.md` — the same artifacts `references/finalize.md` describes, delegating each to a subagent that reads the log as its sole source. (Headless produces the `artifacts` payload directly; it does not ask, unlike the interactive opt-in.)
-5. Execute each entry in `{workflow.external_handoffs}` (capture returned URLs/IDs into the JSON `external_handoffs` array; skip and flag unavailable tools — local files always exist). Then run `{workflow.on_complete}` if non-empty.
 
 Do not ask questions; do not greet. Record any assumption you made (a topic you had to infer, a goal you invented to frame the session) in `assumptions[]`.
 
@@ -47,7 +45,6 @@ End with a JSON status block. Use `complete` when the artifacts stand on their o
   "memlog": "{doc_workspace}/.memlog.md",
   "html": "{doc_workspace}/brainstorm.html",
   "intent_doc": "{doc_workspace}/brainstorm-intent.md",
-  "assumptions": [],
-  "external_handoffs": []
+  "assumptions": []
 }
 ```
