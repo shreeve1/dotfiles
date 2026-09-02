@@ -146,7 +146,7 @@ def test_html_writes_selection_page(lib, tmp_path):
     assert brain.main(["--file", str(lib), "html", "--out", str(out)]) == 0
     doc = out.read_text(encoding="utf-8")
     assert doc.startswith("<!DOCTYPE html>")
-    assert "BMad Method Brainstorming Selection" in doc
+    assert "Brainstorming Selection" in doc
     for r in brain.load(lib):
         assert r["technique_name"] in doc  # every technique is selectable
     assert "&quot;yes and&quot;" in doc  # quotes in a description are escaped, not raw
@@ -158,7 +158,7 @@ def test_html_creates_missing_parent(lib, tmp_path):
     assert out.is_file()
 
 
-# --- --extra overlay (customize.toml additional_techniques) -------------
+# --- --extra overlay ----------------------------------------------------
 
 EXTRA = (
     '[{"category": "domain-specific", "technique_name": "Regulatory Inversion", '

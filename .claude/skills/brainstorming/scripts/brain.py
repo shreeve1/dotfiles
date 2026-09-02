@@ -22,9 +22,9 @@ Commands:
 rather than stdout: dumping the full catalog into context is a footgun, so reaching the
 whole library at once must always be an explicit, deliberate choice.
 
-`--extra PATH` merges a JSON overlay of additional techniques (customize.toml's
-`additional_techniques`) into every command, so custom techniques and whole new
-categories are first-class everywhere — including the browse page and category draws.
+`--extra PATH` merges a JSON overlay of additional techniques into every command,
+so custom techniques and whole new categories are first-class everywhere —
+including the browse page and category draws.
 
 Default output is lean text for an LLM to read; pass --json for structured output.
 """
@@ -59,10 +59,10 @@ def load(file: Path) -> list[dict]:
 
 def load_extra(file: Path) -> list[dict]:
     """Merge-in techniques from a JSON overlay — a list of
-    {category, technique_name, description[, detail]} objects. This is how
-    customize.toml's `additional_techniques` become first-class across *every*
-    subcommand (categories/list/random/show/html), so the browse page and
-    category draws include them too, not just the in-chat flows."""
+    {category, technique_name, description[, detail]} objects. Overlay entries
+    are first-class across *every* subcommand (categories/list/random/show/html),
+    so the browse page and category draws include them too, not just the in-chat
+    flows."""
     data = json.loads(file.read_text(encoding="utf-8"))
     rows = []
     for item in data:
@@ -213,11 +213,11 @@ SELECTOR_TEMPLATE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BMad Method Brainstorming Selection</title>
+<title>Brainstorming Selection</title>
 <script>
 /* set the theme before first paint so there's no light-mode flash */
 (function(){ try {
-  var t = localStorage.getItem('bmad-theme');
+  var t = localStorage.getItem('brainstorm-theme');
   if (!t) { t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'; }
   document.documentElement.setAttribute('data-theme', t);
 } catch(e){} })();
@@ -305,7 +305,7 @@ SELECTOR_TEMPLATE = r"""<!DOCTYPE html>
 <header>
   <div class="hwrap">
   <div class="titlerow">
-    <h1>BMad Method Brainstorming Selection</h1>
+    <h1>Brainstorming Selection</h1>
     <button id="theme" class="themebtn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode"></button>
   </div>
   <p class="sub">Compose your session, hit <strong>Copy prompt</strong>, and paste it back into the chat to begin. {{TOTAL}}</p>
@@ -343,7 +343,7 @@ SELECTOR_TEMPLATE = r"""<!DOCTYPE html>
 <main>
 {{BODY}}
 </main>
-<footer>BMad Method &middot; Brainstorming</footer>
+<footer>Brainstorming</footer>
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
@@ -366,7 +366,7 @@ SELECTOR_TEMPLATE = r"""<!DOCTYPE html>
   themeBtn.addEventListener('click', function(){
     var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('bmad-theme', next); } catch(e){}
+    try { localStorage.setItem('brainstorm-theme', next); } catch(e){}
     setThemeIcon();
   });
 
@@ -669,7 +669,7 @@ def html_doc(rows: list[dict]) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--file", type=Path, default=DEFAULT_FILE, help="technique CSV (default: sibling assets/brain-methods.csv)")
-    p.add_argument("--extra", type=Path, help="JSON overlay of additional techniques (customize.toml additional_techniques), merged into every command")
+    p.add_argument("--extra", type=Path, help="JSON overlay of additional techniques, merged into every command")
     p.add_argument("--json", action="store_true", help="emit structured JSON instead of lean text")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("categories", help="list category names + counts")
