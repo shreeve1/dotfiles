@@ -35,6 +35,16 @@ commands).
 - Shared skills: `.claude/skills/<name>/SKILL.md` (read by Claude Code natively,
   by OpenCode via `~/.claude/skills` fallback).
 - Hooks: `.claude/hooks/` (Claude Code hook scripts).
+- Always-on agent rules: `.claude/rules/*.md` — injected into **every dsh
+  session and every delegated subagent** by `dsh-cc-skills` (needs the
+  `~/.claude/rules -> dotfiles/.claude/rules` symlink that `install.sh`
+  creates). This is the only lane that applies without the model choosing
+  to load anything: a skill contributes just its one-line description to context
+  until something calls the `skill` tool, which on plain coding tasks it does
+  not do (verified 2026-09-02). Keep the lane small (currently ~1.9 KB) — it is
+  paid on every turn. Note dsh does **not** read `~/.claude/CLAUDE.md`; its
+  native chain is `~/.dsh/AGENTS.md` plus `AGENTS.md`/`CLAUDE.md` from project
+  root down to cwd.
 - See `README.md` § "Canonical vs tool-specific" for the full table.
 
 ## Non-obvious requirements

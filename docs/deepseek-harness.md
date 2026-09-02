@@ -466,6 +466,33 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   `pnpm patch dsh-full-remote`.
 - **Blank page / `crypto.randomUUID is not a function`:** you are on plain HTTP
   to a non-localhost IP (not a secure context). Use the `https://` URL.
+- **`~/.claude/rules/*.md` edits don't take effect until a dsh restart:**
+  `dsh-cc-skills`' `registerRulesSection` builds a **process-lifetime** per-cwd
+  cache (`node_modules/dsh-cc-skills/src/index.js:174`) and only writes on a
+  miss (`:188-193`) — there is no file-watch or invalidation. So the first
+  session after boot fixes the rules text for every later session in that cwd,
+  and editing/deleting a rules file leaves the *old* text being injected
+  (verified 2026-09-02: a deleted canary file was still reaching delegated
+  workers 20 min after `rm`). Note the empty-result path returns early
+  *without* caching, so going from no-rules to some-rules works live; every
+  other transition does not.
+  **Staleness is per-cwd, so a restart is usually unnecessary** — the cache key
+  is `agent.session.header.cwd` (`:187`). Only directories already visited since
+  boot are poisoned; any *other* cwd misses the cache and rebuilds from disk. To
+  verify a rules change without disrupting live sessions, run a one-shot
+  `cron_create` agent task with `cwd` set to an unvisited directory (e.g.
+  `/tmp`) that reports whether the new text is in its context, then
+  `cron_delete` it. Restart only when you need the *current* session's cwd
+  fixed. Caveat: `smart_restart` was observed to no-op here (reported success
+  twice, MainPID unchanged; with `canary: true` it cycled only the ephemeral
+  probe instance) — check `ps -eo pid,etime,cmd | grep 'dsh web'` before
+  trusting it.
+- **Rules inject twice when cwd is `~/dotfiles`:** `dsh-cc-loader/src/load.js:53`
+  finds the repo as *project* root and `:63` finds `~/.claude` as *global*;
+  both resolve through the `~/.claude/rules -> dotfiles/.claude/rules` symlink
+  to the same directory, so each file is injected twice. Harmless (accepted:
+  1 KB → 2 KB, ~0.26% of context) and only affects work inside the dotfiles
+  repo itself; any other project injects once.
 - **Crash loop `ELOOP: too many symbolic links ... orca-help`:** a circular
   symlink in the dotfiles skill dirs crashed dsh's skill-filesystem watcher.
   Fixed in dotfiles commit `b8de7ab` (orca-help/orca-cli restored from real
