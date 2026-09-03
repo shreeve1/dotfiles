@@ -1,411 +1,221 @@
-#!/usr/bin/env bash
-# Delete symlinks under $HOME that point INTO this repo and no longer resolve.
-#
-# Usage: prune-dead-links [--check|--selftest]
-#   (no args)   delete them, exit 0
-#   --check     report only, exit 1 if any remain — the card's acceptance command
-#   --selftest  run the path-safety fixtures, exit 1 on any failure
-#
-# Residue from links install.sh used to declare (see docs/specs/k551-dangling-symlinks.md).
-# Run from the repo like check.sh; it is not linked into $HOME.
-#
-# THE SAFETY RULE: a symlink is removed only when its target resolves inside
-# $DOTFILES_DIR *and* does not exist. Broken links pointing anywhere else belong
-# to other programs (~/.claude/debug/latest, SingletonLock files,
-# ~/.config/pulse/*-runtime) or to another repo (~/.agents/skills/*) and are left
-# strictly alone. Comparing the target to $DOTFILES_DIR as TEXT is not good
-# enough for that rule: `$DOTFILES_DIR/../outside/x` matches the prefix while
-# resolving outside, and a relative target like `../dotfiles/x` resolves inside
-# while never matching it. Both were reproduced on fixtures. Hence canonicalize().
+#!/usr/bin/env python3
+"""Delete symlinks under $HOME that point INTO this repo and no longer resolve.
 
-set -uo pipefail
+Usage: prune-dead-links [--check|--selftest]
+  (no args)   delete them, exit 0
+  --check     report only, exit 1 if any remain
+  --selftest  run the path-safety fixtures, exit 1 on any failure
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+Residue from links install.sh used to declare (see docs/specs/k551-dangling-symlinks.md).
+Run from the repo like check.sh; it is not linked into $HOME.
 
-# Resolve a possibly-nonexistent path to its physical form, portably.
-#
-# This repo syncs to a Mac, so neither obvious tool is usable: BSD/macOS
-# `realpath` has no -m, and `readlink -f` rejects a missing path (verified: it
-# exits 1 even on GNU coreutils 9.4). Pure lexical folding of `..` is not enough
-# either — it cannot see that an intermediate symlink leaves the repo.
-#
-# So: walk up to the deepest ancestor that really exists, canonicalize THAT with
-# `cd` + `pwd -P` (POSIX, present everywhere, bash 3.2 safe), then re-attach the
-# missing remainder. `cd` resolves `..` and intermediate symlinks physically, so
-# a target cannot look repo-internal merely by how it is spelled.
-#
-# Returns 1 when the missing remainder still contains a `..` segment, which
-# cannot be resolved against directories that do not exist. The caller must then
-# leave the link alone — refusing to classify is the safe answer for an `rm`.
-canonicalize() {
-  local path=$1 rest= base real
-  # An empty path here means the filesystem root. That is an INTERNAL convention
-  # of this function, never a caller-supplied value: $real is emptied at the root
-  # (below) so `$real$rest` concatenates cleanly, and the `..`-cancellation
-  # branches recurse with the remainder consumed, so canonicalize can legitimately
-  # be handed "". Without this line the next case rewrote "" to "$PWD" — the repo,
-  # since the gate runs the script from there — so a link resolving to / was
-  # reported as repo residue and deleted.
-  #
-  # Callers must NOT rely on this: prune() rejects an empty $HOME or
-  # $DOTFILES_DIR outright, so no configuration value can reach the root here.
-  [ -n "$path" ] || path=/
-  case $path in
-  /*) ;;
-  *) path="$PWD/$path" ;;
-  esac
+THE SAFETY RULE: a symlink is removed only when its target resolves inside
+$DOTFILES_DIR and does not exist. Broken links pointing anywhere else belong to
+other programs (~/.claude/debug/latest, SingletonLock files, ~/.config/pulse/*-runtime)
+or to another repo (~/.agents/skills/*) and are left strictly alone.
 
-  # Strip `.` and empty (`//`) components up front. Unlike `..`, a `.` is a pure
-  # no-op in path resolution, so removing it lexically can never change where a
-  # path points — and leaving it in DID change it: `<repo>/nope/./../escx/leaf`
-  # let the `..` cancel the `.` instead of `nope`, so the escaping `escx`
-  # symlink was never consulted and a link resolving outside the repo was
-  # deleted. Normalise first, then every later step sees only real names.
-  while :; do
-    case $path in
-    */./*) path="${path%%/./*}/${path#*/./}" ;;
-    */.) path="${path%/.}" ;;
-    *//*) path="${path%%//*}/${path#*//}" ;;
-    *) break ;;
-    esac
-  done
-  [ -n "$path" ] || path=/
-  while [ ! -d "$path" ]; do
-    base=${path##*/}
-    rest="/$base$rest"
-    path=${path%/*}
-    [ -n "$path" ] || path=/
-  done
-  # -P is load-bearing: plain `cd` treats `..` logically, so
-  # `<repo>/outlink/../escaped` would fold back to `<repo>/escaped` and look
-  # repo-internal even though outlink leaves the repo. The selftest catches it.
-  real=$(cd -P "$path" 2>/dev/null && pwd -P) || return 1
-  [ "$real" = / ] && real=
+Deciding "inside the repo" means canonicalizing a path that does not exist, through
+symlinks that may themselves be dangling. A hand-rolled shell version was attempted
+and got that wrong five times — each time deleting a link that resolved OUTSIDE the
+repo, and each time passing a green test suite. os.path.realpath(strict=False) does
+it correctly by construction: it resolves symlinks physically and folds `..` against
+the real parent, on paths that need not exist.
+"""
 
-  # $real is physical, but the MISSING remainder may still hide two things: a
-  # symlink component (the -d walk stops at the deepest DIRECTORY, so a dangling
-  # or file symlink is left in $rest unexpanded), and a `..`.
-  #
-  # Both must be resolved, and the symlink FIRST. Expanding only when a `..` is
-  # present was a real bug: `<repo>/b/nothere/../esc/leaf` folded to
-  # `<repo>/b/esc/leaf` and returned it verbatim, so an `esc` symlink pointing
-  # OUTSIDE the repo was never consulted and the link was deleted — the exact
-  # failure the safety rule exists to prevent. Expand first, always.
-  #
-  # Depth is bounded so a symlink cycle terminates as unresolvable rather than
-  # spinning. Refusing to classify is always the safe answer ahead of an rm.
-  if [ -n "$rest" ]; then
-    local depth=${CANON_DEPTH:-0} first target
-    [ "$depth" -ge 16 ] && return 1
-    first=${rest#/}
-    first=${first%%/*}
-    if [ -L "$real/$first" ]; then
-      target=$(readlink "$real/$first")
-      case $target in
-      /*) ;;
-      *) target="$real/$target" ;;
-      esac
-      CANON_DEPTH=$((depth + 1)) canonicalize "$target${rest#/$first}"
-      return $?
-    fi
-    # Not a symlink and not a directory, so it is an ordinary missing name (or a
-    # plain file). Nothing can hide behind it: a following `..` may be dropped
-    # together with it, and the result re-resolved so any later symlink is still
-    # expanded by the recursion.
-    case $rest in
-    "/$first/../"*|"/$first/..")
-      # `..` directly after this missing name: both cancel.
-      CANON_DEPTH=$((depth + 1)) canonicalize "$real${rest#/$first/..}"
-      return $?
-      ;;
-    */../*|*/..)
-      # A `..` further along, e.g. `/nope/sub/../leaf`. Walk the remainder
-      # component by component, expanding any symlink met on the way, until a
-      # `..` becomes leading and cancels against the name before it. Walking
-      # rather than folding the whole path is the point: every component is
-      # still symlink-checked, so an escape cannot slip past unnoticed.
-      local head_= tail_=$rest node
-      while :; do
-        node=${tail_#/}
-        node=${node%%/*}
-        [ -n "$node" ] || return 1
-        tail_=${tail_#"/$node"}
-        case $tail_ in
-        /../*|/..)
-          # cancels with $node; resume from the prefix built so far
-          CANON_DEPTH=$((depth + 1)) canonicalize "$real$head_${tail_#/..}"
-          return $?
-          ;;
-        esac
-        [ -L "$real$head_/$node" ] && return 1   # symlink here: handled on the next pass
-        head_="$head_/$node"
-        case $tail_ in
-        */../*|*/..) ;;
-        *) return 1 ;;
-        esac
-      done
-      ;;
-    esac
-  fi
-  printf '%s\n' "$real$rest"
-}
+import os
+import sys
 
-prune() {
-  local mode=$1 home=$2 root=$3
-  local canon link dest real found=0
-  # Reject empty configuration at the trust boundary. canonicalize() treats ""
-  # as the filesystem root by internal convention, so an empty $HOME or
-  # $DOTFILES_DIR must never reach it: that would scan from / and treat every
-  # dangling link on the machine as repo residue. Refuse instead of guessing.
-  if [ -z "$home" ] || [ -z "$root" ]; then
-    printf 'refusing to run: HOME and DOTFILES_DIR must both be non-empty\n' >&2
-    return 2
-  fi
+MAX_DEPTH = 3
 
-  canon=$(canonicalize "$root") || {
-    printf 'cannot resolve DOTFILES_DIR: %s\n' "$root" >&2
-    return 2
-  }
-  # Canonicalize $home too. `find` does not follow a symlinked start point
-  # without -H/-L or a trailing slash, so if $HOME is itself a symlink the scan
-  # silently descends nothing and the script reports "pruned 0" with exit 0 —
-  # a clean bill of health for an unexamined tree.
-  home=$(canonicalize "$home") || {
-    printf 'cannot resolve HOME: %s\n' "$2" >&2
-    return 2
-  }
 
-  # Reject a repo (or home) that canonicalizes to the filesystem root. `/` and
-  # anything folding to it — `/nonexistent/..`, `/x/../..` — come back as the
-  # internal empty-root sentinel, and a repo of "everything" is never a real
-  # configuration. Today an empty $canon happens to match nothing, so this
-  # deletes nothing; that is an accident of the match arm, not a decision, and
-  # one edit to it would turn "the repo is /" into "every dangling link on the
-  # machine is residue". Refuse explicitly instead of resting on that luck.
-  if [ -z "$canon" ] || [ -z "$home" ]; then
-    printf 'refusing to run: DOTFILES_DIR and HOME must not resolve to /\n' >&2
-    return 2
-  fi
+def canonical(path):
+    return os.path.realpath(path, strict=False)
 
-  # Depth 3 from $home, skipping the repo itself and the cache — the same scope
-  # as the reproduction command in the spec.
-  while IFS= read -r link; do
-    dest=$(readlink "$link") || continue
-    case $dest in
-    /*) ;;
-    *) dest="$(dirname "$link")/$dest" ;;
-    esac
-    if ! real=$(canonicalize "$dest"); then
-      printf 'skipped (unresolvable target): %s -> %s\n' "$link" "$dest"
-      continue
-    fi
-    case $real in
-    # The repo root itself counts, not only paths under it: a link pointing AT
-    # the repo directory is still this repo's residue. It can be dangling even
-    # when the repo exists, e.g. `<repo>/missing/..` — the kernel cannot walk
-    # `missing`, so the link does not resolve, yet it canonicalises to the root.
-    "$canon" | "$canon"/*) ;;
-    *) continue ;;
-    esac
-    found=$((found + 1))
-    if [ "$mode" = check ]; then
-      printf 'dangling: %s -> %s\n' "$link" "$real"
-    else
-      rm -f "$link"
-      printf 'removed: %s -> %s\n' "$link" "$real"
-    fi
-  done < <(find "$home" -maxdepth 3 -type l \
-    -not -path "$canon/*" \
-    -not -path "$home/.cache/*" \
-    -exec test ! -e {} \; -print)
 
-  if [ "$mode" = check ]; then
-    printf '%d dangling link(s) pointing into %s\n' "$found" "$canon"
-    [ "$found" -eq 0 ] || return 1
+def inside(target, root):
+    """True when target is the repo root itself or a path under it."""
+    return target == root or target.startswith(root + os.sep)
+
+
+def dangling_links(home):
+    """Symlinks up to MAX_DEPTH below home that do not resolve, skipping the repo
+    and the cache — the same scope as the spec's reproduction command."""
+    skip = {
+        canonical(os.path.join(home, "dotfiles")),
+        canonical(os.path.join(home, ".cache")),
+    }
+    for dirpath, dirnames, filenames in os.walk(home, followlinks=False):
+        rel = os.path.relpath(dirpath, home)
+        depth = 0 if rel == os.curdir else rel.count(os.sep) + 1
+        dirnames[:] = [
+            d for d in dirnames if canonical(os.path.join(dirpath, d)) not in skip
+        ]
+        for name in list(dirnames) + filenames:
+            link = os.path.join(dirpath, name)
+            if os.path.islink(link) and not os.path.exists(link):
+                yield link
+        if depth + 1 >= MAX_DEPTH:
+            dirnames[:] = []
+
+
+def prune(mode, home, root):
+    # Reject empty or root-resolving configuration at the trust boundary. A repo
+    # of "everything" is never a real configuration, and scanning from / would
+    # treat every dangling link on the machine as residue.
+    if not home or not root:
+        print(
+            "refusing to run: HOME and DOTFILES_DIR must both be non-empty",
+            file=sys.stderr,
+        )
+        return 2
+    home, root = canonical(home), canonical(root)
+    if home == os.sep or root == os.sep:
+        print(
+            "refusing to run: DOTFILES_DIR and HOME must not resolve to /",
+            file=sys.stderr,
+        )
+        return 2
+
+    found = 0
+    for link in sorted(dangling_links(home)):
+        target = canonical(link)
+        if not inside(target, root):
+            continue
+        found += 1
+        if mode == "check":
+            print("dangling: %s -> %s" % (link, target))
+        else:
+            os.remove(link)
+            print("removed: %s -> %s" % (link, target))
+
+    if mode == "check":
+        print("%d dangling link(s) pointing into %s" % (found, root))
+        return 1 if found else 0
+    print("pruned %d dangling link(s) pointing into %s" % (found, root))
     return 0
-  fi
-  printf 'pruned %d dangling link(s) pointing into %s\n' "$found" "$canon"
-  return 0
-}
 
-# Fixtures for the safety rule. Committed and runnable so the Mac this repo
-# syncs to can prove the same cases — the defects below are latent on Linux
-# today (every live dangling target here is a clean absolute path) and the
-# original fixture missed them by using only clean absolute paths.
-selftest() {
-  local fix rc=0
-  fix=$(mktemp -d "${TMPDIR:-/tmp}/prune-dead-links-test.XXXXXX") || return 2
-  mkdir -p "$fix/dotfiles/real" "$fix/outside" "$fix/.config" "$fix/.cache"
-  ln -s "$fix/outside" "$fix/dotfiles/outlink"
 
-  ln -s "$fix/dotfiles/real" "$fix/.config/resolves"
-  ln -s "$fix/dotfiles/gone" "$fix/.config/absolute-residue"
-  ln -s "../dotfiles/gone" "$fix/.config/relative-residue"
-  ln -s "$fix/dotfiles/../outside/missing" "$fix/.config/dotdot-escape"
-  ln -s "$fix/dotfiles/outlink/../escaped" "$fix/.config/symlink-escape"
-  ln -s /nonexistent/elsewhere "$fix/.config/foreign"
-  ln -s "$fix/.cache/gone" "$fix/.cache/excluded"
+def selftest():
+    """Every case here is a shape a previous hand-rolled implementation got wrong,
+    or a direction that must not regress. Both directions are pinned: an escaping
+    link must survive, and genuine repo residue must be pruned."""
+    import shutil
+    import tempfile
 
-  # Escapes THROUGH a dangling intermediate. The intermediate does not resolve,
-  # so the `..` has to be folded lexically against an already-physical prefix.
-  # Both directions matter: the outward one must survive (safety) and the
-  # inward one must be pruned (completeness — the spec's Goal requires it).
-  ln -s "$fix/outside/nowhere" "$fix/dotfiles/deadout"
-  ln -s "$fix/dotfiles/deadout/../escaped" "$fix/.config/dead-intermediate-out"
-  ln -s "$fix/dotfiles/nothing" "$fix/dotfiles/deadin"
-  ln -s "$fix/dotfiles/deadin/../gone" "$fix/.config/dead-intermediate-in"
+    fix = tempfile.mkdtemp(prefix="prune-dead-links-test.")
+    rc = 0
+    try:
 
-  # Same escape, but the dangling intermediate's own target is RELATIVE. If the
-  # expansion resolved it against the wrong base it would look repo-internal.
-  ln -s "../outside/nowhere" "$fix/dotfiles/deadrel"
-  ln -s "$fix/dotfiles/deadrel/../escaped" "$fix/.config/dead-intermediate-relative"
+        def d(*parts):
+            return os.path.join(fix, *parts)
 
-  # Symlink CYCLE behind a `..`. Must terminate via the depth bound and be
-  # skipped, never hang and never be deleted on a guess.
-  ln -s "$fix/dotfiles/cyc-b" "$fix/dotfiles/cyc-a"
-  ln -s "$fix/dotfiles/cyc-a" "$fix/dotfiles/cyc-b"
-  ln -s "$fix/dotfiles/cyc-a/../x" "$fix/.config/cyclic"
+        for sub in ("dotfiles/real", "dotfiles/b", ".config/deep", ".cache", "outside"):
+            os.makedirs(d(*sub.split("/")), exist_ok=True)
 
-  # A PHYSICAL parent: the link sits under a real directory reached through a
-  # symlinked ancestor, so `..` must fold against the physical path, not the
-  # logical one. Here $fix/.config/deep is a real dir; via-alias reaches it
-  # through an alias symlink and escapes the repo.
-  mkdir -p "$fix/.config/deep"
-  ln -s "$fix/outside" "$fix/dotfiles/alias"
-  ln -s "$fix/dotfiles/alias/sub/../../outside/gone" "$fix/.config/deep/via-alias"
+        os.symlink(d("outside"), d("dotfiles", "outlink"))
+        os.symlink(d("outside", "gone"), d("dotfiles", "deadout"))
+        os.symlink(d("dotfiles", "nothing"), d("dotfiles", "deadin"))
+        os.symlink("../outside/nowhere", d("dotfiles", "deadrel"))
+        os.symlink(d("outside", "gone"), d("dotfiles", "b", "esc"))
+        os.symlink(d("dotfiles", "insx-gone"), d("dotfiles", "b", "ins"))
+        os.symlink(d("dotfiles", "nope"), d("dotfiles", "deadmid"))
+        os.symlink(d("dotfiles", "cyc-b"), d("dotfiles", "cyc-a"))
+        os.symlink(d("dotfiles", "cyc-a"), d("dotfiles", "cyc-b"))
+        os.symlink(d("outside", "cyc-q"), d("outside", "cyc-p"))
+        os.symlink(d("outside", "cyc-p"), d("outside", "cyc-q"))
+        os.symlink(d("outside", "cyc-p"), d("dotfiles", "cyc-out"))
 
-  # An escaping symlink AFTER the `..`, behind a missing name. Regression for a
-  # real safety bug: dropping `nothere/..` and returning the folded path meant
-  # `esc` was never expanded, so a link resolving OUTSIDE the repo was deleted.
-  mkdir -p "$fix/dotfiles/b"
-  ln -s "$fix/outside/gone" "$fix/dotfiles/b/esc"
-  ln -s "$fix/dotfiles/b/nothere/../esc/leaf" "$fix/.config/escape-after-dotdot"
+        cases = [
+            (".config/resolves", d("dotfiles", "real"), "kept"),
+            (".config/absolute-residue", d("dotfiles", "gone"), "gone"),
+            (".config/relative-residue", "../dotfiles/gone", "gone"),
+            (".config/dotdot-escape", d("dotfiles", "..", "outside", "missing"), "kept"),
+            (".config/symlink-escape", d("dotfiles", "outlink", "..", "escaped"), "kept"),
+            (".config/dead-intermediate-out", d("dotfiles", "deadout", "..", "escaped"), "kept"),
+            (".config/dead-intermediate-in", d("dotfiles", "deadin", "..", "gone"), "gone"),
+            (".config/dead-intermediate-relative", d("dotfiles", "deadrel", "..", "escaped"), "kept"),
+            # A symlink cycle inside the repo. `<repo>/cyc-a/../x` resolves to
+            # `<repo>/x` — genuinely inside — so pruning is correct. The old
+            # shell version kept it only because it gave up on cycles; that was
+            # a limitation, not the rule. Confirmed against `realpath -m`.
+            (".config/cyclic-inside", d("dotfiles", "cyc-a", "..", "x"), "gone"),
+            # A cycle reached through a link that leaves the repo must survive.
+            (".config/cyclic-outside", d("dotfiles", "cyc-out", "..", "x"), "kept"),
+            (".config/deep/via-alias", d("dotfiles", "outlink", "sub", "..", "..", "outside", "gone"), "kept"),
+            (".config/escape-after-dotdot", d("dotfiles", "b", "nothere", "..", "esc", "leaf"), "kept"),
+            (".config/inside-after-dotdot", d("dotfiles", "b", "nothere", "..", "ins", "leaf"), "gone"),
+            (".config/dotdot-not-leading", d("dotfiles", "deadmid", "sub", "..", "leaf"), "gone"),
+            (".config/dot-escape", d("dotfiles", "nope", ".", "..", "b", "esc", "leaf"), "kept"),
+            (".config/dot-inside", d("dotfiles", "nope", ".", "..", "b", "ins", "leaf"), "gone"),
+            (".config/dot-plain", d("dotfiles", ".", "gone-dot"), "gone"),
+            (".config/root-itself", d("dotfiles", "missing", ".."), "gone"),
+            (".config/fs-root", "/nonexistentxyz/..", "kept"),
+            (".config/foreign", "/nonexistent/elsewhere", "kept"),
+            (".config/space name", d("dotfiles", "gone one"), "gone"),
+            (".config/newline\nname", d("dotfiles", "gone\ntwo"), "gone"),
+            (".config/star", d("dotfiles", "glob*gone"), "gone"),
+            (".cache/excluded", d("dotfiles", "cache-gone"), "kept"),
+        ]
+        for rel, target, _ in cases:
+            os.symlink(target, d(*rel.split("/")))
 
-  # Same shape, but the symlink after the `..` stays INSIDE the repo, so the
-  # link is genuine residue and must still be pruned. Guards against "fixing"
-  # the case above by refusing everything.
-  ln -s "$fix/dotfiles/inner-gone" "$fix/dotfiles/b/ins"
-  ln -s "$fix/dotfiles/b/nothere/../ins/leaf" "$fix/.config/inside-after-dotdot"
+        prune("prune", fix, d("dotfiles"))
 
-  # `..` that is NOT directly after the leading missing name: `<repo>/dead/sub/../leaf`
-  # expands to `/nope/sub/../leaf`, where the `..` follows `sub`, not `nope`.
-  # Found by differential fuzzing against a realpath oracle, not by hand.
-  ln -s "$fix/dotfiles/nope" "$fix/dotfiles/deadmid"
-  ln -s "$fix/dotfiles/deadmid/sub/../leaf" "$fix/.config/dotdot-not-leading"
+        for rel, _, want in cases:
+            got = "kept" if os.path.islink(d(*rel.split("/"))) else "gone"
+            label = rel.replace("\n", "\\n")
+            if got != want:
+                print("FAIL: %s should be %s, was %s" % (label, want, got))
+                rc = 1
+            else:
+                print("ok: %s %s" % (label, want))
 
-  # `.` components. A `.` is a no-op in resolution, but left in the path it let
-  # a following `..` cancel the WRONG component: `<repo>/nope/./../escx/leaf`
-  # cancelled the `.` instead of `nope`, so the escaping `escx` was never
-  # consulted and the link was deleted. Both directions pinned.
-  ln -s "$fix/outside/gone" "$fix/dotfiles/escx"
-  ln -s "$fix/dotfiles/nope/./../escx/leaf" "$fix/.config/dot-escape"
-  ln -s "$fix/dotfiles/insx-gone" "$fix/dotfiles/insx"
-  ln -s "$fix/dotfiles/nope/./../insx/leaf" "$fix/.config/dot-inside"
-  ln -s "$fix/dotfiles/./gone-dot" "$fix/.config/dot-plain"
+        # Empty and root-resolving configuration must refuse and delete nothing.
+        victim = d(".config", "guard-victim")
+        os.symlink(d("dotfiles", "gone-guard"), victim)
+        for home, root, label in [
+            ("", d("dotfiles"), "empty HOME"),
+            (fix, "", "empty DOTFILES_DIR"),
+            (fix, "/", "DOTFILES_DIR=/"),
+            (fix, "/nonexistent/..", "DOTFILES_DIR=/nonexistent/.."),
+            ("/", d("dotfiles"), "HOME=/"),
+        ]:
+            if prune("prune", home, root) == 2:
+                print("ok: %s refused" % label)
+            else:
+                print("FAIL: %s was accepted" % label)
+                rc = 1
+        if os.path.islink(victim):
+            print("ok: refused runs deleted nothing")
+        else:
+            print("FAIL: a refused run deleted a link")
+            rc = 1
+        os.remove(victim)
 
-  # Resolves to the repo ROOT itself, not to a path under it. Dangling despite
-  # the repo existing, because the kernel cannot walk the missing component.
-  # Still this repo's residue, so it must be pruned.
-  ln -s "$fix/dotfiles/missing/.." "$fix/.config/root-itself"
+        if prune("check", fix, d("dotfiles")) == 0:
+            print("ok: --check exits 0 once residue is gone")
+        else:
+            print("FAIL: --check still non-zero after pruning")
+            rc = 1
+    finally:
+        shutil.rmtree(fix, ignore_errors=True)
 
-  # Resolves to the FILESYSTEM root, not the repo. canonicalize() empties $real
-  # at `/` and can be handed "" by the `..` branches; treating "" as relative
-  # rewrote it to $PWD (the repo, since the gate runs the script from there),
-  # so a link to / was deleted as repo residue. MUST survive.
-  ln -s "/nonexistentxyz/.." "$fix/.config/fs-root"
+    print("selftest passed" if rc == 0 else "selftest FAILED")
+    return rc
 
-  prune prune "$fix" "$fix/dotfiles" >/dev/null
 
-  check() {
-    local path=$1 want=$2
-    if [ "$want" = gone ] && [ -L "$fix/$path" ]; then
-      printf 'FAIL: %s should have been pruned, survived\n' "$path"
-      rc=1
-    elif [ "$want" = kept ] && [ ! -L "$fix/$path" ]; then
-      printf 'FAIL: %s should have survived, was deleted\n' "$path"
-      rc=1
-    else
-      printf 'ok: %s %s\n' "$path" "$want"
-    fi
-  }
+def main(argv):
+    home = os.environ.get("HOME", "")
+    root = os.environ.get("DOTFILES_DIR") or (os.path.join(home, "dotfiles") if home else "")
+    if not argv:
+        return prune("prune", home, root)
+    if argv == ["--check"]:
+        return prune("check", home, root)
+    if argv == ["--selftest"]:
+        return selftest()
+    print("usage: %s [--check|--selftest]" % os.path.basename(sys.argv[0]), file=sys.stderr)
+    return 2
 
-  check .config/absolute-residue gone
-  check .config/relative-residue gone
-  check .config/dotdot-escape kept
-  check .config/symlink-escape kept
-  check .config/dead-intermediate-out kept
-  check .config/dead-intermediate-in gone
-  check .config/dead-intermediate-relative kept
-  check .config/cyclic kept
-  check .config/deep/via-alias kept
-  check .config/escape-after-dotdot kept
-  check .config/inside-after-dotdot gone
-  check .config/dotdot-not-leading gone
-  check .config/dot-escape kept
-  check .config/dot-inside gone
-  check .config/dot-plain gone
-  check .config/root-itself gone
-  check .config/fs-root kept
-  check .config/foreign kept
-  check .config/resolves kept
-  check .cache/excluded kept
 
-  # Empty configuration must REFUSE, not scan from the filesystem root.
-  # canonicalize() treats "" as / by internal convention, so this proves that
-  # convention is unreachable from the outside.
-  ln -s "$fix/dotfiles/gone-guard" "$fix/.config/guard-victim"
-  if prune prune "" "$fix/dotfiles" >/dev/null 2>&1; then
-    printf 'FAIL: empty HOME was accepted\n'; rc=1
-  else
-    printf 'ok: empty HOME refused\n'
-  fi
-  if prune prune "$fix" "" >/dev/null 2>&1; then
-    printf 'FAIL: empty DOTFILES_DIR was accepted\n'; rc=1
-  else
-    printf 'ok: empty DOTFILES_DIR refused\n'
-  fi
-  if [ -L "$fix/.config/guard-victim" ]; then
-    printf 'ok: refused runs deleted nothing\n'
-  else
-    printf 'FAIL: a refused run still deleted a link\n'; rc=1
-  fi
-  # A repo (or home) that canonicalizes to / must be refused, not scanned.
-  ln -s "$fix/dotfiles/gone-root" "$fix/.config/root-victim"
-  for bad in / /nonexistent/.. /x/../..; do
-    if prune prune "$fix" "$bad" >/dev/null 2>&1; then
-      printf 'FAIL: DOTFILES_DIR=%s was accepted\n' "$bad"; rc=1
-    fi
-  done
-  if prune prune / "$fix/dotfiles" >/dev/null 2>&1; then
-    printf 'FAIL: HOME=/ was accepted\n'; rc=1
-  fi
-  if [ -L "$fix/.config/root-victim" ]; then
-    printf 'ok: root-resolving DOTFILES_DIR/HOME refused, nothing deleted\n'
-  else
-    printf 'FAIL: a root-resolving run deleted a link\n'; rc=1
-  fi
-  rm -f "$fix/.config/root-victim"
-
-  rm -f "$fix/.config/guard-victim"
-
-  if prune check "$fix" "$fix/dotfiles" >/dev/null; then
-    printf 'ok: --check exits 0 once residue is gone\n'
-  else
-    printf 'FAIL: --check still non-zero after pruning\n'
-    rc=1
-  fi
-
-  rm -rf "$fix"
-  [ "$rc" -eq 0 ] && printf 'selftest passed\n' || printf 'selftest FAILED\n'
-  return "$rc"
-}
-
-case "$*" in
-"") prune prune "$HOME" "$DOTFILES_DIR" ;;
---check) prune check "$HOME" "$DOTFILES_DIR" ;;
---selftest) selftest ;;
-*)
-  printf 'usage: %s [--check|--selftest]\n' "${0##*/}" >&2
-  exit 2
-  ;;
-esac
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
