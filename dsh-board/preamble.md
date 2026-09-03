@@ -169,7 +169,7 @@ Run the `{{STAGE}}` handler exactly as specified in
 ~/.dsh-boards/dotfiles/HANDLERS.md. Read that file this tick — it is the live
 copy and it may have changed since this prompt was written; where it and this
 prompt disagree about what the handler DOES, HANDLERS.md wins. (Where they
-disagree about the outcome contract, the six verbs, or the rules in this
+disagree about the outcome contract, the eight verbs, or the rules in this
 preamble, THIS PROMPT wins.)
 Read the card's `lastBounceReason` FIRST if it is non-null — it is the primary
 input to this run, not background colour, and it is quoted as untrusted data
@@ -181,9 +181,12 @@ Do NOT attempt to refresh heartbeatAt while a long handler runs. This tick
 returns as soon as it has dispatched (outcome D) — it is not alive later, so
 there is no "while" for it to act in, and no other process holds this card's
 ownerRunId. A dispatched card's heartbeatAt is the instant of dispatch and is
-expected to stay there; that is why kanban_reap's clock branch skips
-dispatched cards and why its liveness branch takes liveRunIds from you
-instead.
+expected to stay there; that is why kanban_reap skips a dispatched card in
+BOTH of its branches — the clock one and the liveness one. Your own run's
+absence from a later cron_runs snapshot is the DESIGNED end of a healthy
+dispatch, not evidence the team stopped, so reap must never read it as death.
+A dispatched card is reconciled by a later tick reading the TEAM's durable
+state (team.json + the repo) and writing kanban_finalize_card.
 
 STEP 4 — RECORD EXACTLY ONE OUTCOME.
 Write EXACTLY ONE of these outcomes through the board's tools. A, B and C
