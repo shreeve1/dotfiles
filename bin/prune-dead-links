@@ -167,6 +167,25 @@ selftest() {
   ln -s "$fix/dotfiles/nothing" "$fix/dotfiles/deadin"
   ln -s "$fix/dotfiles/deadin/../gone" "$fix/.config/dead-intermediate-in"
 
+  # Same escape, but the dangling intermediate's own target is RELATIVE. If the
+  # expansion resolved it against the wrong base it would look repo-internal.
+  ln -s "../outside/nowhere" "$fix/dotfiles/deadrel"
+  ln -s "$fix/dotfiles/deadrel/../escaped" "$fix/.config/dead-intermediate-relative"
+
+  # Symlink CYCLE behind a `..`. Must terminate via the depth bound and be
+  # skipped, never hang and never be deleted on a guess.
+  ln -s "$fix/dotfiles/cyc-b" "$fix/dotfiles/cyc-a"
+  ln -s "$fix/dotfiles/cyc-a" "$fix/dotfiles/cyc-b"
+  ln -s "$fix/dotfiles/cyc-a/../x" "$fix/.config/cyclic"
+
+  # A PHYSICAL parent: the link sits under a real directory reached through a
+  # symlinked ancestor, so `..` must fold against the physical path, not the
+  # logical one. Here $fix/.config/deep is a real dir; via-alias reaches it
+  # through an alias symlink and escapes the repo.
+  mkdir -p "$fix/.config/deep"
+  ln -s "$fix/outside" "$fix/dotfiles/alias"
+  ln -s "$fix/dotfiles/alias/sub/../../outside/gone" "$fix/.config/deep/via-alias"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -188,6 +207,9 @@ selftest() {
   check .config/symlink-escape kept
   check .config/dead-intermediate-out kept
   check .config/dead-intermediate-in gone
+  check .config/dead-intermediate-relative kept
+  check .config/cyclic kept
+  check .config/deep/via-alias kept
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
