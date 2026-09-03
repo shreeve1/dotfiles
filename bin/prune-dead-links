@@ -43,6 +43,22 @@ canonicalize() {
   /*) ;;
   *) path="$PWD/$path" ;;
   esac
+
+  # Strip `.` and empty (`//`) components up front. Unlike `..`, a `.` is a pure
+  # no-op in path resolution, so removing it lexically can never change where a
+  # path points — and leaving it in DID change it: `<repo>/nope/./../escx/leaf`
+  # let the `..` cancel the `.` instead of `nope`, so the escaping `escx`
+  # symlink was never consulted and a link resolving outside the repo was
+  # deleted. Normalise first, then every later step sees only real names.
+  while :; do
+    case $path in
+    */./*) path="${path%%/./*}/${path#*/./}" ;;
+    */.) path="${path%/.}" ;;
+    *//*) path="${path%%//*}/${path#*//}" ;;
+    *) break ;;
+    esac
+  done
+  [ -n "$path" ] || path=/
   while [ ! -d "$path" ]; do
     base=${path##*/}
     rest="/$base$rest"
@@ -233,6 +249,16 @@ selftest() {
   ln -s "$fix/dotfiles/nope" "$fix/dotfiles/deadmid"
   ln -s "$fix/dotfiles/deadmid/sub/../leaf" "$fix/.config/dotdot-not-leading"
 
+  # `.` components. A `.` is a no-op in resolution, but left in the path it let
+  # a following `..` cancel the WRONG component: `<repo>/nope/./../escx/leaf`
+  # cancelled the `.` instead of `nope`, so the escaping `escx` was never
+  # consulted and the link was deleted. Both directions pinned.
+  ln -s "$fix/outside/gone" "$fix/dotfiles/escx"
+  ln -s "$fix/dotfiles/nope/./../escx/leaf" "$fix/.config/dot-escape"
+  ln -s "$fix/dotfiles/insx-gone" "$fix/dotfiles/insx"
+  ln -s "$fix/dotfiles/nope/./../insx/leaf" "$fix/.config/dot-inside"
+  ln -s "$fix/dotfiles/./gone-dot" "$fix/.config/dot-plain"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -260,6 +286,9 @@ selftest() {
   check .config/escape-after-dotdot kept
   check .config/inside-after-dotdot gone
   check .config/dotdot-not-leading gone
+  check .config/dot-escape kept
+  check .config/dot-inside gone
+  check .config/dot-plain gone
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
