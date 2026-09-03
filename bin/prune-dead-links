@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Delete symlinks under $HOME that point INTO this repo and no longer resolve.
 #
+# Usage: prune-dead-links [--check]
+#   (no args)  delete them, exit 0
+#   --check    report only, exit 1 if any remain — the card's acceptance command
+#
 # Residue from links install.sh used to declare (see docs/specs/k551-dangling-symlinks.md).
 # Run from the repo like check.sh; it is not linked into $HOME.
 #
@@ -14,7 +18,17 @@ set -uo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 
-removed=0
+check_only=0
+case "$*" in
+"") ;;
+--check) check_only=1 ;;
+*)
+  printf 'usage: %s [--check]\n' "${0##*/}" >&2
+  exit 2
+  ;;
+esac
+
+found=0
 # Depth 3 from $HOME, skipping the repo itself and the cache — same scope as
 # the reproduction command in the spec. $DOTFILES_DIR is $HOME/dotfiles by
 # default; naming the variable keeps the exclusion right for a fixture too.
@@ -28,11 +42,22 @@ while IFS= read -r link; do
   "$DOTFILES_DIR"/*) ;;
   *) continue ;;
   esac
-  rm -f "$link" && removed=$((removed + 1))
-  printf 'removed: %s -> %s\n' "$link" "$dest"
+  found=$((found + 1))
+  if [ "$check_only" -eq 1 ]; then
+    printf 'dangling: %s -> %s\n' "$link" "$dest"
+  else
+    rm -f "$link"
+    printf 'removed: %s -> %s\n' "$link" "$dest"
+  fi
 done < <(find "$HOME" -maxdepth 3 -type l \
   -not -path "$DOTFILES_DIR/*" \
   -not -path "$HOME/.cache/*" \
   -exec test ! -e {} \; -print)
 
-printf 'pruned %d dangling link(s) pointing into %s\n' "$removed" "$DOTFILES_DIR"
+if [ "$check_only" -eq 1 ]; then
+  printf '%d dangling link(s) pointing into %s\n' "$found" "$DOTFILES_DIR"
+  [ "$found" -eq 0 ] || exit 1
+  exit 0
+fi
+
+printf 'pruned %d dangling link(s) pointing into %s\n' "$found" "$DOTFILES_DIR"
