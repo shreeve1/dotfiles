@@ -39,19 +39,52 @@ if [ "$checked_sources" -eq 0 ]; then
 fi
 
 # ─── 2. shell syntax ───────────────────────────────────────
+# Selected by CONTENT, not extension. Extension globbing missed exactly the
+# files that matter most: bin/* are extension-less (pi-delegate carries every
+# Fusion mutation), and .zshrc/.bashrc have neither extension nor shebang
+# because they are sourced, not executed. Demonstrated 2026-09-03: a syntax
+# error in either passed the old gate with exit 0, and a broken .bashrc breaks
+# every new shell on both machines.
+#
+# ONE list, built once, used for both the check and its own coverage guard --
+# two copies of the selector would drift apart, which is the defect class this
+# repo has been filing cards about all session.
+shell_files() {
+  {
+    git ls-files '*.sh' '*.bash' '.bashrc' '.zshrc' '.bash_profile' '.zprofile'
+    git grep -l -I -E '^#!.*\b(bash|sh|dash)\b' -- ':!*.md' 2>/dev/null
+  } | sort -u
+}
+
 checked_sh=0
 while read -r f; do
+  [ -n "$f" ] && [ -f "$f" ] || continue
   checked_sh=$((checked_sh + 1))
   err="$(bash -n "$f" 2>&1)" || fail "shell syntax: $f: $err"
-done < <(git ls-files '*.sh' '*.bash')
+done < <(shell_files)
+
+# A typo in the selector would silently shrink coverage to zero and still
+# report ok. Assert it still reaches the extension-less files this check
+# exists for.
+while read -r must; do
+  [ -e "$must" ] || continue
+  shell_files | grep -qxF "$must" ||
+    fail "shell-file scan no longer reaches $must — the selector is broken, not the repo"
+done <<'MUST'
+bin/pi-delegate
+.bashrc
+.zshrc
+MUST
 
 # ─── 3. JSON parses ────────────────────────────────────────
 # lazy: jq is already installed and used elsewhere in this repo.
+# .template files included: seed_path copies them verbatim into live config,
+# so a malformed one breaks a fresh machine silently.
 checked_json=0
 while read -r f; do
   checked_json=$((checked_json + 1))
   err="$(jq empty "$f" 2>&1)" || fail "invalid JSON: $f: $err"
-done < <(git ls-files '*.json' | grep -v -e 'lock\.json$' -e '/node_modules/')
+done < <(git ls-files '*.json' '*.json.template' | grep -v -e 'lock\.json$' -e '/node_modules/')
 
 # ─── 4. currently-declared links still resolve ─────────────
 # Scoped deliberately to the mappings install.sh declares TODAY. A link in
