@@ -175,6 +175,18 @@ prune() {
     return 2
   }
 
+  # Reject a repo (or home) that canonicalizes to the filesystem root. `/` and
+  # anything folding to it — `/nonexistent/..`, `/x/../..` — come back as the
+  # internal empty-root sentinel, and a repo of "everything" is never a real
+  # configuration. Today an empty $canon happens to match nothing, so this
+  # deletes nothing; that is an accident of the match arm, not a decision, and
+  # one edit to it would turn "the repo is /" into "every dangling link on the
+  # machine is residue". Refuse explicitly instead of resting on that luck.
+  if [ -z "$canon" ] || [ -z "$home" ]; then
+    printf 'refusing to run: DOTFILES_DIR and HOME must not resolve to /\n' >&2
+    return 2
+  fi
+
   # Depth 3 from $home, skipping the repo itself and the cache — the same scope
   # as the reproduction command in the spec.
   while IFS= read -r link; do
@@ -357,6 +369,23 @@ selftest() {
   else
     printf 'FAIL: a refused run still deleted a link\n'; rc=1
   fi
+  # A repo (or home) that canonicalizes to / must be refused, not scanned.
+  ln -s "$fix/dotfiles/gone-root" "$fix/.config/root-victim"
+  for bad in / /nonexistent/.. /x/../..; do
+    if prune prune "$fix" "$bad" >/dev/null 2>&1; then
+      printf 'FAIL: DOTFILES_DIR=%s was accepted\n' "$bad"; rc=1
+    fi
+  done
+  if prune prune / "$fix/dotfiles" >/dev/null 2>&1; then
+    printf 'FAIL: HOME=/ was accepted\n'; rc=1
+  fi
+  if [ -L "$fix/.config/root-victim" ]; then
+    printf 'ok: root-resolving DOTFILES_DIR/HOME refused, nothing deleted\n'
+  else
+    printf 'FAIL: a root-resolving run deleted a link\n'; rc=1
+  fi
+  rm -f "$fix/.config/root-victim"
+
   rm -f "$fix/.config/guard-victim"
 
   if prune check "$fix" "$fix/dotfiles" >/dev/null; then
