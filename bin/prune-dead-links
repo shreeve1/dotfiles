@@ -160,7 +160,11 @@ prune() {
       continue
     fi
     case $real in
-    "$canon"/*) ;;
+    # The repo root itself counts, not only paths under it: a link pointing AT
+    # the repo directory is still this repo's residue. It can be dangling even
+    # when the repo exists, e.g. `<repo>/missing/..` — the kernel cannot walk
+    # `missing`, so the link does not resolve, yet it canonicalises to the root.
+    "$canon" | "$canon"/*) ;;
     *) continue ;;
     esac
     found=$((found + 1))
@@ -259,6 +263,11 @@ selftest() {
   ln -s "$fix/dotfiles/nope/./../insx/leaf" "$fix/.config/dot-inside"
   ln -s "$fix/dotfiles/./gone-dot" "$fix/.config/dot-plain"
 
+  # Resolves to the repo ROOT itself, not to a path under it. Dangling despite
+  # the repo existing, because the kernel cannot walk the missing component.
+  # Still this repo's residue, so it must be pruned.
+  ln -s "$fix/dotfiles/missing/.." "$fix/.config/root-itself"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -289,6 +298,7 @@ selftest() {
   check .config/dot-escape kept
   check .config/dot-inside gone
   check .config/dot-plain gone
+  check .config/root-itself gone
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
