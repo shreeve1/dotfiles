@@ -59,9 +59,9 @@ cleanup is permanent rather than undone by the next install.
 survey:                       # exit 0 once the script exists and is executable
   cwd:  .
   argv: [test, -x, bin/prune-dead-links]
-acceptance:                   # exit 0 when no repo-pointing dangling link remains
+acceptance:                   # exit 0 when the path-safety fixtures all pass
   cwd:  .
-  argv: [bin/prune-dead-links, --check]
+  argv: [bin/prune-dead-links, --selftest]
 scope:
   writes:   [install.sh, bin/prune-dead-links]
   protects: [check.sh, .codex/archive/, .claude/archive/, .config/]
@@ -96,6 +96,33 @@ command below. Honour `DOTFILES_DIR` with the same `${DOTFILES_DIR:-$HOME/dotfil
 default `install.sh` uses, so the script is testable against a fixture. The
 script is run from the repo like `check.sh` and is **not** linked into `$HOME`,
 so it needs no `link_path` entry.
+
+*Comparing the target to `$DOTFILES_DIR` as text does not implement the safety
+rule*, in either direction — both reproduced on fixtures:
+
+- `$DOTFILES_DIR/../outside/missing` matches the prefix textually while resolving
+  **outside** the repo, and would be deleted.
+- a relative target such as `../dotfiles/gone` resolves **inside** the repo but
+  never matches the prefix, so real residue would survive.
+
+Canonicalize both sides before comparing. **Do not reach for `realpath -m` or
+`readlink -f`:** this repo syncs to a Mac, where BSD `realpath` has no `-m`, and
+`readlink -f` rejects a path that does not exist (which is every path this script
+cares about). Walk up to the deepest existing ancestor, resolve it with `cd -P`
+and `pwd -P` — POSIX, present everywhere, and safe on macOS's bash 3.2 — then
+re-attach the missing remainder. `-P` is load-bearing: plain `cd` resolves `..`
+logically, so an escape through an intermediate symlink still looks
+repo-internal. A target whose missing remainder still contains `..` cannot be
+resolved and must be **skipped, never deleted** — refusing to classify is the
+safe answer ahead of an `rm`.
+
+`--selftest` is the acceptance command because it is the only check that runs
+identically on both machines. It covers absolute residue and relative residue
+(must be pruned), and dotdot-escape, symlink-escape, foreign, resolving and
+excluded-path links (must survive). Run it on every supported OS. `--check`
+inspects the live `$HOME` and so cannot serve as acceptance: it reports the
+machine's residue, not the code's correctness, and stays non-zero until the
+pruner has been run bare once on that machine.
 
 *Reproduction*, worth re-running by hand once this lands, since the gate will not:
 
