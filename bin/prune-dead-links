@@ -39,6 +39,17 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
 # leave the link alone — refusing to classify is the safe answer for an `rm`.
 canonicalize() {
   local path=$1 rest= base real
+  # An empty path here means the filesystem root. That is an INTERNAL convention
+  # of this function, never a caller-supplied value: $real is emptied at the root
+  # (below) so `$real$rest` concatenates cleanly, and the `..`-cancellation
+  # branches recurse with the remainder consumed, so canonicalize can legitimately
+  # be handed "". Without this line the next case rewrote "" to "$PWD" — the repo,
+  # since the gate runs the script from there — so a link resolving to / was
+  # reported as repo residue and deleted.
+  #
+  # Callers must NOT rely on this: prune() rejects an empty $HOME or
+  # $DOTFILES_DIR outright, so no configuration value can reach the root here.
+  [ -n "$path" ] || path=/
   case $path in
   /*) ;;
   *) path="$PWD/$path" ;;
@@ -142,8 +153,25 @@ canonicalize() {
 prune() {
   local mode=$1 home=$2 root=$3
   local canon link dest real found=0
+  # Reject empty configuration at the trust boundary. canonicalize() treats ""
+  # as the filesystem root by internal convention, so an empty $HOME or
+  # $DOTFILES_DIR must never reach it: that would scan from / and treat every
+  # dangling link on the machine as repo residue. Refuse instead of guessing.
+  if [ -z "$home" ] || [ -z "$root" ]; then
+    printf 'refusing to run: HOME and DOTFILES_DIR must both be non-empty\n' >&2
+    return 2
+  fi
+
   canon=$(canonicalize "$root") || {
     printf 'cannot resolve DOTFILES_DIR: %s\n' "$root" >&2
+    return 2
+  }
+  # Canonicalize $home too. `find` does not follow a symlinked start point
+  # without -H/-L or a trailing slash, so if $HOME is itself a symlink the scan
+  # silently descends nothing and the script reports "pruned 0" with exit 0 —
+  # a clean bill of health for an unexamined tree.
+  home=$(canonicalize "$home") || {
+    printf 'cannot resolve HOME: %s\n' "$2" >&2
     return 2
   }
 
@@ -268,6 +296,12 @@ selftest() {
   # Still this repo's residue, so it must be pruned.
   ln -s "$fix/dotfiles/missing/.." "$fix/.config/root-itself"
 
+  # Resolves to the FILESYSTEM root, not the repo. canonicalize() empties $real
+  # at `/` and can be handed "" by the `..` branches; treating "" as relative
+  # rewrote it to $PWD (the repo, since the gate runs the script from there),
+  # so a link to / was deleted as repo residue. MUST survive.
+  ln -s "/nonexistentxyz/.." "$fix/.config/fs-root"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -299,9 +333,31 @@ selftest() {
   check .config/dot-inside gone
   check .config/dot-plain gone
   check .config/root-itself gone
+  check .config/fs-root kept
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
+
+  # Empty configuration must REFUSE, not scan from the filesystem root.
+  # canonicalize() treats "" as / by internal convention, so this proves that
+  # convention is unreachable from the outside.
+  ln -s "$fix/dotfiles/gone-guard" "$fix/.config/guard-victim"
+  if prune prune "" "$fix/dotfiles" >/dev/null 2>&1; then
+    printf 'FAIL: empty HOME was accepted\n'; rc=1
+  else
+    printf 'ok: empty HOME refused\n'
+  fi
+  if prune prune "$fix" "" >/dev/null 2>&1; then
+    printf 'FAIL: empty DOTFILES_DIR was accepted\n'; rc=1
+  else
+    printf 'ok: empty DOTFILES_DIR refused\n'
+  fi
+  if [ -L "$fix/.config/guard-victim" ]; then
+    printf 'ok: refused runs deleted nothing\n'
+  else
+    printf 'FAIL: a refused run still deleted a link\n'; rc=1
+  fi
+  rm -f "$fix/.config/guard-victim"
 
   if prune check "$fix" "$fix/dotfiles" >/dev/null; then
     printf 'ok: --check exits 0 once residue is gone\n'
