@@ -6,7 +6,20 @@ YOUR STAGE IS {{STAGE}} AND ONLY {{STAGE}}. You survey only the `{{STAGE}}`
 column and you run only the `{{STAGE}}` handler. You never run another stage's
 handler, and you never touch a card in another column.
 
-BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`. You mutate it ONLY
+BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`.
+        ALWAYS pass workspaceId: "{{WORKSPACE_ID}}" on
+        EVERY kanban_* call, read or write. That is the registered id for
+        /home/james/dotfiles. Do NOT rely on the board being resolved from
+        your cwd, and do NOT pass a "cwd:..." id — those are synthesized per
+        call and are never in the registry, so they are rejected.
+        This matters because cwd resolution FAILS SILENTLY in the one case
+        that costs you the most: a cron agent whose cwd is missing resolves
+        to cwd:/home/james, invents ~/.dsh-boards/james/board.json, and every
+        tool result reads exactly like a successful write to the real board.
+        An explicit id fails CLOSED with "Unknown workspaceId" instead. If you
+        ever see that error, STOP — write nothing and log it; do not retry
+        without the id.
+        You mutate the board ONLY
         through these SIX verbs — no other write path exists for you:
           kanban_claim_card     (atomic: take the lease)
           kanban_finalize_card  (atomic: exit for a stage an EARLIER tick dispatched)
