@@ -116,6 +116,14 @@ repo-internal. A target whose missing remainder still contains `..` cannot be
 resolved and must be **skipped, never deleted** — refusing to classify is the
 safe answer ahead of an `rm`.
 
+macOS ships bash **3.2.57** as `/bin/bash`, so the script must parse and run
+there: no `mapfile`/`readarray`, no `declare -A`, no `local -n`, no `${var^}`
+case modification, no `&>>`, no `;;&`, no globstar, no `printf -v`. Note that
+`BASH_COMPAT=32` on a modern bash is **not** evidence of this — it adjusts
+runtime semantics but still parses 4.x-only syntax (`bash -n` accepts `mapfile`
+under it). Test against a real 3.2 interpreter; `docker run --rm bash:3.2` is
+enough and is what this item used.
+
 `--selftest` is the acceptance command because it is the only check that runs
 identically on both machines. It covers absolute residue and relative residue
 (must be pruned), and dotdot-escape, symlink-escape, foreign, resolving and
