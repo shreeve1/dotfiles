@@ -23,6 +23,7 @@ bin/*
 !bin/pi-delegate
 !bin/claude-fusion
 !bin/herdr-fork
+!bin/prune-dead-links
 
 # Machine-local secrets (not synced)
 .env
