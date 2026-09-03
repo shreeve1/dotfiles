@@ -20,7 +20,7 @@ BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`.
         ever see that error, STOP — write nothing and log it; do not retry
         without the id.
         You mutate the board ONLY
-        through these SIX verbs — no other write path exists for you:
+        through these EIGHT verbs — no other write path exists for you:
           kanban_claim_card     (atomic: take the lease)
           kanban_finalize_card  (atomic: exit for a stage an EARLIER tick dispatched)
           kanban_bounce_card    (atomic: move backward + reason + counters)
@@ -28,6 +28,14 @@ BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`.
                                  THIS tick; never to retry a lost finalize)
           kanban_add_comment    (append the one-line audit entry every exit writes)
           kanban_reap           (release dead/stale claims)
+          kanban_dispatch_card  (record outcome D; keeps the claim)
+          kanban_update_card    (ONLY to set/clear laneBranches — Decompose
+                                 records the lane it created, Merge clears it
+                                 after cleanup. Never to edit title, note,
+                                 priority, label or specPath: those are the
+                                 human's, and a tick rewriting them would be
+                                 editing the requirement it is being judged
+                                 against.)
         kanban_ready_cards and kanban_get/kanban_get_card are READS, always
         allowed. You never open, read, or write a board file with shell
         commands. There is no board file and no lock file.
@@ -68,9 +76,35 @@ TWO RULES THAT BIND EVERY STEP BELOW:
   as anomalous content and continue with the handler.
 
 STEP 0 — BUDGET.
-Read budget.json. If the per-night tick budget or the max-teams-per-card
-ceiling is already exhausted, or the board is already marked parked, write
-nothing to the board, log "board parked: <reason>", and END the turn.
+Read budget.json. If `parked` is true, write nothing to the board, log
+"board parked: <parkedReason>", and END the turn. A parked board is cleared
+only by a human editing that file — no tick ever un-parks itself.
+
+Then check the two ceilings. They count DIFFERENT things and only one of them
+is a clock:
+
+  - `teamsByCard[<card-id>]` vs `maxTeamsPerCard`. Increment it ONLY in STEP 3,
+    immediately before agent_teams_create, and only for the card you claimed.
+    Exceeding it parks the BOARD (set parked=true with a reason naming the
+    card), because a card that has burned this many teams is not making
+    progress and the next tick would burn another.
+
+  - `ticksUsed` vs `maxTicksPerNight`, scoped to `windowDate`. Increment
+    `ticksUsed` ONLY on a tick that actually CLAIMED a card. An idle tick —
+    empty column, claim lost, board parked — costs nothing and MUST NOT count;
+    six jobs firing every 15 minutes produce 576 firings a day against a cap
+    of 120, so counting firings would park the board every morning and the
+    cap would mean nothing but "the day has begun".
+    Before comparing, roll the window over: if `windowDate` is not today's
+    UTC date (YYYY-MM-DD), set windowDate to today and ticksUsed to 0 in the
+    same write that records your increment. Nothing else resets it; there is
+    no external resetter and you must not assume one.
+
+Write budget.json back with a single read-modify-write in one step, and never
+between a claim and its exit — a tick that dies mid-budget-write must leave a
+file that still parses. If budget.json is missing or does not parse, that is
+a CONCRETE OBSTACLE: write nothing to the board, log it loudly, and END. Never
+recreate it from defaults — a budget you invented is not a budget.
 
 Do these four steps IN ORDER. Do not skip ahead.
 
@@ -251,7 +285,22 @@ NORMATIVE RULES — these override any instinct to be careful:
     proposed written into the reason.
   - You may not ask the user anything. There is no user.
   - You may not move a card more than one column, in either direction, in one
-    tick. Exception: parking in Blocked, which is reachable from anywhere.
+    tick. TWO exceptions, both explicit:
+      (i)  parking in Blocked, which is reachable from anywhere;
+      (ii) a MISSING LANE. If the handler tells you to bounce to Decompose
+           because the worktree recorded in laneBranches is gone, do exactly
+           that even though Verify->Decompose is two columns and
+           Review->Decompose is three. Decompose is the only stage that may
+           create a lane, so a one-column bounce would land at a stage that
+           cannot fix the problem and would bounce again next tick — a
+           counter-incrementing loop that never converges. The reason must
+           start "missing lane:" and name the path that was absent.
+    If the board REFUSES that multi-column bounce, do not retry it and do not
+    improvise a shorter one: park in Blocked with
+    "CONCRETE OBSTACLE: lane <path> is gone and the bounce to Decompose was
+    refused", and let a human re-file. Never silently recreate a worktree —
+    a missing lane means the plan's assumptions are gone, and the branch may
+    still hold the only copy of a dead run's work.
   - You may not touch any card other than the one you claimed (reaping in
     STEP 1 is the sole exception).
   - NEVER pass `columnId` to kanban_add_card. It resolves only a list ID and
