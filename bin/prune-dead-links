@@ -45,9 +45,6 @@ canonicalize() {
   esac
   while [ ! -d "$path" ]; do
     base=${path##*/}
-    case $base in
-    ..) return 1 ;;
-    esac
     rest="/$base$rest"
     path=${path%/*}
     [ -n "$path" ] || path=/
@@ -57,6 +54,44 @@ canonicalize() {
   # repo-internal even though outlink leaves the repo. The selftest catches it.
   real=$(cd -P "$path" 2>/dev/null && pwd -P) || return 1
   [ "$real" = / ] && real=
+
+  # A `..` may remain in the MISSING remainder, e.g. `<repo>/deadlink/../x`
+  # where `deadlink` is itself a dangling symlink. Folding it lexically would be
+  # wrong — `deadlink` may point outside the repo, and collapsing `..` textually
+  # would hide that, deleting a link the safety rule protects. But refusing
+  # outright leaves genuine repo residue behind, which the spec's Goal forbids.
+  #
+  # So resolve the first component of the remainder: if it is a symlink, expand
+  # it (readlink works fine on a dangling one) and canonicalize again. Depth is
+  # bounded to stop a symlink cycle. Only when nothing can be expanded, and a
+  # `..` still remains, do we give up and refuse to classify.
+  case $rest in
+  */../*|*/..)
+    local depth=${CANON_DEPTH:-0} first target
+    [ "$depth" -ge 16 ] && return 1
+    first=${rest#/}
+    first=${first%%/*}
+    if [ -L "$real/$first" ]; then
+      target=$(readlink "$real/$first")
+      case $target in
+      /*) ;;
+      *) target="$real/$target" ;;
+      esac
+      CANON_DEPTH=$((depth + 1)) canonicalize "$target${rest#/$first}"
+      return $?
+    fi
+    # Not a symlink, and it does not exist (we are past the -d walk), so it is
+    # an ordinary missing name. Nothing can hide behind it: drop it together
+    # with the `..` that follows and re-resolve what is left.
+    case $rest in
+    "/$first/../"*|"/$first/..")
+      CANON_DEPTH=$((depth + 1)) canonicalize "$real${rest#/$first/..}"
+      return $?
+      ;;
+    esac
+    return 1
+    ;;
+  esac
   printf '%s\n' "$real$rest"
 }
 
@@ -123,6 +158,15 @@ selftest() {
   ln -s /nonexistent/elsewhere "$fix/.config/foreign"
   ln -s "$fix/.cache/gone" "$fix/.cache/excluded"
 
+  # Escapes THROUGH a dangling intermediate. The intermediate does not resolve,
+  # so the `..` has to be folded lexically against an already-physical prefix.
+  # Both directions matter: the outward one must survive (safety) and the
+  # inward one must be pruned (completeness — the spec's Goal requires it).
+  ln -s "$fix/outside/nowhere" "$fix/dotfiles/deadout"
+  ln -s "$fix/dotfiles/deadout/../escaped" "$fix/.config/dead-intermediate-out"
+  ln -s "$fix/dotfiles/nothing" "$fix/dotfiles/deadin"
+  ln -s "$fix/dotfiles/deadin/../gone" "$fix/.config/dead-intermediate-in"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -142,6 +186,8 @@ selftest() {
   check .config/relative-residue gone
   check .config/dotdot-escape kept
   check .config/symlink-escape kept
+  check .config/dead-intermediate-out kept
+  check .config/dead-intermediate-in gone
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
