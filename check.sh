@@ -25,17 +25,33 @@ fail() {
 # Lines like: link_path "src" "target"  /  seed_path "src" "target"
 # Sources built from a variable (e.g. "$skill_name") are skipped — their value
 # is only known at install time.
+#
+# Only TRACKED sources are required to exist. This gate runs inside a git
+# worktree (that is where Verify runs it), and a worktree materialises only
+# tracked content — so an untracked or gitignored source is absent there BY
+# CONSTRUCTION, not because anything regressed. Demanding it made the gate exit
+# 1 on a pristine tree, which would have bounced every card out of Verify
+# forever, blaming files the card never touched and that cannot be committed.
+# install.sh already agrees with this reading: a missing source prints
+# "skip: missing source" and returns 0, so it is not an install failure either.
+# A TRACKED source that is missing is still a hard failure — that is the real
+# regression this check exists to catch.
 checked_sources=0
+skipped_untracked=0
 while read -r src; do
   case "$src" in
   *'$'*) continue ;;
   esac
+  if ! git ls-files --error-unmatch "$src" >/dev/null 2>&1; then
+    skipped_untracked=$((skipped_untracked + 1))
+    continue
+  fi
   checked_sources=$((checked_sources + 1))
-  [ -e "$src" ] || fail "install.sh references missing source: $src"
+  [ -e "$src" ] || fail "install.sh references missing tracked source: $src"
 done < <(grep -oP '^\s*(link_path|seed_path)\s+"\K[^"]+' install.sh)
 
 if [ "$checked_sources" -eq 0 ]; then
-  fail "parsed 0 link_path sources from install.sh — the parser is broken, not the repo"
+  fail "parsed 0 tracked link_path sources from install.sh — the parser is broken, not the repo"
 fi
 
 # ─── 2. shell syntax ───────────────────────────────────────
@@ -108,8 +124,8 @@ while read -r pair; do
 done < <(grep -oP '^\s*(link_path|seed_path)\s+"\K[^"]+"\s+"[^"]+' install.sh |
   sed 's/"[[:space:]]*"/|/')
 
-printf 'checked: %d install sources, %d shell files, %d json files, %d dangling links\n' \
-  "$checked_sources" "$checked_sh" "$checked_json" "$dangling"
+printf 'checked: %d tracked install sources (%d untracked skipped), %d shell files, %d json files, %d dangling links\n' \
+  "$checked_sources" "$skipped_untracked" "$checked_sh" "$checked_json" "$dangling"
 
 if [ "$fails" -gt 0 ]; then
   printf '%d failure(s)\n' "$fails"
