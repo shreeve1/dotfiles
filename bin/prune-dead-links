@@ -87,13 +87,37 @@ canonicalize() {
     # expanded by the recursion.
     case $rest in
     "/$first/../"*|"/$first/..")
+      # `..` directly after this missing name: both cancel.
       CANON_DEPTH=$((depth + 1)) canonicalize "$real${rest#/$first/..}"
       return $?
       ;;
-    esac
-    # A `..` deeper in the remainder, behind a name that cannot be expanded.
-    case $rest in
-    */../*|*/..) return 1 ;;
+    */../*|*/..)
+      # A `..` further along, e.g. `/nope/sub/../leaf`. Walk the remainder
+      # component by component, expanding any symlink met on the way, until a
+      # `..` becomes leading and cancels against the name before it. Walking
+      # rather than folding the whole path is the point: every component is
+      # still symlink-checked, so an escape cannot slip past unnoticed.
+      local head_= tail_=$rest node
+      while :; do
+        node=${tail_#/}
+        node=${node%%/*}
+        [ -n "$node" ] || return 1
+        tail_=${tail_#"/$node"}
+        case $tail_ in
+        /../*|/..)
+          # cancels with $node; resume from the prefix built so far
+          CANON_DEPTH=$((depth + 1)) canonicalize "$real$head_${tail_#/..}"
+          return $?
+          ;;
+        esac
+        [ -L "$real$head_/$node" ] && return 1   # symlink here: handled on the next pass
+        head_="$head_/$node"
+        case $tail_ in
+        */../*|*/..) ;;
+        *) return 1 ;;
+        esac
+      done
+      ;;
     esac
   fi
   printf '%s\n' "$real$rest"
@@ -203,6 +227,12 @@ selftest() {
   ln -s "$fix/dotfiles/inner-gone" "$fix/dotfiles/b/ins"
   ln -s "$fix/dotfiles/b/nothere/../ins/leaf" "$fix/.config/inside-after-dotdot"
 
+  # `..` that is NOT directly after the leading missing name: `<repo>/dead/sub/../leaf`
+  # expands to `/nope/sub/../leaf`, where the `..` follows `sub`, not `nope`.
+  # Found by differential fuzzing against a realpath oracle, not by hand.
+  ln -s "$fix/dotfiles/nope" "$fix/dotfiles/deadmid"
+  ln -s "$fix/dotfiles/deadmid/sub/../leaf" "$fix/.config/dotdot-not-leading"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -229,6 +259,7 @@ selftest() {
   check .config/deep/via-alias kept
   check .config/escape-after-dotdot kept
   check .config/inside-after-dotdot gone
+  check .config/dotdot-not-leading gone
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
