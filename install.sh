@@ -508,15 +508,6 @@ link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
 
-for skill_dir in "$DOTFILES_DIR"/.codex/skills/*; do
-  [ -d "$skill_dir" ] || continue
-  skill_name="$(basename "$skill_dir")"
-  case "$skill_name" in
-  .*) continue ;;
-  esac
-  link_path ".codex/skills/$skill_name" ".codex/skills/$skill_name"
-done
-
 # Note: live settings.json files are NOT tracked — they may contain secrets or
 # machine-specific values. Copy templates on a new device, then edit locally.
 #
