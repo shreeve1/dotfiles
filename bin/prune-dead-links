@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Delete symlinks under $HOME that point INTO this repo and no longer resolve.
+#
+# Residue from links install.sh used to declare (see docs/specs/k551-dangling-symlinks.md).
+# Run from the repo like check.sh; it is not linked into $HOME.
+#
+# THE SAFETY RULE: a symlink is removed only when readlink resolves it inside
+# $DOTFILES_DIR *and* the target does not exist. Broken links pointing anywhere
+# else belong to other programs (~/.claude/debug/latest, SingletonLock files,
+# ~/.config/pulse/*-runtime) or to another repo (~/.agents/skills/*) and are
+# left strictly alone.
+
+set -uo pipefail
+
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/dotfiles}"
+
+removed=0
+# Depth 3 from $HOME, skipping the repo itself and the cache — same scope as
+# the reproduction command in the spec. $DOTFILES_DIR is $HOME/dotfiles by
+# default; naming the variable keeps the exclusion right for a fixture too.
+while IFS= read -r link; do
+  dest="$(readlink "$link")" || continue
+  case "$dest" in
+  /*) ;;
+  *) dest="$(dirname "$link")/$dest" ;;
+  esac
+  case "$dest" in
+  "$DOTFILES_DIR"/*) ;;
+  *) continue ;;
+  esac
+  rm -f "$link" && removed=$((removed + 1))
+  printf 'removed: %s -> %s\n' "$link" "$dest"
+done < <(find "$HOME" -maxdepth 3 -type l \
+  -not -path "$DOTFILES_DIR/*" \
+  -not -path "$HOME/.cache/*" \
+  -exec test ! -e {} \; -print)
+
+printf 'pruned %d dangling link(s) pointing into %s\n' "$removed" "$DOTFILES_DIR"
