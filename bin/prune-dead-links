@@ -55,18 +55,19 @@ canonicalize() {
   real=$(cd -P "$path" 2>/dev/null && pwd -P) || return 1
   [ "$real" = / ] && real=
 
-  # A `..` may remain in the MISSING remainder, e.g. `<repo>/deadlink/../x`
-  # where `deadlink` is itself a dangling symlink. Folding it lexically would be
-  # wrong — `deadlink` may point outside the repo, and collapsing `..` textually
-  # would hide that, deleting a link the safety rule protects. But refusing
-  # outright leaves genuine repo residue behind, which the spec's Goal forbids.
+  # $real is physical, but the MISSING remainder may still hide two things: a
+  # symlink component (the -d walk stops at the deepest DIRECTORY, so a dangling
+  # or file symlink is left in $rest unexpanded), and a `..`.
   #
-  # So resolve the first component of the remainder: if it is a symlink, expand
-  # it (readlink works fine on a dangling one) and canonicalize again. Depth is
-  # bounded to stop a symlink cycle. Only when nothing can be expanded, and a
-  # `..` still remains, do we give up and refuse to classify.
-  case $rest in
-  */../*|*/..)
+  # Both must be resolved, and the symlink FIRST. Expanding only when a `..` is
+  # present was a real bug: `<repo>/b/nothere/../esc/leaf` folded to
+  # `<repo>/b/esc/leaf` and returned it verbatim, so an `esc` symlink pointing
+  # OUTSIDE the repo was never consulted and the link was deleted — the exact
+  # failure the safety rule exists to prevent. Expand first, always.
+  #
+  # Depth is bounded so a symlink cycle terminates as unresolvable rather than
+  # spinning. Refusing to classify is always the safe answer ahead of an rm.
+  if [ -n "$rest" ]; then
     local depth=${CANON_DEPTH:-0} first target
     [ "$depth" -ge 16 ] && return 1
     first=${rest#/}
@@ -80,18 +81,21 @@ canonicalize() {
       CANON_DEPTH=$((depth + 1)) canonicalize "$target${rest#/$first}"
       return $?
     fi
-    # Not a symlink, and it does not exist (we are past the -d walk), so it is
-    # an ordinary missing name. Nothing can hide behind it: drop it together
-    # with the `..` that follows and re-resolve what is left.
+    # Not a symlink and not a directory, so it is an ordinary missing name (or a
+    # plain file). Nothing can hide behind it: a following `..` may be dropped
+    # together with it, and the result re-resolved so any later symlink is still
+    # expanded by the recursion.
     case $rest in
     "/$first/../"*|"/$first/..")
       CANON_DEPTH=$((depth + 1)) canonicalize "$real${rest#/$first/..}"
       return $?
       ;;
     esac
-    return 1
-    ;;
-  esac
+    # A `..` deeper in the remainder, behind a name that cannot be expanded.
+    case $rest in
+    */../*|*/..) return 1 ;;
+    esac
+  fi
   printf '%s\n' "$real$rest"
 }
 
@@ -186,6 +190,19 @@ selftest() {
   ln -s "$fix/outside" "$fix/dotfiles/alias"
   ln -s "$fix/dotfiles/alias/sub/../../outside/gone" "$fix/.config/deep/via-alias"
 
+  # An escaping symlink AFTER the `..`, behind a missing name. Regression for a
+  # real safety bug: dropping `nothere/..` and returning the folded path meant
+  # `esc` was never expanded, so a link resolving OUTSIDE the repo was deleted.
+  mkdir -p "$fix/dotfiles/b"
+  ln -s "$fix/outside/gone" "$fix/dotfiles/b/esc"
+  ln -s "$fix/dotfiles/b/nothere/../esc/leaf" "$fix/.config/escape-after-dotdot"
+
+  # Same shape, but the symlink after the `..` stays INSIDE the repo, so the
+  # link is genuine residue and must still be pruned. Guards against "fixing"
+  # the case above by refusing everything.
+  ln -s "$fix/dotfiles/inner-gone" "$fix/dotfiles/b/ins"
+  ln -s "$fix/dotfiles/b/nothere/../ins/leaf" "$fix/.config/inside-after-dotdot"
+
   prune prune "$fix" "$fix/dotfiles" >/dev/null
 
   check() {
@@ -210,6 +227,8 @@ selftest() {
   check .config/dead-intermediate-relative kept
   check .config/cyclic kept
   check .config/deep/via-alias kept
+  check .config/escape-after-dotdot kept
+  check .config/inside-after-dotdot gone
   check .config/foreign kept
   check .config/resolves kept
   check .cache/excluded kept
