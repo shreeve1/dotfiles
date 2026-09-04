@@ -5,8 +5,9 @@
 # Checks, in order:
 #   1. every link_path/seed_path source named in install.sh exists in the repo
 #   2. tracked shell files parse (bash -n)
-#   3. tracked JSON files parse
-#   4. installed ~/... symlinks that point into this repo still resolve
+#   3. tracked Python files parse (compile())
+#   4. tracked JSON files parse
+#   5. installed ~/... symlinks that point into this repo still resolve
 #
 # Exit 0 = clean. Exit 1 = at least one failure, each printed as "FAIL: ...".
 
@@ -92,7 +93,54 @@ bin/pi-delegate
 .zshrc
 MUST
 
-# ─── 3. JSON parses ────────────────────────────────────────
+# ─── 3. python syntax ──────────────────────────────────────
+# Same defect as §2, third instance: the selector was never wrong for the files
+# it knew about, it was wrong about which files exist. k520 moved selection from
+# extension to shebang (bash|sh|dash); rewriting bin/prune-dead-links from bash
+# to python3 moved it straight back out of coverage, because
+# "#!/usr/bin/env python3" is none of those. Demonstrated 2026-09-04: a syntax
+# error in the pruner -- the script that calls os.remove on symlinks under $HOME
+# -- passed the gate with exit 0.
+#
+# py_compile is deliberately NOT used: it writes __pycache__ next to the source,
+# and this gate is read-only. compile() parses in memory and writes nothing.
+#
+# ONE list, built once, used for both the check and its own coverage guard --
+# see the note at §2.
+python_files() {
+  {
+    git ls-files '*.py'
+    git grep -l -I -E '^#!.*\bpython[0-9.]*\b' -- ':!*.md' 2>/dev/null
+  } | sort -u
+}
+
+checked_py=0
+while read -r f; do
+  [ -n "$f" ] && [ -f "$f" ] || continue
+  checked_py=$((checked_py + 1))
+  err="$(python3 -c 'import sys
+p = sys.argv[1]
+try:
+    compile(open(p, "rb").read(), p, "exec")
+except (SyntaxError, ValueError) as e:
+    sys.exit("%s: %s" % (type(e).__name__, e.msg if hasattr(e, "msg") else e))' "$f" 2>&1)" ||
+    fail "python syntax: $f: $err"
+done < <(python_files)
+
+# Coverage guard, same rationale as §2: a selector typo would shrink coverage to
+# zero and still report ok. Name the two files this check exists for -- the
+# extension-less pruner (found by the shebang half) and the tracked .py under
+# tests/ (found by the ls-files half).
+while read -r must; do
+  [ -e "$must" ] || continue
+  python_files | grep -qxF "$must" ||
+    fail "python-file scan no longer reaches $must — the selector is broken, not the repo"
+done <<'MUST'
+bin/prune-dead-links
+tests/prune-oracle.py
+MUST
+
+# ─── 4. JSON parses ────────────────────────────────────────
 # lazy: jq is already installed and used elsewhere in this repo.
 # .template files included: seed_path copies them verbatim into live config,
 # so a malformed one breaks a fresh machine silently.
@@ -102,7 +150,7 @@ while read -r f; do
   err="$(jq empty "$f" 2>&1)" || fail "invalid JSON: $f: $err"
 done < <(git ls-files '*.json' '*.json.template' | grep -v -e 'lock\.json$' -e '/node_modules/')
 
-# ─── 4. currently-declared links still resolve ─────────────
+# ─── 5. currently-declared links still resolve ─────────────
 # Scoped deliberately to the mappings install.sh declares TODAY. A link in
 # $HOME pointing at a path install.sh no longer mentions is old residue, not a
 # regression in the change under test — the gate must not fail on ambient state
@@ -124,8 +172,8 @@ while read -r pair; do
 done < <(grep -oP '^\s*(link_path|seed_path)\s+"\K[^"]+"\s+"[^"]+' install.sh |
   sed 's/"[[:space:]]*"/|/')
 
-printf 'checked: %d tracked install sources (%d untracked skipped), %d shell files, %d json files, %d dangling links\n' \
-  "$checked_sources" "$skipped_untracked" "$checked_sh" "$checked_json" "$dangling"
+printf 'checked: %d tracked install sources (%d untracked skipped), %d shell files, %d python files, %d json files, %d dangling links\n' \
+  "$checked_sources" "$skipped_untracked" "$checked_sh" "$checked_py" "$checked_json" "$dangling"
 
 if [ "$fails" -gt 0 ]; then
   printf '%d failure(s)\n' "$fails"
