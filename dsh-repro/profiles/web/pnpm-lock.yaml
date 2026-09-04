@@ -63,8 +63,8 @@ importers:
         specifier: github:stuarthu/dsh-hot-reload#006d91589e8edab031e46dea936db0cc0f301e02
         version: https://codeload.github.com/stuarthu/dsh-hot-reload/tar.gz/006d91589e8edab031e46dea936db0cc0f301e02
       dsh-learn-panel:
-        specifier: github:shreeve1/dsh-learn-panel#669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5
-        version: https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5(dsh-better-sidebar@0.17.1(react@18.3.1))(react@18.3.1)
+        specifier: github:shreeve1/dsh-learn-panel#b0bed8cec9acc453d93c2364293944a6fd34dbee
+        version: https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/b0bed8cec9acc453d93c2364293944a6fd34dbee(dsh-better-sidebar@0.17.1(react@18.3.1))(react@18.3.1)
       dsh-md-annotator:
         specifier: github:3361805598-gif/dsh-md-annotator
         version: https://codeload.github.com/3361805598-gif/dsh-md-annotator/tar.gz/5524929881e8445c3c862b29ac8eddc5c318c7a4
@@ -1491,8 +1491,8 @@ packages:
     version: 0.2.4
     engines: {node: '>=22'}
 
-  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5:
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5}
+  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/b0bed8cec9acc453d93c2364293944a6fd34dbee:
+    resolution: {gitHosted: true, integrity: sha512-+f5VYIxhfexudL3ml4GMPKFu128q2T+V4rSjgv5Q8x6F4CS17/lji24QW+rRBKm5U8Q9T9HR8Fpvg7w+CcuvbA==, tarball: https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/b0bed8cec9acc453d93c2364293944a6fd34dbee}
     version: 0.1.0
     engines: {node: ^22.19.0 || >=24.0.0}
     peerDependencies:
@@ -3177,7 +3177,7 @@ snapshots:
     dependencies:
       chokidar: 4.0.3
 
-  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5(dsh-better-sidebar@0.17.1(react@18.3.1))(react@18.3.1):
+  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/b0bed8cec9acc453d93c2364293944a6fd34dbee(dsh-better-sidebar@0.17.1(react@18.3.1))(react@18.3.1):
     dependencies:
       react: 18.3.1
       schemastery: 3.18.0
