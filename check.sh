@@ -83,8 +83,18 @@ done < <(shell_files)
 # A typo in the selector would silently shrink coverage to zero and still
 # report ok. Assert it still reaches the extension-less files this check
 # exists for.
+#
+# A MISSING file is a failure, not a skip. Every name below is tracked, so it
+# exists in any checkout by construction; if one is absent it was renamed or
+# deleted, and a guard that skips it would hand back the very hole it guards --
+# demonstrated 2026-09-04: renaming the guarded file and breaking the selector
+# scored "0 python files" and still exited 0. Renaming one of these is a real
+# change; updating this list is part of it.
 while read -r must; do
-  [ -e "$must" ] || continue
+  if [ ! -e "$must" ]; then
+    fail "coverage guard names $must, which does not exist — rename it here too, or the guard is dead"
+    continue
+  fi
   shell_files | grep -qxF "$must" ||
     fail "shell-file scan no longer reaches $must — the selector is broken, not the repo"
 done <<'MUST'
@@ -92,6 +102,10 @@ bin/pi-delegate
 .bashrc
 .zshrc
 MUST
+
+if [ "$checked_sh" -eq 0 ]; then
+  fail "scanned 0 shell files — the selector is broken, not the repo"
+fi
 
 # ─── 3. python syntax ──────────────────────────────────────
 # Same defect as §2, third instance: the selector was never wrong for the files
@@ -131,14 +145,22 @@ done < <(python_files)
 # zero and still report ok. Name the two files this check exists for -- the
 # extension-less pruner (found by the shebang half) and the tracked .py under
 # tests/ (found by the ls-files half).
+# Missing is a failure, not a skip -- see the note at §2.
 while read -r must; do
-  [ -e "$must" ] || continue
+  if [ ! -e "$must" ]; then
+    fail "coverage guard names $must, which does not exist — rename it here too, or the guard is dead"
+    continue
+  fi
   python_files | grep -qxF "$must" ||
     fail "python-file scan no longer reaches $must — the selector is broken, not the repo"
 done <<'MUST'
 bin/prune-dead-links
 tests/prune-oracle.py
 MUST
+
+if [ "$checked_py" -eq 0 ]; then
+  fail "scanned 0 python files — the selector is broken, not the repo"
+fi
 
 # ─── 4. JSON parses ────────────────────────────────────────
 # lazy: jq is already installed and used elsewhere in this repo.
