@@ -22,8 +22,18 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="${REPO_PATH:-$(cd "$here/.." && pwd)}"
 tz="${TICK_TZ:-America/Los_Angeles}"
-schedule="${TICK_CRON:-*/15 * * * *}"
 timeout="${TICK_TIMEOUT:-1800}"
+
+# Per-stage schedule, staggered. All six firing at the same */15 instant hits
+# the LLM provider in one burst and trips its rate limit (MiniMax 429, measured
+# 2026-09-04) even with quota left. Each stage instead runs every 15 min offset
+# by 2 min in pipeline order (spec :00, decompose :02, … merge :10), so no two
+# ticks call the provider at once. Setting TICK_CRON overrides this with one
+# shared schedule for every stage (the old all-at-once behaviour).
+stage_cron() { # $1 = minute offset 0..13 -> "off,off+15,off+30,off+45 * * * *"
+  local o="$1"
+  printf '%d,%d,%d,%d * * * *' "$o" "$((o+15))" "$((o+30))" "$((o+45))"
+}
 
 # Model route for every tick. dsh-cron (lib/agent-task.js) reads task.provider
 # and task.model; an empty string falls back to the host agent-default-model.
@@ -50,6 +60,7 @@ printf '    historyLimit: 200\n'
 printf '    sessionGc: { enabled: true, graceMinutes: 60 }\n'
 printf '    jobs:\n'
 
+offset=0
 for stage in Spec Decompose Build Verify Review Merge; do
   lc="${stage,,}"
   case "$stage" in
@@ -60,6 +71,7 @@ for stage in Spec Decompose Build Verify Review Merge; do
   Review) desc="dispatches a read-only review team over the lane diff" ;;
   Merge) desc="waits for the human merge, then cleans the lane and archives" ;;
   esac
+  schedule="${TICK_CRON:-$(stage_cron "$offset")}"
 
   printf -- '      - name: dotfiles-tick-%s\n' "$lc"
   printf '        description: "dotfiles board tick — %s column only: %s"\n' "$stage" "$desc"
@@ -78,6 +90,7 @@ for stage in Spec Decompose Build Verify Review Merge; do
   # board silently becomes a newly invented ~/.dsh-boards/<user>/board.json
   # while every tool result reads like a successful write to the real board.
   "$here/render-preamble.sh" "$stage" | sed 's/^/            /'
+  offset=$((offset + 2))
 done
 }
 
