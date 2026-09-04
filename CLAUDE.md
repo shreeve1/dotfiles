@@ -18,6 +18,13 @@ One plugin per restart, and only packages that declare `dsh.bundle` go in
 `dsh.profile.bundles` — client-only plugins mount via `- insert:` rows.
 See that doc's "Install best practices" for the full list.
 
+**Unattended build board.** Six per-stage cron ticks walk a spec from `Spec` to
+`Archive` in this repo, stopping at `Merge` for a human `git merge --ff-only`.
+Read `dsh-board/INSTALL.md` before touching it — install order, how to use it,
+and the failure modes that have actually bitten. Stage contracts live in
+`dsh-board/HANDLERS.md` (symlinked to `~/.dsh-boards/dotfiles/`); write specs
+with the `dsh-spec` skill.
+
 ## On a fresh machine
 
 Run `bash install.sh` from the repo root. See `README.md` for the full setup
