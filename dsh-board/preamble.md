@@ -106,11 +106,25 @@ budget.json is missing or does not parse, that is a CONCRETE OBSTACLE: write
 nothing to the board, log it loudly, and END. Never recreate it from defaults
 — a budget you invented is not a budget.
 
-MERGE, DO NOT OVERWRITE. Re-read budget.json inside that same write step and
-apply your changes to THAT object, not to the copy you read at STEP 0. Change
-only the keys you own — `ticksUsed`, `windowDate`, `teamsByCard` — and carry
-every other key through untouched. Minutes pass between your STEP 0 read and
-this write, so the file on disk may have gained keys you never saw.
+NEVER WRITE budget.json YOURSELF. Every change goes through the repo's
+`dsh-board/budget-update.sh`, which does the read, the merge and an atomic
+replace inside one `flock` — a transaction you cannot express as a sequence of
+tool calls:
+
+    ./dsh-board/budget-update.sh $BUDGET tick            # ticksUsed += 1
+    ./dsh-board/budget-update.sh $BUDGET team <card-id>  # teamsByCard[card] += 1
+    ./dsh-board/budget-update.sh $BUDGET park <reason>   # ceiling exceeded
+
+(run from REPO; $BUDGET is the BUDGET path above)
+
+**Exit 3 means the board is parked: write nothing to the board and END.**
+It re-checks `parked` inside the lock, so it refuses even if the park landed
+after your STEP 0 read.
+
+Why a script and not an instruction to be careful: re-reading and merging in
+your own turn still loses a park that arrives between your re-read and your
+write. That gap was measured — 5 trials, 5 losses. Under the script, 8
+concurrent ticks racing a human park kept the park 5/5 and lost no increment.
 
 This is not hypothetical. Measured 2026-09-04: a tick read budget.json at
 02:15:50Z, a human parked the board at 02:17Z, and at 02:24:46Z that tick
