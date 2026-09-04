@@ -96,6 +96,20 @@ path, blockpath = sys.argv[1], sys.argv[2]
 block = open(blockpath, encoding='utf-8').read().rstrip('\n')
 shutil.copyfile(path, path + '.bak')
 text = open(path, encoding='utf-8').read()
+# Preserve each job's CURRENT enabled state across a re-install. The block is
+# always rendered with the shipped default (enabled: false) so a FRESH install
+# arrives disabled per INSTALL step 8. But a re-install (e.g. after a preamble
+# edit) must not silently re-disable a board an operator already enabled --
+# that turned into a real outage 2026-09-04 when --install reset all six to
+# false and the scheduler went dark. So carry the existing per-job flag over.
+prev = dict(re.findall(
+    r'^ {6}- name: (dotfiles-tick-\w+)\n(?:(?! {6}- ).*\n)*? {8}enabled: (true|false)',
+    text, re.M))
+def _restore(m):
+    return m.group(1) + prev.get(m.group('name'), m.group('cur'))
+block = re.sub(
+    r'(^ {6}- name: (?P<name>dotfiles-tick-\w+)\n(?:(?! {6}- ).*\n)*? {8}enabled: )(?P<cur>true|false)',
+    _restore, block, flags=re.M)
 # Strip the previous generated block INCLUDING its banner comments. Matching
 # only the `- id: dsh-cron` row left the two `# GENERATED` lines behind, so
 # each install appended another pair and no two installs produced the same
