@@ -1,0 +1,12 @@
+diff --git a/lib/client.js b/lib/client.js
+index 948b9cbdf5435cdee58e5121ab00e63300a72ad8..c6dde5cbd1f7ee3d79e6de78e1efd05ce9f54a43 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -2779,6 +2779,7 @@ window.__ModuleLoader__.load({
+ 					id: "reverse-proxy-interact",
+ 					order: 40,
+ 					inject: () => ({
++						enabled: false,
+ 						t,
+ 						openSession: (id) => {
+ 							sessions.open(id);
