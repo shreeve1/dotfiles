@@ -13,10 +13,22 @@ reproducible install on another machine. Captured by this session.
   IP/paths. Template it (`__HOME__`, `__LISTEN_IP__`) before use elsewhere.
 - `profiles/web/patches/dsh-full-remote.patch` — pnpm patch (install fails without it).
 
-## Install path (verified this session)
-Run `pnpm install --ignore-scripts` in the profile dir. The 5 shreeve1 plugins
-ship a prebuilt `lib/`, so a fresh machine installs WITHOUT a build toolchain.
-Verified: all 5 install with a valid `main` entry under `--ignore-scripts`.
+## Install path (DOCUMENTED POLICY — verified this session)
+Install with:
+
+    pnpm install --frozen-lockfile --ignore-scripts
+
+`--ignore-scripts` is REQUIRED, not optional: the 5 shreeve1 plugins ship a
+prebuilt `lib/`, so a fresh machine installs WITHOUT a build toolchain, and the
+unpinned third-party plugins that would otherwise try (and can fail) to build
+are skipped. Verified this session end-to-end: the FULL captured manifest (28
+deps) completes `pnpm install --frozen-lockfile --ignore-scripts` with exit 0
+and all 5 pinned entrypoints resolve to a valid `main` (fusion/council/
+learn-panel/goal-keeper `lib/index.js`, build-board `index.js`).
+
+Do NOT run a plain `pnpm install --frozen-lockfile` (without --ignore-scripts):
+unpinned third-party specs (e.g. dsh-plugin-guide) trigger a git-prepare build
+that needs its own allowBuilds entry and can fail in the pnpm sandbox.
 
 ## Known caveats (verified, not yet resolved)
 1. **dsh-ui-translate is REMOVED** from this manifest. It is third-party
