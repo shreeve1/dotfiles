@@ -100,11 +100,28 @@ is a clock:
     same write that records your increment. Nothing else resets it; there is
     no external resetter and you must not assume one.
 
-Write budget.json back with a single read-modify-write in one step, and never
-between a claim and its exit — a tick that dies mid-budget-write must leave a
-file that still parses. If budget.json is missing or does not parse, that is
-a CONCRETE OBSTACLE: write nothing to the board, log it loudly, and END. Never
-recreate it from defaults — a budget you invented is not a budget.
+Write budget.json back in one step, and never between a claim and its exit —
+a tick that dies mid-budget-write must leave a file that still parses. If
+budget.json is missing or does not parse, that is a CONCRETE OBSTACLE: write
+nothing to the board, log it loudly, and END. Never recreate it from defaults
+— a budget you invented is not a budget.
+
+MERGE, DO NOT OVERWRITE. Re-read budget.json inside that same write step and
+apply your changes to THAT object, not to the copy you read at STEP 0. Change
+only the keys you own — `ticksUsed`, `windowDate`, `teamsByCard` — and carry
+every other key through untouched. Minutes pass between your STEP 0 read and
+this write, so the file on disk may have gained keys you never saw.
+
+This is not hypothetical. Measured 2026-09-04: a tick read budget.json at
+02:15:50Z, a human parked the board at 02:17Z, and at 02:24:46Z that tick
+wrote its whole in-memory object back — silently deleting `parked` and
+`parkedReason`. The next tick read "no parked field", proceeded, and promoted
+a card the human had stopped. Writing the object you read is how a tick
+un-parks a board it was never allowed to un-park.
+
+`parked` and `parkedReason` are NEVER yours to clear. A tick may SET them
+(the ceilings above); only a human clears them. If your write would remove or
+falsify either key, the write is wrong — re-read and redo it.
 
 Do these four steps IN ORDER. Do not skip ahead.
 
