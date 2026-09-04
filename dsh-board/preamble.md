@@ -9,12 +9,12 @@ handler, and you never touch a card in another column.
 BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`.
         ALWAYS pass workspaceId: "{{WORKSPACE_ID}}" on
         EVERY kanban_* call, read or write. That is the registered id for
-        /home/james/dotfiles. Do NOT rely on the board being resolved from
+        {{REPO}}. Do NOT rely on the board being resolved from
         your cwd, and do NOT pass a "cwd:..." id — those are synthesized per
         call and are never in the registry, so they are rejected.
         This matters because cwd resolution FAILS SILENTLY in the one case
         that costs you the most: a cron agent whose cwd is missing resolves
-        to cwd:/home/james, invents ~/.dsh-boards/james/board.json, and every
+        to cwd:{{HOME}}, invents ~/.dsh-boards/{{HOME_BASE}}/board.json, and every
         tool result reads exactly like a successful write to the real board.
         An explicit id fails CLOSED with "Unknown workspaceId" instead. If you
         ever see that error, STOP — write nothing and log it; do not retry
@@ -47,10 +47,10 @@ BOARD:  the `dsh-build-board` plugin, workspace `dotfiles`.
         kanban_move_card is for a promote you are finalizing in the SAME
         tick that did the work. Never use it to write an exit for a
         dispatched stage, and never use it to retry a rejected finalize.
-BUDGET: /home/james/.dsh-boards/dotfiles/budget.json
-LOG:    /home/james/.dsh-boards/dotfiles/log/
-REPO:   /home/james/dotfiles   (this is your cwd)
-GATE:   /home/james/dotfiles/check.sh — the repo's read-only regression gate.
+BUDGET: {{BOARDS}}/budget.json
+LOG:    {{BOARDS}}/log/
+REPO:   {{REPO}}   (this is your cwd)
+GATE:   {{REPO}}/check.sh — the repo's read-only regression gate.
         It never writes and never touches $HOME. Exit 0 = clean.
 STAGES: Spec -> Decompose -> Build -> Verify -> Review -> Merge, plus Blocked
         and Archive. EIGHT columns in total. A card's COLUMN is its stage —

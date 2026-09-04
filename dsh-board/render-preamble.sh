@@ -48,6 +48,36 @@ if [ -z "$workspace_id" ]; then
   exit 1
 fi
 
-sed -e "s/{{STAGE_LC}}/${stage,,}/g" \
-  -e "s/{{STAGE}}/${stage}/g" \
-  -e "s|{{WORKSPACE_ID}}|${workspace_id}|g" "$src"
+# Paths land in the prompt as absolute strings because the agent uses them
+# literally. $HOME differs across this user's Linux box and Mac, so they are
+# resolved at render time rather than baked into the tracked source.
+boards="${BOARDS_DIR:-$HOME/.dsh-boards/$(basename "$repo")}"
+
+# Substitution is done in python, not sed: a path containing `&` or the sed
+# delimiter silently corrupts an s/// replacement (measured -- `/a & b/` came
+# out with the placeholder re-inserted mid-path). str.replace has no such
+# metacharacters, and an unsubstituted placeholder is a hard error rather than
+# a prompt that looks fine and points somewhere that does not exist.
+STAGE="$stage" STAGE_LC="${stage,,}" WORKSPACE_ID="$workspace_id" \
+BOARDS="$boards" REPO="$repo" HOME_BASE="$(basename "$HOME")" HOME_DIR="$HOME" \
+python3 - "$src" <<'PY'
+import os, re, sys
+
+text = open(sys.argv[1], encoding='utf-8').read()
+for key, val in (
+    ('STAGE_LC', os.environ['STAGE_LC']),
+    ('STAGE', os.environ['STAGE']),
+    ('WORKSPACE_ID', os.environ['WORKSPACE_ID']),
+    ('BOARDS', os.environ['BOARDS']),
+    ('REPO', os.environ['REPO']),
+    ('HOME_BASE', os.environ['HOME_BASE']),
+    ('HOME', os.environ['HOME_DIR']),
+):
+    text = text.replace('{{%s}}' % key, val)
+
+left = re.findall(r'\{\{[A-Z_]+\}\}', text)
+if left:
+    sys.exit('render-preamble: unsubstituted placeholder(s): %s' % ', '.join(sorted(set(left))))
+
+sys.stdout.write(text)
+PY
