@@ -6,7 +6,7 @@ What is reproducible today, what is not, and the order to do it in.
 
 | # | Item | State |
 |---|---|---|
-| 1 | Board plugin (`dsh-build-board` fork) | **BLOCKED — no reachable remote** |
+| 1 | Board plugin (`dsh-build-board` fork) | **partly — needs a git remote** |
 | 2 | `HANDLERS.md` tracked, live path symlinked | done |
 | 3 | Prompts free of machine-local paths | done |
 | 4 | `dsh-cron` pinned to `v0.12.1` | done |
@@ -14,9 +14,16 @@ What is reproducible today, what is not, and the order to do it in.
 | 6 | Six ticks config-declared, generated from one source | done |
 | 7 | `delivery` notification wiring | not started |
 
-Item 1 blocks a second machine outright: the fork's only remote is
-`/tmp/dsh-kanban-base`, a temp dir, and there is no other copy. Decide publish
-vs. vendor, then this file's step 2 becomes real.
+Item 1 is the last blocker for a second machine. Progress 2026-09-04:
+
+- The checkout moved out of `.bmad-output/brainstorming/...` (a scratch dir it
+  should never have depended on) to **`~/src/dsh-build-board`**, and the profile
+  was re-linked with `dsh plugin --profile web add`.
+- `upstream` was a dead `/tmp` path; it now points at
+  `https://github.com/alpacachen/dsh-kanban.git`, so upstream merges work again.
+- **Still missing: an `origin` the fork can be cloned from.** Create a GitHub
+  repo (private is fine; MIT, keep LICENSE + attribution), `git remote add
+  origin`, push. Then step 2 below can name a real spec.
 
 **The pipeline itself is proven on this machine.** Two cards walked
 Spec→Archive unattended on 2026-09-04 — k745 (`docs/specs/k745-*.md`) and k801
