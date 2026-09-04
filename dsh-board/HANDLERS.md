@@ -86,9 +86,17 @@ after fixing the file is the documented un-park path.
 the card. **Creates the worktree — the only stage that may.** Team optional;
 for a small spec do it inline.
 
-1. `git-status-clean` on the main checkout. Not clean → **Blocked**,
-   `"CONCRETE OBSTACLE: main checkout dirty, cannot branch"`. A tick must
-   never stash or discard a human's uncommitted work.
+1. `spec-committed` for this card's `specPath`. The worktree branches off
+   `main`'s HEAD, so anything not in HEAD is invisible to the lane — most of
+   all the spec itself. Run `git status --porcelain -- <specPath>` (argv form,
+   `--` before the path, no shell): **any non-empty output** means the spec is
+   untracked or has uncommitted edits → **Blocked**,
+   `"CONCRETE OBSTACLE: spec <specPath> not committed; the lane branches off
+   HEAD and cannot see it. Commit the spec, then move the card back to Spec."`
+   Unrelated dirtiness elsewhere in the checkout is NOT a reason to block: a
+   new worktree off HEAD is clean regardless, and the tick never touches the
+   main working tree — so it can neither corrupt nor discard a human's other
+   uncommitted work.
 2. Create branch `auto/<card-id>` and a worktree at
    `$HOME/.dsh-worktrees/dotfiles/<card-id>`.
 3. Record the worktree path in the card's `laneBranches` via
