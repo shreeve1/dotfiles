@@ -197,7 +197,8 @@ bin/*
 .codex/config.toml
 
 # Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
-/tests/
+/tests/*
+!/tests/*.py
 .claude/.fusion-off
 .claude/.harness-unlock
 .omp/agent/blobs/
