@@ -632,3 +632,14 @@ per-IP login lockout. It is authorization, not a substitute for network trust â€
 keep it on the tailnet, not the public internet. Reviewed the plugin source
 before install (no phone-home; only outbound is the optional, unused cloudflared
 tunnel + the loopback proxy).
+
+## Reproducing this deployment
+
+The captured profile manifest, the install + dry-run scripts, the systemd unit
+template, and the re-capture procedure all live in `dsh-repro/` in this repo.
+One-command fresh install:
+
+    dsh-repro/install-dsh.sh <listen-ip>
+
+See `dsh-repro/README.md` for the full runbook (per-host templating,
+`--ignore-scripts` policy, secrets excluded from git, dry-run mode, re-capture).

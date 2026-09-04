@@ -43,3 +43,47 @@ that needs its own allowBuilds entry and can fail in the pnpm sandbox.
 3. **Building-from-source of the 3 tsdown plugins (fusion/council/learn-panel)
    can fail** in the pnpm sandbox (missing devDeps). Use `--ignore-scripts` and
    the committed `lib/`; do not rely on their `prepare`.
+
+## Reproduce from scratch
+
+On a fresh machine with this dotfiles repo checked out:
+
+    dsh-repro/install-dsh.sh <listen-ip>
+
+`<listen-ip>` is the IP `dsh-full-remote` will listen on (e.g. your netbird
+tailnet IP, or `127.0.0.1` for a localhost-only install). The script installs
+pinned `@deepseek-ai/dsh` globally, copies the captured profile into
+`~/.dsh/profiles/web/`, renders `cordis.patch.yml` from
+`profiles/web/cordis.patch.yml.tmpl` (`__HOME__`, `__LISTEN_IP__` filled),
+generates a self-signed TLS cert with `SAN=IP:<listen-ip>`, installs and
+enables `dsh-web.service` from `systemd/dsh-web.service.tmpl`, and prints the
+reverse-proxy token.
+
+Secrets NOT in git: `~/.dsh/dsh-web.env` (env vars: `CLIPROXY_API_KEY`,
+`DEEPSEEK_API_KEY`) and `~/.dsh/.credentials.yaml` (provider API keys). The
+script stops with a clear message listing which keys are missing — create them
+manually, then re-run.
+
+Dry-run mode (no writes outside `$(mktemp -d)`, no `systemctl`, no global npm
+install):
+
+    dsh-repro/install-dsh.sh --dry-run 127.0.0.1
+
+Asserts `dsh --profile web --dump-config` exits 0 against the throwaway
+profile — proves the manifest + lockfile + cordis patch compose before the
+real install.
+
+## Re-capture
+
+After adding, removing, or upgrading a plugin on the live box, the committed
+manifest must be re-pinned:
+
+    dsh-repro/capture.sh
+
+Copies the latest `~/.dsh/plugin-snapshots/<ts>/web/` files into
+`profiles/web/`, re-templates `cordis.patch.yml.tmpl`, and prints a warning if
+`package.json` still contains `/home/james` paths or `file:`/`link:` specs (a
+local plugin must be re-pinned to a `github:shreeve1/<name>#<sha>` spec per
+k881 item 1 before the portability rewrite is a no-op). Run
+`probes/manifest-portable.sh` and `probes/manifest-resolves.sh` before
+committing the re-capture.
