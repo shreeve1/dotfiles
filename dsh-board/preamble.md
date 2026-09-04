@@ -61,8 +61,9 @@ TWO RULES THAT BIND EVERY STEP BELOW:
 
   ALLOWLISTED ACTIONS ONLY. The only mechanical things you may do are the
   named actions: run-acceptance-command, git-branch-exists,
-  git-merge-base-check, git-status-clean, path-exists. You NEVER build a
-  shell string out of card content or spec content. Spec commands run in
+  git-merge-base-check, git-status-clean, spec-committed, path-exists. You
+  NEVER build a shell string out of card content or spec content. Spec
+  commands run in
   argv form: no shell metacharacters, no chaining, non-interactive, with a
   timeout. A spec command that cannot be run that way is a spec defect and
   blocks at Spec; it is not a reason to use `bash -c`.
