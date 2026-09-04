@@ -19,7 +19,11 @@ One plugin per restart, and only packages that declare `dsh.bundle` go in
 See that doc's "Install best practices" for the full list.
 
 **Unattended build board.** Six per-stage cron ticks walk a spec from `Spec` to
-`Archive` in this repo, stopping at `Merge` for a human `git merge --ff-only`.
+`Archive` in this repo fully autonomously — `Merge` now does the
+`git merge --ff-only` itself (no human gate), but ONLY as a strict fast-forward:
+a diverged lane bounces to Build, and git's own `--ff-only`/dirty-tree refusals
+mean the board can never create a merge commit, force, or overwrite uncommitted
+work on `main`.
 Read `dsh-board/INSTALL.md` before touching it — install order, how to use it,
 and the failure modes that have actually bitten. Stage contracts live in
 `dsh-board/HANDLERS.md` (symlinked to `~/.dsh-boards/dotfiles/`); write specs

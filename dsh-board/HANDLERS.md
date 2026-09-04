@@ -194,22 +194,37 @@ Reconciling tick:
 
 ## Merge
 
-**Does:** nothing but check that a human merged, then clean up. **The one place
-a human is required, and the only stage that deletes a lane.**
+**Does:** fast-forwards the lane into `main` itself, then cleans up. **The only
+stage that writes to `main` and the only stage that deletes a lane.** No human
+gate: a card that passed Verify AND Review is trusted to auto-merge, but ONLY
+as a strict fast-forward — the board never creates a merge commit, never forces,
+and never resolves a conflict.
 
-A card arriving in Merge is DONE as far as the pipeline is concerned. Merge
-does NOT merge. It waits for the human, then tidies.
+A card arriving in Merge passed the gate and review. Merge lands it on `main`.
 
-1. `git-merge-base-check`: is `auto/<card-id>` an ancestor of `main`?
-2. **Not merged yet** → this is the resting state, not a failure. Write a
-   comment ONCE saying the card awaits a human merge (do not re-comment every
-   tick; check for an existing await comment first), and END the turn with no
-   move. This is the documented exception to "every tick writes an exit":
-   a card in Merge with no human action is a legitimate idle tick, exactly
-   like an empty column.
-3. **Merged** → clean up: remove the worktree with `git worktree remove`,
-   delete the `auto/<card-id>` branch, clear `laneBranches` via
-   `kanban_update_card`, then **PROMOTE** → Archive.
+1. `git-merge-base-check`: is `main` an ancestor of `auto/<card-id>`
+   (i.e. the lane is a clean fast-forward of `main`)?
+2. **Already merged** (`auto/<card-id>` is an ancestor of `main`) → skip to
+   cleanup (step 5). This covers a human who merged manually, or a prior tick
+   that merged then stalled before cleanup.
+3. **Not a fast-forward** (`main` is NOT an ancestor of the lane — `main` moved
+   on since the lane branched) → **BOUNCE to Build**,
+   `"CONCRETE OBSTACLE: main advanced; auto/<card-id> no longer fast-forwards.
+   Rebase the lane on main and re-run Build→Verify→Review."` The board must
+   NEVER `git merge` a divergent branch (that makes a merge commit and can
+   conflict) — a non-ff lane is stale and re-earns its way through.
+4. **Clean fast-forward** → `git-merge-ff`: run
+   `git -C <repo> merge --ff-only auto/<card-id>` from `main` (argv form, no
+   shell). `--ff-only` is mandatory: on any non-ff condition git exits non-zero
+   and changes nothing — treat that exit as step 3's BOUNCE, never retry without
+   `--ff-only`. After exit 0, run `./check.sh` on `main`; if it fails, the merge
+   introduced a regression the isolated lane hid → this is a real defect, leave
+   `main` as-is (the ff is already applied) and **Blocked** with the failing
+   `check.sh` line, because a human must decide whether to revert.
+5. **Merged (by the board or a human)** → clean up: remove the worktree with
+   `git worktree remove`, delete the `auto/<card-id>` branch, clear
+   `laneBranches` via `kanban_update_card`, then **PROMOTE** → Archive.
 
-Cleanup happens ONLY after the merge is confirmed. A bounce from Merge back to
-Build needs the worktree alive.
+Cleanup happens ONLY after the merge is confirmed (step 2 or a successful step
+4). A bounce from Merge back to Build needs the worktree alive, so a non-ff
+bounce (step 3) must NOT clean up.
