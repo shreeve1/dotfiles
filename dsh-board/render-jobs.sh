@@ -25,6 +25,14 @@ tz="${TICK_TZ:-America/Los_Angeles}"
 schedule="${TICK_CRON:-*/15 * * * *}"
 timeout="${TICK_TIMEOUT:-1800}"
 
+# Model route for every tick. dsh-cron (lib/agent-task.js) reads task.provider
+# and task.model; an empty string falls back to the host agent-default-model.
+# Pinned to MiniMax M3 on the DIRECT minimax provider (settings.yaml:74/80),
+# which bills against the MiniMax subscription rather than OpenRouter's paid
+# egress. An explicit provider requires an explicit model (agent-task.js).
+provider="${TICK_PROVIDER:-minimax}"
+model="${TICK_MODEL:-MiniMax-M3}"
+
 # Emitted disabled. A fresh install must not start ticking against an empty or
 # half-configured board; enable one stage, watch a tick, then the rest.
 enabled="${TICK_ENABLED:-false}"
@@ -60,6 +68,8 @@ for stage in Spec Decompose Build Verify Review Merge; do
   printf '        policy: { overlap: skip, misfire: skip }\n'
   printf '        task:\n'
   printf '          kind: agent\n'
+  printf '          provider: %s\n' "$provider"
+  printf '          model: %s\n' "$model"
   printf '          cwd: %s\n' "$repo"
   printf '          timeoutSeconds: %s\n' "$timeout"
   printf '          prompt: |\n'
