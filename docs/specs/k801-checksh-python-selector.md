@@ -197,3 +197,34 @@ check, renumbering the JSON and link sections.
 
 Capture the exit code by redirecting to a file and reading it directly — do not
 read `$?` through a pipe, it yields the last command's status.
+
+## How to run the negative test — it is MANUAL, on purpose
+
+`tests/gate_negative.py` is **not wired into `check.sh`**, for the same reason
+`tests/prune-oracle.py` is not (see the k745 spec): the gate runs on every card
+at Verify and must stay fast and repo-scoped. This harness builds three
+throwaway `git worktree`s and takes ~12s. Naming it here is what makes it
+discoverable.
+
+```
+./tests/gate_negative.py     # exit 0 = the gate can still fail
+```
+
+**Run it whenever you change `check.sh`'s selectors or coverage guards.** It is
+the only thing that proves the gate can fail at all, and a gate that cannot fail
+is exactly the defect this card and k520 were both filed for. Its three cases:
+
+1. a syntax error in `bin/prune-dead-links` fails the gate (the k801 defect);
+2. renaming `bin/prune-dead-links` cannot silently drop it from python coverage;
+3. renaming `bin/pi-delegate` cannot silently drop it from shell coverage.
+
+Cases 2 and 3 were added after the guards were found bypassable: they did
+`[ -e "$must" ] || continue`, so a renamed or deleted guarded file was skipped
+rather than reported, and a broken selector then scored zero files and still
+printed `ok`. Every guarded name is tracked, so absence always means renamed or
+deleted — never a legitimate skip. Both guards now also assert a non-zero file
+count, mirroring the floor `install.sh`'s parser already had at §1.
+
+Nothing runs this automatically. If that becomes a problem, the cheap fix is a
+`tests/run-all.sh` invoking this plus `prune-oracle.py` — not adding 12s to
+every gate invocation.
