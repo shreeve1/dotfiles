@@ -6,6 +6,7 @@ If more than one of these tools exists, pick the first match in the table.
 
 | If you have this tool | Harness | Call it |
 |-----------------------|---------|---------|
+| `learn_card` | **dsh** (dsh-learn-panel) | `learn_card`, then `learn_verdict` |
 | `ask_user_question` | **Grok Build** or **Codex** | `ask_user_question` |
 | `AskUserQuestion` | **Claude Code** | `AskUserQuestion` |
 | `question` | **OpenCode** | `question` |
