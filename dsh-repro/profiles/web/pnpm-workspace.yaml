@@ -8,7 +8,7 @@ allowBuilds:
   dsh-goal-keeper@https://codeload.github.com/shreeve1/dsh-mini-advisor/tar.gz/32fda4db6cf95365ffde5ffad21cf745600a70af: true
   dsh-fusion@https://codeload.github.com/shreeve1/dsh-fusion/tar.gz/b0019c4a8f1e14f046ded91a522115d56a49ca09: true
   dsh-council@https://codeload.github.com/shreeve1/dsh-council/tar.gz/2c633b465028a31e019d6b09cc7a56be093a033b: true
-  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/669a59a08655ab0ef43d4b6f74ee1b147f7fc9a5: true
+  dsh-learn-panel@https://codeload.github.com/shreeve1/dsh-learn-panel/tar.gz/b0bed8cec9acc453d93c2364293944a6fd34dbee: true
   dsh-plugin-guide@https://codeload.github.com/PerryLink/dsh-plugin-guide/tar.gz/02da1ee9d3120f1ce90592a6b6d6e674bc22dd85: true
   node-pty@1.2.0-beta.15: true
   dsh-smart-restart@https://codeload.github.com/edusrez/dsh-smart-restart/tar.gz/bde38b3355c2d35171203bbd97644ac15290eb83: true
