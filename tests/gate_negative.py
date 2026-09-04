@@ -74,30 +74,68 @@ def scratch_worktree():
             )
 
 
-def main():
+def check_broken_syntax():
+    """A syntax error in the pruner must fail the gate. The original k801 defect."""
     with scratch_worktree() as scratch:
         code, out = run_gate(scratch)
         if code != 0:
-            print("FAIL: clean scratch copy should pass the gate, got exit %d" % code)
-            print(out)
-            return 1
+            return "clean scratch copy should pass the gate, got exit %d\n%s" % (code, out)
 
-        pruner = scratch / "bin" / "prune-dead-links"
-        with pruner.open("a") as fh:
+        with (scratch / "bin" / "prune-dead-links").open("a") as fh:
             fh.write(BROKEN)
 
         code, out = run_gate(scratch)
         if code == 0:
-            print("FAIL: gate returned 0 on a broken bin/prune-dead-links -- "
-                  "the python syntax check is not load-bearing")
-            print(out)
-            return 1
+            return ("gate returned 0 on a broken bin/prune-dead-links -- "
+                    "the python syntax check is not load-bearing\n%s" % out)
         if "bin/prune-dead-links" not in out:
-            print("FAIL: gate failed but never named bin/prune-dead-links")
-            print(out)
-            return 1
+            return "gate failed but never named bin/prune-dead-links\n%s" % out
+    return None
 
-    print("ok: gate passes clean and fails on a broken bin/prune-dead-links")
+
+def check_guard_survives_rename(guarded, selector_old, selector_new):
+    """Renaming a guarded file must not silently drop it from coverage.
+
+    The coverage guard used to `continue` past a name that no longer existed,
+    so renaming the file AND breaking the selector scored zero files and still
+    exited 0 -- the guard handed back exactly the hole it exists to close.
+    Every guarded name is tracked, so absence always means renamed or deleted.
+    """
+    with scratch_worktree() as scratch:
+        subprocess.run(["git", "mv", guarded, guarded + "-renamed"],
+                       cwd=scratch, check=True)
+        gate = scratch / "check.sh"
+        gate.write_text(gate.read_text().replace(selector_old, selector_new))
+
+        code, out = run_gate(scratch)
+        if code == 0:
+            return ("gate returned 0 after %s was renamed and its selector broken -- "
+                    "the coverage guard is bypassable\n%s" % (guarded, out))
+        if guarded not in out:
+            return "gate failed but never named the missing %s\n%s" % (guarded, out)
+    return None
+
+
+def main():
+    checks = [
+        ("broken python syntax is caught", check_broken_syntax),
+        ("python guard survives a rename",
+         lambda: check_guard_survives_rename(
+             "bin/prune-dead-links", "git ls-files '*.py'", "git ls-files '*.NOPE'")),
+        ("shell guard survives a rename",
+         lambda: check_guard_survives_rename(
+             "bin/pi-delegate", "git ls-files '*.sh'", "git ls-files '*.NOPE'")),
+    ]
+    failed = 0
+    for name, fn in checks:
+        problem = fn()
+        if problem:
+            print("FAIL: %s: %s" % (name, problem))
+            failed += 1
+    if failed:
+        return 1
+
+    print("ok: gate fails on broken python and on a bypassed coverage guard")
     return 0
 
 
