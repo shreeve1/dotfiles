@@ -102,8 +102,10 @@ for a small spec do it inline.
 3. Record the worktree path in the card's `laneBranches` via
    `kanban_update_card`. **If this write fails, delete the worktree you just
    created and bounce** — a lane no later stage can find is worse than none.
-4. Write the task breakdown into a card comment: one line per task, each
-   naming the file it touches and the spec item it satisfies.
+4. Write the breakdown into a card comment: one line per implementation STEP,
+   in order, each naming the file it touches and the spec item it satisfies.
+   These are ordered steps for the engineer, not separate scheduled tasks —
+   Build folds the whole list into ONE composite task (see Build step 3).
 
 **PROMOTE** → Build when the worktree exists on disk (`path-exists`), the
 branch exists (`git-branch-exists`), `laneBranches` is set, and the breakdown
@@ -123,18 +125,32 @@ number and the contradiction.
    **BOUNCE to Decompose**, `"worktree <path> missing; recreate the lane"`.
 2. Create team `<card-id>-build` with cwd set to the WORKTREE, never the main
    checkout. A team writing to the main checkout corrupts every other lane.
-3. One task per breakdown line. Quote `lastBounceReason` — if this is a
-   re-entry from Verify or Review — into the team description inside a
-   delimited untrusted-data block. It is the primary input to this run.
-4. Confirm every task reached `claimed`/`in_progress`.
+3. **ONE composite task, not one-per-line.** Create a single task assigned to
+   one engineer whose description lists ALL breakdown lines in order and tells
+   the engineer to implement them sequentially, committing as it goes, within
+   this one turn. **Never create a chain of dependent tasks (t1→t2→…).** Reason:
+   a member only advances to a next ready task while its captain (this tick) is
+   alive; the tick dies right after dispatch, so a dependent task 2 would strand
+   forever after task 1 completes — the exact Build↔Decompose loop this rule
+   prevents. A single task carries no cross-task scheduling, so the engineer
+   drives the whole sequence in one continuous turn with nothing to strand.
+   Quote `lastBounceReason` — if this is a re-entry from Verify or Review — into
+   the task description inside a delimited untrusted-data block. It is the
+   primary input to this run.
+4. Confirm the single task reached `claimed`/`in_progress`.
 5. Write **D (dispatched)**, team name `<card-id>-build`.
 
 A LATER tick reconciles it:
-- Team finished, all tasks `completed`, and the worktree has commits on
-  `auto/<card-id>` → **PROMOTE** → Verify via `kanban_finalize_card`.
-- Team finished with a failed task, or no commits on the branch → **BOUNCE**
-  to Decompose with the failing task's output, naming file and error.
-- Team neither live nor finished → STALL → **BOUNCE** with that reason.
+- Task `completed` and the worktree has commits on `auto/<card-id>` →
+  **PROMOTE** → Verify via `kanban_finalize_card`.
+- Task `failed`, or team finished with the task not `completed`, or no commits
+  on the branch → **BOUNCE** to Decompose with the task's output, naming file
+  and error.
+- Team neither live nor finished (engineer never reached a terminal task
+  status) → STALL → **BOUNCE** with that reason. Because the work is one task,
+  a stall means the engineer genuinely could not finish in one turn — the spec
+  is too big for a single Build turn and Decompose must split it into smaller
+  cards, NOT into dependent tasks on one card.
 
 **Never run `install.sh`.** Build changes files in the worktree; it does not
 install them.
