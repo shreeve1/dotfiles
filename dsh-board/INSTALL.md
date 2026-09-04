@@ -6,7 +6,7 @@ What is reproducible today, what is not, and the order to do it in.
 
 | # | Item | State |
 |---|---|---|
-| 1 | Board plugin (`dsh-build-board` fork) | **partly — needs a git remote** |
+| 1 | Board plugin (`dsh-build-board` fork) | done — `shreeve1/dsh-build-board` |
 | 2 | `HANDLERS.md` tracked, live path symlinked | done |
 | 3 | Prompts free of machine-local paths | done |
 | 4 | `dsh-cron` pinned to `v0.12.1` | done |
@@ -14,28 +14,29 @@ What is reproducible today, what is not, and the order to do it in.
 | 6 | Six ticks config-declared, generated from one source | done |
 | 7 | `delivery` notification wiring | not started |
 
-Item 1 is the last blocker for a second machine. Progress 2026-09-04:
+The fork is published at **https://github.com/shreeve1/dsh-build-board**
+(public, MIT, forked from `alpacachen/dsh-kanban` v1.4.0 with attribution
+intact). `origin` is `git@github-personal:shreeve1/dsh-build-board.git`;
+`upstream` is the real base repo, so upstream fixes can be merged.
 
-- The checkout moved out of `.bmad-output/brainstorming/...` (a scratch dir it
-  should never have depended on) to **`~/src/dsh-build-board`**, and the profile
-  was re-linked with `dsh plugin --profile web add`.
-- `upstream` was a dead `/tmp` path; it now points at
-  `https://github.com/alpacachen/dsh-kanban.git`, so upstream merges work again.
-- **Still missing: an `origin` the fork can be cloned from.** Create a GitHub
-  repo (private is fine; MIT, keep LICENSE + attribution), `git remote add
-  origin`, push. Then step 2 below can name a real spec.
+**Verified reproducible 2026-09-04** by cloning the published repo into a temp
+dir and building it with nothing from this machine:
+`pnpm install --frozen-lockfile`, `pnpm test` (64/64), `typecheck`,
+`check:schema`, `check:pipeline`, `check:client-bundle`, `check:package` and
+`node build.mjs` — all exit 0, and the freshly built `lib/client.js` is
+byte-identical to the committed one.
 
-**The pipeline itself is proven on this machine.** Two cards walked
-Spec→Archive unattended on 2026-09-04 — k745 (`docs/specs/k745-*.md`) and k801
-(`docs/specs/k801-*.md`, which also caught a real defect mid-flight and bounced
-it rather than promoting). What is unproven is a *second* machine, which is
-item 1, and macOS, which the user has stated is explicitly not a requirement.
+Only item 7 (delivery notifications) is still open, and it is not a blocker.
 
 ## Steps
 
 1. `git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh`
-2. Install the board plugin — **needs item 1 settled**:
-   `dsh plugin --profile web add <fork-spec>`, then restart.
+2. Install the board plugin, then restart:
+   `git clone https://github.com/shreeve1/dsh-build-board ~/src/dsh-build-board`
+   `cd ~/src/dsh-build-board && pnpm install --frozen-lockfile`
+   `dsh plugin --profile web add ~/src/dsh-build-board`
+   Keep it OUT of scratch dirs: it was mounted from a `.bmad-output/brainstorming/`
+   folder until 2026-09-04, one cleanup away from vanishing.
 3. Install dsh-cron (pinned), then restart. One plugin per restart.
 4. Open the repo in dsh once so it registers a workspace — `render-preamble.sh`
    resolves the machine-local workspace UUID from the live registry, and fails
