@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node __HOME__/.npm-global/bin/dsh web --host 127.0.0.1 --port 3080 --no-open
+ExecStart=__NODE_BIN__ __DSH_BIN__ web --host 127.0.0.1 --port 3080 --no-open
 Restart=always
 RestartSec=3
 Environment=NODE_ENV=production
