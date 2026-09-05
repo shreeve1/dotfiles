@@ -185,7 +185,17 @@ chmod 600 "$HOME_DIR/.dsh/dsh-web.env" 2>/dev/null || true
 echo "[step 8] rendering + installing dsh-web.service"
 SERVICE_DIR="$HOME_DIR/.config/systemd/user"
 mkdir -p "$SERVICE_DIR"
-sed -e "s|__HOME__|$HOME_DIR|g" "$SERVICE_TMPL" > "$SERVICE_DIR/dsh-web.service"
+# Resolve real interpreter + dsh binary at render time (paths differ per machine:
+# npm -g installs under ~/.npm-global on some boxes, ~/.local on others).
+DSH_BIN=$(command -v dsh) || { echo "dsh not on PATH; cannot render unit" >&2; exit 1; }
+DSH_BIN=$(readlink -f "$DSH_BIN")
+NODE_BIN=$(command -v node) || { echo "node not on PATH; cannot render unit" >&2; exit 1; }
+NODE_BIN=$(readlink -f "$NODE_BIN")
+echo "[step 8] ExecStart=$NODE_BIN $DSH_BIN web ..."
+sed -e "s|__HOME__|$HOME_DIR|g" \
+    -e "s|__NODE_BIN__|$NODE_BIN|g" \
+    -e "s|__DSH_BIN__|$DSH_BIN|g" \
+    "$SERVICE_TMPL" > "$SERVICE_DIR/dsh-web.service"
 chmod 644 "$SERVICE_DIR/dsh-web.service"
 
 if [ "$NO_SERVICE" -eq 1 ]; then
