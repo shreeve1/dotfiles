@@ -144,7 +144,7 @@ if [ ! -f "$HOME_DIR/.dsh/dsh-tls.crt" ] || [ ! -f "$HOME_DIR/.dsh/dsh-tls.key" 
   TMP_KEY=$(mktemp)
   cat >"$TMP_CNF" <<EOF
 [req]
-distinguished_name = req
+distinguished_name = req_distinguished_name
 x509_extensions    = v3_req
 prompt             = no
 [req_distinguished_name]

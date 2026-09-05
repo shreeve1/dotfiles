@@ -73,6 +73,30 @@ Asserts `dsh --profile web --dump-config` exits 0 against the throwaway
 profile — proves the manifest + lockfile + cordis patch compose before the
 real install.
 
+## Verification status (be precise — do not overclaim)
+
+Tested in this workspace:
+- **Steps 1–5 (binary present, profile copy, frozen `pnpm install
+  --ignore-scripts`, cordis render, `--dump-config` compose):** VERIFIED via
+  `--dry-run` — exit 0, 294 packages, all 5 pinned entrypoints resolve.
+- **Step 6 (TLS cert):** VERIFIED in isolation after fixing a real bug — the
+  openssl `[req]` config named the DN section `req` instead of
+  `req_distinguished_name`, so on OpenSSL 3.x every real install failed with
+  `invalid field name: distinguished_name` (exit 1). Fixed; corrected config
+  now emits a cert with `SAN=IP:<listen-ip>`.
+- **Step 7 (secrets gate):** VERIFIED — stops when `dsh-web.env` /
+  `.credentials.yaml` are absent, proceeds when present.
+
+NOT yet executed anywhere (verify on the target, once):
+- **Steps 8–9 (systemd `enable`/`restart` of `dsh-web.service`, token print).**
+  Not run here on purpose: restarting the live `dsh-web.service` severs the
+  running agent session (see `docs/deepseek-harness.md` root-cause note). These
+  paths are unproven — expect to shake them out on the first real fresh-machine
+  run.
+- The whole script has **never run on a genuinely fresh machine** (no dsh, no
+  pnpm store, different `$HOME`). `--dry-run` proves the plugin/profile half on
+  an already-set-up box only.
+
 ## Re-capture
 
 After adding, removing, or upgrading a plugin on the live box, the committed
