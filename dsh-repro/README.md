@@ -69,33 +69,49 @@ install):
 
     dsh-repro/install-dsh.sh --dry-run 127.0.0.1
 
+No-service mode (full real install of steps 1–8 — binary, profile, TLS, secrets
+gate, unit render — but does NOT enable/start `dsh-web.service`; prints the
+one-line command to start it yourself). Use this on a fresh target to verify the
+whole install without the service-restart risk:
+
+    dsh-repro/install-dsh.sh --no-service <listen-ip>
+
 Asserts `dsh --profile web --dump-config` exits 0 against the throwaway
 profile — proves the manifest + lockfile + cordis patch compose before the
 real install.
 
 ## Verification status (be precise — do not overclaim)
 
-Tested in this workspace:
-- **Steps 1–5 (binary present, profile copy, frozen `pnpm install
-  --ignore-scripts`, cordis render, `--dump-config` compose):** VERIFIED via
-  `--dry-run` — exit 0, 294 packages, all 5 pinned entrypoints resolve.
-- **Step 6 (TLS cert):** VERIFIED in isolation after fixing a real bug — the
-  openssl `[req]` config named the DN section `req` instead of
-  `req_distinguished_name`, so on OpenSSL 3.x every real install failed with
-  `invalid field name: distinguished_name` (exit 1). Fixed; corrected config
-  now emits a cert with `SAN=IP:<listen-ip>`.
-- **Step 7 (secrets gate):** VERIFIED — stops when `dsh-web.env` /
-  `.credentials.yaml` are absent, proceeds when present.
+VERIFIED end-to-end in a **genuine fresh environment** — a `node:22-bookworm`
+Docker container with a clean `$HOME=/root`, no `dsh`, an empty pnpm store, and
+real network (not `--dry-run`, not fragments):
+- **Step 1 (global dsh install):** installed `@deepseek-ai/dsh` from scratch.
+- **Step 3 (`pnpm install --frozen-lockfile --ignore-scripts`):** 294 packages,
+  lockfile validated. The `--ignore-scripts` policy proved load-bearing: the
+  unpinned would-build plugins (dsh-plugin-guide, dsh-doctor, dsh-smart-restart,
+  dsh-pilot, dsh-auto-continue, learn-panel) were correctly SKIPPED, not built.
+- **Step 4 (cordis render):** `100.64.0.9` filled into the rendered patch.
+- **Step 6 (TLS cert):** cert emitted with `SAN=IP:100.64.0.9`, after fixing a
+  real bug — the openssl `[req]` config named the DN section `req` instead of
+  `req_distinguished_name`, so on OpenSSL 3.x **every** real install failed with
+  `invalid field name: distinguished_name` (exit 1). Now fixed.
+- **Step 7 (secrets gate):** STOPS (exit 1) when secrets absent; PROCEEDS when
+  present (both cases exercised in-container).
+- **Step 8 (unit render):** with `--no-service`, the `dsh-web.service` unit
+  renders correctly for the fresh `$HOME` (`ExecStart=.../dsh web ...`,
+  `EnvironmentFile=%h/.dsh/dsh-web.env`).
+- **All 5 pinned plugins** present in the fresh `node_modules`.
 
-NOT yet executed anywhere (verify on the target, once):
-- **Steps 8–9 (systemd `enable`/`restart` of `dsh-web.service`, token print).**
-  Not run here on purpose: restarting the live `dsh-web.service` severs the
-  running agent session (see `docs/deepseek-harness.md` root-cause note). These
-  paths are unproven — expect to shake them out on the first real fresh-machine
-  run.
-- The whole script has **never run on a genuinely fresh machine** (no dsh, no
-  pnpm store, different `$HOME`). `--dry-run` proves the plugin/profile half on
-  an already-set-up box only.
+NOT executed anywhere (standard systemd, verify on the real target once):
+- **Step 8's `systemctl --user enable`/`restart` + step 9 token print.** dsh
+  runs as a `--user` service needing a real login session + linger, which a
+  container's system-PID1 systemd does not provide; and dsh won't fully boot
+  without real API keys. These are stock `systemctl --user` calls, not custom
+  logic — the only custom part (unit rendering) is verified above. Use
+  `--no-service` on the target to run steps 1–8 safely, then start the service
+  by hand: `systemctl --user enable --now dsh-web.service`.
+- Not run on the LIVE box: restarting `dsh-web.service` severs the running agent
+  session (see `docs/deepseek-harness.md` root-cause note).
 
 ## Re-capture
 
