@@ -25,10 +25,11 @@
 # <overlay> --dump-config` exits 0, while an empty profile fails with
 # "--profile <name> is required". Drop these if the plugin learns to skip an
 # interpreter arg (node/env) to find the real dsh script.
-- id: smart-restart
-  config:
-    canaryBinary: __HOME__/.npm-global/bin/dsh
-    canaryProfile: web
+# dsh-smart-restart REMOVED from the reproducible manifest: it is a third-party
+# plugin that ships no built lib/, so --ignore-scripts leaves no lib/index.js and
+# the bundle crash-loops boot (Cannot find module .../dsh-smart-restart/lib/index.js).
+# Re-add it (fork with committed lib/, then restore the bundle + this config) if
+# you want canary-guarded restarts. systemd Restart=always already supervises the unit.
 
 # dshmarket (id: dsh-market) allowRestart: false — ROOT CAUSE FIX for the
 # recurring "tool call interrupted / outcome unknown" error. dshmarket's

@@ -26,7 +26,6 @@
     "dsh-plugin-guide": "github:PerryLink/dsh-plugin-guide",
     "dsh-plugin-hooks": "github:truelove-dreamer/dsh-plugin-hooks#6cf763e7d6fe59b26937c3e07a17687474018de5",
     "dsh-ponytail-skills": "github:gongyijie85/dsh-ponytail",
-    "dsh-smart-restart": "github:edusrez/dsh-smart-restart#bde38b3355c2d35171203bbd97644ac15290eb83",
     "dsh-startup-guard": "github:aokamoaki/dsh-startup-guard#82cead84e795f04d33b3ff803b65d2de9dafa706",
     "dsh-status-rotator": "^0.6.6",
     "dshmarket": "^1.36.0"
@@ -44,7 +43,6 @@
         "dsh-cc-skills",
         "dsh-plugin-hooks",
         "@moonquake2004/dsh-doctor",
-        "dsh-smart-restart",
         "@liustack/modlens",
         "dsh-status-rotator",
         "@tecfancy/dsh-mobile",
