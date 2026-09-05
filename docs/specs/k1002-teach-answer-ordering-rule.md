@@ -1,4 +1,4 @@
-# k901 — Harden the teach quiz answer-ordering rule so it cannot leak the answer
+# k1002 — Harden the teach quiz answer-ordering rule so it cannot leak the answer
 
 **Goal:** The `teach` skill's quiz-authoring reference states an unambiguous,
 hard rule that the correct multiple-choice option is randomised into a
@@ -8,7 +8,7 @@ lets the correct answer sit first. This closes the observed defect where a real
 teach run placed the correct answer first (leaking it), which made the quiz
 measure pattern-matching instead of knowledge.
 
-**Repo:** /home/james/dotfiles   **Branch:** auto/k901
+**Repo:** /home/james/dotfiles   **Branch:** auto/k1002
 
 ```yaml
 gate:
