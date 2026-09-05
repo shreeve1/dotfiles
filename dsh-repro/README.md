@@ -102,6 +102,11 @@ real network (not `--dry-run`, not fragments):
   `EnvironmentFile=%h/.dsh/dsh-web.env`).
 - **All 5 pinned plugins** present in the fresh `node_modules`.
 
+> **Scope accepted by the user (2026-09-05):** steps 1–8 verified on a fresh
+> container is accepted as sufficient; the systemd start + token below is a
+> documented manual step to run once on the real target. No live-box or
+> real-target smoke test was performed in this session.
+
 NOT executed anywhere (standard systemd, verify on the real target once):
 - **Step 8's `systemctl --user enable`/`restart` + step 9 token print.** dsh
   runs as a `--user` service needing a real login session + linger, which a
