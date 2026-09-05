@@ -32,10 +32,12 @@ set -u
 
 # ─── args ────────────────────────────────────────────────
 DRY_RUN=0
+NO_SERVICE=0
 LISTEN_IP=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
+    --no-service) NO_SERVICE=1; shift ;;
     --help|-h)
       sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
@@ -51,7 +53,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ -z "$LISTEN_IP" ]; then
-  echo "usage: $0 [--dry-run] <listen-ip>" >&2
+  echo "usage: $0 [--dry-run] [--no-service] <listen-ip>" >&2
+  echo "  --no-service  do everything except enable/start dsh-web.service" >&2
   exit 2
 fi
 
@@ -184,6 +187,15 @@ SERVICE_DIR="$HOME_DIR/.config/systemd/user"
 mkdir -p "$SERVICE_DIR"
 sed -e "s|__HOME__|$HOME_DIR|g" "$SERVICE_TMPL" > "$SERVICE_DIR/dsh-web.service"
 chmod 644 "$SERVICE_DIR/dsh-web.service"
+
+if [ "$NO_SERVICE" -eq 1 ]; then
+  echo "[step 8] --no-service: unit written but NOT enabled/started."
+  echo "  Start it yourself when ready:"
+  echo "    export XDG_RUNTIME_DIR=/run/user/\$(id -u)"
+  echo "    systemctl --user daemon-reload && systemctl --user enable --now dsh-web.service"
+  echo "[ok] install complete except service start (--no-service)."
+  exit 0
+fi
 
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 systemctl --user daemon-reload
