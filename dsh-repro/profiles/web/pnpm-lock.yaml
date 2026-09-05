@@ -21,8 +21,8 @@ importers:
         specifier: github:moonquake2004/dsh-doctor#path:/plugin
         version: https://codeload.github.com/moonquake2004/dsh-doctor/tar.gz/7bd6906863060f11e1f22cd658fb9b10a61c4f0e#path:/plugin
       '@nanmicoder/dsh-agent-teams':
-        specifier: ^0.1.14
-        version: 0.1.15(@deepseek-ai/schemastery@3.18.2)(react@18.3.1)
+        specifier: 0.1.14
+        version: 0.1.14(@deepseek-ai/schemastery@3.18.2)(react@18.3.1)
       '@omdsh-dev/dsh-plugin-check':
         specifier: github:omdsh-dev/dsh-plugin-check
         version: https://codeload.github.com/omdsh-dev/dsh-plugin-check/tar.gz/a91c004dc4792bb6b793bb0daaa21891938f6e2a
@@ -318,48 +318,35 @@ packages:
     peerDependencies:
       '@deepseek-ai/cordis': ^4.0.1
 
-  '@nanmicoder/dsh-agent-teams@0.1.15':
-    resolution: {integrity: sha512-TfyzwBe4yToJmUGLvJq+iqgxv8HkWCOdmdPNAs0LwX5Do9RMHer1auPS29rorSqxwTF2jINcgokRq9CIa/q2Cg==}
+  '@nanmicoder/dsh-agent-teams@0.1.14':
+    resolution: {integrity: sha512-XpNqwQJjHQJsiZgdHRUuzvdODWPwHYIKr2EJl588XOnRQD6LSf1o3hYWBvdOku3LqKFpCUioM8ApGn0K2sMtlQ==}
     engines: {node: ^22.19.0 || >=24}
     peerDependencies:
-      '@deepseek-ai/cordis': ^4.0.2
-      '@deepseek-ai/dsh-agent': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-api-session-controller': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-connection': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-locale': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-store': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-chat': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-conversation': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-layout': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-model-selection': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-primitives': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-renderer': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-session': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-client-ui-slots': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-commands': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-llm': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-session': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-session-projection': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-subagent': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-system-prompt': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-tools': ^0.1.2-alpha.2
-      '@deepseek-ai/dsh-util-values': ^0.1.2-alpha.2
-      '@deepseek-ai/schemastery': ^3.18.2
+      '@deepseek-ai/cordis': ^4.0.1-rc.1
+      '@deepseek-ai/dsh-agent': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-locale': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-runtime': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-ui-conversation': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-ui-layout': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-ui-model-selection': ^0.1.0-rc.8
+      '@deepseek-ai/dsh-client-ui-primitives': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-client-ui-slots': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-commands': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-llm': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-session': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-subagent': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-system-prompt': ^0.1.0-rc.6
+      '@deepseek-ai/dsh-tools': ^0.1.0-rc.6
+      '@deepseek-ai/schemastery': ^3.18.1-rc.1
       react: ^18.2.0
     peerDependenciesMeta:
       '@deepseek-ai/cordis':
         optional: true
       '@deepseek-ai/dsh-agent':
         optional: true
-      '@deepseek-ai/dsh-api-session-controller':
-        optional: true
-      '@deepseek-ai/dsh-client-connection':
-        optional: true
       '@deepseek-ai/dsh-client-locale':
         optional: true
-      '@deepseek-ai/dsh-client-store':
-        optional: true
-      '@deepseek-ai/dsh-client-ui-chat':
+      '@deepseek-ai/dsh-client-runtime':
         optional: true
       '@deepseek-ai/dsh-client-ui-conversation':
         optional: true
@@ -369,10 +356,6 @@ packages:
         optional: true
       '@deepseek-ai/dsh-client-ui-primitives':
         optional: true
-      '@deepseek-ai/dsh-client-ui-renderer':
-        optional: true
-      '@deepseek-ai/dsh-client-ui-session':
-        optional: true
       '@deepseek-ai/dsh-client-ui-slots':
         optional: true
       '@deepseek-ai/dsh-commands':
@@ -381,15 +364,11 @@ packages:
         optional: true
       '@deepseek-ai/dsh-session':
         optional: true
-      '@deepseek-ai/dsh-session-projection':
-        optional: true
       '@deepseek-ai/dsh-subagent':
         optional: true
       '@deepseek-ai/dsh-system-prompt':
         optional: true
       '@deepseek-ai/dsh-tools':
-        optional: true
-      '@deepseek-ai/dsh-util-values':
         optional: true
       '@deepseek-ai/schemastery':
         optional: true
@@ -2280,7 +2259,7 @@ snapshots:
 
   '@moonquake2004/dsh-doctor@https://codeload.github.com/moonquake2004/dsh-doctor/tar.gz/7bd6906863060f11e1f22cd658fb9b10a61c4f0e#path:/plugin': {}
 
-  '@nanmicoder/dsh-agent-teams@0.1.15(@deepseek-ai/schemastery@3.18.2)(react@18.3.1)':
+  '@nanmicoder/dsh-agent-teams@0.1.14(@deepseek-ai/schemastery@3.18.2)(react@18.3.1)':
     optionalDependencies:
       '@deepseek-ai/schemastery': 3.18.2
       react: 18.3.1

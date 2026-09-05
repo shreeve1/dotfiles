@@ -5,7 +5,7 @@
     "@changfenhuang/dsh-genui": "^0.9.6",
     "@liustack/modlens": "^3.25.2",
     "@moonquake2004/dsh-doctor": "github:moonquake2004/dsh-doctor#path:/plugin",
-    "@nanmicoder/dsh-agent-teams": "^0.1.14",
+    "@nanmicoder/dsh-agent-teams": "0.1.14",
     "@omdsh-dev/dsh-plugin-check": "github:omdsh-dev/dsh-plugin-check",
     "@tecfancy/dsh-mobile": "^0.1.7",
     "dsh-better-sidebar": "^0.17.1",
