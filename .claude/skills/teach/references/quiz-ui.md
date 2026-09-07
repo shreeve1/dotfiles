@@ -20,7 +20,7 @@ No match → say which tool is missing and stop. Do not fall back to pasted mult
 - 1–3 questions per call. Wait.
 - One right answer. `multi_select` / `multiSelect` / `multiple` = false.
 - Options: 3 content choices + **I don't know**.
-- Do **not** mark the correct option `(Recommended)` or put it first on purpose. That leaks the answer. Shuffle or keep a fixed A/B/C order that is not “right answer first.”
+- Randomise where the correct option sits: on every quiz place it in a non-first slot, never put the correct option first and never fix its position; if it lands in slot 1, reorder before sending. That leaks the answer otherwise.
 - Free-text / Other is for talk-through. Treat a typed reason as signal when scoring.
 - Header / strand tag: short (≤12 chars if the tool requires it), e.g. `synbio`, `promoter`, `dogma`.
 
