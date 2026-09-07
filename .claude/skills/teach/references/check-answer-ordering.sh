@@ -22,16 +22,20 @@ fail() {
   exit 1
 }
 
-if ! grep -F -q "Randomise where the correct option sits" "$TARGET"; then
-  fail "strong rule phrase 'Randomise where the correct option sits' missing from $TARGET"
-fi
+assert_present() {
+  if ! grep -F -q "$1" "$TARGET"; then
+    fail "strong rule phrase '$1' missing from $TARGET"
+  fi
+}
 
-if ! grep -F -q "never put the correct option first" "$TARGET"; then
-  fail "strong rule phrase 'never put the correct option first' missing from $TARGET"
-fi
+assert_absent() {
+  if grep -F -q "$1" "$TARGET"; then
+    fail "weak leak-prone phrase '$1' still present in $TARGET"
+  fi
+}
 
-if grep -F -q "put it first on purpose" "$TARGET"; then
-  fail "weak leak-prone phrase 'put it first on purpose' still present in $TARGET"
-fi
+assert_present "Randomise where the correct option sits"
+assert_present "never put the correct option first"
+assert_absent "put it first on purpose"
 
 exit 0
