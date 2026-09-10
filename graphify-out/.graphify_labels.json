@@ -1502,5 +1502,11 @@
   "1500": ".agents/skills/vault-ingest/SKILL.md",
   "1501": ".agents/skills/vault-read/SKILL.md",
   "1502": ".agents/skills/vault-save/SKILL.md",
-  "1503": ".agents/skills/vault-todo/SKILL.md"
+  "1503": ".agents/skills/vault-todo/SKILL.md",
+  "1504": "ActivityProvider",
+  "1505": "Block Diagrams Documentation",
+  "1506": "4. Block Varieties and Shapes",
+  "1507": "SubagentsStopSelector",
+  "1508": "[0.21.5] - 2026-05-02",
+  "1509": ".memlog.md"
 }
