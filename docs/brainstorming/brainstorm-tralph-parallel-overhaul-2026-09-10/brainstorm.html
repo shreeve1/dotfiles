@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tralph :: parallel overhaul — brainstorm 2026-09-10</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --bg2:#10141f;
+    --panel:#141927;
+    --panel2:#1a2033;
+    --ink:#c9d4e3;
+    --dim:#6b7794;
+    --faint:#3d465e;
+    --green:#5af78e;
+    --amber:#f3c969;
+    --red:#ff6b6b;
+    --cyan:#57c7ff;
+    --magenta:#d685ff;
+    --orange:#ff9e64;
+    --lane1:#57c7ff;
+    --lane2:#5af78e;
+    --lane3:#d685ff;
+    --lane4:#f3c969;
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Mono','JetBrains Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:15px;
+    line-height:1.55;
+    padding-bottom:80px;
+  }
+  ::selection{background:#2a3550;color:#fff}
+
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+
+  /* ---------- tmux status bar ---------- */
+  .tmuxbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:0;
+    background:#05070c;
+    border-bottom:1px solid #1c2436;
+    font-size:12px;
+    overflow-x:auto;white-space:nowrap;
+  }
+  .tmuxbar .seg{padding:5px 12px;color:var(--dim)}
+  .tmuxbar .seg.on{background:var(--green);color:#04140a;font-weight:700}
+  .tmuxbar .seg.win{color:var(--ink)}
+  .tmuxbar .seg.win b{color:var(--green);font-weight:400}
+  .tmuxbar .spacer{flex:1}
+  .tmuxbar .clock{color:var(--amber)}
+
+  /* ---------- header ---------- */
+  header{padding:56px 0 30px;background:linear-gradient(180deg,#0d1120 0%,var(--bg) 100%)}
+  .prompt-line{color:var(--dim);font-size:13px;margin-bottom:14px}
+  .prompt-line .p{color:var(--green)}
+  .prompt-line .cmd{color:var(--ink)}
+  .prompt-line .flag{color:var(--cyan)}
+  h1{
+    font-size:clamp(26px,4.5vw,42px);
+    font-weight:700;letter-spacing:-0.5px;color:#eef3fb;
+  }
+  h1 .accent{color:var(--green)}
+  h1 .strike{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--red);font-weight:400}
+  .subtitle{margin-top:12px;color:var(--dim);max-width:70ch}
+  .subtitle b{color:var(--cyan);font-weight:400}
+
+  .headgraph{margin-top:28px;overflow-x:auto}
+  .headgraph svg{display:block;min-width:640px}
+
+  /* ---------- section chrome ---------- */
+  section{margin:64px 0}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+  .sec-glyph{font-size:22px;line-height:1}
+  h2{font-size:20px;color:#eef3fb;font-weight:700;letter-spacing:.3px}
+  .sec-tag{
+    font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+    color:var(--dim);border:1px solid var(--faint);border-radius:3px;padding:2px 8px;
+  }
+  .sec-note{color:var(--dim);font-size:13px;margin-bottom:20px;max-width:78ch}
+
+  /* ---------- EVIDENCE ---------- */
+  #evidence .crashlog{
+    background:#07090f;
+    border:1px solid #261920;
+    border-left:4px solid var(--red);
+    border-radius:6px;
+    padding:18px 20px;
+    box-shadow:0 0 40px rgba(255,80,80,.05) inset;
+  }
+  .logline{display:flex;gap:14px;padding:11px 4px;border-bottom:1px dashed #1d2333;align-items:baseline}
+  .logline:last-child{border-bottom:0}
+  .logline .ts{color:var(--faint);flex:0 0 auto;font-size:12px}
+  .logline .lvl{flex:0 0 auto;font-size:11px;font-weight:700;padding:1px 7px;border-radius:3px;letter-spacing:1px}
+  .lvl.fatal{background:#3a1420;color:var(--red)}
+  .lvl.warn{background:#3a2f14;color:var(--amber)}
+  .lvl.info{background:#12283a;color:var(--cyan)}
+  .logline .msg{color:var(--ink)}
+  .logline .msg em{color:var(--amber);font-style:normal}
+  .logline:hover{background:#0d1019}
+  .evidence-verdict{
+    margin-top:14px;color:var(--dim);font-size:13px;
+  }
+  .evidence-verdict b{color:var(--red);font-weight:700}
+
+  /* ---------- FIRST PRINCIPLES : axiom stones ---------- */
+  #firstprinciples .axioms{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .axiom{
+    background:var(--panel);
+    border:1px solid #202a44;
+    border-radius:6px;
+    padding:14px 16px;
+    position:relative;
+    transition:transform .15s ease,border-color .15s ease;
+  }
+  .axiom:hover{transform:translateY(-2px);border-color:var(--cyan)}
+  .axiom .n{
+    position:absolute;top:10px;right:12px;
+    color:var(--faint);font-size:11px;
+  }
+  .axiom .law{color:var(--cyan);font-size:12px;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px}
+  .axiom p{font-size:13.5px;color:var(--ink)}
+  .axiom p code{color:var(--green);background:#0c1420;padding:0 4px;border-radius:3px;font-size:12.5px}
+  .axiom.keystone{grid-column:1/-1;border-color:#2a4a6a;background:linear-gradient(135deg,#132033,#141927)}
+  .axiom.keystone .law{color:var(--green)}
+
+  /* ---------- SCAMPER : letter cards ---------- */
+  #scamper .scamper-rail{display:flex;flex-direction:column;gap:10px}
+  .sc-row{
+    display:flex;gap:0;align-items:stretch;
+    background:var(--panel);border:1px solid #202a44;border-radius:6px;overflow:hidden;
+    transition:border-color .15s;
+  }
+  .sc-row:hover{border-color:var(--magenta)}
+  .sc-letter{
+    flex:0 0 64px;display:flex;align-items:center;justify-content:center;
+    font-size:30px;font-weight:700;
+    background:#0d1120;color:var(--magenta);
+    border-right:1px solid #202a44;
+  }
+  .sc-body{padding:12px 16px;flex:1}
+  .sc-verb{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--magenta);display:block;margin-bottom:4px}
+  .sc-body p{font-size:13.5px}
+  .sc-body p+p{margin-top:6px;padding-top:6px;border-top:1px dashed #222b45}
+  .sc-body code{color:var(--green);font-size:12.5px}
+
+  /* ---------- PRE-MORTEM : incident postmortems ---------- */
+  #premortem .obituary{
+    background:#0c0a0e;
+    border:1px solid #2b1b26;
+    border-radius:6px;
+    padding:6px 0;
+  }
+  .pm-row{
+    display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,1fr);
+    gap:0;align-items:stretch;
+    border-bottom:1px solid #1c1520;
+  }
+  .pm-row:last-child{border-bottom:0}
+  .pm-fail,.pm-fix{padding:14px 18px;font-size:13.5px}
+  .pm-fail{color:#e8b7b7}
+  .pm-fail .k{display:block;font-size:10px;letter-spacing:2px;color:var(--red);margin-bottom:4px}
+  .pm-fix{color:#c3e8cd}
+  .pm-fix .k{display:block;font-size:10px;letter-spacing:2px;color:var(--green);margin-bottom:4px}
+  .pm-arrow{display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:16px}
+  .pm-row:hover{background:#120e15}
+  .pm-row.thegate .pm-fix{color:#eafff0}
+  .pm-row.thegate .pm-fix .k{color:#5af78e}
+  .pm-row.thegate{background:linear-gradient(90deg,transparent,rgba(90,247,142,.05))}
+  .headstone{
+    text-align:center;color:var(--dim);font-size:12px;padding:12px 0 6px;letter-spacing:2px;
+  }
+
+  /* ---------- ANALOGY : merge train ---------- */
+  #analogy .track{
+    position:relative;padding:26px 0 14px;
+    overflow-x:auto;
+  }
+  .rails{
+    position:absolute;left:0;right:0;top:50%;height:8px;margin-top:-4px;
+    background:repeating-linear-gradient(90deg,#1c2436 0 18px,transparent 18px 30px);
+    border-top:2px solid #232d47;border-bottom:2px solid #232d47;
+    z-index:0;
+  }
+  .train{display:flex;gap:14px;position:relative;z-index:1;min-width:max-content;padding:0 4px}
+  .car{
+    flex:0 0 230px;
+    background:var(--panel2);
+    border:1px solid #26314f;border-radius:8px;
+    padding:12px 14px;position:relative;
+    transition:transform .15s,border-color .15s;
+  }
+  .car:hover{transform:translateY(-4px);border-color:var(--amber)}
+  .car::before,.car::after{
+    content:"";position:absolute;bottom:-9px;width:14px;height:14px;border-radius:50%;
+    background:#0d1120;border:3px solid #33405f;
+  }
+  .car::before{left:18px}
+  .car::after{right:18px}
+  .car .plate{font-size:10px;letter-spacing:2px;color:var(--amber);display:block;margin-bottom:5px}
+  .car p{font-size:12.8px;color:var(--ink)}
+  .car.loco{background:linear-gradient(135deg,#2b2410,#1a2033);border-color:var(--amber)}
+  .car.loco .plate{color:#ffd97a}
+  .coupler{align-self:center;color:var(--faint);flex:0 0 auto}
+
+  /* ---------- CONSTRAINT : partition walls ---------- */
+  #constraint .partition{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:0;border:2px solid var(--orange);border-radius:8px;overflow:hidden;
+  }
+  .zone{
+    padding:18px;background:var(--panel);
+    border-right:2px dashed var(--orange);
+    position:relative;
+  }
+  .zone:last-child{border-right:0}
+  .zone .fence{font-size:10px;letter-spacing:2px;color:var(--orange);display:block;margin-bottom:8px}
+  .zone p{font-size:13.5px}
+  .zone code{color:var(--green);font-size:12.5px}
+  .zone:hover{background:#1a1a27}
+  #constraint .stamp{
+    display:inline-block;margin-bottom:16px;
+    border:2px solid var(--orange);color:var(--orange);
+    padding:4px 14px;border-radius:4px;
+    font-weight:700;letter-spacing:3px;font-size:13px;
+    transform:rotate(-2deg);
+  }
+
+  /* ---------- ROLE PLAYING : chat panes ---------- */
+  #roles .panes{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .pane{
+    background:#0c0f18;border:1px solid #202a44;border-radius:8px;overflow:hidden;
+    transition:border-color .15s;
+  }
+  .pane:hover{border-color:var(--cyan)}
+  .pane-title{
+    display:flex;align-items:center;gap:8px;
+    background:#111624;padding:8px 12px;border-bottom:1px solid #1c2436;
+    font-size:12px;color:var(--dim);
+  }
+  .pane-title .dot{width:9px;height:9px;border-radius:50%}
+  .pane-title .who{color:var(--ink)}
+  .pane-body{padding:12px 14px;font-size:13.3px}
+  .pane-body .say{margin-bottom:10px}
+  .pane-body .say:last-child{margin-bottom:0}
+  .pane-body .say .q{color:var(--cyan)}
+  .pane-body .say .a{color:var(--ink);display:block;margin-top:2px}
+  .pane-body code{color:var(--green);font-size:12.3px}
+
+  /* ---------- 10x : amplifier ---------- */
+  #tenx .amps{display:flex;flex-direction:column;gap:14px}
+  .amp{
+    display:flex;gap:18px;align-items:flex-start;
+    background:linear-gradient(90deg,#101a2c,var(--panel));
+    border:1px solid #223252;border-radius:8px;padding:16px 20px;
+    transition:transform .15s,border-color .15s;
+  }
+  .amp:hover{transform:scale(1.012);border-color:var(--cyan)}
+  .amp .x{
+    font-size:34px;font-weight:800;color:transparent;
+    -webkit-text-stroke:1.5px var(--cyan);
+    flex:0 0 auto;line-height:1;padding-top:2px;
+  }
+  .amp .body{font-size:14px}
+  .amp .body b{color:var(--cyan);font-weight:700}
+  .amp.counter{background:linear-gradient(90deg,#241722,var(--panel));border-color:#3a2438}
+  .amp.counter .x{-webkit-text-stroke:1.5px var(--red);font-size:26px;padding-top:6px}
+  .amp.counter .body b{color:var(--red)}
+
+  /* ---------- BIOMIMICRY + WILD ---------- */
+  #bio .grove{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .spore{
+    border-radius:14px;padding:16px 18px;font-size:13.5px;
+    background:radial-gradient(120% 120% at 20% 0%,#12241a 0%,#0e1520 70%);
+    border:1px solid #1f3a2b;
+    transition:border-color .15s,transform .15s;
+  }
+  .spore:hover{border-color:var(--green);transform:translateY(-2px)}
+  .spore .organism{display:block;font-size:11px;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin-bottom:6px}
+  .spore.wild{
+    background:radial-gradient(120% 120% at 80% 0%,#2a1230 0%,#0e1520 70%);
+    border-color:#3a2148;
+  }
+  .spore.wild:hover{border-color:var(--magenta)}
+  .spore.wild .organism{color:var(--magenta)}
+  .spore code{color:var(--amber);font-size:12.5px}
+
+  /* ---------- CONVERGENCE strip ---------- */
+  .converge{
+    margin:70px 0 0;
+    text-align:center;color:var(--dim);font-size:13px;
+  }
+  .converge .flow{
+    display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;
+    margin-top:12px;font-size:13px;
+  }
+  .converge .flow .step{
+    border:1px solid var(--faint);border-radius:20px;padding:4px 14px;color:var(--ink);
+  }
+  .converge .flow .sep{color:var(--green)}
+
+  /* ---------- SYNTHESIS ---------- */
+  #synthesis{
+    margin-top:34px;
+    background:
+      radial-gradient(60% 40% at 50% 0%,rgba(90,247,142,.07),transparent 70%),
+      var(--bg2);
+    border-top:1px solid #1c2c22;
+    border-bottom:1px solid #1c2c22;
+    padding:56px 0 64px;
+  }
+  #synthesis .sec-head{justify-content:center}
+  #synthesis .sec-note{text-align:center;margin:0 auto 8px}
+  .synth-title{
+    text-align:center;font-size:clamp(20px,3vw,30px);color:#eef3fb;margin-bottom:4px;
+  }
+  .synth-title .g{color:var(--green)}
+  .synth-sub{text-align:center;color:var(--dim);font-size:13px;margin-bottom:40px}
+  .synth-sub code{color:var(--cyan)}
+
+  .pillars{
+    display:flex;align-items:stretch;justify-content:center;gap:0;
+    flex-wrap:wrap;
+  }
+  .pillar{
+    flex:1 1 170px;max-width:200px;min-width:160px;
+    background:var(--panel);
+    border:1px solid #24402f;
+    border-radius:10px;
+    padding:16px 14px 18px;
+    position:relative;
+    margin:0 8px 18px;
+    transition:transform .18s,border-color .18s,box-shadow .18s;
+  }
+  .pillar:hover{
+    transform:translateY(-6px);
+    border-color:var(--green);
+    box-shadow:0 12px 30px rgba(90,247,142,.12);
+  }
+  .pillar .pnum{
+    position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+    width:28px;height:28px;border-radius:50%;
+    background:#0b0e14;border:2px solid var(--green);color:var(--green);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:13px;
+  }
+  .pillar h3{font-size:13px;color:var(--green);margin:8px 0 8px;letter-spacing:.5px;text-align:center}
+  .pillar p{font-size:12.3px;color:var(--ink)}
+  .pillar code{color:var(--amber);font-size:11.8px}
+  .pillar-arrow{
+    align-self:center;color:var(--green);font-size:18px;margin:0 -4px 18px;
+    flex:0 0 auto;
+  }
+  @media(max-width:900px){.pillar-arrow{display:none}.pillar{max-width:none;flex:1 1 240px}}
+
+  /* landing-lane diagram */
+  .lanediagram{margin:44px auto 0;max-width:860px;overflow-x:auto}
+  .lanediagram svg{display:block;min-width:640px;margin:0 auto}
+  .lanediagram .cap{color:var(--dim);font-size:12px;text-align:center;margin-top:10px}
+  .lanediagram .cap code{color:var(--green)}
+
+  .synth-footer{
+    max-width:900px;margin:40px auto 0;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;
+  }
+  .verdictbox{
+    border-radius:8px;padding:14px 16px;font-size:12.8px;
+    background:var(--panel);border:1px solid #202a44;
+  }
+  .verdictbox .vh{display:block;font-size:10px;letter-spacing:2px;margin-bottom:8px}
+  .verdictbox.rejected{border-color:#3a2030}
+  .verdictbox.rejected .vh{color:var(--red)}
+  .verdictbox.stolen .vh{color:var(--cyan)}
+  .verdictbox.stolen{border-color:#1f3550}
+  .verdictbox.now .vh{color:var(--amber)}
+  .verdictbox.now{border-color:#3d3520}
+  .verdictbox ul{list-style:none}
+  .verdictbox li{padding:3px 0 3px 16px;position:relative}
+  .verdictbox li::before{content:"▸";position:absolute;left:0;color:var(--faint)}
+  .verdictbox code{color:var(--green);font-size:12px}
+
+  /* ---------- footer ---------- */
+  footer{margin-top:60px;text-align:center;color:var(--faint);font-size:12px}
+  footer .cursor{
+    display:inline-block;width:9px;height:16px;background:var(--green);
+    vertical-align:text-bottom;margin-left:6px;
+    animation:blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:0}}
+
+  /* ---------- toggles ---------- */
+  .toggler{
+    background:none;border:1px solid var(--faint);color:var(--dim);
+    font-family:var(--mono);font-size:11px;letter-spacing:1px;
+    padding:3px 10px;border-radius:3px;cursor:pointer;margin-left:auto;
+  }
+  .toggler:hover{color:var(--ink);border-color:var(--dim)}
+  details.rawideas{margin-top:14px}
+  details.rawideas summary{
+    cursor:pointer;color:var(--dim);font-size:12px;letter-spacing:1px;
+    list-style:none;user-select:none;
+  }
+  details.rawideas summary::before{content:"[+] ";color:var(--green)}
+  details.rawideas[open] summary::before{content:"[-] "}
+  details.rawideas ul{margin-top:8px;list-style:none;border-left:2px solid var(--faint);padding-left:14px}
+  details.rawideas li{font-size:12.5px;color:var(--dim);padding:3px 0}
+
+  @media(max-width:640px){
+    .pm-row{grid-template-columns:1fr}
+    .pm-arrow{display:none}
+    .pm-fail{border-bottom:1px dashed #241a22}
+  }
+</style>
+</head>
+<body>
+
+<div class="tmuxbar">
+  <span class="seg on">tralph</span>
+  <span class="seg win">0:<b>brainstorm*</b></span>
+  <span class="seg win">1:evidence</span>
+  <span class="seg win">2:techniques×8</span>
+  <span class="seg win">3:synthesis</span>
+  <span class="spacer"></span>
+  <span class="seg">mode:autonomous</span>
+  <span class="seg">status:complete</span>
+  <span class="seg clock">2026-09-10 16:45</span>
+</div>
+
+<header>
+  <div class="wrap">
+    <div class="prompt-line"><span class="p">james@aidev</span>:<span style="color:var(--cyan)">~/dotfiles</span>$ <span class="cmd">tralph</span> <span class="flag">--jobs N</span> <span style="color:var(--faint)"># the overhaul, in one flag</span></div>
+    <h1><span class="strike">one ticket at a time</span> → <span class="accent">the ready frontier, in parallel lanes</span></h1>
+    <p class="subtitle">Overhauling <b>tralph</b> — a shell-driven Ralph loop grinding local <b>.kanban</b> tickets serially — into a system that graphs ticket dependencies, runs the ready frontier in parallel <b>git worktrees</b>, and lands lanes through a <b>bors-style merge queue</b>.</p>
+
+    <div class="headgraph" aria-hidden="true">
+      <svg viewBox="0 0 900 120" width="100%" height="120">
+        <!-- main line -->
+        <path d="M20,60 H180" stroke="#3d465e" stroke-width="3" fill="none"/>
+        <path d="M700,60 H880" stroke="#5af78e" stroke-width="3" fill="none"/>
+        <!-- lanes fanning out and back -->
+        <path d="M180,60 C240,60 240,20 300,20 H560 C640,20 640,60 700,60" stroke="#57c7ff" stroke-width="2.5" fill="none"/>
+        <path d="M180,60 H700" stroke="#5af78e" stroke-width="2.5" fill="none"/>
+        <path d="M180,60 C240,60 240,100 300,100 H560 C640,100 640,60 700,60" stroke="#d685ff" stroke-width="2.5" fill="none"/>
+        <!-- commits -->
+        <g fill="#0b0e14" stroke-width="2.5">
+          <circle cx="60" cy="60" r="6" stroke="#3d465e"/>
+          <circle cx="120" cy="60" r="6" stroke="#3d465e"/>
+          <circle cx="180" cy="60" r="7" stroke="#c9d4e3"/>
+          <circle cx="360" cy="20" r="6" stroke="#57c7ff"/>
+          <circle cx="470" cy="20" r="6" stroke="#57c7ff"/>
+          <circle cx="400" cy="60" r="6" stroke="#5af78e"/>
+          <circle cx="510" cy="60" r="6" stroke="#5af78e"/>
+          <circle cx="380" cy="100" r="6" stroke="#d685ff"/>
+          <circle cx="700" cy="60" r="8" stroke="#5af78e"/>
+          <circle cx="790" cy="60" r="6" stroke="#5af78e"/>
+        </g>
+        <g font-family="monospace" font-size="11" fill="#6b7794">
+          <text x="330" y="12">auto/271</text>
+          <text x="370" y="52">auto/272</text>
+          <text x="350" y="116">auto/273</text>
+          <text x="676" y="44" fill="#5af78e">land ✓</text>
+          <text x="30" y="80">main</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ EVIDENCE ============ -->
+  <section id="evidence">
+    <div class="sec-head">
+      <span class="sec-glyph">☠</span>
+      <h2>EVIDENCE — what the live loops actually did</h2>
+      <span class="sec-tag">observed, not imagined</span>
+    </div>
+    <p class="sec-note">Four field observations from real runs motivated this redesign. They are the constraints everything below must survive.</p>
+
+    <div class="crashlog">
+      <div class="logline">
+        <span class="ts">16:33</span><span class="lvl fatal">FATAL</span>
+        <span class="msg"><em>ralph-df</em> loop died mid-iteration-3 — log still alive, no tmux, no processes. <strong>Crash-only recovery is a hard requirement.</strong></span>
+      </div>
+      <div class="logline">
+        <span class="ts">—</span><span class="lvl fatal">FATAL</span>
+        <span class="msg"><em>ralph-loop</em> run stopped entirely on first <em>BLOCKED #269</em> — one blocked ticket kills the whole run.</span>
+      </div>
+      <div class="logline">
+        <span class="ts">—</span><span class="lvl warn">WARN</span>
+        <span class="msg">Current dotfiles board width: 5 tickets, ready frontier width 2 — parallelism exists but is <em>modest</em>.</span>
+      </div>
+      <div class="logline">
+        <span class="ts">—</span><span class="lvl info">INFO</span>
+        <span class="msg">Prior art already in-house: <em>gralph</em> does dependency-frontier waves with <em>--jobs N</em> for GitHub issues; <em>dsh-board</em> does worktree lanes + ff-only merge per card; <em>AgentTeams</em> has DAG tasks but no worktree isolation.</span>
+      </div>
+    </div>
+    <p class="evidence-verdict">Verdict: the loop is <b>fragile</b> (dies, stalls) and <b>serial</b> — while most of the parallel machinery already exists in three sibling systems, waiting to be stolen.</p>
+  </section>
+
+  <!-- ============ FIRST PRINCIPLES ============ -->
+  <section id="firstprinciples">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--cyan)">△</span>
+      <h2>First Principles</h2>
+      <span class="sec-tag">strip to axioms, rebuild</span>
+      <button class="toggler" data-target="fp-grid" aria-expanded="true">collapse</button>
+    </div>
+    <p class="sec-note">What is tralph, minimally? A board, a scheduler, workers, a merge. Each reduced to its irreducible form.</p>
+
+    <div class="axioms" id="fp-grid">
+      <div class="axiom keystone"><span class="n">ax.0</span><span class="law">The board IS the graph</span>
+        <p>No new graph format. The frontier is a query over <code>blocked_by</code> frontmatter — gralph already does exactly this for GitHub issues.</p></div>
+      <div class="axiom"><span class="n">ax.1</span><span class="law">Scheduler = pure function</span>
+        <p>A tiny <code>ready(issues) → set</code>. Everything else is adapters around it.</p></div>
+      <div class="axiom"><span class="n">ax.2</span><span class="law">One worktree per ticket</span>
+        <p>Lane branch <code>auto/&lt;id&gt;</code>, created lazily at claim time.</p></div>
+      <div class="axiom"><span class="n">ax.3</span><span class="law">Merge in topo order</span>
+        <p>Blockers land before dependents. Two chain strategies: branch dependents FROM the blocker's lane tip (max parallelism, fragile) — or the simpler pick: dependents branch from integration only after blockers <em>landed</em>. Serializes chains, parallelizes independent subtrees.</p></div>
+      <div class="axiom"><span class="n">ax.4</span><span class="law">Merge is a ticket too</span>
+        <p>A synthetic <code>integrate</code> node that every leaf blocks — the same loop executes the merge step.</p></div>
+      <div class="axiom"><span class="n">ax.5</span><span class="law">Predict conflicts at graph time</span>
+        <p>Intersect declared file scopes; overlapping tickets get a synthetic dependency edge (serialize instead of parallel). No declared scopes? A cheap parallel scout pass predicts touched files first.</p></div>
+      <div class="axiom"><span class="n">ax.6</span><span class="law">Crash-only state</span>
+        <p>All state lives in ticket frontmatter (status, lane, owner, heartbeat) + <code>git worktree list</code>. A restarted driver reconstructs everything.</p></div>
+      <div class="axiom"><span class="n">ax.7</span><span class="law">Dumb driver, smart workers</span>
+        <p>Driver stays bash; intelligence stays in worker skills — the Ralph philosophy. (Inversion considered: AgentTeams captain as scheduler, members prompted <code>work only in &lt;worktree&gt;</code>.)</p></div>
+      <div class="axiom"><span class="n">ax.8</span><span class="law">Verify twice</span>
+        <p>In-lane before merge, and re-verify the integration branch after each landing — catches semantic conflicts git merges cleanly. Both-green-merged-red auto-opens a <code>repair</code> ticket into the same graph.</p></div>
+      <div class="axiom"><span class="n">ax.9</span><span class="law">Kill shared-file conflicts by design</span>
+        <p><code>progress.md</code> would conflict across lanes → per-lane <code>progress.d/&lt;id&gt;.md</code>, concatenated on landing. Board writes happen ONLY by the driver on main; workers never touch <code>.kanban</code> in their lane.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ SCAMPER ============ -->
+  <section id="scamper">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--magenta)">⌥</span>
+      <h2>SCAMPER</h2>
+      <span class="sec-tag">mutate the existing machine</span>
+    </div>
+    <p class="sec-note">Take today's tralph and turn each SCAMPER dial.</p>
+
+    <div class="scamper-rail">
+      <div class="sc-row"><div class="sc-letter">S</div><div class="sc-body">
+        <span class="sc-verb">Substitute</span>
+        <p>tmux monitoring → <code>systemd-run</code> transient units per lane (already used for memory caps): free restarts, journal, OOM handling.</p>
+        <p>Polling adapter → headless one-shot sessions (<code>omp -p</code> style) for parallel mode; tmux stays only for attended single-lane debugging.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">C</div><div class="sc-body">
+        <span class="sc-verb">Combine</span>
+        <p>Port gralph's wave/frontier engine to read <code>.kanban</code> instead of GitHub — 90% of the parallel logic is already written and tested.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">A</div><div class="sc-body">
+        <span class="sc-verb">Adapt</span>
+        <p>Take dsh-board's lane mechanics wholesale: <code>laneBranches</code>, ff-only landing, bounce-with-reason.</p>
+        <p>Adaptive jobs cap: free RAM ÷ 8G worker cap, plus per-provider rate-limit stagger.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">M</div><div class="sc-body">
+        <span class="sc-verb">Modify / Magnify</span>
+        <p>Extend the sentinel protocol with <code>RALPH_RESULT MERGED/CONFLICT</code> variants.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">P</div><div class="sc-body">
+        <span class="sc-verb">Put to other use</span>
+        <p>The merge step IS the review: an integrator session reviews the integrated diff as it lands each lane.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">E</div><div class="sc-body">
+        <span class="sc-verb">Eliminate</span>
+        <p>Review tier by diff: docs-only tickets skip the fresh-session review entirely.</p>
+      </div></div>
+      <div class="sc-row"><div class="sc-letter">R</div><div class="sc-body">
+        <span class="sc-verb">Reverse</span>
+        <p>Big-bang merge at the end → a <em>continuous</em> merge queue: land + rebase one lane at a time, so conflicts surface early and small.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ PRE-MORTEM ============ -->
+  <section id="premortem">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--red)">✝</span>
+      <h2>Pre-mortem</h2>
+      <span class="sec-tag">it's 8am and everything failed. why?</span>
+    </div>
+    <p class="sec-note">Imagine the overhaul shipped and died overnight. Each imagined cause of death, with the mitigation it demands.</p>
+
+    <div class="obituary">
+      <div class="headstone">— IN MEMORIAM: THE OVERNIGHT RUN —</div>
+      <div class="pm-row thegate">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>Two lanes both green; merged main broken.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>The integration re-verify gate is <strong>non-negotiable</strong>. Already ideated; the pre-mortem confirms it as THE gate.</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>6 parallel MiniMax workers hit the provider rate limit; all stall.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>Stagger launches + per-lane exponential backoff + jobs cap defaults LOW (2–3).</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>Lock-file / generated-artifact conflicts (pnpm-lock, graphify-out) in every lane.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>Generated paths are regenerated at merge, never merged.</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>A blocked ticket starves its whole subtree while the driver burns unrelated leaves.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>OK by design — but the driver must <em>report</em> subtree starvation, never silently finish partial.</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>Driver crash leaves 3 dangling worktrees; a naive restart double-claims.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>Claim = frontmatter owner + heartbeat commit on the LANE branch; reap stale claims like <code style="color:var(--green)">kanban_reap</code> does.</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>Disk blowup from N full worktrees with node_modules.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>Shared pnpm store; skip install for docs tickets; prune lanes on landing.</div>
+      </div>
+      <div class="pm-row">
+        <div class="pm-fail"><span class="k">CAUSE OF DEATH</span>User drops a new ticket mid-run; the graph is stale.</div>
+        <div class="pm-arrow">→</div>
+        <div class="pm-fix"><span class="k">MITIGATION</span>Driver re-reads the board every wave; the graph is re-derived per wave, never cached.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ANALOGY: MERGE QUEUES ============ -->
+  <section id="analogy">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--amber)">🚂</span>
+      <h2>Analogy: CI merge queues</h2>
+      <span class="sec-tag">GitHub merge queue · bors</span>
+    </div>
+    <p class="sec-note">What do battle-tested landing systems already know that tralph doesn't? Board the train — locomotive first.</p>
+
+    <div class="track">
+      <div class="rails"></div>
+      <div class="train">
+        <div class="car loco">
+          <span class="plate">LOCO · THE LANDING PROTOCOL</span>
+          <p><strong>bors-style:</strong> a lane must be rebased on the latest integration tip AND green <em>before</em> landing. The driver auto-rebases and re-runs verification. Steal this wholesale.</p>
+        </div>
+        <span class="coupler">⊃⊂</span>
+        <div class="car">
+          <span class="plate">CAR 1 · BATCCH LANDING</span>
+          <p>Docs-only / disjoint lanes land as one octopus batch, verified once — bisect the batch on red (bors batching).</p>
+        </div>
+        <span class="coupler">⊃⊂</span>
+        <div class="car">
+          <span class="plate">CAR 2 · PRIORITY LANES</span>
+          <p>A P0 ticket preempts the merge queue.</p>
+        </div>
+        <span class="coupler">⊃⊂</span>
+        <div class="car">
+          <span class="plate">CAR 3 · TRAINS</span>
+          <p>Group tiny tickets into one lane to amortize session + worktree overhead — ticket cost is not uniform.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONSTRAINT ============ -->
+  <section id="constraint">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--orange)">⛔</span>
+      <h2>Constraint: what if merge conflicts were IMPOSSIBLE?</h2>
+      <span class="sec-tag">design under an absolute</span>
+    </div>
+    <div class="stamp">DISJOINT WRITES ENFORCED</div>
+    <p class="sec-note">Forbid the failure instead of handling it. Partition the repo at decompose time; every wall below is load-bearing.</p>
+
+    <div class="partition">
+      <div class="zone">
+        <span class="fence">ZONE A · OWNERSHIP AT DECOMPOSE TIME</span>
+        <p><code>/to-tickets</code> declares a <code>files:</code> scope per ticket. Overlapping scopes = automatic dependency edge. The scheduler enforces disjoint writes in flight — conflicts become impossible <em>by construction</em>; merge is always ff/trivial.</p>
+      </div>
+      <div class="zone">
+        <span class="fence">ZONE B · SCOPE IS ENFORCEABLE</span>
+        <p>The driver diffs the lane against its declared scope; an out-of-scope diff = bounce. Same trick as dsh-board's <code>outOfScope</code>.</p>
+      </div>
+      <div class="zone">
+        <span class="fence">ZONE C · UPGRADE THE FORMAT</span>
+        <p>This pushes intelligence into <code>/to-tickets</code>: add a "parallel-safe" pass that emits scopes + extra edges. Upgrade the <em>ticket format</em>, not just the loop.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROLE PLAYING ============ -->
+  <section id="roles">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--cyan)">☻</span>
+      <h2>Role Playing</h2>
+      <span class="sec-tag">four stakeholders, four panes</span>
+    </div>
+    <p class="sec-note">Split the tmux window four ways and let each stakeholder speak.</p>
+
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-title"><span class="dot" style="background:var(--green)"></span><span class="who">the worker</span> · pane 0</div>
+        <div class="pane-body">
+          <div class="say"><span class="q">&gt; what do you want?</span>
+          <span class="a">A lane that already has deps installed. So: a lane bootstrap hook (install, env copy) owned by the <em>driver</em>, not by my prompt.</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="pane-title"><span class="dot" style="background:var(--cyan)"></span><span class="who">the reviewer</span> · pane 1</div>
+        <div class="pane-body">
+          <div class="say"><span class="q">&gt; what do you want?</span>
+          <span class="a">Reviewing a per-lane diff is easier than reviewing merged main. Keep the per-ticket fresh review in the lane (unchanged from today); the integration gate only re-runs commands.</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="pane-title"><span class="dot" style="background:var(--amber)"></span><span class="who">future-james @ 8am</span> · pane 2</div>
+        <div class="pane-body">
+          <div class="say"><span class="q">&gt; what do you want?</span>
+          <span class="a">To wake up to either everything landed or a one-screen report: landed X, queued Y, bounced Z with reasons — a single <code>.kanban/run-report.md</code>.</span></div>
+          <div class="say"><span class="q">&gt; and if the night went wrong?</span>
+          <span class="a">"Undo the whole night" = <code>git revert</code> of the landing merge commits, listed in the report. Cheap, because landings are ordered.</span></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="pane-title"><span class="dot" style="background:var(--magenta)"></span><span class="who">the shepherd</span> · pane 3</div>
+        <div class="pane-body">
+          <div class="say"><span class="q">&gt; what do you want?</span>
+          <span class="a">tralph-shepherd needs only sentinel + board reading to babysit N lanes. Keep the sentinel contract stable so the shepherd survives the overhaul.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 10x ============ -->
+  <section id="tenx">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--cyan)">⤊</span>
+      <h2>10x thinking</h2>
+      <span class="sec-tag">what if this were an order of magnitude bolder?</span>
+    </div>
+
+    <div class="amps">
+      <div class="amp"><div class="x">10×</div><div class="body">
+        <b>The plan is an artifact.</b> <code>/to-tickets</code> emits the graph AND the schedule — waves precomputed — so any dumb runner can execute it, and you can review the plan <em>before burning tokens</em>.
+      </div></div>
+      <div class="amp"><div class="x">10×</div><div class="body">
+        <b>Git-native events replace polling.</b> Workers push to lane refs; the driver runs a post-receive / <code>for-each-ref</code> loop. Board state becomes derivable purely from git.
+      </div></div>
+      <div class="amp"><div class="x">10×</div><div class="body">
+        <b>Run the whole thing as a dsh AgentTeams team</b> with quality-kind tasks (implementation → verification → review chains auto-generated per ticket), each member cd'd into its own worktree via execution prompt — mailboxes, repair rounds, and captain takeover for free.
+      </div></div>
+      <div class="amp counter"><div class="x">⚠</div><div class="body">
+        <b>Counter:</b> AgentTeams couples the run to a live dsh session; the bash driver survives dsh restarts. Hybrid: <b>bash owns lifecycle</b>, optionally spawning AgentTeams <em>inside a lane</em> for big tickets.
+      </div></div>
+      <div class="amp"><div class="x">=</div><div class="body">
+        <b>And yet: keep the name, keep the flags.</b> Parallel is just <code style="color:var(--green)">tralph --jobs N</code> (default 1 = today's behavior). The overhaul is <b>additive, not replacement</b>.
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ BIOMIMICRY + WILD ============ -->
+  <section id="bio">
+    <div class="sec-head">
+      <span class="sec-glyph" style="color:var(--green)">❦</span>
+      <h2>Biomimicry + Wild</h2>
+      <span class="sec-tag">borrow from biology, then get weird</span>
+    </div>
+    <p class="sec-note">Green spores are borrowed from living systems; purple ones escaped containment.</p>
+
+    <div class="grove">
+      <div class="spore"><span class="organism">🐜 ant colony</span>
+        Workers leave pheromone — <code>progress.d</code> notes. Later workers on sibling tickets read only notes from <strong>LANDED</strong> lanes, avoiding half-truth context from unlanded work.</div>
+      <div class="spore"><span class="organism">🛡 immune system</span>
+        A roaming low-cost checker session re-runs random landed verifications overnight — catches bit-rot introduced by later landings.</div>
+      <div class="spore"><span class="organism">🍄 mycelium</span>
+        Share one git objects store across worktrees (worktrees already do) + shared pnpm store + shared build cache per run — N lanes at ~1.2× the cost of one.</div>
+      <div class="spore wild"><span class="organism">⚡ wild · speculation</span>
+        Speculative execution: start a dependent ticket in a lane branched from its blocker's <em>unreviewed</em> tip; if the blocker bounces, discard the speculation. Tokens are cheap at MiniMax prices — wall-clock is not.</div>
+      <div class="spore wild"><span class="organism">⚡ wild · the race</span>
+        Two workers race the same hard ticket with different models; first green diff wins, loser discarded.</div>
+      <div class="spore wild"><span class="organism">⚡ wild · burn-down TV</span>
+        The graph as live mermaid in <code>run-report.md</code>, regenerated each wave — a watchable board burn-down.</div>
+      <div class="spore wild"><span class="organism">⚡ wild · bounce mining</span>
+        The shepherd greps historic bounce reasons to auto-tune the jobs cap and scope declarations.</div>
+    </div>
+  </section>
+
+  <!-- ============ CONVERGENCE ============ -->
+  <div class="converge">
+    <span style="letter-spacing:3px">— EVERY TECHNIQUE CONVERGED ON THE SAME SHAPE —</span>
+    <div class="flow">
+      <span class="step">scopes + edges at ticket time</span><span class="sep">→</span>
+      <span class="step">frontier scheduler</span><span class="sep">→</span>
+      <span class="step">lane worktree per ticket, inner Ralph unchanged</span><span class="sep">→</span>
+      <span class="step">bors-style rebase+verify landing queue</span><span class="sep">→</span>
+      <span class="step">crash-only state in git</span>
+    </div>
+  </div>
+</main>
+
+<!-- ============ SYNTHESIS ============ -->
+<section id="synthesis">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="sec-tag" style="border-color:var(--green);color:var(--green)">SYNTHESIS / DIRECTION</span>
+    </div>
+    <h2 class="synth-title">Keep the name. Keep the flags. <span class="g">tralph --jobs N</span>.</h2>
+    <p class="synth-sub">Additive, not replacement — <code>--jobs 1</code> is today's behavior. Five pillars hold the parallel version up.</p>
+
+    <div class="pillars">
+      <div class="pillar"><div class="pnum">1</div>
+        <h3>SCOPES &amp; EDGES</h3>
+        <p><code>/to-tickets</code> upgrade emits <code>files:</code> scopes per ticket + auto dependency edges for overlaps. Conflicts prevented at decompose time.</p>
+      </div>
+      <div class="pillar-arrow">▶</div>
+      <div class="pillar"><div class="pnum">2</div>
+        <h3>FRONTIER SCHEDULER</h3>
+        <p>Ported from <code>gralph</code>, reading <code>.kanban</code> instead of GitHub issues. Ready frontier re-derived every wave.</p>
+      </div>
+      <div class="pillar-arrow">▶</div>
+      <div class="pillar"><div class="pnum">3</div>
+        <h3>LANE = WORKTREE</h3>
+        <p>Git worktree <code>auto/&lt;id&gt;</code> per ticket, with the <em>unchanged</em> inner Ralph worker + review running inside.</p>
+      </div>
+      <div class="pillar-arrow">▶</div>
+      <div class="pillar"><div class="pnum">4</div>
+        <h3>LANDING QUEUE</h3>
+        <p>bors-style: rebase on integration tip → re-verify → ff-only land, in topo order. Semantic conflict → auto repair ticket.</p>
+      </div>
+      <div class="pillar-arrow">▶</div>
+      <div class="pillar"><div class="pnum">5</div>
+        <h3>CRASH-ONLY STATE</h3>
+        <p>Claims/status live in frontmatter commits + <code>git worktree list</code>. A restarted driver reconstructs everything.</p>
+      </div>
+    </div>
+
+    <div class="lanediagram" aria-hidden="true">
+      <svg viewBox="0 0 860 240" width="100%" height="240">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 z" fill="#5af78e"/>
+          </marker>
+        </defs>
+        <!-- integration branch -->
+        <line x1="30" y1="200" x2="830" y2="200" stroke="#5af78e" stroke-width="3"/>
+        <text x="34" y="222" font-family="monospace" font-size="12" fill="#5af78e">integration</text>
+        <!-- lane 1 -->
+        <path d="M120,200 C150,200 150,60 190,60 H370 C420,60 430,200 470,200" stroke="#57c7ff" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+        <text x="200" y="48" font-family="monospace" font-size="12" fill="#57c7ff">auto/271 · scoped · green</text>
+        <!-- lane 2 -->
+        <path d="M120,200 C160,200 160,120 210,120 H480 C540,120 550,200 590,200" stroke="#d685ff" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+        <text x="230" y="108" font-family="monospace" font-size="12" fill="#d685ff">auto/272 · scoped · green</text>
+        <!-- lane 3 (dependent, branches after landing of 271) -->
+        <path d="M470,200 C500,200 500,160 545,160 H640 C690,160 700,200 720,200" stroke="#f3c969" stroke-width="2.5" fill="none" marker-end="url(#arr)"/>
+        <text x="540" y="150" font-family="monospace" font-size="12" fill="#f3c969">auto/273 (blocked_by: 271)</text>
+        <!-- commits on lanes -->
+        <g fill="#0b0e14" stroke-width="2.5">
+          <circle cx="120" cy="200" r="6" stroke="#c9d4e3"/>
+          <circle cx="260" cy="60" r="5" stroke="#57c7ff"/>
+          <circle cx="330" cy="60" r="5" stroke="#57c7ff"/>
+          <circle cx="300" cy="120" r="5" stroke="#d685ff"/>
+          <circle cx="410" cy="120" r="5" stroke="#d685ff"/>
+          <circle cx="600" cy="160" r="5" stroke="#f3c969"/>
+          <circle cx="470" cy="200" r="7" stroke="#5af78e"/>
+          <circle cx="590" cy="200" r="7" stroke="#5af78e"/>
+          <circle cx="720" cy="200" r="7" stroke="#5af78e"/>
+          <circle cx="800" cy="200" r="6" stroke="#5af78e"/>
+        </g>
+        <!-- gate labels -->
+        <g font-family="monospace" font-size="11" fill="#6b7794">
+          <text x="426" y="188">rebase·re-verify·land</text>
+          <text x="775" y="186" fill="#5af78e">✓ main</text>
+        </g>
+      </svg>
+      <p class="cap">The landing queue: lanes rebase onto the integration tip, re-verify, land <code>ff-only</code> in topological order — dependents branch only after their blockers have landed.</p>
+    </div>
+
+    <div class="synth-footer">
+      <div class="verdictbox rejected">
+        <span class="vh">✗ REJECTED AS LIFECYCLE OWNER</span>
+        <ul>
+          <li><strong>AgentTeams</strong> — couples the run to a live dsh session; docs show the teams plugin removed. But: optionally spawnable <em>inside a lane</em> for big tickets.</li>
+        </ul>
+      </div>
+      <div class="verdictbox stolen">
+        <span class="vh">⇣ STOLEN FROM DSH-BOARD</span>
+        <ul>
+          <li><code>laneBranches</code></li>
+          <li>bounce-with-reason</li>
+          <li><code>outOfScope</code> diff enforcement</li>
+        </ul>
+      </div>
+      <div class="verdictbox now">
+        <span class="vh">⚑ FIX NOW — EVEN WITHOUT PARALLELISM</span>
+        <ul>
+          <li>Don't stop the run on BLOCKED — skip the subtree, continue elsewhere</li>
+          <li><code>run-report.md</code></li>
+          <li>systemd transient units instead of tmux polling</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>brainstorm-tralph-parallel-overhaul · 2026-09-10 · 8 techniques · 55 ideas · 1 convergent shape</p>
+    <p style="margin-top:8px">james@aidev:~/dotfiles$ tralph --jobs 4<span class="cursor"></span></p>
+  </div>
+</footer>
+
+<script>
+// collapse/expand togglers — page is fully readable without JS
+document.querySelectorAll('.toggler').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var t=document.getElementById(btn.dataset.target);
+    if(!t)return;
+    var hidden=t.style.display==='none';
+    t.style.display=hidden?'':'none';
+    btn.textContent=hidden?'collapse':'expand';
+    btn.setAttribute('aria-expanded',String(hidden));
+  });
+});
+</script>
+</body>
+</html>

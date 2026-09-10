@@ -70,9 +70,9 @@
     "semantic_hash": "bb872c831e1bbcc1a0281cf42e465219"
   },
   "docs/deepseek-harness.md": {
-    "mtime": 1788564573.2627797,
-    "ast_hash": "15e21a73cdc85936f0c05f81d586e541",
-    "semantic_hash": "15e21a73cdc85936f0c05f81d586e541"
+    "mtime": 1789059624.9348826,
+    "ast_hash": "6ce73244560d0eaf23bce117a7f40019",
+    "semantic_hash": ""
   },
   "docs/pi-extensions.md": {
     "mtime": 1788230726.3575783,
@@ -190,9 +190,9 @@
     "semantic_hash": "df903610bd293e8b5dee6175d67569c9"
   },
   "CLAUDE.md": {
-    "mtime": 1788564820.0304096,
-    "ast_hash": "3ed6f95d1a89a295e44e186de8fbe646",
-    "semantic_hash": "3ed6f95d1a89a295e44e186de8fbe646"
+    "mtime": 1789059098.9881048,
+    "ast_hash": "bdde3810c69482533ed4fd759492e132",
+    "semantic_hash": ""
   },
   "CONTEXT.md": {
     "mtime": 1787429679.2280226,
@@ -6090,8 +6090,8 @@
     "semantic_hash": ""
   },
   ".kanban/issues/048-codex-agents-unify.md": {
-    "mtime": 1789058530.6907542,
-    "ast_hash": "767f6d86c9bff42b7658b62a994c3ebd",
+    "mtime": 1789058687.5456994,
+    "ast_hash": "f557d7a8c6be8ee78403562c32ac3d1f",
     "semantic_hash": ""
   },
   ".kanban/issues/049-remove-dsh-cc-skills.md": {
@@ -6100,13 +6100,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/050-agents-docs-update.md": {
-    "mtime": 1789057183.670737,
-    "ast_hash": "9bfcc0d4bd3fd3b107fc47510e2c2718",
+    "mtime": 1789059699.5972967,
+    "ast_hash": "d6d0fb68bbbbeea459ef23a94185bc67",
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789058362.1067393,
-    "ast_hash": "4c2b881c3532583ae09d990aac962c89",
+    "mtime": 1789058676.8476348,
+    "ast_hash": "706a8609e6bfaa661ea6a47c22f387c7",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -13575,8 +13575,13 @@
     "semantic_hash": ""
   },
   "docs/brainstorming/brainstorm-tralph-parallel-overhaul-2026-09-10/.memlog.md": {
-    "mtime": 1789058513.0476477,
-    "ast_hash": "040e43fd3f01c4430768509c20aa5002",
+    "mtime": 1789058703.3457944,
+    "ast_hash": "be3498794d43e2e843923afce7d9da92",
+    "semantic_hash": ""
+  },
+  "docs/brainstorming/brainstorm-tralph-parallel-overhaul-2026-09-10/brainstorm.html": {
+    "mtime": 1789058931.881173,
+    "ast_hash": "e3d3db1ae7498a5b6f3324f3f9666227",
     "semantic_hash": ""
   }
 }
