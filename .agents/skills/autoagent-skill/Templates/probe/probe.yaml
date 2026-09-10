@@ -1,0 +1,10 @@
+name: "PROBE_NAME"
+description: "ONE_LINE: the critical behavior this probe exercises"
+# Mandatory four (cover all across the suite):
+#   misunderstanding | missing_capability | silent_failure | missing_verification
+# Optional: weak_info | bad_execution | environment
+failure_mode: "silent_failure"
+# easy | medium | hard
+difficulty: "medium"
+discriminates: "WHAT_A_SMALL_MODEL_GETS_WRONG_HERE"
+inputs: {}
