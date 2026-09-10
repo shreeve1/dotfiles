@@ -119,3 +119,4 @@ This file tracks implementation notes across Ralph iterations.
 **Notes for next iteration:** README.md:647-651 still references the legacy researcher tooling (`fetch_content`, `get_search_content`, `pi-web-access`); fix in a follow-up issue so the README no longer contradicts itself.
 
 **Review outcome:** `RALPH_REVIEW: PASS_WITH_NOTES` — no blockers; one medium-severity documentation-contradiction follow-up.
+#046-050 staged todo→pending 2026-09-10: shepherd started repo-specific driver (tmux session ralph-df); homelab loop (ralph-loop) untouched

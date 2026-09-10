@@ -1,7 +1,7 @@
 ---
 id: 046
 title: Create canonical AGENTS tree in dotfiles (.agents/AGENTS.md + 83 skills)
-status: todo
+status: pending
 blocked_by: []
 parent: null
 priority: 1
