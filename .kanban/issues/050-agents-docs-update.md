@@ -1,12 +1,12 @@
 ---
 id: 050
 title: Update docs for AGENTS standard (deepseek-harness.md + CLAUDE.md)
-status: todo
+status: pending
 blocked_by: [046, 049]
 parent: null
 priority: 3
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-10
 ---
 
 ## What to build

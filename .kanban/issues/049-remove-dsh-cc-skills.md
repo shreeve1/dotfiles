@@ -1,12 +1,12 @@
 ---
 id: 049
 title: Remove dsh-cc-skills plugin and verify native AGENTS skills + rules
-status: todo
+status: pending
 blocked_by: [046, 047]
 parent: null
 priority: 1
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-10
 ---
 
 ## What to build
