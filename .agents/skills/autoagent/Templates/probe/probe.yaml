@@ -1,0 +1,12 @@
+name: "PROBE_NAME"
+description: "ONE_LINE"
+# One of (named keys from References/FailureModes.md):
+#   misunderstanding | missing_capability | weak_info | bad_execution
+#   missing_verification | environment | silent_failure
+failure_mode: "missing_verification"
+# easy | medium | hard
+difficulty: "medium"
+discriminates: "WHAT_A_BAD_SUT_GETS_WRONG"
+
+# Optional: inputs passed to the probe (consumed by verify.sh via env or files).
+inputs: {}

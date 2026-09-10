@@ -1,0 +1,51 @@
+# Reference adapter for kevinrgu/autoagent harness engineering.
+name: autoagent-harness
+loop_mode: external_meta_agent
+
+sut:
+  description: "Single-file agent harness under test (registry, tools, orchestration)."
+  paths:
+    - agent.py
+  live: false
+
+mutator:
+  edit_surface:
+    - "agent.py"
+  fixed:
+    # Everything below the FIXED ADAPTER BOUNDARY comment in agent.py.
+    # The boundary is enforced textually inside the file, not by glob.
+    - "agent.py#FIXED_ADAPTER_BOUNDARY"
+    - "adapter.yaml"
+  # `docker build` is idempotent and layer-cached, so re-running it per
+  # iteration is cheap when only agent.py changed. Keep it here so the meta
+  # agent never forgets to rebuild after a Dockerfile-affecting mutation.
+  apply_cmd: "docker build -f Dockerfile.base -t autoagent-base ."
+  rollback_cmd: "git reset --hard HEAD~1"
+
+probe:
+  dir: tasks
+  list_glob: "tasks/*/task.toml"
+
+verifier:
+  # /logs/reward.txt is CONTAINER-side (inside the Harbor task container).
+  # Harbor reads it; the loop driver reads Harbor's per-task report, not
+  # this file directly. AUTOAGENT_SCORE_FILE is NOT used for this adapter
+  # because Harbor owns the runner end-to-end.
+  score_file: "/logs/reward.txt"
+  score_file_scope: container
+  pass_threshold: 0.5
+  emits_cost: false
+
+runner:
+  # {probe} is replaced by the loop driver with the probe directory path
+  # (verbatim string substitution; see Workflows/RunLoop.md "Substitution").
+  cmd: >
+    uv run harbor run -p tasks/ --task-name $(basename {probe})
+    -l 1 -n 1 --agent-import-path agent:AutoAgent
+    -o jobs --job-name latest
+  concurrency: 100
+  timeout_seconds: 600
+
+loop:
+  plateau_iterations: 5
+  human_checkpoint_every: 10

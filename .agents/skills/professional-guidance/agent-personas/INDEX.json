@@ -1,0 +1,1026 @@
+{
+  "generated": "2026-07-19",
+  "root": "agent-personas/",
+  "total_personas": 174,
+  "total_categories": 21,
+  "note": "One-line purpose skimmed from each file's opening description. Many files bundle multiple sub-agents; open the file for its full role menu.",
+  "categories": [
+    {
+      "category": "CMMC Compliance",
+      "folder": "cmmc-compliance",
+      "count": 5,
+      "personas": [
+        {
+          "name": "CMMC Assessment & Gap Analysis Expert",
+          "purpose": "CMMC ASSESSMENT & GAP ANALYSIS EXPERT SYSTEM",
+          "path": "agent-personas/cmmc-compliance/CMMC-Assessment-and-Gap-Analysis-Expert.txt"
+        },
+        {
+          "name": "CMMC Cost Management & ROI Strategist",
+          "purpose": "A specialized AI agent system for CMMC (Cybersecurity Maturity Model Certification) Cost Management & ROI Strategy.",
+          "path": "agent-personas/cmmc-compliance/CMMC-Cost-Management-and-ROI-Strategist.txt"
+        },
+        {
+          "name": "CMMC Documentation & Policy Manager",
+          "purpose": "The CMMC Documentation & Policy Management System",
+          "path": "agent-personas/cmmc-compliance/CMMC-Documentation-and-Policy-Manager.txt"
+        },
+        {
+          "name": "CMMC Supply Chain Security & Flow-Down Expert",
+          "purpose": "This document contains a comprehensive AI agent system for CMMC Supply Chain Security & Flow-Down expertise.",
+          "path": "agent-personas/cmmc-compliance/CMMC-Supply-Chain-Security-and-Flow-Down-Expert.txt"
+        },
+        {
+          "name": "CMMC Technical Controls Implementation Specialist",
+          "purpose": "This agent system provides comprehensive support for CMMC Technical Controls Implementation Specialists, offering specialized AI agents for each critical responsibility, deliverable, and challenging situation encountered in CMMC compliance work.",
+          "path": "agent-personas/cmmc-compliance/CMMC-Technical-Controls-Implementation-Specialist.txt"
+        }
+      ]
+    },
+    {
+      "category": "Core Business Operations",
+      "folder": "core-business-operations",
+      "count": 10,
+      "personas": [
+        {
+          "name": "Business Consultant",
+          "purpose": "A specialized Business Owner Support System with integrated research validation.",
+          "path": "agent-personas/core-business-operations/Business-Consultant.txt"
+        },
+        {
+          "name": "Business Plan Assistant",
+          "purpose": "A specialized Business Plan Assistant using the BPA-Method framework.",
+          "path": "agent-personas/core-business-operations/Business-Plan-Assistant.txt"
+        },
+        {
+          "name": "Career Path Navigator",
+          "purpose": "A specialized Career Path Navigation AI system.",
+          "path": "agent-personas/core-business-operations/Career-Path-Navigator.txt"
+        },
+        {
+          "name": "Compliance Navigator",
+          "purpose": "An advanced Compliance Navigator system with integrated research validation capabilities.",
+          "path": "agent-personas/core-business-operations/Compliance-Navigator.txt"
+        },
+        {
+          "name": "Documentation Excellence",
+          "purpose": "The Documentation Excellence Framework, a comprehensive system of specialized documentation agents.",
+          "path": "agent-personas/core-business-operations/Documentation-Excellence.txt"
+        },
+        {
+          "name": "EOS Implementer",
+          "purpose": "A specialized AI system designed to guide businesses through implementing the Entrepreneurial Operating System® (EOS®).",
+          "path": "agent-personas/core-business-operations/EOS-Implementer.txt"
+        },
+        {
+          "name": "Financial Forecaster",
+          "purpose": "A specialized Financial Forecasting AI system with integrated research validation capabilities.",
+          "path": "agent-personas/core-business-operations/Financial-Forecaster.txt"
+        },
+        {
+          "name": "Manager General",
+          "purpose": "A specialized management support system with integrated research validation.",
+          "path": "agent-personas/core-business-operations/Manager-General.txt"
+        },
+        {
+          "name": "Operational Efficiency Expert",
+          "purpose": "A specialized Operational Efficiency Expert AI system.",
+          "path": "agent-personas/core-business-operations/Operational-Efficiency-Expert.txt"
+        },
+        {
+          "name": "Startup Mentor",
+          "purpose": "Version 2.0 - Research-Enhanced Agent System with Validation",
+          "path": "agent-personas/core-business-operations/Startup-Mentor.txt"
+        }
+      ]
+    },
+    {
+      "category": "Corporate Roles",
+      "folder": "corporate-roles",
+      "count": 5,
+      "personas": [
+        {
+          "name": "Change Management Advisor",
+          "purpose": "A specialized Change Management Advisor AI system with integrated research and validation capabilities.",
+          "path": "agent-personas/corporate-roles/Change-Management-Advisor.txt"
+        },
+        {
+          "name": "Corporate Communications Specialist",
+          "purpose": "A comprehensive agent-based system for professional corporate communications*",
+          "path": "agent-personas/corporate-roles/Corporate-Communications-Specialist.txt"
+        },
+        {
+          "name": "Corporate Trainer & eLearning Developer",
+          "purpose": "The Corporate Trainer & eLearning Developer AI Agent System.",
+          "path": "agent-personas/corporate-roles/Corporate-Trainer-and-eLearning-Developer.txt"
+        },
+        {
+          "name": "Custom Agent Builder",
+          "purpose": "This system provides specialized agents to guide you through every aspect of creating, optimizing, and maintaining custom AI agents.",
+          "path": "agent-personas/corporate-roles/Custom-Agent-Builder.txt"
+        },
+        {
+          "name": "Supply Chain & Logistics Coordinator",
+          "purpose": "When you start a conversation with this document loaded, I will become your Supply Chain & Logistics Coordinator system.",
+          "path": "agent-personas/corporate-roles/Supply-Chain-and-Logistics-Coordinator.txt"
+        }
+      ]
+    },
+    {
+      "category": "Creative & Design",
+      "folder": "creative-design",
+      "count": 6,
+      "personas": [
+        {
+          "name": "Brand Identity Consultant",
+          "purpose": "A specialized Brand Identity Consultant AI system.",
+          "path": "agent-personas/creative-design/Brand-Identity-Consultant.txt"
+        },
+        {
+          "name": "Graphic Design Briefer",
+          "purpose": "A specialized AI system for Graphic Design Briefing.",
+          "path": "agent-personas/creative-design/Graphic-Design-Briefer.txt"
+        },
+        {
+          "name": "Podcast Production Assistant",
+          "purpose": "You have access to a comprehensive team of specialized AI agents for podcast production.",
+          "path": "agent-personas/creative-design/Podcast-Production-Assistant.txt"
+        },
+        {
+          "name": "UX-UI Feedback Bot",
+          "purpose": "A specialized AI agent system that provides bluntly honest, unbiased feedback on UX/UI designs, prototypes, and implementations.",
+          "path": "agent-personas/creative-design/UX-UI-Feedback-Bot.txt"
+        },
+        {
+          "name": "Video Script Writer",
+          "purpose": "CRITICAL ACTIVATION INSTRUCTIONS: When this framework is loaded, immediately present the user with the available agents and ask which one they need.",
+          "path": "agent-personas/creative-design/Video-Script-Writer.txt"
+        },
+        {
+          "name": "Website Builder Assistant",
+          "purpose": "A specialized Website Builder Assistant with multiple expert agents.",
+          "path": "agent-personas/creative-design/Website-Builder-Assistant.txt"
+        }
+      ]
+    },
+    {
+      "category": "Customer Service & Relationship Management",
+      "folder": "customer-service-relationship-management",
+      "count": 3,
+      "personas": [
+        {
+          "name": "Client Relationship Manager",
+          "purpose": "A specialized Client Relationship Management AI system.",
+          "path": "agent-personas/customer-service-relationship-management/Client-Relationship-Manager.txt"
+        },
+        {
+          "name": "Community Manager Assistant",
+          "purpose": "Your comprehensive AI-powered Community Manager Assistant system.",
+          "path": "agent-personas/customer-service-relationship-management/Community-Manager-Assistant.txt"
+        },
+        {
+          "name": "Customer Support Scripter",
+          "purpose": "The Customer Support Scripter Agent System.",
+          "path": "agent-personas/customer-service-relationship-management/Customer-Support-Scripter.txt"
+        }
+      ]
+    },
+    {
+      "category": "E-Commerce",
+      "folder": "e-commerce",
+      "count": 4,
+      "personas": [
+        {
+          "name": "E-commerce Financial & Tax Advisor",
+          "purpose": "A specialized E-commerce Financial & Tax Advisory system.",
+          "path": "agent-personas/e-commerce/E-commerce-Financial-and-Tax-Advisor.txt"
+        },
+        {
+          "name": "E-commerce Platform & Operations Optimizer",
+          "purpose": "This agent system provides specialized AI agents for comprehensive e-commerce platform optimization and operations management.",
+          "path": "agent-personas/e-commerce/E-commerce-Platform-and-Operations-Optimizer.txt"
+        },
+        {
+          "name": "E-commerce Specialist",
+          "purpose": "Name: E-commerce Master Orchestrator",
+          "path": "agent-personas/e-commerce/E-commerce-Specialist.txt"
+        },
+        {
+          "name": "Product Sourcing & Supplier Management Specialist",
+          "purpose": "A specialized AI framework for Product Sourcing & Supplier Management.",
+          "path": "agent-personas/e-commerce/Product-Sourcing-and-Supplier-Management-Specialist.txt"
+        }
+      ]
+    },
+    {
+      "category": "Finance & Accounting",
+      "folder": "finance-accounting",
+      "count": 5,
+      "personas": [
+        {
+          "name": "Bookkeeping Assistant",
+          "purpose": "A specialized AI Bookkeeping Assistant from the Financial Management Framework.",
+          "path": "agent-personas/finance-accounting/Bookkeeping-Assistant.txt"
+        },
+        {
+          "name": "Business Tax Primer",
+          "purpose": "This Business Tax Primer provides specialized AI agents to guide businesses through complex tax situations, compliance requirements, and strategic planning.",
+          "path": "agent-personas/finance-accounting/Business-Tax-Primer.txt"
+        },
+        {
+          "name": "Financial Advisor",
+          "purpose": "An AI-powered framework for comprehensive financial advisory services*",
+          "path": "agent-personas/finance-accounting/Financial-Advisor.txt"
+        },
+        {
+          "name": "Invoice & Collections Advisor",
+          "purpose": "A comprehensive AI agent system designed to provide expert guidance and deliverables for all aspects of invoice management and collections.",
+          "path": "agent-personas/finance-accounting/Invoice-and-Collections-Advisor.txt"
+        },
+        {
+          "name": "Pricing Strategy Expert",
+          "purpose": "The Pricing Strategy Expert Framework - a comprehensive AI-powered system that transforms you into a strategic pricing expert capable of handling any pricing challenge.",
+          "path": "agent-personas/finance-accounting/Pricing-Strategy-Expert.txt"
+        }
+      ]
+    },
+    {
+      "category": "Freelancers",
+      "folder": "freelancers-corporate-roles",
+      "count": 3,
+      "personas": [
+        {
+          "name": "Freelancer & Consultant Toolkit",
+          "purpose": "This toolkit provides specialized AI agents to handle every aspect of your freelance or consulting business.",
+          "path": "agent-personas/freelancers-corporate-roles/Freelancer-and-Consultant-Toolkit.txt"
+        },
+        {
+          "name": "Freelancer Client Acquisition Coach",
+          "purpose": "A specialized Freelancer Client Acquisition Coach with multiple expert agents.",
+          "path": "agent-personas/freelancers-corporate-roles/Freelancer-Client-Acquisition-Coach.txt"
+        },
+        {
+          "name": "Freelancer Legal & Business Structure Advisor",
+          "purpose": "This document defines a comprehensive AI agent system for freelance legal and business structure advisory.",
+          "path": "agent-personas/freelancers-corporate-roles/Freelancer-Legal-and-Business-Structure-Advisor.txt"
+        }
+      ]
+    },
+    {
+      "category": "HIPAA Compliance",
+      "folder": "hipaa-compliance",
+      "count": 5,
+      "personas": [
+        {
+          "name": "Business Associate Agreement & Contract Specialist",
+          "purpose": "CRITICAL: Upon initialization, this system transforms you into a specialized BAA & Contract Specialist agent coordinator.",
+          "path": "agent-personas/hipaa-compliance/Business-Associate-Agreement-and-Contract-Specialist.txt"
+        },
+        {
+          "name": "HIPAA Breach Response & Patient Rights Advisor",
+          "purpose": "I am your comprehensive HIPAA compliance advisor, equipped with specialized agents to handle all aspects of breach response and patient rights management.",
+          "path": "agent-personas/hipaa-compliance/HIPAA-Breach-Response-and-Patient-Rights-Advisor.txt"
+        },
+        {
+          "name": "HIPAA Policies & Administrative Safeguards Manager",
+          "purpose": "CRITICAL: Upon loading this document, you are now the HIPAA Policies & Administrative Safeguards Manager AI System.",
+          "path": "agent-personas/hipaa-compliance/HIPAA-Policies-and-Administrative-Safeguards-Manager.txt"
+        },
+        {
+          "name": "HIPAA Risk Assessment & Compliance Audit Expert",
+          "purpose": "This comprehensive HIPAA compliance system provides specialized AI agents for every aspect of HIPAA risk assessment, compliance auditing, and incident response.",
+          "path": "agent-personas/hipaa-compliance/HIPAA-Risk-Assessment-and-Compliance-Audit-Expert.txt"
+        },
+        {
+          "name": "HIPAA Technical Safeguards & IT Security Specialist",
+          "purpose": "This document contains the complete agent system for HIPAA Technical Safeguards & IT Security compliance.",
+          "path": "agent-personas/hipaa-compliance/HIPAA-Technical-Safeguards-and-IT-Security-Specialist.txt"
+        }
+      ]
+    },
+    {
+      "category": "Legal & HR",
+      "folder": "legal-hr",
+      "count": 6,
+      "personas": [
+        {
+          "name": "Basic Legal Document Reviewer",
+          "purpose": "This AI-powered Legal Document Review System provides specialized agents for various legal document review tasks with integrated research validation capabilities.",
+          "path": "agent-personas/legal-hr/Basic-Legal-Document-Reviewer.txt"
+        },
+        {
+          "name": "Contract Drafter",
+          "purpose": "A specialized Contract Drafting AI System with integrated research and validation capabilities.",
+          "path": "agent-personas/legal-hr/Contract-Drafter.txt"
+        },
+        {
+          "name": "Employee Onboarding Guide",
+          "purpose": "This comprehensive Employee Onboarding Guide framework provides specialized AI agents to handle every aspect of employee onboarding.",
+          "path": "agent-personas/legal-hr/Employee-Onboarding-Guide.txt"
+        },
+        {
+          "name": "HR Policy Advisor",
+          "purpose": "A comprehensive AI-powered HR Policy Advisor system designed to provide unbiased, legally-compliant, and bluntly honest guidance on all HR matters.",
+          "path": "agent-personas/legal-hr/HR-Policy-Advisor.txt"
+        },
+        {
+          "name": "Lawyer General",
+          "purpose": "A specialized Legal AI Agent system with integrated research validation.",
+          "path": "agent-personas/legal-hr/Lawyer-General.txt"
+        },
+        {
+          "name": "Recruitment Assistant",
+          "purpose": "Version 2.0 - Professional Recruitment Support System with Research Validation",
+          "path": "agent-personas/legal-hr/Recruitment-Assistant.txt"
+        }
+      ]
+    },
+    {
+      "category": "Marketing & Sales",
+      "folder": "marketing-sales",
+      "count": 10,
+      "personas": [
+        {
+          "name": "Ad Copywriter",
+          "purpose": "A specialized AD Copywriter AI Agent System with integrated research validation capabilities.",
+          "path": "agent-personas/marketing-sales/Ad-Copywriter.txt"
+        },
+        {
+          "name": "Content Creator",
+          "purpose": "A specialized AI agent system for Content Creators with integrated research validation.",
+          "path": "agent-personas/marketing-sales/Content-Creator.txt"
+        },
+        {
+          "name": "Customer Persona Builder",
+          "purpose": "A specialized Customer Persona Builder AI framework.",
+          "path": "agent-personas/marketing-sales/Customer-Persona-Builder.txt"
+        },
+        {
+          "name": "Market Research Analyst",
+          "purpose": "A specialized Market Research Analyst AI system with multiple expert sub-agents.",
+          "path": "agent-personas/marketing-sales/Market-Research-Analyst.txt"
+        },
+        {
+          "name": "Marketing Strategist",
+          "purpose": "A specialized Marketing Strategy AI Agent System with integrated research validation capabilities.",
+          "path": "agent-personas/marketing-sales/Marketing-Strategist.txt"
+        },
+        {
+          "name": "Sales Coach",
+          "purpose": "A specialized SALES COACH agent system with integrated research validation.",
+          "path": "agent-personas/marketing-sales/Sales-Coach.txt"
+        },
+        {
+          "name": "SEO Specialist",
+          "purpose": "A specialized SEO AI agent system with integrated research validation.",
+          "path": "agent-personas/marketing-sales/SEO-Specialist.txt"
+        },
+        {
+          "name": "Social Media Manager",
+          "purpose": "A specialized Social Media Manager AI Agent System with integrated research validation capabilities.",
+          "path": "agent-personas/marketing-sales/Social-Media-Manager.txt"
+        },
+        {
+          "name": "Survey & Feedback Form Creator",
+          "purpose": "The Survey & Feedback Form Creator Framework",
+          "path": "agent-personas/marketing-sales/Survey-and-Feedback-Form-Creator.txt"
+        },
+        {
+          "name": "SWOT Analysis Facilitator",
+          "purpose": "This document defines a comprehensive AI agent system for conducting thorough, unbiased, and actionable SWOT analyses.",
+          "path": "agent-personas/marketing-sales/SWOT-Analysis-Facilitator.txt"
+        }
+      ]
+    },
+    {
+      "category": "Non-Profit",
+      "folder": "non-profit",
+      "count": 6,
+      "personas": [
+        {
+          "name": "Non-Profit Advisor",
+          "purpose": "A comprehensive AI agent system designed to provide expert non-profit advisory services.",
+          "path": "agent-personas/non-profit/Non-Profit-Advisor.txt"
+        },
+        {
+          "name": "Non-Profit Grant Writing & Funding Strategy Expert",
+          "purpose": "This framework provides specialized AI agents for comprehensive non-profit grant writing and funding strategy.",
+          "path": "agent-personas/non-profit/Non-Profit-Grant-Writing-and-Funding-Strategy-Expert.txt"
+        },
+        {
+          "name": "Non-Profit Legal & Compliance Advisor",
+          "purpose": "A specialized Non-Profit Legal & Compliance Advisory system.",
+          "path": "agent-personas/non-profit/Non-Profit-Legal-and-Compliance-Advisor.txt"
+        },
+        {
+          "name": "Non-Profit Marketing & Community Outreach Strategist",
+          "purpose": "A specialized AI framework for Non-Profit Marketing & Community Outreach Strategy.",
+          "path": "agent-personas/non-profit/Non-Profit-Marketing-and-Community-Outreach-Strategist.txt"
+        },
+        {
+          "name": "Program Development & Impact Measurement Expert",
+          "purpose": "The PDIM-Method (Program Development & Impact Measurement Method) is a comprehensive framework that transforms you into a strategic program leader with a team of specialized AI agents.",
+          "path": "agent-personas/non-profit/Program-Development-and-Impact-Measurement-Expert.txt"
+        },
+        {
+          "name": "Volunteer Management & Engagement Specialist",
+          "purpose": "This comprehensive agent system transforms you into a specialized AI assistant for Non-Profit Volunteer Management & Engagement.",
+          "path": "agent-personas/non-profit/Volunteer-Management-and-Engagement-Specialist.txt"
+        }
+      ]
+    },
+    {
+      "category": "Planning",
+      "folder": "planning",
+      "count": 5,
+      "personas": [
+        {
+          "name": "Agile Project Maestro Agile Coach",
+          "purpose": "Blunt Honesty: Provide direct, unfiltered feedback even when uncomfortable - Evidence-Based: Ground all advice in proven Agile practices and real-world experience - Context-Aware: Adapt recommendations to team maturity, organizational culture, and…",
+          "path": "agent-personas/planning/Agile-Project-Maestro-Agile-Coach.txt"
+        },
+        {
+          "name": "EventPro Strategist",
+          "purpose": "The EventPro Strategist Framework is a comprehensive AI agent system designed to guide event professionals through all aspects of event strategy, planning, execution, and analysis.",
+          "path": "agent-personas/planning/EventPro-Strategist.txt"
+        },
+        {
+          "name": "Project Management",
+          "purpose": "A comprehensive AI agent system for Project Management.",
+          "path": "agent-personas/planning/Project-Management.txt"
+        },
+        {
+          "name": "Strategic Business Planner",
+          "purpose": "A comprehensive AI-driven framework for Strategic Business Planning, designed to guide you through all aspects of strategic planning with specialized AI agents.",
+          "path": "agent-personas/planning/Strategic-Business-Planner.txt"
+        },
+        {
+          "name": "Wedding Workflow Coordinator",
+          "purpose": "CRITICAL: You are now operating as a Wedding Workflow Coordinator AI system.",
+          "path": "agent-personas/planning/Wedding-Workflow-Coordinator.txt"
+        }
+      ]
+    },
+    {
+      "category": "Productivity & Personal Development",
+      "folder": "productivity-personal-development",
+      "count": 4,
+      "personas": [
+        {
+          "name": "Productivity Coach",
+          "purpose": "A comprehensive AI-powered productivity coaching system with specialized agents for every aspect of personal and professional productivity.",
+          "path": "agent-personas/productivity-personal-development/Productivity-Coach.txt"
+        },
+        {
+          "name": "Productivity Executive Assistant Simulator",
+          "purpose": "A specialized AI Productivity Executive Assistant Simulator.",
+          "path": "agent-personas/productivity-personal-development/Productivity-Executive-Assistant-Simulator.txt"
+        },
+        {
+          "name": "Productivity Leadership & Management Mentor",
+          "purpose": "The Productivity Leadership & Management Mentor System.",
+          "path": "agent-personas/productivity-personal-development/Productivity-Leadership-and-Management-Mentor.txt"
+        },
+        {
+          "name": "Public Speaking & Presentation Coach",
+          "purpose": "A comprehensive AI-powered coaching system for public speaking and presentation skills.",
+          "path": "agent-personas/productivity-personal-development/Public-Speaking-and-Presentation-Coach.txt"
+        }
+      ]
+    },
+    {
+      "category": "Real Estate",
+      "folder": "real-estate",
+      "count": 7,
+      "personas": [
+        {
+          "name": "Property Management & Landlord Advisor",
+          "purpose": "CRITICAL OPERATING INSTRUCTIONS: - Always be unbiased and bluntly honest in assessments - Provide direct, no-nonsense advice based on legal requirements and best practices - Present both landlord and tenant perspectives when relevant - Never sugar-coat…",
+          "path": "agent-personas/real-estate/Property-Management-and-Landlord-Advisor.txt"
+        },
+        {
+          "name": "Property Valuation & Investment Analyst",
+          "purpose": "A specialized Property Valuation & Investment Analysis system.",
+          "path": "agent-personas/real-estate/Property-Valuation-and-Investment-Analyst.txt"
+        },
+        {
+          "name": "Real Estate Agent Assistant",
+          "purpose": "A specialized AI assistant system for Real Estate professionals.",
+          "path": "agent-personas/real-estate/Real-Estate-Agent-Assistant.txt"
+        },
+        {
+          "name": "Real Estate Legal & Compliance Expert",
+          "purpose": "This AI agent system provides comprehensive real estate legal and compliance expertise through specialized agents.",
+          "path": "agent-personas/real-estate/Real-Estate-Legal-and-Compliance-Expert.txt"
+        },
+        {
+          "name": "Real Estate Marketing & Lead Generation Specialist",
+          "purpose": "A specialized Real Estate Marketing & Lead Generation expert with access to multiple specialized agents, each designed to handle specific aspects of real estate marketing and lead generation.",
+          "path": "agent-personas/real-estate/Real-Estate-Marketing-and-Lead-Generation-Specialist.txt"
+        },
+        {
+          "name": "Real Estate Transaction & Closing Coordinator",
+          "purpose": "This AI agent system is designed to assist Real Estate Transaction Coordinators with their daily responsibilities, from contract to closing.",
+          "path": "agent-personas/real-estate/Real-Estate-Transaction-and-Closing-Coordinator.txt"
+        },
+        {
+          "name": "Realtor General",
+          "purpose": "A specialized Real Estate AI Agent system.",
+          "path": "agent-personas/real-estate/Realtor-General.txt"
+        }
+      ]
+    },
+    {
+      "category": "Restaurant & Hospitality",
+      "folder": "Restaurant-and-Hospitality-Agents",
+      "count": 6,
+      "personas": [
+        {
+          "name": "Food Safety & Compliance Expert",
+          "purpose": "A specialized Food Safety & Compliance Expert AI agent system.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/Food-Safety-and-Compliance-Expert.txt"
+        },
+        {
+          "name": "Hospitality Labor Management Advisor",
+          "purpose": "The Hospitality Labor Management Advisor System - a comprehensive AI-powered framework designed to provide expert guidance across all aspects of labor management in the hospitality industry.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/Hospitality-Labor-Management-Advisor.txt"
+        },
+        {
+          "name": "IEP & Accommodation Specialist",
+          "purpose": "This AI agent system is designed to assist Restaurant IEP & Accommodation Specialists in managing workplace accommodations, ensuring ADA compliance, and supporting employees with disabilities in the restaurant industry.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/IEP-and-Accommodation-Specialist.txt"
+        },
+        {
+          "name": "Menu Engineering & Pricing Strategist",
+          "purpose": "This AI agent system provides comprehensive menu engineering and pricing strategy support for restaurants, cafes, bars, and food service operations.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/Menu-Engineering-and-Pricing-Strategist.txt"
+        },
+        {
+          "name": "Restaurant & Cafe Consultant",
+          "purpose": "This AI-powered Restaurant & Cafe Consultant framework provides specialized expertise across all aspects of restaurant and cafe operations.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/Restaurant-and-Cafe-Consultant.txt"
+        },
+        {
+          "name": "Restaurant Marketing & Customer Experience Specialist",
+          "purpose": "A specialized AI agent system for Restaurant Marketing & Customer Experience.",
+          "path": "agent-personas/Restaurant-and-Hospitality-Agents/Restaurant-Marketing-and-Customer-Experience-Specialist.txt"
+        }
+      ]
+    },
+    {
+      "category": "Teachers",
+      "folder": "teachers",
+      "count": 4,
+      "personas": [
+        {
+          "name": "Classroom Behavior Strategist",
+          "purpose": "A comprehensive AI agent system designed to support educators, behavior specialists, and school teams in managing classroom behavior challenges with evidence-based, unbiased guidance.",
+          "path": "agent-personas/teachers/Classroom-Behavior-Strategist.txt"
+        },
+        {
+          "name": "Grading & Feedback Assistant",
+          "purpose": "The Grading & Feedback Assistant Framework (GFAF) is a comprehensive AI-powered system designed to support educators in assessment, grading, and providing meaningful feedback.",
+          "path": "agent-personas/teachers/Grading-and-Feedback-Assistant.txt"
+        },
+        {
+          "name": "Lesson Plan Architect",
+          "purpose": "This document defines a comprehensive AI agent system for Lesson Plan Architecture, providing specialized agents for every aspect of educational planning, from curriculum design to assessment creation.",
+          "path": "agent-personas/teachers/Lesson-Plan-Architect.txt"
+        },
+        {
+          "name": "Parent Communication Navigator",
+          "purpose": "The Parent Communication Navigator is an AI-powered framework designed to help parents, teachers, and school administrators navigate complex communication scenarios with clarity, professionalism, and effectiveness.",
+          "path": "agent-personas/teachers/Parent-Communication-Navigator.txt"
+        }
+      ]
+    },
+    {
+      "category": "Technology & IT",
+      "folder": "technology-it",
+      "count": 10,
+      "personas": [
+        {
+          "name": "Cybersecurity Basics Advisor",
+          "purpose": "A specialized Cybersecurity Advisory system with multiple expert agents.",
+          "path": "agent-personas/technology-it/Cybersecurity-Basics-Advisor.txt"
+        },
+        {
+          "name": "Cybersecurity Compliance",
+          "purpose": "The Cybersecurity Compliance Agent Framework (CCAF) is a comprehensive AI-driven system that transforms you into a \"Virtual CISO\" by providing specialized AI agents for every aspect of cybersecurity compliance.",
+          "path": "agent-personas/technology-it/Cybersecurity-Compliance.txt"
+        },
+        {
+          "name": "Data Pipeline Engineer",
+          "purpose": "1. Pipeline Architect (/architect) - Data architecture design - Technology selection - Scalability planning - Cost optimization strategies",
+          "path": "agent-personas/technology-it/Data-Pipeline-Engineer.txt"
+        },
+        {
+          "name": "DevOps Architecture",
+          "purpose": "A specialized DevOps Architecture Agent System.",
+          "path": "agent-personas/technology-it/DevOps-Architecture.txt"
+        },
+        {
+          "name": "Halo PSA Admin",
+          "purpose": "The Halo PSA Admin Agent Framework - your comprehensive AI-driven system for mastering Halo PSA administration.",
+          "path": "agent-personas/technology-it/Halo-PSA-Admin.txt"
+        },
+        {
+          "name": "IT Project & Vendor Management",
+          "purpose": "This framework provides specialized AI agents for comprehensive IT project and vendor management.",
+          "path": "agent-personas/technology-it/IT-Project-and-Vendor-Management.txt"
+        },
+        {
+          "name": "IT Support Troubleshooter",
+          "purpose": "The IT Support Troubleshooter System is a comprehensive AI-driven framework that provides specialized agents for handling all aspects of IT support, from basic troubleshooting to complex system administration.",
+          "path": "agent-personas/technology-it/IT-Support-Troubleshooter.txt"
+        },
+        {
+          "name": "MSP Consultant",
+          "purpose": "A specialized MSP (Managed Service Provider) Consultant AI system.",
+          "path": "agent-personas/technology-it/MSP-Consultant.txt"
+        },
+        {
+          "name": "Software Architecture Advisor",
+          "purpose": "A comprehensive Software Architecture Advisor system that provides specialized agents for every aspect of software architecture consultation.",
+          "path": "agent-personas/technology-it/Software-Architecture-Advisor.txt"
+        },
+        {
+          "name": "Software Selector",
+          "purpose": "The Software Selector Agent System is a comprehensive AI-powered framework designed to guide organizations through the complex process of evaluating, selecting, and procuring software solutions.",
+          "path": "agent-personas/technology-it/Software-Selector.txt"
+        }
+      ]
+    },
+    {
+      "category": "Finance",
+      "folder": "finance",
+      "count": 8,
+      "personas": [
+        {
+          "name": "Bookkeeper & Controller",
+          "purpose": "Expert bookkeeper and controller specializing in day-to-day accounting operations, financial reconciliations, month-end close processes, and internal controls. Ensures the accuracy, completeness, and timeliness of financial records while maintaining GAAP compliance and audit readiness at all times.",
+          "path": "agent-personas/finance/bookkeeper-controller.md"
+        },
+        {
+          "name": "Financial Analyst",
+          "purpose": "Expert financial analyst specializing in financial modeling, forecasting, scenario analysis, and data-driven decision support. Transforms raw financial data into actionable business intelligence that drives strategic planning, investment decisions, and operational optimization.",
+          "path": "agent-personas/finance/financial-analyst.md"
+        },
+        {
+          "name": "FP&A Analyst",
+          "purpose": "Expert Financial Planning & Analysis (FP&A) analyst specializing in budgeting, variance analysis, financial planning, rolling forecasts, and strategic decision support. Bridges the gap between the numbers and the business narrative to drive operational performance and strategic resource allocation.",
+          "path": "agent-personas/finance/fp-a-analyst.md"
+        },
+        {
+          "name": "Investment Researcher",
+          "purpose": "Expert investment researcher specializing in market research, due diligence, portfolio analysis, and asset valuation. Conducts rigorous fundamental and quantitative analysis to identify investment opportunities, assess risks, and support data-driven portfolio decisions across public equities, private markets, and alternative assets.",
+          "path": "agent-personas/finance/investment-researcher.md"
+        },
+        {
+          "name": "Tax Strategist",
+          "purpose": "Expert tax strategist specializing in tax optimization, multi-jurisdictional compliance, transfer pricing, and strategic tax planning. Navigates complex tax codes to minimize liability while ensuring full regulatory compliance across local, state, federal, and international tax regimes.",
+          "path": "agent-personas/finance/tax-strategist.md"
+        },
+        {
+          "name": "Chief Financial Officer",
+          "purpose": "Strategic finance executive who governs capital allocation, treasury operations, financial planning, M&A finance, investor relations, and board reporting — translating financial complexity into clear decisions that drive business performance and stakeholder confidence.",
+          "path": "agent-personas/finance/chief-financial-officer.md"
+        },
+        {
+          "name": "Pricing Analyst",
+          "purpose": "Specialized pricing analyst who develops optimal pricing models through market research, competitor analysis, cost structure evaluation, and margin optimization — turning pricing from guesswork into a data-driven competitive advantage.",
+          "path": "agent-personas/finance/pricing-analyst.md"
+        },
+        {
+          "name": "Finance Tracker",
+          "purpose": "Expert financial analyst and controller specializing in financial planning, budget management, and business performance analysis. Maintains financial health, optimizes cash flow, and provides strategic financial insights for business growth.",
+          "path": "agent-personas/finance/finance-tracker.md"
+        }
+      ]
+    },
+    {
+      "category": "Marketing",
+      "folder": "marketing",
+      "count": 25,
+      "personas": [
+        {
+          "name": "AI Citation Strategist",
+          "purpose": "Expert in AI recommendation engine optimization (AEO/GEO) — audits brand visibility across ChatGPT, Claude, Gemini, and Perplexity, identifies why competitors get cited instead, and delivers content fixes that improve AI citations",
+          "path": "agent-personas/marketing/ai-citation-strategist.md"
+        },
+        {
+          "name": "AEO Foundations Architect",
+          "purpose": "Expert in AI Engine Optimization infrastructure — implements llms.txt, AI-aware robots.txt, token-budgeted content, structured Markdown availability, and agent discovery files so AI crawlers, citation engines, and browsing agents can find, parse, and act on your site",
+          "path": "agent-personas/marketing/aeo-foundations-architect.md"
+        },
+        {
+          "name": "Agentic Search Optimizer",
+          "purpose": "Expert in WebMCP readiness and agentic task completion — audits whether AI agents can actually accomplish tasks on your site (book, buy, register, subscribe), implements WebMCP declarative and imperative patterns, and measures task completion rates across AI browsing agents",
+          "path": "agent-personas/marketing/agentic-search-optimizer.md"
+        },
+        {
+          "name": "App Store Optimizer",
+          "purpose": "Expert app store marketing specialist focused on App Store Optimization (ASO), conversion rate optimization, and app discoverability",
+          "path": "agent-personas/marketing/app-store-optimizer.md"
+        },
+        {
+          "name": "Book Co-Author",
+          "purpose": "Strategic thought-leadership book collaborator for founders, experts, and operators turning voice notes, fragments, and positioning into structured first-person chapters.",
+          "path": "agent-personas/marketing/book-co-author.md"
+        },
+        {
+          "name": "Content Creator",
+          "purpose": "Expert content strategist and creator for multi-platform campaigns. Develops editorial calendars, creates compelling copy, manages brand storytelling, and optimizes content for engagement across all digital channels.",
+          "path": "agent-personas/marketing/content-creator.md"
+        },
+        {
+          "name": "Email Marketing Strategist",
+          "purpose": "Expert email marketing strategist for CRM-driven campaigns, lifecycle automation, segmentation architecture, and deliverability. Designs sequences (welcome, nurture, reactivation, win-back, review, referral) grounded in 2025-2026 benchmarks, AI-driven personalization, and post-Apple MPP measurement.",
+          "path": "agent-personas/marketing/email-marketing-strategist.md"
+        },
+        {
+          "name": "Global Podcast Strategist",
+          "purpose": "Expert podcast growth specialist focused on show positioning, audience development, content strategy, and monetisation. Transforms raw ideas into authoritative audio brands that compound listeners and revenue over time on Spotify, Apple Podcasts, and YouTube.",
+          "path": "agent-personas/marketing/global-podcast-strategist.md"
+        },
+        {
+          "name": "Growth Hacker",
+          "purpose": "Expert growth strategist specializing in rapid user acquisition through data-driven experimentation. Develops viral loops, optimizes conversion funnels, and finds scalable growth channels for exponential business growth.",
+          "path": "agent-personas/marketing/growth-hacker.md"
+        },
+        {
+          "name": "Instagram Curator",
+          "purpose": "Expert Instagram marketing specialist focused on visual storytelling, community building, and multi-format content optimization. Masters aesthetic development and drives meaningful engagement.",
+          "path": "agent-personas/marketing/instagram-curator.md"
+        },
+        {
+          "name": "LinkedIn Content Creator",
+          "purpose": "Expert LinkedIn content strategist focused on thought leadership, personal brand building, and high-engagement professional content. Masters LinkedIn's algorithm and culture to drive inbound opportunities for founders, job seekers, developers, and anyone building a professional presence.",
+          "path": "agent-personas/marketing/linkedin-content-creator.md"
+        },
+        {
+          "name": "PR & Communications Manager",
+          "purpose": "Strategic public relations and communications specialist for media relations, press releases, crisis communications, executive thought leadership, brand reputation management, and integrated communications planning — building and protecting reputations through earned media, storytelling, and proactive narrative control",
+          "path": "agent-personas/marketing/pr-communications-manager.md"
+        },
+        {
+          "name": "Reddit Community Builder",
+          "purpose": "Expert Reddit marketing specialist focused on authentic community engagement, value-driven content creation, and long-term relationship building. Masters Reddit culture navigation.",
+          "path": "agent-personas/marketing/reddit-community-builder.md"
+        },
+        {
+          "name": "SEO Specialist",
+          "purpose": "Expert search engine optimization strategist specializing in technical SEO, content optimization, link authority building, and organic search growth. Drives sustainable traffic through data-driven search strategies.",
+          "path": "agent-personas/marketing/seo-specialist.md"
+        },
+        {
+          "name": "Social Media Strategist",
+          "purpose": "Expert social media strategist for LinkedIn, Twitter, and professional platforms. Creates cross-platform campaigns, builds communities, manages real-time engagement, and develops thought leadership strategies.",
+          "path": "agent-personas/marketing/social-media-strategist.md"
+        },
+        {
+          "name": "Twitter Engager",
+          "purpose": "Expert Twitter marketing specialist focused on real-time engagement, thought leadership building, and community-driven growth. Builds brand authority through authentic conversation participation and viral thread creation.",
+          "path": "agent-personas/marketing/twitter-engager.md"
+        },
+        {
+          "name": "Video Optimization Specialist",
+          "purpose": "Video marketing strategist specializing in YouTube algorithm optimization, audience retention, chaptering, thumbnail concepts, and cross-platform video syndication.",
+          "path": "agent-personas/marketing/video-optimization-specialist.md"
+        },
+        {
+          "name": "X/Twitter Intelligence Analyst",
+          "purpose": "Social intelligence specialist for X/Twitter research, trend detection, account monitoring, and evidence-backed audience insights using public signals and structured data workflows.",
+          "path": "agent-personas/marketing/x-twitter-intelligence-analyst.md"
+        },
+        {
+          "name": "Ad Creative Strategist",
+          "purpose": "Paid media creative specialist focused on ad copywriting, RSA optimization, asset group design, and creative testing frameworks across Google, Meta, Microsoft, and programmatic platforms. Bridges the gap between performance data and persuasive messaging.",
+          "path": "agent-personas/marketing/ad-creative-strategist.md"
+        },
+        {
+          "name": "Paid Media Auditor",
+          "purpose": "Comprehensive paid media auditor who systematically evaluates Google Ads, Microsoft Ads, and Meta accounts across 200+ checkpoints spanning account structure, tracking, bidding, creative, audiences, and competitive positioning. Produces actionable audit reports with prioritized recommendations and projected impact.",
+          "path": "agent-personas/marketing/paid-media-auditor.md"
+        },
+        {
+          "name": "Paid Social Strategist",
+          "purpose": "Cross-platform paid social advertising specialist covering Meta (Facebook/Instagram), LinkedIn, TikTok, Pinterest, X, and Snapchat. Designs full-funnel social ad programs from prospecting through retargeting with platform-specific creative and audience strategies.",
+          "path": "agent-personas/marketing/paid-social-strategist.md"
+        },
+        {
+          "name": "PPC Campaign Strategist",
+          "purpose": "Senior paid media strategist specializing in large-scale search, shopping, and performance max campaign architecture across Google, Microsoft, and Amazon ad platforms. Designs account structures, budget allocation frameworks, and bidding strategies that scale from $10K to $10M+ monthly spend.",
+          "path": "agent-personas/marketing/ppc-campaign-strategist.md"
+        },
+        {
+          "name": "Programmatic & Display Buyer",
+          "purpose": "Display advertising and programmatic media buying specialist covering managed placements, Google Display Network, DV360, trade desk platforms, partner media (newsletters, sponsored content), and ABM display strategies via platforms like Demandbase and 6Sense.",
+          "path": "agent-personas/marketing/programmatic-display-buyer.md"
+        },
+        {
+          "name": "Search Query Analyst",
+          "purpose": "Specialist in search term analysis, negative keyword architecture, and query-to-intent mapping. Turns raw search query data into actionable optimizations that eliminate waste and amplify high-intent traffic across paid search accounts.",
+          "path": "agent-personas/marketing/search-query-analyst.md"
+        },
+        {
+          "name": "Tracking & Measurement Specialist",
+          "purpose": "Expert in conversion tracking architecture, tag management, and attribution modeling across Google Tag Manager, GA4, Google Ads, Meta CAPI, LinkedIn Insight Tag, and server-side implementations. Ensures every conversion is counted correctly and every dollar of ad spend is measurable.",
+          "path": "agent-personas/marketing/tracking-measurement-specialist.md"
+        }
+      ]
+    },
+    {
+      "category": "Business",
+      "folder": "business",
+      "count": 37,
+      "personas": [
+        {
+          "name": "Account Strategist",
+          "purpose": "Expert post-sale account strategist specializing in land-and-expand execution, stakeholder mapping, QBR facilitation, and net revenue retention. Turns closed deals into long-term platform relationships through systematic expansion planning and multi-threaded account development.",
+          "path": "agent-personas/business/account-strategist.md"
+        },
+        {
+          "name": "Deal Strategist",
+          "purpose": "Senior deal strategist specializing in MEDDPICC qualification, competitive positioning, and win planning for complex B2B sales cycles. Scores opportunities, exposes pipeline risk, and builds deal strategies that survive forecast review.",
+          "path": "agent-personas/business/deal-strategist.md"
+        },
+        {
+          "name": "Discovery Coach",
+          "purpose": "Coaches sales teams on elite discovery methodology — question design, current-state mapping, gap quantification, and call structure that surfaces real buying motivation.",
+          "path": "agent-personas/business/discovery-coach.md"
+        },
+        {
+          "name": "Offer & Lead Gen Strategist",
+          "purpose": "Top-of-funnel architect who designs irresistible offers and lead magnets that attract qualified buyers at scale. Specializes in value-equation offer construction, lead magnet typology, multi-channel lead generation, and compounding reach through customers, employees, agencies, and affiliates.",
+          "path": "agent-personas/business/offer-lead-gen-strategist.md"
+        },
+        {
+          "name": "Outbound Strategist",
+          "purpose": "Signal-based outbound specialist who designs multi-channel prospecting sequences, defines ICPs, and builds pipeline through research-driven personalization — not volume.",
+          "path": "agent-personas/business/outbound-strategist.md"
+        },
+        {
+          "name": "Pipeline Analyst",
+          "purpose": "Revenue operations analyst specializing in pipeline health diagnostics, deal velocity analysis, forecast accuracy, and data-driven sales coaching. Turns CRM data into actionable pipeline intelligence that surfaces risks before they become missed quarters.",
+          "path": "agent-personas/business/pipeline-analyst.md"
+        },
+        {
+          "name": "Proposal Strategist",
+          "purpose": "Strategic proposal architect who transforms RFPs and sales opportunities into compelling win narratives. Specializes in win theme development, competitive positioning, executive summary craft, and building proposals that persuade rather than merely comply.",
+          "path": "agent-personas/business/proposal-strategist.md"
+        },
+        {
+          "name": "Sales Coach",
+          "purpose": "Expert sales coaching specialist focused on rep development, pipeline review facilitation, call coaching, deal strategy, and forecast accuracy. Makes every rep and every deal better through structured coaching methodology and behavioral feedback.",
+          "path": "agent-personas/business/sales-coach.md"
+        },
+        {
+          "name": "Sales Engineer",
+          "purpose": "Senior pre-sales engineer specializing in technical discovery, demo engineering, POC scoping, competitive battlecards, and bridging product capabilities to business outcomes. Wins the technical decision so the deal can close.",
+          "path": "agent-personas/business/sales-engineer.md"
+        },
+        {
+          "name": "Behavioral Nudge Engine",
+          "purpose": "Behavioral psychology specialist that adapts software interaction cadences and styles to maximize user motivation and success.",
+          "path": "agent-personas/business/behavioral-nudge-engine.md"
+        },
+        {
+          "name": "Feedback Synthesizer",
+          "purpose": "Expert in collecting, analyzing, and synthesizing user feedback from multiple channels to extract actionable product insights. Transforms qualitative feedback into quantitative priorities and strategic recommendations.",
+          "path": "agent-personas/business/feedback-synthesizer.md"
+        },
+        {
+          "name": "Product Manager",
+          "purpose": "Holistic product leader who owns the full product lifecycle — from discovery and strategy through roadmap, stakeholder alignment, go-to-market, and outcome measurement. Bridges business goals, user needs, and technical reality to ship the right thing at the right time.",
+          "path": "agent-personas/business/product-manager.md"
+        },
+        {
+          "name": "Sprint Prioritizer",
+          "purpose": "Expert product manager specializing in agile sprint planning, feature prioritization, and resource allocation. Focused on maximizing team velocity and business value delivery through data-driven prioritization frameworks.",
+          "path": "agent-personas/business/sprint-prioritizer.md"
+        },
+        {
+          "name": "Trend Researcher",
+          "purpose": "Expert market intelligence analyst specializing in identifying emerging trends, competitive analysis, and opportunity assessment. Focused on providing actionable insights that drive product strategy and innovation decisions.",
+          "path": "agent-personas/business/trend-researcher.md"
+        },
+        {
+          "name": "Experiment Tracker",
+          "purpose": "Expert project manager specializing in experiment design, execution tracking, and data-driven decision making. Focused on managing A/B tests, feature experiments, and hypothesis validation through systematic experimentation and rigorous analysis.",
+          "path": "agent-personas/business/experiment-tracker.md"
+        },
+        {
+          "name": "Meeting Notes Specialist",
+          "purpose": "Extract structured decisions, action items, and open questions from meeting transcripts or rough notes into a clean 4-section summary.",
+          "path": "agent-personas/business/meeting-notes-specialist.md"
+        },
+        {
+          "name": "Project Shepherd",
+          "purpose": "Expert project manager specializing in cross-functional project coordination, timeline management, and stakeholder alignment. Focused on shepherding projects from conception to completion while managing resources, risks, and communications across multiple teams and departments.",
+          "path": "agent-personas/business/project-shepherd.md"
+        },
+        {
+          "name": "Senior Project Manager",
+          "purpose": "Converts specs to tasks and remembers previous projects. Focused on realistic scope, no background processes, exact spec requirements",
+          "path": "agent-personas/business/senior-project-manager.md"
+        },
+        {
+          "name": "Studio Operations",
+          "purpose": "Expert operations manager specializing in day-to-day studio efficiency, process optimization, and resource coordination. Focused on ensuring smooth operations, maintaining productivity standards, and supporting all teams with the tools and processes needed for success.",
+          "path": "agent-personas/business/studio-operations.md"
+        },
+        {
+          "name": "Studio Producer",
+          "purpose": "Senior strategic leader specializing in high-level creative and technical project orchestration, resource allocation, and multi-project portfolio management. Focused on aligning creative vision with business objectives while managing complex cross-functional initiatives and ensuring optimal studio operations.",
+          "path": "agent-personas/business/studio-producer.md"
+        },
+        {
+          "name": "Business Strategist",
+          "purpose": "Senior management consulting specialist for competitive analysis, market entry strategy, business model design, growth planning, organizational strategy, and strategic decision-making — translating complex market dynamics into clear, actionable strategies that create sustainable competitive advantage",
+          "path": "agent-personas/business/business-strategist.md"
+        },
+        {
+          "name": "Change Management Consultant",
+          "purpose": "Expert change management specialist using ADKAR, Kotter, and Prosci frameworks to guide organizations through technology implementations, restructuring, culture transformation, and M&A integration — managing resistance, building adoption, and ensuring changes stick long after go-live",
+          "path": "agent-personas/business/change-management-consultant.md"
+        },
+        {
+          "name": "Chief of Staff",
+          "purpose": "Master coordinator for founders and executives — filters noise, owns processes, enforces consistency, routes decisions, and positions outputs for impact so the boss can think clearly.",
+          "path": "agent-personas/business/chief-of-staff.md"
+        },
+        {
+          "name": "Corporate Training Designer",
+          "purpose": "Expert in enterprise training system design and curriculum development — proficient in training needs analysis, instructional design methodology, blended learning program design, internal trainer development, leadership programs, and training effectiveness evaluation and continuous optimization.",
+          "path": "agent-personas/business/corporate-training-designer.md"
+        },
+        {
+          "name": "Customer Success Manager",
+          "purpose": "Strategic customer success specialist for onboarding, health scoring, QBR facilitation, churn prevention, expansion identification, and renewal management — driving net revenue retention by turning customers into long-term partners who achieve measurable outcomes",
+          "path": "agent-personas/business/customer-success-manager.md"
+        },
+        {
+          "name": "Data Privacy Officer",
+          "purpose": "Corporate data privacy specialist and DPO who builds GDPR, CCPA, and global privacy compliance programs — covering data mapping, privacy impact assessments, consent management, breach response, vendor due diligence, and regulatory engagement.",
+          "path": "agent-personas/business/data-privacy-officer.md"
+        },
+        {
+          "name": "ESG & Sustainability Officer",
+          "purpose": "Corporate sustainability strategist and ESG reporting specialist who builds environmental, social, and governance programs, manages disclosures, drives decarbonization initiatives, and aligns business strategy with stakeholder and regulatory expectations.",
+          "path": "agent-personas/business/esg-sustainability-officer.md"
+        },
+        {
+          "name": "Grant Writer",
+          "purpose": "Expert grant writing specialist for nonprofits, research institutions, and social enterprises — covering prospect research, letter of inquiry writing, full proposal development, budget narratives, federal and foundation grants, and post-award reporting to maximize funding success",
+          "path": "agent-personas/business/grant-writer.md"
+        },
+        {
+          "name": "HR Onboarding",
+          "purpose": "Comprehensive HR onboarding specialist for employee orientation, documentation management, compliance tracking, benefits enrollment, culture integration, and new hire support — delivering a seamless first-day-to-first-year experience that drives retention and productivity",
+          "path": "agent-personas/business/hr-onboarding.md"
+        },
+        {
+          "name": "M&A Integration Manager",
+          "purpose": "Mergers and acquisitions integration specialist who designs and executes post-merger integration programs — covering Day 1 readiness, 100-day planning, synergy tracking, cultural integration, functional workstream coordination, and transition service agreement management.",
+          "path": "agent-personas/business/m-a-integration-manager.md"
+        },
+        {
+          "name": "Operations Manager",
+          "purpose": "Business operations specialist who applies Lean, Six Sigma, and systems thinking to process mapping, capacity planning, KPI governance, vendor management, and organizational efficiency — turning operational complexity into repeatable, measurable performance.",
+          "path": "agent-personas/business/operations-manager.md"
+        },
+        {
+          "name": "Organizational Psychologist",
+          "purpose": "Applied organizational psychologist who diagnoses team dynamics, psychological safety, burnout risk, and culture health — using evidence-based frameworks to help leaders build high-performing, resilient, and psychologically safe organizations.",
+          "path": "agent-personas/business/organizational-psychologist.md"
+        },
+        {
+          "name": "Sales Outreach",
+          "purpose": "Consultative B2B sales outreach specialist for cold prospecting, lead follow-up, objection handling, proposal writing, and pipeline management — combining data-driven targeting with genuine relationship-building to open doors and close deals",
+          "path": "agent-personas/business/sales-outreach.md"
+        },
+        {
+          "name": "Analytics Reporter",
+          "purpose": "Expert data analyst transforming raw data into actionable business insights. Creates dashboards, performs statistical analysis, tracks KPIs, and provides strategic decision support through data visualization and reporting.",
+          "path": "agent-personas/business/analytics-reporter.md"
+        },
+        {
+          "name": "Executive Summary Generator",
+          "purpose": "Consultant-grade AI specialist trained to think and communicate like a senior strategy consultant. Transforms complex business inputs into concise, actionable executive summaries using McKinsey SCQA, BCG Pyramid Principle, and Bain frameworks for C-suite decision-makers.",
+          "path": "agent-personas/business/executive-summary-generator.md"
+        },
+        {
+          "name": "Tool Evaluator",
+          "purpose": "Expert technology assessment specialist focused on evaluating, testing, and recommending tools, software, and platforms for business use and productivity optimization",
+          "path": "agent-personas/business/tool-evaluator.md"
+        },
+        {
+          "name": "Workflow Optimizer",
+          "purpose": "Expert process improvement specialist focused on analyzing, optimizing, and automating workflows across all business functions for maximum productivity and efficiency",
+          "path": "agent-personas/business/workflow-optimizer.md"
+        }
+      ]
+    }
+  ]
+}

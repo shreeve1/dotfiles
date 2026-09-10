@@ -1,0 +1,133 @@
+# adapter.yaml — declares how the autoagent loop drives YOUR system.
+#
+# Six sections: sut, mutator, probe, verifier, runner, loop.
+# Plus snapshot (required when sut.live is true).
+#
+# Reserved tokens in command strings:
+#   {probe}  — verbatim substitution: the probe directory path.
+#             Performed by the loop driver before passing the string to bash.
+#             ALWAYS substituted.
+#
+# Environment variables the loop driver sets when invoking runner.cmd:
+#   AUTOAGENT_PROBE_DIR   — always set; same value as {probe}.
+#   AUTOAGENT_SCORE_FILE  — set ONLY when verifier.score_file_scope == "repo".
+#                           For "container" scope, the runner owns the score
+#                           plumbing and the driver reads it from the runner's
+#                           report instead.
+#   AUTOAGENT_COST_FILE   — set when verifier.emits_cost == true.
+#
+# Required .gitignore entries:
+#   snapshots/      .autoagent/
+# Plus any adapter-specific runtime files (e.g. worker.log, worker.pid).
+# If these are tracked, RunLoop's `git reset --hard HEAD~1` on discard will
+# delete the snapshot mid-restore.
+
+# Human-readable name. Used in logs.
+name: my-system
+
+# self_driven         -> this skill runs the loop directly (recommended for live systems)
+# external_meta_agent -> skill produces program.md, hands off to user's coding agent
+loop_mode: self_driven
+
+# ---------------------------------------------------------------------------
+# SUT — the System Under Test.
+# ---------------------------------------------------------------------------
+sut:
+  description: "One sentence describing what this system does."
+  # Paths (relative to repo root) that constitute the SUT.
+  paths:
+    - path/to/file_or_dir
+  # If true, mutations may affect real-world state (Temporal namespace, cron
+  # table, external API). Live SUTs require the `snapshot` section.
+  live: false
+
+# ---------------------------------------------------------------------------
+# MUTATOR — what may be changed and how.
+# ---------------------------------------------------------------------------
+mutator:
+  edit_surface:
+    - "path/to/file_or_dir/**"
+  # Always include adapter.yaml in `fixed` (defense in depth — the loop must
+  # not mutate its own contract).
+  #
+  # Entries are EITHER:
+  #   - shell-style globs matched against changed paths
+  #     (`git diff --name-only --cached`), OR
+  #   - `path#MARKER` form. The driver inspects `git diff --cached -- <path>`
+  #     and refuses any hunk that crosses a line matching
+  #     `# ===== MARKER =====` (or any line between two such markers).
+  # See Workflows/RunLoop.md "Mutator boundary enforcement."
+  fixed:
+    - "adapter.yaml"
+    - "path/to/file_or_dir/adapter_boundary.py"
+  # Optional command run AFTER each mutation to apply it (deploy, rebuild,
+  # reload). Leave null when mutations apply by file edit alone.
+  apply_cmd: null
+  # Command used to discard a mutation. Default for git-tracked SUTs:
+  # `git reset --hard HEAD~1` (drops the just-made mutation commit cleanly).
+  rollback_cmd: "git reset --hard HEAD~1"
+
+# ---------------------------------------------------------------------------
+# PROBE — where experiments live.
+# ---------------------------------------------------------------------------
+probe:
+  dir: probes
+  list_glob: "probes/*/probe.yaml"
+
+# ---------------------------------------------------------------------------
+# VERIFIER — how a probe's outcome becomes a score.
+# verify.sh writes a float in [0.0, 1.0] to $AUTOAGENT_SCORE_FILE.
+# ---------------------------------------------------------------------------
+verifier:
+  # Path receives the score for the most recent probe run.
+  # Repo-relative unless score_file_scope is "container".
+  score_file: ".autoagent/last_score"
+  # repo      — score_file is in the repo working tree. Loop driver sets
+  #             AUTOAGENT_SCORE_FILE to this path before invoking runner.cmd.
+  # container — score_file is inside an isolated container (Docker, Harbor,
+  #             etc.). The runner is responsible for materializing/reading
+  #             it; AUTOAGENT_SCORE_FILE is NOT exported.
+  # Heuristic: choose "repo" unless your runner runs the SUT inside an
+  # opaque container that doesn't bind-mount the repo.
+  score_file_scope: repo
+  # Score >= pass_threshold counts as a passed probe.
+  pass_threshold: 0.5
+  # When true, the verifier writes a decimal cost to $AUTOAGENT_COST_FILE
+  # (LLM token spend, compute seconds, API dollars). Driver reads it into
+  # the `cost` column of results.tsv. When false, cost defaults to 0.
+  emits_cost: false
+
+# ---------------------------------------------------------------------------
+# RUNNER — how to execute one probe.
+# `{probe}` is replaced verbatim with the probe directory by the loop driver
+# before passing the string to `bash -c`. The driver sets
+# AUTOAGENT_SCORE_FILE and AUTOAGENT_PROBE_DIR in the environment.
+# ---------------------------------------------------------------------------
+runner:
+  cmd: "bash {probe}/verify.sh"
+  concurrency: 1
+  timeout_seconds: 300
+
+# ---------------------------------------------------------------------------
+# LOOP — driver behavior knobs.
+# ---------------------------------------------------------------------------
+loop:
+  # Stop after this many consecutive iterations with NO keep row written.
+  # (Discards do not reset the counter; a single keep does.)
+  plateau_iterations: 5
+  # For live SUTs: prompt the human after this many iterations.
+  # Ignored when sut.live is false (NEVER STOP is absolute for non-live SUTs).
+  human_checkpoint_every: 10
+
+# ---------------------------------------------------------------------------
+# SNAPSHOT — required when sut.live is true; omit otherwise.
+# Captures pre-mutation state so a discarded mutation can be rolled back on
+# the live system (not just in git).
+# ---------------------------------------------------------------------------
+snapshot:
+  # Prints current SUT state to stdout (any format the restore command accepts).
+  capture_cmd: null
+  # Reads the captured state on stdin and restores it.
+  restore_cmd: null
+  # Directory snapshots are saved to (one file per mutation_id).
+  dir: snapshots
