@@ -38,3 +38,6 @@ The test: Every changed line should trace to my request or to cleanup I approved
 - Match the length to the stakes: a real choice gets an explanation, a routine one gets a line.
 
 The test: Could a smart non-coder follow this and make the call confidently?
+# graphify
+- **graphify** (`~/.claude/skills/graphify/SKILL.md`) - any input to knowledge graph. Trigger: `/graphify`
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
