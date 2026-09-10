@@ -146,3 +146,13 @@ This file tracks implementation notes across Ralph iterations.
 **Notes for next iteration:** #048 needs to widen the codex skills bridge (`~/.codex/skills/` → all 83 AGENTS skills) and repoint `~/.codex/AGENTS.md` to `dotfiles/.agents/AGENTS.md`. The AGENTS block is now stable; do not add per-skill codex bridging inside it.
 
 **Fresh review:** Independent review returned `RALPH_REVIEW: PASS`. All four acceptance criteria objectively satisfied, the exact verification command (`bash -n install.sh && grep -q '\.agents' install.sh && readlink ~/.agents/skills`) exits 0, and post-apply `~/.agents/skills` / `~/.agents/AGENTS.md` / `~/.dsh/AGENTS.md` all resolve to `dotfiles/.agents/...` (real dir via link, not the prior `.claude` target). `~/.agents/engram/` untouched. Scope matched the issue; no leakage.
+
+## #049 Remove dsh-cc-skills plugin and verify native AGENTS skills + rules — 2026-09-10
+
+**What changed:** `dsh plugin --profile web remove dsh-cc-skills` executed; the plugin is gone from the profile (grep count 0, no node_modules remnant). dsh restarted (smart-restart, boot 2026-09-10T16:35:14Z, process-lifetime rules cache cleared). Post-restart evidence: session's own system-reminder loads the merged guidance from `~/.dsh/AGENTS.md` (Agent Notes + always-on rules + codex guidance), and the skill catalog lists 83 skills under `dotfiles/.agents/skills` (native `user-agents`, no `plugin-cc-skills-*` entries). No ELOOP; the cross-standard symlink was severed by #047 (`skills-bak-…` kept).
+
+**Files:** `.kanban/issues/049-remove-dsh-cc-skills.md` (status → done), board state
+
+**Decisions:** All three acceptance criteria objectively satisfied on 2026-09-10: plugin absent, skills native, rules lane live. `.claude/` untouched (Claude Code keeps its own lane). Command/plans and per-skill tool-scope drops were user-accepted (documented in the issue).
+
+**Notes for next iteration:** #048 (codex unify) and #050 (docs: deepseek-harness.md row 6 still says `dsh-cc-skills 0.1.0`) remain the frontier.
