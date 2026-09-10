@@ -1,0 +1,217 @@
+{
+  "docs/specs/check-ktest-marker.sh": {
+    "mtime": 1788832526.2400074,
+    "ast_hash": "e85393e8ba6c3497aa5e69c95469d488",
+    "semantic_hash": "e85393e8ba6c3497aa5e69c95469d488"
+  },
+  "wiki/.gate-state.json": {
+    "mtime": 1788565533.1029077,
+    "ast_hash": "eaa0e94bc060ea5a2b504d797eeeff2e",
+    "semantic_hash": "eaa0e94bc060ea5a2b504d797eeeff2e"
+  },
+  "docs/adr/0001-verification-two-layers.md": {
+    "mtime": 1786996220.4735522,
+    "ast_hash": "f36946316468e1150a93352a0c1d875a",
+    "semantic_hash": "f36946316468e1150a93352a0c1d875a"
+  },
+  "docs/adr/0002-fusion-mode.md": {
+    "mtime": 1786907448.2971632,
+    "ast_hash": "1f295b7bfe8a7806a86492b62b86dc68",
+    "semantic_hash": "1f295b7bfe8a7806a86492b62b86dc68"
+  },
+  "docs/adr/0003-claude-fusion.md": {
+    "mtime": 1786912870.9269023,
+    "ast_hash": "a6a3b941270512c17d63ead5b0d5513b",
+    "semantic_hash": "a6a3b941270512c17d63ead5b0d5513b"
+  },
+  "docs/adr/0004-concurrent-subagents-disjoint-files.md": {
+    "mtime": 1786915151.5453582,
+    "ast_hash": "d19ca2f68c15b2809e0947c69ad28305",
+    "semantic_hash": "d19ca2f68c15b2809e0947c69ad28305"
+  },
+  "docs/adr/0005-ralph-planner-stage.md": {
+    "mtime": 1787429679.2100224,
+    "ast_hash": "8e00ee79f9491bff371885fa635f455c",
+    "semantic_hash": "8e00ee79f9491bff371885fa635f455c"
+  },
+  "docs/adr/0006-omp-fusion.md": {
+    "mtime": 1787268885.6791284,
+    "ast_hash": "3551d86076baf1ef04f7c989823d5795",
+    "semantic_hash": "3551d86076baf1ef04f7c989823d5795"
+  },
+  "docs/adr/0007-ralph-single-worker-per-issue.md": {
+    "mtime": 1787429679.1900222,
+    "ast_hash": "aa471d863884bbed60ba3f55124f2862",
+    "semantic_hash": "aa471d863884bbed60ba3f55124f2862"
+  },
+  "docs/adr/0008-ralph-omp-workers.md": {
+    "mtime": 1787435262.0344708,
+    "ast_hash": "58d690671cdf74db91383ae1f4c775c5",
+    "semantic_hash": "58d690671cdf74db91383ae1f4c775c5"
+  },
+  "docs/brainstorming/brainstorm-dsh-interactive-learning-plugin-2026-09-04/.memlog.md": {
+    "mtime": 1788489051.8250034,
+    "ast_hash": "470000e7314d5bdbbc4f3367174ceeeb",
+    "semantic_hash": "470000e7314d5bdbbc4f3367174ceeeb"
+  },
+  "docs/brainstorming/brainstorm-dsh-interactive-learning-plugin-2026-09-04/SHAPED.md": {
+    "mtime": 1788489025.7918477,
+    "ast_hash": "f6894d4f9926fc2cdb50f3860294795a",
+    "semantic_hash": "f6894d4f9926fc2cdb50f3860294795a"
+  },
+  "docs/brainstorming/brainstorm-dsh-interactive-learning-plugin-2026-09-04/grounding.md": {
+    "mtime": 1788481647.755182,
+    "ast_hash": "26cb89798140e192c314190820d3cbae",
+    "semantic_hash": "26cb89798140e192c314190820d3cbae"
+  },
+  "docs/deepseek-harness-plugins.md": {
+    "mtime": 1787757383.883075,
+    "ast_hash": "bb872c831e1bbcc1a0281cf42e465219",
+    "semantic_hash": "bb872c831e1bbcc1a0281cf42e465219"
+  },
+  "docs/deepseek-harness.md": {
+    "mtime": 1788564573.2627797,
+    "ast_hash": "15e21a73cdc85936f0c05f81d586e541",
+    "semantic_hash": "15e21a73cdc85936f0c05f81d586e541"
+  },
+  "docs/pi-extensions.md": {
+    "mtime": 1788230726.3575783,
+    "ast_hash": "5f81dcf0d9feddd2e82026baa9a46568",
+    "semantic_hash": "5f81dcf0d9feddd2e82026baa9a46568"
+  },
+  "docs/specs/k1002-teach-answer-ordering-rule.md": {
+    "mtime": 1788619808.2754595,
+    "ast_hash": "5306cbf61e5ad24418fa1072da431c02",
+    "semantic_hash": "5306cbf61e5ad24418fa1072da431c02"
+  },
+  "docs/specs/k551-dangling-symlinks.md": {
+    "mtime": 1788453917.1902225,
+    "ast_hash": "a8b5da31c34b87f454ef8fe766c5b60a",
+    "semantic_hash": "a8b5da31c34b87f454ef8fe766c5b60a"
+  },
+  "docs/specs/k745-prune-oracle-harness.md": {
+    "mtime": 1788474441.0099328,
+    "ast_hash": "e0e94d065a3a99b17ae09894342aac06",
+    "semantic_hash": "e0e94d065a3a99b17ae09894342aac06"
+  },
+  "docs/specs/k801-checksh-python-selector.md": {
+    "mtime": 1788492443.848645,
+    "ast_hash": "58c2b45d57f282efedcf26b160e474bd",
+    "semantic_hash": "58c2b45d57f282efedcf26b160e474bd"
+  },
+  "docs/specs/k881-reproducible-dsh-install.md": {
+    "mtime": 1788538160.660541,
+    "ast_hash": "463c0554b2b30bd169071b4cf27b17cb",
+    "semantic_hash": "463c0554b2b30bd169071b4cf27b17cb"
+  },
+  "docs/specs/ktest-marker.txt": {
+    "mtime": 1788832526.2400074,
+    "ast_hash": "4fcc99e92715b52f34584619af8ec2a3",
+    "semantic_hash": "4fcc99e92715b52f34584619af8ec2a3"
+  },
+  "docs/specs/ktest-review-protocol.md": {
+    "mtime": 1788829520.0444984,
+    "ast_hash": "f894211edca31faf75016f389b1a98a8",
+    "semantic_hash": "f894211edca31faf75016f389b1a98a8"
+  },
+  "wiki/CLAIMS.md": {
+    "mtime": 1788565533.1029077,
+    "ast_hash": "4c6b67487d8a0e37dfe3a6ca6ddc9377",
+    "semantic_hash": "4c6b67487d8a0e37dfe3a6ca6ddc9377"
+  },
+  "wiki/README.md": {
+    "mtime": 1781967740.3292692,
+    "ast_hash": "aa116523380c5ec398eead767ca2e40f",
+    "semantic_hash": "aa116523380c5ec398eead767ca2e40f"
+  },
+  "wiki/ROUTING.md": {
+    "mtime": 1788565910.2222319,
+    "ast_hash": "c36da9b9bf74820b8cac3769f16dc2ac",
+    "semantic_hash": "c36da9b9bf74820b8cac3769f16dc2ac"
+  },
+  "wiki/analyses/dsh-board-pipeline.md": {
+    "mtime": 1788565880.4860492,
+    "ast_hash": "aff66de6784ca0134eef5c8e7c4c33ef",
+    "semantic_hash": "aff66de6784ca0134eef5c8e7c4c33ef"
+  },
+  "wiki/analyses/rpiv-pipeline.md": {
+    "mtime": 1780627093.8634953,
+    "ast_hash": "ef06e42781e595b8ff6f128c5f121ba6",
+    "semantic_hash": "ef06e42781e595b8ff6f128c5f121ba6"
+  },
+  "wiki/candidates/source-opencode-subagents.md": {
+    "mtime": 1778964359.9509487,
+    "ast_hash": "c7f17b5ddd9a123b2807867e3e141cac",
+    "semantic_hash": "c7f17b5ddd9a123b2807867e3e141cac"
+  },
+  "wiki/index.md": {
+    "mtime": 1788565906.0762064,
+    "ast_hash": "6d62a8367944b26f519d135b64d7cb9b",
+    "semantic_hash": "6d62a8367944b26f519d135b64d7cb9b"
+  },
+  "wiki/log.md": {
+    "mtime": 1788565921.0182981,
+    "ast_hash": "226369babbd08180b7fd943403794ee5",
+    "semantic_hash": "226369babbd08180b7fd943403794ee5"
+  },
+  "wiki/raw/opencode-subagents.md": {
+    "mtime": 1781967740.3292692,
+    "ast_hash": "47d43f98c7acc64ccae3a0a73f07a3b8",
+    "semantic_hash": "47d43f98c7acc64ccae3a0a73f07a3b8"
+  },
+  "wiki/raw/sessions/2026-06-04-rpiv-pipeline-skills.md": {
+    "mtime": 1780593417.7376797,
+    "ast_hash": "61fd6179474741d44f4fd4f291166325",
+    "semantic_hash": "61fd6179474741d44f4fd4f291166325"
+  },
+  "wiki/raw/sessions/2026-06-23-ponytail-and-wiki-gates.md": {
+    "mtime": 1782235302.3808138,
+    "ast_hash": "f161686a1ee355af073c0b743dbba40a",
+    "semantic_hash": "f161686a1ee355af073c0b743dbba40a"
+  },
+  "wiki/raw/sessions/2026-07-11-pi-moa-advisor-cost-tuning.md": {
+    "mtime": 1783981467.7350423,
+    "ast_hash": "216e46f0df0f923d7fb37ca79f33902a",
+    "semantic_hash": "216e46f0df0f923d7fb37ca79f33902a"
+  },
+  "wiki/raw/sessions/2026-07-11-pi-moa-fusion-install.md": {
+    "mtime": 1783981467.7350423,
+    "ast_hash": "761a1da085a8ab11370864a7e383ff87",
+    "semantic_hash": "761a1da085a8ab11370864a7e383ff87"
+  },
+  "wiki/raw/sessions/2026-07-21-gap-review-completeness-layer.md": {
+    "mtime": 1784657083.079522,
+    "ast_hash": "e049aea89a223ea49fc335a91946d1bb",
+    "semantic_hash": "e049aea89a223ea49fc335a91946d1bb"
+  },
+  "wiki/raw/sessions/2026-09-04-dsh-board-loop-fixes.md": {
+    "mtime": 1788565475.4455502,
+    "ast_hash": "df903610bd293e8b5dee6175d67569c9",
+    "semantic_hash": "df903610bd293e8b5dee6175d67569c9"
+  },
+  "CLAUDE.md": {
+    "mtime": 1788564820.0304096,
+    "ast_hash": "3ed6f95d1a89a295e44e186de8fbe646",
+    "semantic_hash": "3ed6f95d1a89a295e44e186de8fbe646"
+  },
+  "CONTEXT.md": {
+    "mtime": 1787429679.2280226,
+    "ast_hash": "e54c80f2f568a482b48235f0a2b5286f",
+    "semantic_hash": "e54c80f2f568a482b48235f0a2b5286f"
+  },
+  "README.md": {
+    "mtime": 1786987514.5722127,
+    "ast_hash": "290acb0bb2c1f4c87947a325fdd068f6",
+    "semantic_hash": "290acb0bb2c1f4c87947a325fdd068f6"
+  },
+  "install.sh": {
+    "mtime": 1788470849.3138857,
+    "ast_hash": "7100a1d3516930c80e643cf97fb02dd4",
+    "semantic_hash": "7100a1d3516930c80e643cf97fb02dd4"
+  },
+  "check.sh": {
+    "mtime": 1788491216.926192,
+    "ast_hash": "0651613ca67b0751efefacffe1822d6c",
+    "semantic_hash": "0651613ca67b0751efefacffe1822d6c"
+  }
+}
