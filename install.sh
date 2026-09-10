@@ -508,6 +508,23 @@ link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
 
+
+# ─── AGENTS standard ──────────────────────────────────────
+# Canonical AGENTS-standard lane that dsh and codex consume natively.
+# ~/.agents/skills is a real (linked) directory of the canonical AGENTS skill
+# set; ~/.agents/AGENTS.md and ~/.dsh/AGENTS.md both resolve to the merged
+# canonical guidance. The prior shared-lane symlink (if any) at
+# ~/.agents/skills -> dotfiles/.claude/skills is replaced here, severing the
+# Claude ↔ AGENTS cross-link. ~/.agents/engram/ (learning memory) is left
+# untouched.
+if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
+  link_path ".agents/AGENTS.md" ".agents/AGENTS.md"
+  link_path ".agents/skills" ".agents/skills"
+  link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
+else
+  printf 'skip: ~/.agents/* + ~/.dsh/AGENTS.md links (INSTALL_AGENTS=0)\n'
+fi
+
 # Note: live settings.json files are NOT tracked — they may contain secrets or
 # machine-specific values. Copy templates on a new device, then edit locally.
 #
