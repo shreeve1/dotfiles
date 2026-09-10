@@ -6,13 +6,14 @@ Reference for the self-hosted DeepSeek Harness web UI running on `aidev`
 diagnose it without re-deriving everything. Versions at time of writing:
 `@deepseek-ai/dsh` **0.1.1-rc.2**, `dsh-full-remote` plugin **0.3.7**.
 
-> **Plugin inventory last reconciled against the live box: 2026-09-10.** The web
-> profile now bundles **23** non-builtin plugins (live cross-check count) after
-> the 2026-09-10 removal of `dsh-cc-skills`. Native AGENTS replacement: dsh reads
-> `~/.agents/skills` at rank 500 (`user-agents`) via `dsh-skill-filesystem`, and
-> its user-global instructions come from `~/.dsh/AGENTS.md` (now a link to the
-> canonical `dotfiles/.agents/AGENTS.md`). If you touch the plugin set, re-run
-> the cross-check in *Auditing the plugin set* and update the table.
+> **Plugin inventory:** dsh-cc-skills (row 6) was **removed 2026-09-10**.
+> Native AGENTS replacement: dsh reads `~/.agents/skills` at rank 500
+> (`user-agents`) via `dsh-skill-filesystem`, and its user-global instructions
+> come from `~/.dsh/AGENTS.md` (now a link to the canonical
+> `dotfiles/.agents/AGENTS.md`). The numbered table below is approximate —
+> treat the live `python3` cross-check in *Auditing the plugin set* as
+> authoritative, not the row numbers here. If you touch the plugin set, re-run
+> the cross-check and update the table.
 >
 > **Table drift note (2026-09-10):** the numbered table is approximate — treat
 > the live `python3` cross-check in *Auditing the plugin set* as authoritative,
@@ -228,7 +229,6 @@ A healthy state is `deps == non-builtin bundled` with both lists empty. An
 apply.
 
 ## Delegation / subagent orchestration
-
 **Why the main agent wasn't delegating.** In the Web profile, dsh moves the whole
 agent-tool plane (bash, fs, skill, *and all subagent tools*) off the host plane
 and **behind agent presets** (`dsh-web-app/cordis.patch.yml` disables `tool-bash`,
@@ -238,11 +238,8 @@ host plane. The default agent preset is `standard`, whose `delegation` isolate
 DOES grant `subagent` / `subagent_fork` / `workflow` / `ralph`. So the tools ARE
 in the catalog — the model just wasn't *choosing* to delegate: the web
 system-prompt persona is minimal, `agent-instructions` is disabled in the web
-profile. dsh consumes the canonical AGENTS guidance + skills natively via
-`~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md` and `~/.agents/skills/`
-→ `dotfiles/.agents/skills/` (rank 500 `user-agents`, via `dsh-skill-filesystem`),
-but no CLAUDE.md/AGENTS.md *agent-guidance* still reaches the model as a
-system prompt (`dsh-cc-agents` isn't installed). A capable model with
+profile, and no explicit "prefer delegation" instruction reaches the model
+(`dsh-cc-agents` isn't installed). A capable model with
 delegation tools but no instruction to prefer them just grinds through with bash.
 To truly force orchestration-only you must change the *agent preset* to drop the
 mutation tools — a plugin can only *add* a delegate tool, not take the main
