@@ -7,6 +7,9 @@ This file tracks implementation notes across Ralph iterations.
 - Gralph reads GitHub issue data through GraphQL variables and validates response structure before writing run state.
 - Frontier manifests sort children, labels, blockers, and dependency edges for deterministic output.
 - Mechanically complete workers advance only after a fresh read-only Pi review returns `approved` with zero critical findings and blockers.
+- `.agents/` is the canonical AGENTS-standard lane (AGENTS.md + skills) consumed by dsh (native), codex (bridged in #048), and pi (deferred). `.claude/` remains the Claude Code–specific lane; the two lanes must stay independent. `install.sh` order is vendor-first (`.claude`, `.codex`) then AGENTS standard, mirroring the "vendor-specific before canonical" dependency direction. `~/.agents/engram/` (learning memory) is intentionally NOT managed by install.sh.
+- `link_path` handles symlink conflicts via `-bak-<timestamp>`; the AGENTS block relies on this to sever the prior `~/.agents/skills → .claude/skills` cross-standard link without operator intervention.
+
 
 # Iteration Log
 
@@ -129,3 +132,17 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** `.agents/` is the canonical AGENTS-standard lane; `.claude/` retains the Claude Code–specific lane. Future agents lane changes go to `.agents/`, not `.claude/`. The dsh `~/.dsh/AGENTS.md` and pi `~/.pi/agent/AGENTS.md` symlinks (in #047 / install.sh) point at this canonical file.
 **Notes for next iteration:** #047 needs to wire install.sh to symlink `~/.agents/AGENTS.md` → `dotfiles/.agents/AGENTS.md` and `~/.agents/skills` → `dotfiles/.agents/skills`, and to break the existing `~/.agents/skills → dotfiles/.claude/skills` shared lane. The `.agents/skills` independence is what makes that severance safe.
 **Fresh review:** Independent scout review returned `RALPH_REVIEW: PASS_WITH_NOTES`. Note that the issue's verification comment "expect 83" matches the 83-directory count, not the 82 SKILL.md file count (`_shared/` has helper markdowns only — same property as source).
+
+## #047 install.sh manages ~/.agents + ~/.dsh/AGENTS.md lane — 2026-09-10
+
+**What changed:** Added `# ─── AGENTS standard ───` block after Codex in install.sh (lines 512–526), gated by `INSTALL_AGENTS=1`. Three `link_path` calls wire `~/.agents/AGENTS.md`, `~/.agents/skills`, and `~/.dsh/AGENTS.md` all to `dotfiles/.agents/AGENTS.md` / `dotfiles/.agents/skills`. The prior `~/.agents/skills → .claude/skills` cross-standard symlink was auto-backed up to `~/.agents/skills-bak-<timestamp>` by `link_path`'s existing conflict logic.
+
+**Files:** `install.sh`, `.kanban/issues/047-agents-install-sh-links.md`, `.kanban/progress.md`
+
+**Decisions:** Vendor lanes (`.claude`, `.codex`) precede the AGENTS standard lane in install.sh because dsh and codex consume AGENTS-native and pi is deferred. Used `INSTALL_AGENTS=1` as the gate name (parallel to `INSTALL_CLAUDE_CODE=1`); default-on. `~/.agents/engram/` is left untouched by the script (learning memory, intentionally out of scope).
+
+**Conventions established:** `.agents/` is the canonical AGENTS-standard lane; future cross-lane bridges belong in their respective vendor blocks (e.g. #048 widens the codex skills bridge, not the AGENTS block). `link_path`'s `-bak-<timestamp>` backup is the durable mechanism for severing cross-standard links — no explicit pre-remove step needed.
+
+**Notes for next iteration:** #048 needs to widen the codex skills bridge (`~/.codex/skills/` → all 83 AGENTS skills) and repoint `~/.codex/AGENTS.md` to `dotfiles/.agents/AGENTS.md`. The AGENTS block is now stable; do not add per-skill codex bridging inside it.
+
+**Fresh review:** Independent review returned `RALPH_REVIEW: PASS`. All four acceptance criteria objectively satisfied, the exact verification command (`bash -n install.sh && grep -q '\.agents' install.sh && readlink ~/.agents/skills`) exits 0, and post-apply `~/.agents/skills` / `~/.agents/AGENTS.md` / `~/.dsh/AGENTS.md` all resolve to `dotfiles/.agents/...` (real dir via link, not the prior `.claude` target). `~/.agents/engram/` untouched. Scope matched the issue; no leakage.
