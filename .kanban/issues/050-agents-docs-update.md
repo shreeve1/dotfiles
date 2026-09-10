@@ -1,7 +1,6 @@
 ---
 id: 050
-status: in-progress
-blocked_by: [046, 048, 049]
+status: review
 parent: null
 priority: 3
 created: 2026-09-09
