@@ -6,12 +6,15 @@ Reference for the self-hosted DeepSeek Harness web UI running on `aidev`
 diagnose it without re-deriving everything. Versions at time of writing:
 `@deepseek-ai/dsh` **0.1.1-rc.2**, `dsh-full-remote` plugin **0.3.7**.
 
-> **Plugin inventory last reconciled against the live box: 2026-08-27.** The web
-> profile now bundles **24** non-builtin plugins (live cross-check count). If you
-> touch the plugin set, re-run the cross-check in *Auditing the plugin set* and
-> update the table.
+> **Plugin inventory last reconciled against the live box: 2026-09-10.** The web
+> profile now bundles **23** non-builtin plugins (live cross-check count) after
+> the 2026-09-10 removal of `dsh-cc-skills`. Native AGENTS replacement: dsh reads
+> `~/.agents/skills` at rank 500 (`user-agents`) via `dsh-skill-filesystem`, and
+> its user-global instructions come from `~/.dsh/AGENTS.md` (now a link to the
+> canonical `dotfiles/.agents/AGENTS.md`). If you touch the plugin set, re-run
+> the cross-check in *Auditing the plugin set* and update the table.
 >
-> **Table drift note (2026-08-28):** the numbered table is approximate — treat
+> **Table drift note (2026-09-10):** the numbered table is approximate — treat
 > the live `python3` cross-check in *Auditing the plugin set* as authoritative,
 > not the row numbers here. Known drift: `dsh-pilot` (row 7) was
 > **reinstalled 2026-08-28** at v0.7.1 / pin `#dff236a` (the previously
@@ -23,8 +26,9 @@ diagnose it without re-deriving everything. Versions at time of writing:
 > its use case is now covered by `@changfenhuang/dsh-genui`'s `render_ui`); the
 > 15-plugin `@dsh-pro` suite was **removed** (the `@dsh-pro/updates` watcher
 > kept re-adding bundle rows and re-triggering `duplicate loader entry id`
-> boot crashes); `dsh-client-auto-continue`, `dsh-mini-advisor`, and
-> `dsh-fusion` are the current newest additions.
+> boot crashes); `dsh-cc-skills` (row 6) was **removed 2026-09-10** (native
+> AGENTS lane replaces it — see *Plugin inventory* header); `dsh-client-auto-continue`,
+> `dsh-mini-advisor`, and `dsh-fusion` are the current newest additions.
 
 ## TL;DR — how to reach it
 
@@ -91,12 +95,11 @@ coordinates both; a plugin missing from `bundles` won't load even if installed.
 `bundles` is order-sensitive: a plugin that registers an extension point must
 come before the plugins that register against it.
 
-### Full bundled inventory (25 live-bundled; 26 rows below, 1 historical, in mount order)
+### Full bundled inventory (24 live-bundled; 26 rows below, 2 historical, in mount order)
 
 `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` are the two
-installation-owned base bundles and lead the list; the 26 rows below follow (25
-are live-bundled — row 12 is historical, see the footnote).
-
+installation-owned base bundles and lead the list; the 26 rows below follow (24
+are live-bundled — rows 6 and 12 are historical, see the footnote).
 | # | Plugin | Ver | Source spec | What it adds |
 |--:|---|---|---|---|
 | 1 | `dsh-ponytail-skills` | 0.1.3 | `github:gongyijie85/dsh-ponytail` | 6 ponytail "lazy senior dev" skills |
@@ -104,7 +107,7 @@ are live-bundled — row 12 is historical, see the footnote).
 | 3 | `dshmarket` | 1.20.2 | npm | in-app visual plugin market (browse/search/one-click install) |
 | 4 | `dsh-hot-reload` | 0.2.4 | `github:stuarthu/dsh-hot-reload#006d915` | live-reload upgraded plugins without restarting dsh |
 | 5 | `dsh-startup-guard` | 1.0.0 | `github:aokamoaki/dsh-startup-guard#82cead8` | boot-time guard: repairs session logs, auto-disables broken bundles (see Gotchas) |
-| 6 | `dsh-cc-skills` | 0.1.0 | npm | loads Claude Code `.claude/` skills/commands/rules (project + `~/.claude`) into dsh |
+| 6 | `dsh-cc-skills` | 0.1.0 | npm | **REMOVED 2026-09-10** — replaced by the native AGENTS lane: `~/.agents/skills/` (rank 500 `user-agents` via `dsh-skill-filesystem`) and the user-global `~/.dsh/AGENTS.md` link to `dotfiles/.agents/AGENTS.md` |
 | 7 | `dsh-pilot` | 0.7.1 | `github:guo6x/dsh-pilot#dff236a` | browser automation: drives Edge/Chrome over CDP from chat (`pilot_*` tools). Reinstalled 2026-08-28 (pin `#9103a2d` / v0.4.1 no longer on the remote — repo rewritten); vendored `lib/client.js` carries a hand-applied English i18n patch for the cockpit panel (12 strings), lost on any reinstall/upgrade — see *ui-translate boundary* below |
 | 8 | `dsh-plugin-hooks` | 0.1.1 | `github:truelove-dreamer/dsh-plugin-hooks#6cf763e` | Claude-Code-style lifecycle shell hooks |
 | 9 | `@moonquake2004/dsh-doctor` | 0.4.3 | `github:moonquake2004/dsh-doctor#path:/plugin` | offline diagnostic (28+ built-in checks across env/profile) |
@@ -132,13 +135,6 @@ are live-bundled — row 12 is historical, see the footnote).
 > reinstated 2026-08-28 and is live again).
 > `dsh-omp-advisor` and the `@dsh-pro` suite were also removed (see Gotchas /
 > Install best practices).
-
-**Not a plugin bundle, but present:** `dsh-cc-loader` (0.1.1) is a **shared
-library**, not a mountable plugin — `dsh-cc-skills` imports its parse layer
-(`import { loadClaude, parseFrontmatter } from 'dsh-cc-loader'`). pnpm installs
-it as a transitive dep of `dsh-cc-skills`; it must **not** appear in `bundles`
-and should **not** carry a redundant top-level `dependencies` entry (a stray one
-was removed 2026-08-26 — it made cc-loader look like an unbundled plugin).
 
 **`dsh-better-sidebar` install dance** (pnpm 11 blocks `node-pty`'s build script
 on first `add`): `add dsh-better-sidebar@latest` (fails) → `cd
@@ -225,8 +221,7 @@ print('duplicate bundle entries:', [x for x in b if b.count(x)>1])
 ```
 
 A healthy state is `deps == non-builtin bundled` with both lists empty. An
-`INSTALLED not bundled` hit is either a shared library (like `dsh-cc-loader`,
-keep) or genuine dead weight (remove from `dependencies`). Also check
+`INSTALLED not bundled` hit is genuine dead weight (remove from `dependencies`). Also check
 `~/.dsh/plugins-src/` for orphaned `link:`-style source drops not referenced in
 `package.json` (an orphan `dsh-a2a` was deleted here 2026-08-26). Always back up
 `package.json`/`cordis.patch.yml` before editing, and restart the web service to
@@ -243,9 +238,11 @@ host plane. The default agent preset is `standard`, whose `delegation` isolate
 DOES grant `subagent` / `subagent_fork` / `workflow` / `ralph`. So the tools ARE
 in the catalog — the model just wasn't *choosing* to delegate: the web
 system-prompt persona is minimal, `agent-instructions` is disabled in the web
-profile. `dsh-cc-skills` *is* bundled (it loads `.claude/` skills/commands/rules
-via the `dsh-cc-loader` library), but no CLAUDE.md/AGENTS.md *agent-guidance*
-reaches the model as a system prompt (`dsh-cc-agents` isn't installed). A capable model with
+profile. dsh consumes the canonical AGENTS guidance + skills natively via
+`~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md` and `~/.agents/skills/`
+→ `dotfiles/.agents/skills/` (rank 500 `user-agents`, via `dsh-skill-filesystem`),
+but no CLAUDE.md/AGENTS.md *agent-guidance* still reaches the model as a
+system prompt (`dsh-cc-agents` isn't installed). A capable model with
 delegation tools but no instruction to prefer them just grinds through with bash.
 To truly force orchestration-only you must change the *agent preset* to drop the
 mutation tools — a plugin can only *add* a delegate tool, not take the main
@@ -466,31 +463,7 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   `pnpm patch dsh-full-remote`.
 - **Blank page / `crypto.randomUUID is not a function`:** you are on plain HTTP
   to a non-localhost IP (not a secure context). Use the `https://` URL.
-- **`~/.claude/rules/*.md` edits don't take effect until a dsh restart:**
-  `dsh-cc-skills`' `registerRulesSection` builds a **process-lifetime** per-cwd
-  cache (`node_modules/dsh-cc-skills/src/index.js:174`) and only writes on a
-  miss (`:188-193`) — there is no file-watch or invalidation. So the first
-  session after boot fixes the rules text for every later session in that cwd,
-  and editing/deleting a rules file leaves the *old* text being injected
-  (verified 2026-09-02: a deleted canary file was still reaching delegated
-  workers 20 min after `rm`). Note the empty-result path returns early
-  *without* caching, so going from no-rules to some-rules works live; every
-  other transition does not.
-  **Staleness is per-cwd** — the cache key is `agent.session.header.cwd`
-  (`:187`). Every directory already visited since boot is poisoned; only an
-  *unvisited* cwd misses the cache and rebuilds from disk. In practice that
-  means **your active project directories are exactly the stale ones**, so after
-  changing rules you do need a restart (verified 2026-09-02: `~/homelab`, worked
-  in earlier the same day, saw neither an added rules file nor a second one,
-  while a freshly-created git repo with the same `.git` + `.claude` layout saw
-  both). To *verify* a rules change without disrupting live sessions, run a
-  one-shot `cron_create` agent task with `cwd` set to an unvisited directory
-  (e.g. `/tmp/probe-<random>`) that reports whether the new text is in its
-  context, then `cron_delete` it — that proves the file is correct, but does not
-  make it live where you actually work. After the restart the same `~/homelab`
-  probe went 0/4 → 4/4, and global rules coexist with a project
-  `CLAUDE.md` + `AGENTS.md` (8/8 across parent and delegated worker).
-  Caveat: `smart_restart` is **very slow to act**, not a no-op — two calls
+- **`smart_restart` is very slow to act**, not a no-op — two calls
   reported success with MainPID unchanged and `ps` still showing the old
   process, and the restart landed roughly **80 minutes later** (895540 →
   1258304 at 01:17:41Z, from calls made at ~00:33 and ~00:34; with
@@ -498,17 +471,13 @@ dsh plugin --profile web add dsh-full-remote && systemctl --user restart dsh-web
   instance). Treat its success message as "queued", verify with
   `ps -eo pid,etime,cmd | grep 'dsh web'`, and use
   `systemctl --user restart dsh-web` when you need the restart now.
-- **Rules inject twice when cwd is `~/dotfiles`:** `dsh-cc-loader/src/load.js:53`
-  finds the repo as *project* root and `:63` finds `~/.claude` as *global*;
-  both resolve through the `~/.claude/rules -> dotfiles/.claude/rules` symlink
-  to the same directory, so each file is injected twice. Harmless (accepted:
-  1 KB → 2 KB, ~0.26% of context) and only affects work inside the dotfiles
-  repo itself; any other project injects once.
 - **Crash loop `ELOOP: too many symbolic links ... orca-help`:** a circular
   symlink in the dotfiles skill dirs crashed dsh's skill-filesystem watcher.
   Fixed in dotfiles commit `b8de7ab` (orca-help/orca-cli restored from real
-  files). If it recurs after an `orca reinstall` regenerates `~/.agents/skills`,
-  re-run that fix — the generator recreates self-referential symlinks.
+  files). The prior `~/.agents/skills → dotfiles/.claude/skills` cross-standard
+  symlink has since been severed by `install.sh` (AGENTS lane is now a real
+  dir via link to `dotfiles/.agents/skills`); if ELOOP recurs after an `orca
+  reinstall`, re-run that fix — the generator recreates self-referential symlinks.
 - **Upgrade broke remote access:** dsh upgrades can overwrite bundle internals.
   The plugin uses a runtime proxy (not node_modules patches) so it usually
   survives, but if the fence self-check fails after an upgrade, check the

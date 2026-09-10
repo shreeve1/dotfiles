@@ -1,7 +1,6 @@
 ---
 id: 050
-title: Update docs for AGENTS standard (deepseek-harness.md + CLAUDE.md)
-status: pending
+status: in-progress
 blocked_by: [046, 048, 049]
 parent: null
 priority: 3
