@@ -504,9 +504,21 @@ fi
 # once, then link it like before.
 [ -f "$DOTFILES_DIR/.codex/config.toml" ] || cp "$DOTFILES_DIR/.codex/config.toml.template" "$DOTFILES_DIR/.codex/config.toml"
 link_path ".codex/config.toml" ".codex/config.toml"
-link_path ".codex/AGENTS.md" ".codex/AGENTS.md"
+link_path ".agents/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
+# Bridge every canonical AGENTS skill into codex's skills dir. Codex loads
+# its own .system/ skills natively; we widen the bridge (previously only
+# orca-cli + orchestration were linked) so codex sees the full AGENTS skill
+# set. _shared (helpers, not a skill) is included as the 83rd entry.
+if [ -d "$DOTFILES_DIR/.agents/skills" ]; then
+  for _skill_dir in "$DOTFILES_DIR/.agents/skills/"*/; do
+    [ -d "$_skill_dir" ] || continue
+    _skill_name="$(basename "$_skill_dir")"
+    link_path ".agents/skills/$_skill_name" ".codex/skills/$_skill_name"
+  done
+  unset _skill_dir _skill_name
+fi
 
 
 # ─── AGENTS standard ──────────────────────────────────────
