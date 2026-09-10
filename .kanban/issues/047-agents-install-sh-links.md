@@ -1,7 +1,7 @@
 ---
 id: 047
 title: install.sh manages ~/.agents + ~/.dsh/AGENTS.md lane
-status: in-progress
+status: review
 blocked_by: [046]
 parent: null
 priority: 1
