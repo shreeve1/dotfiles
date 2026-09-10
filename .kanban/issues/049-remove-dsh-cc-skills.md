@@ -1,12 +1,13 @@
 ---
 id: 049
 title: Remove dsh-cc-skills plugin and verify native AGENTS skills + rules
-status: pending
+status: done
 blocked_by: [046, 047]
 parent: null
 priority: 1
 created: 2026-09-09
 updated: 2026-09-10
+actor: ralph
 ---
 
 ## What to build
@@ -41,3 +42,7 @@ Deliverables:
 - Removes per-skill tool-scope from `.claude/settings.json` — accepted (AGENTS-native skills are unscoped).
 - `.claude/` stays fully intact for Claude Code itself (separation, not deletion).
 - `smart_restart` with canary per deployment lore (one plugin per restart, MainPID change expected).
+
+## Shepherd note (2026-09-10)
+
+A prior worker already executed deliverables 1–2 before dying: `dsh plugin --profile web remove dsh-cc-skills` landed (profile list shows no cc-skills) and the dsh restart completed ~16:35 UTC. **Do NOT remove again, do NOT restart again** — that restart is what killed the previous ralph loop's tmux server mid-ticket. Remaining work: verify the CURRENT post-restart state (deliverable 3) against the acceptance criteria and close out. Only if verification genuinely fails, record the failure and block rather than restarting dsh a second time.
