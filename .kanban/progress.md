@@ -120,3 +120,12 @@ This file tracks implementation notes across Ralph iterations.
 
 **Review outcome:** `RALPH_REVIEW: PASS_WITH_NOTES` — no blockers; one medium-severity documentation-contradiction follow-up.
 #046-050 staged todo→pending 2026-09-10: shepherd started repo-specific driver (tmux session ralph-df); homelab loop (ralph-loop) untouched
+
+## #046 Create canonical AGENTS tree — 2026-09-10
+
+**What changed:** Created `.agents/AGENTS.md` (merged guidance) and `.agents/skills/` (real copies of all 83 skills from `.claude/skills/`). The AGENTS lane is fully independent of the Claude lane.
+**Files:** `.agents/AGENTS.md`, `.agents/skills/` (83 dirs), `.kanban/issues/046-agents-canonical-tree.md`
+**Decisions:** Single merged `AGENTS.md` rather than separate rule files (matches codex convention). Deduped Simplicity First / Surgical Changes between `.claude/CLAUDE.md` and `.codex/AGENTS.md` — kept the slightly fuller Claude versions (which include the orphans-cleanup clause). `_shared/` carried across verbatim since it's a shared-utility directory, not a skill.
+**Conventions established:** `.agents/` is the canonical AGENTS-standard lane; `.claude/` retains the Claude Code–specific lane. Future agents lane changes go to `.agents/`, not `.claude/`. The dsh `~/.dsh/AGENTS.md` and pi `~/.pi/agent/AGENTS.md` symlinks (in #047 / install.sh) point at this canonical file.
+**Notes for next iteration:** #047 needs to wire install.sh to symlink `~/.agents/AGENTS.md` → `dotfiles/.agents/AGENTS.md` and `~/.agents/skills` → `dotfiles/.agents/skills`, and to break the existing `~/.agents/skills → dotfiles/.claude/skills` shared lane. The `.agents/skills` independence is what makes that severance safe.
+**Fresh review:** Independent scout review returned `RALPH_REVIEW: PASS_WITH_NOTES`. Note that the issue's verification comment "expect 83" matches the 83-directory count, not the 82 SKILL.md file count (`_shared/` has helper markdowns only — same property as source).
