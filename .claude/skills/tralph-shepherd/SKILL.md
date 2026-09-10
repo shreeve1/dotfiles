@@ -16,8 +16,10 @@ Before doing anything:
 2. **Drive.** If `tmux has-session -t ralph-loop` fails, check the board first:
    - If every issue in `.kanban/issues/` is `status: done` (or there are no issues at all), do NOT start anything — the board is complete; print the summary and stop (see Termination).
    - If the only remaining work is blocked issues (0 pending, 0 in-progress, 0 review, ≥1 blocked), do NOT start the driver yet — it would hit `UNBLOCKED_COUNT==0 && ACTIVE_COUNT==0` immediately (ralph-loop.sh:1118), print `Ralph loop complete!`, and park. Go straight to the Delegate-or-raise decision for those blocked issues; the flip→pending (or out-of-loop work) is what makes the board pickable, and then you relaunch with real work for the worker.
-   - Otherwise (there is already pending/in-progress/review work for a worker to pick up) the shepherd owns startup: from the project root,
-     `bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop`. The script defaults `RALPH_MODEL=minimax/MiniMax-M3` internally (line 45), same as `tralph`; `tralph` is a zsh function and is unavailable in a skill context. If the script prints the has-session guard (source wording `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`, line 274), another driver just started — verify with `tmux has-session -t ralph-loop` and continue the cycle; do NOT kill anything.
+   - Otherwise (there is already pending/in-progress/review work for a worker to pick up) the shepherd owns startup: from the project root, launch the driver **through an interactive login zsh** so the worker inherits the human shell's environment. Capture the project root in the outer shell first, because a login zsh may open in `$HOME`:
+     `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop"`.
+     **Why `zsh -lic` and not a bare `bash …`:** `ralph-loop.sh` launches each worker via `tmux new-session -d … exec env $AGENT_CMD` (line 710). The worker inherits the environment of the tmux *server*, which is whatever shell first created it. `omp` is a `#!/usr/bin/env bun` script and needs both `~/.bun/bin` on PATH (to resolve `bun`) and provider credentials such as `MINIMAX_API_KEY` — **both come only from the interactive `.zshrc`/`.zprofile`, not from a bare non-interactive shell.** Launch the driver from a non-interactive shell and every worker dies at startup (`⚠️  Interactive agent session exited during startup`) or fails auth (`Error: No API key found for minimax`). The `-l` (login) + `-i` (interactive) flags make zsh source those files so the tmux server — and thus every worker window — gets the same PATH and credentials the operator's own shell has. Do NOT copy credentials into `tmux set-environment -g` yourself: a server-global secret is readable by every session on that server. Let the interactive shell propagate them.
+     The script defaults `RALPH_MODEL=minimax/MiniMax-M3` internally (line 45), same as `tralph`; `tralph` is a zsh function and is unavailable in a skill context — this `zsh -lic` wrapper is the sanctioned substitute for it. If the script prints the has-session guard (source wording `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`, line 274), another driver just started — verify with `tmux has-session -t ralph-loop` and continue the cycle; do NOT kill anything.
 3. Only one shepherd at a time. If a previous shepherd is still running in another session, stop.
 4. This skill assumes the default tmux server (the `--normal-tmux` behavior; see `ralph-loop.sh` line 73). A `--private-tmux` loop is out of scope — different socket, different session name, different worker naming — do not try to shepherd one.
 
@@ -282,10 +284,16 @@ Relaunch commands, in order:
 tmux kill-session -t ralph-loop
 # Orphan cleanup (lines 1003-1010) runs inside the new driver; you don't
 # need to kill ralph-ralph-loop-<N> sessions by hand.
-bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop
+#
+# Launch through an interactive LOGIN zsh (-l -i), exactly as at startup:
+# a login zsh may open in $HOME, so pin the project root explicitly.
+# This is what gives the worker ~/.bun/bin on PATH and MINIMAX_API_KEY —
+# a bare `bash …` relaunch reproduces the startup-crash / no-API-key failure.
+proj="$PWD"
+zsh -lic "cd '$proj' && bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop"
 ```
 
-If `bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop` exits
+If the `zsh -lic '… ralph-loop.sh tmux ralph-loop'` launch exits
 with the has-session guard message (line 273-281; the source wording is
 `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`),
 
@@ -294,8 +302,10 @@ re-check the board state — do not loop on `kill-session`/`new-session`.
 The script's positional args are `[OPTIONS] [ADAPTER] [SESSION_NAME]`
 (default adapter `tmux`, default session `ralph-loop`). `RALPH_MODEL`
 defaults to `minimax/MiniMax-M3` inside the script — `tralph` is a zsh
-wrapper that adds the env var; from a skill context, run the script
-directly.
+wrapper that adds the env var and runs in the operator's interactive
+shell; from a skill context, reproduce that shell with the `zsh -lic '…'`
+wrapper above (never a bare `bash …`, which strips the PATH and
+credentials the worker needs).
 
 ## Hard rules
 
