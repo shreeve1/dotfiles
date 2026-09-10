@@ -1,12 +1,12 @@
 ---
 id: 047
 title: install.sh manages ~/.agents + ~/.dsh/AGENTS.md lane
-status: todo
+status: pending
 blocked_by: [046]
 parent: null
 priority: 1
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-10
 ---
 
 ## What to build
