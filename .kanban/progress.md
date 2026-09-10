@@ -156,3 +156,17 @@ This file tracks implementation notes across Ralph iterations.
 **Decisions:** All three acceptance criteria objectively satisfied on 2026-09-10: plugin absent, skills native, rules lane live. `.claude/` untouched (Claude Code keeps its own lane). Command/plans and per-skill tool-scope drops were user-accepted (documented in the issue).
 
 **Notes for next iteration:** #048 (codex unify) and #050 (docs: deepseek-harness.md row 6 still says `dsh-cc-skills 0.1.0`) remain the frontier.
+
+## #048 Unify Codex onto the AGENTS standard — 2026-09-10
+
+**What changed:** install.sh repointed the codex guidance line (`~/.codex/AGENTS.md` now links to `dotfiles/.agents/AGENTS.md`, with the prior symlink auto-backed up to `~/.codex/AGENTS.md-bak-<timestamp>`), and added a for-loop over `$DOTFILES_DIR/.agents/skills/*` that bridges every entry into `~/.codex/skills/`. 83 non-.system entries after install (82 SKILL.md skills + `_shared` helper dir); `.system` preserved by construction since bash `*` never matches dot-dirs.
+
+**Files:** `install.sh`, `.kanban/issues/048-codex-agents-unify.md`
+
+**Decisions:** Skill-bridge loop lives in the Codex block (per #047's convention), NOT the AGENTS block — `.codex/skills/` is a codex concern. Used `*` (non-hidden glob) so `.system` is untouched automatically. `link_path`'s existing canonicalize + self-link guard short-circuits the re-link of orca-cli/orchestration (which already point at the same canonical path), avoiding backup churn.
+
+**Conventions established:** The Codex block in install.sh now owns both the user-global AGENTS.md symlink AND the per-skill bridge into `~/.codex/skills/`. Future codex-skill changes go here, not in the AGENTS block. The canonical AGENTS skill set lives in `.agents/skills/`; `.codex/skills/` is purely a projection (same for any future vendor lanes that adopt the AGENTS standard).
+
+**Notes for next iteration:** #050 (docs: deepseek-harness.md row 6 still says `dsh-cc-skills 0.1.0`, rules-lane notes reference the removed plugin, CLAUDE.md canonical-surfaces bullet mentions `dsh-cc-skills` injection) is the only remaining frontier ticket.
+
+**Fresh review:** PASS_WITH_NOTES — note was a `title:` frontmatter line that the implementation commit had inadvertently dropped during the status edit. Restored. No code-path or acceptance criterion depends on it.
