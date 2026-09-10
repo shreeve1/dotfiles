@@ -1,7 +1,6 @@
 ---
 id: 048
-title: Unify Codex onto the AGENTS standard (AGENTS.md + widen skills bridge)
-status: pending
+status: review
 blocked_by: [046]
 parent: null
 priority: 2
