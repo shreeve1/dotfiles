@@ -1,5 +1,5 @@
----
 id: 050
+title: Update docs for AGENTS standard (deepseek-harness.md + CLAUDE.md)
 status: review
 parent: null
 priority: 3
