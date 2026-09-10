@@ -18,6 +18,13 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Raw: `wiki/raw/sessions/2026-06-23-ponytail-and-wiki-gates.md`
 - Keywords: ponytail, YAGNI enforcer, vendored, plugin marketplace, pi install, switch-provider, settings provider file, gate.py, CLAIMS.md, eval slice, consolidation
 
+## dsh-board Build Pipeline
+
+- Pages: `wiki/analyses/dsh-board-pipeline.md` (promoted)
+- Claims: C-0123, C-0124, C-0125, C-0126, C-0127, C-0128, C-0129
+- Raw: `wiki/raw/sessions/2026-09-04-dsh-board-loop-fixes.md`
+- Keywords: dsh-board, build board, HANDLERS.md, preamble.md, render-jobs.sh, cron tick, stagger, MiniMax 429, agent_teams, captain, captainSessionId, scheduler, composite task, dependent task chain, Build Decompose loop, spec-committed gate, worktree, auto/<card-id>, git merge --ff-only, git-merge-ff, cron_disable override, smart_restart canary
+
 ## Research
 
 - Pages:

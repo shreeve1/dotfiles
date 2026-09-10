@@ -9,6 +9,20 @@ Append entries with this format:
 - Outputs: changed pages
 - Notes: key decisions or unresolved questions
 
+## 2026-09-04 promote | dsh-board pipeline analysis → promoted
+
+- Actor: Claude Code (James: "promote")
+- Inputs: `wiki/candidates/analysis-session-dsh-board-pipeline.md`; target category `analyses`.
+- Outputs: `wiki/analyses/dsh-board-pipeline.md` (promoted, `status: promoted`, `promoted: 2026-09-04`); removed `wiki/candidates/analysis-session-dsh-board-pipeline.md`; `wiki/index.md` (moved row from candidate queue to Analyses); `wiki/ROUTING.md` (route now points at promoted path); `wiki/log.md`.
+- Notes: No duplicate promoted page existed (only `rpiv-pipeline.md`). Claims C-0123..C-0129 already carried `page: wiki/analyses/dsh-board-pipeline.md`, so no claim rewiring was needed. Crash-safe order: copied + set promoted frontmatter + verified target, then removed candidate. Frontmatter OKF-conformant (type, sources, `# Citations`, no `[[wikilinks]]`).
+
+## 2026-09-04 session-update | dsh-board pipeline loop fixes + full autonomy
+
+- Actor: Claude Code (dsh, interactive session shepherding card k881 Blocked→Archive)
+- Inputs: this session's board work + committed files `dsh-board/{HANDLERS.md,preamble.md,render-jobs.sh,INSTALL.md}`, `~/.dsh/profiles/web/node_modules/@nanmicoder/dsh-agent-teams/lib/{state,scheduler,members}.js`, runtime `cron_list`/`systemctl`/`ss` observations, throwaway git ff-only tests. Commits a0a4399d, ab963f22, 136ad06d.
+- Outputs: `wiki/raw/sessions/2026-09-04-dsh-board-loop-fixes.md`; `wiki/candidates/analysis-session-dsh-board-pipeline.md` (candidate); `wiki/CLAIMS.md` C-0123..C-0129 (7 claims via gate.py ADMIT); `wiki/eval/dsh-board.eval`; `wiki/index.md` candidate queue; `wiki/ROUTING.md` new "dsh-board Build Pipeline" route; `wiki/log.md`.
+- Notes: Captured the board's non-obvious mechanics — handlers are agent-prose not code; HANDLERS-live-via-symlink vs preamble-frozen-in-prompts deploy split; the captain-death Build↔Decompose loop (team bound to captainSessionId, per-process scheduler dies with the tick, dependent tasks strand) and its composite-task fix; spec-committed Decompose gate; fully autonomous ff-only Merge with git-verified safety rails; cron staggering vs MiniMax 429; cron_disable persisted-override across restart; smart_restart canary-stall latency. Load-bearing claims independently verified against `state.js`/`scheduler.js`/`INSTALL.md` and observed exit codes before writing. Unresolved: composite-task + auto-merge fixes deployed but not yet exercised by an autonomous run on a fresh card (k881 was hand-driven); 4 non-blocking k881 review findings pending an optional follow-up card; smart_restart canary-stall cause unexplained.
+
 ## 2026-07-21 session-update | Two-layer verification — grounding gate (pi-duo) + completeness review (gap-review)
 
 - Actor: Pi (grill-with-docs session)
