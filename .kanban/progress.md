@@ -170,3 +170,17 @@ This file tracks implementation notes across Ralph iterations.
 **Notes for next iteration:** #050 (docs: deepseek-harness.md row 6 still says `dsh-cc-skills 0.1.0`, rules-lane notes reference the removed plugin, CLAUDE.md canonical-surfaces bullet mentions `dsh-cc-skills` injection) is the only remaining frontier ticket.
 
 **Fresh review:** PASS_WITH_NOTES — note was a `title:` frontmatter line that the implementation commit had inadvertently dropped during the status edit. Restored. No code-path or acceptance criterion depends on it.
+
+## #050 Update docs for AGENTS standard — 2026-09-10
+
+**What changed:** `docs/deepseek-harness.md` and `CLAUDE.md` updated to reflect the 2026-09-10 removal of `dsh-cc-skills`. Drift-note banner rewritten to lead with the removal + native AGENTS replacement (`~/.agents/skills` rank 500 via `dsh-skill-filesystem`, `~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md`). Inventory row 6 marked **REMOVED 2026-09-10**. Removed: the `dsh-cc-loader` "not a plugin bundle" paragraph (transitive dep of `dsh-cc-skills`); the `~/.claude/rules/*.md` rules-cache gotcha (per-cwd cache is gone with the plugin); the "Rules inject twice when cwd is `~/dotfiles`" note (described `dsh-cc-loader` behavior). Kept the `smart_restart` caveat as a standalone bullet. Updated the ELOOP gotcha to note the cross-standard symlink has been severed by `install.sh`. Rewrote the delegation paragraph to drop the contradictory "but no... still reaches" leftover clause. CLAUDE.md's rules-lane bullet (which referenced `dsh-cc-skills` injection) replaced with the **AGENTS standard lane (canonical)** bullet naming `.agents/AGENTS.md` + `.agents/skills/`, consumed by dsh (native via `~/.dsh/AGENTS.md`), codex (bridged via `~/.codex/AGENTS.md` + per-skill links), and pi (deferred).
+
+**Files:** `docs/deepseek-harness.md`, `CLAUDE.md`, `.kanban/issues/050-agents-docs-update.md`, `.kanban/progress.md`
+
+**Decisions:** Dropped the live plugin count from the drift-note banner (the doc's own `python3` cross-check is the authoritative source; the reviewer caught that the prior banner asserted a reconciliation that wasn't re-run). Used "removed" / "REMOVED" markers on all remaining `dsh-cc-skills` mentions in the docs so the issue's `grep -v 'removed|Removed|...'` filter stays a no-op against future passes.
+
+**Conventions established:** Ticket `title:` frontmatter is mandatory and must be preserved across status edits — `.claude/skills/kanban/SKILL.md:56` makes `id, title, status, blocked_by, created` required; the prior #048 review and this ticket both caught a `title:` line dropped during the status edit, so future edits should re-check the full frontmatter after a status flip.
+
+**Notes for next iteration:** `docs/deepseek-harness-plugins.md` still describes installing `dsh-cc-skills` (it's the plugin-install how-to, not rules-lane content). Either reframe that doc around the AGENTS lane or delete it; out of scope for #050.
+
+**Fresh review:** PASS_WITH_NOTES — three notes, all addressed in `a15accbf`: (1) banner count was asserted without re-running the cross-check (softened to defer to the cross-check); (2) delegation paragraph contained a contradictory clause leftover from the deleted `dsh-cc-skills` sentence (removed); (3) ticket `title:` frontmatter was dropped during the status edit (restored — same slip caught for #048).
