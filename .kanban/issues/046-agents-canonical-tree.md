@@ -1,7 +1,7 @@
 ---
 id: 046
 title: Create canonical AGENTS tree in dotfiles (.agents/AGENTS.md + 83 skills)
-status: in-progress
+status: review
 parent: null
 priority: 1
 created: 2026-09-09
