@@ -1,13 +1,13 @@
 ---
 id: 047
 title: install.sh manages ~/.agents + ~/.dsh/AGENTS.md lane
-status: review
+status: done
 blocked_by: [046]
 parent: null
 priority: 1
 created: 2026-09-09
 updated: 2026-09-10
----
+actor: ralph
 
 ## What to build
 
@@ -22,10 +22,10 @@ Deliverables:
 
 ## Acceptance criteria
 
-- [ ] `install.sh` has a `.agents` block using `link_path` for `.agents/AGENTS.md` and `.agents/skills` (gated, e.g. `INSTALL_AGENTS=1`)
-- [ ] `~/.agents/skills` resolves to `dotfiles/.agents/skills` (real dir via link), not to `.claude/skills`
-- [ ] `~/.agents/AGENTS.md` and `~/.dsh/AGENTS.md` both resolve to `dotfiles/.agents/AGENTS.md`
-- [ ] `~/.agents/engram/` is untouched by the script
+- [x] `install.sh` has a `.agents` block using `link_path` for `.agents/AGENTS.md` and `.agents/skills` (gated, e.g. `INSTALL_AGENTS=1`)
+- [x] `~/.agents/skills` resolves to `dotfiles/.agents/skills` (real dir via link), not to `.claude/skills`
+- [x] `~/.agents/AGENTS.md` and `~/.dsh/AGENTS.md` both resolve to `dotfiles/.agents/AGENTS.md`
+- [x] `~/.agents/engram/` is untouched by the script
 
 ## Verification
 
@@ -37,7 +37,19 @@ Deliverables:
 
 ## Implementation Notes
 
+Pre-implementation hints (from the issue brief):
 - Model the block on the existing `# ─── Claude Code ───` section (lines ~473-495) and `# ─── Codex ───` section (lines ~501-509).
 - The `link_path` helper handles `-bak-<timestamp>` backup on conflict (defined at install.sh:43).
 - Codex already bridges skills via `~/.codex/skills`; that bridge is widened in #048.
 - `~/.dsh/AGENTS.md` is dsh's native global, so this is dsh's own lane pointing at the AGENTS standard — not a Claude↔AGENTS cross-link.
+
+What changed:
+
+Added `# ─── AGENTS standard ───` block after Codex (install.sh:512–526), gated by `INSTALL_AGENTS=1`. Three `link_path` calls:
+- `~/.agents/AGENTS.md` → `dotfiles/.agents/AGENTS.md`
+- `~/.agents/skills` → `dotfiles/.agents/skills` (auto-backs up the prior `~/.agents/skills → .claude/skills` symlink via `link_path`'s `-bak-<timestamp>` mechanism, severing the Claude↔AGENTS cross-link)
+- `~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md` (dsh's native user-global instructions lane)
+
+`~/.agents/engram/` (learning memory) is not touched by the script — explicitly noted in the block comment. Verified: `ls ~/.agents/skills | wc -l` = 83 (the full canonical AGENTS skill set). `bash -n install.sh` exits 0 and the `## Verification` checks all pass post-apply.
+
+Convention established: vendor lanes (`.claude`, `.codex`) precede the canonical AGENTS lane in install.sh; the AGENTS block sits after Codex because dsh and codex consume AGENTS-standard natively and pi is deferred. Future issues touching the AGENTS lane should keep `.agents/` as the canonical home and only add cross-lane bridges (e.g. #048 widens the codex skills bridge).
