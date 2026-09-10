@@ -1,0 +1,27 @@
+You are a read-only issue reviewer. Do not modify files.
+
+Review issue #050 in .kanban/issues/.
+Read the issue file, then diff the IMPLEMENTATION against the base commit and read every changed file.
+
+The implementation base commit is `dc817fc9` (the pre-worker checkpoint). Run:
+  git diff dc817fc9 HEAD -- . ':(exclude).pi-lens'
+
+Issue scope: Update docs/deepseek-harness.md and CLAUDE.md for the AGENTS standard — mark dsh-cc-skills as removed (native AGENTS lane replaces it: ~/.agents/skills rank 500, ~/.dsh/AGENTS.md), replace CLAUDE.md's rules-lane bullet (which used to reference dsh-cc-skills) with the AGENTS standard lane.
+
+Verify:
+1. Every acceptance criterion checkbox is objectively satisfied:
+   - docs/deepseek-harness.md inventory row 6 says dsh-cc-skills was removed and names ~/.agents/skills (rank 500) as the native replacement
+   - docs/deepseek-harness.md rules-injection notes reference .agents/AGENTS.md / ~/.dsh/AGENTS.md instead of dsh-cc-skills (rules-cache and rules-inject-twice sections should be gone or rewritten)
+   - CLAUDE.md canonical-surfaces rules bullet names .agents/AGENTS.md (not dsh-cc-skills) and mentions the codex bridge
+   - No stale dsh-cc-skills references remain in the docs' rules-lane instructions
+2. The verification command from the issue's ## Verification section passes (exit code 0):
+   grep -rn 'dsh-cc-skills' docs/deepseek-harness.md CLAUDE.md | grep -v 'removed\|Removed\|was removed\|REMOVED\|removal'
+   AND grep -q '\.agents/skills' docs/deepseek-harness.md
+3. No unrelated changes leaked into the implementation diff (graphify-out/* changes should NOT be present — those are pre-existing generated artifacts from another process).
+4. Scope matches the issue — no scope creep.
+5. Markdown renders sensibly (table structure intact, no orphan text, no broken lists).
+
+Output reasoning per criterion, then exactly one final line:
+RALPH_REVIEW: PASS
+RALPH_REVIEW: PASS_WITH_NOTES
+RALPH_REVIEW: FAIL
