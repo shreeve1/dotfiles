@@ -205,8 +205,8 @@
     "semantic_hash": "290acb0bb2c1f4c87947a325fdd068f6"
   },
   "install.sh": {
-    "mtime": 1789057758.20212,
-    "ast_hash": "81da68b06834add975ab72656de9c654",
+    "mtime": 1789058512.1196423,
+    "ast_hash": "de73114efc7c1e480018ceeee1bf7be1",
     "semantic_hash": ""
   },
   "check.sh": {
@@ -6090,13 +6090,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/048-codex-agents-unify.md": {
-    "mtime": 1789057183.669737,
-    "ast_hash": "eb2ca622be74d33b97db0916df517542",
+    "mtime": 1789058530.6907542,
+    "ast_hash": "767f6d86c9bff42b7658b62a994c3ebd",
     "semantic_hash": ""
   },
   ".kanban/issues/049-remove-dsh-cc-skills.md": {
-    "mtime": 1789058039.1627996,
-    "ast_hash": "601ed59667f8da6b9758ce8b03df8a57",
+    "mtime": 1789058408.9910214,
+    "ast_hash": "ec7cb33f561f7d4d91723041cd5ecd1a",
     "semantic_hash": ""
   },
   ".kanban/issues/050-agents-docs-update.md": {
@@ -6105,8 +6105,8 @@
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789057982.7434616,
-    "ast_hash": "3dd6ed5fcf579c24dfe35f4a41e0b41b",
+    "mtime": 1789058362.1067393,
+    "ast_hash": "4c2b881c3532583ae09d990aac962c89",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -13572,6 +13572,11 @@
   ".agents/skills/build-dark-factory/dark-factory-diagram.png": {
     "mtime": 1787414962.789937,
     "ast_hash": "f910a8005ba6b8b18d7c710b7ef586b2",
+    "semantic_hash": ""
+  },
+  "docs/brainstorming/brainstorm-tralph-parallel-overhaul-2026-09-10/.memlog.md": {
+    "mtime": 1789058513.0476477,
+    "ast_hash": "040e43fd3f01c4430768509c20aa5002",
     "semantic_hash": ""
   }
 }
