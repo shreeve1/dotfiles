@@ -56,7 +56,7 @@ The unit of work is a **spec**, not a ticket. Every run re-derives its own task
 breakdown from the spec plus the current repo, which only works if the repo can
 answer *"what is already done"* — hence the runnable `survey` and `acceptance`
 commands on every item. Write specs with `/dsh-spec`
-(`.claude/skills/dsh-spec/SKILL.md`); `docs/specs/k745-*.md` and
+(`.agents/skills/dsh-spec/SKILL.md`); `docs/specs/k745-*.md` and
 `docs/specs/k801-*.md` are two that passed every stage.
 
 1. Have the conversation that settles the work, then run `/dsh-spec`. It writes

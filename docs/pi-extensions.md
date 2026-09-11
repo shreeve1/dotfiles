@@ -1,8 +1,9 @@
 # Pi & Claude Extensions — vendoring, repair, and rationale
 
-Reference detail for the vendored extensions in this repo. Moved out of
-`CLAUDE.md` to keep auto-loaded agent context lean. `CLAUDE.md` § "Non-obvious
-requirements" carries the short must-not-break rules and points here.
+Reference detail for the vendored extensions in this repo. Moved out of the
+repo-level context file to keep auto-loaded agent context lean. `AGENTS.md` §
+"Non-obvious requirements" carries the short must-not-break rules and points
+here.
 
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions

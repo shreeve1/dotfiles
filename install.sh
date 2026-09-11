@@ -243,7 +243,7 @@ link_path "bin/herdr-fork" ".local/bin/herdr-fork"
 
 # ─── graphify (knowledge-graph skill + global commit hook) ─
 # graphify is the codebase knowledge-graph tool. The skill is synced with the
-# other skills (~/.claude/skills/graphify). The graphify CLI itself is machine-local
+# other skills (~/.agents/skills/graphify). The graphify CLI itself is machine-local
 # (install with: uv tool install graphifyy) and must be on PATH via ~/.local/bin.
 #
 # The synced global git hook (~/.config/git/hooks/post-commit) auto-refreshes
@@ -274,13 +274,9 @@ if command -v git >/dev/null 2>&1; then
 fi
 
 # ─── Opencode ──────────────────────────────────────────────
-# Symlinks the entire ~/.config/opencode directory, which contains:
-#   - opencode.json          (provider config + plugin[] registration)
-#   - plugins/               (tokenjuice, etc.)
-#   - archive/               (retired OpenCode commands/agents/skills)
-# OpenCode loads canonical guidance from ~/.claude/CLAUDE.md via instructions[].
-# Canonical shared skills live under ~/.claude/skills/ (linked below).
-# OpenCode auto-discovers them unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1.
+# RETIRED: the opencode binary is gone and the live config was .bak'd
+# (2026-05). This symlink keeps the tracked remnants (retired commands/
+# agents/skills under archive/, plugins/) in place for reference only.
 link_path ".config/opencode" ".config/opencode"
 
 # ─── Pi Agent ──────────────────────────────────────────────
@@ -470,34 +466,6 @@ if ! command -v make >/dev/null 2>&1; then
   printf 'warn: make not found; telescope-fzf-native build will be skipped\n'
 fi
 
-# ─── Claude Code ───────────────────────────────────────────
-# Optional: skip this whole block only when ~/.claude is managed separately.
-# OpenCode also reads ~/.claude/CLAUDE.md and ~/.claude/skills through this setup.
-if [ "${INSTALL_CLAUDE_CODE:-1}" = "1" ]; then
-  # Core files
-  link_path ".claude/CLAUDE.md" ".claude/CLAUDE.md"
-  link_path ".claude/settings.json.template" ".claude/settings.json.template"
-  link_path ".claude/switch-provider.sh" ".claude/switch-provider.sh"
-  link_path ".claude/statusline-command.sh" ".claude/statusline-command.sh"
-
-  # Canonical Claude Code slash commands and agents.
-  link_path ".claude/commands" ".claude/commands"
-  link_path ".claude/agents" ".claude/agents"
-
-  # Canonical shared skills — read by Claude Code natively and by OpenCode
-  # via ~/.claude/skills fallback (unless OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1).
-  link_path ".claude/skills" ".claude/skills"
-
-  # Claude Code hooks.
-  link_path ".claude/hooks" ".claude/hooks"
-
-  # Always-on agent rules — injected into every dsh session and every delegated
-  # subagent by the dsh-cc-skills plugin. Claude Code itself ignores this dir.
-  link_path ".claude/rules" ".claude/rules"
-else
-  printf 'skip: ~/.claude/* links (INSTALL_CLAUDE_CODE=0)\n'
-fi
-
 # ─── Codex ─────────────────────────────────────────────────
 # config.toml accumulates machine-local state (project trust, hook-trust
 # hashes), so the tracked file is a template; seed the gitignored real file
@@ -542,13 +510,9 @@ fi
 #
 # On a fresh machine, the full setup sequence is:
 #   1. git clone <dotfiles> ~/dotfiles && cd ~/dotfiles && bash install.sh
-#   2. cp ~/.claude/settings.json.template ~/.claude/settings.json
-#   3. cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
-#   4. Edit live settings with API keys and machine-specific values
-#
-# ─── Opencode post-install verification ────────────────────
-# After install.sh runs, verify opencode:
-#
-#   a. Provider auth (cliproxy must be running locally):
-#        curl -s http://127.0.0.1:8317/v1/models | head -c 100
-#        # 401 with "Missing API key" means reachable; configure auth as needed
+#   2. cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
+#   3. Edit live settings with API keys and machine-specific values
+# ─── Retired: OpenCode post-install verification ───────────
+# OpenCode is retired on this machine (binary removed 2026-05, live config
+# .bak'd). The CLIProxyAPI endpoint it used is still live and serves other
+# tools: curl -s http://127.0.0.1:8317/v1/models  (401 = reachable, needs key)
