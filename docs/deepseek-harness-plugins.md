@@ -7,16 +7,23 @@
 > orchestration and file-surface phases were rewritten to match what's really
 > installed (native subagents + `dsh-better-sidebar`), replacing the earlier
 > planned picks (`dsh-team`, `dsh-background-agents`, the workbench plugin).
+>
+> **2026-09-10 update:** the `dsh-cc-skills` plugin (Phase 1) has been
+> **removed** (#049). dsh now consumes the canonical AGENTS-standard lane
+> natively (`~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md`, plus
+> `~/.agents/skills` at rank 500) — no bridge plugin is installed or needed.
+> Phase 1 below is kept as the historical record of that era; do not run it.
 
 Target: a self-hosted DeepSeek Harness (dsh) **web** profile on a **headless Linux**
 server. Goal: dsh stands alone (orchestration, files, browser, self-heal) and
-**reuses Claude Code skills only** — hooks/agents handled by native DSH plugins.
+**reuses your synced skills** — hooks/agents handled by native DSH plugins.
 
 Assumptions (adjust to your box):
 - `dsh` CLI on PATH. If not, prefix every command with `npx @deepseek-ai/dsh`.
 - Profile name is `web` (the Web GUI default). Swap `--profile web` if yours differs.
 - Host API is on `http://127.0.0.1:3080` (default). Adjust in the verify steps.
-- Your synced Claude Code skills live in `~/.claude/skills/` (per your dotfiles).
+- Your synced skills live in `~/.agents/skills/` (per your dotfiles; dsh loads
+  them natively — no plugin required).
 
 > Convention: after each **phase**, restart the web process and confirm before
 > moving on. Never batch-install everything then restart once — you lose the
@@ -56,7 +63,10 @@ dsh web            # or: npx @deepseek-ai/dsh web
 
 ---
 
-## Phase 1 — Claude Code SKILLS only (live, `.claude/` stays canonical)
+## Phase 1 — Claude Code SKILLS bridge (HISTORICAL — plugin removed #049)
+
+> Do not install. Kept as the record of the pre-AGENTS-migration era; dsh loads
+> `~/.agents/skills` natively now (see the banner at the top).
 
 Two npm packages, installed directly. **No junction hub / no `file:///` hot-mount**
 — that procedure is only for local-source development, which you are not doing.
