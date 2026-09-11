@@ -6100,13 +6100,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/050-agents-docs-update.md": {
-    "mtime": 1789059699.5972967,
+    "mtime": 1789059742.824538,
     "ast_hash": "d6d0fb68bbbbeea459ef23a94185bc67",
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789058676.8476348,
-    "ast_hash": "706a8609e6bfaa661ea6a47c22f387c7",
+    "mtime": 1789059721.5604193,
+    "ast_hash": "e8a8f9ca540267256a6851436f33b62a",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
