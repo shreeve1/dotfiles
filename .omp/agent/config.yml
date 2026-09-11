@@ -9,6 +9,7 @@ modelRoles:
   commit: minimax/MiniMax-M3:low
   tiny: minimax/MiniMax-M3:low
   plan: cliproxy/claude-opus-4-8:high
+  smol: zai/glm-5.3:high
 theme: 
   dark: neon80s
 statusLine: 
