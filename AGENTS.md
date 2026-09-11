@@ -10,7 +10,7 @@ surface; the other tool configs here support it and legacy workflows. See
 `docs/deepseek-harness.md` for access, architecture, and recovery.
 
 **Building or installing dsh plugins?** Load the `dsh-plugin-build` skill
-first (`.claude/skills/dsh-plugin-build/SKILL.md`) — a dispatcher to the
+first (`.agents/skills/dsh-plugin-build/SKILL.md`) — a dispatcher to the
 `dsh-plugin-guide` skill (the plugin contract) and to `docs/deepseek-harness.md`
 (the deployment's install/audit rules). Always install via `dsh plugin
 --profile web add <spec>`; never hand-stage packages into `node_modules`.
@@ -37,15 +37,6 @@ commands).
 
 ## Canonical surfaces
 
-- Global agent guidance: `.claude/CLAUDE.md` (loaded by OpenCode via
-  `.config/opencode/opencode.json` `instructions[]`).
-- Slash commands: `.claude/commands/` (canonical Claude Code commands; retired
-  OpenCode commands live under `.config/opencode/archive/commands/`).
-- Subagents: `.claude/agents/` (canonical Claude Code subagents; Pi uses
-  `.pi/agent/agents/`).
-- Shared skills: `.claude/skills/<name>/SKILL.md` (read by Claude Code natively,
-  by OpenCode via `~/.claude/skills` fallback).
-- Hooks: `.claude/hooks/` (Claude Code hook scripts).
 - **AGENTS standard lane (canonical):** `.agents/AGENTS.md` (merged guidance:
   Agent Notes + always-on rules) and `.agents/skills/<name>/SKILL.md` — the
   canonical lane consumed by dsh (natively via `~/.dsh/AGENTS.md` →
@@ -54,9 +45,22 @@ commands).
   This is the only lane that applies without the model choosing to load
   anything: a skill contributes just its one-line description to context until
   something calls the `skill` tool, which on plain coding tasks it does not do.
-  Keep the lane small — it is paid on every turn. dsh does **not** read
-  `~/.claude/CLAUDE.md`; its native chain is `~/.dsh/AGENTS.md` plus
-  `AGENTS.md`/`CLAUDE.md` from project root down to cwd.
+  Keep the lane small — it is paid on every turn. Of the 82 skills, 51 carry
+  `disable-model-invocation: true` (user-invocable only, never in the catalog) —
+  that is deliberate, do not "fix" it.
+- **Repo-level context:** this file (`AGENTS.md`). dsh's chain is
+  `~/.dsh/AGENTS.md` plus `AGENTS.md`/`CLAUDE.md` from project root down to
+  cwd; dsh does **not** read `~/.claude/CLAUDE.md`.
+- **Claude Code lane (archived 2026-09-10):** `archive/claude/` holds
+  CLAUDE.md, skills/, commands/, agents/, hooks/, rules/, settings templates,
+  and scripts. Nothing links it (`install.sh` skips those rows); restore with
+  `mv archive/claude .claude`. Machine-local `~/.claude` state (settings.json,
+  history) still works untouched. Note: Claude Code 2.1.220 reads only
+  `CLAUDE.md` as its project doc — it does not auto-load `AGENTS.md` — which is
+  why Claude-flavored repos keep the `CLAUDE.md` name.
+- **OpenCode (retired):** binary removed, live config `.bak`'d; retired
+  commands live under `.config/opencode/archive/`. The old
+  `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` guidance no longer applies.
 - See `README.md` § "Canonical vs tool-specific" for the full table.
 
 ## Non-obvious requirements
@@ -72,9 +76,6 @@ don't fight pi-lens autoformat) all live there with rationale.
 
 Environment facts that aren't in that doc:
 
-- **OpenCode:** `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS` and `OPENCODE_DISABLE_CLAUDE_CODE`
-  must stay **unset**, or canonical `~/.claude/skills/` are invisible. OpenCode
-  silently drops skills whose `model:` isn't `provider/model` form.
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.
 - **Fusion is on by default on this machine.** Claude Code writes/bash are gated to
@@ -91,8 +92,8 @@ Environment facts that aren't in that doc:
 
 ## Editing rules
 
-- `.claude/CLAUDE.md` is the canonical global guidance. Edit it directly;
-  don't recreate `.config/opencode/AGENTS.md`.
-- `.claude/settings-*.json` are gitignored (provider-specific, machine-local).
-  The tracked seed is `.claude/settings.json.template`.
+- `.agents/AGENTS.md` is the canonical global guidance; edit it directly.
+  The repo-level context file is this file (`AGENTS.md` at the repo root).
+- Claude `settings-*.json` live machine-local in `~/.claude` (gitignored);
+  the archived seed is `archive/claude/settings.json.template`.
 - Plans under `plans/` are gitignored (machine-local scratch).

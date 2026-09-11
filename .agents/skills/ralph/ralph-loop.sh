@@ -197,7 +197,7 @@ if [[ "$SESSION_NAME" =~ [.:] ]]; then
 fi
 IMPLEMENT_SKILL_DIR="$(dirname "$SKILL_DIR")/implement"
 # Invoke the implement skill only when we control the worker omp command.
-# Skills are delivered by omp's default discovery of ~/.claude/skills (both
+# Skills are delivered by omp's default discovery of ~/.agents/skills (both
 # ralph and implement live there); no skill-dir flag is needed. We
 # still only prefix the prompt when the driver builds the worker command
 # itself: a user-supplied command may not be omp and would not resolve

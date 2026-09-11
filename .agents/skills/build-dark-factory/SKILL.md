@@ -481,7 +481,7 @@ Read `references/guidance-layer.md`. Write three files from the templates:
 - `MISSION.md` - what is being built, and what is **deliberately out of scope forever**
 - `FACTORY_RULES.md` - how the agent behaves unsupervised, and the protected list
 - `CLAUDE.md` / `AGENTS.md` - the conventions any project has, factory or not
-  (template in `templates/CLAUDE.md`; if one already exists, split it rather
+  (template in `templates/AGENTS.md`; if one already exists, split it rather
   than replacing it)
 
 **`MISSION.md` is a compression of the PRD, not a new document.** Draft it from the
