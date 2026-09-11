@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /home/james/dotfiles/.claude/hooks)",
+      "Bash(git mv *)",
+      "Bash(rm -f ~/.claude/.caveman-active)",
+      "Read(//home/james/.claude/**)",
+      "Bash(rm ~/.claude/CLAUDE.md.template)",
+      "Bash(bash /home/james/dotfiles/install.sh)",
+      "Bash(cp /home/james/.claude/statusline-command.sh /home/james/dotfiles/.claude/statusline-command.sh)",
+      "Bash(chmod +x /home/james/dotfiles/.claude/statusline-command.sh)",
+      "Bash(mkdir -p .claude/skills/_shared .claude/agents)",
+      "Bash(cp /tmp/rpiv-port/package/skills/_shared/now.mjs .claude/skills/_shared/now.mjs)",
+      "Bash(cp /tmp/rpiv-port/package/skills/_shared/git-context.mjs .claude/skills/_shared/git-context.mjs)",
+      "Bash(cp /tmp/rpiv-port/package/skills/_shared/git-changes.mjs .claude/skills/_shared/git-changes.mjs)",
+      "Bash(cp /tmp/rpiv-port/package/skills/_shared/list-recent.mjs .claude/skills/_shared/list-recent.mjs)",
+      "Bash(mkdir -p /home/james/dotfiles/.claude/skills/code-review/templates /home/james/dotfiles/.claude/skills/code-review/_helpers)",
+      "Bash(cp /tmp/rpiv-port/package/skills/code-review/_helpers/review-range.mjs /home/james/dotfiles/.claude/skills/code-review/_helpers/review-range.mjs)",
+      "Bash(cp /tmp/rpiv-port/package/skills/code-review/templates/review.md /home/james/dotfiles/.claude/skills/code-review/templates/review.md)",
+      "Bash(sed -i s/rpiv-run/rralph/g .claude/skills/rpiv-monitor/SKILL.md .claude/skills/rpiv-merge/SKILL.md .claude/skills/gap-sweep/SKILL.md)",
+      "Bash(sed -i \"s/\\\\[r\\\\]piv-run/[r]ralph/g\" .claude/skills/rpiv-monitor/SKILL.md)",
+      "Bash(rm -f .claude/hooks/caveman-config.cjs .claude/hooks/caveman-session-start.cjs .claude/hooks/caveman-user-prompt.cjs)",
+      "Bash(rm -rf .claude/skills/caveman .claude/skills/caveman-commit .claude/skills/caveman-compress .claude/skills/caveman-help .claude/skills/caveman-review .claude/skills/caveman-stats)",
+      "Bash(rm -f .claude/commands/caveman.md .claude/commands/caveman-commit.md .claude/commands/caveman-compress.md .claude/commands/caveman-help.md .claude/commands/caveman-review.md .claude/commands/caveman-stats.md)",
+      "Bash(rm -rf .config/opencode/plugins/caveman)"
+    ]
+  }
+}
