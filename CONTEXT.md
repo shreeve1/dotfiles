@@ -49,6 +49,49 @@ Its independence comes from re-derivation + stance, not merely from process
 isolation.
 _Avoid_: isolated verifier, sandboxed checker.
 
+## Parallel Ralph (tralph × gralph merge)
+
+The vocabulary for the merged parallel loop. See `docs/adr/0009-*` /
+`docs/adr/0010-*` once recorded.
+
+**Graph source**:
+Where the dependency graph of work items comes from — `.kanban/issues/*.md`
+frontmatter (`blocked_by`, local default) or GitHub child issues via GraphQL
+(gralph's original). Pluggable; both produce the same manifest shape.
+
+**Frontier**:
+The set of work items whose blockers are all done — claimable now. Re-derived
+from the graph source every wave, never cached across waves.
+
+**Wave**:
+One scheduling round: launch up to `--jobs` workers on the frontier, wait,
+fold results, refresh the frontier.
+_Avoid_: batch (that word belongs to gralph's legacy accumulated branch).
+
+**Lane**:
+One ticket's isolated execution context: a dedicated git worktree on a
+dedicated branch. The worker's blast radius is its lane.
+_Avoid_: worktree alone (the term includes the branch and lifecycle).
+
+**Landing**:
+Moving one finished lane onto the integration branch, bors-style: rebase onto
+the integration tip → re-run that ticket's `## Verification` → ff-only merge.
+Landings are serial and in topological order.
+
+**Semantic conflict**:
+Two lanes that are each green in isolation but red after landing together —
+invisible to git, caught only by the landing re-verification. Resolution is a
+repair ticket, not a manual fix.
+
+**Integration branch**:
+The branch landings accumulate on during a run. At run end it reaches `main`
+only by `--ff-only`; any refusal defers to the manual `tralph-merge` path.
+
+**Scope** (`files:`):
+A ticket's declared write set. Advisory at slicing time, enforced at run time:
+overlapping scopes serialize (synthetic dependency edge), and an out-of-scope
+lane diff bounces. A wrong scope costs parallelism, never correctness.
+
 ## Orchestration mode — Fusion
 
 **Fusion mode** is an opt-in (machine-default-on) Pi extension that shrinks
