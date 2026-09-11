@@ -17,7 +17,7 @@ Before doing anything:
    - If every issue in `.kanban/issues/` is `status: done` (or there are no issues at all), do NOT start anything — the board is complete; print the summary and stop (see Termination).
    - If the only remaining work is blocked issues (0 pending, 0 in-progress, 0 review, ≥1 blocked), do NOT start the driver yet — it would hit `UNBLOCKED_COUNT==0 && ACTIVE_COUNT==0` immediately (ralph-loop.sh:1118), print `Ralph loop complete!`, and park. Go straight to the Delegate-or-raise decision for those blocked issues; the flip→pending (or out-of-loop work) is what makes the board pickable, and then you relaunch with real work for the worker.
    - Otherwise (there is already pending/in-progress/review work for a worker to pick up) the shepherd owns startup: from the project root, launch the driver **through an interactive login zsh** so the worker inherits the human shell's environment. Capture the project root in the outer shell first, because a login zsh may open in `$HOME`:
-     `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop"`.
+     `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh tmux ralph-loop"`.
      **Why `zsh -lic` and not a bare `bash …`:** `ralph-loop.sh` launches each worker via `tmux new-session -d … exec env $AGENT_CMD` (line 710). The worker inherits the environment of the tmux *server*, which is whatever shell first created it. `omp` is a `#!/usr/bin/env bun` script and needs both `~/.bun/bin` on PATH (to resolve `bun`) and provider credentials such as `MINIMAX_API_KEY` — **both come only from the interactive `.zshrc`/`.zprofile`, not from a bare non-interactive shell.** Launch the driver from a non-interactive shell and every worker dies at startup (`⚠️  Interactive agent session exited during startup`) or fails auth (`Error: No API key found for minimax`). The `-l` (login) + `-i` (interactive) flags make zsh source those files so the tmux server — and thus every worker window — gets the same PATH and credentials the operator's own shell has. Do NOT copy credentials into `tmux set-environment -g` yourself: a server-global secret is readable by every session on that server. Let the interactive shell propagate them.
      The script defaults `RALPH_MODEL=minimax/MiniMax-M3` internally (line 45), same as `tralph`; `tralph` is a zsh function and is unavailable in a skill context — this `zsh -lic` wrapper is the sanctioned substitute for it. If the script prints the has-session guard (source wording `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`, line 274), another driver just started — verify with `tmux has-session -t ralph-loop` and continue the cycle; do NOT kill anything.
 3. Only one shepherd at a time. If a previous shepherd is still running in another session, stop.
@@ -74,7 +74,17 @@ for s in pending in-progress review blocked done; do
 done
 
 # 1. Driver log tail — the loop writes to $HOME/.cache/ralph-loop-ralph-loop.log
+#    GUARD: the log is keyed by SESSION NAME only (ralph-loop.sh:368) and
+#    truncated on every driver start, so another project's run using the
+#    default session name overwrites it. Confirm the log's "Project:" header
+#    matches this project root before trusting it. On mismatch, treat the log
+#    as ABSENT — session 'ralph-loop' belongs to another repo: triage from
+#    board state only, do NOT kill/relaunch that session, and raise to the
+#    user (relaunching here would kill the other project's driver).
 LOG="$HOME/.cache/ralph-loop-ralph-loop.log"
+LOG_PROJECT=$(grep -m1 '^Project: ' "$LOG" 2>/dev/null | sed 's/^Project: //')
+[[ -n "$LOG_PROJECT" && "$LOG_PROJECT" != "$PWD" ]] \
+  && echo "⚠️  Log/session collision: log belongs to $LOG_PROJECT, not $PWD"
 tail -n 20 "$LOG"
 
 # 2. Live tmux sessions
@@ -290,7 +300,7 @@ tmux kill-session -t ralph-loop
 # This is what gives the worker ~/.bun/bin on PATH and MINIMAX_API_KEY —
 # a bare `bash …` relaunch reproduces the startup-crash / no-API-key failure.
 proj="$PWD"
-zsh -lic "cd '$proj' && bash ~/.claude/skills/ralph/ralph-loop.sh tmux ralph-loop"
+zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh tmux ralph-loop"
 ```
 
 If the `zsh -lic '… ralph-loop.sh tmux ralph-loop'` launch exits
@@ -312,7 +322,7 @@ credentials the worker needs).
 - **The shepherd triages and delegates; it does not implement.** Never edit files under the project source/test tree, never run the project build or test suite, never commit code. Implementation happens in a ralph worker (DEFAULT — flip→relaunch; the worker reads `skill://implement`), in a single sub-agent that itself follows `skill://implement` (DELEGATE OUT-OF-LOOP WORK — out-of-loop fixes a single-ticket worker can't do), or in a scout sub-agent that returns a fix-plan only. The shepherd's only writes are kanban ticket status/body and `.kanban/progress.md`.
 - **Never flip `status: blocked` → `status: pending` without a fix path a worker can act on.** Either the `## Blocker` already names a concrete code-local fix, or you have pasted a sub-agent's fix-plan into a `## Shepherd guidance` section. Never flip on a guess, and never run `## Verification` yourself — the worker's DONE gate handles that.
 - **Never touch an issue a live worker holds.** If `status: in-progress` or `status: review` exists, that worker owns the file; the shepherd does not edit its frontmatter, body, or progress.md entry. (Progress.md entries for blocked→pending flips are fine — those issues are not held.)
-- **Never edit `~/.claude/skills/ralph/ralph-loop.sh`, the ralph skill, or any other ralph script.** Diagnose bugs in the loop and report them; do not patch them from the shepherd.
+- **Never edit `~/.agents/skills/ralph/ralph-loop.sh`, the ralph skill, or any other ralph script.** Diagnose bugs in the loop and report them; do not patch them from the shepherd.
 - **One shepherd at a time.** If you find another shepherd active, stop.
 
 ## Termination
