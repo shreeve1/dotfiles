@@ -244,4 +244,19 @@ jq -e '
   .children[] | select(.number == 8) | .files == ["src/foo.py", "tests/foo_test.py"]
 ' "$MANIFEST" >/dev/null
 
+# --- 7. Mutating board runs are refused to keep gh out of the path. ---
+# Without this guard the orchestrator would call `gh issue view/edit` for
+# board ticket ids and might label/claim real GitHub issues whose numbers
+# happen to match kanban ids. Until an offline lane adapter lands, the
+# board lane is dry-run-only.
+if (cd "$REPO" && "$GRALPH" 42 --board "$BOARD" --verify 'true') >/dev/null 2>"$TMPDIR/mut.err"; then
+  echo "FAIL: mutating --board run should have been refused" >&2
+  cat "$TMPDIR/mut.err" >&2
+  exit 1
+fi
+grep -q "currently supports --dry-run only" "$TMPDIR/mut.err" || {
+  echo "FAIL: expected mutating-board refusal error" >&2
+  cat "$TMPDIR/mut.err" >&2
+  exit 1
+}
 printf '%s\n' 'tralph-kanban-frontier tests passed'
