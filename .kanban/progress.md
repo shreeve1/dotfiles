@@ -184,3 +184,17 @@ This file tracks implementation notes across Ralph iterations.
 **Notes for next iteration:** `docs/deepseek-harness-plugins.md` still describes installing `dsh-cc-skills` (it's the plugin-install how-to, not rules-lane content). Either reframe that doc around the AGENTS lane or delete it; out of scope for #050.
 
 **Fresh review:** PASS_WITH_NOTES — three notes, all addressed in `a15accbf`: (1) banner count was asserted without re-running the cross-check (softened to defer to the cross-check); (2) delegation paragraph contained a contradictory clause leftover from the deleted `dsh-cc-skills` sentence (removed); (3) ticket `title:` frontmatter was dropped during the status edit (restored — same slip caught for #048).
+
+## #051 Fix tralph launcher and live ralph paths after Claude-lane archive — 2026-09-12
+
+**What changed:** Repointed four live (non-archive) callers of the dead `~/.claude/skills/ralph/...` path to the canonical `~/.agents/skills/ralph/...` lane created in `#047`: `.zshrc:342` (`tralph()`), `bin/gralph:182` (`GRALPH_RALPH_SKILL` default), `.agents/skills/ralph/ralph-loop.service.example:38` (`ExecStart`), and `.config/systemd/user/ralph-loop.service:3,25` (`Documentation` + `ExecStart`). Also removed stale `.agents/skills/tralph-shepherd/SKILL.md.bak` (untracked, gitignored `*.bak`) whose pre-`#047` contents would have failed the sweep verification clause.
+
+**Files:** `.zshrc`, `bin/gralph`, `.agents/skills/ralph/ralph-loop.service.example`, `.config/systemd/user/ralph-loop.service`, `.kanban/issues/051-fix-tralph-launcher-agents-lane.md`, `.kanban/progress.md`
+
+**Decisions:** Did NOT touch `archive/claude/skills/ralph/` (excluded by issue). Did NOT repoint non-ralph dead-lane callers (e.g. `bin/gralph:1243` finish-spec, `.pi/agent/settings.json.template:7`, several `.agents/skills/*/SKILL.md` prose references to `~/.claude/skills/...`) — out of scope for this ralph-only sweep; reviewer flagged them as a follow-up ticket. Did NOT retro-edit historical plan docs (`plans/ralph-omp-migration.md`, `plans/ralph-remove-planner-review-each.md`) that record the pre-move paths — they document what was verified at the time.
+
+**Conventions established:** none beyond what is in this issue.
+
+**Notes for next iteration:** Host-local `~/.config/systemd/user/ralph-loop.service-bak-20260821T164544Z` keeps the dead path but is not a systemd unit (no `.service` suffix) and `plans/ralph-remove-planner-review-each.md` says to leave `-bak-` siblings alone. Future sweep tickets should be scoped to one skill/area at a time (finish-spec, langfuse, herdr, harness, wiki-update, llm-wiki-setup, dev-review-pi) rather than a global `.claude/skills` rewrite.
+
+**Fresh review:** PASS_WITH_NOTES — three notes, all out-of-scope (historical plan docs keep pre-move paths, adjacent non-ralph dead-lane callers correctly untouched, host-local `-bak-*` file correctly untouched per plan-doc precedent).
