@@ -339,7 +339,7 @@ tralph() {
 	# subshell, or a future edit that moves the secrets line below this fn).
 	[[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
 	RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}" \
-		~/.claude/skills/ralph/ralph-loop.sh "$@"
+		~/.agents/skills/ralph/ralph-loop.sh "$@"
 }
 
 alias op='opencode'

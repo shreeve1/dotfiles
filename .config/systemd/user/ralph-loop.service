@@ -1,6 +1,6 @@
 [Unit]
 Description=Ralph loop supervisor (keeps the Ralph driver tmux session alive)
-Documentation=file:///home/james/.claude/skills/ralph/ralph-supervise.sh
+Documentation=file:///home/james/.agents/skills/ralph/ralph-supervise.sh
 After=default.target
 
 [Service]
@@ -22,7 +22,7 @@ Environment=RALPH_MODEL=minimax/MiniMax-M3
 Environment=RALPH_BASE_REPO=/home/james/symphony
 Environment=RALPH_WORKTREE=/home/james/symphony-ralph
 Environment=RALPH_BRANCH=ralph/run
-ExecStart=/home/james/.claude/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
+ExecStart=/home/james/.agents/skills/ralph/ralph-supervise.sh --unattended --force tmux ralph-loop
 Restart=on-failure
 RestartSec=10
 
