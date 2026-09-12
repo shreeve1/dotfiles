@@ -641,20 +641,69 @@ read_kanban_children() {
   files="$(find "$issues_dir" -maxdepth 1 -name '*.md' -type f | sort)"
   [ -n "$files" ] || { echo "error: board directory has no *.md files: $issues_dir" >&2; return 1; }
 
-  local tickets_file
+  local tickets_file id title status blocked_by files_field front_file f
   tickets_file="$(mktemp)"
   for f in $files; do
-    local id title status blocked_by files_field
-    id="$(yq -I=0 '.id // ""' "$f" 2>/dev/null | head -1)"
+    # Parse the frontmatter slice (after the first `---`, up to the first
+    # blank line) using awk. We avoid yq because ticket bodies contain
+    # markdown prose and YAML parsers reject some real titles (e.g. one with
+    # an embedded `:`), and we don't want a real YAML library as a hard dep.
+    front_file="$(mktemp)"
+    awk '
+      BEGIN { fm = 0 }
+      fm == 0 && /^---[[:space:]]*$/ { fm = 1; next }
+      fm == 1 && /^---[[:space:]]*$/ { exit }
+      fm == 1 && /^[[:space:]]*$/ { exit }
+      fm == 1 { print }
+    ' "$f" >"$front_file"
+    if [ ! -s "$front_file" ]; then
+      rm -f "$front_file"
+      echo "error: no YAML frontmatter in $f" >&2
+      rm -f "$tickets_file"
+      return 1
+    fi
+    id="$(awk -F': *' '/^id:/ {print $2; exit}' "$front_file")"
     case "$id" in
-      ''|null) echo "error: missing id in $f" >&2; rm -f "$tickets_file"; return 1 ;;
+      ''|null) echo "error: missing id in $f" >&2
+               rm -f "$front_file" "$tickets_file"; return 1 ;;
     esac
-    title="$(yq -I=0 '.title // ""' "$f" 2>/dev/null | head -1)"
-    status="$(yq -I=0 '.status // ""' "$f" 2>/dev/null | head -1)"
-    blocked_by="$(yq -I=0 -o=json '.blocked_by // []' "$f" 2>/dev/null | head -1)"
-    [ "$blocked_by" = "null" ] && blocked_by='[]'
-    files_field="$(yq -I=0 -o=json '.files // null' "$f" 2>/dev/null | head -1)"
-    [ "$files_field" = "null" ] && files_field='null'
+    title="$(awk -F': *' '/^title:/ {sub(/^title:[ \t]*/,""); print; exit}' "$front_file")"
+    status="$(awk -F': *' '/^status:/ {print $2; exit}' "$front_file")"
+    # blocked_by value: locate the `blocked_by:` line and capture everything
+    # until the next recognised field (or end of input). Empty string when
+    # the field is absent. Output is the verbatim value (e.g. `[2]` or
+    # multi-line YAML list), which we JSON-encode in a follow-up step.
+    blocked_by="$(awk '
+      /^blocked_by:/ { capture = 1; sub(/^blocked_by:[ \t]*/, ""); print; next }
+      capture && /^[[:space:]]*-/ { print; next }
+      capture { exit }
+    ' "$front_file")"
+    [ -z "$blocked_by" ] && blocked_by=''
+    case "$blocked_by" in
+      '') blocked_by='[]' ;;
+      \[*\]) blocked_by="$(printf '%s' "$blocked_by" | tr -d '\n' | jq -c 'if type == "array" then . else [] end' 2>/dev/null || echo '[]')" ;;
+      *)
+        items="$(printf '%s\n' "$blocked_by" | awk '/^[[:space:]]*-/ {sub(/^[[:space:]]*-[[:space:]]*/,""); gsub(/^["'\'']|["'\'']$/,""); print}' | head -50)"
+        blocked_by="$(printf '%s' "$items" | jq -R -s 'split("\n") | map(select(length > 0))')"
+        ;;
+    esac
+    # files value: same capture pattern as blocked_by above.
+    files_field="$(awk '
+      /^files:/ { capture = 1; sub(/^files:[ \t]*/, ""); if ($0 == "[]" || $0 == "null") exit; print; next }
+      capture && /^[[:space:]]*-/ { print; next }
+      capture { exit }
+    ' "$front_file")"
+    # Strip leading/trailing whitespace from each line; preserve internal
+    # spaces in list items. An empty `files:` line collapses to "" which we
+    # then map to JSON null below.
+    files_field="$(printf '%s\n' "$files_field" | awk 'NF || /^$/ { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print }' | sed '/^$/d')"
+    case "$files_field" in
+      '') files_field='null' ;;
+      \[*\]) files_field="$(printf '%s' "$files_field" | tr -d '\n' | jq -c 'if type == "array" then . else [] end' 2>/dev/null || echo '[]')" ;;
+      *)
+        items="$(printf '%s\n' "$files_field" | awk '/^-/ {sub(/^-[[:space:]]*/,""); gsub(/^["'\'']|["'\'']$/,""); print}' | head -50)"
+        files_field="$(printf '%s' "$items" | jq -R -s 'split("\n") | map(select(length > 0))')"
+    esac
     jq -n \
       --arg file "$f" \
       --argjson id "$id" \
@@ -663,6 +712,7 @@ read_kanban_children() {
       --argjson blockedBy "$blocked_by" \
       --argjson files "$files_field" \
       '{file:$file,id:$id,title:$title,status:$status,blockedBy:$blockedBy,files:$files}' >>"$tickets_file"
+    rm -f "$front_file"
   done
 
   jq -s --argjson nullStatus '"missing"' '
@@ -694,9 +744,6 @@ read_kanban_children() {
       } + (if $t.files != null then {files: $t.files} else {} end)
     ] | sort_by(.number)
   ' "$tickets_file"
-  local rc=$?
-  rm -f "$tickets_file"
-  return $rc
 }
 
 # refresh_frontier_kanban re-derives the child list from disk and merges the
@@ -1590,6 +1637,15 @@ recover_state() {
   ' >/dev/null 2>&1 || true
 }
 
+# Board mode currently supports the read-only (dry-run) path only. The
+# orchestrator still drives gh for ticket admission, claim, and merge — that
+# would silently retarget real GitHub issues whose numbers happen to match
+# kanban ticket ids. Until an offline lane adapter lands, refuse --board
+# without --dry-run rather than risk misdirected claims.
+if [ "$DRY_RUN" -ne 1 ] && [ -n "$BOARD_DIR" ]; then
+  echo "error: --board currently supports --dry-run only; mutating runs would invoke gh against real GitHub issues whose numbers match kanban ticket ids" >&2
+  exit 2
+fi
 if [ "$DRY_RUN" -ne 1 ]; then
   [ "$VERIFY_SET" -eq 1 ] && [ -n "$VERIFY" ] || {
     echo "error: mutating runs require --verify <command>" >&2
