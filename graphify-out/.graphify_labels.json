@@ -1515,5 +1515,13 @@
   "1513": "Task: Migrate CLAUDE.md → AGENTS.md system-wide (AGENTS standard)",
   "1514": "SubagentsStopSelector",
   "1515": "[0.21.0] - 2026-04-29",
-  "1516": "NotifyTimerApi"
+  "1516": "NotifyTimerApi",
+  "1517": "054-bors-landing-queue.md",
+  "1518": "055-scope-enforcement.md",
+  "1519": "056-run-end-main-and-report.md",
+  "1520": "057-tralph-jobs-entrypoint.md",
+  "1521": "058-to-tickets-scopes-pass.md",
+  "1522": "059-shepherd-v2-manifest-reader.md",
+  "1523": "060-shakedown-run.md",
+  "1524": "[0.21.5] - 2026-05-02"
 }
