@@ -6,15 +6,19 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 usage: gralph <parent> [--dry-run] [--verify <command>] [--jobs N]
-       gralph <parent> --board <dir> [--dry-run] [--verify <command>] [--jobs N]
+       gralph <parent> --board <dir> [--dry-run] [--verify <command>] [--jobs N] [--agent-cmd <cmd>]
        gralph finish <parent>
 
 Plan the direct ready-for-agent children of an open GitHub parent issue, or
 execute them in dependency-frontier waves. With --board <dir>, the frontier
-is read from a local kanban directory of *.md files instead of GitHub; the
-manifest child shape and wave orchestration are identical in both modes.
-Mutating runs require --verify.
+is read from a local kanban directory of *.md files instead of GitHub.
+Board-mode lanes spawn full-tool Ralph workers via --agent-cmd (or
+$GRALPH_AGENT_CMD); the worker implements, runs the ticket verification,
+commits, spawns its own fresh-session reviewer, and emits the
+`RALPH_RESULT` sentinel. The coordinator never commits on the worker's
+behalf and never edits .kanban state in board mode.
 --jobs N caps concurrent worker pipelines (default 2).
+--agent-cmd <cmd> overrides the headless default for board-mode lanes.
 
 The finish subcommand validates the recorded batch PR is merged, every
 recorded child is closed, the local default branch contains the merge, and
@@ -50,6 +54,7 @@ VERIFY_SET=0
 VERIFY=""
 JOBS=2
 BOARD_DIR=""
+AGENT_CMD="${GRALPH_AGENT_CMD:-}"
 if [ "$PARENT_ARG" != "finish" ]; then
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -73,6 +78,11 @@ while [ "$#" -gt 0 ]; do
       [ "$#" -ge 2 ] || { echo "error: --board requires a directory" >&2; exit 2; }
       BOARD_DIR="$2"
       [ -d "$BOARD_DIR" ] || { echo "error: --board directory does not exist: $BOARD_DIR" >&2; exit 1; }
+      shift
+      ;;
+    --agent-cmd)
+      [ "$#" -ge 2 ] || { echo "error: --agent-cmd requires a command" >&2; exit 2; }
+      AGENT_CMD="$2"
       shift
       ;;
     -h|--help) usage; exit 0 ;;
@@ -120,6 +130,198 @@ verification_from_body() {
     }
     END { if (count == 1) print command; else exit 1 }
   '
+}
+
+# read_board_ticket extracts the body, title, and verification command from a
+# board ticket *.md file. Returns exit 1 (and prints to stderr) when the file
+# is missing, the frontmatter is malformed, or no unique backtick-quoted
+# `## Verification` command is present.
+read_board_ticket() {
+  local ticket_path="$1"
+  local out_body="$2" out_title="$3" out_verify="$4"
+
+  if [ ! -f "$ticket_path" ]; then
+    echo "error: ticket file missing: $ticket_path" >&2
+    return 1
+  fi
+  local title body verify
+  title=$(awk -F': *' '/^title:/ {sub(/^title:[ \t]*/,""); print; exit}' "$ticket_path")
+  [ -n "$title" ] || { echo "error: ticket $ticket_path has no title" >&2; return 1; }
+
+  body=$(awk '
+    /^---[[:space:]]*$/ { fm++; next }
+    fm >= 2 { print }
+  ' "$ticket_path")
+  if [ -z "$body" ]; then
+    echo "error: ticket $ticket_path has no body" >&2
+    return 1
+  fi
+
+  if ! verify=$(printf '%s\n' "$body" | verification_from_body); then
+    echo "error: ticket $ticket_path has no unique ## Verification command" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$title" >"$out_title"
+  printf '%s\n' "$body" >"$out_body"
+  printf '%s\n' "$verify" >"$out_verify"
+  return 0
+}
+
+# update_board_ticket_status rewrites the `status:` line in a board ticket
+# *.md file to a new value. Only the first `status:` field inside the YAML
+# frontmatter (between the leading `---` and the next `---` or blank line)
+# is touched. Returns 1 if the ticket file does not exist or the field
+# cannot be located.
+update_board_ticket_status() {
+  local ticket_path="$1" new_status="$2"
+  [ -f "$ticket_path" ] || { echo "error: ticket file missing: $ticket_path" >&2; return 1; }
+  awk -v target="$new_status" '
+    BEGIN { fm=0; done=0 }
+    fm == 0 && $0 ~ /^---[[:space:]]*$/ { fm=1; print; next }
+    fm == 1 && $0 ~ /^---[[:space:]]*$/ { fm=2; print; next }
+    fm == 1 && $0 ~ /^status:[[:space:]]/ && !done { sub(/^status:.*/, "status: " target); done=1; print; next }
+    { print }
+  ' "$ticket_path" >"$ticket_path.tmp.$$"
+  mv "$ticket_path.tmp.$$" "$ticket_path"
+  return 0
+}
+
+# run_board_child_pipeline is the lane worker used by board mode (--board).
+# Unlike run_child_pipeline (GitHub mode), the board worker is a full-tool
+# Ralph agent launched via --agent-cmd: it implements the ticket, runs its
+# own ## Verification, commits, spawns its own fresh-session reviewer, and
+# emits `RALPH_RESULT: DONE|BLOCKED|FAIL #<id>` to its stdout. The
+# coordinator records the sentinel + lane state into the sidecar; it does
+# NOT commit, run verification, or edit .kanban on the worker's behalf.
+# A single worker attempt per child per wave (no blind 3-iteration retry):
+# FAIL/BLOCKED becomes a board bounce/blocked outcome.
+run_board_child_pipeline() {
+  local child="$1"
+  local manifest="$2"
+  local run_dir="$3"
+  local base_sha="$4"
+  local run_id="$5"
+  local sidecar="$6"
+  local board_dir="$7"
+  local agent_cmd="$8"
+
+  if [ -z "$agent_cmd" ]; then
+    jq -n --argjson child "$child" --arg reason "agent_cmd_required" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
+  fi
+
+  if ! git -C "$REPO_ROOT" cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+    jq -n --argjson child "$child" --arg reason "stale_base_sha" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
+  fi
+
+  local ticket_path
+  ticket_path=$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .file // ""' "$manifest" 2>/dev/null || true)
+  [ -n "$ticket_path" ] || ticket_path="$board_dir/issues/$(printf '%03d' "$child")-$child.md"
+  [ -f "$ticket_path" ] || ticket_path="$board_dir/$(printf '%03d' "$child")-$child.md"
+
+  local body_file="$run_dir/.child-$child-$run_id-body.md"
+  local title_file="$run_dir/.child-$child-$run_id-title.txt"
+  local verify_file="$run_dir/.child-$child-$run_id-verify.txt"
+  if ! read_board_ticket "$ticket_path" "$body_file" "$title_file" "$verify_file"; then
+    jq -n --argjson child "$child" --arg reason "ticket_unreadable" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    return 0
+  fi
+  local issue_body issue_title issue_verify
+  issue_body=$(cat "$body_file")
+  issue_title=$(cat "$title_file")
+  issue_verify=$(cat "$verify_file")
+
+  local branch="gralph/$PARENT/issue-$child"
+  local worktree="$run_dir/worktrees/issue-$child-$run_id"
+  if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch"; then
+    jq -n --argjson child "$child" --arg reason "branch_exists" --arg branch "$branch" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch}' >"$sidecar"
+    return 0
+  fi
+  mkdir -p "$(dirname "$worktree")"
+  if ! git -C "$REPO_ROOT" worktree add -b "$branch" "$worktree" "$base_sha" >/dev/null 2>&1; then
+    jq -n --argjson child "$child" --arg reason "worktree_create_failed" --arg branch "$branch" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch}' >"$sidecar"
+    return 0
+  fi
+  local start_sha
+  start_sha=$(git -C "$worktree" rev-parse HEAD)
+
+  local prompt_file="$run_dir/.child-$child-$run_id-prompt.md"
+  local output_file="$run_dir/.child-$child-$run_id-worker.log"
+  {
+    printf '%s\n' 'You are a Ralph worker executing ONE local kanban ticket in an isolated worktree.'
+    printf '%s\n' 'Implement only this ticket. Do NOT touch .kanban/, the ticket file itself, or any other kanban state - the coordinator owns board writes.'
+    printf '%s\n' 'You have full tool access. You are responsible for:'
+    printf '%s\n' '  1. Implementing every acceptance criterion in the ticket body.'
+    printf '%s\n' '  2. Running the unique ## Verification command yourself (do not delegate it to a coordinator).'
+    printf '%s\n' '  3. Writing a lane-local progress note to .ralph-progress-<N>.md in the worktree, then `git add` and `git commit` the full diff yourself.'
+    printf '%s\n' '  4. Spawning your own fresh-session reviewer (separate process from your own) and only declaring DONE after the reviewer approves with zero critical/blocker findings.'
+    printf '%s\n' 'End with exactly one of these sentinels on its own line:'
+    printf '%s\n' "  RALPH_RESULT: DONE #$child"
+    printf '%s\n' "  RALPH_RESULT: BLOCKED #$child    # when the ticket is genuinely impossible (missing prerequisite, environmental)"
+    printf '%s\n' "  RALPH_RESULT: FAIL #$child       # when implementation failed after genuine effort and a retry would not help"
+    printf '\nWorktree: %s\nBase SHA: %s\nTicket: #%s %s\n\nVerification command (run this yourself, exit 0 required):\n%s\n\nTicket body and acceptance criteria:\n%s\n' \
+      "$worktree" "$start_sha" "$child" "$issue_title" "$issue_verify" "$issue_body"
+  } >"$prompt_file"
+
+  set +e
+  (cd "$worktree" && \
+    GRALPH_BOARD_CHILD="$child" GRALPH_BOARD_BRANCH="$branch" \
+    GRALPH_BOARD_VERIFY="$issue_verify" GRALPH_BOARD_TICKET_PATH="$ticket_path" \
+    /bin/sh -c "$agent_cmd $prompt_file") >"$output_file" 2>&1
+  local worker_rc=$?
+  set -e
+
+  local final_line status_count
+  final_line=$(awk 'NF { line=$0 } END { print line }' "$output_file")
+  status_count=$(grep -c '^RALPH_RESULT:' "$output_file" || true)
+
+  local commit_sha worktree_clean
+  commit_sha=$(git -C "$worktree" rev-parse HEAD 2>/dev/null || true)
+  worktree_clean=$([ -z "$(git -C "$worktree" status --porcelain 2>/dev/null)" ] && printf true || printf false)
+
+  if [ "$status_count" -ne 1 ] || \
+     ! { [ "$final_line" = "RALPH_RESULT: DONE #$child" ] || \
+          [ "$final_line" = "RALPH_RESULT: BLOCKED #$child" ] || \
+          [ "$final_line" = "RALPH_RESULT: FAIL #$child" ]; }; then
+    jq -n --argjson child "$child" --arg reason "sentinel_missing" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
+      --arg commitSha "$commit_sha" --arg workerLog "$output_file" --argjson workerExitCode "$worker_rc" \
+      --argjson worktreeClean "$worktree_clean" --arg finalLine "$final_line" \
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, workerExitCode:$workerExitCode, worktreeClean:$worktreeClean, finalLine:$finalLine}' >"$sidecar"
+    return 0
+  fi
+
+  if [ "$final_line" = "RALPH_RESULT: DONE #$child" ]; then
+    if [ -z "$commit_sha" ] || [ "$commit_sha" = "$start_sha" ]; then
+      jq -n --argjson child "$child" --arg reason "no_worker_commit" \
+        --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+        --arg workerLog "$output_file" --argjson worktreeClean "$worktree_clean" \
+        '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, worktreeClean:$worktreeClean}' >"$sidecar"
+      return 0
+    fi
+    jq -n --argjson child "$child" --arg sentinel "DONE" \
+      --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+      --arg workerLog "$output_file" --argjson workerExitCode "$worker_rc" --argjson worktreeClean "$worktree_clean" \
+      --arg host "$(hostname)" --argjson pid "$$" --arg runId "$run_id" \
+      --arg body "$issue_body" --arg title "$issue_title" --arg verify "$issue_verify" \
+      '{child:$child, outcome:"accepted", sentinel:$sentinel, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, workerExitCode:$workerExitCode, worktreeClean:$worktreeClean, host:$host, pid:$pid, runId:$runId, issueBody:$body, issueTitle:$title, issueVerify:$verify, verificationLog:$workerLog, reviewGate:"accepted", reviewStatus:"approved", reviewCriticalCount:0, reviewBlockerCount:0, reviewFindings:[], reviewProcessExitCode:0, reviewTimedOut:false}' >"$sidecar"
+    return 0
+  fi
+
+  local sentinel_kind="blocked"
+  [ "$final_line" = "RALPH_RESULT: FAIL #$child" ] && sentinel_kind="failed"
+  jq -n --argjson child "$child" --arg sentinel "$sentinel_kind" \
+    --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+    --arg workerLog "$output_file" --arg finalLine "$final_line" --argjson workerExitCode "$worker_rc" \
+    '{child:$child, outcome:"failed", sentinel:$sentinel, reason:$sentinel, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, finalLine:$finalLine, workerExitCode:$workerExitCode}' >"$sidecar"
+  return 0
 }
 
 # run_child_pipeline claims one child, runs the bounded Ralph worker, runs the
@@ -201,12 +403,12 @@ run_child_pipeline() {
   local guard="$SCRIPT_ROOT/lib/gralph-worker-guard.js"
   if [ ! -f "$ralph_skill" ]; then
     jq -n --argjson child "$child" --arg reason "ralph_skill_missing" \
-      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
     return 0
   fi
   if [ ! -f "$guard" ]; then
     jq -n --argjson child "$child" --arg reason "guard_missing" \
-      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
     return 0
   fi
   ralph_skill="$(realpath "$ralph_skill")"
@@ -215,7 +417,7 @@ run_child_pipeline() {
   local max_iterations="${GRALPH_MAX_ITERATIONS:-3}"
   case "$max_iterations" in ''|*[!0-9]*|0)
     jq -n --argjson child "$child" --arg reason "max_iterations_invalid" \
-      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$start_sha}' >"$sidecar"
+      '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
     return 0
   ;; esac
   local temp_home="$run_dir/home-$child-$run_id"
@@ -517,6 +719,17 @@ fold_child_result() {
       git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
       if merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha"; then
         git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+        # Board-mode flips the ticket frontmatter status to `done` from the
+        # accepted sentinel (coordinator owns board writes; worker must NOT
+        # touch .kanban). The next wave's refresh_frontier_kanban sees the
+        # dependency as resolved and admits any newly-unblocked children.
+        if [ -n "$BOARD_DIR" ]; then
+          local ticket_path_done
+          ticket_path_done=$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .file // ""' "$manifest" 2>/dev/null || true)
+          [ -n "$ticket_path_done" ] || ticket_path_done="$BOARD_DIR/issues/$(printf '%03d' "$child")-$child.md"
+          [ -f "$ticket_path_done" ] || ticket_path_done="$BOARD_DIR/$(printf '%03d' "$child")-$child.md"
+          update_board_ticket_status "$ticket_path_done" "done" || true
+        fi
       fi
       ;;
     rejected)
@@ -568,6 +781,7 @@ fold_child_result() {
         write_manifest "$manifest" \
           --argjson child "$child" \
           --arg reason "$reason" \
+          --arg sentinel "$sentinel" \
           --arg branch "$branch" \
           --arg worktree "$worktree" \
           --arg startingSha "$starting_sha" \
@@ -593,6 +807,7 @@ fold_child_result() {
         write_manifest "$manifest" \
           --argjson child "$child" \
           --arg reason "$reason" \
+          --arg sentinel "$sentinel" \
           --arg branch "$branch" \
           --arg worktree "$worktree" \
           --arg startingSha "$starting_sha" \
@@ -982,9 +1197,15 @@ orchestrate_waves() {
     for child in "${wave_children[@]}"; do
       local sidecar="$run_dir/.child-$child-$run_id-result.json"
       sidecar_for[$child]="$sidecar"
-      (
-        run_child_pipeline "$child" "$manifest" "$run_dir" "$base_sha" "$run_id" "$sidecar"
-      ) &
+      if [ -n "$BOARD_DIR" ]; then
+        (
+          run_board_child_pipeline "$child" "$manifest" "$run_dir" "$base_sha" "$run_id" "$sidecar" "$BOARD_DIR" "$AGENT_CMD"
+        ) &
+      else
+        (
+          run_child_pipeline "$child" "$manifest" "$run_dir" "$base_sha" "$run_id" "$sidecar"
+        ) &
+      fi
       pids+=($!)
     done
     wait "${pids[@]}" 2>/dev/null || true
@@ -1637,13 +1858,10 @@ recover_state() {
   ' >/dev/null 2>&1 || true
 }
 
-# Board mode currently supports the read-only (dry-run) path only. The
-# orchestrator still drives gh for ticket admission, claim, and merge — that
-# would silently retarget real GitHub issues whose numbers happen to match
-# kanban ticket ids. Until an offline lane adapter lands, refuse --board
-# without --dry-run rather than risk misdirected claims.
-if [ "$DRY_RUN" -ne 1 ] && [ -n "$BOARD_DIR" ]; then
-  echo "error: --board currently supports --dry-run only; mutating runs would invoke gh against real GitHub issues whose numbers match kanban ticket ids" >&2
+# Board-mode mutating runs require --agent-cmd (board lanes spawn full-tool
+# Ralph workers via the agent command; the coordinator never invokes gh).
+if [ "$DRY_RUN" -ne 1 ] && [ -n "$BOARD_DIR" ] && [ -z "$AGENT_CMD" ]; then
+  echo "error: --board mutating runs require --agent-cmd <cmd> (or \$GRALPH_AGENT_CMD) to spawn lane workers" >&2
   exit 2
 fi
 if [ "$DRY_RUN" -ne 1 ]; then
@@ -1658,7 +1876,11 @@ if [ "$DRY_RUN" -ne 1 ]; then
     and (.children | type == "array")
   ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
   orchestrate_waves "$manifest" "$VERIFY" "$JOBS" || exit 1
-  publish_pr "$manifest" "$VERIFY" || exit 1
+  # Board mode is offline - no remote PR. GitHub mode still publishes the
+  # batch PR after the integration command passes on the merged tree.
+  if [ -z "$BOARD_DIR" ]; then
+    publish_pr "$manifest" "$VERIFY" || exit 1
+  fi
   exit 0
 fi
 

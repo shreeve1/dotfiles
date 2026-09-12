@@ -254,7 +254,7 @@ if (cd "$REPO" && "$GRALPH" 42 --board "$BOARD" --verify 'true') >/dev/null 2>"$
   cat "$TMPDIR/mut.err" >&2
   exit 1
 fi
-grep -q "currently supports --dry-run only" "$TMPDIR/mut.err" || {
+grep -q "require --agent-cmd" "$TMPDIR/mut.err" || {
   echo "FAIL: expected mutating-board refusal error" >&2
   cat "$TMPDIR/mut.err" >&2
   exit 1
