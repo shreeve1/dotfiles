@@ -1,7 +1,7 @@
 ---
 id: 051
 title: Fix tralph launcher and live ralph paths after Claude-lane archive
-status: in-progress
+status: review
 blocked_by: []
 parent: null
 created: 2026-09-10
