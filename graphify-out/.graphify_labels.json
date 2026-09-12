@@ -579,7 +579,6 @@
   "577": "Paid Media Programmatic & Display Buyer Agent",
   "578": "Paid Media Search Query Analyst Agent",
   "579": "Paid Media Tracking & Measurement Specialist Agent",
-  "580": "Independent claim verification",
   "581": "Quiz UI — use the harness tool, never markdown MCQs",
   "582": "<Questionnaire title>",
   "583": "Dev Build",
@@ -1215,7 +1214,6 @@
   "1213": "Marketing Instagram Curator",
   "1214": ".agents/skills/_shared/scripts/memlog.py",
   "1215": ".claude/skills/party-mode/scripts/resolve_party.py",
-  "1216": "[0.21.5] - 2026-05-02",
   "1217": "herdr-issue-frontier — watched parallel issue loop",
   "1218": "HTML Report Format",
   "1219": "Flowcharts - Basic Syntax",
@@ -1524,10 +1522,6 @@
   "1522": "059-shepherd-v2-manifest-reader.md",
   "1523": "060-shakedown-run.md",
   "1524": "[0.21.5] - 2026-05-02",
-  "1525": "chain-clarify.ts",
   "1526": "chain-root-attachment.ts",
-  "1527": "validateAcceptanceInput",
-  "1528": "turn-delta.ts",
-  "1529": "tool-description.ts",
-  "1530": "SubagentsStopSelector"
+  "1528": "turn-delta.ts"
 }
