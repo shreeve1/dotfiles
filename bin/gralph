@@ -179,7 +179,7 @@ run_child_pipeline() {
   local start_sha
   start_sha="$(git -C "$worktree" rev-parse HEAD)"
 
-  local ralph_skill="${GRALPH_RALPH_SKILL:-$HOME/.claude/skills/ralph/SKILL.md}"
+  local ralph_skill="${GRALPH_RALPH_SKILL:-$HOME/.agents/skills/ralph/SKILL.md}"
   local guard="$SCRIPT_ROOT/lib/gralph-worker-guard.js"
   if [ ! -f "$ralph_skill" ]; then
     jq -n --argjson child "$child" --arg reason "ralph_skill_missing" \
