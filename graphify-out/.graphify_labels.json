@@ -1523,5 +1523,11 @@
   "1521": "058-to-tickets-scopes-pass.md",
   "1522": "059-shepherd-v2-manifest-reader.md",
   "1523": "060-shakedown-run.md",
-  "1524": "[0.21.5] - 2026-05-02"
+  "1524": "[0.21.5] - 2026-05-02",
+  "1525": "chain-clarify.ts",
+  "1526": "chain-root-attachment.ts",
+  "1527": "validateAcceptanceInput",
+  "1528": "turn-delta.ts",
+  "1529": "tool-description.ts",
+  "1530": "SubagentsStopSelector"
 }
