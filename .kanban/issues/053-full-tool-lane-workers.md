@@ -1,7 +1,7 @@
 ---
 id: 053
 title: Full-tool lane workers via pluggable --agent-cmd (ADR 0010)
-status: review
+status: done
 blocked_by: [052]
 parent: null
 created: 2026-09-10
@@ -31,18 +31,34 @@ work); landing (#054) folds it into the shared `.kanban/progress.md`.
 
 ## Acceptance criteria
 
-- [ ] One real board ticket is implemented end-to-end in its lane worktree
+- [x] One real board ticket is implemented end-to-end in its lane worktree
       by the worker (worker's own commit present on the lane branch)
-- [ ] Coordinator records the sentinel + lane state in the sidecar without
+- [x] Coordinator records the sentinel + lane state in the sidecar without
       creating the commit itself
-- [ ] A worker FAIL/BLOCKED sentinel marks the ticket blocked on the board
+- [x] A worker FAIL/BLOCKED sentinel marks the ticket blocked on the board
       and does not retry blindly
-- [ ] `--agent-cmd` overrides the default worker command
-- [ ] Worker leaves ticket frontmatter and `.kanban/progress.md` untouched;
+- [x] `--agent-cmd` overrides the default worker command
+- [x] Worker leaves ticket frontmatter and `.kanban/progress.md` untouched;
       its progress note is lane-local and committed on the lane branch
-- [ ] Two independent ready tickets run in the SAME wave in two live lanes
+- [x] Two independent ready tickets run in the SAME wave in two live lanes
       concurrently (`--jobs 2`), both land their own commits
 
 ## Verification
 
 `bash tests/tralph-lane-worker.test.sh` and `bash tests/gralph-parallel.test.sh`
+
+## Implementation Notes
+
+Three bugs fixed in the pre-existing board-mode implementation:
+
+1. `fold_child_result` `failed)` case: `sentinel` variable was unbound under
+   `set -u`, aborting the `write_manifest` call. Fixed by reading `.sentinel`
+   from the sidecar and adding `sentinel:$sentinel` to the child manifest record.
+2. `refresh_frontier_kanban` did not propagate landed children to their
+   dependents. The coordinator called `update_board_ticket_status` to flip the
+   disk file to `done`, but this violated "worker leaves ticket untouched". Fixed
+   by removing the disk flip and instead overlaying manifest-landed children as
+   CLOSED in the refresher, then re-classifying dependents against the updated set.
+3. The `--arg sentinel "$sentinel"` dead-code in both failed fold paths is now
+   live and correct; `update_board_ticket_status` call site removed (function
+   itself left for follow-up cleanup per review note).

@@ -207,3 +207,15 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** The board source emits the same `{number, title, state, labels, blockedBy, classification, reason}` envelope the GitHub source already produces. `state` rules: status=done → CLOSED/excluded; status=pending and no open blockers → eligible; otherwise blocked or excluded. Missing blockers fail closed.
 **Notes for next iteration:** `refresh_frontier_kanban` is exercised end-to-end via re-running dry-run, not via a direct unit test of the function (the function is not exported). When an offline lane adapter lands for board mode, remove the `--board currently supports --dry-run only` guard at the mutating-run entry point.
 **Fresh review:** PASS_WITH_NOTES — initial review returned FAIL with three findings: (1) yq-based parser rejected real markdown bodies, (2) mutating board runs reached gh, (3) refresh helper had no direct test. Findings 1 and 2 fixed in the same session; finding 3 left as a coverage note (structural inspection of the orchestrator branch verifies the call). All five acceptance criteria verified by `bash tests/tralph-kanban-frontier.test.sh` and `bash tests/gralph-frontier.test.sh`; all eight existing gralph-* tests continue to pass.
+
+## #053 Full-tool lane workers via pluggable --agent-cmd — 2026-09-12
+
+**What changed:** Fixed three bugs in the pre-existing board-mode lane worker pipeline:
+(1) `fold_child_result` failed-case: `sentinel` was unbound under `set -u`, causing the `write_manifest` call to abort — child never got `execution.status = "failed"`, `sentinel`, or landed in `.orchestration.failed`. Fixed by reading `.sentinel` from sidecar and adding it to child manifest record.
+(2) `refresh_frontier_kanban` used `update_board_ticket_status` to flip ticket files to "done" so dependents could enter wave 2 — this violated "worker leaves ticket frontmatter untouched". Replaced with a manifest-overlay: landed children (by `merge.status == "landed"`) are marked CLOSED in the refreshed child list, then dependents are re-classified against the updated set.
+(3) Dead `--arg sentinel "$sentinel"` code in both fold paths is now live and correct.
+**Files:** `bin/gralph`, `.kanban/issues/053-full-tool-lane-workers.md`
+**Decisions:** Board ticket files are never written by the coordinator during execution; landed state lives only in the manifest. `update_board_ticket_status` call site is gone; the function itself is now dead code (reviewer flagged it; left for follow-up).
+**Conventions established:** `refresh_frontier_kanban` resolves blocker status from manifest `merge.status`, not from board disk files.
+**Notes for next iteration:** `update_board_ticket_status` function is dead code — can be deleted in a follow-up. Board done/blocked truth lives only in the manifest; #054/#059 presumably consume it.
+**Fresh review:** PASS_WITH_NOTES — three non-blocking notes: (a) `update_board_ticket_status` is now dead code; (b) `worktreeClean` recorded but not enforced on DONE; (c) board ticket files intentionally stay `pending` on disk.
