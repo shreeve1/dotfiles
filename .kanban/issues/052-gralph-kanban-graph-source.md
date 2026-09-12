@@ -1,7 +1,7 @@
 ---
 id: 052
 title: Kanban graph source for gralph (pluggable frontier reader)
-status: in-progress
+status: review
 blocked_by: []
 parent: null
 created: 2026-09-10
