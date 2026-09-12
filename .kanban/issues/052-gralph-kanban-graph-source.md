@@ -1,11 +1,11 @@
 ---
 id: 052
 title: Kanban graph source for gralph (pluggable frontier reader)
-status: pending
+status: in-progress
 blocked_by: []
 parent: null
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-12
 actor: to-tickets
 
 ## What to build
