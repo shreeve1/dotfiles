@@ -719,17 +719,9 @@ fold_child_result() {
       git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
       if merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha"; then
         git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
-        # Board-mode flips the ticket frontmatter status to `done` from the
-        # accepted sentinel (coordinator owns board writes; worker must NOT
-        # touch .kanban). The next wave's refresh_frontier_kanban sees the
-        # dependency as resolved and admits any newly-unblocked children.
-        if [ -n "$BOARD_DIR" ]; then
-          local ticket_path_done
-          ticket_path_done=$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .file // ""' "$manifest" 2>/dev/null || true)
-          [ -n "$ticket_path_done" ] || ticket_path_done="$BOARD_DIR/issues/$(printf '%03d' "$child")-$child.md"
-          [ -f "$ticket_path_done" ] || ticket_path_done="$BOARD_DIR/$(printf '%03d' "$child")-$child.md"
-          update_board_ticket_status "$ticket_path_done" "done" || true
-        fi
+        # Board-mode: do NOT touch the ticket frontmatter here; the
+        # coordinator owns board writes and refresh_frontier_kanban resolves
+        # landed children from the manifest, not from disk status.
       fi
       ;;
     rejected)
@@ -767,8 +759,9 @@ fold_child_result() {
         ' || { echo "error: fold_child_result failed to record rejected review for child #$child" >&2; return 1; }
       ;;
     failed)
-      local reason branch worktree starting_sha commit_sha review_artifact review_prompt review_proc review_timed
+      local reason branch worktree starting_sha commit_sha review_artifact review_prompt review_proc review_timed sentinel
       reason="$(jq -r '.reason' "$sidecar")"
+      sentinel="$(jq -r '.sentinel // ""' "$sidecar")"
       branch="$(jq -r '.branch // ""' "$sidecar")"
       worktree="$(jq -r '.worktree // ""' "$sidecar")"
       starting_sha="$(jq -r '.startingSha // ""' "$sidecar")"
@@ -801,7 +794,8 @@ fold_child_result() {
                   (if $commit != "" then {commitSha:$commit} else {} end) +
                   {runId:$runId}),
                 review:{artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"}
-              })
+              } +
+              (if $sentinel != "" then {sentinel:$sentinel} else {} end))
           ' || { echo "error: fold_child_result failed to record failed-with-review for child #$child" >&2; return 1; }
       else
         write_manifest "$manifest" \
@@ -815,13 +809,14 @@ fold_child_result() {
           --arg runId "$run_id" \
           '
             .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason, child:$child})
-            | (.children[] | select(.number == $child) | .execution) |=
-                ((. // {}) + {status:"failed", reason:$reason} +
+            | (.children[] | select(.number == $child)) |= (. +
+                {execution:((.execution // {}) + {status:"failed", reason:$reason} +
                   (if $branch != "" then {branch:$branch} else {} end) +
                   (if $worktree != "" then {worktree:$worktree} else {} end) +
                   (if $startingSha != "" then {startingSha:$startingSha} else {} end) +
                   (if $commit != "" then {commitSha:$commit} else {} end) +
-                  {runId:$runId})
+                  {runId:$runId})} +
+                (if $sentinel != "" then {sentinel:$sentinel} else {} end))
           ' || { echo "error: fold_child_result failed to record failed execution for child #$child" >&2; return 1; }
       fi
       ;;
@@ -965,6 +960,10 @@ read_kanban_children() {
 # fresh classification/dependencies into the shared manifest while retaining
 # per-child claim/execution/review/merge runtime state. Identical semantics to
 # refresh_frontier, only the data source differs.
+#
+# Landed children (manifest .orchestration.landed[]) are treated as CLOSED/done
+# regardless of their on-disk status: the coordinator never writes the board
+# ticket files; landed state lives in the manifest only.
 refresh_frontier_kanban() {
   local manifest="$1"
   local board_dir="$2"
@@ -973,6 +972,29 @@ refresh_frontier_kanban() {
   if ! fresh_children="$(read_kanban_children "$board_dir")"; then
     return 1
   fi
+
+  # Overlay landed children: mark them CLOSED + excluded so dependents see
+  # them as resolved blockers. Then re-classify remaining children against
+  # the updated set (a child blocked only by landed tickets becomes eligible).
+  local landed_json
+  landed_json="$(jq -c '[.children[] | select(.merge.status == "landed") | .number]' "$manifest")"
+  fresh_children="$(printf '%s\n' "$fresh_children" | jq -c --argjson landed "$landed_json" '
+    # Step 1: mark landed children CLOSED.
+    map(if (.number as $n | $landed | index($n) != null) then
+      . + {state:"CLOSED", classification:"excluded", reason:"child_not_open", labels:[]}
+    else . end) as $overlaid |
+    # Step 2: re-evaluate classification for non-landed OPEN+pending children.
+    $overlaid | map(
+      if .state == "OPEN" and .classification != "excluded" then
+        (any(.blockedBy[]; . as $bid |
+          ($overlaid | map(select(.number == $bid)) | .[0] | .state) != "CLOSED"
+        )) as $hasOpen |
+        if $hasOpen then . + {classification:"blocked", reason:"open_blockers"}
+        else . + {classification:"eligible", reason:null}
+        end
+      else . end)
+  ')"
+
   fresh_deps="$(printf '%s\n' "$fresh_children" | jq -c '
     [.[] as $child | $child.blockedBy[] | {issue: $child.number, blockedBy: .}] | sort_by([.issue, .blockedBy])
   ')"

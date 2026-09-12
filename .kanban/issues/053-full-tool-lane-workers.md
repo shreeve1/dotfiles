@@ -1,12 +1,12 @@
 ---
 id: 053
 title: Full-tool lane workers via pluggable --agent-cmd (ADR 0010)
-status: pending
+status: in-progress
 blocked_by: [052]
 parent: null
 created: 2026-09-10
-updated: 2026-09-10
-actor: to-tickets
+updated: 2026-09-12
+actor: ralph
 
 ## What to build
 
