@@ -6,10 +6,14 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 usage: gralph <parent> [--dry-run] [--verify <command>] [--jobs N]
+       gralph <parent> --board <dir> [--dry-run] [--verify <command>] [--jobs N]
        gralph finish <parent>
 
 Plan the direct ready-for-agent children of an open GitHub parent issue, or
-execute them in dependency-frontier waves. Mutating runs require --verify.
+execute them in dependency-frontier waves. With --board <dir>, the frontier
+is read from a local kanban directory of *.md files instead of GitHub; the
+manifest child shape and wave orchestration are identical in both modes.
+Mutating runs require --verify.
 --jobs N caps concurrent worker pipelines (default 2).
 
 The finish subcommand validates the recorded batch PR is merged, every
@@ -45,6 +49,7 @@ DRY_RUN=0
 VERIFY_SET=0
 VERIFY=""
 JOBS=2
+BOARD_DIR=""
 if [ "$PARENT_ARG" != "finish" ]; then
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -64,6 +69,12 @@ while [ "$#" -gt 0 ]; do
       [ "$JOBS" -ge 1 ] || { echo "error: --jobs must be a positive integer" >&2; exit 2; }
       shift
       ;;
+    --board)
+      [ "$#" -ge 2 ] || { echo "error: --board requires a directory" >&2; exit 2; }
+      BOARD_DIR="$2"
+      [ -d "$BOARD_DIR" ] || { echo "error: --board directory does not exist: $BOARD_DIR" >&2; exit 1; }
+      shift
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "error: unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -71,7 +82,14 @@ while [ "$#" -gt 0 ]; do
 done
 fi
 
-command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; exit 1; }
+# Board mode reads the frontier from a local kanban directory and never
+# touches the GitHub CLI; finish only validates previously-recorded merge
+# state which is also offline. The gh guard is therefore skipped for both.
+if [ -n "$BOARD_DIR" ] || [ "$PARENT_ARG" = "finish" ]; then
+  : # gh not required
+else
+  command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; exit 1; }
+fi
 command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
 
@@ -604,6 +622,118 @@ fold_child_result() {
   return 0
 }
 
+# read_kanban_children reads $board_dir/*.md files (or $board_dir/issues/*.md)
+# and emits the manifest child shape for every ticket found. The state rules
+# mirror GitHub: status="done" resolves to CLOSED; any other status is OPEN.
+# The "ready-for-agent" label is implicit iff status=="pending". A blocker is
+# considered open when the referenced ticket has status != "done" or is
+# missing from the board (fail-closed: a missing reference keeps the
+# dependent blocked).
+read_kanban_children() {
+  local board_dir="$1"
+  command -v yq >/dev/null 2>&1 || { echo "error: yq is required for --board mode" >&2; return 1; }
+
+  local issues_dir="$board_dir"
+  [ -d "$issues_dir/issues" ] && issues_dir="$issues_dir/issues"
+  [ -d "$issues_dir" ] || { echo "error: board directory has no issues: $board_dir" >&2; return 1; }
+
+  local files
+  files="$(find "$issues_dir" -maxdepth 1 -name '*.md' -type f | sort)"
+  [ -n "$files" ] || { echo "error: board directory has no *.md files: $issues_dir" >&2; return 1; }
+
+  local tickets_file
+  tickets_file="$(mktemp)"
+  for f in $files; do
+    local id title status blocked_by files_field
+    id="$(yq -I=0 '.id // ""' "$f" 2>/dev/null | head -1)"
+    case "$id" in
+      ''|null) echo "error: missing id in $f" >&2; rm -f "$tickets_file"; return 1 ;;
+    esac
+    title="$(yq -I=0 '.title // ""' "$f" 2>/dev/null | head -1)"
+    status="$(yq -I=0 '.status // ""' "$f" 2>/dev/null | head -1)"
+    blocked_by="$(yq -I=0 -o=json '.blocked_by // []' "$f" 2>/dev/null | head -1)"
+    [ "$blocked_by" = "null" ] && blocked_by='[]'
+    files_field="$(yq -I=0 -o=json '.files // null' "$f" 2>/dev/null | head -1)"
+    [ "$files_field" = "null" ] && files_field='null'
+    jq -n \
+      --arg file "$f" \
+      --argjson id "$id" \
+      --arg title "$title" \
+      --arg status "$status" \
+      --argjson blockedBy "$blocked_by" \
+      --argjson files "$files_field" \
+      '{file:$file,id:$id,title:$title,status:$status,blockedBy:$blockedBy,files:$files}' >>"$tickets_file"
+  done
+
+  jq -s --argjson nullStatus '"missing"' '
+    . as $all |
+    def open_blocker($bid):
+      ([$all[] | select((.id|tostring) == ($bid|tostring)) | .status][0] // $nullStatus) != "done";
+    [ .[] |
+      . as $t |
+      (if $t.status == "done" then "CLOSED" else "OPEN" end) as $state |
+      (if $t.status == "pending" then "pending" else "missing" end) as $ready |
+      (any($t.blockedBy[]; open_blocker(.))) as $hasOpen |
+      (if $state == "CLOSED" then
+        {state:$state, classification:"excluded", reason:"child_not_open"}
+      elif $ready != "pending" then
+        {state:$state, classification:"excluded", reason:"missing_ready_for_agent_label"}
+      elif $hasOpen then
+        {state:$state, classification:"blocked", reason:"open_blockers"}
+      else
+        {state:$state, classification:"eligible", reason:null}
+      end) as $cls |
+      {
+        number: $t.id,
+        title: $t.title,
+        state: $cls.state,
+        labels: (if $cls.classification == "excluded" then [] else ["ready-for-agent"] end),
+        blockedBy: $t.blockedBy,
+        classification: $cls.classification,
+        reason: $cls.reason
+      } + (if $t.files != null then {files: $t.files} else {} end)
+    ] | sort_by(.number)
+  ' "$tickets_file"
+  local rc=$?
+  rm -f "$tickets_file"
+  return $rc
+}
+
+# refresh_frontier_kanban re-derives the child list from disk and merges the
+# fresh classification/dependencies into the shared manifest while retaining
+# per-child claim/execution/review/merge runtime state. Identical semantics to
+# refresh_frontier, only the data source differs.
+refresh_frontier_kanban() {
+  local manifest="$1"
+  local board_dir="$2"
+
+  local fresh_children fresh_deps
+  if ! fresh_children="$(read_kanban_children "$board_dir")"; then
+    return 1
+  fi
+  fresh_deps="$(printf '%s\n' "$fresh_children" | jq -c '
+    [.[] as $child | $child.blockedBy[] | {issue: $child.number, blockedBy: .}] | sort_by([.issue, .blockedBy])
+  ')"
+
+  write_manifest "$manifest" --argjson fresh "$fresh_children" --argjson freshDeps "$fresh_deps" --argjson source "[\"board:$board_dir\"]" '
+    .children as $existing
+    | .children = (
+        ([$existing[]
+          | . as $cur
+          | ($fresh | map(select(.number == $cur.number)) | .[0]) as $freshChild
+          | if $freshChild == null then $cur
+            else $cur + $freshChild
+            end
+        ])
+        + ([$fresh[] | . as $f | select(all($existing[]; .number != $f.number))])
+        | sort_by(.number)
+      )
+    | .dependencies = $freshDeps
+    | .source = $source
+  '
+  return 0
+}
+
 # refresh_frontier re-runs the GitHub GraphQL query seeded by the manifest's
 # immutable baseSha and merges the fresh classification/dependencies into the
 # shared manifest while retaining per-child claim/execution/review/merge
@@ -822,7 +952,11 @@ orchestrate_waves() {
       fold_failed=1
     fi
 
-    refresh_frontier "$manifest" "$PARENT" || true
+    if [ -n "$BOARD_DIR" ]; then
+      refresh_frontier_kanban "$manifest" "$BOARD_DIR" || true
+    else
+      refresh_frontier "$manifest" "$PARENT" || true
+    fi
 
     write_manifest "$manifest" --argjson wave "$wave" --argjson children "$(printf '%s\n' "${wave_children[@]}" | jq -cs 'map(tonumber)')" '
       .orchestration.waves = ($wave | tonumber)
@@ -1472,17 +1606,26 @@ if [ "$DRY_RUN" -ne 1 ]; then
   exit 0
 fi
 
-REPO_SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {
-  echo "error: cannot resolve the current GitHub repository" >&2
-  exit 1
-}
-IFS=/ read -r OWNER REPO EXTRA <<<"$REPO_SLUG"
-[ -n "${OWNER:-}" ] && [ -n "${REPO:-}" ] && [ -z "${EXTRA:-}" ] || {
-  echo "error: gh returned an invalid repository name" >&2
-  exit 1
-}
+# Dry-run path. The child set is built from either the GitHub GraphQL source
+# (default) or a local kanban directory when --board <dir> is supplied. Both
+# sources emit the same manifest child shape so the rest of the pipeline is
+# identical.
+if [ -n "$BOARD_DIR" ]; then
+  if ! CHILDREN="$(read_kanban_children "$BOARD_DIR")"; then
+    exit 1
+  fi
+else
+  REPO_SLUG="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" || {
+    echo "error: cannot resolve the current GitHub repository" >&2
+    exit 1
+  }
+  IFS=/ read -r OWNER REPO EXTRA <<<"$REPO_SLUG"
+  [ -n "${OWNER:-}" ] && [ -n "${REPO:-}" ] && [ -z "${EXTRA:-}" ] || {
+    echo "error: gh returned an invalid repository name" >&2
+    exit 1
+  }
 
-read -r -d '' GRAPHQL_QUERY <<'GRAPHQL' || true
+  read -r -d '' GRAPHQL_QUERY <<'GRAPHQL' || true
 query GralphFrontier($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
@@ -1507,95 +1650,96 @@ query GralphFrontier($owner: String!, $name: String!, $number: Int!) {
 }
 GRAPHQL
 
-if ! RESPONSE="$(gh api graphql \
-  -f query="$GRAPHQL_QUERY" \
-  -F owner="$OWNER" \
-  -F name="$REPO" \
-  -F number="$PARENT" 2>&1)"; then
-  echo "error: parent issue #$PARENT is inaccessible: $RESPONSE" >&2
-  exit 1
-fi
+  if ! RESPONSE="$(gh api graphql \
+    -f query="$GRAPHQL_QUERY" \
+    -F owner="$OWNER" \
+    -F name="$REPO" \
+    -F number="$PARENT" 2>&1)"; then
+    echo "error: parent issue #$PARENT is inaccessible: $RESPONSE" >&2
+    exit 1
+  fi
 
-if ! printf '%s\n' "$RESPONSE" | jq -e . >/dev/null 2>&1; then
-  echo "error: GitHub returned malformed JSON for parent issue #$PARENT" >&2
-  exit 1
-fi
+  if ! printf '%s\n' "$RESPONSE" | jq -e . >/dev/null 2>&1; then
+    echo "error: GitHub returned malformed JSON for parent issue #$PARENT" >&2
+    exit 1
+  fi
 
-if [ "$(printf '%s\n' "$RESPONSE" | jq -r '(.errors // []) | length')" -ne 0 ]; then
-  echo "error: GitHub could not read parent issue #$PARENT" >&2
-  exit 1
-fi
+  if [ "$(printf '%s\n' "$RESPONSE" | jq -r '(.errors // []) | length')" -ne 0 ]; then
+    echo "error: GitHub could not read parent issue #$PARENT" >&2
+    exit 1
+  fi
 
-if ! printf '%s\n' "$RESPONSE" | jq -e '.data.repository.issue | type == "object"' >/dev/null; then
-  echo "error: parent issue #$PARENT was not found or is inaccessible" >&2
-  exit 1
-fi
+  if ! printf '%s\n' "$RESPONSE" | jq -e '.data.repository.issue | type == "object"' >/dev/null; then
+    echo "error: parent issue #$PARENT was not found or is inaccessible" >&2
+    exit 1
+  fi
 
-PARENT_STATE="$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.state')"
-if [ "$PARENT_STATE" != OPEN ]; then
-  echo "error: parent issue #$PARENT is not open" >&2
-  exit 1
-fi
+  PARENT_STATE="$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.state')"
+  if [ "$PARENT_STATE" != OPEN ]; then
+    echo "error: parent issue #$PARENT is not open" >&2
+    exit 1
+  fi
 
-if ! printf '%s\n' "$RESPONSE" | jq -e '
-  .data.repository.issue as $parent
-  | ($parent.number | type == "number")
-    and ($parent.title | type == "string")
-    and ($parent.subIssues.nodes | type == "array")
-    and ($parent.subIssues.pageInfo.hasNextPage | type == "boolean")
-    and all($parent.subIssues.nodes[];
-      (.number | type == "number")
-      and (.title | type == "string")
-      and (.state == "OPEN" or .state == "CLOSED")
-      and (.labels.nodes | type == "array")
-      and all(.labels.nodes[]; .name | type == "string")
-      and (.blockedBy.nodes | type == "array")
-      and (.blockedBy.pageInfo.hasNextPage | type == "boolean")
-      and all(.blockedBy.nodes[];
-        (.number | type == "number") and (.state == "OPEN" or .state == "CLOSED")
-      )
-    )
-' >/dev/null; then
-  echo "error: GitHub returned malformed issue data for parent issue #$PARENT" >&2
-  exit 1
-fi
-
-if [ "$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.subIssues.pageInfo.hasNextPage')" = true ]; then
-  echo "error: parent issue #$PARENT has more than 100 direct children" >&2
-  exit 1
-fi
-if printf '%s\n' "$RESPONSE" | jq -e 'any(.data.repository.issue.subIssues.nodes[]; .blockedBy.pageInfo.hasNextPage)' >/dev/null; then
-  echo "error: a child of parent issue #$PARENT has more than 100 blockers" >&2
-  exit 1
-fi
-
-CHILDREN="$(printf '%s\n' "$RESPONSE" | jq -c '
-  [.data.repository.issue.subIssues.nodes[]
-    | ([.labels.nodes[].name] | sort | unique) as $labels
-    | ([.blockedBy.nodes[] | {number, state}] | sort_by(.number)) as $blockers
-    | {
-        number,
-        title,
-        state,
-        labels: $labels,
-        blockedBy: [$blockers[].number],
-        classification: (
-          if .state != "OPEN" then "excluded"
-          elif ($labels | index("ready-for-agent")) == null then "excluded"
-          elif any($blockers[]; .state != "CLOSED") then "blocked"
-          else "eligible"
-          end
-        ),
-        reason: (
-          if .state != "OPEN" then "child_not_open"
-          elif ($labels | index("ready-for-agent")) == null then "missing_ready_for_agent_label"
-          elif any($blockers[]; .state != "CLOSED") then "open_blockers"
-          else null
-          end
+  if ! printf '%s\n' "$RESPONSE" | jq -e '
+    .data.repository.issue as $parent
+    | ($parent.number | type == "number")
+      and ($parent.title | type == "string")
+      and ($parent.subIssues.nodes | type == "array")
+      and ($parent.subIssues.pageInfo.hasNextPage | type == "boolean")
+      and all($parent.subIssues.nodes[];
+        (.number | type == "number")
+        and (.title | type == "string")
+        and (.state == "OPEN" or .state == "CLOSED")
+        and (.labels.nodes | type == "array")
+        and all(.labels.nodes[]; .name | type == "string")
+        and (.blockedBy.nodes | type == "array")
+        and (.blockedBy.pageInfo.hasNextPage | type == "boolean")
+        and all($parent.subIssues.nodes[].blockedBy.nodes[];
+          (.number | type == "number") and (.state == "OPEN" or .state == "CLOSED")
         )
-      }
-  ] | sort_by(.number)
-')"
+      )
+  ' >/dev/null; then
+    echo "error: GitHub returned malformed issue data for parent issue #$PARENT" >&2
+    exit 1
+  fi
+
+  if [ "$(printf '%s\n' "$RESPONSE" | jq -r '.data.repository.issue.subIssues.pageInfo.hasNextPage')" = true ]; then
+    echo "error: parent issue #$PARENT has more than 100 direct children" >&2
+    exit 1
+  fi
+  if printf '%s\n' "$RESPONSE" | jq -e 'any(.data.repository.issue.subIssues.nodes[]; .blockedBy.pageInfo.hasNextPage)' >/dev/null; then
+    echo "error: a child of parent issue #$PARENT has more than 100 blockers" >&2
+    exit 1
+  fi
+
+  CHILDREN="$(printf '%s\n' "$RESPONSE" | jq -c '
+    [.data.repository.issue.subIssues.nodes[]
+      | ([.labels.nodes[].name] | sort | unique) as $labels
+      | ([.blockedBy.nodes[] | {number, state}] | sort_by(.number)) as $blockers
+      | {
+          number,
+          title,
+          state,
+          labels: $labels,
+          blockedBy: [$blockers[].number],
+          classification: (
+            if .state != "OPEN" then "excluded"
+            elif ($labels | index("ready-for-agent")) == null then "excluded"
+            elif any($blockers[]; .state != "CLOSED") then "blocked"
+            else "eligible"
+            end
+          ),
+          reason: (
+            if .state != "OPEN" then "child_not_open"
+            elif ($labels | index("ready-for-agent")) == null then "missing_ready_for_agent_label"
+            elif any($blockers[]; .state != "CLOSED") then "open_blockers"
+            else null
+            end
+          )
+        }
+    ] | sort_by(.number)
+  ')"
+fi
 
 BASE_SHA="$(git rev-parse HEAD)"
 RUN_DIR=".gralph/runs/$PARENT"
