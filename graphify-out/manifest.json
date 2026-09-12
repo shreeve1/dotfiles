@@ -265,17 +265,17 @@
     "semantic_hash": ""
   },
   ".omp/agent/extensions/orca-agent-status.ts": {
-    "mtime": 1788963218.9916742,
+    "mtime": 1789223837.498636,
     "ast_hash": "1ba203e0484f652a6d0875a35bf84d39",
     "semantic_hash": ""
   },
   ".omp/agent/extensions/orca-prefill.ts": {
-    "mtime": 1788963218.9906743,
+    "mtime": 1789223837.498636,
     "ast_hash": "0c8707eead2a5ec9becc9dc4bf3bd3e4",
     "semantic_hash": ""
   },
   ".omp/agent/extensions/orca-titlebar-spinner.ts": {
-    "mtime": 1788963218.9906743,
+    "mtime": 1789223837.498636,
     "ast_hash": "6a43130e02e4b1c6bb8f939f75ba71d5",
     "semantic_hash": ""
   },
@@ -625,17 +625,17 @@
     "semantic_hash": ""
   },
   ".pi/agent/extensions/orca-agent-status.ts": {
-    "mtime": 1788963218.9906743,
+    "mtime": 1789223837.497636,
     "ast_hash": "e94ea0b5a4760109b3da4f89e7ed96eb",
     "semantic_hash": ""
   },
   ".pi/agent/extensions/orca-prefill.ts": {
-    "mtime": 1788963218.9896743,
+    "mtime": 1789223837.497636,
     "ast_hash": "3ed5d8c540df34801056e62fb2ef6b8b",
     "semantic_hash": ""
   },
   ".pi/agent/extensions/orca-titlebar-spinner.ts": {
-    "mtime": 1788963218.9896743,
+    "mtime": 1789223837.497636,
     "ast_hash": "6a43130e02e4b1c6bb8f939f75ba71d5",
     "semantic_hash": ""
   },
@@ -3024,34 +3024,9 @@
     "ast_hash": "49bc6ec4fb9d3d190f6173f5572e1ebf",
     "semantic_hash": ""
   },
-  ".kanban/issues/046-agents-canonical-tree.md": {
-    "mtime": 1789057656.3415139,
-    "ast_hash": "71de08f6c987d67f1e0c0ec59dc7fe67",
-    "semantic_hash": ""
-  },
-  ".kanban/issues/047-agents-install-sh-links.md": {
-    "mtime": 1789058006.2436023,
-    "ast_hash": "1ce2fe5d46782ca08683048b0670f1de",
-    "semantic_hash": ""
-  },
-  ".kanban/issues/048-codex-agents-unify.md": {
-    "mtime": 1789058687.5456994,
-    "ast_hash": "f557d7a8c6be8ee78403562c32ac3d1f",
-    "semantic_hash": ""
-  },
-  ".kanban/issues/049-remove-dsh-cc-skills.md": {
-    "mtime": 1789058408.9910214,
-    "ast_hash": "ec7cb33f561f7d4d91723041cd5ecd1a",
-    "semantic_hash": ""
-  },
-  ".kanban/issues/050-agents-docs-update.md": {
-    "mtime": 1789059742.824538,
-    "ast_hash": "d6d0fb68bbbbeea459ef23a94185bc67",
-    "semantic_hash": ""
-  },
   ".kanban/progress.md": {
-    "mtime": 1789059721.5604193,
-    "ast_hash": "e8a8f9ca540267256a6851436f33b62a",
+    "mtime": 1789240056.4256778,
+    "ast_hash": "df5ca3c2f4a8d4ce8ea99fabd515c3d4",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -13687,6 +13662,81 @@
   "docs/agents-migration-spec.md": {
     "mtime": 1789087982.8347406,
     "ast_hash": "231842c9a60ee818e80e9510abc90824",
+    "semantic_hash": ""
+  },
+  ".kanban/archive/2026-09-10/046-agents-canonical-tree.md": {
+    "mtime": 1789057656.3415139,
+    "ast_hash": "71de08f6c987d67f1e0c0ec59dc7fe67",
+    "semantic_hash": ""
+  },
+  ".kanban/archive/2026-09-10/047-agents-install-sh-links.md": {
+    "mtime": 1789058006.2436023,
+    "ast_hash": "1ce2fe5d46782ca08683048b0670f1de",
+    "semantic_hash": ""
+  },
+  ".kanban/archive/2026-09-10/048-codex-agents-unify.md": {
+    "mtime": 1789058687.5456994,
+    "ast_hash": "f557d7a8c6be8ee78403562c32ac3d1f",
+    "semantic_hash": ""
+  },
+  ".kanban/archive/2026-09-10/049-remove-dsh-cc-skills.md": {
+    "mtime": 1789058408.9910214,
+    "ast_hash": "ec7cb33f561f7d4d91723041cd5ecd1a",
+    "semantic_hash": ""
+  },
+  ".kanban/archive/2026-09-10/050-agents-docs-update.md": {
+    "mtime": 1789059742.824538,
+    "ast_hash": "d6d0fb68bbbbeea459ef23a94185bc67",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/051-fix-tralph-launcher-agents-lane.md": {
+    "mtime": 1789237944.4571786,
+    "ast_hash": "3e7ad8a64fb6e5f4356817ef04cb41b8",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/052-gralph-kanban-graph-source.md": {
+    "mtime": 1789240041.428589,
+    "ast_hash": "a70ecc213b3afa82dbf533e60a673be6",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/053-full-tool-lane-workers.md": {
+    "mtime": 1789234732.6775987,
+    "ast_hash": "ff1cfa862d05401aadf62fdd4d5cdd6b",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/054-bors-landing-queue.md": {
+    "mtime": 1789234744.6556644,
+    "ast_hash": "cc7feca6720b882ddf0a23bd4be7b0d7",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/055-scope-enforcement.md": {
+    "mtime": 1789233707.854242,
+    "ast_hash": "a8adef8f862934d7d83ff752daa2e9bf",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/056-run-end-main-and-report.md": {
+    "mtime": 1789234757.313734,
+    "ast_hash": "6b48697f91da60990569487a53d9efe0",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/057-tralph-jobs-entrypoint.md": {
+    "mtime": 1789233735.9084296,
+    "ast_hash": "baf053e31ce9751f4ea8a8bef67874b4",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/058-to-tickets-scopes-pass.md": {
+    "mtime": 1789233735.9324298,
+    "ast_hash": "17ee57f19859f2d4e62b4154343a957b",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/059-shepherd-v2-manifest-reader.md": {
+    "mtime": 1789233746.0614972,
+    "ast_hash": "ab8d094ec8574e5260b7e33c447b03d9",
+    "semantic_hash": ""
+  },
+  ".kanban/issues/060-shakedown-run.md": {
+    "mtime": 1789234929.2546964,
+    "ast_hash": "cf2e502b4bf5ffb820316e5a6a4d888c",
     "semantic_hash": ""
   }
 }
