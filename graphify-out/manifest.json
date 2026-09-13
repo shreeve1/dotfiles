@@ -3025,8 +3025,8 @@
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789274253.9699745,
-    "ast_hash": "2bc808c1cd9d81368c6627e2fff929d9",
+    "mtime": 1789275472.080263,
+    "ast_hash": "c8dbae20b2256305831dd50d9ca035e4",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -10380,8 +10380,8 @@
     "semantic_hash": ""
   },
   ".agents/skills/to-tickets/SKILL.md": {
-    "mtime": 1789240289.5670447,
-    "ast_hash": "0c33a7e05c37bf12f63461789ff99397",
+    "mtime": 1789275657.3853548,
+    "ast_hash": "60816d66a370b8e4fd47f9c33696bde9",
     "semantic_hash": ""
   },
   ".agents/skills/to-tickets/agents/openai.yaml": {
@@ -13720,13 +13720,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/057-tralph-jobs-entrypoint.md": {
-    "mtime": 1789274665.7954965,
-    "ast_hash": "d6c5514ecb15dae4e5eba38c51252547",
+    "mtime": 1789275500.2764294,
+    "ast_hash": "7839a5843541b47cc689851418d9eb89",
     "semantic_hash": ""
   },
   ".kanban/issues/058-to-tickets-scopes-pass.md": {
-    "mtime": 1789233735.9324298,
-    "ast_hash": "17ee57f19859f2d4e62b4154343a957b",
+    "mtime": 1789275679.4264843,
+    "ast_hash": "331fa9780b1945fa73de9341c201386d",
     "semantic_hash": ""
   },
   ".kanban/issues/059-shepherd-v2-manifest-reader.md": {
