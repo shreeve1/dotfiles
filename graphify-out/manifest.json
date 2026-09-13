@@ -3025,8 +3025,8 @@
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789258697.3152547,
-    "ast_hash": "fccf582629a223b299494d7ab3fdd00a",
+    "mtime": 1789260134.82177,
+    "ast_hash": "777a39d1afeb505543fb55794f08145b",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -13710,8 +13710,8 @@
     "semantic_hash": ""
   },
   ".kanban/issues/055-scope-enforcement.md": {
-    "mtime": 1789259981.195861,
-    "ast_hash": "1ded82f8e1fa58e3a7b6dd2f98e4ea46",
+    "mtime": 1789260153.9878833,
+    "ast_hash": "ba42963b46a2225b669cda00874adc4c",
     "semantic_hash": ""
   },
   ".kanban/issues/056-run-end-main-and-report.md": {
