@@ -60,7 +60,7 @@ wait on that sub-agent's completion via the hub instead of a blind sleep,
 then go to step 3 (sleep the interval) and step 1 (re-gather). The
 sub-agent's work must land before you sleep on the interval.
 
-### Gather signals (read-only)
+### Gather signals — sequential mode (`--jobs 1`, tmux driver) (read-only)
 
 Run these in order from the project root.
 
@@ -140,6 +140,101 @@ A single occurrence is non-fatal — `wait_for_agent_ready` is tolerated
 (`|| true`, line 717) and the prompt is sent anyway. Only treat it as a
 stall when it persists across two consecutive cycles AND the pane is
 dead-looking (no spinner, no progress).
+
+### Gather signals — board mode (`--jobs N`) (read-only)
+
+Board-mode runs are driven by `gralph`'s coordinator process, not by a tmux
+driver session. Signal sources are the manifest, sidecars, the coordinator
+lock, and per-lane worker logs — **no tmux pane captures**. Run the
+following from the project root:
+
+```bash
+# 0. Board state — same primary triage key as sequential mode.
+for s in pending in-progress review blocked done; do
+  printf '%-12s %s\n' "$s:" \
+    "$(grep -l "^status: $s$" .kanban/issues/*.md 2>/dev/null | wc -l | tr -d ' ')"
+done
+
+# 1. Manifest summary — coordinator writes this atomically throughout the run.
+#    Parent ID for board-mode tralph --jobs N runs is always "0".
+MANIFEST=".gralph/runs/0/manifest.json"
+if [ -f "$MANIFEST" ]; then
+  jq '{
+    runId: .orchestration.runId,
+    host: .orchestration.host,
+    pid: .orchestration.pid,
+    jobs: .orchestration.jobs,
+    waves: .orchestration.waves,
+    landed: .orchestration.landed,
+    failed: .orchestration.failed,
+    rejected: .orchestration.rejected,
+    children: [.children[] | {
+      number,
+      classification,
+      executionStatus: .execution.status,
+      mergeStatus: .merge.status,
+      mergeReason: .merge.reason
+    }]
+  }' "$MANIFEST"
+else
+  echo "no manifest found at $MANIFEST — coordinator may not have started yet"
+fi
+
+# 2. Coordinator lock — if the lock dir exists, read the owner.
+LOCK=".gralph/runs/0/.coordinator-lock/owner.json"
+if [ -f "$LOCK" ]; then
+  jq '.' "$LOCK"
+  # Check whether the owner PID is alive.
+  OWNER_PID="$(jq -r '.pid // empty' "$LOCK" 2>/dev/null)"
+  if [ -n "$OWNER_PID" ]; then
+    kill -0 "$OWNER_PID" 2>/dev/null \
+      && echo "coordinator PID $OWNER_PID is alive" \
+      || echo "coordinator PID $OWNER_PID is DEAD (stale lock)"
+  fi
+else
+  echo "no coordinator lock — run not in progress or already finished"
+fi
+
+# 3. Per-lane worker logs — tail the most recent log for each child.
+#    Logs live at .gralph/runs/0/worker-<child>-iteration-*.log
+for log in .gralph/runs/0/worker-*-iteration-*.log; do
+  [ -f "$log" ] || continue
+  echo "=== $log ==="
+  tail -n 10 "$log"
+done
+
+# 4. Sidecars — final outcome JSON per child (written when the lane completes).
+for sc in .gralph/runs/0/.child-*-result.json; do
+  [ -f "$sc" ] || continue
+  echo "=== $sc ==="
+  jq '{child, outcome, reason, executionStatus, mergeStatus: .merge.status}' "$sc" 2>/dev/null || cat "$sc"
+done
+
+# 5. Blocked-issue scan + Blocker sections (same as sequential mode).
+grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null
+for f in $(grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null); do
+  echo "=== $f ==="
+  awk '/^## Blocker/{p=1; print; next} /^## /{p=0} p' "$f"
+done
+
+# 6. Run report (written by finish_board after completion).
+[ -f ".kanban/run-report.md" ] && cat ".kanban/run-report.md" || echo "no run-report.md yet"
+```
+
+**Board-mode triage key:** "coordinator parked/crashed" means the lock
+`owner.json` exists AND `kill -0 <pid>` fails (the PID is dead). If the
+lock is absent, the coordinator either finished cleanly (check the run
+report and manifest `.orchestration.completed`) or never started. A live
+coordinator PID means the run is in progress — sleep the interval and
+re-gather.
+
+| Board state | Coordinator state | Action |
+|---|---|---|
+| pending/in-progress tickets exist; manifest children still unfinished | PID alive | **Sleep.** Coordinator is running waves. |
+| pending/in-progress tickets exist; manifest children still unfinished | PID dead, lock stale | **Relaunch coordinator** (see "Relaunching the coordinator (board mode)"). Recovery in #056 makes a restart safe. |
+| pending/in-progress tickets exist; no manifest yet | lock absent | **Coordinator not started.** Relaunch via `tralph --jobs N`. |
+| blocked tickets; pending = 0 | any | **Delegate-or-raise** (same tree as sequential mode). |
+| all issues done; run-report.md present | PID gone, lock absent | **Termination.** |
 
 ### Triage
 
@@ -280,7 +375,7 @@ none of those is present, do not re-evaluate the fix — restate the
 outstanding question (issue id, blocker summary, your recommended fix)
 and stop.
 
-### Relaunching a parked driver
+### Relaunching a parked driver (sequential mode, `--jobs 1`)
 
 Pre-flight, in order:
 
@@ -316,6 +411,46 @@ wrapper that adds the env var and runs in the operator's interactive
 shell; from a skill context, reproduce that shell with the `zsh -lic '…'`
 wrapper above (never a bare `bash …`, which strips the PATH and
 credentials the worker needs).
+
+### Relaunching the coordinator (board mode, `--jobs N`)
+
+The coordinator is a `gralph` process. Recovery in #056 makes a restart
+safe — it reconstructs from the manifest and sidecars, skips already-
+landed lanes, and resets lanes whose workers died mid-flight.
+
+Pre-flight:
+
+1. **Confirm the coordinator PID is dead.** From the board-mode gather
+   signals above: `kill -0 <pid>` returned non-zero and the lock dir
+   exists. A live PID means the coordinator is still running; sleep the
+   interval and re-gather.
+2. **Confirm unfinished manifest work exists.** If `.orchestration.completed`
+   is set and every child has `merge.status == "landed"` or a terminal
+   status, the run finished normally — check for `run-report.md` and
+   treat as Termination instead.
+3. **Check the deferred-merge marker.** If
+   `~/.cache/ralph-merge-needed-board-0` exists, the previous run's
+   `finish_board` couldn't ff-only to main. Restarting the coordinator
+   picks up from the last wave; the merge marker is separate — you may
+   need to resolve it manually via the `tralph-merge` skill after the
+   coordinator finishes.
+
+Relaunch command:
+
+```bash
+# From the project root. N = the --jobs value originally used (check
+# manifest .orchestration.jobs; default is 2).
+proj="$PWD"
+N="$(jq -r '.orchestration.jobs // 2' "$proj/.gralph/runs/0/manifest.json" 2>/dev/null || echo 2)"
+zsh -lic "cd '$proj' && tralph --jobs $N"
+```
+
+`gralph`'s `recover_state` runs immediately after the coordinator acquires
+the lock. It reaped the dead PID's lock, re-classifies lanes as
+`recovered` or `needs_review` from the manifest, and then continues the
+wave loop — no ticket is re-implemented or re-landed. If the coordinator
+exits again with a non-zero status, read `.gralph/runs/0/manifest.json`
+`.orchestration` for failure context and raise to the user.
 
 ## Hard rules
 

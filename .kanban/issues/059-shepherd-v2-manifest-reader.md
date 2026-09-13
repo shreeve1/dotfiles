@@ -1,12 +1,12 @@
 ---
 id: 059
 title: Shepherd v2 — manifest reader for board-mode runs
-status: pending
+status: in-progress
 blocked_by: [056]
 parent: null
 created: 2026-09-10
-updated: 2026-09-10
-actor: to-tickets
+updated: 2026-09-13
+actor: ralph
 
 ## What to build
 
