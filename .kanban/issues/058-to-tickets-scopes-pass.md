@@ -1,7 +1,7 @@
 ---
 id: 058
 title: /to-tickets advisory scopes pass (optional files: frontmatter)
-status: pending
+status: in-progress
 blocked_by: []
 parent: null
 created: 2026-09-10
