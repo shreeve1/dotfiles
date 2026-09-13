@@ -1,7 +1,7 @@
 ---
 id: 055
 title: Scope-aware scheduling and out-of-scope bounce
-status: pending
+status: in-progress
 blocked_by: [054]
 parent: null
 created: 2026-09-10
