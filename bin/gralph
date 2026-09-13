@@ -1222,10 +1222,39 @@ orchestrate_waves() {
 
     local wave_children=()
     local c
-    while IFS= read -r c; do
-      [ "${#wave_children[@]}" -ge "$jobs" ] && break
-      [ -n "$c" ] && wave_children+=("$c")
-    done <<<"$candidates"
+    if [ -n "$BOARD_DIR" ]; then
+      # Scope-aware wave building: tickets with overlapping files: scopes
+      # are serialized (different waves). Tickets without files: have no
+      # scope constraint and share a wave with anyone.
+      local wave_scopes_json="[]"
+      while IFS= read -r c; do
+        [ "${#wave_children[@]}" -ge "$jobs" ] && break
+        [ -z "$c" ] && continue
+        # Get this candidate's files: scope from the manifest.
+        local cscope
+        cscope="$(jq -c --argjson n "$c" '.children[] | select(.number == $n) | .files // null' "$manifest")"
+        if [ "$cscope" = "null" ] || [ -z "$cscope" ]; then
+          # No scope: no conflict with anything.
+          wave_children+=("$c")
+        else
+          # Check overlap with any already-selected scope.
+          local overlaps
+          overlaps="$(jq -n --argjson cscope "$cscope" --argjson wscopes "$wave_scopes_json" '
+            any($wscopes[]; . as $ws | any($cscope[]; . as $cf | any($ws[]; . == $cf)))
+          ')"
+          if [ "$overlaps" = "true" ]; then
+            continue  # Defer to next wave.
+          fi
+          wave_children+=("$c")
+          wave_scopes_json="$(jq -n --argjson ws "$wave_scopes_json" --argjson cs "$cscope" '$ws + [$cs]')"
+        fi
+      done <<<"$candidates"
+    else
+      while IFS= read -r c; do
+        [ "${#wave_children[@]}" -ge "$jobs" ] && break
+        [ -n "$c" ] && wave_children+=("$c")
+      done <<<"$candidates"
+    fi
 
     if [ "${#wave_children[@]}" -eq 0 ]; then
       break
@@ -1478,6 +1507,45 @@ merge_one_child() {
       write_repair_ticket "$board_dir" "$child" "$ticket_verify_cmd" "$reverify_log" "$child_branch" || true
       echo "info: bounced lane #$child (re-verification failed after rebase); repair ticket created" >&2
       return 2
+    fi
+
+    # Scope check: if the child has a declared files: scope, bounce if the
+    # rebased diff touches any path not covered by the scope list. A scope
+    # item is a path prefix (e.g. "src/auth/" covers "src/auth/api.py").
+    # No scope declared = no check (tickets without files: are unaffected).
+    local child_scope
+    child_scope="$(jq -c --argjson n "$child" '.children[] | select(.number == $n) | .files // null' "$manifest")"
+    if [ "$child_scope" != "null" ] && [ -n "$child_scope" ] && [ "$child_scope" != "[]" ]; then
+      local diff_files out_of_scope_files
+      diff_files="$(git -C "$REPO_ROOT" diff --name-only "$batch_tip" "$rebased_sha" 2>/dev/null || true)"
+      if [ -n "$diff_files" ]; then
+        out_of_scope_files="$(printf '%s\n' "$diff_files" | jq -R -s \
+          --argjson scope "$child_scope" '
+            split("\n") | map(select(length > 0))
+            | map(select(
+                # Skip .ralph-progress-*.md: standard per-lane artifact, not code.
+                (startswith(".ralph-progress-") and endswith(".md")) | not
+              ))
+            | map(select(
+                . as $f |
+                ([$scope[] | . as $s | $f | startswith($s)] | any)
+                | not
+              )) | join("\n")
+          ' -r 2>/dev/null || true)"
+        if [ -n "$out_of_scope_files" ]; then
+          write_manifest "$manifest" --argjson child "$child" --arg reason "out_of_scope" \
+            --arg childBranch "$child_branch" --arg batchBranch "$batch_branch" \
+            --arg outOfScope "$out_of_scope_files" '
+            (.children[] | select(.number == $child)).merge += {
+              status:"bounced", reason:$reason, bouncedBranch:$childBranch,
+              outOfScopePaths:($outOfScope | split("\n") | map(select(length > 0)))
+            }
+          ' || true
+          write_repair_ticket "$board_dir" "$child" "$ticket_verify_cmd" "" "$child_branch" || true
+          echo "info: bounced lane #$child (diff touches paths outside declared scope: $out_of_scope_files); repair ticket created" >&2
+          return 2
+        fi
+      fi
     fi
 
     # ff-only merge: point the batch_worktree at the rebased sha directly.
