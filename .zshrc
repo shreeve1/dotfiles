@@ -338,8 +338,96 @@ tralph() {
 	# even if .zshrc.secrets hasn't been sourced yet (e.g. re-source, fresh
 	# subshell, or a future edit that moves the secrets line below this fn).
 	[[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
+
+	# Parse --jobs N before delegating to the right driver.
+	local jobs=1 args=()
+	while [[ $# -gt 0 ]]; do
+		case $1 in
+		--jobs)
+			if [[ -z "${2:-}" || ! "${2}" =~ ^[0-9]+$ || "${2}" -lt 1 ]]; then
+				echo "tralph: --jobs requires a positive integer" >&2
+				return 1
+			fi
+			jobs="$2"
+			shift 2
+			;;
+		--help|-h)
+			cat <<'HELP'
+tralph — Ralph loop entry point
+
+Usage: tralph [OPTIONS] [ADAPTER] [SESSION_NAME]
+
+OPTIONS (sequential mode, --jobs 1):
+  All ralph-loop.sh options are accepted and forwarded:
+  --force, --continue-on-error, --sleep-interval N, --ready-delay N,
+  --ready-timeout N, --iteration-timeout N, --agent-cmd CMD,
+  --agent-prompt TEXT, --review-loop, --skip-blocked,
+  --lsp-check-cmd CMD, --no-checkpoint-dirty,
+  --socket PATH, --private-tmux, --normal-tmux
+
+OPTIONS (board mode, --jobs N where N >= 2):
+  --jobs N         Run N concurrent worker lanes against .kanban (board mode)
+  --verify CMD     Integration command for gralph (default: true)
+  --agent-cmd CMD  Agent command for lane workers (default: omp with RALPH_MODEL)
+
+HELP
+			return 0
+			;;
+		*)
+			args+=("$1")
+			shift
+			;;
+		esac
+	done
+
+	if [[ "$jobs" -ge 2 ]]; then
+		# Board mode: plan then execute via gralph --board .kanban.
+		# Extract --verify and --agent-cmd from remaining args; defaults apply.
+		local verify="true" agent_cmd=""
+		local board_args=()
+		local i=0
+		while [[ $i -lt ${#args[@]} ]]; do
+			case "${args[$i]}" in
+			--verify)
+				(( i++ ))
+				verify="${args[$i]}"
+				;;
+			--agent-cmd)
+				(( i++ ))
+				agent_cmd="${args[$i]}"
+				;;
+			*)
+				board_args+=("${args[$i]}")
+				;;
+			esac
+			(( i++ ))
+		done
+		if [[ -z "$agent_cmd" ]]; then
+			local model="${RALPH_MODEL:-minimax/MiniMax-M3}"
+			agent_cmd="omp --model ${model} --no-session -p"
+		fi
+		if [[ ! -d .kanban ]]; then
+			echo "tralph: no .kanban directory in current directory" >&2
+			return 1
+		fi
+		local gralph_bin="${DOTFILES_DIR:-$HOME/dotfiles}/bin/gralph"
+		if [[ ! -x "$gralph_bin" ]]; then
+			gralph_bin="$(command -v gralph 2>/dev/null)" || {
+				echo "tralph: cannot find gralph binary" >&2
+				return 1
+			}
+		fi
+		# Plan: build manifest from .kanban (dry-run).
+		"$gralph_bin" 0 --board .kanban --dry-run --verify "$verify" || return 1
+		# Execute: run the board-mode orchestrator.
+		"$gralph_bin" 0 --board .kanban --jobs "$jobs" --verify "$verify" \
+			--agent-cmd "$agent_cmd" "${board_args[@]}"
+		return
+	fi
+
+	# Sequential mode (--jobs 1, default): delegate to ralph-loop.sh unchanged.
 	RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}" \
-		~/.agents/skills/ralph/ralph-loop.sh "$@"
+		~/.agents/skills/ralph/ralph-loop.sh "${args[@]}"
 }
 
 alias op='opencode'
