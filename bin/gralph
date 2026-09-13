@@ -965,6 +965,7 @@ read_kanban_children() {
         classification: $cls.classification,
         reason: $cls.reason
       } + (if $t.files != null then {files: $t.files} else {} end)
+        + (if $t.file != null then {file: $t.file} else {} end)
     ] | sort_by(.number)
   ' "$tickets_file"
 }
@@ -1269,8 +1270,13 @@ orchestrate_waves() {
       local sidecar="$run_dir/.child-$child-$run_id-result.json"
       sidecar_for[$child]="$sidecar"
       if [ -n "$BOARD_DIR" ]; then
+        local wave_base_sha="$base_sha"
+        local batch_branch_ref="refs/heads/gralph/$PARENT/batch"
+        if git -C "$REPO_ROOT" show-ref --verify --quiet "$batch_branch_ref" 2>/dev/null; then
+          wave_base_sha="$(git -C "$REPO_ROOT" rev-parse "gralph/$PARENT/batch")"
+        fi
         (
-          run_board_child_pipeline "$child" "$manifest" "$run_dir" "$base_sha" "$run_id" "$sidecar" "$BOARD_DIR" "$AGENT_CMD"
+          run_board_child_pipeline "$child" "$manifest" "$run_dir" "$wave_base_sha" "$run_id" "$sidecar" "$BOARD_DIR" "$AGENT_CMD"
         ) &
       else
         (

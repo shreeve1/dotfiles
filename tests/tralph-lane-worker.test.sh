@@ -157,8 +157,12 @@ jq -e '
 BASE_SHA="$(jq -r .baseSha "$MANIFEST")"
 worker_sha_2="$(jq -r '.children[] | select(.number == 2) | .execution.commitSha' "$MANIFEST")"
 worker_sha_3="$(jq -r '.children[] | select(.number == 3) | .execution.commitSha' "$MANIFEST")"
-[ "$(git -C "$REPO" rev-parse "gralph/42/issue-2")" = "$worker_sha_2" ]
-[ "$(git -C "$REPO" rev-parse "gralph/42/issue-3")" = "$worker_sha_3" ]
+git -C "$REPO" cat-file -e "$worker_sha_2" || { echo "FAIL: execution.commitSha for ticket 2 is not a known git object" >&2; exit 1; }
+git -C "$REPO" cat-file -e "$worker_sha_3" || { echo "FAIL: execution.commitSha for ticket 3 is not a known git object" >&2; exit 1; }
+jq -e '
+  ((.children[] | select(.number == 2) | .merge.childCommitSha) == (.children[] | select(.number == 2) | .execution.commitSha))
+  and ((.children[] | select(.number == 3) | .merge.childCommitSha) == (.children[] | select(.number == 3) | .execution.commitSha))
+' "$MANIFEST" >/dev/null
 [ "$worker_sha_2" != "$BASE_SHA" ]
 [ "$worker_sha_3" != "$BASE_SHA" ]
 ls "$REPO/.gralph/runs/42"/.child-2-*-result.json >/dev/null
