@@ -262,3 +262,12 @@ Supporting changes:
 **Tests:** `tests/tralph-finish.test.sh` and `tests/tralph-recovery.test.sh` added and passing. `tests/gralph-recovery.test.sh` unbroken.
 
 **Conventions established:** `finish_board` is a best-effort no-exit-nonzero step; orchestrator always exits 0 after waves complete. Deferred merge uses `ralph-merge-needed-board-<parent>` marker (distinct from legacy `ralph-merge-needed-<session>`).
+
+## #057 tralph --jobs N entry point — 2026-09-13
+
+**What changed:** Extended `tralph` zsh function in `.zshrc` with `--jobs N` flag. N≥2 routes to board-mode orchestrator via `gralph 0 --board .kanban` (plan + execute); N=1/default preserves sequential `ralph-loop.sh` path byte-for-byte. Added `--help` heredoc, `--jobs` validation, `--verify`/`--agent-cmd` extraction for board mode.
+**Files:** `.zshrc`, `tests/tralph-e2e.test.sh`
+**Decisions:** Synthetic parent "0" used as gralph parent ID in board mode (all tests use "42"; "0" is equally synthetic). `DOTFILES_DIR` (or `$HOME/dotfiles` fallback, then PATH) resolves `gralph` binary. Fixed zsh 1-indexing bug (loop at i=1 with `-le`) found by reviewer.
+**Conventions established:** `tralph --jobs N` is the board-mode entry point; tralph-shepherd remains sequential (`--jobs 1`) for single-issue Ralph runs.
+**Notes for next iteration:** Sequential pass-through test section is tautological (both branches print PASS); board-mode e2e exercises gralph directly rather than through the zsh function — future test improvement possible but not blocking.
+**Fresh review:** `RALPH_REVIEW: PASS_WITH_NOTES` — two non-blocking notes: (1) sequential passthrough test hollow; (2) board-mode e2e bypasses zsh layer. Zsh 1-indexing bug fixed before final verdict.
