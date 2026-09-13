@@ -1,7 +1,7 @@
 ---
 id: 057
 title: tralph --jobs N entry point (default 1 = today's behavior)
-status: pending
+status: in-progress
 blocked_by: [056]
 parent: null
 created: 2026-09-10
