@@ -3025,8 +3025,8 @@
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789275801.104199,
-    "ast_hash": "11aab33675f40fbdc9e6972c22c37a23",
+    "mtime": 1789278622.2666233,
+    "ast_hash": "a28f30d6c10aea3523d73e9c2b1c3791",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -13730,13 +13730,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/059-shepherd-v2-manifest-reader.md": {
-    "mtime": 1789276143.5962033,
-    "ast_hash": "3f241c97841a95633e4d77c64ff3b24c",
+    "mtime": 1789276756.7627797,
+    "ast_hash": "b59c01dbb40dd0298a844f067064b9a4",
     "semantic_hash": ""
   },
   ".kanban/issues/060-shakedown-run.md": {
-    "mtime": 1789234929.2546964,
-    "ast_hash": "cf2e502b4bf5ffb820316e5a6a4d888c",
+    "mtime": 1789278143.132564,
+    "ast_hash": "1ec0ca04d9269a41c817677b25f07e61",
     "semantic_hash": ""
   }
 }
