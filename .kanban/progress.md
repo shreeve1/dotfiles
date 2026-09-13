@@ -280,3 +280,12 @@ Supporting changes:
 **Conventions established:** none beyond what is in this issue.
 **Notes for next iteration:** none.
 **Fresh review:** `RALPH_REVIEW: PASS` — all three acceptance criteria satisfied, verification command exits 0, no unrelated changes.
+
+## #059 Shepherd v2 — manifest reader for board-mode runs — 2026-09-13
+
+**What changed:** Added board-mode gather-signals section and coordinator relaunch section to `.agents/skills/tralph-shepherd/SKILL.md`. Renamed existing sequential sections for clarity; all sequential content unchanged.
+**Files:** `.agents/skills/tralph-shepherd/SKILL.md`, `.kanban/issues/059-shepherd-v2-manifest-reader.md`
+**Decisions:** Parent ID for `tralph --jobs N` board runs is always "0" (confirmed from .zshrc); manifest path `.gralph/runs/0/manifest.json`; lock at `.gralph/runs/0/.coordinator-lock/owner.json`. Coordinator liveness check is `kill -0 <pid>`. Sidecar jq reads `.merge.status` which sidecars don't populate — null is harmless (reviewer note, not fixed, cosmetic only).
+**Conventions established:** none beyond this issue.
+**Notes for next iteration:** #060 (shakedown run) is now unblocked; preconditions section's tmux mode-detection (step 2) doesn't yet branch on `--jobs N` vs `--jobs 1` — out of scope here.
+**Fresh review:** `RALPH_REVIEW: PASS_WITH_NOTES` — all four ACs satisfied, verification command passes, two non-blocking cosmetic notes.
