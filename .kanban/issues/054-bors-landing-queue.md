@@ -1,7 +1,7 @@
 ---
 id: 054
 title: Bors-style landing queue (ADR 0009)
-status: pending
+status: done
 blocked_by: [053]
 parent: null
 created: 2026-09-10

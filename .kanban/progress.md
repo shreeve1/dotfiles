@@ -219,3 +219,25 @@ This file tracks implementation notes across Ralph iterations.
 **Conventions established:** `refresh_frontier_kanban` resolves blocker status from manifest `merge.status`, not from board disk files.
 **Notes for next iteration:** `update_board_ticket_status` function is dead code — can be deleted in a follow-up. Board done/blocked truth lives only in the manifest; #054/#059 presumably consume it.
 **Fresh review:** PASS_WITH_NOTES — three non-blocking notes: (a) `update_board_ticket_status` is now dead code; (b) `worktreeClean` recorded but not enforced on DONE; (c) board ticket files intentionally stay `pending` on disk.
+
+## #054 Bors-style landing queue (ADR 0009) — 2026-09-13
+
+**What changed:** Implemented the serial bors-style landing queue for board mode in `bin/gralph`.
+`merge_one_child` now has two paths: board mode (ADR 0009) and GitHub mode (unchanged).
+
+Board-mode landing sequence:
+1. Create a temp rebase branch from the child's lane tip.
+2. Rebase onto the current batch branch tip — preserves original child_branch pointer (pre-rebase SHA stays as `execution.commitSha`).
+3. Re-run the ticket's own `## Verification` command on the rebased worktree.
+4. **Bounce** (reverify fails): record `merge.status=bounced`, create a repair ticket in `board_dir/issues/` with `status: blocked` (prevents same-run re-selection), preserve original branch, return exit code 2 (soft outcome — orchestrator continues).
+5. **Pass** (reverify passes): `git merge --ff-only <rebased-sha>` into batch branch — linear history, no merge commits.
+6. Fold `.ralph-progress-<N>.md` from the child branch into `.kanban/progress.md`.
+
+Supporting changes:
+- `refresh_frontier_kanban`: overlays bounced children as `classification=excluded` so they are not retried in the current run.
+- `orchestrate_waves`: excludes bounced children from the `remaining` count so a run with only bounced (no failed) lanes exits 0.
+- New `write_repair_ticket` helper.
+
+**Files:** `bin/gralph`, `tests/tralph-landing-queue.test.sh`, `tests/tralph-lane-worker.test.sh`, `.kanban/issues/054-bors-landing-queue.md`
+**Decisions:** Repair tickets use `status: blocked` not `pending` to prevent the orchestrator from picking them up as new work in the same run. Temp rebase branch is used and deleted; original child_branch stays at worker commit SHA.
+**Fresh review:** REJECTED then APPROVED_WITH_NOTES after fixing: (a) repair tickets initially had `status: pending` causing same-run re-selection — fixed to `status: blocked`; (b) `printf '- [ ]...'` bug in repair ticket body — fixed to `printf '%s\n'`; (c) test swallowed exit code with `|| true` — fixed to assert exit 0.
