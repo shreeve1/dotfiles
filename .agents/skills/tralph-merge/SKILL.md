@@ -1,27 +1,33 @@
 ---
 disable-model-invocation: true
 name: tralph-merge
-description: Land a finished tralph batch — merge the worktree's run branch (ralph/run) into the base repo's main, then remove the worktree, delete the branch, and clear the merge-needed marker. USE WHEN user says "tralph-merge", "merge the tralph batch/worktree", "land ralph/run", "the finalizer deferred", or the auto-finalizer left a ralph-merge-needed marker for manual merge. Interactive — confirms before merging, never forces, resolves conflicts with the user. The manual counterpart to ralph-finalize.sh.
+description: Land a finished tralph batch — merge the worktree's run branch (ralph/run) into the base repo's main, then remove the worktree, delete the branch, and clear the merge-needed marker. Also handles board-mode batches where `finish_board` dropped a `ralph-merge-needed-board-<parent>` marker and left a `gralph/<parent>/batch` integration branch for manual merge. USE WHEN user says "tralph-merge", "merge the tralph batch/worktree", "land ralph/run", "the finalizer deferred", or the auto-finalizer left a ralph-merge-needed marker for manual merge. Interactive — confirms before merging, never forces, resolves conflicts with the user. The manual counterpart to ralph-finalize.sh.
 ---
 
 # tralph-merge
 
-The manual landing step for the **tralph worktree loop**. `tralph` (the
-`ralph-loop` systemd service) runs each batch in an isolated worktree on a run
-branch, then `ralph-finalize.sh` auto-merges that branch into base `main` and
-removes the worktree **only when the batch is fully clean and the merge is
-safe**. When it can't merge safely — a true conflict, a dirty/ moved base
-`main` (e.g. you have another session working on `main`), or a wrong base HEAD —
-it aborts, drops a marker, and **leaves the batch for you**. This skill walks
-that last mile by hand: review the branch, merge it into `main`, resolve any
-conflict with you, then clean up so the supervisor resumes.
+The manual landing step for the **tralph worktree loop** (legacy path) and the
+**board-mode gralph coordinator** (ADR 0009 path).
 
-This is **not** `rpiv-merge` — that lands `rpiv/<TS>` branches the rralph
-pipeline makes in-place. This lands the tralph **worktree** batch.
+## Which path am I on?
 
-`$ARGUMENTS` is optional:
+| Indicator | Legacy tralph worktree | Board-mode gralph |
+|-----------|------------------------|-------------------|
+| Marker file | `~/.cache/ralph-merge-needed-<SESSION>` | `~/.cache/ralph-merge-needed-board-<PARENT>` |
+| Branch to land | `ralph/run` (or configured `RALPH_BRANCH`) | `gralph/<PARENT>/batch` |
+| Source of truth | `$WORKTREE/.kanban/` (live board in worktree) | `.kanban/run-report.md` + `.gralph/runs/<PARENT>/manifest.json` |
+| Worktree to remove after merge | `$WORKTREE` (the tralph worktree) | None — board-mode coordinator already removed landed lane worktrees |
+
+Read the marker file name to determine which path to follow. Both paths share
+the same hard rules and the same Phase 4 merge procedure.
+
+**Legacy path** (`$ARGUMENTS` is optional):
 - empty — use the live `ralph-loop.service` config (or the defaults below).
 - a path — treat it as the base repo (`RALPH_BASE_REPO`).
+
+**Board-mode path** (`$ARGUMENTS`):
+- `--board <parent>` — board-mode merge for the named parent number.
+- `--board <parent> <repo>` — override the repo root.
 
 ## Hard rules
 
@@ -53,6 +59,8 @@ pipeline makes in-place. This lands the tralph **worktree** batch.
 
 ## Phase 1 — Derive config
 
+### Legacy tralph worktree path
+
 Read the loop's configuration from the service unit; fall back to defaults.
 
 ```bash
@@ -68,6 +76,26 @@ MARKER="$HOME/.cache/ralph-merge-needed-$SESSION"
 
 Confirm `BASE_REPO` is a git repo and `BRANCH` exists. If the branch is gone,
 there is nothing to land — say so and stop.
+
+### Board-mode path
+
+```bash
+PARENT="$2"         # required: the parent number passed after --board
+BASE_REPO="${3:-$(git rev-parse --show-toplevel)}"
+BRANCH="gralph/$PARENT/batch"
+BASE_BRANCH="$(git -C "$BASE_REPO" rev-parse --abbrev-ref HEAD)"
+MARKER="$HOME/.cache/ralph-merge-needed-board-$PARENT"
+MANIFEST="$BASE_REPO/.gralph/runs/$PARENT/manifest.json"
+RUN_REPORT="$BASE_REPO/.kanban/run-report.md"
+```
+
+Confirm the marker exists (if not, the coordinator may not have deferred —
+check `.orchestration.boardFinish.status` in the manifest). Confirm `BRANCH`
+exists. Confirm `MANIFEST` is readable. If the branch is gone or the manifest
+is absent, say so and stop. No worktree to check in board mode — the
+coordinator already removed landed lane worktrees on success; only
+bounced/blocked lanes have worktrees remaining and they are not affected by
+this merge.
 
 ## Phase 2 — Status: why are we here, and is it safe to merge?
 
@@ -165,6 +193,8 @@ fi
 
 ## Phase 5 — Clean up (after a successful merge, with confirmation)
 
+### Legacy tralph worktree path
+
 ```bash
 git -C "$BASE_REPO" worktree remove --force "$WORKTREE"
 git -C "$BASE_REPO" branch -d "$BRANCH"          # safe delete; only if merged
@@ -178,6 +208,19 @@ If you left the service running (the normal deferred-merge case), the supervisor
 now starts the next batch on its own. If you had `systemctl --user stop
 ralph-loop` to force a manual merge of a non-deferred batch, `systemctl --user
 start ralph-loop` to resume.
+
+### Board-mode path
+
+```bash
+git -C "$BASE_REPO" branch -d "$BRANCH"   # safe delete; only if merged
+rm -f "$MARKER"
+# Worktrees for landed lanes were already pruned by finish_board.
+# Bounced/blocked lane worktrees are preserved — do NOT remove them.
+```
+
+No supervisor to restart in board mode: `finish_board` is a one-shot that runs
+at the end of the coordinator. After a successful manual merge, the run is
+complete. To start the next board run, invoke `gralph` again with `--board`.
 
 Only `git push` if the user explicitly asks.
 

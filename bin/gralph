@@ -1197,7 +1197,7 @@ orchestrate_waves() {
     '{runId:$runId,host:$host,pid:$pid}' >"$lock_dir/owner.json"
   trap '[ "$lock_owned" -eq 0 ] || rm -rf "$lock_dir"' EXIT
 
-  recover_state "$manifest" "$verify_cmd" "$run_id" "$base_sha" || true
+  recover_state "$manifest" "$verify_cmd" "$run_id" "$base_sha" "${BOARD_DIR:-}" || true
 
   write_manifest "$manifest" \
     --arg integration "$verify_cmd" --arg runId "$run_id" --arg host "$host" --argjson pid "$$" --argjson jobs "$jobs" '
@@ -1385,6 +1385,126 @@ write_repair_ticket() {
     printf '`%s`\n' "$failing_cmd"
   } >"$candidate_file"
   printf 'Created repair ticket %s for bounced lane #%s\n' "$candidate_file" "$child"
+}
+
+# write_run_report writes .kanban/run-report.md summarising the board-mode run.
+# Arguments: manifest board_dir main_branch merge_status merge_sha batch_branch
+write_run_report() {
+  local manifest="$1" board_dir="$2" main_branch="$3" merge_status="$4" merge_sha="${5:-}" batch_branch="${6:-}"
+  local report_file="$REPO_ROOT/.kanban/run-report.md"
+  local run_id completed_at
+  run_id="$(jq -r '.orchestration.runId // "unknown"' "$manifest")"
+  completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  {
+    printf '# Gralph Board Run Report\n\n'
+    printf 'Run ID: %s  \nCompleted: %s  \nBoard: %s  \nBatch branch: %s\n\n' \
+      "$run_id" "$completed_at" "$board_dir" "${batch_branch:-n/a}"
+
+    if [ "$merge_status" = "merged" ]; then
+      printf 'Main branch (%s) fast-forwarded to: %s\n\n' "$main_branch" "$merge_sha"
+    elif [ "$merge_status" = "deferred" ]; then
+      printf 'Main merge **deferred** — ff-only refused; marker dropped for manual tralph-merge.\n'
+      printf 'Integration branch: `%s`\n\n' "$batch_branch"
+    fi
+
+    printf '## Tickets\n\n'
+    printf '| # | Title | Outcome | Landing SHA |\n'
+    printf '|---|-------|---------|-------------|\n'
+
+    jq -r --arg board "$board_dir" '
+      .children[]
+      | . as $c
+      | [
+          ($c.number | tostring),
+          ($c.title // ""),
+          (if $c.merge.status == "landed" then "landed"
+           elif $c.merge.status == "bounced" then "bounced"
+           elif $c.merge.status == "blocked" then "blocked"
+           elif ($c.execution.status == "failed") then "failed"
+           elif $c.classification == "excluded" then "excluded"
+           elif $c.classification == "blocked" then "dep-blocked"
+           else "pending"
+           end),
+          ($c.merge.landedSha // "")
+        ]
+      | "| " + .[0] + " | " + .[1] + " | " + .[2] + " | " + .[3] + " |"
+    ' "$manifest"
+  } >"$report_file"
+
+  printf 'Run report written to %s\n' "$report_file"
+}
+
+# finish_board is called after orchestrate_waves in board mode. It:
+#   1. Tries git merge --ff-only of the batch branch into the current branch (main).
+#   2. On success: prunes landed worktrees/branches, writes run-report.md.
+#   3. On failure: drops a ralph-merge-needed marker, writes run-report.md noting deferral.
+#
+# Bounced/blocked lane worktrees/branches are always preserved for inspection.
+finish_board() {
+  local manifest="$1" board_dir="$2"
+
+  local batch_branch run_dir main_branch
+  run_dir="$(dirname "$manifest")"
+  batch_branch="$(jq -r '.orchestration.batchBranch // ""' "$manifest" 2>/dev/null || true)"
+  # If orchestration didn't record it, derive from parent.
+  if [ -z "$batch_branch" ]; then
+    local parent_num
+    parent_num="$(jq -r '.parent' "$manifest")"
+    batch_branch="gralph/$parent_num/batch"
+  fi
+
+  # No batch branch means no ticket landed; nothing to merge.
+  if ! git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$batch_branch" 2>/dev/null; then
+    write_run_report "$manifest" "$board_dir" "" "no_batch" "" ""
+    printf 'finish_board: no batch branch %s — nothing to merge\n' "$batch_branch" >&2
+    return 0
+  fi
+
+  main_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
+
+  # Try ff-only merge into current branch.
+  local merge_rc=0
+  git -C "$REPO_ROOT" merge --ff-only "$batch_branch" >/dev/null 2>&1 || merge_rc=$?
+
+  local merge_sha marker_file
+  marker_file="$HOME/.cache/ralph-merge-needed-board-$(jq -r '.parent' "$manifest")"
+
+  if [ "$merge_rc" -eq 0 ]; then
+    merge_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+    write_manifest "$manifest" --arg mergedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg mergeSha "$merge_sha" \
+      --arg mainBranch "$main_branch" --arg batchBranch "$batch_branch" '
+      .orchestration.boardFinish = {status:"merged", mainBranch:$mainBranch, batchBranch:$batchBranch, mergeSha:$mergeSha, mergedAt:$mergedAt}
+    ' || true
+    write_run_report "$manifest" "$board_dir" "$main_branch" "merged" "$merge_sha" "$batch_branch"
+
+    # Prune landed worktrees/branches; preserve bounced/blocked for inspection.
+    while IFS= read -r child; do
+      [ -z "$child" ] && continue
+      local wt br
+      wt="$(jq -r --argjson n "$child" '.children[] | select(.number == $n) | .execution.worktree // ""' "$manifest" 2>/dev/null || true)"
+      br="$(jq -r --argjson n "$child" '.children[] | select(.number == $n) | .execution.branch // ""' "$manifest" 2>/dev/null || true)"
+      [ -n "$wt" ] && git -C "$REPO_ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true
+      [ -n "$br" ] && git -C "$REPO_ROOT" branch -D "$br" >/dev/null 2>&1 || true
+    done < <(jq -r '[.children[] | select(.merge.status == "landed") | .number] | .[]' "$manifest")
+
+    printf 'finish_board: merged %s into %s as %s\n' "$batch_branch" "$main_branch" "$merge_sha" >&2
+    rm -f "$marker_file"
+    return 0
+  fi
+
+  # ff-only failed: diverged main or dirty tree. Drop marker; preserve batch branch.
+  touch "$marker_file"
+  write_manifest "$manifest" --arg deferredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg mainBranch "$main_branch" --arg batchBranch "$batch_branch" --arg marker "$marker_file" '
+    .orchestration.boardFinish = {status:"deferred", mainBranch:$mainBranch, batchBranch:$batchBranch, marker:$marker, deferredAt:$deferredAt}
+  ' || true
+  write_run_report "$manifest" "$board_dir" "$main_branch" "deferred" "" "$batch_branch"
+
+  printf 'finish_board: ff-only merge of %s into %s refused; marker dropped at %s\n' \
+    "$batch_branch" "$main_branch" "$marker_file" >&2
+  printf 'Run tralph-merge to land the integration branch manually.\n' >&2
+  return 0
 }
 
 # merge_one_child lands one accepted child onto the integration (batch) branch.
@@ -2018,6 +2138,7 @@ fi
 #   - review.gate == "accepted"     → resumes merge via merge_one_child
 #   - execution.status == "complete"→ needs_review (no review re-run path → repair hint)
 #   - claim.status == "claimed"     → clears when the recorded pid is dead, leaves alive claims alone
+#                                     (board mode: PID-only check; no gh label mutation)
 # The recovery report is written to .orchestration.recovery before any
 # pipeline runs and the function is safe to call repeatedly.
 recover_state() {
@@ -2025,6 +2146,7 @@ recover_state() {
   local verify_cmd="$2"
   local run_id="$3"
   local base_sha="$4"
+  local board_dir="${5:-}"
 
   local run_dir host decisions_file
   run_dir="$(dirname "$manifest")"
@@ -2082,6 +2204,14 @@ recover_state() {
         foreign_left=$((foreign_left+1))
         jq -nc --argjson child "$child" --argjson ownerPid "$claim_pid" --arg ownerHost "$claim_host" --arg ownerRunId "$claim_runid" \
           '{child:$child, action:"live_owner_left", reason:"owner_pid_alive", ownerPid:$ownerPid, ownerHost:$ownerHost, ownerRunId:$ownerRunId}' >>"$decisions_file"
+      elif [ -n "$board_dir" ]; then
+        # Board mode: no gh label; just mark the stale claim recovered by PID-dead.
+        stale_cleared=$((stale_cleared+1))
+        write_manifest "$manifest" --argjson child "$child" --arg claimRunId "$claim_runid" --arg reason "stale_claim_recovered" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+          (.children[] | select(.number == $child)).claim = ((.children[] | select(.number == $child)).claim // {}) + {status:"recovered", reason:$reason, recoveredAt:$recoveredAt}
+        ' >/dev/null 2>&1 || true
+        jq -nc --argjson child "$child" --arg previousRunId "$claim_runid" \
+          '{child:$child, action:"stale_cleared", reason:"owner_pid_dead", previousRunId:$previousRunId}' >>"$decisions_file"
       elif gh issue edit "$child" --remove-label 'gralph:claimed' >/dev/null 2>&1; then
         stale_cleared=$((stale_cleared+1))
         write_manifest "$manifest" --argjson child "$child" --arg claimRunId "$claim_runid" --arg reason "stale_claim_recovered" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
@@ -2143,7 +2273,9 @@ if [ "$DRY_RUN" -ne 1 ]; then
   orchestrate_waves "$manifest" "$VERIFY" "$JOBS" || exit 1
   # Board mode is offline - no remote PR. GitHub mode still publishes the
   # batch PR after the integration command passes on the merged tree.
-  if [ -z "$BOARD_DIR" ]; then
+  if [ -n "$BOARD_DIR" ]; then
+    finish_board "$manifest" "$BOARD_DIR" || true
+  else
     publish_pr "$manifest" "$VERIFY" || exit 1
   fi
   exit 0
