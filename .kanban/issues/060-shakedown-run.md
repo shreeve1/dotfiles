@@ -1,7 +1,7 @@
 ---
 id: 060
 title: Shakedown — full end-to-end board-mode run on real work
-status: done
+status: review
 blocked_by: [055, 057]
 parent: null
 created: 2026-09-10
