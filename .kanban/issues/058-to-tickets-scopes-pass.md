@@ -1,12 +1,12 @@
 ---
 id: 058
 title: /to-tickets advisory scopes pass (optional files: frontmatter)
-status: review
+status: done
 blocked_by: []
 parent: null
 created: 2026-09-10
-updated: 2026-09-10
-actor: to-tickets
+updated: 2026-09-13
+actor: ralph
 
 ## What to build
 
@@ -26,11 +26,15 @@ the ticket body.
 
 ## Acceptance criteria
 
-- [ ] Skill instructions describe the optional scopes pass and its
+- [x] Skill instructions describe the optional scopes pass and its
       advisory nature (wrong scope costs parallelism, never correctness)
-- [ ] Local-ticket template shows the optional `files:` frontmatter field
-- [ ] Guidance explicitly keeps body prose free of file paths (unchanged)
+- [x] Local-ticket template shows the optional `files:` frontmatter field
+- [x] Guidance explicitly keeps body prose free of file paths (unchanged)
 
 ## Verification
 
 `grep -n "files:" .agents/skills/to-tickets/SKILL.md`
+
+## Implementation Notes
+
+Added an "Optional scopes pass" paragraph to step 5 of the to-tickets skill process, explaining that `files:` is advisory, a wrong scope costs parallelism never correctness, and body prose stays path-free. Updated `<local-ticket-template>` to include a `**Files:**` line, and added a `## Files (optional)` section to `<issue-template>` with the same advisory framing. Fresh reviewer returned `RALPH_REVIEW: PASS`.

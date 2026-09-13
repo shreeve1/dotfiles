@@ -271,3 +271,12 @@ Supporting changes:
 **Conventions established:** `tralph --jobs N` is the board-mode entry point; tralph-shepherd remains sequential (`--jobs 1`) for single-issue Ralph runs.
 **Notes for next iteration:** Sequential pass-through test section is tautological (both branches print PASS); board-mode e2e exercises gralph directly rather than through the zsh function — future test improvement possible but not blocking.
 **Fresh review:** `RALPH_REVIEW: PASS_WITH_NOTES` — two non-blocking notes: (1) sequential passthrough test hollow; (2) board-mode e2e bypasses zsh layer. Zsh 1-indexing bug fixed before final verdict.
+
+## #058 /to-tickets advisory scopes pass — 2026-09-13
+
+**What changed:** Added "Optional scopes pass" paragraph to step 5 of the to-tickets skill (`.agents/skills/to-tickets/SKILL.md`). Updated `<local-ticket-template>` with a `**Files:**` advisory line; added `## Files (optional)` section to `<issue-template>`. Body prose remains path-free; the advisory language ("wrong scope costs parallelism, never correctness") is explicit.
+**Files:** `.agents/skills/to-tickets/SKILL.md`
+**Decisions:** Scopes pass is local-kanban-only; body prose stays path-free per existing guidance. `files:` is machine-read frontmatter only, not prose. Omitting the field remains valid.
+**Conventions established:** none beyond what is in this issue.
+**Notes for next iteration:** none.
+**Fresh review:** `RALPH_REVIEW: PASS` — all three acceptance criteria satisfied, verification command exits 0, no unrelated changes.
