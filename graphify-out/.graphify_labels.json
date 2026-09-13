@@ -1513,7 +1513,6 @@
   "1511": "claude/skills/vault-save/SKILL.md",
   "1512": "claude/skills/vault-todo/SKILL.md",
   "1513": "Task: Migrate CLAUDE.md → AGENTS.md system-wide (AGENTS standard)",
-  "1514": "watchdog/render.ts",
   "1515": "[0.21.0] - 2026-04-29",
   "1516": "NotifyTimerApi",
   "1517": "054-bors-landing-queue.md",
@@ -1524,5 +1523,5 @@
   "1522": "059-shepherd-v2-manifest-reader.md",
   "1523": "060-shakedown-run.md",
   "1524": "[0.21.5] - 2026-05-02",
-  "1525": "handler"
+  "1527": "mergeBuiltinAgentOverride"
 }
