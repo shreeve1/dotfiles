@@ -1,16 +1,16 @@
 # Graph Report - dotfiles  (2026-09-13)
 
 ## Corpus Check
-- 1573 files · ~2,881,530 words
+- 1573 files · ~2,882,522 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 20799 nodes · 30225 edges · 1525 communities (1380 shown, 145 thin omitted)
+- 20803 nodes · 30229 edges · 1527 communities (1381 shown, 146 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 270 edges (avg confidence: 0.63)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `799a0de1`
+- Built from commit: `7c83849f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1467,6 +1467,7 @@
 - .agents/skills/herdr-issue-frontier/scripts/full-gate.sh
 - .agents/skills/mermaid/UPSTREAM.md
 - Task: Migrate CLAUDE.md → AGENTS.md system-wide (AGENTS standard)
+- createNativeSupervisorChannel
 - [0.21.0] - 2026-04-29
 - NotifyTimerApi
 - 054-bors-landing-queue.md
@@ -1477,7 +1478,8 @@
 - 059-shepherd-v2-manifest-reader.md
 - 060-shakedown-run.md
 - [0.21.5] - 2026-05-02
-- mergeBuiltinAgentOverride
+- Customize using Theme Variables
+- wait-config.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `Changelog` - 133 edges
@@ -1523,7 +1525,7 @@
 - **Two-layer Verification Model** — context_grounding_gate, context_completeness_review, context_verification_gate_ralph [EXTRACTED 1.00]
 - **check.sh Verify Passes** — check_install_sources_resolve, check_shell_syntax, check_python_syntax, check_json_parses, check_declared_links_resolve [EXTRACTED 1.00]
 
-## Communities (1525 total, 145 thin omitted)
+## Communities (1527 total, 146 thin omitted)
 
 ### Community 0 - "check.sh Validation Harness"
 Cohesion: 0.07
@@ -1546,8 +1548,8 @@ Cohesion: 0.29
 Nodes (7): Maximize Built-ins Constraint, omp Fusion (Oh My Pi port), Repo-Tracked Default (.omp/agent/fusion.json), Orchestrator-by-Session-Id Detection, omp (@oh-my-pi/pi-coding-agent), Ralph omp Workers, skill:// skill delivery
 
 ### Community 5 - "RPIV Cross-Engine Pipeline"
-Cohesion: 0.02
-Nodes (216): buildSkillInjection(), resolveSkillsWithFallback(), assertChildIndex(), closeSteerInbox(), consumeInterruptRequest(), consumeSteerAcks(), consumeSteerCapabilities(), consumeSteerRequests() (+208 more)
+Cohesion: 0.03
+Nodes (195): countPendingChainAppendRequests(), deliverTimeoutRequest(), createSteeringStatus(), recordSteeringRequest(), steeringStatus(), terminalSteeringNoticeState(), appendDiagnosticJsonl(), appendJsonl() (+187 more)
 
 ### Community 6 - "Fusion Mode Core"
 Cohesion: 0.22
@@ -1583,19 +1585,19 @@ Nodes (39): AppDidNotStart, _argv(), CliApp, _free_port(), HttpApp, LibraryApp, 
 
 ### Community 15 - "subagent-executor.ts"
 Cohesion: 0.03
-Nodes (193): resolveExecutionAgentScope(), discoverAvailableSkills(), normalizeSkillInput(), applyIntercomBridgeToAgent(), resolveIntercomSessionTarget(), resolveSubagentIntercomTarget(), buildAsyncRunnerSteps(), executeAsyncChain() (+185 more)
+Nodes (228): resolveExecutionAgentScope(), AgentScope, ChainStepConfig, buildSkillInjection(), discoverAvailableSkills(), normalizeSkillInput(), resolveSkillsWithFallback(), applyIntercomBridgeToAgent() (+220 more)
 
 ### Community 16 - "Changelog"
 Cohesion: 0.02
 Nodes (103): [1.1.2] - Previous, [1.2.0] - 2026-03-23, [1.3.10] - 2026-03-25, [1.3.14] - 2026-03-25, [1.3.5] - 2026-03-25, [1.3.6] - 2026-03-25, [1.3.7] - 2026-03-25, [1.3.8] - 2026-03-25 (+95 more)
 
 ### Community 17 - "tui/render.ts"
-Cohesion: 0.07
-Nodes (75): formatToolCall(), WorkflowNodeStatus, getDisplayItems(), buildAsyncChainStepSpans(), buildChainRenderEntries(), buildChainStepSpans(), buildMultiProgressLabel(), buildProgressiveWidgetLines() (+67 more)
+Cohesion: 0.09
+Nodes (54): WorkflowNodeStatus, buildAsyncChainStepSpans(), buildSingleWidgetLines(), buildWidgetComponent(), buildWidgetLines(), ChainRenderEntry, ChainRenderPlaceholderEntry, ChainRenderResultEntry (+46 more)
 
 ### Community 18 - "shared/types.ts"
-Cohesion: 0.08
-Nodes (37): asyncResumeGuidance(), attachNestedChildrenToResultChildren(), buildSubagentResultIntercomPayload(), compactNestedResultChildren(), compactNestedRun(), countStatuses(), deliverSubagentIntercomMessageEvent(), deliverSubagentResultIntercomEvent() (+29 more)
+Cohesion: 0.09
+Nodes (34): asyncResumeGuidance(), attachNestedChildrenToResultChildren(), buildSubagentResultIntercomPayload(), compactNestedResultChildren(), compactNestedRun(), countStatuses(), deliverSubagentIntercomMessageEvent(), deliverSubagentResultIntercomEvent() (+26 more)
 
 ### Community 19 - "todo.ts"
 Cohesion: 0.06
@@ -1614,16 +1616,16 @@ Cohesion: 0.06
 Nodes (61): causeMessage(), expandedPreview(), fdParameters(), FdToolDetails, fileSearchTools(), installNotifications(), makeBinaryInitializers(), rgParameters() (+53 more)
 
 ### Community 23 - "subagent-prompt-runtime.ts"
-Cohesion: 0.07
-Nodes (39): validateChainInput(), assertSubagentParams(), assertJsonPointer(), assertNoUnresolvedItemReferences(), assertOnlyKeys(), compareDynamicSortKeys(), decodePointerSegment(), DYNAMIC_COLLECT_KEYS (+31 more)
+Cohesion: 0.06
+Nodes (61): assertRecordParams(), assertRequestId(), assertSubagentParams(), dataFromToolResult(), errorReply(), EventBus, executeChecked(), failIfToolError() (+53 more)
 
 ### Community 24 - "register-main.ts"
-Cohesion: 0.28
-Nodes (15): AsyncResultFile, buildImportedResult(), ImportedAsyncRootResult, isTerminalStatus(), outputFromTerminalStatus(), outputFromTimeout(), readResultFile(), resultState() (+7 more)
+Cohesion: 0.07
+Nodes (40): agentHasWriteTools(), buildAgentMemoryInjection(), isWithin(), MemoryFileResult, readMemoryFile(), resolveMemoryDir(), truncateMemory(), WRITE_TOOLS (+32 more)
 
 ### Community 25 - "control-channel.ts"
 Cohesion: 0.06
-Nodes (57): getConfigPath(), loadConfig(), readConfigForUpdate(), saveConfig(), updateConfig(), clearPendingForegroundControlNotices(), controlNoticeTarget(), deliverControlNotice() (+49 more)
+Nodes (56): getConfigPath(), loadConfig(), readConfigForUpdate(), saveConfig(), updateConfig(), clearPendingForegroundControlNotices(), controlNoticeTarget(), deliverControlNotice() (+48 more)
 
 ### Community 26 - "colors"
 Cohesion: 0.03
@@ -1635,15 +1637,15 @@ Nodes (48): 10. Rule of Three Overuse, 11. Elegant Variation (Synonym Cycling), 
 
 ### Community 28 - "agents.ts"
 Cohesion: 0.06
-Nodes (71): readAgentFrontmatterFields(), AgentDefaultContext, AgentDiscoveryResult, agentFrontmatterFields, AgentMemoryScope, AgentModelSourceInfo, AgentScope, AgentSource (+63 more)
+Nodes (64): mergeAgentsForScope(), AgentDefaultContext, AgentDiscoveryResult, agentFrontmatterFields, agentHasFrontmatterField(), AgentMemoryScope, AgentModelSourceInfo, AgentSource (+56 more)
 
 ### Community 29 - "watchdog/types.ts"
 Cohesion: 0.07
-Nodes (42): WatchdogLspDiagnosticsFunction, ContextLike, MainWatchdogRuntimeOptions, ReviewDeltaOutcome, reviewInputSignature(), ReviewStopReason, Waiter, WatchdogReviewRequest (+34 more)
+Nodes (46): WatchdogLspDiagnosticsFunction, childResolvedConfig(), childWarningDetails(), writeStatus(), ContextLike, MainWatchdogRuntimeOptions, promptFromBeforeAgentStart(), ReviewDeltaOutcome (+38 more)
 
 ### Community 30 - "profiles.ts"
 Cohesion: 0.06
-Nodes (63): agentsForRoleTier(), applySubagentProfile(), buildClassificationContext(), buildProfileFile(), BuiltinAgentName, catalogModelIsUsable(), ClassificationContext, ClassificationSource (+55 more)
+Nodes (64): agentsForRoleTier(), applySubagentProfile(), buildClassificationContext(), buildProfileFile(), BuiltinAgentName, catalogModelIsUsable(), checkSubagentProfile(), ClassificationContext (+56 more)
 
 ### Community 31 - "factory_doctor.py"
 Cohesion: 0.04
@@ -1651,23 +1653,23 @@ Nodes (49): Card (Notched Rectangle), Collate (Hourglass), Com Link (Lightning B
 
 ### Community 32 - "Changelog"
 Cohesion: 0.03
-Nodes (62): [0.11.11] - 2026-03-23, [0.11.12] - 2026-03-28, [0.11.1] - 2026-03-08, [0.11.3] - 2026-03-17, [0.11.7] - 2026-03-20, [0.11.8] - 2026-03-21, [0.12.1] - 2026-04-03, [0.12.2] - 2026-04-04 (+54 more)
+Nodes (63): [0.11.11] - 2026-03-23, [0.11.12] - 2026-03-28, [0.11.1] - 2026-03-08, [0.11.3] - 2026-03-17, [0.11.7] - 2026-03-20, [0.11.8] - 2026-03-21, [0.12.1] - 2026-04-03, [0.12.2] - 2026-04-04 (+55 more)
 
 ### Community 33 - "watchdog/settings.ts"
 Cohesion: 0.09
-Nodes (58): assertKnownFields(), ASYNC_COMPLETION_FIELDS, AUTO_FOLLOW_FIELDS, CHILD_OVERRIDE_FIELDS, CHILDREN_FIELDS, cloneDefaultConfig(), deepMerge(), ENDPOINT_FIELDS (+50 more)
+Nodes (57): assertKnownFields(), ASYNC_COMPLETION_FIELDS, AUTO_FOLLOW_FIELDS, CHILD_OVERRIDE_FIELDS, CHILDREN_FIELDS, cloneDefaultConfig(), deepMerge(), ENDPOINT_FIELDS (+49 more)
 
 ### Community 34 - "agent-management.ts"
 Cohesion: 0.12
-Nodes (53): actionScope(), AGENT_SOURCE_PRECEDENCE, allAgents(), applyAgentConfig(), asDisambiguationScope(), availableNames(), chainStepWarnings(), configObject() (+45 more)
+Nodes (54): actionScope(), AGENT_SOURCE_PRECEDENCE, allAgents(), applyAgentConfig(), asDisambiguationScope(), availableNames(), chainStepWarnings(), configObject() (+46 more)
 
 ### Community 35 - "slash-commands.ts"
-Cohesion: 0.04
-Nodes (84): assertJsonSchemaObject(), addUsage(), assistantUsageFromMessage(), buildChainExpressionSteps(), buildSlashExportText(), buildSubagentCostReport(), ChainStepObject, collectResultPaths() (+76 more)
+Cohesion: 0.06
+Nodes (58): assertJsonSchemaObject(), addUsage(), assistantUsageFromMessage(), buildChainExpressionSteps(), buildSlashExportText(), buildSubagentCostReport(), ChainStepObject, collectResultPaths() (+50 more)
 
 ### Community 36 - ".get"
-Cohesion: 0.20
-Nodes (24): formatTokens(), formatUsage(), compactCurrentActivity(), extractOutputTarget(), firstOutputLine(), formatProgressStats(), formatTokenStat(), formatToolUseStat() (+16 more)
+Cohesion: 0.04
+Nodes (81): ADR-0004, AgentConfig, AsyncChainParams, AsyncExecutionResult, AsyncRunnerStepBuildParams, AsyncSingleParams, ImportedAsyncRoot, SingleStepContext (+73 more)
 
 ### Community 37 - "advisor.ts"
 Cohesion: 0.08
@@ -1686,8 +1688,8 @@ Cohesion: 0.08
 Nodes (20): previewBodyHeights(), QuestionData, OptionListView, MarkdownContentCache, PreviewBlockRenderer, PreviewBlockRendererConfig, computeBoxDimensions(), renderBorderedBox() (+12 more)
 
 ### Community 41 - "fleet-view.ts"
-Cohesion: 0.20
-Nodes (16): CHILD_WATCHDOG_PHASES, childConfigBoolean(), childConfigLsp(), childConfigNullableNonNegativeInteger(), childConfigObject(), childConfigOptionalIndex(), childConfigOptionalString(), childConfigPositiveInteger() (+8 more)
+Cohesion: 0.17
+Nodes (19): readAgentFrontmatterFields(), parseMemoryFrontmatter(), unquoteFrontmatterValue(), ChainConfig, isLegacyAgentSkillPath(), loadAgentsFromDir(), loadChainsFromDir(), parseAgentAcceptanceFrontmatter() (+11 more)
 
 ### Community 42 - "hooks/ponytail-activate.js"
 Cohesion: 0.07
@@ -1701,11 +1703,11 @@ Nodes (48): claudeDir, {
 
 ### Community 43 - "dashboard.ts"
 Cohesion: 0.09
-Nodes (35): buildReport(), canResumeRun(), DetailFocus, groupSquare(), loadRunEntries(), normalizeDetails(), normalizeTranscript(), replayedSummary() (+27 more)
+Nodes (36): buildReport(), canResumeRun(), DetailFocus, groupSquare(), loadRunEntries(), normalizeDetails(), normalizeTranscript(), replayedSummary() (+28 more)
 
 ### Community 44 - "acceptance.ts"
-Cohesion: 0.06
-Nodes (61): ACCEPTANCE_CONFIG_KEYS, ACCEPTANCE_GATE_KEYS, ACCEPTANCE_REPORT_FIELDS, ACCEPTANCE_REPORT_WRAPPERS, ACCEPTANCE_REVIEW_KEYS, ACCEPTANCE_VERIFY_KEYS, checkCriteriaSatisfied(), checkNoStagedFiles() (+53 more)
+Cohesion: 0.05
+Nodes (80): ACCEPTANCE_CONFIG_KEYS, ACCEPTANCE_GATE_KEYS, ACCEPTANCE_REPORT_FIELDS, ACCEPTANCE_REPORT_WRAPPERS, ACCEPTANCE_REVIEW_KEYS, ACCEPTANCE_VERIFY_KEYS, aggregateAcceptanceReport(), checkCriteriaSatisfied() (+72 more)
 
 ### Community 45 - "colors"
 Cohesion: 0.04
@@ -1740,8 +1742,8 @@ Cohesion: 0.11
 Nodes (30): applyLocale(), detectLocaleFromConfigAndEnv(), getActiveLocale(), getRuntime(), I18N_RUNTIME_KEY, I18N_STATE_KEY, I18nRuntime, I18nState (+22 more)
 
 ### Community 53 - "native-supervisor-channel.ts"
-Cohesion: 0.08
-Nodes (45): askTimeoutMs(), buildParentIntercomTool(), CHANNEL_POLL_MS, cleanupRequestLifecycle(), cleanupStaleEmptySupervisorChannels(), ContactSupervisorParams, ContactSupervisorParamsSchema, createNativeSupervisorChannel() (+37 more)
+Cohesion: 0.10
+Nodes (24): askTimeoutMs(), CHANNEL_POLL_MS, cleanupStaleEmptySupervisorChannels(), ContactSupervisorParams, ContactSupervisorParamsSchema, directoryMtimeMs(), formatChildMessage(), hasTool() (+16 more)
 
 ### Community 54 - "gh_backend.py"
 Cohesion: 0.07
@@ -1762,8 +1764,8 @@ Cohesion: 0.05
 Nodes (39): Branch, Co-location, Cognitive Load, Completion Criterion, Context Load, Context Pointer, Description, Duplication (+31 more)
 
 ### Community 57 - "dynamic-fanout.ts"
-Cohesion: 0.04
-Nodes (120): AgentConfig, RegisterSubagentRpcBridgeOptions, AsyncChainParams, AsyncExecutionContext, AsyncExecutionResult, AsyncRunnerStepBuildParams, AsyncRunnerStepBuildResult, AsyncSingleParams (+112 more)
+Cohesion: 0.06
+Nodes (45): assertJsonPointer(), assertNoUnresolvedItemReferences(), assertOnlyKeys(), compareDynamicSortKeys(), decodePointerSegment(), DYNAMIC_COLLECT_KEYS, DYNAMIC_EXPAND_FROM_KEYS, DYNAMIC_EXPAND_KEYS (+37 more)
 
 ### Community 58 - "tokenjuice.js"
 Cohesion: 0.08
@@ -1783,11 +1785,11 @@ Nodes (37): active(), age_days(), bump_writes(), cmd_audit(), cmd_check(), cmd_c
 
 ### Community 62 - "nested-events.ts"
 Cohesion: 0.05
-Nodes (85): createChildSafeState(), expandTilde(), getSubagentSessionRoot(), registerFanoutChildSubagentExtension(), startNestedControlInboxListener(), SubagentParams, asyncPrefixMatches(), exactAsyncLocation() (+77 more)
+Nodes (86): createChildSafeState(), expandTilde(), getSubagentSessionRoot(), registerFanoutChildSubagentExtension(), startNestedControlInboxListener(), SubagentParams, resolveSubagentIntercomTarget(), sanitizeIntercomTargetPart() (+78 more)
 
 ### Community 63 - "subagent-wait.ts"
 Cohesion: 0.07
-Nodes (50): ADR-0004, BackgroundWorkItem, BackgroundWorkProvider, BackgroundWorkReconcileContext, BackgroundWorkRegistry, BackgroundWorkSnapshot, listBackgroundWorkProviders(), listBackgroundWorkWakeChannels() (+42 more)
+Nodes (51): BackgroundWorkItem, BackgroundWorkProvider, BackgroundWorkReconcileContext, BackgroundWorkRegistry, BackgroundWorkSnapshot, listBackgroundWorkProviders(), listBackgroundWorkWakeChannels(), registerBackgroundWorkProvider() (+43 more)
 
 ### Community 64 - "resolve_personas.py"
 Cohesion: 0.05
@@ -1795,7 +1797,7 @@ Nodes (36): 7.5.1 — Capture the wave's diff (working-tree, includes uncommitte
 
 ### Community 65 - "MainWatchdogRuntime"
 Cohesion: 0.13
-Nodes (6): WatchdogRepoChangeSignature, registerMainWatchdog(), errorMessage(), MainWatchdogRuntime, promptFromBeforeAgentStart(), WatchdogLspRuntimeSnapshot
+Nodes (7): WatchdogRepoChangeSignature, registerChildWatchdog(), registerMainWatchdog(), errorMessage(), MainWatchdogRuntime, WatchdogLspRuntimeSnapshot, WatchdogSettingsResult
 
 ### Community 66 - ".pi/agent/extensions/fusion/index.ts"
 Cohesion: 0.09
@@ -1811,19 +1813,19 @@ Nodes (43): author, bugs, url, dependencies, @juicesharp/rpiv-config, descriptio
 
 ### Community 69 - "subagents-admin.ts"
 Cohesion: 0.11
-Nodes (42): editableAgentConfig(), formatAgentDetail(), preservedAgentFrontmatterFields(), joinComma(), KNOWN_FIELDS, serializeAgent(), SerializeAgentOptions, agentHasFrontmatterField() (+34 more)
+Nodes (41): editableAgentConfig(), preservedAgentFrontmatterFields(), joinComma(), KNOWN_FIELDS, serializeAgent(), SerializeAgentOptions, findModelInfo(), getSupportedThinkingLevels() (+33 more)
 
 ### Community 70 - "scheduled-runs.ts"
 Cohesion: 0.10
 Nodes (23): describeScheduledTarget(), jobMode(), parseScheduledRunTime(), readStoreData(), resolveJobById(), resolveMaxLatenessMs(), resolveMaxPending(), sanitizeScheduledParams() (+15 more)
 
 ### Community 71 - "ChainClarifyComponent"
-Cohesion: 0.12
-Nodes (13): ChainClarifyComponent, createEditorState(), ensureCursorVisible(), getCursorDisplayPos(), handleEditorInput(), isWordChar(), normalizeInsertText(), renderEditor() (+5 more)
+Cohesion: 0.11
+Nodes (18): BehaviorOverride, ChainClarifyComponent, ChainClarifyResult, ClarifyMode, createEditorState(), EditMode, ensureCursorVisible(), getCursorDisplayPos() (+10 more)
 
 ### Community 72 - "runner.ts"
 Cohesion: 0.09
-Nodes (31): AgentUsage, emptyUsage(), TranscriptEntry, buildWorkflowAgentPrompt(), ActiveToolSession, AgentMessage, AgentOutcome, AgentProgress (+23 more)
+Nodes (31): bindChildSessionExtensions(), childToolPolicy(), AgentUsage, emptyUsage(), TranscriptEntry, buildWorkflowAgentPrompt(), ActiveToolSession, AgentMessage (+23 more)
 
 ### Community 73 - "Sequence diagrams"
 Cohesion: 0.06
@@ -1834,16 +1836,16 @@ Cohesion: 0.06
 Nodes (30): Before exploring, read these, Domain Docs, File structure, Flag ADR conflicts, Use the glossary's vocabulary, Conventions, Issue tracker: GitHub, Pull requests as a triage surface (+22 more)
 
 ### Community 75 - "chain-validation.ts"
-Cohesion: 0.06
-Nodes (55): assertRecordParams(), assertRequestId(), dataFromToolResult(), errorReply(), EventBus, executeChecked(), failIfToolError(), handleRequest() (+47 more)
+Cohesion: 0.10
+Nodes (22): addSmell(), args, buildReport(), counter(), createState(), DEFAULT_EXCLUDE_GLOBS, DEFAULT_ROOT, discoverLogFiles() (+14 more)
 
 ### Community 76 - "notify.ts"
 Cohesion: 0.08
 Nodes (30): CompletionBatcher, CompletionBatcherOptions, createCompletionBatcher(), DEFAULT_COMPLETION_BATCH_CONFIG, defaultTimers, parsePositiveInt(), resolveCompletionBatchConfig(), ResolvedCompletionBatchConfig (+22 more)
 
 ### Community 77 - "workflows/index.ts"
-Cohesion: 0.08
-Nodes (34): ActivityCounts, formatActivityStatus(), Theme, sessionWorkflowRunIds(), showWorkflowDashboard(), AgentCallOptions, AgentCwdResolution, errorText() (+26 more)
+Cohesion: 0.07
+Nodes (33): ActivityCounts, formatActivityStatus(), Theme, sessionWorkflowRunIds(), showWorkflowDashboard(), AgentCallOptions, AgentCwdResolution, errorText() (+25 more)
 
 ### Community 78 - "🌱 ESG & Sustainability Officer Agent"
 Cohesion: 0.35
@@ -1878,12 +1880,12 @@ Cohesion: 0.05
 Nodes (37): author, bugs, url, description, files, homepage, @earendil-works/pi-coding-agent, index.ts (+29 more)
 
 ### Community 86 - "fleet.ts"
-Cohesion: 0.09
-Nodes (50): formatAsyncRunList(), formatAsyncRunOutputPath(), formatAsyncRunProgressLabel(), appendKnownArtifacts(), appendTranscriptBody(), contentText(), FleetViewDeps, FleetViewParams (+42 more)
+Cohesion: 0.14
+Nodes (24): applySlashUpdate(), buildChainInitialResult(), buildParallelInitialResult(), buildSingleInitialResult(), buildSlashInitialResult(), chainStepLabel(), ChainStepLike, cloneResultsWithProgress() (+16 more)
 
 ### Community 87 - "async-resume.ts"
 Cohesion: 0.07
-Nodes (37): CHAIN_STEP_KEYS, checkNoExtraKeys(), COLLECT_KEYS, disallowedKeys(), disallowedMessage(), DYNAMIC_TEMPLATE_KEYS, EXPAND_FROM_KEYS, EXPAND_KEYS (+29 more)
+Nodes (38): CHAIN_STEP_KEYS, checkNoExtraKeys(), COLLECT_KEYS, disallowedKeys(), disallowedMessage(), DYNAMIC_TEMPLATE_KEYS, EXPAND_FROM_KEYS, EXPAND_KEYS (+30 more)
 
 ### Community 88 - "mcp-direct-tool-allowlist.ts"
 Cohesion: 0.09
@@ -1903,7 +1905,7 @@ Nodes (8): Customize using Theme Variables, Customizing branch colors, Customizi
 
 ### Community 92 - "doctor.ts"
 Cohesion: 0.08
-Nodes (46): buildDoctorReport(), DEFAULT_DEPS, DEFAULT_PATHS, DoctorDeps, DoctorPaths, DoctorReportInput, errorText(), formatConfiguredSessionDir() (+38 more)
+Nodes (45): buildDoctorReport(), DEFAULT_DEPS, DEFAULT_PATHS, DoctorDeps, DoctorPaths, DoctorReportInput, errorText(), formatConfiguredSessionDir() (+37 more)
 
 ### Community 93 - "🤝 M&A Integration Manager Agent"
 Cohesion: 0.06
@@ -1931,7 +1933,7 @@ Nodes (35): Advanced tuning knobs, Bus events, Concurrent-session guard, Config 
 
 ### Community 99 - "delegation-adapters.ts"
 Cohesion: 0.05
-Nodes (66): fmtTok(), handler(), persistState(), setStatus(), AgentState, currentSessionRef(), desiredState(), drainStateQueue() (+58 more)
+Nodes (62): fmtTok(), handler(), persistState(), setStatus(), AgentState, currentSessionRef(), desiredState(), drainStateQueue() (+54 more)
 
 ### Community 100 - "ExecutePlan Workflow"
 Cohesion: 0.06
@@ -1958,8 +1960,8 @@ Cohesion: 0.06
 Nodes (33): description, devDependencies, @biomejs/biome, @earendil-works/pi-coding-agent, typescript, files, @biomejs/biome, @earendil-works/pi-coding-agent (+25 more)
 
 ### Community 106 - "skills.ts"
-Cohesion: 0.09
-Nodes (45): getUserChainDir(), buildSkillPaths(), CachedSkillEntry, chooseHigherPrioritySkill(), collectFilesystemSkills(), collectInstalledPackageSkillPaths(), collectSettingsPackageSkillPaths(), collectSettingsSkillPaths() (+37 more)
+Cohesion: 0.12
+Nodes (33): buildSkillPaths(), CachedSkillEntry, chooseHigherPrioritySkill(), collectFilesystemSkills(), collectInstalledPackageSkillPaths(), collectSettingsPackageSkillPaths(), collectSettingsSkillPaths(), escapeXmlText() (+25 more)
 
 ### Community 107 - "QuestionnaireBuilder"
 Cohesion: 0.09
@@ -1986,8 +1988,8 @@ Cohesion: 0.06
 Nodes (32): 10. Inappropriate Intimacy, 1. Long Method/Function, 2. Duplicated Code, 3. Large Class/Module, 4. Long Parameter List, 5. Feature Envy, 6. Primitive Obsession, 7. Magic Numbers/Strings (+24 more)
 
 ### Community 113 - "main"
-Cohesion: 0.10
-Nodes (55): addSmell(), analyzeActionableWarnings(), analyzeAstGrepTools(), analyzeCascade(), analyzeDiagnosticLogs(), analyzeLatency(), analyzeReadGuard(), analyzeSessionStart() (+47 more)
+Cohesion: 0.17
+Nodes (33): analyzeActionableWarnings(), analyzeAstGrepTools(), analyzeCascade(), analyzeDiagnosticLogs(), analyzeLatency(), analyzeReadGuard(), analyzeSessionStart(), analyzeTreeSitter() (+25 more)
 
 ### Community 115 - "ExecutePlan Workflow"
 Cohesion: 0.06
@@ -2003,7 +2005,7 @@ Nodes (27): Auto-clarity, Output (receipt), Refusals (terminal lines), Scope, Wo
 
 ### Community 118 - "rpc.ts"
 Cohesion: 0.03
-Nodes (102): AsyncJobTrackerOptions, createAsyncJobTracker(), rememberFleetJob(), AsyncRunListOptions, deriveAsyncActivityState(), getErrorMessage(), isAsyncRunDir(), isNotFoundError() (+94 more)
+Nodes (150): AsyncJobTrackerOptions, createAsyncJobTracker(), rememberFleetJob(), AsyncRunListOptions, AsyncRunStepSummary, AsyncRunSummary, deriveAsyncActivityState(), formatActivityFacts() (+142 more)
 
 ### Community 119 - "Pi Config"
 Cohesion: 0.06
@@ -2030,8 +2032,8 @@ Cohesion: 0.13
 Nodes (23): assertPublicHttpUrl(), assertTextContentType(), BINARY_CONTENT_TYPE_PREFIXES, buildFetchRequestInit(), collapseWhitespace(), convertBlockTagsToNewlines(), decodeHtmlEntities(), extractBodyAsText() (+15 more)
 
 ### Community 125 - "workflows/artifacts.ts"
-Cohesion: 0.14
-Nodes (25): boundedArtifactTranscript(), boundEntry(), createWorkflowPersistence(), persistWorkflowJson(), textBytes(), writeRunFile(), compactToolDetails(), writeRunFile() (+17 more)
+Cohesion: 0.23
+Nodes (15): boundedArtifactTranscript(), boundEntry(), createWorkflowPersistence(), persistWorkflowJson(), textBytes(), writeRunFile(), compactToolDetails(), writeRunFile() (+7 more)
 
 ### Community 126 - "RunController"
 Cohesion: 0.10
@@ -2102,8 +2104,8 @@ Cohesion: 0.16
 Nodes (23): booleanField(), discoverPromptWorkflows(), findWorkflow(), firstNonEmptyLine(), formatWorkflowList(), loadPromptWorkflow(), packagePromptsDir(), parseAgent() (+15 more)
 
 ### Community 143 - "chain-append.ts"
-Cohesion: 0.09
-Nodes (37): appendDir(), appendRequestPath(), appendRunnerStepsToStatus(), appendWorkflowNode(), ChainAppendRequest, ChainAppendResult, consumeChainAppendRequests(), countPendingChainAppendRequests() (+29 more)
+Cohesion: 0.16
+Nodes (26): appendDir(), appendRequestPath(), appendRunnerStepsToStatus(), appendWorkflowNode(), ChainAppendRequest, ChainAppendResult, consumeChainAppendRequests(), enqueueChainAppendRequest() (+18 more)
 
 ### Community 144 - "review.ts"
 Cohesion: 0.12
@@ -2159,7 +2161,7 @@ Nodes (18): EXA_PROVIDER_META, ExaRawResponse, ExaRawResult, normalizeExaResults
 
 ### Community 157 - "journal.ts"
 Cohesion: 0.13
-Nodes (19): agentCallKey(), AgentJournalEntry, AgentKeyContext, appendJournalEntry(), canonicalStringify(), checkpointCallKey(), CheckpointJournalEntry, createReplayIndex() (+11 more)
+Nodes (21): RunEntry, agentCallKey(), AgentJournalEntry, AgentKeyContext, appendJournalEntry(), canonicalStringify(), checkpointCallKey(), CheckpointJournalEntry (+13 more)
 
 ### Community 158 - "_audit_runner.py"
 Cohesion: 0.07
@@ -2214,20 +2216,20 @@ Cohesion: 0.07
 Nodes (26): Acceptance Gates, Background-work provider API, Builtin agents in plain English, Chain files, Chain variables, Clarify and launch UI, Common workflows, Events (+18 more)
 
 ### Community 171 - "chain-serializer.ts"
-Cohesion: 0.19
-Nodes (20): formatActivityFacts(), formatRunHeader(), formatStepLine(), formatActivityFacts(), countNestedRuns(), formatNestedActivity(), formatNestedAggregate(), formatNestedRunLines() (+12 more)
+Cohesion: 0.21
+Nodes (22): getDisplayItems(), buildChainRenderEntries(), compactCurrentActivity(), extractOutputTarget(), firstOutputLine(), formatCurrentToolLine(), formatProgressStats(), formatTotalCostStat() (+14 more)
 
 ### Community 172 - "async-status.ts"
 Cohesion: 0.07
 Nodes (90): build_pristine(), ci(), Factory, Failed, fresh(), gate(), has(), hasnt() (+82 more)
 
 ### Community 173 - "formatters.ts"
-Cohesion: 0.27
-Nodes (11): agentHasWriteTools(), buildAgentMemoryInjection(), isWithin(), MemoryFileResult, parseMemoryFrontmatter(), readMemoryFile(), resolveMemoryDir(), truncateMemory() (+3 more)
+Cohesion: 0.22
+Nodes (15): getUserChainDir(), buildSubagentToolDescription(), customDescriptionPaths(), isToolDescriptionMode(), loadCustomToolDescription(), renderCustomTemplate(), resolveToolDescriptionMode(), ToolDescriptionOptions (+7 more)
 
 ### Community 174 - "summaries/index.ts"
-Cohesion: 0.07
-Nodes (40): ConfigWriteError, DEFAULT_SUMMARY_CONFIG, extensionDirectory, isReasoningLevel(), isRecord(), loadSummaryConfig(), parseSummaryConfig(), PRIVATE_CONFIG_PATH (+32 more)
+Cohesion: 0.13
+Nodes (18): ConfigWriteError, DEFAULT_SUMMARY_CONFIG, extensionDirectory, isReasoningLevel(), isRecord(), loadSummaryConfig(), parseSummaryConfig(), PRIVATE_CONFIG_PATH (+10 more)
 
 ### Community 175 - "Build a dark factory"
 Cohesion: 0.08
@@ -2274,8 +2276,8 @@ Cohesion: 0.10
 Nodes (60): _all_files(), assess_level(), _caller_side(), _check_base_governance(), check_browser_available(), check_deploy_trigger(), check_empty_is_not_pass(), check_gate_is_code() (+52 more)
 
 ### Community 186 - "stale-run-reconciler.ts"
-Cohesion: 0.08
-Nodes (42): registerNativeSupervisorClient(), steerAckPathFromDir(), registerWaitTool(), CompiledJsonSchema, readStructuredOutput(), StructuredOutputRuntime, validateStructuredOutputValue(), CHILD_FANOUT_BOUNDARY_INSTRUCTIONS (+34 more)
+Cohesion: 0.05
+Nodes (94): assertChildIndex(), closeSteerInbox(), consumeInterruptRequest(), consumeSteerAcks(), consumeSteerCapabilities(), consumeSteerRequests(), consumeSteerRequestsFromDir(), consumeStopRequest() (+86 more)
 
 ### Community 187 - "state.py"
 Cohesion: 0.08
@@ -2330,8 +2332,8 @@ Cohesion: 0.08
 Nodes (24): Confirm red/green status, Contents, Create the directory, Create the directory, Derive slug, Detect test framework, Generate timestamp, Investigate Workflow (+16 more)
 
 ### Community 200 - "list-detail.ts"
-Cohesion: 0.11
-Nodes (26): ActionResult, ActivityAction, ActivityCounts, ActivityItem, DetailSection, fanout(), listActivityProviders(), onRegistryChange() (+18 more)
+Cohesion: 0.09
+Nodes (23): ActionResult, ActivityCounts, ActivityProvider, fanout(), listActivityProviders(), onRegistryChange(), registerActivityProvider(), RegistryState (+15 more)
 
 ### Community 201 - "pi-lens/package.json"
 Cohesion: 0.08
@@ -2374,8 +2376,8 @@ Cohesion: 0.18
 Nodes (20): BRAVE_PROVIDER_META, ProviderCredentials, configureSearxng(), maskKey(), promptForBaseUrl(), promptForOptionalKey(), SEARXNG_PROVIDER_META, SearxngConfigChange (+12 more)
 
 ### Community 211 - "child-session.ts"
-Cohesion: 0.13
-Nodes (15): bindChildSessionExtensions(), CHILD_EXCLUDED_TOOL_NAMES, CHILD_WRITABLE_GATED_TOOLS, ChildExtensionRunner, ChildResourceOptions, childShutdowns, childToolPolicy(), createChildResources() (+7 more)
+Cohesion: 0.09
+Nodes (23): CHILD_EXCLUDED_TOOL_NAMES, CHILD_WRITABLE_GATED_TOOLS, ChildExtensionRunner, ChildResourceOptions, childShutdowns, createChildResources(), DisposableChildSession, resolveStandaloneChildProjectTrust() (+15 more)
 
 ### Community 212 - "vars"
 Cohesion: 0.08
@@ -2490,8 +2492,8 @@ Cohesion: 0.10
 Nodes (21): c, cpp, csharp, go, java, javascript, kotlin, php (+13 more)
 
 ### Community 240 - "fork-context.ts"
-Cohesion: 0.12
-Nodes (16): Actor Creation and Destruction (v10.3.0+), Actors, Alias Precedence, Aliases, Boundary, Collections, Control, Database (+8 more)
+Cohesion: 0.19
+Nodes (17): buildProgressiveWidgetLines(), buildSingleLineWidgetLines(), collapsedWidgetLineBudget(), currentTerminalColumns(), currentTerminalRows(), estimateAvailableWidgetRows(), fitAdaptiveWidgetLines(), fitWidgetLineBudget() (+9 more)
 
 ### Community 241 - "utils.ts"
 Cohesion: 0.09
@@ -2580,10 +2582,6 @@ Nodes (19): Communication Style, Competitive Technical Positioning, Core Capabil
 ### Community 262 - "Workflow"
 Cohesion: 0.10
 Nodes (19): Adding New Instruction Files, Agent Personas, Basic How-To: Create an AI Project and Upload an Instruction File, Example 1: Marketing Project, Example 2: HIPAA Project, Example 3: IT Support Project, Example Project Setup, How the Files Are Organized (+11 more)
-
-### Community 263 - "/coach — the adaptation loop"
-Cohesion: 0.20
-Nodes (4): ListDetailView, withHeadOverflow(), withTailOverflow(), wrapLine()
 
 ### Community 264 - "Different shapes"
 Cohesion: 0.11
@@ -2690,8 +2688,8 @@ Cohesion: 0.11
 Nodes (17): 1. The coding agent, 2. The orchestrator, 3. The dispatcher, A node that exits 0 having done nothing, Branch protection does not replace your merge script, Choosing, Do not ask a model what to run, Four things labels are not, all learned the hard way (+9 more)
 
 ### Community 290 - "task-intent.ts"
-Cohesion: 0.22
-Nodes (17): analyzeNoEditProhibitions(), classifyTaskMutationIntent(), GENERAL_IMPLEMENTATION_PATTERNS, hasImplementationIntent(), NO_TOOL_INTENT_PATTERNS, NoEditProhibitionAnalysis, READ_ONLY_DELIVERABLE_PATTERNS, RESEARCH_AGENT_PATTERNS (+9 more)
+Cohesion: 0.12
+Nodes (16): Actor Creation and Destruction (v10.3.0+), Actors, Alias Precedence, Aliases, Boundary, Collections, Control, Database (+8 more)
 
 ### Community 291 - "files"
 Cohesion: 0.11
@@ -2839,7 +2837,7 @@ Nodes (15): Agent Stalls, Contents, Critical Failures, Error Recovery, Example O
 
 ### Community 327 - "Iteration Log"
 Cohesion: 0.07
-Nodes (27): #033 Plan the eligible GitHub child frontier — 2026-07-23, #034 Execute one child in an isolated Pi worktree — 2026-07-23, #035 Independently review a completed worker — 2026-07-23, #036 Land one accepted child on a batch branch — 2026-07-23, #038 Resume runs and recover stale claims — 2026-07-24, #039 Publish one child-closing batch PR — 2026-07-25, #040 Finish the parent after the batch PR merges — 2026-07-25, #041 Fix researcher role tool shape — 2026-07-25 (+19 more)
+Nodes (28): #033 Plan the eligible GitHub child frontier — 2026-07-23, #034 Execute one child in an isolated Pi worktree — 2026-07-23, #035 Independently review a completed worker — 2026-07-23, #036 Land one accepted child on a batch branch — 2026-07-23, #038 Resume runs and recover stale claims — 2026-07-24, #039 Publish one child-closing batch PR — 2026-07-25, #040 Finish the parent after the batch PR merges — 2026-07-25, #041 Fix researcher role tool shape — 2026-07-25 (+20 more)
 
 ### Community 328 - "background-terminals/package.json"
 Cohesion: 0.12
@@ -2982,8 +2980,8 @@ Cohesion: 0.13
 Nodes (14): author, bin, pi-subagents, bugs, url, description, exports, ./background-work (+6 more)
 
 ### Community 363 - "turn-delta.ts"
-Cohesion: 0.43
-Nodes (6): aggregateStepStatus(), formatActivityAge(), formatAgentRunningLabel(), formatParallelOutcome(), isCompletedStepStatus(), StepStatusLike
+Cohesion: 0.26
+Nodes (13): buildFallbackRecap(), capped(), createRunBoundary(), getRunEntries(), redactSecrets(), RunMarker, sanitizeValue(), serializeMessage() (+5 more)
 
 ### Community 364 - "emission-guard.ts"
 Cohesion: 0.22
@@ -2998,8 +2996,8 @@ Cohesion: 0.13
 Nodes (15): vars, borderDark, cyan, darkbg, darkpurple, dimpurple, hotpink, magenta (+7 more)
 
 ### Community 367 - "codebase-pattern-finder.md"
-Cohesion: 0.20
-Nodes (15): ChainStepConfig, addSource(), AvailableSkill, buildProactiveSkillSubagentRecommendationLines(), chooseRecommendationAgent(), collectStepSkills(), FALLBACK_AGENT_ORDER, formatProactiveSkillSubagentRecommendations() (+7 more)
+Cohesion: 0.22
+Nodes (14): addSource(), AvailableSkill, buildProactiveSkillSubagentRecommendationLines(), chooseRecommendationAgent(), collectStepSkills(), FALLBACK_AGENT_ORDER, formatProactiveSkillSubagentRecommendations(), normalizeSkillNames() (+6 more)
 
 ### Community 368 - "The loop"
 Cohesion: 0.14
@@ -3052,6 +3050,10 @@ Nodes (13): 1. Specification Analysis, 2. Task List Creation, 3. Technical Stack
 ### Community 380 - "web-fetch/package.json"
 Cohesion: 0.14
 Nodes (13): linkedom, @mozilla/readability, dependencies, linkedom, @mozilla/readability, puppeteer, devDependencies, typescript (+5 more)
+
+### Community 381 - "ListDetailView"
+Cohesion: 0.23
+Nodes (6): run, slugifyWorktreeName(), git(), initRepo(), WorktreeManager, WorktreeScope
 
 ### Community 382 - "keywords"
 Cohesion: 0.14
@@ -3786,16 +3788,16 @@ Cohesion: 0.22
 Nodes (8): Hard rules, Phase 1 — Derive config, Phase 2 — Status: why are we here, and is it safe to merge?, Phase 3 — Review the diff, Phase 4 — Merge (after explicit confirmation), Phase 5 — Clean up (after a successful merge, with confirmation), Report, tralph-merge
 
 ### Community 565 - "<PROJECT> conventions"
-Cohesion: 0.44
-Nodes (8): findPiPackageRootFromEntry(), isRunnableNodeScript(), normalizePath(), PiSpawnCommand, PiSpawnDeps, resolveInstalledPiPackageRoot(), resolvePiCliScript(), resolvePiPackageRoot()
+Cohesion: 0.32
+Nodes (9): buildSummaryPrompt(), assistantText(), cleanField(), isRecord(), parseCandidate(), parseRecapResponse(), reasoningOptions(), summarizeRun() (+1 more)
 
 ### Community 566 - "Goal: <one-line objective>"
 Cohesion: 0.25
 Nodes (7): Code style, Dependencies, <PROJECT> conventions, Stack and commands, Tests, What is NOT in this file, Where things live
 
 ### Community 567 - "Explore first, then fact-check"
-Cohesion: 0.11
-Nodes (30): checkSubagentProfile(), BehaviorOverride, ChainClarifyResult, ClarifyMode, EditMode, TextEditorState, buildModelCandidates(), BuildModelCandidatesOptions (+22 more)
+Cohesion: 0.16
+Nodes (19): AsyncExecutionContext, buildModelCandidates(), BuildModelCandidatesOptions, fuzzyResolveModel(), isPlausibleDateStamp(), ModelAttemptSummary, ParentModel, resolveBaseModelCandidate() (+11 more)
 
 ### Community 568 - "Refactor CLAUDE.md / AGENTS.md Workflow"
 Cohesion: 0.25
@@ -3846,8 +3848,8 @@ Cohesion: 0.25
 Nodes (8): 8. Troubleshooting and Common Issues, Comments and Documentation, Common Syntax Errors, Consistent Styling, Example - Incorrect Linking, Example - Misplaced Styling, Modular Design, Tips for Complex Diagram Structures
 
 ### Community 580 - "validateAcceptanceInput"
-Cohesion: 0.67
-Nodes (3): padRow(), panelBodyHeight(), renderPanelFrame()
+Cohesion: 0.21
+Nodes (11): ActivityAction, ActivityItem, DetailSection, ListDetailConfig, ListDetailEntry, withHeadOverflow(), withTailOverflow(), wrapLine() (+3 more)
 
 ### Community 581 - "Quiz UI — use the harness tool, never markdown MCQs"
 Cohesion: 0.25
@@ -3972,6 +3974,10 @@ Nodes (7): Anything else?, Context, Document structure, How to answer, <Question
 ### Community 611 - "Ingest Workflow"
 Cohesion: 0.29
 Nodes (6): Canonical surfaces, Dotfiles — Agent Context, Editing rules, Non-obvious requirements, On a fresh machine, Primary agent: DeepSeek Harness (dsh)
+
+### Community 612 - "transcript.ts"
+Cohesion: 0.22
+Nodes (11): delay(), ensureSupervisorChannelDir(), parseStructuredReply(), removeRequestFile(), replyPath(), requestPath(), resolveSupervisorChannelDir(), safeSegment() (+3 more)
 
 ### Community 613 - "3. Advanced Block Configuration"
 Cohesion: 0.06
@@ -4483,7 +4489,7 @@ Nodes (6): Create an agent, Delete an agent, Eject, disable, enable, and reset, 
 
 ### Community 740 - "watchdog/render.ts"
 Cohesion: 0.08
-Nodes (59): normalizeModelSegment(), getSupportedThinkingLevels(), ThinkingLevel, assertSupportedThinking(), currentProviderFamily(), familyForModel(), findFamilyMatch(), fullModelId() (+51 more)
+Nodes (60): normalizeModelSegment(), RegistryModelLike, splitKnownThinkingSuffix(), ThinkingLevel, assertSupportedThinking(), currentProviderFamily(), familyForModel(), findFamilyMatch() (+52 more)
 
 ### Community 741 - "prune-oracle.py"
 Cohesion: 0.47
@@ -5834,8 +5840,8 @@ Cohesion: 0.22
 Nodes (20): ack(), add_target(), cmd_append(), cmd_init(), cmd_set(), entry_count(), main(), now() (+12 more)
 
 ### Community 1216 - "summarizer.ts"
-Cohesion: 0.67
-Nodes (3): [0.21.0] - 2026-04-29, Changed, Fixed
+Cohesion: 0.33
+Nodes (7): formatAgentRunningLabel(), buildChainStepSpans(), buildMultiProgressLabel(), isChainParallelGroupActive(), isDoneResult(), MultiProgressLabel, parseParallelGroupAgentCount()
 
 ### Community 1217 - "herdr-issue-frontier — watched parallel issue loop"
 Cohesion: 0.10
@@ -6090,8 +6096,8 @@ Cohesion: 0.15
 Nodes (10): Designing for Mockability, When to Mock, Anti-patterns, Rules of the loop, Seams — where tests go, Test-Driven Development, What a good test is, Bad Tests (+2 more)
 
 ### Community 1287 - "Cycle"
-Cohesion: 0.15
-Nodes (12): Cycle, Decision handoff on rerun, Delegate or raise? (decision step, applies to every blocked issue in normal mode), Delegate-or-raise or relaunch path (board has work, driver parked), Fixing blocked issues, Gather signals (read-only), Hard rules, Preconditions (+4 more)
+Cohesion: 0.13
+Nodes (14): Cycle, Decision handoff on rerun, Delegate or raise? (decision step, applies to every blocked issue in normal mode), Delegate-or-raise or relaunch path (board has work, driver parked), Fixing blocked issues, Gather signals — board mode (`--jobs N`) (read-only), Gather signals — sequential mode (`--jobs 1`, tmux driver) (read-only), Hard rules (+6 more)
 
 ### Community 1288 - ".agents/skills/wayfinder/SKILL.md"
 Cohesion: 0.15
@@ -6765,6 +6771,10 @@ Nodes (3): log(), ralph-worktree.sh script, worktree_exists()
 Cohesion: 0.15
 Nodes (12): Goal, Hard rules, Set your roots, Step 0 — Scan (case-insensitive), then classify. Do NOT rename yet., Step 1 — Pull already-migrated repos (fast-forward only), Step 2 — Convert remaining genuine CLAUDE.md, per repo, Step 3 — Non-default branches (ASK first), Step 4 — dsh config (ONLY if this machine runs dsh) (+4 more)
 
+### Community 1514 - "createNativeSupervisorChannel"
+Cohesion: 0.24
+Nodes (11): buildParentIntercomTool(), cleanupRequestLifecycle(), createNativeSupervisorChannel(), currentContextSessionId(), listRequestFiles(), parseRequestFile(), refreshPendingRequests(), requestLifecycle() (+3 more)
+
 ### Community 1515 - "[0.21.0] - 2026-04-29"
 Cohesion: 0.40
 Nodes (4): Acceptance criteria, Implementation Notes, Verification, What to build
@@ -6790,8 +6800,8 @@ Cohesion: 0.40
 Nodes (4): Acceptance criteria, Implementation Notes, Verification, What to build
 
 ### Community 1521 - "058-to-tickets-scopes-pass.md"
-Cohesion: 0.50
-Nodes (3): Acceptance criteria, Verification, What to build
+Cohesion: 0.40
+Nodes (4): Acceptance criteria, Implementation Notes, Verification, What to build
 
 ### Community 1522 - "059-shepherd-v2-manifest-reader.md"
 Cohesion: 0.50
@@ -6802,17 +6812,13 @@ Cohesion: 0.50
 Nodes (3): Acceptance criteria, Verification, What to build
 
 ### Community 1524 - "[0.21.5] - 2026-05-02"
-Cohesion: 0.23
-Nodes (6): run, slugifyWorktreeName(), git(), initRepo(), WorktreeManager, WorktreeScope
-
-### Community 1527 - "mergeBuiltinAgentOverride"
-Cohesion: 0.50
-Nodes (9): cloneOverrideValue(), getProjectAgentSettingsPath(), getUserAgentSettingsPath(), mergeBuiltinAgentOverride(), readSettingsFileStrict(), removeBuiltinAgentOverride(), removeBuiltinAgentOverrideFields(), saveBuiltinAgentOverride() (+1 more)
+Cohesion: 0.31
+Nodes (8): AtomicJsonFs, AtomicJsonWriterOptions, createAtomicJsonWriter(), DEFAULT_RENAME_RETRY_DELAYS_MS, isRetryableRenameError(), renameWithRetry(), RETRYABLE_RENAME_ERROR_CODES, payload()
 
 ## Knowledge Gaps
-- **11201 isolated node(s):** `root`, `lastTag`, `changelogs`, `root`, `root` (+11196 more)
+- **11205 isolated node(s):** `root`, `lastTag`, `changelogs`, `root`, `root` (+11200 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **145 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **146 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
@@ -6828,6 +6834,6 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 8 inferred relationships involving `createSubagentExecutor()` (e.g. with `scope()` and `errorText()`) actually correct?**
   _`createSubagentExecutor()` has 8 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `root`, `lastTag`, `changelogs` to the rest of the system?**
-  _11201 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _11205 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `check.sh Validation Harness` be split into smaller, more focused modules?**
   _Cohesion score 0.07057057057057058 - nodes in this community are weakly interconnected._
