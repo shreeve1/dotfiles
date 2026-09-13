@@ -59,6 +59,8 @@ Iterate until the user approves the breakdown.
 
 Each ticket rests on repo claims: the prefactor it assumes, the seam it cuts, the blocking edges ("this genuinely can't start until #3 lands"), the prior-art its verification command points at. Those claims drift as you slice. Before you publish, extract each ticket's load-bearing repo claims and run an **independent verify (see `../_shared/verify-claims.md`)** — batch all tickets' claims into one call. Pay special attention to blocking edges (a wrong edge stalls the frontier) and to any verification command you wrote (it must name a path/test that actually exists). Correct any FALSE claim before publishing.
 
+**Optional scopes pass (local kanban board only).** After claims verification, estimate each ticket's write set from the codebase exploration already done in step 2. Record it as a `files:` frontmatter field when publishing to a local kanban board. Where two tickets' scopes overlap, note the overlap — the board-mode scheduler serialises overlapping tickets into separate waves instead of running them in parallel. Scopes are advisory: a wrong scope costs parallelism, never correctness, and omitting `files:` entirely remains valid (tickets without scopes schedule by `blocked_by` alone). Body prose stays free of file paths — `files:` is a machine-read frontmatter field for the parallel scheduler, not an inline prose reference.
+
 ### 6. Publish the tickets to the configured tracker
 
 Publish the verified, approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured — the tickets are the same either way, only the shape of the blocking edges changes:
@@ -77,6 +79,8 @@ Do NOT close or modify any parent issue.
 **What to build:** the end-to-end behaviour this ticket makes work, from the user's perspective — not a layer-by-layer implementation list.
 
 **Blocked by:** the numbers/titles of the tickets that gate this one, or "None — can start immediately".
+
+**Files:** best-guess write set for the parallel scheduler, e.g. `src/auth/, tests/auth/` — omit if unknown. Advisory only: wrong scope costs parallelism, never correctness.
 
 **Status:** ready-for-agent
 
@@ -114,6 +118,13 @@ check.
 ## Blocked by
 
 - A reference to each blocking ticket, or "None — can start immediately".
+
+## Files (optional)
+
+Advisory write-set for the board-mode parallel scheduler. List path prefixes
+separated by commas, e.g. `src/auth/, tests/auth/`. Omit when the scope is
+unknown or cross-cutting. A wrong scope costs parallelism, never correctness.
+Do not duplicate this information in the ticket body prose.
 
 </issue-template>
 
