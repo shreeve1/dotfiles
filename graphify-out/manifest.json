@@ -3025,8 +3025,8 @@
     "semantic_hash": ""
   },
   ".kanban/progress.md": {
-    "mtime": 1789275472.080263,
-    "ast_hash": "c8dbae20b2256305831dd50d9ca035e4",
+    "mtime": 1789275801.104199,
+    "ast_hash": "11aab33675f40fbdc9e6972c22c37a23",
     "semantic_hash": ""
   },
   ".omp/agent/agents/deep-reviewer.md": {
@@ -10395,8 +10395,8 @@
     "semantic_hash": ""
   },
   ".agents/skills/tralph-shepherd/SKILL.md": {
-    "mtime": 1789062723.0479398,
-    "ast_hash": "add5fd6aebb1c1ec888115fe5f5097ca",
+    "mtime": 1789276117.8290527,
+    "ast_hash": "324a9c7349798b0a9d895625ce0a1407",
     "semantic_hash": ""
   },
   ".agents/skills/triage/AGENT-BRIEF.md": {
@@ -13725,13 +13725,13 @@
     "semantic_hash": ""
   },
   ".kanban/issues/058-to-tickets-scopes-pass.md": {
-    "mtime": 1789275679.4264843,
-    "ast_hash": "331fa9780b1945fa73de9341c201386d",
+    "mtime": 1789275829.081363,
+    "ast_hash": "be97e1772c1f59146637beb5680a3ccb",
     "semantic_hash": ""
   },
   ".kanban/issues/059-shepherd-v2-manifest-reader.md": {
-    "mtime": 1789233746.0614972,
-    "ast_hash": "ab8d094ec8574e5260b7e33c447b03d9",
+    "mtime": 1789276143.5962033,
+    "ast_hash": "3f241c97841a95633e4d77c64ff3b24c",
     "semantic_hash": ""
   },
   ".kanban/issues/060-shakedown-run.md": {
