@@ -289,3 +289,25 @@ Supporting changes:
 **Conventions established:** none beyond this issue.
 **Notes for next iteration:** #060 (shakedown run) is now unblocked; preconditions section's tmux mode-detection (step 2) doesn't yet branch on `--jobs N` vs `--jobs 1` — out of scope here.
 **Fresh review:** `RALPH_REVIEW: PASS_WITH_NOTES` — all four ACs satisfied, verification command passes, two non-blocking cosmetic notes.
+
+## #060 Shakedown — full end-to-end board-mode run on real work — 2026-09-13
+
+**What changed:** Ran `tralph --jobs 2` (via gralph) end-to-end against a real 3-ticket scratch board. Found and fixed two bugs in `bin/gralph` and one test assertion bug:
+1. `read_kanban_children` dropped the `file` path from the manifest child shape, causing `run_board_child_pipeline` to fall back to the wrong filename pattern.
+2. Wave-N (N>1) board workers started from the original `baseSha` instead of the current batch branch tip — causing dependent-ticket workers to re-implement already-landed prerequisite work, producing rebase conflicts. Fixed: board workers now start from the batch tip if it exists.
+3. `tralph-lane-worker.test.sh` checked that lane branches existed post-run, but `finish_board` prunes them. Fixed to use `git cat-file -e <sha>` + manifest `merge.childCommitSha` cross-check.
+
+**Files:** `bin/gralph`, `tests/tralph-lane-worker.test.sh`, `.kanban/issues/060-shakedown-run.md`
+
+**Parallel vs sequential wall-clock comparison:**
+- Board: 3 tickets, 1 dependency edge (#3 blocked by #1+#2), 2 scoped tickets
+- Wave 1: tickets #1 and #2 ran concurrently (~90s)
+- Wave 2: ticket #3 ran solo from batch tip (~98s)
+- **Total parallel wall-clock: 188s**
+- **Estimated sequential wall-clock: ~270s** (3 tickets × ~90s each)
+- **Speedup: ~1.4× for a 2-wave, 3-ticket board**
+- Note: the speedup is modest because the dependency chain forces wave 2 to be serial; a board with more independent tickets would show greater gains.
+
+**Decisions:** Wave-N workers use the batch branch tip as their starting SHA (not the immutable `baseSha`) so they see already-landed wave-1 work and don't re-implement out-of-scope prerequisites.
+**Conventions established:** Dependent tickets must only implement their declared scope — prerequisites must already exist on the starting SHA (via the batch tip). The `files:` scope field should reflect actual write set, not desired write set.
+**Notes for next iteration:** The timing comparison above is the reference for justifying board-mode parallelism. For larger boards with more independent tickets, the speedup scales with the width of each wave.
