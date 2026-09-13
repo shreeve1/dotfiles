@@ -250,3 +250,15 @@ Supporting changes:
 **Conventions established:** none beyond what is in this issue.
 **Notes for next iteration:** The overlap-check algorithm uses exact-item matching. If future tickets declare both directory prefixes and file paths in `files:`, a prefix-aware overlap check would be more accurate (e.g. `src/auth/` vs `src/auth/api.py` would overlap). Not needed for current usage.
 **Fresh review:** `RALPH_REVIEW: PASS_WITH_NOTES` — two non-blocking notes: (a) exact-item equality vs prefix-comparison in overlap check; (b) wave-deferring vs synthesized dependency edge — both are deliberate design choices consistent with "wrong scope costs parallelism, never correctness".
+
+# Issue 056 — Run end: ff-only to main, crash recovery, run-report.md
+
+**Implemented:** `finish_board` in `bin/gralph` attempts `git merge --ff-only` of `gralph/<parent>/batch` into the current branch after `orchestrate_waves` in board mode. On success: prunes landed lane worktrees/branches, writes `.kanban/run-report.md`. On failure: drops `~/.cache/ralph-merge-needed-board-<parent>` marker, writes report noting deferral, preserves batch branch for `tralph-merge`.
+
+**Recovery:** `recover_state` now accepts `board_dir`; in board mode, stale-claim clearing skips `gh` label mutations and clears by PID-dead check only.
+
+**tralph-merge skill:** Updated to document board-mode marker (`ralph-merge-needed-board-<parent>`) and integration branch (`gralph/<parent>/batch`) alongside the legacy single-worktree path.
+
+**Tests:** `tests/tralph-finish.test.sh` and `tests/tralph-recovery.test.sh` added and passing. `tests/gralph-recovery.test.sh` unbroken.
+
+**Conventions established:** `finish_board` is a best-effort no-exit-nonzero step; orchestrator always exits 0 after waves complete. Deferred merge uses `ralph-merge-needed-board-<parent>` marker (distinct from legacy `ralph-merge-needed-<session>`).

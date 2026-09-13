@@ -1,7 +1,7 @@
 ---
 id: 056
 title: Run end — ff-only to main, crash recovery, run-report.md
-status: pending
+status: done
 blocked_by: [054]
 parent: null
 created: 2026-09-10
