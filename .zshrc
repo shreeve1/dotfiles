@@ -385,8 +385,8 @@ HELP
 		# Extract --verify and --agent-cmd from remaining args; defaults apply.
 		local verify="true" agent_cmd=""
 		local board_args=()
-		local i=0
-		while [[ $i -lt ${#args[@]} ]]; do
+		local i=1
+		while [[ $i -le ${#args[@]} ]]; do
 			case "${args[$i]}" in
 			--verify)
 				(( i++ ))
