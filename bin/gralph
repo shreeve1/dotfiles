@@ -717,12 +717,25 @@ fold_child_result() {
       # Prune any previous batch worktree from this run so the next queued
       # merge in the wave can attach cleanly to the accumulated batch branch.
       git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
-      if merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha"; then
-        git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
-        # Board-mode: do NOT touch the ticket frontmatter here; the
-        # coordinator owns board writes and refresh_frontier_kanban resolves
-        # landed children from the manifest, not from disk status.
+      local child_worktree
+      child_worktree="$(jq -r '.worktree // ""' "$sidecar")"
+      local issue_verify
+      issue_verify="$(jq -r '.issueVerify // ""' "$sidecar")"
+      local merge_rc=0
+      merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" \
+        "$BOARD_DIR" "$issue_verify" "$child_worktree" || merge_rc=$?
+      git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+      if [ "$merge_rc" -eq 2 ]; then
+        # Bounce: verification failed after rebase. The lane is preserved;
+        # a repair ticket was created. Do not set fold_failed: the
+        # orchestrator continues landing other eligible lanes.
+        : # noop - bounce is a soft outcome, not a coordinator failure
+      elif [ "$merge_rc" -ne 0 ]; then
+        return 1
       fi
+      # Board-mode: do NOT touch the ticket frontmatter here; the
+      # coordinator owns board writes and refresh_frontier_kanban resolves
+      # landed children from the manifest, not from disk status.
       ;;
     rejected)
       local commit_sha branch
@@ -976,14 +989,21 @@ refresh_frontier_kanban() {
   # Overlay landed children: mark them CLOSED + excluded so dependents see
   # them as resolved blockers. Then re-classify remaining children against
   # the updated set (a child blocked only by landed tickets becomes eligible).
-  local landed_json
+  # Overlay landed and bounced children: landed → CLOSED (dependents unblock);
+  # bounced → excluded (no retry in this run; repair ticket handles recovery).
+  local landed_json bounced_json
   landed_json="$(jq -c '[.children[] | select(.merge.status == "landed") | .number]' "$manifest")"
-  fresh_children="$(printf '%s\n' "$fresh_children" | jq -c --argjson landed "$landed_json" '
+  bounced_json="$(jq -c '[.children[] | select(.merge.status == "bounced") | .number]' "$manifest")"
+  fresh_children="$(printf '%s\n' "$fresh_children" | jq -c --argjson landed "$landed_json" --argjson bounced "$bounced_json" '
     # Step 1: mark landed children CLOSED.
     map(if (.number as $n | $landed | index($n) != null) then
       . + {state:"CLOSED", classification:"excluded", reason:"child_not_open", labels:[]}
     else . end) as $overlaid |
-    # Step 2: re-evaluate classification for non-landed OPEN+pending children.
+    # Step 2: mark bounced children excluded (no retry).
+    $overlaid | map(if (.number as $n | $bounced | index($n) != null) then
+      . + {classification:"excluded", reason:"bounced"}
+    else . end) as $overlaid |
+    # Step 3: re-evaluate classification for non-landed OPEN+pending children.
     $overlaid | map(
       if .state == "OPEN" and .classification != "excluded" then
         (any(.blockedBy[]; . as $bid |
@@ -1268,6 +1288,7 @@ orchestrate_waves() {
       | select(.state == "OPEN")
       | select((.labels | index("ready-for-agent")) != null)
       | select(.merge.status != "landed")
+      | select(.merge.status != "bounced")
     ] | length
   ' "$manifest")"
 
@@ -1296,12 +1317,69 @@ orchestrate_waves() {
   fi
   return 0
 }
+# write_repair_ticket creates a new repair ticket in the board directory when a
+# lane's re-verification fails after rebase (bounce). The ticket has
+# blocked_by: [] and a body describing the failing command and context.
+write_repair_ticket() {
+  local board_dir="$1" child="$2" failing_cmd="$3" bounce_log="$4" child_branch="$5"
+  local max_id=0 id
+  while IFS= read -r f; do
+    id="$(awk -F': *' '/^id:/ {print $2; exit}' "$f" 2>/dev/null || true)"
+    case "$id" in [0-9]*) [ "$id" -gt "$max_id" ] 2>/dev/null && max_id="$id" ;; esac
+  done < <(find "$board_dir/issues" -name '*.md' 2>/dev/null || true)
+  local repair_id=$(( max_id + 1 ))
+  local candidate_file="$board_dir/issues/$(printf '%03d' "$repair_id")-repair-$child.md"
+  {
+    printf '%s\n' '---'
+    printf 'id: %s\n' "$repair_id"
+    printf 'title: Repair bounced lane for ticket #%s\n' "$child"
+    printf '%s\n' 'status: blocked'
+    printf '%s\n' 'blocked_by: []'
+    printf '%s\n' 'actor: gralph-bounce'
+    printf '%s\n' '---'
+    printf '\n## What to build\n\n'
+    printf 'Lane for ticket #%s was bounced during landing: the per-ticket\n' "$child"
+    printf 're-verification failed after rebasing onto the integration branch.\n\n'
+    printf '**Failing verification command:** `%s`\n\n' "$failing_cmd"
+    printf '**Bounced branch:** `%s`\n\n' "$child_branch"
+    if [ -s "$bounce_log" ]; then
+      printf '**Verification output:**\n```\n'
+      head -40 "$bounce_log"
+      printf '```\n\n'
+    fi
+    printf 'Fix the semantic conflict, update the ticket implementation, re-run\n'
+    printf 'verification, and re-land the lane.\n\n'
+    printf '## Acceptance criteria\n\n'
+    printf '%s\n' '- [ ] Semantic conflict resolved and re-verification passes'
+    printf '\n'
+    printf '## Verification\n\n'
+    printf '`%s`\n' "$failing_cmd"
+  } >"$candidate_file"
+  printf 'Created repair ticket %s for bounced lane #%s\n' "$candidate_file" "$child"
+}
+
+# merge_one_child lands one accepted child onto the integration (batch) branch.
+#
+# GitHub mode ($board_dir empty):
+#   merge --no-ff child_branch into batch_branch, then run the global integration
+#   command on the merged tip.
+#
+# Board mode ($board_dir non-empty, ADR 0009):
+#   1. Rebase child_branch onto the current batch_branch tip (in child_worktree).
+#   2. Re-run the ticket's own ## Verification command on the rebased lane.
+#   3. On failure (bounce): record merge.status="bounced", create repair ticket,
+#      preserve the branch, return exit code 2 (soft bounce - orchestrator
+#      continues landing other lanes).
+#   4. On success: merge --ff-only the rebased child_branch into batch_branch.
+#   5. Append the lane-local progress note (.ralph-progress-<N>.md) to
+#      .kanban/progress.md (serial landings mean no append conflicts).
 
 merge_one_child() {
   local child="$1" manifest="$2" run_dir="$3" base_sha="$4" verify_cmd="$5" run_id="$6" child_branch="$7" child_commit="$8"
+  local board_dir="${9:-}" ticket_verify_cmd="${10:-}" child_worktree="${11:-}"
 
   # Idempotent: skip if already landed or merged (recovery may call this twice).
-  if jq -e --argjson child "$child" '.children[] | select(.number == $child) | (.merge.status == "landed" or .merge.status == "merged")' "$manifest" >/dev/null 2>&1; then
+  if jq -e --argjson child "$child" '.children[] | select(.number == $child) | (.merge.status == "landed" or .merge.status == "merged" or .merge.status == "bounced")' "$manifest" >/dev/null 2>&1; then
     return 0
   fi
 
@@ -1342,6 +1420,103 @@ merge_one_child() {
     | (.children[] | select(.number == $child)).merge = {batchBranch:$batchBranch, batchWorktree:$batchWorktree, status:"creating"}
   ' || { echo "error: could not record landing intent" >&2; return 1; }
 
+  if [ -n "$board_dir" ]; then
+    # Board mode (ADR 0009): rebase → re-verify → ff-only → fold progress note.
+    # A temporary branch is used for the rebase so the original child_branch
+    # pointer stays at the worker's commit (preserving the pre-rebase SHA for
+    # the bounce/repair path and for external assertions).
+    local batch_tip
+    batch_tip="$(git -C "$REPO_ROOT" rev-parse "$batch_branch")"
+    local rebase_branch="gralph/$PARENT/rebase-$child-$run_id"
+    local rebase_wt="$run_dir/worktrees/rebase-$child-$run_id"
+    mkdir -p "$(dirname "$rebase_wt")"
+    git -C "$REPO_ROOT" worktree add -b "$rebase_branch" "$rebase_wt" "$child_branch" >/dev/null 2>&1 \
+      || { echo "error: could not create rebase worktree for child #$child" >&2; return 1; }
+
+    local rebase_rc=0
+    git -C "$rebase_wt" rebase "$batch_tip" >/dev/null 2>&1 || rebase_rc=$?
+    if [ "$rebase_rc" -ne 0 ]; then
+      git -C "$rebase_wt" rebase --abort >/dev/null 2>&1 || true
+      git -C "$REPO_ROOT" worktree remove --force "$rebase_wt" >/dev/null 2>&1 || true
+      git -C "$REPO_ROOT" branch -D "$rebase_branch" >/dev/null 2>&1 || true
+      write_manifest "$manifest" --argjson child "$child" --arg reason "rebase_conflict" \
+        --arg childBranch "$child_branch" --arg batchBranch "$batch_branch" '
+        .execution = ((.execution // {}) + {status:"failed", reason:$reason})
+        | (.children[] | select(.number == $child)).merge += {status:"failed", reason:$reason, childBranch:$childBranch}
+      '
+      echo "error: rebase of $child_branch onto $batch_branch tip failed (conflict)" >&2
+      return 1
+    fi
+
+    # Capture the rebased tip before we clean up the worktree/branch.
+    local rebased_sha
+    rebased_sha="$(git -C "$rebase_wt" rev-parse HEAD)"
+
+    # Re-run the ticket's own ## Verification on the rebased lane.
+    local reverify_log="$run_dir/worker-$child-reverify.log"
+    local reverify_rc=0
+    if [ -n "$ticket_verify_cmd" ]; then
+      set +e
+      (cd "$rebase_wt" && /bin/sh -c "$ticket_verify_cmd") >"$reverify_log" 2>&1
+      reverify_rc=$?
+      set -e
+    fi
+
+    git -C "$REPO_ROOT" worktree remove --force "$rebase_wt" >/dev/null 2>&1 || true
+    git -C "$REPO_ROOT" branch -D "$rebase_branch" >/dev/null 2>&1 || true
+
+    if [ "$reverify_rc" -ne 0 ]; then
+      # Bounce: re-verification failed. Preserve original branch; create repair ticket.
+      write_manifest "$manifest" --argjson child "$child" --arg reason "reverify_failed" \
+        --arg childBranch "$child_branch" --arg batchBranch "$batch_branch" \
+        --argjson reverifyExitCode "$reverify_rc" --arg reverifyLog "$reverify_log" '
+        (.children[] | select(.number == $child)).merge += {
+          status:"bounced", reason:$reason, bouncedBranch:$childBranch,
+          reverifyExitCode:$reverifyExitCode, reverifyLog:$reverifyLog
+        }
+      ' || true
+      write_repair_ticket "$board_dir" "$child" "$ticket_verify_cmd" "$reverify_log" "$child_branch" || true
+      echo "info: bounced lane #$child (re-verification failed after rebase); repair ticket created" >&2
+      return 2
+    fi
+
+    # ff-only merge: point the batch_worktree at the rebased sha directly.
+    if ! git -C "$batch_worktree" merge --ff-only "$rebased_sha" >/dev/null 2>&1; then
+      write_manifest "$manifest" --argjson child "$child" --arg reason "ff_only_failed" \
+        --arg childBranch "$child_branch" --arg batchBranch "$batch_branch" '
+        .execution = ((.execution // {}) + {status:"failed", reason:$reason})
+        | (.children[] | select(.number == $child)).merge += {status:"failed", reason:$reason, childBranch:$childBranch}
+      '
+      echo "error: ff-only merge of rebased $child_branch into $batch_branch failed" >&2
+      return 1
+    fi
+    local landed_sha
+    landed_sha="$(git -C "$batch_worktree" rev-parse HEAD)"
+
+    write_manifest "$manifest" --argjson child "$child" --arg landedSha "$landed_sha" \
+      --arg batchBranch "$batch_branch" --arg batchWorktree "$batch_worktree" \
+      --arg childCommit "$child_commit" --arg reverifyLog "$reverify_log" '
+      .execution.status = "landed"
+      | (.children[] | select(.number == $child)).merge += {
+          status:"landed", landedSha:$landedSha, childCommitSha:$childCommit,
+          reverifyLog:$reverifyLog
+        }
+    ' || { echo "error: could not record landed child" >&2; return 1; }
+
+    # Fold the lane-local progress note into .kanban/progress.md.
+    local progress_note
+    progress_note="$(git -C "$REPO_ROOT" show "${child_branch}:.ralph-progress-${child}.md" 2>/dev/null || true)"
+    if [ -n "$progress_note" ]; then
+      local kanban_progress="$REPO_ROOT/.kanban/progress.md"
+      mkdir -p "$(dirname "$kanban_progress")"
+      printf '\n%s\n' "$progress_note" >>"$kanban_progress"
+    fi
+
+    printf 'Landed child #%s onto %s (ff-only) as %s\n' "$child" "$batch_branch" "$landed_sha"
+    return 0
+  fi
+
+  # GitHub mode: --no-ff merge then global integration command.
   local merge_msg="feat(#$child): land accepted Gralph child"
   if ! git -C "$batch_worktree" merge --no-ff --no-edit -m "$merge_msg" "$child_branch" >/dev/null 2>&1; then
     git -C "$batch_worktree" merge --abort 2>/dev/null || true
