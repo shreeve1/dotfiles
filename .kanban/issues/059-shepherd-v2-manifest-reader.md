@@ -1,7 +1,7 @@
 ---
 id: 059
 title: Shepherd v2 — manifest reader for board-mode runs
-status: in-progress
+status: review
 blocked_by: [056]
 parent: null
 created: 2026-09-10
