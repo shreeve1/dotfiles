@@ -15,13 +15,11 @@ diagnose it without re-deriving everything. Versions at time of writing:
 > authoritative, not the row numbers here. If you touch the plugin set, re-run
 > the cross-check and update the table.
 >
-> **Table drift note (2026-09-10):** the numbered table is approximate — treat
+> **Table drift note (2026-09-15):** the numbered table is approximate — treat
 > the live `python3` cross-check in *Auditing the plugin set* as authoritative,
-> not the row numbers here. Known drift: `dsh-pilot` (row 7) was
-> **reinstalled 2026-08-28** at v0.7.1 / pin `#dff236a` (the previously
-> documented pin `#9103a2d` / v0.4.1 no longer exists on the remote — the
-> upstream repo was rewritten) and is now live-bundled again with a
-> hand-applied English cockpit-panel i18n patch; `@liustack/modsearch`
+> not the row numbers here. `dsh-pilot` was removed and replaced by
+> `@caob23/dsh-browser-control` 1.0.7, which drives the logged-in desktop Chrome
+> `ai` profile through an unpacked extension. `@liustack/modsearch`
 > (row 12) remains **not in the live `bundles`**; `dsh-diagram` was
 > `dsh-startup-guard` due to the false-positive template-literal id regex bug;
 > its use case is now covered by `@changfenhuang/dsh-genui`'s `render_ui`); the
@@ -109,7 +107,7 @@ are live-bundled — rows 6 and 12 are historical, see the footnote).
 | 4 | `dsh-hot-reload` | 0.2.4 | `github:stuarthu/dsh-hot-reload#006d915` | live-reload upgraded plugins without restarting dsh |
 | 5 | `dsh-startup-guard` | 1.0.0 | `github:aokamoaki/dsh-startup-guard#82cead8` | boot-time guard: repairs session logs, auto-disables broken bundles (see Gotchas) |
 | 6 | `dsh-cc-skills` | 0.1.0 | npm | **REMOVED 2026-09-10** — replaced by the native AGENTS lane: `~/.agents/skills/` (rank 500 `user-agents` via `dsh-skill-filesystem`) and the user-global `~/.dsh/AGENTS.md` link to `dotfiles/.agents/AGENTS.md` |
-| 7 | `dsh-pilot` | 0.7.1 | `github:guo6x/dsh-pilot#dff236a` | browser automation: drives Edge/Chrome over CDP from chat (`pilot_*` tools). Reinstalled 2026-08-28 (pin `#9103a2d` / v0.4.1 no longer on the remote — repo rewritten); vendored `lib/client.js` carries a hand-applied English i18n patch for the cockpit panel (12 strings), lost on any reinstall/upgrade — see *ui-translate boundary* below |
+| 7 | `@caob23/dsh-browser-control` | 1.0.7 | npm | real desktop Chrome automation (`browser_*` tools) through the unpacked extension at `~/.dsh/browser-control-extension`; connected to the dedicated logged-in Chrome `ai` profile. English UI is patched in place; rerun `bin/dsh-browser-control-english` and reload the extension after upgrades |
 | 8 | `dsh-plugin-hooks` | 0.1.1 | `github:truelove-dreamer/dsh-plugin-hooks#6cf763e` | Claude-Code-style lifecycle shell hooks |
 | 9 | `@moonquake2004/dsh-doctor` | 0.4.3 | `github:moonquake2004/dsh-doctor#path:/plugin` | offline diagnostic (28+ built-in checks across env/profile) |
 | 10 | `dsh-smart-restart` | 0.5.1 | `github:edusrez/dsh-smart-restart#bde38b3` | detects service restart, wakes the interrupted session (`smart_restart` tool) |
@@ -132,8 +130,8 @@ are live-bundled — rows 6 and 12 are historical, see the footnote).
 
 > Rows 25–26 are live but fall outside the original 1–24 numbering (see the
 > drift note at the top). `@liustack/modsearch` (row 12) is **not** in the
-> live `bundles` — treat that row as historical (row 7 `dsh-pilot` was
-> reinstated 2026-08-28 and is live again).
+> live `bundles` — treat that row as historical. Row 7 now documents the
+> real-Chrome Browser Control replacement; `dsh-pilot` is removed.
 > `dsh-omp-advisor` and the `@dsh-pro` suite were also removed (see Gotchas /
 > Install best practices).
 
@@ -267,24 +265,20 @@ stays in the source language. For a Chinese-only plugin whose UI you must read
 prebuilt `lib/client.js` in place (keep a `.bak`; comments don't render); note an
 upgrade overwrites the bundle, so re-apply after any upgrade.
 
-**Worked example — dsh-pilot.** The same fallback was applied to the Chinese
-cockpit-panel UI in `dsh-pilot`'s prebuilt `lib/client.js`: 12 panel strings
-translated to English (pre-edit copy kept as `lib/client.js.bak.i18n`). The
-patch and re-apply procedure live at
-`~/.dsh/plugins-src/dsh-pilot/patches/` (`i18n.patch` + `README.md`); re-run
-after any `dsh-pilot` reinstall or upgrade that touches `lib/client.js`. Row 7
-of the inventory table (v0.7.1 / pin `#dff236a`) reflects this reinstall.
+**Browser Control English patch.** `@caob23/dsh-browser-control` ships Chinese
+labels in both its Chrome popup and local status page. This deployment translates
+only user-facing strings in the unpacked extension at
+`~/.dsh/browser-control-extension` and the installed plugin's `lib/index.js`.
+Upgrades overwrite both locations: rerun `bin/dsh-browser-control-english`,
+reload the unpacked extension at `chrome://extensions`, and restart dsh if the
+plugin package changed.
 
-**Pilot tool discovery.** Future dsh sessions do **not** need a prompt
-mention or a dedicated skill to see the `pilot_*` tools — once `dsh-pilot`
-is loaded the plugin auto-registers them into the harness tool catalog, and
-every new session inherits them transparently. The one operational caveat is
-Fusion's allowlist gate (`DEFAULT_ALLOW` in `dsh-fusion/src/config.ts`,
-enforced by the `tools/pre-execute` deny in `dsh-fusion/src/index.ts`): with
-Fusion ON the orchestrator/main agent is withheld `pilot_*` (and `bash`,
-`edit`, `write`, `web_search`) and must delegate to a worker to drive the
-browser; with Fusion OFF the main agent calls them directly.
-Install details remain in row 7 of the inventory table.
+**Browser tool discovery.** Browser Control auto-registers `browser_*` tools in
+new sessions. They operate the user's real, logged-in Chrome `ai` profile, so use
+them for browser work going forward. The extension must remain loaded from
+`~/.dsh/browser-control-extension`; bridge health is visible at
+`http://127.0.0.1:9777/api/status` (`extensionConnected: true`). `dsh-pilot` and
+its isolated headless `pilot_*` browser were removed 2026-09-15.
 
 **The effective allowlist is NOT `DEFAULT_ALLOW`.** The `allow` array in
 `profiles/web/cordis.patch.yml` **replaces** it wholesale (it does not append),
