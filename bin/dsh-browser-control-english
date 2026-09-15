@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Reapply the local English UI patch after Browser Control upgrades."""
+from pathlib import Path
+
+home = Path.home()
+files = {
+    home / ".dsh/browser-control-extension/manifest.json": {
+        "让 DeepSeek Harness (dsh) 通过本地桥接服务控制浏览器：导航、读内容、执行 JS、点击、输入、按键、截图。": "Let DeepSeek Harness (dsh) control Chrome through a local bridge: navigate, read, click, type, press keys, run JavaScript, and capture screenshots.",
+    },
+    home / ".dsh/browser-control-extension/popup.html": {
+        '<html lang="zh-CN">': '<html lang="en">',
+        "DSH 浏览器控制": "DSH Browser Control",
+        "正在检查…": "Checking…",
+        "立即连接": "Connect now",
+        "状态页": "Status page",
+        "开关在 dsh 设置 → 插件 里": "Enable in dsh Settings → Plugins",
+        "高级 ▾": "Advanced ▾",
+        "桥接端口": "Bridge port",
+        "自动连接（随浏览器启动）": "Connect automatically when Chrome starts",
+        "保存并重连": "Save and reconnect",
+    },
+    home / ".dsh/browser-control-extension/popup.js": {
+        "config tucked under 高级": "config tucked under Advanced",
+        "'已连接'": "'Connected'",
+        "'连接中…'": "'Connecting…'",
+        "'未连接'": "'Not connected'",
+        "'桥接服务运行中，随时听候调用'": "'The bridge is running and ready for browser commands'",
+        "'正在与 dsh 桥接服务握手'": "'Connecting to the dsh browser bridge'",
+        "'在 dsh 设置 → 插件 里开启浏览器控制'": "'Enable Browser Control in dsh Settings → Plugins'",
+        "'断开连接'": "'Disconnect'",
+        "'立即连接'": "'Connect now'",
+        "扩展未响应": "Extension did not respond",
+        "'高级 ▴'": "'Advanced ▴'",
+        "'高级 ▾'": "'Advanced ▾'",
+    },
+    home / ".dsh/browser-control-extension/background.js": {
+        "user clicks 断开连接": "user clicks Disconnect",
+        "click 立即连接 again": "click Connect now again",
+        "端口无法解析": "Could not resolve the bridge port",
+        "DevTools 打开着这个页面? 先关掉": "Is DevTools open on this page? Close it first.",
+    },
+    home / ".dsh/profiles/web/node_modules/@caob23/dsh-browser-control/lib/index.js": {
+        '<html lang="zh-CN">': '<html lang="en">',
+        "DSH Browser Control — 状态": "DSH Browser Control — Status",
+        "加载中…": "Loading…",
+        ">刷新<": ">Refresh<",
+        "🧹 清理截图 + 脚本草稿": "🧹 Clean screenshots + scratch scripts",
+        "清理会删除截图目录下的全部文件，以及工作目录顶层的 __ 开头草稿脚本。": "Cleanup deletes every file in the screenshot directory and top-level scratch scripts whose names begin with __.",
+        "'已连接'": "'Connected'",
+        "'等待浏览器扩展连接…'": "'Waiting for the browser extension…'",
+        "'监听端口'": "'Listening port'",
+        "'扩展状态'": "'Extension status'",
+        ">已连接<": ">Connected<",
+        ">未连接<": ">Not connected<",
+        "'未连接'": "'Not connected'",
+        "'扩展类型'": "'Extension type'",
+        "'浏览器'": "'Browser'",
+        "'等待命令'": "'Pending commands'",
+        "'连接时间'": "'Connected at'",
+        "'截图目录'": "'Screenshot directory'",
+        "'连接失败: '": "'Connection failed: '",
+        "确认清理截图与临时脚本？": "Clean screenshots and temporary scripts?",
+        "'已删除 '": "'Deleted '",
+        "' 个截图，'": "' screenshots and '",
+        "' 个草稿'": "' scratch scripts'",
+        "'失败：'": "'Failed: '",
+        "桥接启动失败（端口 ${config.port}）": "Browser bridge failed to start on port ${config.port}",
+        "浏览器控制未启用 —— 到 dsh 设置 → 插件 → DSH 浏览器控制 打开开关": "Browser Control is not enabled — turn it on in dsh Settings → Plugins → DSH Browser Control",
+        "浏览器控制尚未加载配置，无法确定清理目录": "Browser Control has not loaded its configuration, so the cleanup directory is unknown",
+    },
+}
+
+changed = []
+for path, replacements in files.items():
+    if not path.exists():
+        print(f"skip missing: {path}")
+        continue
+    text = path.read_text()
+    updated = text
+    for old, new in replacements.items():
+        updated = updated.replace(old, new)
+    if updated != text:
+        path.write_text(updated)
+        changed.append(str(path))
+
+print(f"English patch applied; changed {len(changed)} file(s).")
+for path in changed:
+    print(path)
+print("Reload the unpacked extension at chrome://extensions after extension files change.")

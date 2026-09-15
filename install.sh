@@ -240,6 +240,7 @@ link_path "bin/osc52" ".local/bin/osc52"
 link_path "bin/pi-delegate" ".local/bin/pi-delegate"
 link_path "bin/claude-fusion" ".local/bin/claude-fusion"
 link_path "bin/herdr-fork" ".local/bin/herdr-fork"
+link_path "bin/dsh-browser-control-english" ".local/bin/dsh-browser-control-english"
 
 # ─── graphify (knowledge-graph skill + global commit hook) ─
 # graphify is the codebase knowledge-graph tool. The skill is synced with the

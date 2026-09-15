@@ -118,6 +118,35 @@ NOT executed anywhere (standard systemd, verify on the real target once):
 - Not run on the LIVE box: restarting `dsh-web.service` severs the running agent
   session (see `docs/deepseek-harness.md` root-cause note).
 
+## Real Chrome Browser Control
+
+Install Browser Control into an existing reproduced web profile with:
+
+    dsh-repro/install-browser-control.sh
+
+This installs pinned `@caob23/dsh-browser-control` 1.0.7, downloads and
+checksum-verifies its Chrome extension into
+`~/.dsh/browser-control-extension`, enables the loopback bridge on port 9777,
+and applies the English UI patch. It does **not** copy Chrome profiles, cookies,
+logins, or tokens.
+
+Chrome requires one manual approval per machine: open `chrome://extensions` in
+the intended profile, enable Developer mode, choose **Load unpacked**, and select
+`~/.dsh/browser-control-extension`. Restart `dsh-web.service`, then verify:
+
+    curl -fsS http://127.0.0.1:9777/api/status
+
+Healthy output has both `"listening":true` and `"extensionConnected":true`.
+Keep `dsh-pilot` as a fallback until that handshake is proven, then remove it
+with the fail-closed command below (it refuses if the extension is offline):
+
+    dsh-repro/install-browser-control.sh --remove-pilot
+
+Restart DSH once more and confirm `extensionConnected` remains true. After
+upgrading or reinstalling the plugin, run
+`dsh-browser-control-english`, reload the unpacked extension, and restart dsh
+if the plugin package changed.
+
 ## Re-capture
 
 After adding, removing, or upgrading a plugin on the live box, the committed
