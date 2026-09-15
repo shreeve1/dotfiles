@@ -82,13 +82,12 @@ Environment facts that aren't in that doc:
   a delegation allowlist; mutations go through `bin/pi-delegate`. Toggle with
   `claude-fusion on|off|status` from your shell (not runnable by the agent), or drop
   `.claude/.fusion-off` per-repo.
-- **Browser automation is available via `dsh-pilot`** (`pilot_*` tools — headless
-  Chrome, text-first page snapshots; the ✈️ cockpit panel is the web surface).
-  Tools auto-register into the catalog, so sessions discover them with no prompt
-  mention — but Fusion withholds `pilot_*` from the orchestrator (same allowlist
-  as `bash`/`web_search`), so delegate to a worker to drive the browser, or turn
-  Fusion off. See `docs/deepseek-harness.md` (inventory row 7 + "Pilot tool
-  discovery") for details.
+- **Browser automation uses the real Chrome `ai` profile** through
+  `@caob23/dsh-browser-control` and its unpacked extension at
+  `~/.dsh/browser-control-extension`. Use the `browser_*` tools whenever browser
+  interaction is needed; they operate the user's logged-in desktop Chrome tabs.
+  `dsh-pilot` and its headless `pilot_*` tools were removed 2026-09-15. See
+  `docs/deepseek-harness.md` for install, translation, and recovery details.
 
 ## Editing rules
 
