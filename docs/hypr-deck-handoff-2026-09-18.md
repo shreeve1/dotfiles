@@ -79,6 +79,51 @@ Do not re-enable native Hyprland/Omarchy directional window-swap bindings while
 Deck Mode owns the workspace; they only alter live floating geometry and will
 again conflict with the saved split tree.
 
+### Workspace-transfer reflow fixed
+
+Moving a managed window to another workspace exposed a separate gap: the
+daemon ignored every `movewindowv2` event to avoid reacting to its own geometry
+writes, so the saved split tree continued to own the window on its old
+workspace. Neither the source tree nor the destination tree was recomputed.
+
+The daemon now compares the moved client's live workspace with its persisted
+workspace before reacting. A real workspace transfer removes and collapses the
+source leaf, inserts the window by splitting the destination's remembered or
+most recently focused leaf, recomputes both workspaces' saved slots, and updates
+foreground memory. Same-workspace geometry events remain ignored, preserving
+the idle-loop safeguard. The daemon also reconciles once immediately after
+connecting to socket2 so a move during service startup cannot be missed.
+
+Verification included a deterministic source/destination tree test and a live,
+silent move of the sole workspace-1 client through `1 -> 8 -> 1`. Both socket2
+events were processed, workspace 1 was restored to its original one-leaf tree,
+workspace 8 was removed after the return, workspace 2's four-window topology
+was byte-for-byte unchanged, and the active workspace did not change.
+
+Final verification also exposed and fixed an older `restore-tiling` persistence
+bug: its intentional bulk window removal is now recorded before `write_state()`
+merges concurrent disk state, so paused/restored clients are not resurrected in
+the JSON state after their tags and floating status have been removed. Daemon
+startup now also skips `adopt_all()` while Deck is disabled; previously a
+service restart briefly re-adopted and re-floated restored windows before the
+disabled check in `apply()` took effect.
+
+### Dynamic monitor/work-area reflow
+
+Deck no longer assumes the monitor geometry present when its service started.
+On monitor add/remove, workspace-to-monitor moves, and Hyprland config reloads,
+it invalidates cached monitor/gap data and re-derives every saved slot from the
+current monitor's live work area while preserving split-tree ownership. It also
+updates persisted monitor IDs when Hyprland migrates clients after a disconnect.
+Startup and socket reconnection force the same full derivation so a display
+change missed while the daemon was unavailable cannot leave widescreen-sized
+rectangles on the laptop panel. Event-driven reflow waits for two matching
+monitor/work-area snapshots after a minimum settling delay because
+`configreloaded` can arrive before the shell restores its top-panel reservation.
+Monitor pixel dimensions are divided by Hyprland's output scale before Deck
+combines them with logical window coordinates, reserved edges, and gaps; this
+keeps fractional-scale laptop layouts inside the visible logical work area.
+
 ## User-visible requirements
 
 The user wants a system-wide Hyprland "Deck" mode for normal application windows:

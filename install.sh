@@ -204,6 +204,10 @@ link_path ".config/zellij" ".config/zellij"
 link_path ".config/systemd/user/ralph-loop.service" ".config/systemd/user/ralph-loop.service"
 link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
+if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
+  link_path "omarchy/bin/omarchy-native-display-sync" ".local/bin/omarchy-native-display-sync"
+fi
+
 # ─── herdr binary ──────────────────────────────────────────
 # Stable channel: brew on macOS, the project's curl-pipe installer on Linux
 # (no apt/snap/dnf package exists). The installer places the binary at
