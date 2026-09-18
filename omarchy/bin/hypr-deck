@@ -138,7 +138,11 @@ def monitors() -> dict[int, dict[str, Any]]:
 
 def work_area(monitor: dict[str, Any]) -> dict[str, int]:
     mx, my = int(monitor["x"]), int(monitor["y"])
-    mw, mh = int(monitor["width"]), int(monitor["height"])
+    # hyprctl reports monitor width/height in physical pixels, while window
+    # coordinates, reserved edges, and gaps use logical compositor units.
+    monitor_scale = max(0.01, float(monitor.get("scale", 1.0)))
+    mw = round(int(monitor["width"]) / monitor_scale)
+    mh = round(int(monitor["height"]) / monitor_scale)
     left, top, right, bottom = (int(value) for value in monitor.get("reserved", [0, 0, 0, 0]))
     gap_left, gap_top, gap_right, gap_bottom = (
         int(value) for value in monitor.get("deck_outer_inset", [0, 0, 0, 0])
@@ -313,6 +317,22 @@ def swap_leaf_addresses(node: dict[str, Any], first: str, second: str) -> dict[s
     return result
 
 
+def insert_leaf(
+    node: dict[str, Any] | None, address: str, target: str = "", axis: str = "x"
+) -> dict[str, Any]:
+    """Insert a window by splitting a destination leaf."""
+    address = normalize_address(address)
+    if node is None:
+        return leaf(address)
+    addresses = tree_addresses(node)
+    target = normalize_address(target)
+    if target not in addresses:
+        target = addresses[-1]
+    replacement = {"axis": axis, "first": leaf(target), "second": leaf(address)}
+    updated, replaced = replace_leaf(node, target, replacement)
+    return updated if replaced else node
+
+
 def assign_tree_rects(
     node: dict[str, Any], slot: dict[str, int], gap: int, windows: dict[str, Any]
 ) -> None:
@@ -407,6 +427,36 @@ class Deck:
             self._inner_gap = inner_gap()
         return self._inner_gap
 
+    def invalidate_display_geometry(
+        self,
+        monitor_map: dict[int, dict[str, Any]] | None = None,
+        slot_gap: int | None = None,
+    ) -> None:
+        """Refresh monitor/config caches and re-derive every managed workspace."""
+        self.state = self.read_state()
+        self._monitor_map = monitor_map
+        self._inner_gap = slot_gap
+        self.dirty_layouts.update(
+            int(saved["workspace"])
+            for saved in self.state["windows"].values()
+            if int(saved.get("workspace", 0)) > 0
+        )
+
+    def settle_display_geometry(self) -> None:
+        """Wait for monitor mode and layer reservations to stop changing."""
+        # configreloaded and monitor hotplug events can precede the bar's layer
+        # reservation update. Require a short minimum delay and two matching
+        # snapshots so Deck does not derive slots from an intermediate work area.
+        time.sleep(0.4)
+        current = (monitors(), inner_gap())
+        for _ in range(4):
+            time.sleep(0.15)
+            candidate = (monitors(), inner_gap())
+            if candidate == current:
+                break
+            current = candidate
+        self.invalidate_display_geometry(current[0], current[1])
+
     def build_layout(self, addresses: list[str]) -> dict[str, Any] | None:
         """Build a migration tree; two-window workspaces are vertical columns."""
         if not addresses:
@@ -493,6 +543,95 @@ class Deck:
         for ws, address in list(self.state.setdefault("workspace_focus", {}).items()):
             if normalize_address(str(address)) not in windows:
                 self.state["workspace_focus"].pop(ws, None)
+
+    def reconcile_monitor_assignments(self, live: dict[str, dict[str, Any]]) -> bool:
+        """Follow clients Hyprland migrated when monitors/workspaces changed."""
+        changed = False
+        for address, saved in self.state["windows"].items():
+            client = live.get(address)
+            if not client:
+                continue
+            monitor = int(client.get("monitor", saved.get("monitor", 0)))
+            if monitor != int(saved.get("monitor", 0)):
+                saved["monitor"] = monitor
+                self.dirty_layouts.add(int(saved["workspace"]))
+                changed = True
+        return changed
+
+    def reconcile_workspace_moves(
+        self, live: dict[str, dict[str, Any]], current: str = ""
+    ) -> bool:
+        """Move managed leaves between workspace trees when Hyprland moves them."""
+        windows = self.state["windows"]
+        layouts = self.state.setdefault("layouts", {})
+        workspace_focus = self.state.setdefault("workspace_focus", {})
+        current = normalize_address(current or active_address())
+        changed = False
+        for address, saved in list(windows.items()):
+            client = live.get(address)
+            if not client:
+                continue
+            old_ws = int(saved.get("workspace", 0))
+            new_ws = workspace_id(client)
+            if new_ws <= 0 or new_ws == old_ws:
+                continue
+
+            old_key, new_key = str(old_ws), str(new_ws)
+            old_layout = layouts.get(old_key)
+            if old_layout and address in tree_addresses(old_layout):
+                updated = remove_leaf(old_layout, address)
+                if updated is None:
+                    layouts.pop(old_key, None)
+                else:
+                    layouts[old_key] = updated
+                self.dirty_layouts.add(old_ws)
+
+            destination = [
+                candidate
+                for candidate, candidate_saved in windows.items()
+                if candidate != address
+                and int(candidate_saved.get("workspace", 0)) == new_ws
+                and candidate in live
+            ]
+            new_layout = layouts.get(new_key)
+            if destination and set(tree_addresses(new_layout)) != set(destination):
+                new_layout = self.build_layout(destination)
+
+            target = normalize_address(str(workspace_focus.get(new_key, "")))
+            if target not in destination and destination:
+                target = min(
+                    destination,
+                    key=lambda candidate: int(live[candidate].get("focusHistoryID", 999999)),
+                )
+            axis = "x"
+            if target:
+                target_slot = windows[target]["background"]
+                axis = "x" if int(target_slot["w"]) >= int(target_slot["h"]) else "y"
+            layouts[new_key] = insert_leaf(new_layout, address, target, axis)
+            self.dirty_layouts.add(new_ws)
+
+            saved["workspace"] = new_ws
+            saved["monitor"] = int(client.get("monitor", saved.get("monitor", 0)))
+            if normalize_address(str(workspace_focus.get(old_key, ""))) == address:
+                old_survivors = [
+                    candidate
+                    for candidate, candidate_saved in windows.items()
+                    if candidate != address
+                    and int(candidate_saved.get("workspace", 0)) == old_ws
+                    and candidate in live
+                ]
+                if old_survivors:
+                    workspace_focus[old_key] = min(
+                        old_survivors,
+                        key=lambda candidate: int(live[candidate].get("focusHistoryID", 999999)),
+                    )
+                else:
+                    workspace_focus.pop(old_key, None)
+            if current == address or not destination:
+                workspace_focus[new_key] = address
+            changed = True
+            self.log(f"moved {address} from workspace {old_ws} to {new_ws}")
+        return changed
 
     def adopt_workspace(self, ws: int, live: dict[str, dict[str, Any]]) -> bool:
         """Snapshot all untouched tiled clients before floating any of them."""
@@ -595,7 +734,11 @@ class Deck:
         self.last_apply = now
         live = self.live()
         self.clean_state(live)
+        moved = self.reconcile_workspace_moves(live)
+        monitor_changed = self.reconcile_monitor_assignments(live)
         self.ensure_layouts(live)
+        if moved or monitor_changed:
+            self.write_state()
         address = normalize_address(focused or active_address())
         client = live.get(address)
         if client and workspace_id(client) > 0 and not client.get("fullscreen"):
@@ -770,10 +913,15 @@ class Deck:
         """Return managed windows to Hyprland tiling and disable Deck Mode."""
         self.state = self.read_state()
         live = self.live()
-        for address in list(self.state["windows"]):
+        tracked = set(self.state["windows"])
+        for address in tracked:
             if address in live:
                 tag_window(address, False)
                 floating(address, False)
+        # write_state merges newer on-disk slots to protect concurrent daemon
+        # writes. Mark this intentional bulk removal so that merge cannot
+        # resurrect the slots restore-tiling just cleared.
+        self.removed_addresses.update(tracked)
         self.state["windows"] = {}
         self.state["layouts"] = {}
         self.state["workspace_focus"] = {}
@@ -792,9 +940,34 @@ class Deck:
             # focus event normally handles them; this covers focus-preserving opens.
             time.sleep(0.08)
             self.apply(force=True)
-        # `movewindowv2` is emitted by Deck's own resize/move dispatchers.
-        # Reacting to it re-entered apply(), emitted another move event, and
-        # created a self-sustaining geometry churn even while the user was idle.
+        elif event == "movewindowv2":
+            # Hyprland uses this event both around window moves and for actual
+            # workspace transfers. Ignore Deck's own same-workspace geometry,
+            # but reconcile a managed client whose live workspace changed.
+            time.sleep(0.05)
+            address = normalize_address(payload.split(",", 1)[0])
+            self.state = self.read_state()
+            live = self.live()
+            saved = self.state["windows"].get(address)
+            client = live.get(address)
+            if saved and client and workspace_id(client) != int(saved.get("workspace", 0)):
+                self.apply(force=True)
+        elif event in {
+            "monitoradded",
+            "monitoraddedv2",
+            "monitorremoved",
+            "monitorremovedv2",
+            "moveworkspace",
+            "moveworkspacev2",
+            "configreloaded",
+        }:
+            # Monitor topology, mode, reserved edges, gaps, and workspace-to-
+            # monitor ownership can all change the usable work area. Preserve
+            # the split tree, but derive fresh rectangles from current output
+            # geometry after Hyprland has settled the change.
+            self.settle_display_geometry()
+            self.apply(force=True)
+            self.log(f"reflowed display geometry after {event}")
 
     def socket_path(self) -> Path | None:
         runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
@@ -816,8 +989,10 @@ class Deck:
     def run(self) -> int:
         signal.signal(signal.SIGTERM, self.stop)
         signal.signal(signal.SIGINT, self.stop)
-        self.adopt_all()
-        self.apply(force=True)
+        if self.state.get("enabled", True):
+            self.invalidate_display_geometry()
+            self.adopt_all()
+            self.apply(force=True)
         while self.running:
             path = self.socket_path()
             if not path:
@@ -827,6 +1002,11 @@ class Deck:
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                     self.connection = connection
                     connection.connect(str(path))
+                    # Close the narrow startup/reconnect gap between the first
+                    # apply and subscribing to socket2 events. A workspace move
+                    # in that interval would otherwise remain unobserved.
+                    self.invalidate_display_geometry()
+                    self.apply(force=True)
                     self.log(f"listening on {path}")
                     with connection.makefile("r", encoding="utf-8", errors="replace") as stream:
                         while self.running:
@@ -878,9 +1058,109 @@ def self_test() -> int:
     assert collapsed == leaf("0x2")
     swapped = swap_leaf_addresses(layout, "0x1", "0x3")
     assert tree_addresses(swapped) == ["0x3", "0x2", "0x1"]
+    # Moving a leaf collapses its source branch and splits one destination leaf.
+    source = remove_leaf(layout, "0x3")
+    destination = insert_leaf(
+        {"axis": "x", "first": leaf("0x4"), "second": leaf("0x5")},
+        "0x3",
+        "0x5",
+        "y",
+    )
+    assert tree_addresses(source) == ["0x1", "0x2"]
+    assert destination == {
+        "axis": "x",
+        "first": leaf("0x4"),
+        "second": {"axis": "y", "first": leaf("0x5"), "second": leaf("0x3")},
+    }
+    # Full reconciliation updates workspace ownership, collapses the source,
+    # splits the destination focus leaf, and derives both workspaces' slots.
+    deck = object.__new__(Deck)
+    left = {"x": 12, "y": 38, "w": 1261, "h": 1390}
+    right = {"x": 1287, "y": 38, "w": 1261, "h": 1390}
+    deck.state = {
+        "windows": {
+            address: {
+                "workspace": workspace,
+                "monitor": 0,
+                "background": dict(left if address in {"0x1", "0x4"} else right),
+            }
+            for address, workspace in {
+                "0x1": 2, "0x2": 2, "0x3": 2, "0x4": 3, "0x5": 3
+            }.items()
+        },
+        "layouts": {
+            "2": layout,
+            "3": {"axis": "x", "first": leaf("0x4"), "second": leaf("0x5")},
+        },
+        "workspace_focus": {"2": "0x3", "3": "0x5"},
+    }
+    deck.dirty_layouts = set()
+    deck._monitor_map = {0: monitor}
+    deck._inner_gap = 14
+    deck.log = lambda _message: None
+    live = {
+        address: {
+            "workspace": {"id": 3 if address == "0x3" else workspace},
+            "monitor": 0,
+            "focusHistoryID": index,
+        }
+        for index, (address, workspace) in enumerate(
+            {"0x1": 2, "0x2": 2, "0x3": 2, "0x4": 3, "0x5": 3}.items()
+        )
+    }
+    assert deck.reconcile_workspace_moves(live, current="0x3")
+    assert tree_addresses(deck.state["layouts"]["2"]) == ["0x1", "0x2"]
+    assert tree_addresses(deck.state["layouts"]["3"]) == ["0x4", "0x5", "0x3"]
+    assert deck.state["windows"]["0x3"]["workspace"] == 3
+    assert deck.state["workspace_focus"] == {"2": "0x1", "3": "0x3"}
+    assert deck.ensure_layouts(live)
+    assert deck.state["windows"]["0x1"]["background"] == {
+        "x": 12, "y": 38, "w": 1261, "h": 1390
+    }
+    assert deck.state["windows"]["0x2"]["background"] == {
+        "x": 1287, "y": 38, "w": 1261, "h": 1390
+    }
+    assert deck.state["windows"]["0x3"]["background"] == {
+        "x": 1287, "y": 740, "w": 1261, "h": 688
+    }
+    # A monitor/work-area change preserves topology but re-derives all slots,
+    # including clients Hyprland migrated to a new monitor ID.
+    deck.dirty_layouts.clear()
+    deck.read_state = lambda: deck.state
+    deck.invalidate_display_geometry()
+    assert deck._monitor_map is None
+    assert deck._inner_gap is None
+    assert deck.dirty_layouts == {2, 3}
+    laptop_monitor = {
+        "x": 0,
+        "y": 0,
+        "width": 1920,
+        "height": 1200,
+        "reserved": [0, 26, 0, 0],
+        "deck_outer_inset": [12, 12, 12, 12],
+    }
+    scaled_monitor = dict(laptop_monitor, width=2560, height=1440, scale=1.6)
+    assert work_area(scaled_monitor) == {"x": 12, "y": 38, "w": 1576, "h": 850}
+    deck._monitor_map = {1: laptop_monitor}
+    deck._inner_gap = 14
+    for client in live.values():
+        client["monitor"] = 1
+    assert deck.reconcile_monitor_assignments(live)
+    assert all(saved["monitor"] == 1 for saved in deck.state["windows"].values())
+    assert deck.ensure_layouts(live)
+    assert tree_addresses(deck.state["layouts"]["2"]) == ["0x1", "0x2"]
+    assert deck.state["windows"]["0x1"]["background"] == {
+        "x": 12, "y": 38, "w": 941, "h": 1150
+    }
+    assert deck.state["windows"]["0x2"]["background"] == {
+        "x": 967, "y": 38, "w": 941, "h": 1150
+    }
+    assert deck.state["windows"]["0x3"]["background"] == {
+        "x": 967, "y": 620, "w": 941, "h": 568
+    }
     assert regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": False, "pinned": False, "fullscreen": 0, "workspace": {"id": 2}})
     assert not regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": True, "workspace": {"id": 2}})
-    print("PASS: orientation-aware geometry for two, three, and four tile layouts")
+    print("PASS: orientation-aware geometry and dynamic monitor reflow")
     return 0
 
 
