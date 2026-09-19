@@ -71,6 +71,16 @@ def tag_window(address: str, enabled: bool) -> None:
     )
 
 
+def pin_window(address: str, enabled: bool) -> None:
+    """Set pin state without relying on a toggle whose current state may race."""
+    live = next(
+        (client for client in clients() if normalize_address(str(client.get("address", ""))) == address),
+        None,
+    )
+    if live is not None and bool(live.get("pinned")) != enabled:
+        hypr_eval(f'hl.dispatch(hl.dsp.window.pin({{ window = {lua_window(address)} }}))')
+
+
 def move_resize(address: str, rect: dict[str, int]) -> None:
     # Hyprland applies window dispatchers asynchronously. Keep resize and move
     # as separate IPC transactions; combining them in one Lua string allowed a
@@ -783,7 +793,10 @@ class Deck:
     def managed_on_workspace(self, ws: int, live: dict[str, dict[str, Any]]) -> list[str]:
         return [
             address for address, saved in self.state["windows"].items()
-            if saved.get("workspace") == ws and address in live and not live[address].get("fullscreen")
+            if saved.get("workspace") == ws
+            and address in live
+            and not live[address].get("fullscreen")
+            and not saved.get("detached")
         ]
 
     def adopt_all(self) -> None:
@@ -839,7 +852,13 @@ class Deck:
         # re-evaluate floating placement off-screen and appears as slot swaps.
         previous = self.last_active_address
         restored: set[str] = set()
-        if previous and previous != address and previous in self.state["windows"] and previous in live:
+        if (
+            previous
+            and previous != address
+            and previous in self.state["windows"]
+            and previous in live
+            and not self.state["windows"][previous].get("detached")
+        ):
             if not live[previous].get("fullscreen"):
                 target = self.state["windows"][previous]["background"]
                 if not rect_matches(live[previous], target):
@@ -990,6 +1009,94 @@ class Deck:
             self.apply(current, force=True)
             self.log(f"swapped {current} with {target} on workspace {ws}")
 
+    def attach_window(self, address: str, client: dict[str, Any]) -> None:
+        """Return a temporarily detached window to its saved Deck slot."""
+        pin_window(address, False)
+        if not client.get("floating"):
+            floating(address, True)
+        tag_window(address, True)
+        try:
+            hypr_eval(
+                'hl.dispatch(hl.dsp.window.tag({ '
+                f'tag = "-pop", window = {lua_window(address)} '
+                '}))'
+            )
+        except RuntimeError:
+            pass
+        self.state["windows"][address].pop("detached", None)
+        self.state.setdefault("workspace_focus", {})[str(workspace_id(client))] = address
+        self.write_state()
+        self.apply(address, force=True)
+
+    def float_toggle(self) -> None:
+        """Expand a Deck window above its peers, then restore its saved slot."""
+        with self.exclusive():
+            self.state = self.read_state()
+            live = self.live()
+            address = active_address()
+            client = live.get(address)
+            saved = self.state.get("windows", {}).get(address)
+            if not self.state.get("enabled", True) or not client or not saved:
+                hypr_eval('hl.dispatch(hl.dsp.window.float({ action = "toggle" }))')
+                return
+            if saved.get("detached"):
+                self.attach_window(address, client)
+                self.log(f"reattached {address} to Deck")
+                return
+            # A managed Deck window is already floating. Native Super+T tiles
+            # it underneath every floating peer, which makes the expanded
+            # window look like it was sent to the background. Keep it floating,
+            # temporarily exclude it from Deck geometry, fill the work area,
+            # and explicitly raise it instead.
+            saved["detached"] = "float"
+            self.write_state()
+            if not client.get("floating"):
+                floating(address, True)
+            monitor = self.monitor_map().get(int(client.get("monitor", saved.get("monitor", 0))))
+            if monitor:
+                move_resize(address, work_area(monitor))
+            bring_to_top(address)
+            self.log(f"expanded {address} above Deck")
+
+    def pop_toggle(self) -> None:
+        """Toggle a pinned pop-out while retaining the saved Deck leaf."""
+        with self.exclusive():
+            self.state = self.read_state()
+            live = self.live()
+            address = active_address()
+            client = live.get(address)
+            saved = self.state.get("windows", {}).get(address)
+            if not self.state.get("enabled", True) or not client or not saved:
+                subprocess.run(["omarchy-hyprland-window-pop"], check=False)
+                return
+            if saved.get("detached"):
+                self.attach_window(address, client)
+                self.log(f"reattached {address} to Deck")
+                return
+
+            saved["detached"] = "pop"
+            self.write_state()
+            monitor = self.monitor_map().get(int(client.get("monitor", saved.get("monitor", 0))))
+            if monitor:
+                area = work_area(monitor)
+                width = min(1300, max(1, round(area["w"] * 0.9)))
+                height = min(900, max(1, round(area["h"] * 0.9)))
+                target = {
+                    "x": area["x"] + (area["w"] - width) // 2,
+                    "y": area["y"] + (area["h"] - height) // 2,
+                    "w": width,
+                    "h": height,
+                }
+                move_resize(address, target)
+            pin_window(address, True)
+            hypr_eval(
+                'hl.dispatch(hl.dsp.window.tag({ '
+                f'tag = "+pop", window = {lua_window(address)} '
+                '}))'
+            )
+            bring_to_top(address)
+            self.log(f"popped {address} out of Deck")
+
     def toggle(self) -> None:
         with self.exclusive():
             self.state = self.read_state()
@@ -1009,6 +1116,7 @@ class Deck:
         root = first_leaf_address(node)
         if root not in live:
             return restored
+        pin_window(root, False)
         tag_window(root, False)
         floating(root, False)
         restored.add(root)
@@ -1024,6 +1132,7 @@ class Deck:
                 hypr_eval(f'hl.dispatch(hl.dsp.focus({{ window = {lua_window(first_address)} }}))')
                 direction = "r" if branch.get("axis") == "x" else "d"
                 hypr_eval(f'hl.dispatch(hl.dsp.layout("preselect {direction}"))')
+                pin_window(second_address, False)
                 tag_window(second_address, False)
                 floating(second_address, False)
                 restored.add(second_address)
@@ -1056,6 +1165,7 @@ class Deck:
                 restored.update(self.restore_layout(node, live))
         for address in tracked - restored:
             if address in live:
+                pin_window(address, False)
                 tag_window(address, False)
                 floating(address, False)
         if original_focus in live:
@@ -1338,6 +1448,8 @@ def main() -> int:
     focus.add_argument("direction", choices=("left", "right", "up", "down", "l", "r", "u", "d"))
     swap = subparsers.add_parser("swap")
     swap.add_argument("direction", choices=("left", "right", "up", "down", "l", "r", "u", "d"))
+    subparsers.add_parser("float-toggle")
+    subparsers.add_parser("pop-toggle")
     subparsers.add_parser("toggle")
     subparsers.add_parser("restore-tiling")
     subparsers.add_parser("status")
@@ -1359,6 +1471,12 @@ def main() -> int:
         return 0
     if args.command == "swap":
         deck.swap_direction(args.direction)
+        return 0
+    if args.command == "float-toggle":
+        deck.float_toggle()
+        return 0
+    if args.command == "pop-toggle":
+        deck.pop_toggle()
         return 0
     if args.command == "toggle":
         deck.toggle()
