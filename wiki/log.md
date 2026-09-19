@@ -9,6 +9,13 @@ Append entries with this format:
 - Outputs: changed pages
 - Notes: key decisions or unresolved questions
 
+## 2026-09-19 session-update | Omarchy bare-metal configuration and Surface recovery
+
+- Actor: Hermes Agent
+- Inputs: current session; committed Omarchy work from `02b18771` through `542dac3e`; `install.sh`; `omarchy/README.md`; `omarchy/HARDWARE-surface-laptop-7.md`; `omarchy/config/hypr/{monitors,bindings}.lua`; `omarchy/bin/hypr-deck`.
+- Outputs: `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`; `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md`; `wiki/CLAIMS.md` C-0130..C-0133 via `gate.py ADMIT`; `wiki/eval/omarchy.eval`; `wiki/index.md`; `wiki/ROUTING.md`; `wiki/log.md`.
+- Notes: Captured the portable user-config versus host-repair boundary; Hypr Deck service and fixed workspace placement; four Surface repair areas; and the kernel-update rebuild order. The configured independent checker could not authenticate to DeepSeek, so the documented fallback was used: each claim was re-grounded against exact current source lines before gate admission. No existing candidate, route, or claim overlapped or contradicted this topic. Scheduled maintenance merged RPIV stage-order claim C-0107 into related pipeline-mechanics claim C-0106 through gated consolidation; active claims dropped 28→27 while the pre-existing 15/16 eval baseline held. Candidate awaits promote/discard. Host-specific monitor output names may change after dock/hardware changes; kernel overrides should be retired when upstream support lands.
+
 ## 2026-09-04 promote | dsh-board pipeline analysis → promoted
 
 - Actor: Claude Code (James: "promote")
