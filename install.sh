@@ -204,6 +204,30 @@ link_path ".config/zellij" ".config/zellij"
 link_path ".config/systemd/user/ralph-loop.service" ".config/systemd/user/ralph-loop.service"
 link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
+# ─── Omarchy (Linux only) ──────────────────────────────────
+# The portable user-owned Omarchy configuration lives in omarchy/ rather than
+# under the generic .config tree because this repository also syncs to macOS.
+# Do not link the packaged runtime (~/.local/share/omarchy) or VM-only system
+# configuration; see omarchy/README.md for the bare-metal migration procedure.
+if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
+  link_path "omarchy/config/hypr" ".config/hypr"
+  link_path "omarchy/config/omarchy" ".config/omarchy"
+  link_path "omarchy/config/uwsm" ".config/uwsm"
+  link_path "omarchy/bin/hypr-deck" ".local/bin/hypr-deck"
+  link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
+  link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
+  link_path "omarchy/config/mimeapps.list" ".config/mimeapps.list"
+
+  # Omapager owns org.freedesktop.Notifications and retains Omarchy's existing
+  # notifications IPC target. Quiet mode stops its toast deck while preserving
+  # the notification history that can be opened from the Omapager bar widget.
+  if command -v omarchy-shell >/dev/null 2>&1; then
+    omarchy-shell -q notifications setDnd on
+  fi
+else
+  printf 'skip: Omarchy configuration (requires Linux with Omarchy installed)\n'
+fi
+
 if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/bin/omarchy-native-display-sync" ".local/bin/omarchy-native-display-sync"
 fi
@@ -286,6 +310,7 @@ link_path ".config/opencode" ".config/opencode"
 # ─── Pi Agent ──────────────────────────────────────────────
 link_path ".pi/agent" ".pi/agent"
 link_path ".pi/README.md" ".pi/README.md"
+link_path ".pi-lens/config.json" ".pi-lens/config.json"
 
 # The whole agent directory is linked, so the vendored subagent runtime
 # (nicobailon/pi-subagents) and delegation policy travel together. Builtin
