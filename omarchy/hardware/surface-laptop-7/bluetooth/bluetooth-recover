@@ -1,0 +1,32 @@
+#!/usr/bin/bash
+set -euo pipefail
+
+controller_available() {
+  bluetoothctl list 2>/dev/null | grep -q '^Controller '
+}
+
+# Give BlueZ and the PCI firmware a few seconds to finish normal startup.
+for _ in 1 2 3 4 5; do
+  if controller_available; then
+    echo "Bluetooth controller is available; no recovery needed."
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Bluetooth controller is missing; reloading btintel_pcie."
+systemctl stop bluetooth.service
+modprobe -r btintel_pcie
+modprobe btintel_pcie
+systemctl start bluetooth.service
+
+for _ in 1 2 3 4 5; do
+  if controller_available; then
+    echo "Bluetooth controller recovered successfully."
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Bluetooth recovery failed: no controller is available." >&2
+exit 1
