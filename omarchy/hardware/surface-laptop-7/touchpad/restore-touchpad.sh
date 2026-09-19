@@ -37,9 +37,10 @@ for f in 0004-iptsd-add-Touchpad-LiftGraceMs-option.patch \
     [[ -f "$HERE/$f" ]] || die "missing $HERE/$f"
 done
 
-WORK=/tmp/iptsd-sl7-build.$$
+WORK="$(mktemp -d /tmp/iptsd-sl7-build.XXXXXX)"
+trap 'rm -rf "$WORK"' EXIT
 say "building iptsd-sl7 in $WORK"
-rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
+cd "$WORK"
 
 git clone -q "$FORK_URL" iptsd-fork
 git -C iptsd-fork checkout -q "$FORK_COMMIT"
