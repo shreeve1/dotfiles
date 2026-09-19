@@ -1,13 +1,12 @@
 theme "catppuccin-mocha"
-themes_dir "/Users/james/dotfiles/.config/zellij/themes"
 
 keybinds {
   normal {
     bind "Ctrl t" { NewTab; }
     bind "Ctrl w" { CloseTab; }
-    bind "Ctrl h" { MoveFocusLeft; }
-    bind "Ctrl l" { MoveFocusRight; }
-    bind "Ctrl j" { MoveFocusDown; }
-    bind "Ctrl k" { MoveFocusUp; }
+    bind "Ctrl h" { MoveFocus "Left"; }
+    bind "Ctrl l" { MoveFocus "Right"; }
+    bind "Ctrl j" { MoveFocus "Down"; }
+    bind "Ctrl k" { MoveFocus "Up"; }
   }
 }
