@@ -106,7 +106,7 @@ hyprctl configerrors
 
 ## Host hardware — Surface Laptop 7 (Intel)
 
-Three machine-specific fixes are needed on this host and are documented in
+Four machine-specific fixes are needed on this host and are documented in
 [`HARDWARE-surface-laptop-7.md`](HARDWARE-surface-laptop-7.md), with buildable sources and
 restore scripts under `hardware/surface-laptop-7/`:
 
@@ -123,6 +123,10 @@ restore scripts under `hardware/surface-laptop-7/`:
   against the exact Omarchy source recipe, plus a per-user UCM overlay. The module breaks on
   every kernel update:
   `sudo bash omarchy/hardware/surface-laptop-7/audio/restore-audio-module.sh`
+- **Intel Bluetooth** — the onboard adapter can time out while downloading firmware during
+  boot. A one-shot system service checks for a controller and reloads `btintel_pcie` only when
+  needed. Restore it with
+  `sudo omarchy/hardware/surface-laptop-7/bluetooth/install-bluetooth-recovery.sh`.
 
 None of these is linked by `install.sh`; they are host properties, recorded here so they are
 recoverable rather than folklore.
