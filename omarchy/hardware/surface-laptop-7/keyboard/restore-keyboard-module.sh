@@ -31,7 +31,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PATCHF="$HERE/sl7-mshw0551-keyboard.patch"
+PATCHF="$HERE/sl7-sam-node-group.patch"
 KREL="$(uname -r)"
 VERSION="${KREL%%-*}"          # 7.2.5-3-omarchy -> 7.2.5
 UPD="/lib/modules/$KREL/updates"
