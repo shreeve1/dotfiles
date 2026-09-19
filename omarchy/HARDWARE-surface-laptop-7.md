@@ -1,8 +1,8 @@
 # Surface Laptop 7 (Intel) — host hardware fixes
 
-Host properties, not portable config. These three fixes are machine-specific work done
+Host properties, not portable config. These four fixes are machine-specific work done
 after the Omarchy bare-metal bring-up; the buildable sources and scripts live in
-`omarchy/hardware/surface-laptop-7/` so all three are reproducible on a fresh install and
+`omarchy/hardware/surface-laptop-7/` so all four are reproducible on a fresh install and
 recoverable after a kernel update. The §1 module carries the internal keyboard, the ALS,
 and the battery/AC adapter — one patch, four devices.
 
@@ -15,7 +15,8 @@ and the battery/AC adapter — one patch, four devices.
 All fixes were verified live before being written down: keyboard at the boot log level
 (module loads pre-switch-root, device registers ~5 s before the greeter), touchpad at
 the event level (see the measurement table below), and audio with a non-silent PipeWire
-capture plus a live Voxtype recording/OSD test.
+capture plus a live Voxtype recording/OSD test. Bluetooth recovery was tested by removing
+`btintel_pcie` and confirming that the new boot service restored a usable controller.
 
 ---
 
@@ -168,7 +169,7 @@ installs, depmods, and regenerates the initramfs/UKI; if upstream ever merges MS
 removes the override instead of patching.
 
 Do not rebuild this from a post-transaction pacman hook: before reboot, `uname -r` still
-names the old running kernel. Use the ordered post-update procedure in §6 instead.
+names the old running kernel. Use the ordered post-update procedure in §7 instead.
 
 ### Rollback
     sudo rm /lib/modules/$(uname -r)/updates/surface_aggregator_registry.ko
@@ -319,7 +320,7 @@ The module is tied to one exact `linux-omarchy` ABI. The restore script discover
 `omarchy-pkgs` source recipe from the installed package version and build timestamp, reapplies
 that recipe's SoundWire backports, and then applies the Surface patch. If the source changed
 incompatibly, it stops rather than installing a questionable module. Use the ordered
-post-update procedure in §6. Rerun the UCM installer after `alsa-ucm-conf` updates so its
+post-update procedure in §7. Rerun the UCM installer after `alsa-ucm-conf` updates so its
 symlink overlay and two patched files are refreshed.
 
 ### Rollback
@@ -332,13 +333,68 @@ symlink overlay and two patched files are refreshed.
 
 ---
 
-## 4. Also done on this host
+## 4. Intel Bluetooth — recover a firmware-download timeout at boot
+
+### Symptom and diagnosis
+
+The Omarchy Bluetooth panel (`Super+Ctrl+B`) reported **No Bluetooth adapters** even though
+`bluetooth.service` was active, `rfkill` showed an unblocked `hci0`, and PCI enumeration
+found the onboard Intel controller at `00:14.7` using `btintel_pcie`. `bluetoothctl show`
+reported `No default controller available`, and `btmgmt --index 0 info` returned
+`Invalid Index`.
+
+The kernel log identified a firmware-startup race rather than missing hardware or a blocked
+radio:
+
+    Bluetooth: hci0: command 0xfc09 tx timeout
+    Bluetooth: hci0: Failed to send firmware data (-110)
+
+The firmware was present in `linux-firmware-intel`; reloading `btintel_pcie` made the same
+firmware load successfully and registered controller `38:18:68:B3:03:70`.
+
+### Automatic recovery
+
+`bluetooth-recover.service` runs once after `bluetooth.service` on every boot. It gives normal
+startup five seconds to complete and exits without touching a healthy adapter. Only when
+`bluetoothctl list` has no controller does it stop BlueZ, reload `btintel_pcie`, restart
+BlueZ, and verify that a controller appears. Install or restore it with:
+
+    sudo ~/dotfiles/omarchy/hardware/surface-laptop-7/bluetooth/install-bluetooth-recovery.sh
+
+Source and installed files:
+
+    hardware/surface-laptop-7/bluetooth/bluetooth-recover
+        -> /usr/local/sbin/bluetooth-recover
+    hardware/surface-laptop-7/bluetooth/bluetooth-recover.service
+        -> /etc/systemd/system/bluetooth-recover.service
+
+The recovery path was tested live by stopping BlueZ, unloading `btintel_pcie`, and starting
+the recovery unit. It restored the adapter, left `bluetooth.service` active, and passed
+`btmgmt --index 0 info`.
+
+Because this is a `Type=oneshot` unit, `inactive (dead)` after a successful run is normal.
+Inspect the current boot with:
+
+    journalctl -u bluetooth-recover.service -b
+    systemctl is-enabled bluetooth-recover.service
+    bluetoothctl list
+
+### Rollback
+
+    sudo systemctl disable --now bluetooth-recover.service
+    sudo rm /etc/systemd/system/bluetooth-recover.service \
+            /usr/local/sbin/bluetooth-recover
+    sudo systemctl daemon-reload
+
+---
+
+## 5. Also done on this host
 
     google-chrome 153.0.8010.47-1   AUR package built to a local package, then pacman -U
     ~/.config/chrome-flags.conf     --ozone-platform-hint=auto (native Wayland)
     build deps installed: meson, ninja, cmake
 
-## 5. Caveats that matter
+## 6. Caveats that matter
 
 - **Secure Boot must stay OFF** (it is off; efivar value 0). The keyboard module is
   unsigned and taints the kernel (taint 13312 = O|E|C).
@@ -353,7 +409,7 @@ symlink overlay and two patched files are refreshed.
 - `~/dotfiles` is synced to macOS. Everything here is Linux/Omarchy-only; `install.sh`
   does not link any of it, so it cannot affect the Mac.
 
-## 6. Verification
+## 7. Verification
 
 ### After every `linux-omarchy` update
 
@@ -376,10 +432,10 @@ kernel before it becomes the running kernel:
 
        sudo ~/dotfiles/omarchy/hardware/surface-laptop-7/verify.sh
 
-The verifier executes all three restore paths and checks the keyboard, the battery/AC supplies
+The verifier executes all four restore paths and checks the keyboard, the battery/AC supplies
 (`BAT1`/`ADP1` plus UPower), touchpad, audio module, ALSA card/capture PCM, WirePlumber UCM
 environment, PipeWire default microphone, RT1320 capture switches, SoundWire attachment state,
-and Voxtype service state.
+Voxtype service state, and the Bluetooth recovery unit/controller.
 
 ### Routine verification
 
@@ -395,5 +451,7 @@ Or by hand:
     upower -e                                       # .../battery_BAT1, .../line_power_ADP1
     systemctl is-active iptsd@dev-hidraw2.service   # active
     grep -i 'IPTSD Virtual Touchpad' /proc/bus/input/devices
+    systemctl is-enabled bluetooth-recover.service # enabled
+    bluetoothctl list                               # Controller 38:18:68:B3:03:70 ...
     # and by hand: two-finger scroll, two-finger tap (right click), physical click,
     #              repeat with the two fingers held close together

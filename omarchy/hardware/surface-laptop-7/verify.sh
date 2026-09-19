@@ -34,6 +34,8 @@ chk "bash -n keyboard/restore-keyboard-module.sh" "bash -n '$REPO/keyboard/resto
 chk "bash -n touchpad/restore-touchpad.sh"        "bash -n '$REPO/touchpad/restore-touchpad.sh'"
 chk "bash -n audio/restore-audio-module.sh"       "bash -n '$REPO/audio/restore-audio-module.sh'"
 chk "bash -n audio/install-ucm-override.sh"       "bash -n '$REPO/audio/install-ucm-override.sh'"
+chk "bash -n bluetooth/bluetooth-recover"         "bash -n '$REPO/bluetooth/bluetooth-recover'"
+chk "bash -n Bluetooth installer"                 "bash -n '$REPO/bluetooth/install-bluetooth-recovery.sh'"
 chk "bash -n restore-after-kernel-update.sh"      "bash -n '$REPO/restore-after-kernel-update.sh'"
 
 head_ "2. guard: scripts refuse to run without root"
@@ -43,6 +45,8 @@ chk "touchpad script refuses as non-root" \
     "sudo -u james bash '$REPO/touchpad/restore-touchpad.sh' 2>&1 | grep -q 'run me with sudo'"
 chk "audio module script refuses as non-root" \
     "sudo -u james bash '$REPO/audio/restore-audio-module.sh' 2>&1 | grep -q 'run as root'"
+chk "Bluetooth installer refuses as non-root" \
+    "sudo -u james bash '$REPO/bluetooth/install-bluetooth-recovery.sh' 2>&1 | grep -q 'Run with sudo'"
 chk "UCM installer refuses root" \
     "bash '$REPO/audio/install-ucm-override.sh' 2>&1 | grep -q 'desktop user'"
 
@@ -109,10 +113,23 @@ chk "RT1320 capture channels are enabled"          "amixer -D hw:0 cget name='rt
 chk "SoundWire ghost is skipped, real codec attached" "grep -qx UNATTACHED /sys/bus/soundwire/devices/sdw:0:0:025d:1320:00/status && grep -qx Attached /sys/bus/soundwire/devices/sdw:0:0:025d:1320:01/status"
 chk "Voxtype service active"                       "runuser -u '$DESKTOP_USER' -- env $USER_ENV systemctl --user is-active voxtype.service"
 
+head_ "6. Bluetooth: install boot recovery and check the live controller"
+if bash "$REPO/bluetooth/install-bluetooth-recovery.sh" >/tmp/sl7-verify-bluetooth.log 2>&1; then
+    ok "Bluetooth recovery installer exited 0"
+else
+    bad "Bluetooth recovery installer failed - see /tmp/sl7-verify-bluetooth.log"; tail -8 /tmp/sl7-verify-bluetooth.log
+fi
+chk "recovery script matches repository source"    "cmp -s '$REPO/bluetooth/bluetooth-recover' /usr/local/sbin/bluetooth-recover"
+chk "recovery unit matches repository source"      "cmp -s '$REPO/bluetooth/bluetooth-recover.service' /etc/systemd/system/bluetooth-recover.service"
+chk "Bluetooth recovery enabled at boot"           "systemctl is-enabled bluetooth-recover.service"
+chk "BlueZ service active"                         "systemctl is-active bluetooth.service"
+chk "Bluetooth controller registered"              "bluetoothctl list | grep -q '^Controller '"
+chk "kernel management interface accepts hci0"     "btmgmt --index 0 info"
+
 printf '\n================ verification result ================\n'
 printf 'passed: %d   failed: %d\n' "$pass" "$fail"
 if (( fail > 0 )); then
-    printf 'Something is broken. Logs: /tmp/sl7-verify-keyboard.log /tmp/sl7-verify-touchpad.log /tmp/sl7-verify-audio.log\n'
+    printf 'Something is broken. Logs: /tmp/sl7-verify-keyboard.log /tmp/sl7-verify-touchpad.log /tmp/sl7-verify-audio.log /tmp/sl7-verify-bluetooth.log\n'
     printf 'Fix order: rerun the failing restore script, then re-run this.\n'
 fi
 printf '\nNot covered (needs hands, not assertions): two-finger scroll, two-finger tap,\n'
