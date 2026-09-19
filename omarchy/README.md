@@ -102,18 +102,25 @@ hyprctl configerrors
 
 ## Host hardware — Surface Laptop 7 (Intel)
 
-Two machine-specific fixes are needed on this host and are documented in
+Three machine-specific fixes are needed on this host and are documented in
 [`HARDWARE-surface-laptop-7.md`](HARDWARE-surface-laptop-7.md), with buildable sources and
 restore scripts under `hardware/surface-laptop-7/`:
 
-- **Internal keyboard** — needs ACPI hub id `MSHW0551` registered against
-  `ssam_node_group_sl7` in `surface_aggregator_registry`. Built as an out-of-tree module, so
-  **it breaks on every kernel update** and must be re-applied:
+- **Internal keyboard, battery and AC adapter** — one patch, four devices: the SL7 SAM node
+  group needs ACPI hub id `MSHW0551` registered against `ssam_node_group_sl7` in
+  `surface_aggregator_registry`, and the battery nodes (`ssam_node_bat_ac`,
+  `ssam_node_bat_main`) added to that group, which is what gives UPower its `BAT1`/`ADP1`.
+  Built as an out-of-tree module, so **it breaks on every kernel update** and must be
+  re-applied:
   `sudo bash omarchy/hardware/surface-laptop-7/keyboard/restore-keyboard-module.sh`
 - **Touchpad** — needs userspace `iptsd` (packaged locally as `iptsd-sl7`, built from a
   reviewed fork plus the LiftGraceMs patch). Userspace, so kernel updates do not affect it.
+- **Internal audio and microphone** — needs the patched `snd-soc-sdw-utils` module, built
+  against the exact Omarchy source recipe, plus a per-user UCM overlay. The module breaks on
+  every kernel update:
+  `sudo bash omarchy/hardware/surface-laptop-7/audio/restore-audio-module.sh`
 
-Neither is linked by `install.sh`; both are host properties, recorded here so they are
+None of these is linked by `install.sh`; they are host properties, recorded here so they are
 recoverable rather than folklore.
 
 ## Recommended next additions

@@ -1,0 +1,62 @@
+--- a/sound/soc/sdw_utils/soc_sdw_utils.c
++++ b/sound/soc/sdw_utils/soc_sdw_utils.c
+@@ -2019,6 +2019,44 @@
+ 	return 0;
+ }
+ 
++struct asoc_sdw_adr_probe {
++	u64 adr;
++	bool attached;
++};
++
++static int asoc_sdw_adr_probe_fn(struct device *dev, void *data)
++{
++	struct asoc_sdw_adr_probe *probe = data;
++	struct sdw_slave *slave;
++
++	if (!is_sdw_slave(dev))
++		return 0;
++
++	slave = dev_to_sdw_dev(dev);
++	if (slave->id.mfg_id != SDW_MFG_ID(probe->adr) ||
++	    slave->id.part_id != SDW_PART_ID(probe->adr) ||
++	    slave->id.class_id != SDW_CLASS_ID(probe->adr))
++		return 0;
++
++	if (SDW_UNIQUE_ID(probe->adr) != 0xf &&
++	    slave->id.unique_id != SDW_UNIQUE_ID(probe->adr))
++		return 0;
++
++	probe->attached = slave->status != SDW_SLAVE_UNATTACHED;
++	return 1;
++}
++
++static bool asoc_sdw_adr_is_attached(u64 adr)
++{
++	struct asoc_sdw_adr_probe probe = { .adr = adr };
++
++	if (!bus_for_each_dev(&sdw_bus_type, NULL, &probe,
++			      asoc_sdw_adr_probe_fn))
++		return true;
++
++	return probe.attached;
++}
++
+ int asoc_sdw_parse_sdw_endpoints(struct device *dev,
+ 				 struct asoc_sdw_mc_private *ctx,
+ 				 struct snd_soc_aux_dev *soc_aux,
+@@ -2055,6 +2093,14 @@
+ 				return -EINVAL;
+ 			}
+ 
++			if (!asoc_sdw_adr_is_attached(adr_dev->adr)) {
++				dev_warn(dev,
++					 "codec 0x%llx declared but unattached, skipping\n",
++					 adr_dev->adr);
++				*num_devs -= adr_dev->num_endpoints;
++				continue;
++			}
++
+ 			codec_info = asoc_sdw_find_codec_info_part(adr_dev->adr);
+ 			if (!codec_info)
+ 				return -EINVAL;
