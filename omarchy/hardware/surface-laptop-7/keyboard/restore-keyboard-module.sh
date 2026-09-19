@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
 #
-# Restore the Surface Laptop 7 (Intel) internal keyboard after a kernel update,
-# or on a fresh install of this dotfiles repo on this machine.
+# Restore the Surface Laptop 7 (Intel) SAM node group after a kernel update, or on a
+# fresh install of this dotfiles repo on this machine.
 #
-# The keyboard needs a two-line addition to
+# The internal keyboard, the ambient-light sensors, the battery and the AC adapter all
+# come from one addition to
 #   drivers/platform/surface/surface_aggregator_registry.c
-# registering ACPI hub id MSHW0551 against ssam_node_group_sl7 (upstream only maps
-# that group to the ARM device-tree compatibles, so on the Intel model the SAM bus
-# comes up with zero nodes and no keyboard). We build it as an out-of-tree module
-# and install it into /lib/modules/<ver>/updates/, which takes precedence over the
-# stock module.
+# which does two things:
+#   1. registers ACPI hub id MSHW0551 against ssam_node_group_sl7 (upstream maps that
+#      group only to the ARM device-tree compatibles, so on the Intel model the SAM bus
+#      comes up with zero nodes and no keyboard), and
+#   2. adds ssam_node_bat_ac + ssam_node_bat_main to that group. Upstream's SL7 group
+#      omits them (every other Surface laptop group has them), so without this the SAM
+#      bus carries no battery: surface_battery and surface_charger bind to nothing,
+#      /sys/class/power_supply stays empty, and UPower reports no battery at all.
+# We build it as an out-of-tree module and install it into /lib/modules/<ver>/updates/,
+# which takes precedence over the stock module.
 #
 # Usage:  sudo bash restore-keyboard-module.sh
 #
 # Why this is needed after kernel updates: the module is compiled against one exact
 # kernel version, so a new linux-omarchy leaves you with the unpatched stock module
-# until you rerun this. See also 95-sl7-keyboard.hook (optional pacman automation).
+# until you reboot into it and rerun this. Do not invoke this from a post-transaction
+# pacman hook: uname still identifies the old kernel until reboot.
 #
 # Rollback:
 #   sudo rm /lib/modules/$(uname -r)/updates/surface_aggregator_registry.ko
@@ -47,20 +54,33 @@ say "fetching $SRCURL"
 curl -4 -sfL --max-time 60 -o "$WORK/src.c" "$SRCURL" \
     || die "could not fetch source for v$VERSION (kernel too new, or no network) - nothing changed"
 
-if grep -q 'MSHW0551' "$WORK/src.c"; then
-    say "upstream already contains MSHW0551 - the override module is no longer needed"
+# The override is only redundant once upstream does BOTH jobs: map the Intel hub id and
+# carry the battery nodes. Checking just MSHW0551 would silently drop the battery fix.
+upstream_sl7="$(awk '/ssam_node_group_sl7\[\]/,/\};/' "$WORK/src.c")"
+if grep -q 'MSHW0551' "$WORK/src.c" && grep -q 'ssam_node_bat_main' <<<"$upstream_sl7"; then
+    say "upstream already maps MSHW0551 and its SL7 group carries the battery nodes"
+    say "the override module is no longer needed"
     rm -f "$UPD/surface_aggregator_registry.ko"
     depmod -a "$KREL"
     echo "   removed the override; rebuild the initramfs next:  sudo limine-mkinitcpio"
     exit 0
+fi
+if grep -q 'MSHW0551' "$WORK/src.c"; then
+    say "upstream now maps MSHW0551 but still has no battery nodes in the SL7 group"
 fi
 
 # --- 2. patch --------------------------------------------------------------
 mkdir -p "$WORK/stage/drivers/platform/surface"
 cp "$WORK/src.c" "$WORK/stage/drivers/platform/surface/surface_aggregator_registry.c"
 ( cd "$WORK/stage" && patch -p1 --forward <"$PATCHF" )
-grep -q 'MSHW0551' "$WORK/stage/drivers/platform/surface/surface_aggregator_registry.c" \
+PATCHED_SRC="$WORK/stage/drivers/platform/surface/surface_aggregator_registry.c"
+grep -q 'MSHW0551' "$PATCHED_SRC" \
     || die "patch did not apply (upstream context changed) - nothing changed"
+# Assert at source level: the battery node names are also present in other models' groups,
+# so grepping the built .ko for them would pass either way and prove nothing.
+patched_sl7="$(awk '/ssam_node_group_sl7\[\]/,/\};/' "$PATCHED_SRC")"
+grep -q 'ssam_node_bat_main' <<<"$patched_sl7" \
+    || die "patched SL7 group is missing the battery nodes - nothing changed"
 say "patch applied"
 
 # --- 3. build --------------------------------------------------------------
@@ -116,4 +136,6 @@ fi
 
 say "DONE - reboot to confirm the keyboard works at the LUKS prompt"
 echo "   verify after reboot:  grep -i keyboard /proc/bus/input/devices"
-echo "                         ls /sys/bus/surface_aggregator/devices/"
+echo "                         ls /sys/bus/surface_aggregator/devices/     # expect 6"
+echo "                         ls /sys/class/power_supply/                 # expect BAT1 + ADP1"
+echo "                         upower -e | grep BAT"
