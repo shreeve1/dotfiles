@@ -73,7 +73,7 @@ hyprctl configerrors
    ~/.local/bin/hypr-deck self-test
    ```
 
-   Expected results are `active` and `PASS: orientation-aware geometry and dynamic monitor reflow`. If the unit is enabled but inactive after a migration, the installed Deck bindings/configuration will exist but focus-driven overlap will not run.
+   Expected results are `active` and `PASS: reversible orientation-aware geometry and dynamic monitor reflow`. If the unit is enabled but inactive after a migration, the installed Deck bindings/configuration will exist but focus-driven overlap will not run.
 7. Restart the Omarchy shell, then log out and back in:
 
    ```bash

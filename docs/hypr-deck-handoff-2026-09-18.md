@@ -34,7 +34,7 @@ vertical (`y`) split. Background rectangles are derived from that tree, rather
 than being unrelated address-to-rectangle entries.
 
 - One window owns the full Deck work area.
-- Two windows are canonical full-height left/right columns.
+- Two windows retain the columns-or-rows orientation captured from Dwindle.
 - A later window replaces the focused leaf and splits it along that leaf's
   longer axis.
 - Closing a leaf collapses its parent onto the surviving sibling/subtree and
@@ -74,6 +74,23 @@ service state, and empty config errors. The temporary file was removed.
 - `Super + Alt + Prior/Next` → adjust foreground scale.
 - `Super + Alt + D` → toggle Deck Mode.
 - `Super + Shift + Alt + D` → restore normal tiling and pause Deck Mode.
+
+Entering Deck reconstructs its split tree from the live tiled rectangles rather
+than forcing a two-window workspace into columns. Restoring normal tiling uses
+Dwindle's one-shot `preselect` layout message to rebuild that saved tree before
+discarding Deck state, so a rows layout returns as rows and a columns layout
+returns as columns.
+
+The first orientation-preservation attempt still flipped layouts during bulk
+adoption. `adopt_workspace()` appended the first newly discovered tiled window
+to its `existing` list, then incorrectly treated the second newly discovered
+window as a late arrival whose peers were already floating. It split the first
+window along its longer axis instead of inferring the two live tiled rectangles.
+Bulk adoption now distinguishes windows managed before the batch from windows
+being captured in that batch. Deck commands and daemon applies also share an
+`flock` lock, and enabling Deck captures all tiled workspaces while holding it,
+so the keybinding process and socket daemon cannot overwrite each other's
+layout transition.
 
 Do not re-enable native Hyprland/Omarchy directional window-swap bindings while
 Deck Mode owns the workspace; they only alter live floating geometry and will

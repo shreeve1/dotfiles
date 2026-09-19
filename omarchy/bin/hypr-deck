@@ -9,6 +9,8 @@ own slot; all others return to their saved rectangles.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -333,6 +335,96 @@ def insert_leaf(
     return updated if replaced else node
 
 
+def first_leaf_address(node: dict[str, Any]) -> str:
+    """Return the first window in a split subtree."""
+    if "address" in node:
+        return normalize_address(str(node["address"]))
+    return first_leaf_address(node["first"])
+
+
+def infer_layout(addresses: list[str], windows: dict[str, Any]) -> dict[str, Any] | None:
+    """Reconstruct a reversible split tree from tiled window rectangles.
+
+    Dwindle layouts are guillotine partitions: at every branch, one clear
+    horizontal or vertical cut separates its two children. Recover those cuts
+    instead of imposing one canonical orientation when Deck adopts a workspace.
+    """
+    addresses = [normalize_address(address) for address in addresses]
+    if not addresses:
+        return None
+    if len(addresses) == 1:
+        return leaf(addresses[0])
+
+    candidates: list[tuple[tuple[int, int, int], str, list[str], list[str]]] = []
+    for axis, position, extent in (("x", "x", "w"), ("y", "y", "h")):
+        ordered = sorted(
+            addresses,
+            key=lambda address: (
+                int(windows[address]["background"][position])
+                + int(windows[address]["background"][extent]) / 2,
+                address,
+            ),
+        )
+        for index in range(1, len(ordered)):
+            first, second = ordered[:index], ordered[index:]
+            first_edge = max(
+                int(windows[address]["background"][position])
+                + int(windows[address]["background"][extent])
+                for address in first
+            )
+            second_edge = min(int(windows[address]["background"][position]) for address in second)
+            if first_edge <= second_edge:
+                gap = second_edge - first_edge
+                balance = min(len(first), len(second))
+                # Prefer a visible separator, then a balanced root. Resolve a
+                # perfect grid deterministically in favor of the x axis.
+                candidates.append(((gap, balance, axis == "x"), axis, first, second))
+
+    if candidates:
+        _score, axis, first, second = max(candidates, key=lambda candidate: candidate[0])
+        first_node = infer_layout(first, windows)
+        second_node = infer_layout(second, windows)
+        if first_node is not None and second_node is not None:
+            return {"axis": axis, "first": first_node, "second": second_node}
+
+    # Defensive fallback for unusual/overlapping client geometry. Preserve the
+    # old deterministic ordering, but infer the first split from window centers
+    # rather than always forcing two columns.
+    ordered = sorted(
+        addresses,
+        key=lambda address: (
+            int(windows[address]["background"]["x"]),
+            int(windows[address]["background"]["y"]),
+            address,
+        ),
+    )
+    first_rect = windows[ordered[0]]["background"]
+    second_rect = windows[ordered[1]]["background"]
+    dx = abs(
+        int(second_rect["x"]) + int(second_rect["w"]) / 2
+        - int(first_rect["x"]) - int(first_rect["w"]) / 2
+    )
+    dy = abs(
+        int(second_rect["y"]) + int(second_rect["h"]) / 2
+        - int(first_rect["y"]) - int(first_rect["h"]) / 2
+    )
+    node: dict[str, Any] = {
+        "axis": "x" if dx >= dy else "y",
+        "first": leaf(ordered[0]),
+        "second": leaf(ordered[1]),
+    }
+    for address in ordered[2:]:
+        source = tree_addresses(node)[-1]
+        background = windows[source]["background"]
+        axis = "x" if int(background["w"]) >= int(background["h"]) else "y"
+        node, _ = replace_leaf(
+            node,
+            source,
+            {"axis": axis, "first": leaf(source), "second": leaf(address)},
+        )
+    return node
+
+
 def assign_tree_rects(
     node: dict[str, Any], slot: dict[str, int], gap: int, windows: dict[str, Any]
 ) -> None:
@@ -359,9 +451,28 @@ class Deck:
         self.dirty_layouts: set[int] = set()
         self._monitor_map: dict[int, dict[str, Any]] | None = None
         self._inner_gap: int | None = None
+        self._lock_handle: Any = None
+        self._lock_depth = 0
 
     def log(self, message: str) -> None:
         print(f"{NAME}: {message}", flush=True)
+
+    @contextmanager
+    def exclusive(self) -> Any:
+        """Serialize state transitions and geometry writes across processes."""
+        if self._lock_depth == 0:
+            lock_path = self.path.with_suffix(".lock")
+            self._lock_handle = lock_path.open("a", encoding="utf-8")
+            fcntl.flock(self._lock_handle.fileno(), fcntl.LOCK_EX)
+        self._lock_depth += 1
+        try:
+            yield
+        finally:
+            self._lock_depth -= 1
+            if self._lock_depth == 0 and self._lock_handle is not None:
+                fcntl.flock(self._lock_handle.fileno(), fcntl.LOCK_UN)
+                self._lock_handle.close()
+                self._lock_handle = None
 
     def read_state(self) -> dict[str, Any]:
         try:
@@ -458,37 +569,8 @@ class Deck:
         self.invalidate_display_geometry(current[0], current[1])
 
     def build_layout(self, addresses: list[str]) -> dict[str, Any] | None:
-        """Build a migration tree; two-window workspaces are vertical columns."""
-        if not addresses:
-            return None
-        windows = self.state["windows"]
-        ordered = sorted(
-            addresses,
-            key=lambda address: (
-                int(windows[address]["background"]["x"]),
-                int(windows[address]["background"]["y"]),
-                address,
-            ),
-        )
-        if len(ordered) == 1:
-            return leaf(ordered[0])
-        # The user's canonical two-window Deck is always two full-height
-        # columns. This also repairs v2 states left as two stacked half-slots
-        # after one member of an older column pair closed.
-        node: dict[str, Any] = {
-            "axis": "x",
-            "first": leaf(ordered[0]),
-            "second": leaf(ordered[1]),
-        }
-        # Legacy workspaces with more than two windows are uncommon. Preserve
-        # their saved-slot orientation while attaching later leaves.
-        for address in ordered[2:]:
-            source = tree_addresses(node)[-1]
-            background = windows[source]["background"]
-            axis = "x" if int(background["w"]) >= int(background["h"]) else "y"
-            replacement = {"axis": axis, "first": leaf(source), "second": leaf(address)}
-            node, _ = replace_leaf(node, source, replacement)
-        return node
+        """Build a split tree that preserves the captured tiled orientation."""
+        return infer_layout(addresses, self.state["windows"])
 
     def ensure_layouts(self, live: dict[str, dict[str, Any]]) -> bool:
         """Reconcile split trees and derive every saved background rectangle."""
@@ -650,13 +732,14 @@ class Deck:
             address for address, saved in known.items()
             if saved.get("workspace") == ws and address in live and not live[address].get("fullscreen")
         ]
+        previously_managed = list(existing)
         layout = self.state.setdefault("layouts", {}).get(str(ws))
         if existing and (not layout or set(tree_addresses(layout)) != set(existing)):
             layout = self.build_layout(existing)
         for client in new:
             address = normalize_address(str(client["address"]))
             background = rect(client)
-            if regular_tiled(client) and existing:
+            if regular_tiled(client) and previously_managed:
                 # Every existing Deck peer is floating, so Hyprland reports the
                 # newcomer as full-workspace. Split the focused saved leaf in
                 # the durable tree instead; that split can later be reversed.
@@ -723,6 +806,10 @@ class Deck:
             self.write_state()
 
     def apply(self, focused: str | None = None, force: bool = False) -> None:
+        with self.exclusive():
+            self._apply(focused, force)
+
+    def _apply(self, focused: str | None = None, force: bool = False) -> None:
         # Commands such as `hypr-deck scale` run in a separate process. Reload
         # disk state before every application so their adjustment is retained.
         self.state = self.read_state()
@@ -807,14 +894,15 @@ class Deck:
         self.write_state()
 
     def set_scale(self, delta: float | None = None, absolute: float | None = None) -> None:
-        state = self.read_state()
-        current = float(state.get("scale", DEFAULT_SCALE))
-        scale = absolute if absolute is not None else current + (delta or 0)
-        state["scale"] = round(max(MIN_SCALE, min(MAX_SCALE, scale)), 2)
-        self.state = state
-        self.write_state()
-        self.apply(force=True)
-        self.log(f"foreground scale: {self.state['scale']:.2f}")
+        with self.exclusive():
+            state = self.read_state()
+            current = float(state.get("scale", DEFAULT_SCALE))
+            scale = absolute if absolute is not None else current + (delta or 0)
+            state["scale"] = round(max(MIN_SCALE, min(MAX_SCALE, scale)), 2)
+            self.state = state
+            self.write_state()
+            self.apply(force=True)
+            self.log(f"foreground scale: {self.state['scale']:.2f}")
 
     def directional_target(self, direction: str, live: dict[str, dict[str, Any]], current: str) -> str:
         """Return the nearest managed saved slot in a direction, if any."""
@@ -874,50 +962,104 @@ class Deck:
         direction = direction.lower()[0]
         if direction not in {"l", "r", "u", "d"}:
             raise ValueError(f"unsupported swap direction: {direction}")
-        self.state = self.read_state()
-        if not self.state.get("enabled", True):
-            return
-        live = self.live()
-        current = active_address()
-        client = live.get(current)
-        if not client:
-            return
-        target = self.directional_target(direction, live, current)
-        if not target:
-            return
-        ws = workspace_id(client)
-        key = str(ws)
-        layout = self.state.setdefault("layouts", {}).get(key)
-        if not layout or current not in tree_addresses(layout) or target not in tree_addresses(layout):
-            return
-        self.state["layouts"][key] = swap_leaf_addresses(layout, current, target)
-        self.dirty_layouts.add(ws)
-        self.ensure_layouts(live)
-        self.state.setdefault("workspace_focus", {})[key] = current
-        self.write_state()
-        # A swap changes saved ownership but not focus. Apply once here so the
-        # active client remains foreground in its new slot; own move events are
-        # deliberately ignored by the persistent daemon.
-        self.apply(current, force=True)
-        self.log(f"swapped {current} with {target} on workspace {ws}")
+        with self.exclusive():
+            self.state = self.read_state()
+            if not self.state.get("enabled", True):
+                return
+            live = self.live()
+            current = active_address()
+            client = live.get(current)
+            if not client:
+                return
+            target = self.directional_target(direction, live, current)
+            if not target:
+                return
+            ws = workspace_id(client)
+            key = str(ws)
+            layout = self.state.setdefault("layouts", {}).get(key)
+            if not layout or current not in tree_addresses(layout) or target not in tree_addresses(layout):
+                return
+            self.state["layouts"][key] = swap_leaf_addresses(layout, current, target)
+            self.dirty_layouts.add(ws)
+            self.ensure_layouts(live)
+            self.state.setdefault("workspace_focus", {})[key] = current
+            self.write_state()
+            # A swap changes saved ownership but not focus. Apply once here so the
+            # active client remains foreground in its new slot; own move events are
+            # deliberately ignored by the persistent daemon.
+            self.apply(current, force=True)
+            self.log(f"swapped {current} with {target} on workspace {ws}")
 
     def toggle(self) -> None:
-        self.state = self.read_state()
-        self.state["enabled"] = not bool(self.state.get("enabled", True))
-        self.write_state()
-        if self.state["enabled"]:
-            self.apply(force=True)
-        self.log("enabled" if self.state["enabled"] else "paused")
+        with self.exclusive():
+            self.state = self.read_state()
+            self.state["enabled"] = not bool(self.state.get("enabled", True))
+            self.write_state()
+            if self.state["enabled"]:
+                # A restore clears Deck ownership on every workspace. Capture
+                # all currently tiled workspaces before any focus event can
+                # adopt one workspace from an intermediate compositor state.
+                self.adopt_all()
+                self.apply(force=True)
+            self.log("enabled" if self.state["enabled"] else "paused")
+
+    def restore_layout(self, node: dict[str, Any], live: dict[str, dict[str, Any]]) -> set[str]:
+        """Rebuild one saved Dwindle tree by preselecting each insertion."""
+        restored: set[str] = set()
+        root = first_leaf_address(node)
+        if root not in live:
+            return restored
+        tag_window(root, False)
+        floating(root, False)
+        restored.add(root)
+
+        def expand(branch: dict[str, Any]) -> None:
+            if "address" in branch:
+                return
+            first = branch["first"]
+            second = branch["second"]
+            first_address = first_leaf_address(first)
+            second_address = first_leaf_address(second)
+            if first_address in live and second_address in live:
+                hypr_eval(f'hl.dispatch(hl.dsp.focus({{ window = {lua_window(first_address)} }}))')
+                direction = "r" if branch.get("axis") == "x" else "d"
+                hypr_eval(f'hl.dispatch(hl.dsp.layout("preselect {direction}"))')
+                tag_window(second_address, False)
+                floating(second_address, False)
+                restored.add(second_address)
+            expand(first)
+            expand(second)
+
+        expand(node)
+        return restored
 
     def restore_tiling(self) -> None:
-        """Return managed windows to Hyprland tiling and disable Deck Mode."""
+        """Return managed windows to their saved Dwindle layout and disable Deck."""
+        with self.exclusive():
+            self._restore_tiling()
+
+    def _restore_tiling(self) -> None:
         self.state = self.read_state()
         live = self.live()
         tracked = set(self.state["windows"])
-        for address in tracked:
+        original_focus = active_address()
+
+        # Disable first so focus events emitted while rebuilding cannot make the
+        # daemon re-float a partially restored workspace.
+        self.state["enabled"] = False
+        self.write_state()
+
+        restored: set[str] = set()
+        for workspace in sorted(self.state.get("layouts", {}), key=int):
+            node = self.state["layouts"][workspace]
+            if isinstance(node, dict):
+                restored.update(self.restore_layout(node, live))
+        for address in tracked - restored:
             if address in live:
                 tag_window(address, False)
                 floating(address, False)
+        if original_focus in live:
+            hypr_eval(f'hl.dispatch(hl.dsp.focus({{ window = {lua_window(original_focus)} }}))')
         # write_state merges newer on-disk slots to protect concurrent daemon
         # writes. Mark this intentional bulk removal so that merge cannot
         # resurrect the slots restore-tiling just cleared.
@@ -990,9 +1132,10 @@ class Deck:
         signal.signal(signal.SIGTERM, self.stop)
         signal.signal(signal.SIGINT, self.stop)
         if self.state.get("enabled", True):
-            self.invalidate_display_geometry()
-            self.adopt_all()
-            self.apply(force=True)
+            with self.exclusive():
+                self.invalidate_display_geometry()
+                self.adopt_all()
+                self.apply(force=True)
         while self.running:
             path = self.socket_path()
             if not path:
@@ -1047,6 +1190,25 @@ def self_test() -> int:
         {"x": 12, "y": 38, "w": 1261, "h": 1390},
         {"x": 1287, "y": 38, "w": 1261, "h": 1390},
     )
+    # Entering Deck recovers the live Dwindle orientation rather than forcing
+    # every two-window workspace into columns.
+    captured = {
+        "0x1": {"background": {"x": 12, "y": 38, "w": 2536, "h": 688}},
+        "0x2": {"background": {"x": 12, "y": 740, "w": 2536, "h": 688}},
+    }
+    assert infer_layout(["0x1", "0x2"], captured) == {
+        "axis": "y", "first": leaf("0x1"), "second": leaf("0x2")
+    }
+    captured = {
+        "0x1": {"background": {"x": 12, "y": 38, "w": 1261, "h": 1390}},
+        "0x2": {"background": {"x": 1287, "y": 38, "w": 1261, "h": 688}},
+        "0x3": {"background": {"x": 1287, "y": 740, "w": 1261, "h": 688}},
+    }
+    assert infer_layout(["0x1", "0x2", "0x3"], captured) == {
+        "axis": "x",
+        "first": leaf("0x1"),
+        "second": {"axis": "y", "first": leaf("0x2"), "second": leaf("0x3")},
+    }
     # Split trees reverse a close: removing either leaf promotes its sibling.
     layout = {
         "axis": "x",
@@ -1160,7 +1322,7 @@ def self_test() -> int:
     }
     assert regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": False, "pinned": False, "fullscreen": 0, "workspace": {"id": 2}})
     assert not regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": True, "workspace": {"id": 2}})
-    print("PASS: orientation-aware geometry and dynamic monitor reflow")
+    print("PASS: reversible orientation-aware geometry and dynamic monitor reflow")
     return 0
 
 
