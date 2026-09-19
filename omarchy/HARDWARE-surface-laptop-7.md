@@ -1,8 +1,8 @@
 # Surface Laptop 7 (Intel) — host hardware fixes
 
-Host properties, not portable config. These four fixes are machine-specific work done
+Host properties, not portable config. These five fixes are machine-specific work done
 after the Omarchy bare-metal bring-up; the buildable sources and scripts live in
-`omarchy/hardware/surface-laptop-7/` so all four are reproducible on a fresh install and
+`omarchy/hardware/surface-laptop-7/` so the kernel and service fixes are reproducible on a fresh install and
 recoverable after a kernel update. The §1 module carries the internal keyboard, the ALS,
 and the battery/AC adapter — one patch, four devices.
 
@@ -16,7 +16,9 @@ All fixes were verified live before being written down: keyboard at the boot log
 (module loads pre-switch-root, device registers ~5 s before the greeter), touchpad at
 the event level (see the measurement table below), and audio with a non-silent PipeWire
 capture plus a live Voxtype recording/OSD test. Bluetooth recovery was tested by removing
-`btintel_pcie` and confirming that the new boot service restored a usable controller.
+`btintel_pcie` and confirming that the new boot service restored a usable controller. The
+internal camera was tested through both a 1280x720 V4L2 bridge capture and Slack's native
+PipeWire camera path.
 
 ---
 
@@ -169,7 +171,7 @@ installs, depmods, and regenerates the initramfs/UKI; if upstream ever merges MS
 removes the override instead of patching.
 
 Do not rebuild this from a post-transaction pacman hook: before reboot, `uname -r` still
-names the old running kernel. Use the ordered post-update procedure in §7 instead.
+names the old running kernel. Use the ordered post-update procedure in §8 instead.
 
 ### Rollback
     sudo rm /lib/modules/$(uname -r)/updates/surface_aggregator_registry.ko
@@ -320,7 +322,7 @@ The module is tied to one exact `linux-omarchy` ABI. The restore script discover
 `omarchy-pkgs` source recipe from the installed package version and build timestamp, reapplies
 that recipe's SoundWire backports, and then applies the Surface patch. If the source changed
 incompatibly, it stops rather than installing a questionable module. Use the ordered
-post-update procedure in §7. Rerun the UCM installer after `alsa-ucm-conf` updates so its
+post-update procedure in §8. Rerun the UCM installer after `alsa-ucm-conf` updates so its
 symlink overlay and two patched files are refreshed.
 
 ### Rollback
@@ -388,13 +390,89 @@ Inspect the current boot with:
 
 ---
 
-## 5. Also done on this host
+## 5. Internal camera — IPU7/libcamera and on-demand Slack access
+
+### Symptom and cause
+
+The OV02C10 internal sensor is connected through Intel IPU7 rather than USB/UVC. The kernel
+finds it and libcamera can capture it, but ordinary V4L2 applications see the IPU7 plumbing
+nodes instead of a directly usable webcam. Libcamera 0.7.2 uses its generic
+`simple/uncalibrated.yaml` software-ISP profile because there is no OV02C10 sensor helper or
+calibrated profile; warnings about missing crop rectangles and sensor properties are therefore
+expected. The image works but is noisier and less accurately tone-mapped than the Logitech C920.
+
+### Preferred Slack setup — native PipeWire, camera opened only on demand
+
+Slack's Electron build contains `WebRtcPipeWireCamera`, but it is not enabled by default. A
+per-user desktop-file override enables it:
+
+    ~/.local/share/applications/slack.desktop
+    Exec=/usr/bin/slack --gtk-version=3 -s --enable-features=WebRtcPipeWireCamera %U
+
+Completely quit and relaunch Slack after changing the desktop file. Confirm the running process
+contains the feature flag:
+
+    ps -eo pid,args | grep '[W]ebRtcPipeWireCamera'
+
+PipeWire/WirePlumber publishes the sensor as the libcamera device `ov02c10`. With the native
+path, Slack enumerates that device without a continuously running capture process. The physical
+privacy LED remains off while Slack is idle and turns on only when Slack opens camera preview or
+uses video in a call. Do not suppress the LED: it correctly reports that the sensor is active.
+
+The final live state is intentionally:
+
+    systemctl --user disable --now builtin-camera-bridge.service
+    # Slack running with --enable-features=WebRtcPipeWireCamera
+
+This native path bypasses the color correction from the fallback bridge below.
+
+### Fallback for applications requiring a conventional V4L2 webcam
+
+`v4l2loopback` exposes `/dev/video42` as `Built-in Front Camera`:
+
+    /etc/modules-load.d/surface-camera-loopback.conf
+        v4l2loopback
+
+    /etc/modprobe.d/surface-camera-loopback.conf
+        options v4l2loopback video_nr=42 card_label="Built-in Front Camera" exclusive_caps=1 max_buffers=4
+
+The disabled user service `~/.config/systemd/user/builtin-camera-bridge.service` runs
+`~/.local/bin/builtin-camera-bridge.sh`, whose tested GStreamer pipeline is:
+
+    gst-launch-1.0 -e \
+      libcamerasrc camera-name='\\_SB_.PC00.I2C5.CAMF' \
+      ! video/x-raw,width=1280,height=720 \
+      ! videobalance contrast=1.50 saturation=1.25 brightness=-0.04 \
+      ! videoconvert ! video/x-raw,format=YUY2 \
+      ! v4l2sink device=/dev/video42 sync=false
+
+That pipeline was verified with a real 1280x720 JPEG capture. `exclusive_caps=1` means consumers
+see `/dev/video42` as a capture device only while the pipeline has its producer side open. As a
+result, enabling the bridge also opens the physical sensor continuously and keeps the privacy LED
+on. Use it only as a compatibility fallback:
+
+    systemctl --user enable --now builtin-camera-bridge.service
+    systemctl --user disable --now builtin-camera-bridge.service
+
+Useful checks:
+
+    cam -l
+    wpctl status
+    v4l2-ctl --list-devices
+    systemctl --user status builtin-camera-bridge.service
+
+Required packages include `libcamera`, `libcamera-ipa`, `libcamera-tools`, `pipewire-libcamera`,
+GStreamer's libcamera/V4L2 plugins, `v4l-utils`, and `v4l2loopback-dkms`.
+
+---
+
+## 6. Also done on this host
 
     google-chrome 153.0.8010.47-1   AUR package built to a local package, then pacman -U
     ~/.config/chrome-flags.conf     --ozone-platform-hint=auto (native Wayland)
     build deps installed: meson, ninja, cmake
 
-## 6. Caveats that matter
+## 7. Caveats that matter
 
 - **Secure Boot must stay OFF** (it is off; efivar value 0). The keyboard module is
   unsigned and taints the kernel (taint 13312 = O|E|C).
@@ -409,7 +487,7 @@ Inspect the current boot with:
 - `~/dotfiles` is synced to macOS. Everything here is Linux/Omarchy-only; `install.sh`
   does not link any of it, so it cannot affect the Mac.
 
-## 7. Verification
+## 8. Verification
 
 ### After every `linux-omarchy` update
 

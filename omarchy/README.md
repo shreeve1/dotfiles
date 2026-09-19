@@ -106,7 +106,7 @@ hyprctl configerrors
 
 ## Host hardware — Surface Laptop 7 (Intel)
 
-Four machine-specific fixes are needed on this host and are documented in
+Five machine-specific fixes are needed on this host and are documented in
 [`HARDWARE-surface-laptop-7.md`](HARDWARE-surface-laptop-7.md), with buildable sources and
 restore scripts under `hardware/surface-laptop-7/`:
 
@@ -127,6 +127,10 @@ restore scripts under `hardware/surface-laptop-7/`:
   boot. A one-shot system service checks for a controller and reloads `btintel_pcie` only when
   needed. Restore it with
   `sudo omarchy/hardware/surface-laptop-7/bluetooth/install-bluetooth-recovery.sh`.
+- **Internal IPU7 camera** — Slack uses its native on-demand PipeWire/libcamera path when
+  launched with `--enable-features=WebRtcPipeWireCamera`, so the privacy LED is off while idle.
+  A disabled `v4l2loopback`/GStreamer bridge remains documented as a color-corrected fallback
+  for applications that require a conventional V4L2 webcam.
 
 None of these is linked by `install.sh`; they are host properties, recorded here so they are
 recoverable rather than folklore.
