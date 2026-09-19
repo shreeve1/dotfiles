@@ -174,8 +174,8 @@ fi
 # Starship prompt
 eval "$(starship init zsh)"
 
-# Atuin shell history
-eval "$(atuin init zsh --disable-up-arrow)"
+# Atuin shell history (guarded: atuin may not be installed on every machine)
+command -v atuin >/dev/null && eval "$(atuin init zsh --disable-up-arrow)"
 
 # LS_COLORS via vivid (Catppuccin Mocha)
 export LS_COLORS="$(vivid generate catppuccin-mocha)"
