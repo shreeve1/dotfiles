@@ -29,4 +29,5 @@ Candidate rows are discoverability aids only; do not treat them as promoted know
 
 | Candidate | Summary | Sources | Created | Status |
 |-----------|---------|---------|---------|--------|
+| `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md` | Portable Omarchy configuration boundary, Hypr Deck and fixed workspace policy, and the four-part Surface Laptop 7 Intel hardware recovery runbook. | `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`, `omarchy/README.md`, `omarchy/HARDWARE-surface-laptop-7.md` | 2026-09-19 | candidate |
 | `wiki/candidates/source-opencode-subagents.md` | Source summary for OpenCode subagent routing covering task-to-agent mapping, infrastructure chain, parallel patterns, and do-not-delegate rules. | `wiki/raw/opencode-subagents.md` | 2026-05-16 | candidate | candidate |

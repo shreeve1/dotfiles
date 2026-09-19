@@ -1,0 +1,4 @@
+Where does portable Omarchy configuration live, and what must not be synced? ||| ~/.local/share/omarchy
+Which display owns workspace 1 in the managed Hyprland setup? ||| eDP-1
+What are the four Surface Laptop 7 Intel recovery areas? ||| btintel_pcie
+What is the required kernel-update recovery order for Surface modules? ||| reboot into the new kernel
