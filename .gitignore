@@ -135,17 +135,22 @@ bin/*
 !.omp/agent/managed-skills/workflowz-ship/
 !.omp/agent/managed-skills/workflowz-ship/SKILL.md
 .omp/agent/memories/
+.omp/agent/cache/
+.omp/agent/custom-session-files/
 .omp/agent/last-changelog-version
 
 # Backup / temp files
 *.bak
 *.bak-*
+*.bak.*
 *-bak-*
 *.tmp
 *.swp
 *.swo
 *~
 .DS_Store
+__pycache__/
+*.py[cod]
 .claude.bak/
 .config/opencode-pre-reset-*/
 
@@ -217,3 +222,6 @@ wiki/graphify-out/cache/
 .rebuild.lock
 # graphify timestamped snapshot archives (YYYY-MM-DD dirs)
 graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+
+# tpm machine-local plugin clones (symlinked config dir)
+.config/tmux/plugins/
