@@ -1,11 +1,15 @@
 font-family = JetBrains Mono Nerd Font
-font-size = 14
+# Persistent default: the previous 14-point size reduced by five steps.
+font-size = 9
 cursor-style = block
 cursor-style-blink = false
 mouse-hide-while-typing = true
 copy-on-select = true
 clipboard-write = allow
 clipboard-read = allow
+# Omarchy's Super+V sends Shift+Insert in terminals. Use the main clipboard
+# instead of the often-stale Wayland PRIMARY selection.
+keybind = shift+insert=paste_from_clipboard
 window-padding-x = 8
 window-padding-y = 6
 unfocused-split-opacity = 0.94
