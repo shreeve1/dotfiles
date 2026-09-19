@@ -25,8 +25,11 @@
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
--- Move Voxtype push-to-talk from F9 to Ctrl+Space.
--- F9 is an Omarchy default, so remove it before replacing it.
+-- Use hold-to-talk for both Voxtype shortcuts. Omarchy defaults
+-- SUPER+CTRL+X to toggle mode and F9 to push-to-talk, so replace both.
+hl.unbind("SUPER + CTRL + X")
+o.bind("SUPER + CTRL + X", "Start dictation (push-to-talk)", "voxtype record start")
+o.bind("SUPER + CTRL + X", "Stop dictation (push-to-talk)", "voxtype record stop", { release = true })
 hl.unbind("F9")
 o.bind("CTRL + SPACE", "Start dictation (push-to-talk)", "voxtype record start")
 o.bind("CTRL + SPACE", "Stop dictation (push-to-talk)", "voxtype record stop", { release = true })

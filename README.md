@@ -11,6 +11,9 @@ This repo stores config files and folders synced across machines.
 - `~/.config/nvim`
 - `~/.config/yazi`
 - `~/.config/zellij`
+- Omarchy on Linux: `~/.config/hypr`, `~/.config/omarchy`,
+  `~/.config/chromium-flags.conf`, and `~/.config/mimeapps.list`
+  (stored under `omarchy/`; linked only when Omarchy is installed)
 - `~/.config/opencode` (retired remnants; the OpenCode binary is gone)
 - `~/.agents` + `~/.dsh/AGENTS.md` (AGENTS-standard lane — the canonical agent context)
 - selected Codex config under `~/.codex`
@@ -43,6 +46,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
         session-log/         (per-turn transcripts -> <repo>/.sessions/*.md)
       settings.json.template
   .codex/
+  omarchy/             (Linux/Omarchy-only desktop configuration and migration guide)
   install.sh
   install-win.ps1
 ```
