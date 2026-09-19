@@ -45,6 +45,14 @@ o.bind("SUPER + ALT + NEXT", "Deck: shrink foreground", "hypr-deck scale -0.05")
 o.bind("SUPER + ALT + D", "Deck: toggle automatic overlap", "hypr-deck toggle")
 o.bind("SUPER + SHIFT + ALT + D", "Deck: restore normal tiling", "hypr-deck restore-tiling")
 
+-- Keep a Deck window's saved leaf while temporarily expanding or pinning it.
+-- Native toggles only change live floating state, leaving Deck unable to know
+-- that a second press should restore and promote the original slot.
+hl.unbind("SUPER + T")
+o.bind("SUPER + T", "Deck-aware expand/restore toggle", "hypr-deck float-toggle")
+hl.unbind("SUPER + O")
+o.bind("SUPER + O", "Deck-aware pop window", "hypr-deck pop-toggle")
+
 -- Floating overlap has no reliable native directional focus order. Replace the
 -- default tile-oriented arrows with Deck's saved-slot geometric navigation.
 for key, direction in pairs({ LEFT = "left", RIGHT = "right", UP = "up", DOWN = "down" }) do

@@ -95,6 +95,10 @@ hyprctl configerrors
 ## Operating notes
 
 - `shell.json` hot-reloads when edited. Its current idle values are 150 seconds to screensaver and 300 seconds to lock.
+- While Deck is enabled, `Super+T` expands and raises a window without tiling it
+  underneath floating peers, and `Super+O` uses a pinned pop-out. A second press
+  restores and promotes the original saved slot. Outside Deck both retain
+  Omarchy's normal behavior.
 - Use `omarchy theme set <name>` and `omarchy font set <name>` to make persistent appearance changes; user themes/backgrounds live below `~/.config/omarchy/` and therefore belong here.
 - Do not edit `/usr/share/omarchy/`; package updates replace it.
 - `omarchy refresh shell` or `omarchy refresh hyprland` intentionally replaces live user config and can break the managed symlink. Review the generated backup, restore the desired repository version with `git`, then rerun `bash ~/dotfiles/install.sh`.

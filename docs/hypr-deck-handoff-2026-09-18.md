@@ -71,6 +71,10 @@ service state, and empty config errors. The temporary file was removed.
 
 - `Super + Arrow` → Deck directional focus/promotion.
 - `Super + Shift + Arrow` → Deck-aware persistent slot swap.
+- `Super + T` → temporarily expand and raise the focused Deck window; press again to
+  restore its saved slot and promote it.
+- `Super + O` → temporarily float and pin the focused Deck window; press again
+  to unpin it, restore its saved slot, and promote it.
 - `Super + Alt + Prior/Next` → adjust foreground scale.
 - `Super + Alt + D` → toggle Deck Mode.
 - `Super + Shift + Alt + D` → restore normal tiling and pause Deck Mode.
@@ -91,6 +95,18 @@ being captured in that batch. Deck commands and daemon applies also share an
 `flock` lock, and enabling Deck captures all tiled workspaces while holding it,
 so the keybinding process and socket daemon cannot overwrite each other's
 layout transition.
+
+Native floating and pop-out toggles are also incompatible with Deck ownership:
+they alter only the live floating/pinned state, so returning a window can leave
+it behind the foreground stack. In particular, tiling a Deck window puts it
+underneath its still-floating peers. The `Super + T` and `Super + O` overrides now
+mark a managed window as temporarily detached while retaining its split-tree
+leaf. `Super + T` keeps the window floating, expands it to the work area, and
+raises it; `Super + O` uses a centered pinned rectangle. Detached windows are
+excluded from Deck focus/swap candidates. A second press clears the detached
+state, reasserts floating/tag ownership, restores the saved slot, and explicitly
+promotes that window. When Deck is disabled or the active window is unmanaged,
+both commands retain their normal Omarchy behavior.
 
 Do not re-enable native Hyprland/Omarchy directional window-swap bindings while
 Deck Mode owns the workspace; they only alter live floating geometry and will
