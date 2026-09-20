@@ -25,6 +25,7 @@ from typing import Any
 
 NAME = "hypr-deck"
 TAG = "hypr-deck"
+IGNORE_TAG = "deck-ignore"
 DEFAULT_SCALE = 0.67
 MIN_SCALE = 0.45
 MAX_SCALE = 0.90
@@ -195,12 +196,17 @@ def regular_tiled(client: dict[str, Any]) -> bool:
         and not client.get("floating")
         and not client.get("pinned")
         and not client.get("fullscreen")
+        and not ignored_for_deck(client)
         and workspace_id(client) > 0
     )
 
 
 def tagged_for_deck(client: dict[str, Any]) -> bool:
     return TAG in (client.get("tags") or [])
+
+
+def ignored_for_deck(client: dict[str, Any]) -> bool:
+    return IGNORE_TAG in (client.get("tags") or [])
 
 
 def regular_floating(client: dict[str, Any]) -> bool:
@@ -211,6 +217,7 @@ def regular_floating(client: dict[str, Any]) -> bool:
         and client.get("floating")
         and not client.get("pinned")
         and not client.get("fullscreen")
+        and not ignored_for_deck(client)
         and workspace_id(client) > 0
     )
 
@@ -620,8 +627,17 @@ class Deck:
 
     def clean_state(self, live: dict[str, dict[str, Any]]) -> None:
         windows = self.state["windows"]
-        stale = [address for address, saved in windows.items() if address not in live or saved.get("stable_id") != str(live.get(address, {}).get("stableId", ""))]
+        stale = [
+            address
+            for address, saved in windows.items()
+            if address not in live
+            or saved.get("stable_id") != str(live.get(address, {}).get("stableId", ""))
+            or ignored_for_deck(live.get(address, {}))
+        ]
         for address in stale:
+            client = live.get(address)
+            if client and ignored_for_deck(client) and tagged_for_deck(client):
+                tag_window(address, False)
             for ws, node in list(self.state.setdefault("layouts", {}).items()):
                 if address in tree_addresses(node):
                     updated = remove_leaf(node, address)
@@ -665,10 +681,10 @@ class Deck:
                 continue
             old_ws = int(saved.get("workspace", 0))
             new_ws = workspace_id(client)
-            if new_ws <= 0 or new_ws == old_ws:
+            if new_ws == old_ws:
                 continue
 
-            old_key, new_key = str(old_ws), str(new_ws)
+            old_key = str(old_ws)
             old_layout = layouts.get(old_key)
             if old_layout and address in tree_addresses(old_layout):
                 updated = remove_leaf(old_layout, address)
@@ -677,6 +693,26 @@ class Deck:
                 else:
                     layouts[old_key] = updated
                 self.dirty_layouts.add(old_ws)
+
+            if new_ws <= 0:
+                # Special workspaces use Hyprland's own tiled layout. A Deck
+                # client arrives there floating, retaining its old foreground
+                # rectangle until the special workspace is hidden and shown
+                # again. Release it immediately so it fills the scratchpad on
+                # the first move rather than requiring a Deck toggle cycle.
+                windows.pop(address, None)
+                self.removed_addresses.add(address)
+                if normalize_address(str(workspace_focus.get(old_key, ""))) == address:
+                    workspace_focus.pop(old_key, None)
+                if tagged_for_deck(client):
+                    tag_window(address, False)
+                if client.get("floating"):
+                    floating(address, False)
+                changed = True
+                self.log(f"released {address} from workspace {old_ws} to special workspace {new_ws}")
+                continue
+
+            new_key = str(new_ws)
 
             destination = [
                 candidate
@@ -795,6 +831,7 @@ class Deck:
             address for address, saved in self.state["windows"].items()
             if saved.get("workspace") == ws
             and address in live
+            and workspace_id(live[address]) == ws
             and not live[address].get("fullscreen")
             and not saved.get("detached")
         ]
@@ -847,6 +884,17 @@ class Deck:
             live = self.live()
             self.clean_state(live)
             self.ensure_layouts(live)
+        client = live.get(address)
+        if not client or workspace_id(client) <= 0 or client.get("fullscreen"):
+            self.write_state()
+            return
+        ws = workspace_id(client)
+        addresses = self.managed_on_workspace(ws, live)
+        if address not in addresses:
+            # Floating dialogs and explicitly excluded apps do not participate in
+            # Deck. Keep the current Deck card promoted while they have focus.
+            self.write_state()
+            return
         # Restore only the previous foreground and the new workspace's peers.
         # Repositioning every hidden workspace on each switch can make Hyprland
         # re-evaluate floating placement off-screen and appears as slot swaps.
@@ -864,11 +912,6 @@ class Deck:
                 if not rect_matches(live[previous], target):
                     move_resize(previous, target)
                 restored.add(previous)
-        client = live.get(address)
-        if not client or workspace_id(client) <= 0 or client.get("fullscreen"):
-            self.write_state()
-            return
-        ws = workspace_id(client)
         # Hyprland may choose a different focus target when revisiting a
         # workspace. Keep the last intentionally focused Deck window for that
         # workspace in front, so focus changes do not look like left/right
@@ -888,10 +931,6 @@ class Deck:
                 hypr_eval(f'hl.dispatch(hl.dsp.focus({{ window = {lua_window(remembered)} }}))')
                 address = remembered
                 client = remembered_client
-        addresses = self.managed_on_workspace(ws, live)
-        if address not in addresses:
-            self.write_state()
-            return
         for candidate in addresses:
             if candidate != address and candidate not in restored:
                 target = self.state["windows"][candidate]["background"]
@@ -1202,7 +1241,12 @@ class Deck:
             live = self.live()
             saved = self.state["windows"].get(address)
             client = live.get(address)
-            if saved and client and workspace_id(client) != int(saved.get("workspace", 0)):
+            if client and (
+                (saved and workspace_id(client) != int(saved.get("workspace", 0)))
+                or (not saved and workspace_id(client) > 0 and regular_tiled(client))
+            ):
+                # The second case re-adopts a tiled client returning from a
+                # special workspace after it was deliberately released above.
                 self.apply(force=True)
         elif event in {
             "monitoradded",
