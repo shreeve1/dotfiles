@@ -317,6 +317,38 @@ ALSA card `sof-soundwire` registers with capture PCM 4 (`Microphone`); PipeWire 
 287402/288000 non-zero samples. Voxtype successfully opened the default device and Hyprland
 showed namespace `voxtype-osd` at `400x48` while recording.
 
+### Bluetooth headset disconnect can expose a stale UCM overlay
+
+WirePlumber normally remembers a Bluetooth headset as the configured default source and falls
+back to the internal microphone when the headset disconnects. Do not clear that saved default
+merely because `wpctl status` still lists a disconnected `bluez_input` under **Default
+Configured Devices**; the currently selected source is the starred entry under **Sources** and
+is also reported by `pactl get-default-source`.
+
+If the per-user RT1320 overlay is stale or was generated before the current patch, that fallback
+fails: the headset disappears, the internal card remains on profile `off`, and PipeWire exposes
+only `Dummy Output`/no capture source. WirePlumber logs identify this case:
+
+    spa.alsa: Failed to get the verb HiFi
+    spa.alsa: No UCM verb is valid for <<<SplitPCM=1>>>hw:0
+
+Bluetooth did not disable the microphone in this state; it only exposed the already-invalid
+internal fallback. Regenerate the overlay as the desktop user (not with `sudo`):
+
+    ~/dotfiles/omarchy/hardware/surface-laptop-7/audio/install-ucm-override.sh
+
+The installer validates the HiFi verb, restarts WirePlumber, waits for the internal source and
+enables all four `rt1320-2 FU Capture Switch` channels. Confirm recovery with:
+
+    pactl get-default-source
+    pactl list cards | grep 'Active Profile'
+    amixer -D hw:0 cget "name='rt1320-2 FU Capture Switch'"
+
+The expected results are `HiFi__Mic__source`, `Active Profile: HiFi`, and
+`values=on,on,on,on`. Once repaired, repeated WirePlumber restarts and ordinary Bluetooth
+connect/disconnect cycles should preserve the internal fallback while retaining the headset as
+the preferred device whenever it is available.
+
 ### After an update
 The module is tied to one exact `linux-omarchy` ABI. The restore script discovers the exact
 `omarchy-pkgs` source recipe from the installed package version and build timestamp, reapplies

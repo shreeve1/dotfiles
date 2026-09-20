@@ -121,8 +121,10 @@ restore scripts under `hardware/surface-laptop-7/`:
   reviewed fork plus the LiftGraceMs patch). Userspace, so kernel updates do not affect it.
 - **Internal audio and microphone** — needs the patched `snd-soc-sdw-utils` module, built
   against the exact Omarchy source recipe, plus a per-user UCM overlay. The module breaks on
-  every kernel update:
-  `sudo bash omarchy/hardware/surface-laptop-7/audio/restore-audio-module.sh`
+  every kernel update. If disconnecting a Bluetooth headset leaves only `Dummy Output`, refresh
+  the UCM overlay so WirePlumber can fall back to the internal microphone. Recovery and
+  verification commands are in the hardware guide; the complete post-kernel-update restore is
+  `sudo omarchy/hardware/surface-laptop-7/restore-after-kernel-update.sh`.
 - **Intel Bluetooth** — the onboard adapter can time out while downloading firmware during
   boot. A one-shot system service checks for a controller and reloads `btintel_pcie` only when
   needed. Restore it with
