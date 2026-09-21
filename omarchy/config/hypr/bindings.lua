@@ -72,3 +72,8 @@ local hermes_companion = "$HOME/.hermes/hermes-agent/venv/bin/python $HOME/.conf
 o.bind("SUPER + ALT + H", "Hermes: listen", hermes_companion .. "listen")
 o.bind("SUPER + ALT + E", "Hermes: toggle eyes", hermes_companion .. "toggle-eyes")
 o.bind("SUPER + ALT + S", "Hermes: hush", hermes_companion .. "hush")
+o.bind("SUPER + ALT + A", "Hermes: ask panel", "omarchy-shell shell toggle hermes.companion")
+
+-- Agent Orchestrator: toggle the panel, then use arrow keys (or j/k) to select
+-- an agent card and Enter to open its reply composer.
+o.bind("SUPER + A", "Agent Orchestrator", "omarchy-shell shell toggle meviusisback.agent-orchestr")
