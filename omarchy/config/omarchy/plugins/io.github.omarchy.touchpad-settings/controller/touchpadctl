@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""Unprivileged Hyprland touchpad controller; stdout is stable JSON."""
+import argparse, json, os, subprocess, sys, tempfile
+from pathlib import Path
+SCHEMA=1
+FIELDS={"sensitivity":(-1.0,1.0,.05),"scroll_factor":(.1,2.0,.1)}
+BOOLS=("natural_scroll","tap_to_click","clickfinger_behavior","disable_while_typing","tap_and_drag","middle_button_emulation")
+OPTIONS={"sensitivity":"input:sensitivity", **{"scroll_factor":"input:touchpad:scroll_factor", **{k:f"input:touchpad:{k.replace('_','-') if k in ('tap_to_click','tap_and_drag') else k}" for k in BOOLS}}}
+def fail(msg): return {"schemaVersion":SCHEMA,"ok":False,"error":msg}
+def valid_num(v, lo, hi, step):
+    if isinstance(v,bool) or not isinstance(v,(int,float)) or v<lo or v>hi: return False
+    return abs(v/step-round(v/step)) < 1e-7
+def validate(s):
+    if not isinstance(s,dict) or any(not valid_num(s.get(k),*r) for k,r in FIELDS.items()): raise ValueError("sensitivity/scroll_factor out of range or step")
+    if any(type(s.get(k)) is not bool for k in BOOLS): raise ValueError("touchpad boolean fields must be booleans")
+def config_path(): return Path(os.environ.get("XDG_CONFIG_HOME",Path.home()/".config"))/"omarchy/touchpad-settings.json"
+def run(*args): return subprocess.run(args, text=True, capture_output=True, check=False)
+def read_option(name):
+    p=run("hyprctl","getoption",name,"-j")
+    if p.returncode: raise RuntimeError(p.stderr.strip() or "hyprctl getoption failed")
+    try: data=json.loads(p.stdout)
+    except Exception as e: raise RuntimeError("hyprctl returned invalid JSON") from e
+    if "float" in data: return float(data["float"])
+    if "bool" in data: return bool(data["bool"])
+    raise RuntimeError(f"hyprctl did not return a value for {name}")
+def current(): return {k:read_option(v) for k,v in OPTIONS.items()}
+def response(settings,**extra): return {"schemaVersion":SCHEMA,"ok":True,"settings":settings,**extra}
+def save(s):
+    p=config_path(); p.parent.mkdir(parents=True,exist_ok=True)
+    fd,tmp=tempfile.mkstemp(prefix=p.name+".",dir=p.parent); os.close(fd)
+    try:
+        os.chmod(tmp,0o600); Path(tmp).write_text(json.dumps({"schemaVersion":SCHEMA,"settings":s},sort_keys=True,indent=2)+"\n"); os.replace(tmp,p)
+    finally:
+        if os.path.exists(tmp): os.unlink(tmp)
+def apply(s):
+    validate(s)
+    for key,opt in OPTIONS.items():
+        val=str(s[key]).lower() if isinstance(s[key],bool) else (f"{s[key]:.2f}".rstrip("0").rstrip("."))
+        p=run("hyprctl","keyword",opt,val)
+        if p.returncode: raise RuntimeError(p.stderr.strip() or f"hyprctl keyword failed for {opt}")
+def main(argv=None):
+    ap=argparse.ArgumentParser(); sub=ap.add_subparsers(dest="action",required=True)
+    for a in ("status","restore"):
+        sub.add_parser(a).add_argument("--json",action="store_true")
+    x=sub.add_parser("apply"); x.add_argument("--json",action="store_true"); x.add_argument("settings")
+    try:
+        args=ap.parse_args(argv)
+        if args.action=="status":
+            print(json.dumps(response(current()),sort_keys=True)); return 0
+        if args.action=="restore":
+            p=config_path()
+            if not p.exists(): print(json.dumps(response(current(),restored=False,saved=False),sort_keys=True)); return 0
+            doc=json.loads(p.read_text())
+            if not isinstance(doc,dict) or doc.get("schemaVersion") != SCHEMA or "settings" not in doc:
+                raise ValueError("saved touchpad settings have an unsupported format")
+            s=doc["settings"]; validate(s); apply(s); print(json.dumps(response(current(),restored=True,saved=True),sort_keys=True)); return 0
+        s=json.loads(args.settings); validate(s); apply(s); save(s); print(json.dumps(response(current(),applied=True,saved=True),sort_keys=True)); return 0
+    except (ValueError,KeyError,json.JSONDecodeError,RuntimeError,OSError) as e: print(json.dumps(fail(str(e)),sort_keys=True)); return 1
+if __name__=="__main__": sys.exit(main())
