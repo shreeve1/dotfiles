@@ -1,0 +1,13 @@
+# Project Hermes Router Template
+
+Use this project context only as a router. Keep project-specific instructions thin.
+
+## Knowledge
+
+For repository questions, start with `wiki/index.md`, then read the routed wiki page and the cited source file before answering. Treat the wiki as synthesized guidance; source code and operational documents remain authoritative.
+
+## Operating rules
+
+- Read relevant project instructions and source before changing files.
+- Use the repository's documented verification command before reporting completion.
+- Update the wiki only through the installed `llm-wiki-setup` and `wiki-update` skills; claim writes must use the deterministic `wiki-update` gate resolver.
