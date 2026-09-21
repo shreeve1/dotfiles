@@ -1,0 +1,15 @@
+---
+name: handoff
+description: Compact the current conversation into a handoff document for another agent to pick up.
+argument-hint: "What will the next session be used for?"
+---
+
+Try to preserve the current session's context. Pass off any investigations, lookups, or research to the new session.
+
+Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save it to a path produced by `mktemp -t handoff-XXXXXX.md` (read the file before you write to it).
+
+Do not duplicate content already captured in other artifacts (PRDs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
+
+If the user passed arguments, treat them as a description of what the next session will focus on and tailor the doc accordingly.
+
+Output a short (2-3 sentence) copy-paste prompt for the next session that references the handoff document by its file path. Do not inline or re-print the document contents — the prompt should point the next session at the file.
