@@ -679,10 +679,18 @@ BarWidget {
         visible: !root.modelsPage && !root.profilesPage
         id: remarksFlick
         width: parent.width
-        height: Math.min(Style.space(160), remarksCol.implicitHeight)
+        height: Math.min(Style.space(320), remarksCol.implicitHeight)
         contentHeight: remarksCol.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
+        // Chronological order (oldest→newest): keep the newest exchange in view.
+        function toBottom() { contentY = Math.max(0, contentHeight - height) }
+        onContentHeightChanged: Qt.callLater(toBottom)
+        Connections {
+          target: root
+          function onPopupOpenChanged() { if (root.popupOpen) Qt.callLater(remarksFlick.toBottom) }
+          function onRemarksChanged() { Qt.callLater(remarksFlick.toBottom) }
+        }
         Column {
           id: remarksCol
           width: remarksFlick.width
