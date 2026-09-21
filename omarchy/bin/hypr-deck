@@ -836,6 +836,24 @@ class Deck:
             and not saved.get("detached")
         ]
 
+    def apply_workspace_backgrounds(
+        self, workspaces: set[int], live: dict[str, dict[str, Any]]
+    ) -> None:
+        """Apply recomputed slots after a workspace gains or loses a leaf."""
+        for ws in workspaces:
+            for address in self.managed_on_workspace(ws, live):
+                target = self.state["windows"][address]["background"]
+                if not rect_matches(live[address], target):
+                    move_resize(address, target)
+                    # Subsequent foreground promotion in this apply pass should
+                    # compare against the geometry we just requested, not the
+                    # stale pre-reflow hyprctl snapshot.
+                    live[address] = dict(
+                        live[address],
+                        at=[target["x"], target["y"]],
+                        size=[target["w"], target["h"]],
+                    )
+
     def adopt_all(self) -> None:
         """Convert all existing regular tiled windows without changing their slots."""
         live = self.live()
@@ -873,9 +891,14 @@ class Deck:
         self.clean_state(live)
         moved = self.reconcile_workspace_moves(live)
         monitor_changed = self.reconcile_monitor_assignments(live)
+        reflow_workspaces = set(self.dirty_layouts)
         self.ensure_layouts(live)
         if moved or monitor_changed:
             self.write_state()
+        # ensure_layouts updates saved slots but floating clients do not follow
+        # those rectangles automatically. Reflow every workspace whose tree or
+        # monitor assignment changed before promoting the current foreground.
+        self.apply_workspace_backgrounds(reflow_workspaces, live)
         address = normalize_address(focused or active_address())
         client = live.get(address)
         if client and workspace_id(client) > 0 and not client.get("fullscreen"):
@@ -1474,6 +1497,30 @@ def self_test() -> int:
     assert deck.state["windows"]["0x3"]["background"] == {
         "x": 967, "y": 620, "w": 941, "h": 568
     }
+    # Recomputed slots must also be sent to live floating clients. This is what
+    # expands a workspace peer immediately when its sibling enters scratchpad.
+    reflow_deck = object.__new__(Deck)
+    full = {"x": 12, "y": 38, "w": 1416, "h": 910}
+    reflow_deck.state = {
+        "windows": {"0xa": {"workspace": 9, "background": full}},
+    }
+    reflow_live = {
+        "0xa": {
+            "workspace": {"id": 9},
+            "at": [12, 38],
+            "size": [701, 910],
+            "fullscreen": 0,
+        }
+    }
+    moves: list[tuple[str, dict[str, int]]] = []
+    original_move_resize = globals()["move_resize"]
+    try:
+        globals()["move_resize"] = lambda address, target: moves.append((address, dict(target)))
+        reflow_deck.apply_workspace_backgrounds({9}, reflow_live)
+    finally:
+        globals()["move_resize"] = original_move_resize
+    assert moves == [("0xa", full)]
+    assert reflow_live["0xa"]["size"] == [1416, 910]
     assert regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": False, "pinned": False, "fullscreen": 0, "workspace": {"id": 2}})
     assert not regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": True, "workspace": {"id": 2}})
     print("PASS: reversible orientation-aware geometry and dynamic monitor reflow")
