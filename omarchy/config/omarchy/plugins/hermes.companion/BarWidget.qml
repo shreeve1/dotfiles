@@ -59,13 +59,18 @@ BarWidget {
   // per-monitor instance (open -> focused monitor; close/toggle -> the open copy),
   // instead of every instance reacting independently.
   readonly property bool opened: popupOpen
+  // Pin keeps the panel visible: while pinned, outside-click dismissal (which
+  // routes through owner.close()) is ignored. Explicit user toggles use
+  // forceClose()/the bar icon to dismiss regardless of pin.
+  property bool pinned: false
   function open() {
     modelsPage = false
     profilesPage = false
     popupOpen = true
     Qt.callLater(function() { if (root.popupOpen && !root.modelsPage && !root.profilesPage) askField.forceActiveFocus() })
   }
-  function close() { popupOpen = false; modelsPage = false; profilesPage = false; expandedPicker = "" }
+  function close() { if (pinned) return; forceClose() }
+  function forceClose() { popupOpen = false; modelsPage = false; profilesPage = false; expandedPicker = "" }
   function openModels() {
     profilesPage = false
     modelsPage = true
@@ -177,7 +182,8 @@ BarWidget {
     onClicked: function(mouse) {
       if (mouse.button === Qt.MiddleButton) root.control("hush")
       else if (mouse.button === Qt.RightButton) root.control("listen")
-      else root.popupOpen = !root.popupOpen
+      else if (root.popupOpen) { root.pinned = false; root.forceClose() }  // explicit close clears pin
+      else root.open()
     }
     onEntered: if (root.bar) root.bar.showTooltip(root, root.hermesMissing ? "Hermes Agent not found at " + root.hermesDir + " — run install.sh" : "Hermes: " + root.status + (root.st.last_observation ? " — " + root.st.last_observation : "") + "\n(right-click to ask, middle-click to hush)")
     onExited: if (root.bar) root.bar.hideTooltip(root)
@@ -417,12 +423,14 @@ BarWidget {
         font.italic: true
       }
 
-      Row {
+      Flow {
+        width: parent.width
         spacing: Style.space(6)
         Button { text: root.eyes ? "󰛐 Eyes on" : "󰈉 Eyes off"; foreground: root.bar.foreground; selected: root.eyes; onClicked: root.control("toggle-eyes") }
         Button { text: root.muted ? "󰖁 Quiet" : "󰕾 Talks"; foreground: root.bar.foreground; selected: !root.muted; onClicked: root.control("toggle-mute") }
         Button { text: root.toasts ? "󰍡 Toasts" : "󰍥 Toasts"; foreground: root.bar.foreground; selected: root.toasts; tooltipText: "On-screen output toasts"; onClicked: root.control("toggle-toasts") }
         Button { text: "󰆍 Actions"; foreground: root.bar.foreground; selected: root.actions; tooltipText: "Let requests run commands via a helper subagent (risky ones ask first)"; onClicked: root.control("toggle-actions") }
+        Button { text: root.pinned ? "󰐃 Pinned" : "󰤱 Pin"; foreground: root.bar.foreground; selected: root.pinned; tooltipText: "Keep this panel open (ignore click-away)"; onClicked: root.pinned = !root.pinned }
       }
       Row {
         spacing: Style.space(6)
@@ -679,7 +687,12 @@ BarWidget {
         visible: !root.modelsPage && !root.profilesPage
         id: remarksFlick
         width: parent.width
-        height: Math.min(Style.space(320), remarksCol.implicitHeight)
+        // Grow downward as the chat grows: track content height, but cap so the
+        // whole card can't exceed the screen (reserve room for the header,
+        // controls and input above). The popup's fittedContentHeight is the hard
+        // backstop at the screen bottom; beyond the cap the list scrolls.
+        readonly property real growCap: Math.max(Style.space(160), popup.availableCardHeight - Style.space(300))
+        height: Math.min(growCap, remarksCol.implicitHeight)
         contentHeight: remarksCol.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
