@@ -689,9 +689,16 @@ BarWidget {
         width: parent.width
         // Grow downward as the chat grows: track content height, but cap so the
         // whole card can't exceed the screen (reserve room for the header,
-        // controls and input above). The popup's fittedContentHeight is the hard
-        // backstop at the screen bottom; beyond the cap the list scrolls.
-        readonly property real growCap: Math.max(Style.space(160), popup.availableCardHeight - Style.space(300))
+        // controls and input above). Base the cap on the popup's available height
+        // when known, else a large fraction of the screen, so it never collapses
+        // to a tiny floor before the panel has finished mapping.
+        readonly property real growCap: {
+          var avail = popup.availableCardHeight || 0
+          if (avail > 400) return avail - Style.space(300)
+          var sh = popup.screenH || 0
+          if (sh > 400) return sh * 0.6
+          return Style.space(600)
+        }
         height: Math.min(growCap, remarksCol.implicitHeight)
         contentHeight: remarksCol.implicitHeight
         clip: true
