@@ -15,6 +15,8 @@ log = logging.getLogger("companion.state")
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "hermes-companion"
 STATE_FILE = STATE_DIR / "state.json"
 TOAST_FILE = STATE_DIR / "toast.json"
+TRANSCRIPT_JSONL = STATE_DIR / "transcript.jsonl"   # durable append-only exchange log
+TRANSCRIPT_MD = STATE_DIR / "transcript.md"          # human-readable mirror
 RUNTIME_DIR = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
 SOCK = RUNTIME_DIR / "hermes-companion.sock"
 
@@ -55,10 +57,29 @@ class State:
 
     def add_remark(self, text: str, urgency: str):
         with self._lock:
-            self.data["remarks"] = ([{"ts": time.time(), "text": text, "urgency": urgency}] + self.data["remarks"])[:20]
+            # Chronological: newest appended at the end so the card reads top→bottom
+            # like a chat. Keep the last 100 exchanges in the live card state.
+            self.data["remarks"] = (self.data["remarks"] + [{"ts": time.time(), "text": text, "urgency": urgency}])[-100:]
             self.data["last_remark"] = text
             self.data["updated"] = time.time()
             self._write()
+
+    def log_transcript(self, you: str, hermes: str, kind: str = "voice"):
+        """Append a durable, persistent record of an exchange to disk (JSONL +
+        human-readable Markdown mirror). Best-effort: never break the voice loop."""
+        try:
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            ts = time.time()
+            with open(TRANSCRIPT_JSONL, "a") as f:
+                f.write(json.dumps({"ts": ts, "kind": kind, "you": you, "hermes": hermes}) + "\n")
+            stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+            with open(TRANSCRIPT_MD, "a") as f:
+                if you:
+                    f.write(f"### {stamp} ({kind})\n\n**You:** {you}\n\n**Hermes:** {hermes}\n\n")
+                else:
+                    f.write(f"### {stamp} ({kind})\n\n**Hermes:** {hermes}\n\n")
+        except Exception:
+            log.exception("log_transcript")
 
     def toast(self, text: str, kind: str, note: str = ""):
         """Publish one toast for the shell overlay (atomic write; shell watches the file)."""
