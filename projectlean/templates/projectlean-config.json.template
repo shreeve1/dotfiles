@@ -1,0 +1,9 @@
+{
+  "agent.coding_context": "off",
+  "agent.execution_guidance": "auto",
+  "compression.abort_on_summary_failure": "false",
+  "compression.min_tail_user_messages": "1",
+  "compression.protect_last_n": "12",
+  "compression.target_ratio": "0.2",
+  "compression.threshold": "0.4"
+}
