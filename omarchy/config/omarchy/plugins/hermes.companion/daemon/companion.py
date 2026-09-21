@@ -215,6 +215,7 @@ class Companion:
             reply = "Sorry, I hit an error answering that."
             self.state.update(last_error=str(e))
         self.state.add_remark(f"You: {text}\nHermes: {reply}", "reply")
+        self.state.log_transcript(you=text, hermes=reply, kind=source)
         # Replies are shown on-screen only (panel remark + optional toast); never
         # spoken. Voice-request TTS is intentionally disabled — the reply always
         # goes to the panel, and to a toast when toasts are enabled.
@@ -287,6 +288,7 @@ class Companion:
         if ok:
             self.policy.record()
             self.state.add_remark(res["text"], res["urgency"])
+            self.state.log_transcript(you="", hermes=res["text"], kind="screen")
             self.state.toast(res["text"], kind)
             if self.cfg.get("notify"):
                 notify("Hermes", res["text"], res["urgency"])
