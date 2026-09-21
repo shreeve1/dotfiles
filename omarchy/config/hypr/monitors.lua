@@ -2,10 +2,12 @@
 -- List current monitors and supported resolutions with: hyprctl monitors all
 
 local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 1.6
+local omarchy_default_monitor_scale = 1.6
+local omarchy_widescreen_scale = 1
 
 hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
-hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_default_monitor_scale })
+hl.monitor({ output = "DP-4", mode = "preferred", position = "auto", scale = omarchy_widescreen_scale })
 
 -- Keep workspace 1 on the built-in laptop display. All of Omarchy's other
 -- numbered workspaces live on the external display.
