@@ -42,6 +42,12 @@
           "id": "omarchy.tray"
         },
         {
+          "id": "io.github.omarchy.touchpad-settings"
+        },
+        {
+          "id": "hermes.companion"
+        },
+        {
           "id": "surface-battery"
         },
         {

@@ -66,3 +66,8 @@ for key, direction in pairs({ LEFT = "left", RIGHT = "right", UP = "up", DOWN = 
   hl.unbind("SUPER + SHIFT + " .. key)
   o.bind("SUPER + SHIFT + " .. key, "Deck swap " .. direction, "hypr-deck swap " .. direction)
 end
+
+-- hermes-companion
+o.bind("SUPER + ALT + H", "Hermes: listen", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl listen")
+o.bind("SUPER + ALT + E", "Hermes: toggle eyes", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl toggle-eyes")
+o.bind("SUPER + ALT + S", "Hermes: hush", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl hush")
