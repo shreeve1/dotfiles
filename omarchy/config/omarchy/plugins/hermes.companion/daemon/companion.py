@@ -137,6 +137,7 @@ class Companion:
                           eyes=self._profile_eyes(self.active_profile))
         self.voice = None
         self.approver = None
+        self._eyes_before_listen = None  # eyes state saved while a Listen session suspends screen capture
         self._stop = threading.Event()
         self._speak_lock = threading.Lock()
         self._stuck_ticks = 0
@@ -198,11 +199,21 @@ class Companion:
             self.voice = Voice(
                 on_request=self.on_voice_request,
                 on_status=self.set_status,
-                on_listening=lambda active: self.state.update(listening=active),
+                on_listening=self._on_listening,
             )
         except Exception as e:  # noqa: BLE001
             log.exception("voice init failed")
             self.state.update(last_error=f"voice: {e}")
+
+    def _on_listening(self, active: bool):
+        """Listener start/stop callback. Fires for every end path — ctl stop,
+        silence timeout, stop-phrase, shutdown — so eyes-restore lives here and
+        can't be skipped. On start, screen capture was suspended by the caller."""
+        self.state.update(listening=active)
+        if not active and self._eyes_before_listen is not None:
+            self.state.update(eyes=self._eyes_before_listen)
+            self._eyes_before_listen = None
+            self.set_status("watching")
 
     def on_voice_request(self, text: str, source: str = "voice"):
         self.set_status("thinking")
@@ -484,12 +495,25 @@ class Companion:
             if not self.voice:
                 return "voice not ready"
             if self.voice.listening:
-                self.voice.stop_listening()
+                self.voice.stop_listening()  # _on_listening restores eyes on stop
                 return "stopping"
+            # Suspend screen capture while listening: remember the current eyes
+            # state, then turn the toggle off so the UI reflects it (ticks are
+            # already gated on `listening`). Restored by _on_listening on any
+            # stop path. Not persisted, so the per-profile preference is untouched.
+            self._eyes_before_listen = bool(self.state.get("eyes"))
+            self.state.update(eyes=False)
             started = self.voice.listen()
-            return "listening" if started else "already listening"
+            if not started:
+                # listen() refused: undo the eyes suspend so we don't leave it off.
+                if self._eyes_before_listen is not None:
+                    self.state.update(eyes=self._eyes_before_listen)
+                    self._eyes_before_listen = None
+                return "already listening"
+            self.set_status("listening")
+            return "listening"
         if op in ("stop-listening", "stop"):
-            if self.voice and self.voice.stop_listening():
+            if self.voice and self.voice.stop_listening():  # _on_listening restores eyes
                 return "stopping"
             return "not listening"
         if op in ("profile", "set-profile") and arg:
