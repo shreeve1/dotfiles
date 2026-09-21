@@ -3,9 +3,6 @@ artifacts/
 .config/opencode/opencode.json
 .config/opencode/bak/
 
-# Git-managed Omarchy plugins — versioned in their own repositories
-omarchy/config/omarchy/plugins/hermes.companion/
-
 # Machine-local session work logs (per-machine)
 MEMORY/
 
