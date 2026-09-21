@@ -68,6 +68,7 @@ for key, direction in pairs({ LEFT = "left", RIGHT = "right", UP = "up", DOWN = 
 end
 
 -- hermes-companion
-o.bind("SUPER + ALT + H", "Hermes: listen", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl listen")
-o.bind("SUPER + ALT + E", "Hermes: toggle eyes", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl toggle-eyes")
-o.bind("SUPER + ALT + S", "Hermes: hush", "/home/james/.hermes/hermes-agent/venv/bin/python /home/james/dotfiles/omarchy/config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl hush")
+local hermes_companion = "$HOME/.hermes/hermes-agent/venv/bin/python $HOME/.config/omarchy/plugins/hermes.companion/daemon/companion.py --ctl "
+o.bind("SUPER + ALT + H", "Hermes: listen", hermes_companion .. "listen")
+o.bind("SUPER + ALT + E", "Hermes: toggle eyes", hermes_companion .. "toggle-eyes")
+o.bind("SUPER + ALT + S", "Hermes: hush", hermes_companion .. "hush")
