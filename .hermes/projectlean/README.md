@@ -8,7 +8,7 @@ candidate-prep tool.
 ## Layout
 
 ```
-projectlean/
+.hermes/projectlean/
 ├── README.md
 ├── bin/
 │   ├── install-projectlean.py        # idempotent installer
@@ -52,7 +52,7 @@ projectlean/
 ### 1. Preflight the package
 
 ```sh
-python3 projectlean/bin/verify-projectlean.py --mode preflight
+python3 .hermes/projectlean/bin/verify-projectlean.py --mode preflight
 ```
 
 Checks: manifest-backed vendored-asset integrity, portable config, SOUL
@@ -64,7 +64,7 @@ universe size.
 ### 2. Install
 
 ```sh
-python3 projectlean/bin/install-projectlean.py --profile projectlean --clone-from default --repo "$PWD"
+python3 .hermes/projectlean/bin/install-projectlean.py --profile projectlean --clone-from default --repo "$PWD"
 ```
 
 Behavior:
@@ -86,7 +86,7 @@ The installer never writes `SOUL.md` and never materialises
 ### 3. Candidate prep
 
 ```sh
-python3 projectlean/bin/prepare-context-candidates.py --repo "$PWD"
+python3 .hermes/projectlean/bin/prepare-context-candidates.py --repo "$PWD"
 ```
 
 Walks the project under Hermes precedence (`.hermes.md` / `HERMES.md`
@@ -120,7 +120,7 @@ The installer prints these as manual steps on success:
 ### 5. Post-apply verification
 
 ```sh
-python3 projectlean/bin/verify-projectlean.py --mode postapply
+python3 .hermes/projectlean/bin/verify-projectlean.py --mode postapply
 ```
 
 Asserts:
@@ -143,7 +143,7 @@ For a one-shot install:
 
 ```sh
 ls "${XDG_STATE_HOME:-$HOME/.local/state}/hermes/projectlean/projectlean/backups/"
-python3 projectlean/bin/verify-projectlean.py --mode backup-check --backup /private/backup/<label>-<stamp>
+python3 .hermes/projectlean/bin/verify-projectlean.py --mode backup-check --backup /private/backup/<label>-<stamp>
 ```
 
 Then restore by copying the backup tree over the profile directory.
@@ -168,7 +168,7 @@ separate, deliberate `hermes profile delete <name>`.
 ## Tests
 
 ```sh
-cd projectlean
+cd .hermes/projectlean
 python3 -B -m unittest discover -s tests -v
 ```
 
