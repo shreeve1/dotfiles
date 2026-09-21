@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Ui
 import qs.Commons
 
@@ -59,17 +60,21 @@ BarWidget {
   // per-monitor instance (open -> focused monitor; close/toggle -> the open copy),
   // instead of every instance reacting independently.
   readonly property bool opened: popupOpen
-  // Pin keeps the panel visible: while pinned, outside-click dismissal (which
-  // routes through owner.close()) is ignored. Explicit user toggles use
-  // forceClose()/the bar icon to dismiss regardless of pin.
+  // Pin detaches the panel into a separate view-only floating overlay window
+  // (see PinnedOverlay below): it stays above other windows on this monitor and
+  // across workspaces, is click-through everywhere except its card, and does not
+  // steal keyboard focus. Clicking the pinned card (or Super+Alt+A) opens the
+  // normal interactive panel to type. Pinning closes the interactive popup so it
+  // stops grabbing focus.
   property bool pinned: false
+  onPinnedChanged: if (pinned) forceClose()
   function open() {
     modelsPage = false
     profilesPage = false
     popupOpen = true
     Qt.callLater(function() { if (root.popupOpen && !root.modelsPage && !root.profilesPage) askField.forceActiveFocus() })
   }
-  function close() { if (pinned) return; forceClose() }
+  function close() { forceClose() }
   function forceClose() { popupOpen = false; modelsPage = false; profilesPage = false; expandedPicker = "" }
   function openModels() {
     profilesPage = false
@@ -734,6 +739,123 @@ BarWidget {
             color: Qt.darker(root.bar.foreground, 1.6)
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.bodySmall
+          }
+        }
+      }
+    }
+  }
+
+  // ---- Pinned floating overlay -------------------------------------------
+  // A separate wlr-layer-shell Overlay window shown only while pinned. It floats
+  // above other windows on this monitor and persists across workspace switches
+  // (layer surfaces are output-scoped, not workspace-bound). keyboardFocus None
+  // means it never steals keystrokes from other apps (view-only). The input mask
+  // is limited to the card rectangle, so clicks anywhere else pass through to the
+  // window underneath. Clicking the card opens the normal interactive panel to
+  // type; Super+Alt+A does the same from anywhere.
+  PanelWindow {
+    id: pinnedWin
+    visible: root.pinned
+    screen: root.QsWindow && root.QsWindow.window ? root.QsWindow.window.screen : null
+    color: "transparent"
+    exclusionMode: ExclusionMode.Ignore
+    WlrLayershell.namespace: "hermes-companion-pinned"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    anchors { top: true; bottom: true; left: true; right: true }
+
+    // Only the card rectangle receives pointer input; the rest is click-through.
+    mask: Region { item: pinnedCard }
+
+    readonly property int cardWidth: Math.round(Math.min(Style.space(440), width - Style.space(24)))
+    readonly property int cardMaxHeight: Math.round(height - Style.space(48))
+
+    BorderSurface {
+      id: pinnedCard
+      x: Math.round(pinnedWin.width - width - Style.space(12))   // top-right of the monitor
+      y: Style.space(12)
+      width: pinnedWin.cardWidth
+      height: Math.min(pinnedWin.cardMaxHeight, pinnedContent.implicitHeight + padding * 2)
+      color: Color.popups.background
+      borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+      padding: Style.spacing.popupPadding
+      radius: Style.cornerRadius
+
+      MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        cursorShape: Qt.PointingHandCursor
+        // Click the pinned card to open the interactive panel and type a question.
+        onClicked: root.open()
+      }
+
+      Column {
+        id: pinnedContent
+        anchors.fill: parent
+        anchors.margins: pinnedCard.padding
+        spacing: Style.space(6)
+
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+          Text {
+            textFormat: Text.PlainText
+            text: "󰐃 Hermes — pinned"
+            color: Qt.darker(root.bar.foreground, 1.2)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            width: parent.width - unpinBtn.width - Style.space(6)
+            elide: Text.ElideRight
+          }
+          Text {
+            id: unpinBtn
+            textFormat: Text.PlainText
+            text: "󰤱 unpin"
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.pinned = false }
+          }
+        }
+
+        Flickable {
+          id: pinnedFlick
+          width: parent.width
+          height: Math.min(pinnedWin.cardMaxHeight - Style.space(40), pinnedCol.implicitHeight)
+          contentHeight: pinnedCol.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          function toBottom() { contentY = Math.max(0, contentHeight - height) }
+          onContentHeightChanged: Qt.callLater(toBottom)
+          Connections {
+            target: root
+            function onRemarksChanged() { Qt.callLater(pinnedFlick.toBottom) }
+          }
+          Column {
+            id: pinnedCol
+            width: pinnedFlick.width
+            spacing: Style.space(6)
+            Repeater {
+              model: root.remarks
+              delegate: Text {
+                textFormat: Text.PlainText
+                width: pinnedCol.width
+                wrapMode: Text.Wrap
+                text: Qt.formatTime(new Date(modelData.ts * 1000), "HH:mm") + "  " + modelData.text
+                color: modelData.urgency === "urgent" ? root.bar.urgent : root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+            Text {
+              textFormat: Text.PlainText
+              visible: root.remarks.length === 0
+              text: "Nothing said yet."
+              color: Qt.darker(root.bar.foreground, 1.6)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
           }
         }
       }
