@@ -234,6 +234,11 @@ class Companion:
 
     # ------------------------------------------------------------ perception loop
     def tick(self):
+        # Pause proactive screen observation while a Listen session is active, so
+        # voice Q&A isn't interleaved with unprompted screen remarks. Ticks resume
+        # automatically when listening stops (the flag is cleared by voice.py).
+        if self.state.get("listening"):
+            return
         frame = self.perceiver.observe(eyes_enabled=self.state.get("eyes"))
         self.state.update(ticks=self.state.get("ticks", 0) + 1)
         if not self.state.get("eyes"):
