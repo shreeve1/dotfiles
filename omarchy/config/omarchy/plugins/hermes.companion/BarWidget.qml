@@ -755,7 +755,7 @@ BarWidget {
   // type; Super+Alt+A does the same from anywhere.
   PanelWindow {
     id: pinnedWin
-    visible: root.pinned
+    visible: root.pinned && !root.popupOpen
     screen: root.QsWindow && root.QsWindow.window ? root.QsWindow.window.screen : null
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
