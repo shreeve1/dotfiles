@@ -692,17 +692,18 @@ BarWidget {
         visible: !root.modelsPage && !root.profilesPage
         id: remarksFlick
         width: parent.width
-        // Grow downward as the chat grows: track content height, but cap so the
-        // whole card can't exceed the screen (reserve room for the header,
-        // controls and input above). Base the cap on the popup's available height
-        // when known, else a large fraction of the screen, so it never collapses
-        // to a tiny floor before the panel has finished mapping.
+        // Grow downward as the chat grows, but cap so the whole card ends well
+        // above the screen bottom. The elements above the Recent list (header,
+        // status, two control rows, two setting rows, input) plus a comfortable
+        // bottom gap need reserving; too small a reserve lets the last line run
+        // off the bottom of the screen.
         readonly property real growCap: {
+          var reserve = Style.space(440)   // space above the list + bottom gap
           var avail = popup.availableCardHeight || 0
-          if (avail > 400) return avail - Style.space(300)
+          if (avail > reserve + 120) return avail - reserve
           var sh = popup.screenH || 0
-          if (sh > 400) return sh * 0.6
-          return Style.space(600)
+          if (sh > 400) return sh * 0.5
+          return Style.space(500)
         }
         height: Math.min(growCap, remarksCol.implicitHeight)
         contentHeight: remarksCol.implicitHeight
