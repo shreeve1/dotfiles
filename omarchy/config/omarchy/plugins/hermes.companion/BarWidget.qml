@@ -768,7 +768,9 @@ BarWidget {
     mask: Region { item: pinnedCard }
 
     readonly property int cardWidth: Math.round(Math.min(Style.space(440), width - Style.space(24)))
-    readonly property int cardMaxHeight: Math.round(height - Style.space(48))
+    // Leave a generous gap at the bottom of the screen so the card never runs to
+    // the very edge and the last line stays comfortably readable.
+    readonly property int cardMaxHeight: Math.round(height - Style.space(12) - Math.max(Style.space(64), height * 0.08))
 
     BorderSurface {
       id: pinnedCard
@@ -822,7 +824,9 @@ BarWidget {
         Flickable {
           id: pinnedFlick
           width: parent.width
-          height: Math.min(pinnedWin.cardMaxHeight - Style.space(40), pinnedCol.implicitHeight)
+          // Reserve room for the header row plus the card padding and a bottom gap
+          // so the last line never butts against the border.
+          height: Math.min(pinnedWin.cardMaxHeight - Style.space(64), pinnedCol.implicitHeight)
           contentHeight: pinnedCol.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
