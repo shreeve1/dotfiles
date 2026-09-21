@@ -207,7 +207,6 @@ class Companion:
     def on_voice_request(self, text: str, source: str = "voice"):
         self.set_status("thinking")
         with self._agent_lock:
-            profile_name = self.active_profile
             agent = self.agent
         try:
             reply = agent.ask(text, source=source)
@@ -216,12 +215,12 @@ class Companion:
             reply = "Sorry, I hit an error answering that."
             self.state.update(last_error=str(e))
         self.state.add_remark(f"You: {text}\nHermes: {reply}", "reply")
-        profile = PROFILES[profile_name]
-        if profile.speech:
+        # Replies are shown on-screen only (panel remark + optional toast); never
+        # spoken. Voice-request TTS is intentionally disabled — the reply always
+        # goes to the panel, and to a toast when toasts are enabled.
+        if self.state.get("toasts", True):
             self.state.toast(reply, "reply")
-            self.say(reply)
-        else:
-            self.set_status("watching")
+        self.set_status("watching")
 
     def say(self, text: str):
         if not text:
