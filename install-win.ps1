@@ -191,6 +191,7 @@ Link-Path ".config/opencode" ".config/opencode"
 # Pi Agent
 Link-Path ".pi/agent" ".pi/agent"
 Link-Path ".pi/README.md" ".pi/README.md"
+Link-Path ".pi-lens/config.json" ".pi-lens/config.json"
 
 if (Get-Command pi -ErrorAction SilentlyContinue) {
     Write-Host "ok: pi CLI available: $((pi --version 2>&1 | Select-Object -First 1))"
