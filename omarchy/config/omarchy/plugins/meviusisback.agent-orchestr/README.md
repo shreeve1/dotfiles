@@ -265,6 +265,8 @@ omarchy shell meviusisback.agent-orchestr refresh
 | `showIdleInBar` | `false` | Whether to display badge count when all agents are idle |
 | `maxTaskLength` | `45` | Maximum characters shown in the bar status ticker |
 | `privacyHidePrompts` | `false` | Hide agent-supplied prompt and task text in the bar and cards (counts, status, repo and workspace only) — for screen sharing and recordings |
+| `panelWidth` | `760` | Popup width (380–1400, clamped to the screen). The expanded card shows the multi-line last response, so wider = more readable |
+| `panelHeight` | `760` | Popup height (400–1400, clamped to the screen) |
 
 
 ## Tests

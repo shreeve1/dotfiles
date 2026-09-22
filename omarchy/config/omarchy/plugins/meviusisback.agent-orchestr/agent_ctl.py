@@ -1503,6 +1503,7 @@ def extract_grok_task_from_session(
     model_name = None
     latest_user_prompt = None
     last_turn_summary = None
+    last_turn_response = None
     summary_path = os.path.join(session_dir, "summary.json")
     summary = grok_read_json_cached(summary_path, GROK_SUMMARY_MAX_BYTES)
     if isinstance(summary, dict):
@@ -1514,6 +1515,7 @@ def extract_grok_task_from_session(
             latest_user_prompt = grok_clean_detail(clean_user_prompt(title), 300)
         turn = summary.get("last_turn_summary")
         if isinstance(turn, str) and turn.strip():
+            last_turn_response = turn
             last_turn_summary = grok_clean_detail(extract_first_line(turn), 200)
 
     history_path = os.path.join(session_dir, "chat_history.jsonl")
@@ -2011,6 +2013,24 @@ def find_latest_session_for_cwd(agent_type: str, cwd: str, claimed_sessions: Opt
     return None
 
 
+RESPONSE_MAX_CHARS = 1500
+
+
+def extract_response_excerpt(text: str, max_len: int = RESPONSE_MAX_CHARS) -> str:
+    """Clean and preserve a bounded multi-line assistant response excerpt."""
+    if not text:
+        return ""
+    cleaned = clean_ansi(str(text)).replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = re.sub(r"[\x00-\x09\x0b-\x1f\x7f-\x9f]", "", cleaned)
+    cleaned = "\n".join(line.rstrip() for line in cleaned.split("\n"))
+    cleaned = re.sub(r"^\s*```[^\n]*$", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    cleaned = redact_secrets(cleaned)
+    if len(cleaned) > max_len:
+        return cleaned[:max_len - 1].rstrip() + "…"
+    return cleaned
+
+
 def extract_first_line(text: str, max_len: int = 140) -> str:
     """Extract the first meaningful non-empty line of the assistant response."""
     if not text:
@@ -2069,13 +2089,13 @@ def is_system_wrapper(text: str) -> bool:
 
 def extract_omp_task_from_session(
     session_path: str,
-) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], bool]:
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool]:
     """
     Extract latest user prompt, latest activity/detail, model name, status override, and has_question flag from an OMP session .jsonl file.
-    Returns (latest_user_prompt, detail_text, model_name, status_override, has_question).
+    Returns (latest_user_prompt, detail_text, response, model_name, status_override, has_question).
     """
     if not session_path or not os.path.exists(session_path):
-        return None, None, None, None, False
+        return None, None, None, None, None, False
     try:
         latest_user_prompt = None
         model_name = None
@@ -2206,6 +2226,7 @@ def extract_omp_task_from_session(
                 pass
         status_override = None
         detail = None
+        response = ""
         has_question = False
 
         if session_exited:
@@ -2219,6 +2240,7 @@ def extract_omp_task_from_session(
             t_name, t_intent = pending_tool
             detail = f"Running: {t_intent}" if t_intent else f"Running tool: {t_name}"
         elif last_assistant_text:
+            response = extract_response_excerpt(last_assistant_text)
             detail = extract_first_line(last_assistant_text)
             has_question = "?" in (detail[-40:] if detail else "")
             if has_question:
@@ -2226,9 +2248,9 @@ def extract_omp_task_from_session(
             else:
                 status_override = "completed"
         eff_model = clean_model_name(model_name) if model_name else get_omp_default_model()
-        return latest_user_prompt, detail, eff_model, status_override, has_question
+        return latest_user_prompt, detail, response, eff_model, status_override, has_question
     except Exception:
-        return None, None, None, None, False
+        return None, None, None, None, None, False
 
 
 def get_all_hermes_dbs(hermes_home: Optional[str] = None, hermes_profile: Optional[str] = None) -> List[Tuple[str, str]]:
@@ -2257,7 +2279,7 @@ def extract_hermes_session_info(
     min_start_time: Optional[float] = None,
     hermes_home: Optional[str] = None,
     hermes_profile: Optional[str] = None,
-) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool]:
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str]:
     """Extract prompt, model, provider, profile, message detail, and active status for Hermes.
 
     Scans default and profile state databases, inspects active turn leases, and evaluates
@@ -2266,7 +2288,7 @@ def extract_hermes_session_info(
     now = time.time()
     all_dbs = get_all_hermes_dbs(hermes_home, hermes_profile)
     if not all_dbs:
-        return None, None, None, None, None, None, False
+        return None, None, None, None, None, None, False, ""
 
     candidates = []
 
@@ -2332,7 +2354,7 @@ def extract_hermes_session_info(
             continue
 
     if not candidates:
-        return None, None, None, None, None, None, False
+        return None, None, None, None, None, None, False, ""
 
     # If source_preference is given, strictly filter to matching source if any exist
     if source_preference:
@@ -2366,6 +2388,7 @@ def extract_hermes_session_info(
             "Ready for prompt",
             "idle",
             False,
+            "",
         )
     # Open the winning DB and session to extract detailed messages
     try:
@@ -2391,12 +2414,13 @@ def extract_hermes_session_info(
 
         # Latest assistant response / tool status (bounded chunk)
         cur.execute(
-            "SELECT role, substr(content, 1, 2048), tool_name, substr(tool_calls, 1, 2048), finish_reason FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1;",
+            "SELECT role, substr(content, 1, 4096), tool_name, substr(tool_calls, 1, 2048), finish_reason FROM messages WHERE session_id = ? ORDER BY id DESC LIMIT 1;",
             (session_id,)
         )
         msg_row = cur.fetchone()
 
         detail = None
+        response = ""
         status = "idle"
         has_question = False
 
@@ -2421,6 +2445,7 @@ def extract_hermes_session_info(
                         detail = "Running tool"
                     status = "working"
                 elif content:
+                    response = extract_response_excerpt(content)
                     first_line = extract_first_line(content)
                     has_question = "?" in (first_line[-40:] if first_line else "")
                     if is_active:
@@ -2452,11 +2477,12 @@ def extract_hermes_session_info(
         # If detail is still not set or was generic, look for the last assistant response
         if not detail or detail == "Ready for prompt":
             cur.execute(
-                "SELECT substr(content, 1, 2048) FROM messages WHERE session_id = ? AND role = 'assistant' AND content IS NOT NULL ORDER BY id DESC LIMIT 1;",
+                "SELECT substr(content, 1, 4096) FROM messages WHERE session_id = ? AND role = 'assistant' AND content IS NOT NULL ORDER BY id DESC LIMIT 1;",
                 (session_id,)
             )
             ast_row = cur.fetchone()
             if ast_row and ast_row[0]:
+                response = extract_response_excerpt(ast_row[0])
                 first_line = extract_first_line(ast_row[0])
                 if first_line:
                     detail = first_line
@@ -2472,13 +2498,20 @@ def extract_hermes_session_info(
             detail or f"Profile: {best['profile'] or 'Default'}",
             status,
             has_question,
+            response,
         )
     except Exception:
-        return None, None, None, None, None, None, False
+        return None, None, None, None, None, None, False, ""
 
-def extract_hermes_latest_session() -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool]:
+def _hermes_info(*args: Any, **kwargs: Any) -> Tuple[Any, ...]:
+    """Accept legacy seven-field test/providers while exposing response as field eight."""
+    result = extract_hermes_session_info(*args, **kwargs)
+    return tuple(result) if len(result) == 8 else tuple(result) + ("",)
+
+
+def extract_hermes_latest_session() -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool, str]:
     """Backward-compatible wrapper for extract_hermes_session_info."""
-    return extract_hermes_session_info()
+    return _hermes_info()
 
 
 def shorten_path(path: str) -> str:
@@ -2796,6 +2829,7 @@ def scan_orca_agents(claimed_sessions: Set[str]) -> List[Dict[str, Any]]:
             session_path = find_latest_session_for_cwd(agent_type, cwd, claimed_sessions)
             user_goal = None
             detail_text = None
+            response_text = ""
             model_name = None
             status_override = None
             has_question = False
@@ -2803,11 +2837,12 @@ def scan_orca_agents(claimed_sessions: Set[str]) -> List[Dict[str, Any]]:
             if session_path:
                 claimed_sessions.add(session_path)
                 if agent_type == "omp" and os.path.exists(session_path):
-                    user_goal, detail_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
+                    user_goal, detail_text, response_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
                 elif agent_type == "grok":
                     user_goal, detail_text, model_name, status_override, has_question = extract_grok_task_from_session(session_path)
+                    response_text = ""
                 elif agent_type == "hermes":
-                    _, model_name, _, _, detail_text, status_override, has_question = extract_hermes_session_info(source_preference="cli")
+                    _, model_name, _, _, detail_text, status_override, has_question, response_text = _hermes_info(source_preference="cli")
             elif agent_type == "omp":
                 model_name = get_omp_default_model()
 
@@ -2850,6 +2885,7 @@ def scan_orca_agents(claimed_sessions: Set[str]) -> List[Dict[str, Any]]:
                 "status": effective_status,
                 "title": effective_title,
                 "detail": detail_display,
+                "response": response_text,
                 "cwd": clean_cwd,
                 "repo": repo_name,
                 "workspace": workspace_label,
@@ -2902,7 +2938,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                 if "hermes_desktop" in seen_cwds or is_in_herdr:
                     continue
 
-                hermes_title, hermes_model, hermes_provider, hermes_profile, hermes_detail, hermes_status, hermes_has_q = extract_hermes_session_info(
+                hermes_title, hermes_model, hermes_provider, hermes_profile, hermes_detail, hermes_status, hermes_has_q, response_text = _hermes_info(
                     source_preference="desktop", hermes_home=get_process_hermes_home(pid), hermes_profile=hermes_profile_from_argv(info.get("argv"))
                 )
                 standalone.append({
@@ -2915,6 +2951,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                     "status": hermes_status or "idle",
                     "title": hermes_title or "Hermes Desktop Workspace",
                     "detail": hermes_detail or f"Profile: {hermes_profile or 'Default'}",
+                    "response": response_text,
                     "cwd": "~/.hermes",
                     "repo": "Hermes Desktop",
                     "workspace": "Desktop App",
@@ -2935,7 +2972,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
             if first in ("python", "python3") and is_hermes_cli_process(cmd) and "serve --host" in cmd:
                 profile = hermes_profile_from_argv(info.get("argv")) or "Default"
                 hermes_home = get_process_hermes_home(pid)
-                goal, model, _provider, _db_profile, detail, detected_status, has_question = extract_hermes_session_info(
+                goal, model, _provider, _db_profile, detail, detected_status, has_question, response_text = _hermes_info(
                     source_preference=None,
                     min_start_time=get_process_start_time(pid),
                     hermes_home=hermes_home,
@@ -2952,6 +2989,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                     "status": process_status,
                     "title": goal or f"Hermes {profile}",
                     "detail": detail or "Hermes server",
+                    "response": response_text,
                     "cwd": shorten_path(info.get("cwd", "")),
                     "repo": "",
                     "workspace": "Local process",
@@ -3029,6 +3067,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                         clean_cwd = shorten_path(cwd)
                 user_goal = None
                 detail_text = None
+                response_text = ""
                 model_name = None
                 status_override = None
                 has_question = False
@@ -3041,14 +3080,15 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                     claimed_sessions.add(session_path)
                     if agent_type == "omp":
                         if os.path.exists(session_path):
-                            user_goal, detail_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
+                            user_goal, detail_text, response_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
                         else:
                             model_name = get_omp_default_model()
                     elif agent_type == "grok":
                         user_goal, detail_text, model_name, status_override, has_question = extract_grok_task_from_session(session_path)
+                        response_text = ""
                     elif agent_type == "hermes":
                         p_st = get_process_start_time(pid)
-                        user_goal, model_name, _, _, detail_text, status_override, has_question = extract_hermes_session_info(
+                        user_goal, model_name, _, _, detail_text, status_override, has_question, response_text = _hermes_info(
                             source_preference="cli", min_start_time=p_st, hermes_home=get_process_hermes_home(pid)
                         )
                 else:
@@ -3080,6 +3120,7 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                     "status": effective_status,
                     "title": effective_title,
                     "detail": detail_display,
+                "response": response_text,
                     "cwd": clean_cwd,
                     "repo": repo_name,
                     "workspace": workspace_name,
@@ -3235,16 +3276,19 @@ def fetch_all_agents() -> Dict[str, Any]:
 
             user_goal = None
             detail_text = None
+            response_text = ""
             model_name = None
             status_override = None
             has_question = False
 
             if agent_type == "omp" and session_path:
-                user_goal, detail_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
+                user_goal, detail_text, response_text, model_name, status_override, has_question = extract_omp_task_from_session(session_path)
             elif agent_type == "grok" and session_path:
                 user_goal, detail_text, model_name, status_override, has_question = extract_grok_task_from_session(session_path)
+                response_text = ""
             elif remote_machine and agent_type == "hermes":
                 user_goal, detail_text = parse_herdr_read_preview(remote_read_by_pane.get(str(pane_id)))
+                response_text = extract_response_excerpt(detail_text or "")
             elif agent_type == "hermes" and not remote_machine and hermes_preview_allowed:
                 hermes_p_start = None
                 hermes_profile = None
@@ -3264,9 +3308,9 @@ def fetch_all_agents() -> Dict[str, Any]:
                     except Exception:
                         pass
                 if is_hermes_desktop:
-                    user_goal, model_name, _, _, detail_text, status_override, has_question = extract_hermes_session_info(source_preference="desktop", specific_session_id=hermes_session_id, min_start_time=hermes_p_start, hermes_profile=hermes_profile)
+                    user_goal, model_name, _, _, detail_text, status_override, has_question, response_text = _hermes_info(source_preference="desktop", specific_session_id=hermes_session_id, min_start_time=hermes_p_start, hermes_profile=hermes_profile)
                 else:
-                    user_goal, model_name, _, _, detail_text, status_override, has_question = extract_hermes_session_info(source_preference="cli", specific_session_id=hermes_session_id, min_start_time=hermes_p_start, hermes_profile=hermes_profile)
+                    user_goal, model_name, _, _, detail_text, status_override, has_question, response_text = _hermes_info(source_preference="cli", specific_session_id=hermes_session_id, min_start_time=hermes_p_start, hermes_profile=hermes_profile)
             is_generic_title = cleaned_title in (repo_name, "~", "tmp", "/tmp", "") or cleaned_title.startswith("/tmp") or cleaned_title.startswith("alberto@")
 
             if user_goal:
@@ -3353,6 +3397,7 @@ def fetch_all_agents() -> Dict[str, Any]:
                     "status": status,
                     "title": effective_title,
                     "detail": detail_display,
+                "response": response_text,
                     "cwd": clean_cwd,
                     "repo": repo_name,
                     "workspace": workspace_name,
@@ -3727,6 +3772,12 @@ def _clip_text(value: Any, limit: int = _STATUS_TEXT_MAX) -> str:
     return " ".join(text.split())[:limit]
 
 
+def _clip_multiline(value: Any) -> str:
+    """Bound response text without flattening its newlines."""
+    text = value if isinstance(value, str) else ("" if value is None else str(value))
+    return text[:RESPONSE_MAX_CHARS]
+
+
 def _bounded_number(value: Any) -> Any:
     """Bound numeric payload fields so a pathological int cannot break json.dumps.
 
@@ -3772,7 +3823,7 @@ def dump_status_json(data: Dict[str, Any]) -> str:
         clipped: List[Any] = []
         for agent in agents[:STATUS_MAX_AGENTS]:
             if isinstance(agent, dict):
-                clipped.append({k: (_clip_text(v) if isinstance(v, str) else _bounded_number(v)) for k, v in agent.items()})
+                clipped.append({k: (_clip_multiline(v) if k == "response" and isinstance(v, str) else (_clip_text(v) if isinstance(v, str) else _bounded_number(v))) for k, v in agent.items()})
         payload["agents"] = clipped
     summary = payload.get("summary")
     if isinstance(summary, dict):
