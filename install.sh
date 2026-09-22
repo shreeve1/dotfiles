@@ -213,6 +213,10 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/hypr" ".config/hypr"
   link_path "omarchy/config/omarchy" ".config/omarchy"
   link_path "omarchy/config/uwsm" ".config/uwsm"
+  link_path "omarchy/local/share/keystroke/extensions/hermes" ".local/share/keystroke/extensions/hermes"
+  link_path "omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" ".config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf"
+  link_path "omarchy/bin/audio-device-restore" ".local/bin/audio-device-restore"
+  link_path "omarchy/config/systemd/user/audio-device-restore.service" ".config/systemd/user/audio-device-restore.service"
   link_path "omarchy/bin/hypr-deck" ".local/bin/hypr-deck"
   link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
@@ -223,6 +227,15 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   # the notification history that can be opened from the Omapager bar widget.
   if command -v omarchy-shell >/dev/null 2>&1; then
     omarchy-shell -q notifications setDnd on
+  fi
+
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl --user daemon-reload &&
+      systemctl --user enable --now audio-device-restore.service; then
+      printf 'ok: audio-device-restore.service enabled and running\n'
+    else
+      printf 'warn: could not enable audio-device-restore.service; retry after login\n'
+    fi
   fi
 else
   printf 'skip: Omarchy configuration (requires Linux with Omarchy installed)\n'
@@ -532,6 +545,21 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
 else
   printf 'skip: ~/.agents/* + ~/.dsh/AGENTS.md links (INSTALL_AGENTS=0)\n'
+fi
+
+# ─── Hermes plugins ───────────────────────────────────────
+# Repo-authored Hermes plugins are symlinked per-directory into
+# ~/.hermes/plugins/<name> so ~/.hermes/plugins stays a real dir (other
+# plugins, e.g. Herdr's herdr-agent-state, are installed there directly and
+# must not be clobbered). Each plugin is still opt-in via plugins.enabled in
+# ~/.hermes/config.yaml. Mirrors the .agents/skills per-entry loop above.
+if [ -d "$DOTFILES_DIR/.hermes/plugins" ]; then
+  for _hplugin_dir in "$DOTFILES_DIR/.hermes/plugins/"*/; do
+    [ -d "$_hplugin_dir" ] || continue
+    _hplugin_name="$(basename "$_hplugin_dir")"
+    link_path ".hermes/plugins/$_hplugin_name" ".hermes/plugins/$_hplugin_name"
+  done
+  unset _hplugin_dir _hplugin_name
 fi
 
 # Note: live settings.json files are NOT tracked — they may contain secrets or
