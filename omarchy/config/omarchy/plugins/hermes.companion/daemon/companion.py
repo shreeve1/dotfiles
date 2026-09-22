@@ -317,6 +317,16 @@ class Companion:
                 log.exception("tick")
             self._stop.wait(max(2.0, self.cfg["tick_seconds"] - (time.time() - t0)))
 
+    def _heartbeat(self):
+        """Lightweight liveness beat so the widget can detect a stopped daemon
+        quickly (the tick loop only writes every tick_seconds). Bumps `updated`
+        every few seconds without doing any model work."""
+        while not self._stop.wait(5.0):
+            try:
+                self.state.update()  # touches `updated` + rewrites atomically
+            except Exception:
+                log.exception("heartbeat")
+
     # ------------------------------------------------------------ model selection
     @staticmethod
     def _hermes_main_key() -> str:
@@ -564,6 +574,7 @@ class Companion:
         signal.signal(signal.SIGTERM, lambda *_: self._stop.set())
         signal.signal(signal.SIGINT, lambda *_: self._stop.set())
         threading.Thread(target=self.start_voice, daemon=True, name="voice-init").start()
+        threading.Thread(target=self._heartbeat, daemon=True, name="heartbeat").start()
         self._install_approver()
         self.set_status("watching")
         log.info("companion running (tick=%ss)", self.cfg["tick_seconds"])
