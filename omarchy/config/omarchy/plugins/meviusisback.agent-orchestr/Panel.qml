@@ -40,6 +40,10 @@ Panel {
   // text is rendered anywhere in the widget (bar ticker or card), only counts,
   // status words and the repo breadcrumb. The collector still returns the text.
   readonly property bool privacyHidePrompts: Boolean(root.setting("privacyHidePrompts", false))
+  // Popup size (logical px before Style spacing scale); clamped to the screen by
+  // KeyboardPanel.fittedContentWidth/cappedContentHeight.
+  readonly property int panelWidth: Math.max(380, Math.min(1400, Number(root.setting("panelWidth", 760)) || 760))
+  readonly property int panelHeight: Math.max(400, Math.min(1400, Number(root.setting("panelHeight", 760)) || 760))
 
   readonly property bool barShowsText: barDisplay.toLowerCase() === "status" || barDisplay.toLowerCase() === "compact"
 
@@ -542,8 +546,8 @@ Panel {
     bar: root.bar
     owner: root
     open: root.opened
-    contentWidth: Style.space(480)
-    contentHeight: Style.space(680)
+    contentWidth: popup.fittedContentWidth(Style.space(root.panelWidth))
+    contentHeight: popup.cappedContentHeight(Style.space(root.panelHeight))
     focusTarget: keyCatcher
 
     // Keyboard driver: arrows / j k move card selection, Left/Right cycle
@@ -972,7 +976,7 @@ Panel {
                 }
                 font.weight: (modelData.status === "waiting" || modelData.status === "working") ? Font.DemiBold : Font.Normal
                 wrapMode: Text.Wrap
-                maximumLineCount: 3
+                maximumLineCount: 4
                 elide: Text.ElideRight
               }
 
@@ -1081,14 +1085,23 @@ Panel {
                 }
                 Text {
                   Layout.fillWidth: true
-                  text: agentCard.hasActivity
-                        ? modelData.detail
-                        : "Response preview unavailable — open the Herdr session for full context."
+                  // Prefer the collector's multi-line `response` (fuller reply
+                  // excerpt) while idle/completed so the user can verify what
+                  // the agent said before replying; live activity keeps `detail`.
+                  text: {
+                    var resp = String(modelData.response || "")
+                    var live = modelData.status === "working" || modelData.status === "waiting" || modelData.status === "blocked"
+                    if (resp && !live) return resp
+                    return agentCard.hasActivity
+                           ? modelData.detail
+                           : (resp || "Response preview unavailable — open the Herdr session for full context.")
+                  }
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(11)
-                  color: root.dim
+                  color: Qt.lighter(root.dim, 1.25)
                   wrapMode: Text.Wrap
+                  lineHeight: 1.1
                 }
 
                 Text {
