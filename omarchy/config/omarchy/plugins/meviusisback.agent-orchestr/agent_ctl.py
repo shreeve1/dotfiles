@@ -429,37 +429,91 @@ def clean_ansi(text: str) -> str:
     return ansi_regex.sub("", text)
 
 
-def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    """Extract the latest user prompt and Hermes reply from a Herdr detection render.
+def _join_soft_wraps(lines: List[str], box_width: int) -> List[str]:
+    """Re-join rows a narrow pane hard-wrapped at the reply box's width.
 
-    Handles both observed Hermes TUI shapes:
+    A Herdr detection read is the pane's rendered screen, so a reply wider than
+    the pane arrives split: mid-word ("dec" / "ision") when the row is full, or
+    at a space the renderer dropped ("…risk is one" / "shared…") when the row
+    ends one column short. Only applies when the rows really are clipped to the
+    box: if any row is wider than the box border, the text was not wrapped.
+    """
+    if box_width < 60 or not lines or any(len(line) > box_width for line in lines):
+        return lines
+    width = max(len(line) for line in lines)
+    if width < box_width - 2 or sum(1 for line in lines if len(line) >= width - 1) < 2:
+        return lines
+    out: List[str] = []
+    buf = ""
+    prev = ""
+    for line in lines:
+        if not line.strip():
+            if buf:
+                out.append(buf)
+                buf = ""
+            out.append("")
+            continue
+        if buf:
+            if len(prev) >= width or line.startswith(" "):
+                buf += line
+            else:
+                buf += " " + line
+        else:
+            buf = line
+        prev = line
+        if len(line) < width - 1:
+            out.append(buf)
+            buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def parse_herdr_read_turns(text: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Extract the latest user prompt and the latest Hermes reply (multi-line).
+
+    Handles the observed Hermes TUI shapes:
       1. Inline label form:  "● You: <text>" / "◆ Hermes: <text>" (wrapped).
-      2. Bullet/header form:  "● <user text>" for a prompt, and a bare
-         "⚕ Hermes" (or "◆ Hermes") header line followed by the reply body.
-    Tool/spinner rows ("┊ …"), the model status line ("⚕ <model> · …"), and the
-    input prompt ("❯ …") are ignored so they never masquerade as turn text.
+      2. Bullet/header form: "● <user text>" for a prompt, and a "⚕ Hermes" /
+         "☤ Hermes" header (bare, or as a "╭─ ☤ Hermes ──╮" box title)
+         followed by the reply body.
+      3. A reply whose header has scrolled off the top of the screen: body rows
+         that run straight into the box's closing "╰──╯" row.
+    Tool/spinner rows ("┊ …"), the model status line, the input prompt ("❯ …")
+    and pure rule/border rows end the current turn and are never turn text.
+    Returns (prompt flattened to one line, reply with line breaks kept).
     """
     try:
         user_turns: List[List[str]] = []
         asst_turns: List[List[str]] = []
-        current: Optional[List[str]] = None
+        leading: List[str] = []           # rows before any marker (scrolled-off reply)
+        current: Optional[List[str]] = leading
         border_chars = "│─╭╮╰╯├┤ \t"
-        # A Hermes assistant header: "Hermes" or "Hermes:" possibly prefixed by a
-        # bullet/medical glyph, on its own (no reply text on the same line).
+        marker = re.compile(r"^[●◆○◇•⚕☤✦✳➤»]+\s*")
         asst_header = re.compile(r"^(?:Hermes)\s*:?\s*$", re.IGNORECASE)
-        # Inline labelled turn: "You: x" / "Hermes: x".
         inline = re.compile(r"^(You|Hermes)\s*:\s*(.*)$", re.IGNORECASE)
-        # Model/status footer line, e.g. "claude-opus-4-8 · ~27% · …".
-        status_line = re.compile(r"·.*(%|·)")
+        # Model/status footer, e.g. "claude-opus-4-8 · ~27% · …" or
+        # "claude-opus-5-5 │ ~177K/1M │ [██░] ~18% │ …".
+        status_line = re.compile(r"(·|│).*%")
+        border_widths: List[int] = []
 
         for raw_line in clean_ansi(str(text or "")).splitlines():
+            raw_line = raw_line.rstrip()
+            if raw_line.lstrip()[:1] in ("╭", "╰"):
+                border_widths.append(len(raw_line))
             line = raw_line.strip(border_chars)
-            # Strip a single leading marker glyph (user bullet, assistant glyph).
-            stripped = re.sub(r"^[●◆○◇•⚕✦✳➤»]+\s*", "", line).strip()
+            stripped = marker.sub("", line).strip()
             if not stripped:
+                # A box's closing row ends a reply; one that closes rows seen
+                # before any marker is a reply whose header scrolled away.
+                if raw_line.lstrip().startswith("╰") and current is leading and leading:
+                    asst_turns.append(list(leading))
+                    current = None
+                elif raw_line.strip() and not raw_line.strip(border_chars):
+                    current = None        # pure rule/border row
+                elif current is not None and current:
+                    current.append("")    # paragraph break inside a turn
                 continue
-            # Tool/spinner rows ("┊ ⚡ tool 0.0s") are not conversation; they end
-            # the current turn so their text never joins a reply body.
             if stripped.startswith("┊"):
                 current = None
                 continue
@@ -467,12 +521,9 @@ def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Option
 
             m_inline = inline.match(stripped)
             if m_inline:
-                if m_inline.group(1).lower() == "you":
-                    user_turns.append([m_inline.group(2).strip()])
-                    current = user_turns[-1]
-                else:
-                    asst_turns.append([m_inline.group(2).strip()])
-                    current = asst_turns[-1]
+                bucket = user_turns if m_inline.group(1).lower() == "you" else asst_turns
+                bucket.append([m_inline.group(2).strip()])
+                current = bucket[-1]
                 continue
 
             if asst_header.match(stripped):
@@ -480,9 +531,7 @@ def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Option
                 current = asst_turns[-1]
                 continue
 
-            # A bullet-marked line that is not a Hermes header is a user prompt.
             if had_marker:
-                # Ignore the model status footer ("<model> · …%") and input hint.
                 if status_line.search(stripped) or stripped.startswith("❯"):
                     current = None
                     continue
@@ -490,11 +539,23 @@ def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Option
                 current = user_turns[-1]
                 continue
 
-            # Continuation of the active turn (wrapped body line).
-            if current is not None:
-                current.append(stripped)
+            if stripped.startswith("❯"):
+                current = None
+                continue
+            if stripped == "Initializing agent...":
+                continue
 
-        def latest(turns: List[List[str]]) -> Optional[str]:
+            if current is not None:
+                # Keep the row's own spacing (soft-wrap joins need it) but drop
+                # box side borders.
+                body = raw_line
+                if body.startswith("│"):
+                    body = body[1:]
+                if body.endswith("│"):
+                    body = body[:-1]
+                current.append(body.rstrip() if current is not leading else body)
+
+        def latest_prompt(turns: List[List[str]]) -> Optional[str]:
             for chunk in reversed(turns):
                 value = re.sub(r"\s+", " ", " ".join(chunk).strip())
                 value = redact_secrets(value)[:200].rstrip()
@@ -502,9 +563,33 @@ def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Option
                     return value
             return None
 
-        return latest(user_turns), latest(asst_turns)
+        box_width = max(set(border_widths), key=border_widths.count) if border_widths else 0
+
+        def latest_reply(turns: List[List[str]]) -> Optional[str]:
+            for chunk in reversed(turns):
+                rows = _join_soft_wraps([row.rstrip() for row in chunk], box_width)
+                value = "\n".join(rows).strip("\n")
+                # Drop the common indent the TUI adds to every body row.
+                indents = [len(r) - len(r.lstrip()) for r in value.split("\n") if r.strip()]
+                if indents and min(indents) > 0:
+                    cut = min(indents)
+                    value = "\n".join(r[cut:] for r in value.split("\n"))
+                value = re.sub(r"\n{3,}", "\n\n", value).strip()
+                if value:
+                    return redact_secrets(value)
+            return None
+
+        return latest_prompt(user_turns), latest_reply(asst_turns)
     except Exception:
         return None, None
+
+
+def parse_herdr_read_preview(text: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Latest user prompt and Hermes reply, both flattened to one short line."""
+    prompt, reply = parse_herdr_read_turns(text)
+    if reply:
+        reply = re.sub(r"\s+", " ", reply).strip()[:200].rstrip() or None
+    return prompt, reply
 
 
 def clean_title(title: str) -> str:
@@ -3287,8 +3372,9 @@ def fetch_all_agents() -> Dict[str, Any]:
                 user_goal, detail_text, model_name, status_override, has_question = extract_grok_task_from_session(session_path)
                 response_text = ""
             elif remote_machine and agent_type == "hermes":
-                user_goal, detail_text = parse_herdr_read_preview(remote_read_by_pane.get(str(pane_id)))
-                response_text = extract_response_excerpt(detail_text or "")
+                user_goal, remote_reply = parse_herdr_read_turns(remote_read_by_pane.get(str(pane_id)))
+                detail_text = extract_first_line(remote_reply) if remote_reply else None
+                response_text = extract_response_excerpt(remote_reply or "")
             elif agent_type == "hermes" and not remote_machine and hermes_preview_allowed:
                 hermes_p_start = None
                 hermes_profile = None
