@@ -1,0 +1,11 @@
+[Unit]
+Description=Recover Intel Bluetooth adapter after firmware startup failure
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/bluetooth-recover
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PLUGIN_DIR"
+python3 -m unittest discover -s tests -v
+python3 -m py_compile controller/touchpadctl
+node --test tests/model.test.js
+omarchy plugin validate "$PLUGIN_DIR"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+mkdir "$tmp/qs"; rm -rf "$tmp/qs"; ln -s /usr/share/omarchy/shell "$tmp/qs"
+QMLLINT="${QMLLINT:-/usr/lib/qt6/bin/qmllint}"
+"$QMLLINT" -I "$tmp" Panel.qml Service.qml
+printf 'Touchpad Settings validation passed.\n'
