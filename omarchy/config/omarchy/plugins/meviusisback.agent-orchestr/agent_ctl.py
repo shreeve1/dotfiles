@@ -2814,7 +2814,10 @@ def scan_orca_agents(claimed_sessions: Set[str]) -> List[Dict[str, Any]]:
             # Fall back to Orca's own preview snippet for the detail line:
             # ANSI-stripped, secret-redacted, first meaningful line only.
             preview_line = extract_first_line(clean_ansi(str(term.get("preview") or "")))
-            detail_display = detail_text or user_goal or preview_line or clean_cwd
+            # Activity stays distinct from the prompt and cwd metadata. Orca's
+            # actual terminal preview is the only fallback when no parsed
+            # activity/reply is available.
+            detail_display = detail_text or preview_line
 
             title_candidates = [
                 user_goal,
@@ -3063,7 +3066,8 @@ def scan_standalone_agents(herdr_server_pids: List[int], seen_cwds: Set[str], cl
                 else:
                     effective_title = f"{agent_type.upper()} session ({repo_name or '~'})"
 
-                detail_display = detail_text or clean_cwd
+                # CWD is location metadata, not agent activity.
+                detail_display = detail_text or ""
                 effective_status = status_override or ("working" if info.get("state") in ("R", "D") else "idle")
 
                 standalone.append({
@@ -3328,7 +3332,10 @@ def fetch_all_agents() -> Dict[str, Any]:
                 unknown_count += 1
             else:
                 idle_count += 1
-            detail_display = detail_text or (user_goal if user_goal and user_goal != effective_title else "") or clean_cwd
+            # `detail` is agent activity/reply text, never location metadata.
+            # Falling back to cwd made the expanded card label a path as
+            # "Latest activity", which was both redundant and misleading.
+            detail_display = detail_text or ""
 
             agents_list.append(
                 {
