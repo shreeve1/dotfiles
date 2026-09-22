@@ -108,6 +108,43 @@ Panel {
     return list[root.selectedIndex]
   }
 
+  function revealCardBottom(index, cardId) {
+    var lastHeight = -1
+    var stablePasses = 0
+    var passes = 0
+
+    function settle() {
+      if (root.replyCardId !== cardId || !agentListView || index < 0 || index >= agentListView.count) return
+
+      agentListView.forceLayout()
+      var card = agentListView.itemAtIndex(index)
+      if (!card) {
+        if (++passes < 12) Qt.callLater(settle)
+        return
+      }
+
+      var cardHeight = card.height
+      if (Math.abs(cardHeight - lastHeight) < 0.5) {
+        stablePasses++
+      } else {
+        stablePasses = 0
+        lastHeight = cardHeight
+      }
+
+      // Wrapped text and nested layouts can need several polish passes after
+      // becoming visible. Wait for two stable passes, but never loop forever.
+      if (stablePasses < 2 && ++passes < 12) {
+        Qt.callLater(settle)
+        return
+      }
+
+      agentListView.forceLayout()
+      agentListView.positionViewAtIndex(index, ListView.End)
+    }
+
+    Qt.callLater(settle)
+  }
+
   // Enter on a highlighted card expands it: shows full prompt/activity detail
   // and, when the agent can accept a reply, opens the composer and focuses the
   // input. Enter again on the same card collapses it.
@@ -120,6 +157,7 @@ Panel {
     root.replyState = "idle"
     root.replyError = ""
     root.replyDraft = ""
+    root.revealCardBottom(root.selectedIndex, id)
   }
 
   function replyTarget(agent) {
@@ -679,8 +717,12 @@ Panel {
           boundsBehavior: Flickable.StopAtBounds
 
           delegate: Rectangle {
+            id: agentCard
             required property var modelData
             required property int index
+
+            readonly property bool expanded: root.replyCardId === String(modelData.pane_id || index)
+            readonly property bool hasActivity: Boolean(modelData.detail) && modelData.detail !== modelData.title
 
             width: agentListView.width - Style.space(4)
             implicitHeight: cardContent.implicitHeight + Style.space(16)
@@ -860,10 +902,12 @@ Panel {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                      root.replyCardId = String(modelData.pane_id || index)
+                      var id = String(modelData.pane_id || index)
+                      root.replyCardId = id
                       root.replyState = "idle"
                       root.replyError = ""
                       root.replyDraft = ""
+                      root.revealCardBottom(index, id)
                     }
                   }
                 }
@@ -899,6 +943,7 @@ Panel {
 
               // Task Title
               Text {
+                visible: !agentCard.expanded || root.privacyHidePrompts
                 Layout.fillWidth: true
                 text: root.privacyHidePrompts ? "Session details hidden" : (modelData.title || "Active agent session")
                 textFormat: Text.PlainText
@@ -913,7 +958,7 @@ Panel {
 
               // Activity Detail (if running tool, prompt question, or concluding tail)
               Text {
-                visible: !root.privacyHidePrompts && Boolean(modelData.detail) && modelData.detail !== modelData.title
+                visible: !agentCard.expanded && !root.privacyHidePrompts && agentCard.hasActivity
                 Layout.fillWidth: true
                 text: modelData.detail || ""
                 textFormat: Text.PlainText
@@ -933,6 +978,7 @@ Panel {
 
               // Breadcrumbs / Location Metadata
               RowLayout {
+                visible: !agentCard.expanded || root.privacyHidePrompts
                 Layout.fillWidth: true
                 spacing: Style.space(6)
 
@@ -986,15 +1032,13 @@ Panel {
                 }
               }
 
-              // Expanded detail — shown for the same card whose composer is open
-              // (Enter on a selected card, or the reply button). Renders the full
-              // latest prompt and latest activity/reply un-truncated and wrapped,
-              // plus metadata, so the user can read context before replying.
+              // Expanded detail replaces the collapsed summary rather than
+              // duplicating it. It shows one request, one real activity/reply
+              // field, and one compact source/location line before the composer.
               ColumnLayout {
                 id: expandedDetail
                 visible: !root.privacyHidePrompts
-                         && root.replyCardId === String(modelData.pane_id || index)
-                         && (Boolean(modelData.title) || Boolean(modelData.detail))
+                         && agentCard.expanded
                 Layout.fillWidth: true
                 spacing: Style.space(4)
                 z: 2
@@ -1004,7 +1048,7 @@ Panel {
                 Text {
                   visible: Boolean(modelData.title)
                   Layout.fillWidth: true
-                  text: "Latest prompt"
+                  text: "Request"
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(9)
@@ -1023,9 +1067,12 @@ Panel {
                 }
 
                 Text {
-                  visible: Boolean(modelData.detail) && modelData.detail !== modelData.title
                   Layout.fillWidth: true
-                  text: "Latest activity"
+                  text: {
+                    if (modelData.status === "working") return "Current activity"
+                    if (modelData.status === "waiting" || modelData.status === "blocked") return "Waiting for"
+                    return "Last response"
+                  }
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(9)
@@ -1033,9 +1080,10 @@ Panel {
                   color: root.dim
                 }
                 Text {
-                  visible: Boolean(modelData.detail) && modelData.detail !== modelData.title
                   Layout.fillWidth: true
-                  text: modelData.detail || ""
+                  text: agentCard.hasActivity
+                        ? modelData.detail
+                        : "Response preview unavailable — open the Herdr session for full context."
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(11)
@@ -1047,9 +1095,9 @@ Panel {
                   Layout.fillWidth: true
                   text: {
                     var bits = []
-                    if (modelData.model) bits.push(String(modelData.model))
-                    if (modelData.agent_display) bits.push(String(modelData.agent_display))
+                    if (modelData.origin_label) bits.push(String(modelData.origin_label))
                     if (modelData.herdr_session) bits.push("session " + modelData.herdr_session)
+                    if (modelData.model) bits.push(String(modelData.model))
                     if (modelData.cwd) bits.push(String(modelData.cwd))
                     return bits.join("  ·  ")
                   }
