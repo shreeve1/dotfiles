@@ -442,7 +442,10 @@ BarWidget {
         Button { text: root.listening ? "󰓛 Stop" : "󰍬 Listen"; foreground: root.bar.foreground; selected: root.listening; tooltipText: root.listening ? "Stop continuous microphone listening" : "Start continuous microphone listening (also: right-click the icon)"; onClicked: root.control("listen") }
         Button { text: "Hush"; foreground: root.bar.foreground; onClicked: root.control("hush") }
         Button { text: "Look now"; foreground: root.bar.foreground; onClicked: root.control("tick") }
-        Button { text: root.alive ? "Restart" : "Start"; foreground: root.bar.foreground; onClicked: root.service(root.alive ? "restart" : "start") }
+        // 'restart' starts a stopped unit and restarts a running one, so this
+        // one button always works regardless of the alive/heartbeat timing — no
+        // window where a stopped daemon can't be started. Label follows alive.
+        Button { text: root.alive ? "Restart" : "Start"; foreground: root.bar.foreground; tooltipText: "Start or restart the companion daemon"; onClicked: root.service("restart") }
         Button { text: "Stop"; foreground: root.bar.foreground; visible: root.alive; onClicked: root.service("stop") }
       }
 
