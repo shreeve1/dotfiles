@@ -567,7 +567,20 @@ Panel {
     owner: root
     open: root.opened
     contentWidth: popup.fittedContentWidth(Style.space(root.panelWidth))
-    contentHeight: popup.cappedContentHeight(Style.space(root.panelHeight))
+    // Height follows the content: chrome (header, tabs, footer) plus the card
+    // list. Collapsed, it is capped at `panelHeight`; while a card is expanded
+    // it may grow up to the screen so the whole reply fits without scrolling.
+    // `cappedContentHeight` clamps to the available screen height either way.
+    readonly property real chromeHeight: headerRow.implicitHeight + filterRow.implicitHeight
+                                         + footerBar.implicitHeight + mainColumn.spacing * 3
+                                         + mainColumn.anchors.margins * 2 + popup.verticalContentInset
+    readonly property real fitHeight: chromeHeight + Math.max(Style.space(120), agentListView.contentHeight)
+    contentHeight: popup.cappedContentHeight(Math.max(Style.space(320),
+                     root.replyCardId ? fitHeight : Math.min(fitHeight, Style.space(root.panelHeight))))
+    Behavior on contentHeight {
+      enabled: root.opened
+      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    }
     focusTarget: keyCatcher
 
     // Keyboard driver: arrows / j k move card selection, Left/Right cycle
@@ -590,12 +603,14 @@ Panel {
       onTabRequested: function(direction) { root.cycleFilter(direction) }
 
     ColumnLayout {
+      id: mainColumn
       anchors.fill: parent
       anchors.margins: Style.space(4)
       spacing: Style.space(12)
 
       // --------------------------------------------------------- Header Row
       RowLayout {
+        id: headerRow
         Layout.fillWidth: true
         spacing: Style.space(14)
 
@@ -665,6 +680,7 @@ Panel {
 
       // --------------------------------------------------------- Filter Tabs
       RowLayout {
+        id: filterRow
         Layout.fillWidth: true
         spacing: Style.space(6)
 
@@ -1292,6 +1308,7 @@ Panel {
 
       // --------------------------------------------------------- Footer
       Rectangle {
+        id: footerBar
         Layout.fillWidth: true
         implicitHeight: Style.space(28)
         radius: Style.cornerRadius
