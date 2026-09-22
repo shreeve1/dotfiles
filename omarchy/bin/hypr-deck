@@ -104,6 +104,15 @@ def bring_to_top(address: str) -> None:
     hypr_eval(f'hl.dispatch(hl.dsp.window.bring_to_top({{ window = {lua_window(address)} }}))')
 
 
+def alter_zorder_top(address: str) -> None:
+    """Put an unmanaged floating window at the top of the floating stack."""
+    hypr_eval(
+        'hl.dispatch(hl.dsp.window.alter_zorder({ '
+        f'mode = "top", window = {lua_window(address)} '
+        '}))'
+    )
+
+
 def clients() -> list[dict[str, Any]]:
     result = hypr_json("clients")
     return result if isinstance(result, list) else []
@@ -915,7 +924,12 @@ class Deck:
         addresses = self.managed_on_workspace(ws, live)
         if address not in addresses:
             # Floating dialogs and explicitly excluded apps do not participate in
-            # Deck. Keep the current Deck card promoted while they have focus.
+            # Deck. An openwindow event can run while the parent Deck card is
+            # still focused and raise that card after the dialog was mapped. The
+            # later dialog focus event must therefore raise the unmanaged float
+            # explicitly rather than only preserving the Deck geometry beneath it.
+            if client.get("floating"):
+                alter_zorder_top(address)
             self.write_state()
             return
         # Restore only the previous foreground and the new workspace's peers.
@@ -1523,6 +1537,35 @@ def self_test() -> int:
     assert reflow_live["0xa"]["size"] == [1416, 910]
     assert regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": False, "pinned": False, "fullscreen": 0, "workspace": {"id": 2}})
     assert not regular_tiled({"mapped": True, "visible": True, "acceptsInput": True, "floating": True, "workspace": {"id": 2}})
+    # A focused dialog stays outside the saved Deck tree, but must be raised
+    # above the parent card that the preceding openwindow apply may have raised.
+    dialog_deck = object.__new__(Deck)
+    dialog_deck.state = {"enabled": True, "windows": {}}
+    dialog_deck.last_apply = 0.0
+    dialog_deck.dirty_layouts = set()
+    dialog = {
+        "workspace": {"id": 1},
+        "floating": True,
+        "fullscreen": 0,
+    }
+    dialog_deck.read_state = lambda: dialog_deck.state
+    dialog_deck.live = lambda: {"0xd": dialog}
+    dialog_deck.clean_state = lambda _live: None
+    dialog_deck.reconcile_workspace_moves = lambda _live: False
+    dialog_deck.reconcile_monitor_assignments = lambda _live: False
+    dialog_deck.ensure_layouts = lambda _live: False
+    dialog_deck.apply_workspace_backgrounds = lambda _workspaces, _live: None
+    dialog_deck.adopt_workspace = lambda _ws, _live: False
+    dialog_deck.managed_on_workspace = lambda _ws, _live: []
+    dialog_deck.write_state = lambda: None
+    raised: list[str] = []
+    original_alter_zorder_top = globals()["alter_zorder_top"]
+    try:
+        globals()["alter_zorder_top"] = lambda address: raised.append(address)
+        dialog_deck._apply("0xd", force=True)
+    finally:
+        globals()["alter_zorder_top"] = original_alter_zorder_top
+    assert raised == ["0xd"]
     print("PASS: reversible orientation-aware geometry and dynamic monitor reflow")
     return 0
 
