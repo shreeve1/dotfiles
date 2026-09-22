@@ -189,6 +189,18 @@ Panel {
     Qt.callLater(function() { if (root.opened && keyCatcher) keyCatcher.forceActiveFocus() })
   }
 
+  // Fallback after a focused reply field is destroyed by a list rebuild: if no
+  // rebuilt field has re-taken focus, give it to the key catcher so arrows,
+  // Enter and Esc keep working.
+  function restoreKeyboardFocus() {
+    if (!root.opened || root.replyFieldFocused || !keyCatcher || keyCatcher.activeFocus) return
+    keyCatcher.forceActiveFocus()
+  }
+
+  // Raw collector text of the last applied refresh; identical ticks are skipped
+  // so the card list (and any open composer) is not rebuilt for no change.
+  property string lastStatusText: ""
+
   function submitReply(agent, text) {
     if (!replyAllowed(agent) || root.replyState === "sending" || !String(text || "").trim()) return
     var target = root.replyTarget(agent)
@@ -307,9 +319,17 @@ Panel {
         if (output.length > 262144) {
           output = output.substring(0, 262144)
         }
+        if (output === root.lastStatusText) return
         try {
           var data = JSON.parse(output)
+          // Rebuilding the delegates resets the list's scroll; keep the
+          // user's place so an expanded card doesn't jump away mid-read.
+          var keepY = agentListView ? agentListView.contentY : 0
           root.rawData = data
+          root.lastStatusText = output
+          if (agentListView && keepY > 0) Qt.callLater(function() {
+            agentListView.contentY = Math.min(keepY, Math.max(0, agentListView.contentHeight - agentListView.height))
+          })
         } catch (e) {
           // ignore transient parse error
         }
@@ -1153,7 +1173,38 @@ Panel {
                   onVisibleChanged: if (visible && root.replyAllowed(modelData)) Qt.callLater(function() { forceActiveFocus() })
                   // While this field holds focus the PanelKeyCatcher is blocked
                   // (see keyCatcher.blocked) so keystrokes reach the editor.
-                  onActiveFocusChanged: root.replyFieldFocused = activeFocus
+                  // Focus can also vanish without anyone taking it: the field is
+                  // disabled when the card's status changes or a reply is sent,
+                  // and a disabled item drops active focus with no successor.
+                  // Hand it back to the key catcher so Esc/arrows keep working.
+                  onActiveFocusChanged: {
+                    root.replyFieldFocused = activeFocus
+                    if (!activeFocus) Qt.callLater(root.restoreKeyboardFocus)
+                  }
+                  // Re-take focus if the field becomes usable again after being
+                  // disabled (e.g. a failed send re-enables it).
+                  onEnabledChanged: if (enabled && replyComposer.visible && root.opened && !root.replyFieldFocused) Qt.callLater(function() { if (replyField && replyField.enabled && replyComposer.visible) replyField.forceActiveFocus() })
+                  // A status refresh swaps the ListView's JS-array model, which
+                  // rebuilds every delegate. A destroyed field never reports
+                  // losing focus, so without this the key catcher stays blocked
+                  // and nothing holds focus (typing and Esc both go dead).
+                  // The rebuilt field re-grabs focus (onVisibleChanged does not
+                  // fire at creation) and keeps the draft via root.replyDraft.
+                  Component.onCompleted: {
+                    if (replyComposer.visible && root.opened && root.replyAllowed(modelData)) {
+                      Qt.callLater(function() {
+                        if (!replyField || !replyComposer.visible || !root.opened) return
+                        replyField.forceActiveFocus()
+                        replyField.cursorPosition = replyField.text.length
+                      })
+                    }
+                  }
+                  Component.onDestruction: {
+                    if (root.replyFieldFocused) {
+                      root.replyFieldFocused = false
+                      Qt.callLater(root.restoreKeyboardFocus)
+                    }
+                  }
                 }
 
                 RowLayout {
