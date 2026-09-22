@@ -36,7 +36,7 @@ BarWidget {
 
   property var st: ({})
   property double nowMs: Date.now()
-  readonly property bool alive: !!st.updated && (nowMs / 1000 - st.updated) < 15
+  readonly property bool alive: !!st.updated && (nowMs / 1000 - st.updated) < 10
   readonly property string status: hermesMissing ? "no-hermes" : (alive ? String(st.status || "watching") : "offline")
   readonly property bool eyes: !!st.eyes
   readonly property bool muted: !!st.muted
