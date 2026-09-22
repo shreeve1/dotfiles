@@ -37,6 +37,11 @@ except Exception as _e:  # Hermes missing/broken: record it for the widget and e
 log = logging.getLogger("companion")
 
 CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "omarchy/plugins/hermes.companion/companion.json"
+# Runtime settings the UI toggles (eyes/mute/toasts/profile/models) are persisted
+# HERE, in the state dir — NOT in companion.json. companion.json lives inside the
+# plugin directory, and Quickshell hot-reloads the whole plugin (flickering the
+# bar) on any write there. The state dir is not watched, so toggles don't flicker.
+OVERLAY_FILE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "hermes-companion/settings.json"
 DEFAULTS = {
     "vision": {"model": "", "effort": "low", "thinking": True},      # model "" = Hermes' main model (config.yaml)
     "reasoning": {"model": "", "effort": "low", "thinking": True},   # model "" = same as vision
@@ -64,6 +69,14 @@ def load_config() -> dict:
         pass
     except Exception:
         log.exception("bad companion.json, using defaults")
+    # Runtime toggles persisted in the state-dir overlay win over companion.json
+    # (they are what the UI writes; companion.json stays user-editable config).
+    try:
+        cfg.update(json.loads(OVERLAY_FILE.read_text()))
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.exception("bad settings overlay, ignoring")
     # migrate pre-split keys: model/provider/effort/thinking -> vision
     legacy = {k: cfg.pop(k) for k in ("model", "provider", "effort", "thinking") if k in cfg}
     if legacy and "vision" not in cfg:
@@ -321,7 +334,7 @@ class Companion:
         """Lightweight liveness beat so the widget can detect a stopped daemon
         quickly (the tick loop only writes every tick_seconds). Bumps `updated`
         every few seconds without doing any model work."""
-        while not self._stop.wait(5.0):
+        while not self._stop.wait(3.0):
             try:
                 self.state.update()  # touches `updated` + rewrites atomically
             except Exception:
@@ -453,10 +466,20 @@ class Companion:
         return f"{role}={d['model'] or 'same'} effort={d['effort']} thinking={d['thinking']}"
 
     def _persist_cfg(self, patch: dict):
+        # Write to the state-dir overlay, not companion.json in the plugin dir,
+        # so a toggle doesn't trigger a Quickshell plugin hot-reload (bar flicker).
         try:
-            data = json.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
+            OVERLAY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if OVERLAY_FILE.exists():
+                try:
+                    data = json.loads(OVERLAY_FILE.read_text())
+                except Exception:
+                    data = {}
             data.update(patch)
-            CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
+            tmp = OVERLAY_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2) + "\n")
+            os.replace(tmp, OVERLAY_FILE)
         except Exception:
             log.exception("persist config")
 
