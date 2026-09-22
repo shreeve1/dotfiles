@@ -140,12 +140,12 @@ export PATH="$HOME/.opencode/bin:$PATH"
 # secrets (same single source of truth as .zshrc) — MINIMAX_API_KEY etc. for omp/model auth
 [[ -f "$HOME/.zshrc.secrets" ]] && . "$HOME/.zshrc.secrets"
 
-. "$HOME/.local/bin/env"
+[[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"
 
-. "$HOME/.atuin/bin/env"
+[[ -f "$HOME/.atuin/bin/env" ]] && . "$HOME/.atuin/bin/env"
 
 [[ -f ~/.bash-preexec.sh ]] && source ~/.bash-preexec.sh
-eval "$(atuin init bash)"
+command -v atuin >/dev/null && eval "$(atuin init bash)"
 
 # Omnigent: register pi+<model> agents as built-ins so they appear in the agents list
 export OMNIGENT_BUILTIN_AGENT_DIRS="/home/james/.omnigent/agents/pi-claude-opus-4-8:/home/james/.omnigent/agents/pi-minimax-m3:/home/james/.omnigent/agents/pi-deepseek-v4-pro:/home/james/.omnigent/agents/pi-gpt-5-5"

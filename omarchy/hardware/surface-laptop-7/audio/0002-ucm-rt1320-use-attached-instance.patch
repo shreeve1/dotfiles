@@ -1,0 +1,91 @@
+--- a/sof-soundwire/rt1320.conf
++++ b/sof-soundwire/rt1320.conf
+@@ -14,13 +14,13 @@
+ 	}
+ 	True {
+ 		EnableSequence [
+-			cset "name='rt1320-${var:__Amp} RX Channel Select' ${var:__Sel}"
+-			cset "name='rt1320-${var:__Amp} OT23 L Switch' 1"
+-			cset "name='rt1320-${var:__Amp} OT23 R Switch' 1"
++			cset "name='rt1320-2 RX Channel Select' ${var:__Sel}"
++			cset "name='rt1320-2 OT23 L Switch' 1"
++			cset "name='rt1320-2 OT23 R Switch' 1"
+ 		]
+ 		DisableSequence [
+-			cset "name='rt1320-${var:__Amp} OT23 L Switch' 0"
+-			cset "name='rt1320-${var:__Amp} OT23 R Switch' 0"
++			cset "name='rt1320-2 OT23 L Switch' 0"
++			cset "name='rt1320-2 OT23 R Switch' 0"
+ 		]
+ 	}
+ }
+@@ -59,10 +59,10 @@
+ 	}
+ 	True {
+ 		EnableSequence [
+-			cset "name='rt1320-${var:__Mic} FU Capture Switch' 1"
++			cset "name='rt1320-2 FU Capture Switch' 1"
+ 		]
+ 		DisableSequence [
+-			cset "name='rt1320-${var:__Mic} FU Capture Switch' 0"
++			cset "name='rt1320-2 FU Capture Switch' 0"
+ 		]
+ 	}
+ }
+--- a/codecs/rt1320/init.conf
++++ b/codecs/rt1320/init.conf
+@@ -24,7 +24,7 @@
+ 	}
+ }
+ 
+-Define.SpeakerMixerElem "rt1320-1 OT23"
++Define.SpeakerMixerElem "rt1320-2 OT23"
+ 
+ If.oneAmp {
+ 	Condition {
+@@ -37,8 +37,8 @@
+ 		LibraryConfig.remap.Config {
+ 			ctl.default.map {
+ 				"name='rt1320 OT23 Playback Switch'" {
+-					"name='rt1320-1 OT23 L Switch'".vindex.0 0
+-					"name='rt1320-1 OT23 R Switch'".vindex.1 0
++					"name='rt1320-2 OT23 L Switch'".vindex.0 0
++					"name='rt1320-2 OT23 R Switch'".vindex.1 0
+ 				}
+ 			}
+ 		}
+@@ -56,8 +56,8 @@
+ 		LibraryConfig.remap.Config {
+ 			ctl.default.map {
+ 				"name='rt1320 OT23 Playback Switch'" {
+-					"name='rt1320-1 OT23 L Switch'".vindex.0 0
+-					"name='rt1320-1 OT23 R Switch'".vindex.0 0
++					"name='rt1320-2 OT23 L Switch'".vindex.0 0
++					"name='rt1320-2 OT23 R Switch'".vindex.0 0
+ 					"name='rt1320-2 OT23 L Switch'".vindex.1 0
+ 					"name='rt1320-2 OT23 R Switch'".vindex.1 0
+ 				}
+@@ -68,7 +68,7 @@
+ 
+ # RT1320 DMIC specific switch control settings
+ 
+-Define.MicMixerElem "rt1320-1 FU"
++Define.MicMixerElem "rt1320-2 FU"
+ 
+ DefineMacro.rt1320micled.If.0 {
+ 	Condition {
+@@ -100,10 +100,10 @@
+ 				LibraryConfig.remap.Config {
+ 					ctl.default.map {
+ 						"name='rt1320 FU Capture Switch'" {
+-							"name='rt1320-1 FU Capture Switch'".vindex.0 0
+-							"name='rt1320-1 FU Capture Switch'".vindex.1 1
+-							"name='rt1320-1 FU Capture Switch'".vindex.2 2
+-							"name='rt1320-1 FU Capture Switch'".vindex.3 3
++							"name='rt1320-2 FU Capture Switch'".vindex.0 0
++							"name='rt1320-2 FU Capture Switch'".vindex.1 1
++							"name='rt1320-2 FU Capture Switch'".vindex.2 2
++							"name='rt1320-2 FU Capture Switch'".vindex.3 3
+ 							"name='rt1320-2 FU Capture Switch'".vindex.4 0
+ 							"name='rt1320-2 FU Capture Switch'".vindex.5 1
+ 							"name='rt1320-2 FU Capture Switch'".vindex.6 2

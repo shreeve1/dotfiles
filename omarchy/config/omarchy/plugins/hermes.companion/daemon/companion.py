@@ -1,0 +1,629 @@
+#!/usr/bin/env python3
+"""Hermes Companion daemon — always-on screen-aware voice assistant for Omarchy."""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from state import ControlServer, State  # noqa: E402
+from actions import Approver, audit, install_hook, parse_yes_no  # noqa: E402
+from profiles import PROFILES, normalize  # noqa: E402
+
+try:
+    from brain import CompanionAgent, ModelSpec  # noqa: E402
+    from catalog import Catalog  # noqa: E402
+    from perception import Perceiver  # noqa: E402
+    from policy import PolicyConfig, SpeechPolicy  # noqa: E402
+    if "--ctl" not in sys.argv:
+        import run_agent  # noqa: E402,F401  (real Hermes probe; brain imports it lazily)
+except Exception as _e:  # Hermes missing/broken: record it for the widget and exit (no restart loop)
+    if "--ctl" not in sys.argv:
+        State().update(status="error", last_error=f"Hermes runtime unavailable: {_e}")
+        print(f"hermes-companion: cannot import Hermes runtime: {_e}", file=sys.stderr)
+        sys.exit(78)  # EX_CONFIG
+    raise
+
+log = logging.getLogger("companion")
+
+CONFIG_FILE = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "omarchy/plugins/hermes.companion/companion.json"
+# Runtime settings the UI toggles (eyes/mute/toasts/profile/models) are persisted
+# HERE, in the state dir — NOT in companion.json. companion.json lives inside the
+# plugin directory, and Quickshell hot-reloads the whole plugin (flickering the
+# bar) on any write there. The state dir is not watched, so toggles don't flicker.
+OVERLAY_FILE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "hermes-companion/settings.json"
+DEFAULTS = {
+    "vision": {"model": "", "effort": "low", "thinking": True},      # model "" = Hermes' main model (config.yaml)
+    "reasoning": {"model": "", "effort": "low", "thinking": True},   # model "" = same as vision
+    "user_name": os.environ.get("USER", "User").capitalize(),
+    "tick_seconds": 25,
+    "change_threshold": 12,
+    "max_width": 1280,
+    "min_gap_seconds": 300,
+    "urgent_gap_seconds": 60,
+    "max_per_hour": 8,
+    "notify": True,
+    "actions": False,   # let voice/text requests delegate shell/file work to a Hermes subagent
+    "muted": False,     # mute proactive speech (still answers voice requests) — persisted across restarts
+    "toasts": True,     # on-screen toasts with agent output — persisted across restarts
+    "profile": "Coding",
+    "profiles": {name: {} for name in PROFILES},
+}
+
+
+def load_config() -> dict:
+    cfg = dict(DEFAULTS)
+    try:
+        cfg.update(json.loads(CONFIG_FILE.read_text()))
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.exception("bad companion.json, using defaults")
+    # Runtime toggles persisted in the state-dir overlay win over companion.json
+    # (they are what the UI writes; companion.json stays user-editable config).
+    try:
+        cfg.update(json.loads(OVERLAY_FILE.read_text()))
+    except FileNotFoundError:
+        pass
+    except Exception:
+        log.exception("bad settings overlay, ignoring")
+    # migrate pre-split keys: model/provider/effort/thinking -> vision
+    legacy = {k: cfg.pop(k) for k in ("model", "provider", "effort", "thinking") if k in cfg}
+    if legacy and "vision" not in cfg:
+        cfg["vision"] = {"model": f"{legacy.get('provider', 'anthropic')}:{legacy.get('model', '')}", "effort": legacy.get("effort", "low"), "thinking": legacy.get("thinking", True)}
+    if legacy:
+        try:  # rewrite the file without the legacy keys
+            data = json.loads(CONFIG_FILE.read_text())
+            for k in ("model", "provider", "effort", "thinking"):
+                data.pop(k, None)
+            data.setdefault("vision", cfg.get("vision", DEFAULTS["vision"]))
+            CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
+        except Exception:
+            log.exception("config migration")
+    for role in ("vision", "reasoning"):
+        d = dict(DEFAULTS[role]); d.update(cfg.get(role) or {}); cfg[role] = d
+    cfg["profile"] = normalize(cfg.get("profile"))
+    cfg["profiles"] = dict(DEFAULTS["profiles"], **(cfg.get("profiles") or {}))
+    return cfg
+
+
+def _spec(d: dict) -> ModelSpec:
+    prov, _, model = d["model"].partition(":")
+    return ModelSpec(prov, model, d.get("effort", "low"), bool(d.get("thinking", True)))
+
+
+def _no_markup(s: str) -> str:
+    """Escape the HTML subset that markup-capable notification servers parse.
+
+    notify-send bodies are rendered by the server (dunst, mako, GNOME Shell), and servers
+    advertising the freedesktop ``body-markup`` capability interpret <b>, <i>, <u>, <a href>
+    and <img src> in the text. Our title/body carry model output and screen-derived text, so
+    escape the three markup-significant characters and let the server show them literally.
+    """
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def notify(title: str, body: str, urgency: str = "normal"):
+    try:
+        subprocess.Popen(["notify-send", "-a", "Hermes", "-u", "critical" if urgency == "urgent" else "normal",
+                          _no_markup(title), _no_markup(body)])
+    except Exception:
+        pass
+
+
+class Companion:
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.state = State()
+        self.perceiver = Perceiver(cfg["change_threshold"], cfg["max_width"])
+        self.policy = SpeechPolicy(PolicyConfig(cfg["min_gap_seconds"], cfg["urgent_gap_seconds"], cfg["max_per_hour"]))
+        self.catalog = Catalog()
+        self.refresh_catalog()
+        # startup guard: the vision model must see images ("" = Hermes' main model)
+        vk = cfg["vision"]["model"] or self._hermes_main_key()
+        cfg["vision"]["model"] = vk
+        if self.catalog.providers and self.catalog.supports_vision(vk) is not True:
+            fallback = self.catalog.default_vision_key(prefer=self._hermes_main_key())
+            log.warning("vision model %s has no image input; falling back to %s", vk, fallback)
+            self.state.toast(f"{vk} cannot see images — vision model set to {fallback}", "held", "startup")
+            cfg["vision"]["model"] = fallback
+            self._persist_cfg({"vision": cfg["vision"]})
+        self.active_profile = normalize(cfg.get("profile"))
+        self.agents = {}
+        self._agent_lock = threading.RLock()
+        self.agent = self._build_agent()
+        self.agents[self.active_profile] = self.agent
+        self._publish_models()
+        self.state.update(actions=bool(cfg.get("actions")), profile=self.active_profile,
+                          profile_names=list(PROFILES), listening=False, listener_paused=False,
+                          muted=bool(cfg.get("muted")), toasts=bool(cfg.get("toasts", True)),
+                          eyes=self._profile_eyes(self.active_profile))
+        self.voice = None
+        self.approver = None
+        self._eyes_before_listen = None  # eyes state saved while a Listen session suspends screen capture
+        self._stop = threading.Event()
+        self._speak_lock = threading.Lock()
+        self._stuck_ticks = 0
+        self.ctl = ControlServer(self.handle_command)
+        self.ctl.start()
+
+    # ------------------------------------------------------------ status
+    def set_status(self, s: str):
+        if s == "watching":
+            s = "watching" if self.state.get("eyes") else "paused"
+        self.state.update(status=s)
+
+    # ------------------------------------------------------------ actions
+    def _install_approver(self):
+        """Route Hermes' dangerous-command gate (child agents included) to toast + voice."""
+        from tools.terminal_tool import set_approval_callback
+
+        self.approver = Approver(
+            toast=lambda text, kind, note: self.state.toast(text, kind, note),
+            speak=self.say,
+            listen_yes_no=self._listen_yes_no,
+            set_status=self.set_status,
+        )
+        set_approval_callback(self.approver)
+        # Subagent worker threads normally get an auto-deny callback (delegation.subagent_auto_approve);
+        # in this process the human is reachable through toast + voice, so route them to the approver.
+        # The delegate worker pool reads this getter when it installs the child-thread callback.
+        from tools import delegate_tool
+        delegate_tool._get_subagent_approval_callback = lambda: self.approver
+        install_hook()   # tier-5 block / tier-4 escalate for terminal + file tools
+        os.environ["HERMES_INTERACTIVE"] = "1"   # tells Hermes' gate a human can answer
+
+    def _listen_yes_no(self, timeout: float):
+        if not self.voice:
+            return None
+        return self.voice.listen_for(timeout, parse_yes_no)
+
+    def set_actions(self, enabled: bool) -> str:
+        enabled = bool(enabled)
+        with self._agent_lock:
+            old = bool(self.cfg.get("actions"))
+            self.cfg["actions"] = enabled
+            try:
+                self._rebuild_cached_agents()
+            except Exception as e:  # noqa: BLE001
+                self.cfg["actions"] = old
+                log.exception("set_actions")
+                return f"error: {e}"
+        self._persist_cfg({"actions": enabled})
+        self.state.update(actions=bool(enabled))
+        audit({"kind": "actions", "enabled": bool(enabled)})
+        return f"actions={'on' if enabled else 'off'}"
+
+    # ------------------------------------------------------------ voice
+    def start_voice(self):
+        try:
+            from voice import Voice
+
+            self.voice = Voice(
+                on_request=self.on_voice_request,
+                on_status=self.set_status,
+                on_listening=self._on_listening,
+            )
+        except Exception as e:  # noqa: BLE001
+            log.exception("voice init failed")
+            self.state.update(last_error=f"voice: {e}")
+
+    def _on_listening(self, active: bool):
+        """Listener start/stop callback. Fires for every end path — ctl stop,
+        silence timeout, stop-phrase, shutdown — so eyes-restore lives here and
+        can't be skipped. On start, screen capture was suspended by the caller."""
+        self.state.update(listening=active)
+        if not active and self._eyes_before_listen is not None:
+            self.state.update(eyes=self._eyes_before_listen)
+            self._eyes_before_listen = None
+            self.set_status("watching")
+
+    def on_voice_request(self, text: str, source: str = "voice"):
+        self.set_status("thinking")
+        with self._agent_lock:
+            agent = self.agent
+        try:
+            reply = agent.ask(text, source=source)
+        except Exception as e:  # noqa: BLE001
+            log.exception("ask")
+            reply = "Sorry, I hit an error answering that."
+            self.state.update(last_error=str(e))
+        self.state.add_remark(f"You: {text}\nHermes: {reply}", "reply")
+        self.state.log_transcript(you=text, hermes=reply, kind=source)
+        # Replies are shown on-screen only (panel remark + optional toast); never
+        # spoken. Voice-request TTS is intentionally disabled — the reply always
+        # goes to the panel, and to a toast when toasts are enabled.
+        if self.state.get("toasts", True):
+            self.state.toast(reply, "reply")
+        self.set_status("watching")
+
+    def say(self, text: str):
+        if not text:
+            return
+        with self._speak_lock:
+            if self.voice:
+                self.voice.speak(text)
+            else:
+                notify("Hermes", text)
+        self.set_status("watching")
+
+    # ------------------------------------------------------------ perception loop
+    def tick(self):
+        # Pause proactive screen observation while a Listen session is active, so
+        # voice Q&A isn't interleaved with unprompted screen remarks. Ticks resume
+        # automatically when listening stops (the flag is cleared by voice.py).
+        if self.state.get("listening"):
+            return
+        frame = self.perceiver.observe(eyes_enabled=self.state.get("eyes"))
+        self.state.update(ticks=self.state.get("ticks", 0) + 1)
+        if not self.state.get("eyes"):
+            return
+        if frame.window.sensitive:
+            self.state.update(last_observation=f"(private window: {frame.window.cls}) — not looking")
+            return
+        if frame.idle_seconds > self.cfg.get("idle_skip_seconds", 300):
+            return  # user away: no point burning tokens
+        if not frame.changed:
+            self._stuck_ticks += 1
+            # Only consult the model on unchanged screens every ~2 min (possible "stuck" signal)
+            if self._stuck_ticks % max(1, int(120 / self.cfg["tick_seconds"])) != 0:
+                return
+        else:
+            self._stuck_ticks = 0
+
+        w = frame.window
+        text = (
+            f"[SCREEN TICK] {time.strftime('%H:%M')}\n"
+            f"window: {w.cls!r} title: {w.title[:160]!r} workspace: {w.workspace} fullscreen: {w.fullscreen}\n"
+            f"idle: {int(frame.idle_seconds)}s  unchanged_ticks: {self._stuck_ticks}\n"
+            + ("(screenshot attached)" if frame.jpeg else "(screen unchanged since last frame — no screenshot)")
+        )
+        self.set_status("thinking")
+        try:
+            res = self.agent.observe(text, frame.data_url())
+        except Exception as e:  # noqa: BLE001
+            log.exception("observe")
+            self.state.update(last_error=str(e))
+            self.set_status("watching")
+            return
+        if frame.jpeg:
+            self.state.update(frames_sent=self.state.get("frames_sent", 0) + 1)
+        self.state.update(last_observation=res["observation"])
+        self.set_status("watching")
+        wants = bool(res["should_speak"] and res["text"])
+        if not wants:
+            # Every model output is surfaced as a toast; silent observations are shown dimmed.
+            if res["observation"]:
+                self.state.toast(res["observation"], "observation")
+            return
+        ok, why = self.policy.may_speak(frame, res["urgency"], self.state.get("muted"))
+        log.info("wants to speak (%s): %s -> %s", res["urgency"], res["text"], why)
+        kind = "urgent" if res["urgency"] == "urgent" else "remark"
+        if ok:
+            self.policy.record()
+            self.state.add_remark(res["text"], res["urgency"])
+            self.state.log_transcript(you="", hermes=res["text"], kind="screen")
+            self.state.toast(res["text"], kind)
+            if self.cfg.get("notify"):
+                notify("Hermes", res["text"], res["urgency"])
+            self.say(res["text"])
+        else:
+            # Policy blocked the voice; still show it (with the reason) so nothing is lost.
+            self.state.toast(res["text"], "held", why)
+
+    def loop(self):
+        while not self._stop.is_set():
+            t0 = time.time()
+            try:
+                self.tick()
+            except Exception:
+                log.exception("tick")
+            self._stop.wait(max(2.0, self.cfg["tick_seconds"] - (time.time() - t0)))
+
+    def _heartbeat(self):
+        """Lightweight liveness beat so the widget can detect a stopped daemon
+        quickly (the tick loop only writes every tick_seconds). Bumps `updated`
+        every few seconds without doing any model work."""
+        while not self._stop.wait(3.0):
+            try:
+                self.state.update()  # touches `updated` + rewrites atomically
+            except Exception:
+                log.exception("heartbeat")
+
+    # ------------------------------------------------------------ model selection
+    @staticmethod
+    def _hermes_main_key() -> str:
+        """provider:model from ~/.hermes/config.yaml — the user's primary subscription."""
+        try:
+            from hermes_cli.config import load_config_readonly
+
+            m = load_config_readonly().get("model") or {}
+            if isinstance(m, dict) and m.get("provider") and m.get("default"):
+                return f'{m["provider"]}:{m["default"]}'
+        except Exception:
+            pass
+        return ""
+
+    def refresh_catalog(self):
+        main = self._hermes_main_key().partition(":")[0] or (self.cfg["vision"]["model"].partition(":")[0]) or "anthropic"
+        try:
+            self.catalog.refresh(main)
+        except Exception:
+            log.exception("catalog refresh")
+
+    def _publish_models(self):
+        v, r = self.cfg["vision"], self.cfg["reasoning"]
+        self.state.update(
+            models=self.catalog.to_state(),
+            vision=dict(v),
+            reasoning=dict(r),
+            split=bool(r["model"] and r["model"] != v["model"]),
+            # legacy keys some widget code still reads
+            model_key=v["model"], model=v["model"].partition(":")[2], effort=v["effort"], thinking=v["thinking"],
+        )
+
+    def _build_agent(self) -> CompanionAgent:
+        v = _spec(self.cfg["vision"])
+        r = _spec(self.cfg["reasoning"]) if self.cfg["reasoning"]["model"] else None
+        return CompanionAgent(v, r, self.cfg["user_name"], actions=bool(self.cfg.get("actions")),
+                              profile=self.active_profile, profile_prompt=PROFILES[self.active_profile].prompt)
+
+    def _rebuild_cached_agents(self):
+        """Apply global model/action changes without merging profile histories."""
+        active = self.active_profile
+        rebuilt = {}
+        try:
+            for name, old_agent in self.agents.items():
+                self.active_profile = name
+                new_agent = self._build_agent()
+                new_agent.history = list(old_agent.history)
+                rebuilt[name] = new_agent
+        finally:
+            self.active_profile = active
+        self.agents = rebuilt
+        self.agent = rebuilt[active]
+
+    def _profile_eyes(self, name: str) -> bool:
+        """Eyes state for a profile: a saved per-profile override if present,
+        else the profile's built-in default. Keeps a manual toggle-eyes choice
+        across restarts without overriding a profile that is eyes-off by design."""
+        name = normalize(name)
+        saved = (self.cfg.get("profiles") or {}).get(name, {})
+        if isinstance(saved, dict) and "eyes" in saved:
+            return bool(saved["eyes"])
+        return PROFILES[name].eyes
+
+    def set_profile(self, name: str) -> str:
+        if name not in PROFILES:
+            return f"error: unknown profile {name}"
+        with self._agent_lock:
+            if name == self.active_profile:
+                return f"profile={name}"
+            previous = self.active_profile
+            try:
+                agent = self.agents.get(name)
+                if agent is None:
+                    self.active_profile = name
+                    agent = self._build_agent()
+                    self.agents[name] = agent
+                self.active_profile = name
+                self.agent = agent
+                self.cfg["profile"] = name
+            except Exception as e:
+                self.active_profile = previous
+                log.exception("profile switch")
+                return f"error: {e}"
+        self._persist_cfg({"profile": name})
+        self.state.update(profile=name, eyes=self._profile_eyes(name))
+        self.set_status("watching")
+        return f"profile={name}"
+
+    def set_role(self, role: str, model: str | None = None, effort: str | None = None, thinking: bool | None = None) -> str:
+        if role not in ("vision", "reasoning"):
+            return f"bad role: {role}"
+        d = dict(self.cfg[role])
+        if model is not None:
+            if role == "reasoning" and model.lower() in ("same", "", "none"):
+                model = ""
+            elif not self.catalog.exists(model):
+                return f"error: unknown model {model}"
+            elif role == "vision" and self.catalog.supports_vision(model) is False:
+                return f"error: {model} has no image input — pick a vision model"
+            d["model"] = model
+        if effort is not None:
+            if effort not in ("low", "medium", "high"):
+                return f"bad effort: {effort}"
+            d["effort"] = effort
+        if thinking is not None:
+            d["thinking"] = bool(thinking)
+        self.set_status("thinking")
+        with self._agent_lock:
+            old = self.cfg[role]
+            self.cfg[role] = d
+            try:
+                self._rebuild_cached_agents()
+            except Exception as e:  # noqa: BLE001
+                self.cfg[role] = old
+                log.exception("set_role")
+                self.state.update(last_error=f"model switch failed: {e}")
+                self.set_status("watching")
+                return f"error: {e}"
+        self._persist_cfg({role: d})
+        self.state.update(last_error="")
+        self._publish_models()
+        self.set_status("watching")
+        log.info("%s -> %s", role, d)
+        return f"{role}={d['model'] or 'same'} effort={d['effort']} thinking={d['thinking']}"
+
+    def _persist_cfg(self, patch: dict):
+        # Write to the state-dir overlay, not companion.json in the plugin dir,
+        # so a toggle doesn't trigger a Quickshell plugin hot-reload (bar flicker).
+        try:
+            OVERLAY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if OVERLAY_FILE.exists():
+                try:
+                    data = json.loads(OVERLAY_FILE.read_text())
+                except Exception:
+                    data = {}
+            data.update(patch)
+            tmp = OVERLAY_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2) + "\n")
+            os.replace(tmp, OVERLAY_FILE)
+        except Exception:
+            log.exception("persist config")
+
+    # ------------------------------------------------------------ control
+    def handle_command(self, cmd: str) -> str:
+        op, _, arg = cmd.partition(" ")
+        op = op.lower()
+        arg = arg.strip()
+        if op == "status":
+            return json.dumps(self.state.data)
+        if op == "models":
+            self.refresh_catalog()
+            self._publish_models()
+            return "\n".join(f'{m["value"]}\t{"vision" if m.get("vision") else "text"}' for m in self.catalog.to_state() if not m.get("header"))
+        if op in ("set-vision", "set-model") and arg:
+            return self.set_role("vision", model=arg)
+        if op == "set-reasoning" and arg:
+            return self.set_role("reasoning", model=arg)
+        if op == "set-vision-effort" and arg:
+            return self.set_role("vision", effort=arg)
+        if op == "set-reasoning-effort" and arg:
+            return self.set_role("reasoning", effort=arg)
+        if op == "toggle-vision-thinking":
+            return self.set_role("vision", thinking=not self.cfg["vision"]["thinking"])
+        if op == "toggle-reasoning-thinking":
+            return self.set_role("reasoning", thinking=not self.cfg["reasoning"]["thinking"])
+        # legacy aliases (apply to vision)
+        if op == "set-effort" and arg:
+            return self.set_role("vision", effort=arg)
+        if op == "toggle-thinking":
+            return self.set_role("vision", thinking=not self.cfg["vision"]["thinking"])
+        if op == "toggle-eyes":
+            v = not self.state.get("eyes")
+            self.state.update(eyes=v)
+            # Persist as a per-profile override so the choice survives a restart
+            # without overriding the profile's designed default for other profiles.
+            profiles = dict(self.cfg.get("profiles") or {})
+            entry = dict(profiles.get(self.active_profile) or {})
+            entry["eyes"] = v
+            profiles[self.active_profile] = entry
+            self.cfg["profiles"] = profiles
+            self._persist_cfg({"profiles": profiles})
+            self.set_status("watching")
+            return f"eyes={'on' if v else 'off'}"
+        if op == "listen":
+            if not self.voice:
+                return "voice not ready"
+            if self.voice.listening:
+                self.voice.stop_listening()  # _on_listening restores eyes on stop
+                return "stopping"
+            # Suspend screen capture while listening: remember the current eyes
+            # state, then turn the toggle off so the UI reflects it (ticks are
+            # already gated on `listening`). Restored by _on_listening on any
+            # stop path. Not persisted, so the per-profile preference is untouched.
+            self._eyes_before_listen = bool(self.state.get("eyes"))
+            self.state.update(eyes=False)
+            started = self.voice.listen()
+            if not started:
+                # listen() refused: undo the eyes suspend so we don't leave it off.
+                if self._eyes_before_listen is not None:
+                    self.state.update(eyes=self._eyes_before_listen)
+                    self._eyes_before_listen = None
+                return "already listening"
+            self.set_status("listening")
+            return "listening"
+        if op in ("stop-listening", "stop"):
+            if self.voice and self.voice.stop_listening():  # _on_listening restores eyes
+                return "stopping"
+            return "not listening"
+        if op in ("profile", "set-profile") and arg:
+            return self.set_profile(arg.title())
+        if op == "toggle-mute":
+            v = not self.state.get("muted")
+            self.state.update(muted=v)
+            self._persist_cfg({"muted": v})
+            return f"muted={'on' if v else 'off'}"
+        if op == "toggle-actions":
+            return self.set_actions(not self.cfg.get("actions"))
+        if op == "decide" and arg:
+            from actions import DECISION_FILE
+            DECISION_FILE.parent.mkdir(parents=True, exist_ok=True)
+            DECISION_FILE.write_text(json.dumps({"approve": arg.lower() in ("yes", "run", "approve", "1", "true")}))
+            return "decided"
+        if op == "toggle-toasts":
+            v = not self.state.get("toasts", True)
+            self.state.update(toasts=v)
+            self._persist_cfg({"toasts": v})
+            return f"toasts={'on' if v else 'off'}"
+        if op == "toast" and arg:
+            self.state.toast(arg, "remark")
+            return "toasted"
+        if op == "hush":
+            if self.voice:
+                self.voice.hush()
+            return "hushed"
+        if op == "say" and arg:
+            threading.Thread(target=self.say, args=(arg,), daemon=True).start()
+            return "speaking"
+        if op == "ask" and arg:
+            threading.Thread(target=self.on_voice_request, args=(arg,), daemon=True).start()
+            return "asking"
+        if op == "text" and arg:
+            threading.Thread(target=self.on_voice_request, args=(arg, "text"), daemon=True).start()
+            return "asking"
+        if op == "tick":
+            threading.Thread(target=self.tick, daemon=True).start()
+            return "ticking"
+        if op == "quit":
+            self._stop.set()
+            os.kill(os.getpid(), signal.SIGTERM)
+            return "bye"
+        return f"unknown command: {op}"
+
+    def run(self):
+        signal.signal(signal.SIGTERM, lambda *_: self._stop.set())
+        signal.signal(signal.SIGINT, lambda *_: self._stop.set())
+        threading.Thread(target=self.start_voice, daemon=True, name="voice-init").start()
+        threading.Thread(target=self._heartbeat, daemon=True, name="heartbeat").start()
+        self._install_approver()
+        self.set_status("watching")
+        log.info("companion running (tick=%ss)", self.cfg["tick_seconds"])
+        try:
+            self.loop()
+        finally:
+            if self.voice:
+                self.voice.shutdown()
+            self.ctl.close()
+            self.state.update(status="stopped", listening=False)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ctl", help="send a command to the running daemon and exit")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    args = ap.parse_args()
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+    if args.ctl:
+        from state import send_command
+
+        print(send_command(args.ctl))
+        return
+    Companion(load_config()).run()
+
+
+if __name__ == "__main__":
+    main()
+

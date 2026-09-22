@@ -1,0 +1,6 @@
+name: advisor
+version: "1.0"
+description: >-
+  A second-model advisor that reviews the transcript each turn and injects
+  weighable guidance into the primary agent's next turn (a Hermes port of the
+  dsh goal-keeper / mini-advisor).
