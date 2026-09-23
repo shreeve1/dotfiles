@@ -320,7 +320,16 @@ under `llm-pi-ai.providers` (cliproxy mirrors the omp
 
 - **cliproxy** — `http://10.20.20.16:8317/v1`, key `CLIPROXY_API_KEY`,
   `compat.cacheControlFormat: anthropic`. Models: claude-opus-4-8, claude-opus-5,
-  claude-sonnet-4-6, claude-fable-5, claude-haiku-4-5.
+  claude-opus-5-5, claude-sonnet-4-6, claude-fable-5, claude-haiku-4-5.
+
+  Opus 5.5 was enabled on 2026-09-22 from upstream PR
+  `router-for-me/CLIProxyAPI#6052` before an official release contained it. Both
+  `aidev` and `itan8n` temporarily run the PR build as
+  `v7.3.12+opus5.5`, set `claude-header-defaults.user-agent` to
+  `claude-cli/2.1.280 (external, cli)`, and launch with `-local-model` so the
+  older remote catalog cannot overwrite the patched embedded entry. Remove the
+  custom build and `-local-model` override after the model entry and Claude
+  fingerprint land in an official CLIProxyAPI release.
 - **deepseek** — `https://api.deepseek.com`, key `DEEPSEEK_API_KEY`. Models:
   deepseek-v4-flash.
 - **openrouter-live** — `https://openrouter.ai/api/v1`, key
