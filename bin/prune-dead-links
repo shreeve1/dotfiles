@@ -6,7 +6,7 @@ Usage: prune-dead-links [--check|--selftest]
   --check     report only, exit 1 if any remain
   --selftest  run the path-safety fixtures, exit 1 on any failure
 
-Residue from links install.sh used to declare (see docs/specs/k551-dangling-symlinks.md).
+Residue from links install.sh used to declare (see archive/docs/specs/k551-dangling-symlinks.md).
 Run from the repo like check.sh; it is not linked into $HOME.
 
 THE SAFETY RULE: a symlink is removed only when its target resolves inside
