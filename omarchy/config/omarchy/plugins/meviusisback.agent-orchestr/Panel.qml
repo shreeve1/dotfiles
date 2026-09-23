@@ -70,6 +70,9 @@ Panel {
   // press selects the first card rather than moving from it).
   property int selectedIndex: -1
   property bool replyFieldFocused: false
+  // Height of the currently expanded card (0 when none); drives popup growth.
+  property real expandedCardHeight: 0
+  onReplyCardIdChanged: if (!root.replyCardId) root.expandedCardHeight = 0
 
   // Ordered filter ids matching the visible tab row, used for Left/Right
   // keyboard cycling between filters.
@@ -143,7 +146,9 @@ Panel {
       }
 
       agentListView.forceLayout()
-      agentListView.positionViewAtIndex(index, ListView.End)
+      // A card as tall as the viewport is shown from its top (request first);
+      // a shorter one keeps the old behaviour of bringing its bottom into view.
+      agentListView.positionViewAtIndex(index, card.height >= agentListView.height - 1 ? ListView.Beginning : ListView.End)
     }
 
     Qt.callLater(settle)
@@ -568,15 +573,18 @@ Panel {
     open: root.opened
     contentWidth: popup.fittedContentWidth(Style.space(root.panelWidth))
     // Height follows the content: chrome (header, tabs, footer) plus the card
-    // list. Collapsed, it is capped at `panelHeight`; while a card is expanded
-    // it may grow up to the screen so the whole reply fits without scrolling.
-    // `cappedContentHeight` clamps to the available screen height either way.
+    // list, capped at `panelHeight`. Expanding a card never sizes the popup to
+    // the whole list: it grows only when that one card is taller than the
+    // normal viewport, and then just enough to show it (up to the screen, via
+    // `cappedContentHeight`); the other cards stay reachable by scrolling.
     readonly property real chromeHeight: headerRow.implicitHeight + filterRow.implicitHeight
                                          + footerBar.implicitHeight + mainColumn.spacing * 3
                                          + mainColumn.anchors.margins * 2 + popup.verticalContentInset
     readonly property real fitHeight: chromeHeight + Math.max(Style.space(120), agentListView.contentHeight)
-    contentHeight: popup.cappedContentHeight(Math.max(Style.space(320),
-                     root.replyCardId ? fitHeight : Math.min(fitHeight, Style.space(root.panelHeight))))
+    readonly property real baseHeight: Math.max(Style.space(320), Math.min(fitHeight, Style.space(root.panelHeight)))
+    readonly property real expandedNeed: root.expandedCardHeight > 0
+                                         ? chromeHeight + root.expandedCardHeight + Style.space(4) : 0
+    contentHeight: popup.cappedContentHeight(Math.max(baseHeight, expandedNeed))
     Behavior on contentHeight {
       enabled: root.opened
       NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -766,6 +774,10 @@ Panel {
 
             width: agentListView.width - Style.space(4)
             implicitHeight: cardContent.implicitHeight + Style.space(16)
+            function reportExpandedHeight() { if (agentCard.expanded) root.expandedCardHeight = agentCard.implicitHeight }
+            onImplicitHeightChanged: reportExpandedHeight()
+            onExpandedChanged: reportExpandedHeight()
+            Component.onCompleted: reportExpandedHeight()
             radius: Style.cornerRadius
 
             color: {
