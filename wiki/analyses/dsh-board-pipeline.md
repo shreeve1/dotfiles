@@ -1,16 +1,16 @@
 ---
 title: dsh-board Pipeline — Stage Mechanics, the Captain-Death Loop, and Full Autonomy
 type: analysis
-status: promoted
+status: archived
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-23
 promoted: 2026-09-04
 sources:
   - wiki/raw/sessions/2026-09-04-dsh-board-loop-fixes.md
-  - dsh-board/HANDLERS.md
-  - dsh-board/preamble.md
-  - dsh-board/render-jobs.sh
-  - dsh-board/INSTALL.md
+  - archive/dsh-board/HANDLERS.md
+  - archive/dsh-board/preamble.md
+  - archive/dsh-board/render-jobs.sh
+  - archive/dsh-board/INSTALL.md
 confidence: high
 tags:
   - dsh-board
@@ -22,6 +22,8 @@ tags:
 ---
 
 # dsh-board Pipeline — Stage Mechanics, the Captain-Death Loop, and Full Autonomy
+
+> ARCHIVED 2026-09-23: dsh-board and dsh-spec are no longer used. Code moved to `archive/dsh-board/`; cron jobs removed from the dsh profile. Kept for history only.
 
 The dsh-board is an unattended build pipeline: six per-stage cron ticks walk a
 spec card Spec → Decompose → Build → Verify → Review → Merge → Archive. This
