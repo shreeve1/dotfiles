@@ -226,3 +226,6 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # tpm machine-local plugin clones (symlinked config dir)
 .config/tmux/plugins/
+
+# Keystroke: upstream git clone, pinned + cloned by install.sh (not vendored)
+omarchy/config/omarchy/plugins/evindor.keystroke/
