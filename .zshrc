@@ -26,6 +26,10 @@ case "$(uname -s)" in
   *)      IS_MACOS=0; IS_LINUX=0 ;;
 esac
 
+# Hermes computer_use: opt cua-driver into its native Wayland backend (Hyprland).
+# Hermes v0.21 ignores computer_use.native_wayland in config.yaml, so set the env var.
+[[ $IS_LINUX == 1 ]] && export CUA_DRIVER_RS_ENABLE_WAYLAND=1
+
 # OPENSPEC:START
 # OpenSpec shell completions configuration
 fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
