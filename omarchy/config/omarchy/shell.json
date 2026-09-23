@@ -11,9 +11,6 @@
     "layout": {
       "left": [
         {
-          "id": "omarchy.menu"
-        },
-        {
           "id": "omarchy.workspaces"
         }
       ],
@@ -32,6 +29,12 @@
         },
         {
           "id": "omarchy.weather"
+        },
+        {
+          "id": "evindor.keystroke"
+        },
+        {
+          "id": "meviusisback.agent-orchestr"
         },
         {
           "id": "omarchy.system-update"
@@ -63,16 +66,19 @@
           "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.monitor"
+          "id": "omarchy.power"
         },
         {
-          "id": "omarchy.power"
+          "id": "omarchy.monitor"
         }
       ]
     }
   },
   "plugins": [],
   "disabledPlugins": [
-    "omarchy.notifications"
+    "omarchy.menu"
+  ],
+  "cloneSourceRestores": [
+    "evindor.keystroke"
   ]
 }
