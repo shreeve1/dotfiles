@@ -8,7 +8,9 @@ This directory is the portable, user-owned part of the Omarchy desktop setup fro
 | --- | --- | --- |
 | `omarchy/config/hypr/` | `~/.config/hypr/` | Hyprland settings, including the Super+Enter Ghostty binding, monitor behavior, input settings, autostart, and visual settings. |
 | `omarchy/config/omarchy/` | `~/.config/omarchy/` | Omarchy shell bar/idle configuration, launcher settings, default agent (`hermes`), custom background, branding, and safe update hooks. |
-| `omarchy/bin/hypr-deck` + `omarchy/config/systemd/user/hypr-deck.service` | `~/.local/bin/hypr-deck` + `~/.config/systemd/user/hypr-deck.service` | Focus-driven overlapping Deck layout. The unit must be enabled and running after installation. |
+| `omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf` | `~/.config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf` | Persistent Bluetooth profile state with automatic A2DP/HFP switching disabled to avoid competing transport acquisition on headsets such as HD65. |
+| `omarchy/bin/audio-device-restore` + `omarchy/config/systemd/user/audio-device-restore.service` | `~/.local/bin/audio-device-restore` + `~/.config/systemd/user/audio-device-restore.service` | Remembers the exact last selected non-Bluetooth input and output, then restores them when the active Bluetooth nodes disappear. |
+| `omarchy/bin/hypr-deck` + `omarchy/config/systemd/user/hypr-deck.service` | `~/.local/bin/hypr-deck` + `~/.config/systemd/user/hypr-deck.service` | Focus-driven overlapping Hyprland deck layout. The unit must be enabled and running after installation. |
 | `omarchy/config/chromium-flags.conf` | `~/.config/chromium-flags.conf` | Wayland/secret-store flags and the Omarchy Chromium extensions. |
 | `omarchy/config/mimeapps.list` | `~/.config/mimeapps.list` | Chrome and HEY default associations. |
 
@@ -21,7 +23,7 @@ The installer backs up a conflicting live target with a UTC timestamp before lin
 - `~/.config/omarchy/hooks/pre-refresh-pacman.d/restore-arm-pacman` is deliberately excluded: it restores the trial VM's Arch Linux ARM/Try Omarchy pacman configuration and must never reach x86_64 bare metal.
 - Ghostty's VM-only software-rendering systemd drop-in is excluded. Bare metal should use the normal GPU path. Also exclude `~/.local/share/systemd/user/app-com.mitchellh.ghostty.service`: a VM-generated user unit can override the package unit and retain an ARM-only `Exec` path. On bare metal, keep the package-provided `/usr/lib/systemd/user/app-com.mitchellh.ghostty.service`.
 - Cross-architecture native runtime trees are excluded and rebuilt on the destination: `~/.local/bin`, `~/.local/lib`, `~/.bun`, `~/.npm`, `~/.local/share/mise`, `~/.local/share/uv`, and agent runtime `node_modules`. Do not copy aarch64 executables to x86_64.
-- Generated caches, backup files, systemd `*.wants` enablement symlinks, and stock-identical Kitty/Fcitx5/WirePlumber/Autostart config are excluded.
+- Generated caches, backup files, systemd `*.wants` enablement symlinks, and stock-identical Kitty/Fcitx5/WirePlumber/Autostart config are excluded. The non-stock Bluetooth profile rule listed above is intentionally managed.
 
 ## Omapager notifications
 
