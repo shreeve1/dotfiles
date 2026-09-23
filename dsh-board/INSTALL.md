@@ -55,13 +55,13 @@ Only item 7 (delivery notifications) is still open, and it is not a blocker.
 The unit of work is a **spec**, not a ticket. Every run re-derives its own task
 breakdown from the spec plus the current repo, which only works if the repo can
 answer *"what is already done"* — hence the runnable `survey` and `acceptance`
-commands on every item. Write specs with `/dsh-spec`
-(`.agents/skills/dsh-spec/SKILL.md`); `docs/specs/k745-*.md` and
+commands on every item. Write specs by hand, following the format in the
+archived `archive/skills/dsh-spec/SKILL.md`; `docs/specs/k745-*.md` and
 `docs/specs/k801-*.md` are two that passed every stage.
 
-1. Have the conversation that settles the work, then run `/dsh-spec`. It writes
-   `docs/specs/<card>-<slug>.md`, creates an **unclaimed** card in Spec, and
-   sets `specPath` in a **separate** call. Both are required: Spec is a pure
+1. Have the conversation that settles the work, then write
+   `docs/specs/<card>-<slug>.md`, create an **unclaimed** card in Spec, and
+   set `specPath` in a **separate** call. Both are required: Spec is a pure
    validator and blocks a card with no `specPath` on the first read, with no
    retry ladder.
 2. Leave it alone. Ticks run every 15 min and move it one column per tick:
