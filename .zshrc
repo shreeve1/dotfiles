@@ -459,3 +459,6 @@ export PATH="$HOME/.opencode/bin:$PATH"
 export XDG_RUNTIME_DIR
 : "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
 export DBUS_SESSION_BUS_ADDRESS
+
+# nmap scan helpers
+[[ -f ~/dotfiles/zsh/nmap.zsh ]] && source ~/dotfiles/zsh/nmap.zsh
