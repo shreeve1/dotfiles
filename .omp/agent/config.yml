@@ -2,7 +2,7 @@ setupVersion: 2
 modelRoles:
   default: openrouter/deepseek/deepseek-v4.1-flash:high
   vision: cliproxy/claude-sonnet-4-6:high
-  advisor: openai-codex/gpt-5.6-sol:high
+  advisor: openrouter/deepseek/deepseek-v4.1-flash:low
   task: minimax/MiniMax-M3:high
   slow: cliproxy/claude-opus-4-8:high
   designer: cliproxy/claude-opus-4-8:high
@@ -14,7 +14,7 @@ theme:
   dark: neon80s
 statusLine:
   separator: powerline
-  preset: compact
+  preset: default
 memory:
   backend: local
 autolearn:
@@ -32,3 +32,5 @@ task:
     planner: "@plan"
 composer:
   shape: borderless
+advisor:
+  enabled: true
