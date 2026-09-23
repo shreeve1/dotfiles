@@ -27,7 +27,7 @@ work on `main`.
 Read `dsh-board/INSTALL.md` before touching it — install order, how to use it,
 and the failure modes that have actually bitten. Stage contracts live in
 `dsh-board/HANDLERS.md` (symlinked to `~/.dsh-boards/dotfiles/`); write specs
-with the `dsh-spec` skill.
+by hand (the `dsh-spec` skill is archived at `archive/skills/dsh-spec/`).
 
 ## On a fresh machine
 

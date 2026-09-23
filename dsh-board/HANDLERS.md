@@ -58,7 +58,8 @@ symlink. There is no application, no build, no service to boot. So:
 **Does:** validates the spec at `card.specPath`. **Authors nothing.** Mechanical
 read; **no team**.
 
-The human writes specs, via `/dsh-spec` or by hand. That is the pipeline's
+The human writes specs by hand (format reference: the archived
+`archive/skills/dsh-spec/SKILL.md`). That is the pipeline's
 trust anchor: a human-authored `gate:` is the one claim no agent in this loop
 can weaken.
 
@@ -79,7 +80,8 @@ also the first column: a bounce has nowhere backward to go, and the board
 refuses it.
 
 - No `specPath`, or it does not resolve → **Blocked**, reason
-  `"no spec: create one with /dsh-spec or set specPath"`.
+  `"no spec: create one with /dsh-spec or set specPath"` (string is emitted by
+  the board; `/dsh-spec` is now archived, so write the spec by hand).
 - Spec exists but is malformed → **Blocked**, reason naming the offending
   item number and exactly what is missing.
 
