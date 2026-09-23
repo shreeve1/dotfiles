@@ -222,6 +222,24 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
   link_path "omarchy/config/mimeapps.list" ".config/mimeapps.list"
 
+  # Keystroke (evindor.keystroke) is an unmodified upstream plugin, so it is
+  # pinned here rather than vendored: it ships its own .git (which
+  # `omarchy plugin update` needs) and a prebuilt matching binary. It lives
+  # inside the linked ~/.config/omarchy tree and is gitignored in this repo.
+  # shell.json places it in the bar and restores omarchy.menu if removed.
+  _ks_dir="$DOTFILES_DIR/omarchy/config/omarchy/plugins/evindor.keystroke"
+  _ks_rev="4ea4eede3bcee10c4f2c984843284cb2dcc8d4b7" # Keystroke 1.4.4
+  if [ ! -e "$_ks_dir" ] && command -v git >/dev/null 2>&1; then
+    if git clone --quiet https://github.com/evindor/keystroke.git "$_ks_dir" &&
+      git -C "$_ks_dir" -c advice.detachedHead=false checkout --quiet "$_ks_rev"; then
+      printf 'ok: cloned evindor.keystroke at %s\n' "${_ks_rev:0:7}"
+    else
+      rm -rf "$_ks_dir"
+      printf 'warn: could not clone evindor.keystroke; run: omarchy plugin add https://github.com/evindor/keystroke\n'
+    fi
+  fi
+  unset _ks_dir _ks_rev
+
   # Omapager owns org.freedesktop.Notifications and retains Omarchy's existing
   # notifications IPC target. Quiet mode stops its toast deck while preserving
   # the notification history that can be opened from the Omapager bar widget.
