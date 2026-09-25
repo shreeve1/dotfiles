@@ -70,6 +70,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 3. Run installer.
 4. Seed Pi settings: `cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json` then edit provider/model per machine if needed.
 5. Install the graphify CLI (machine-local, needed for the codebase knowledge-graph skill + auto-refresh hook): `uv tool install graphifyy` (the command stays `graphify`). Then `uv tool update-shell` if `~/.local/bin` is not yet on PATH.
+6. herdr's config and its saved remote machine list both come from the repo on install; if you add or remove machines, copy the live list back over `herdr/endpoints.json`. SSH aliases and keys stay machine-local. See [`docs/herdr.md`](docs/herdr.md).
 
 ```bash
 git clone <dotfiles> ~/dotfiles
