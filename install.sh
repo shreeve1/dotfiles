@@ -204,6 +204,12 @@ link_path ".config/zellij" ".config/zellij"
 link_path ".config/systemd/user/ralph-loop.service" ".config/systemd/user/ralph-loop.service"
 link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
+# herdr's saved remote machines are XDG state that herdr itself rewrites on
+# every machine add/remove/enable. Seed (copy, not link): the tracked backup
+# stays clean, and the live list stays machine-local and unaffected once it
+# exists. The file holds only labels and SSH aliases — no credentials.
+seed_path "herdr/endpoints.json" ".local/state/herdr/client/endpoints.json"
+
 # ─── Omarchy (Linux only) ──────────────────────────────────
 # The portable user-owned Omarchy configuration lives in omarchy/ rather than
 # under the generic .config tree because this repository also syncs to macOS.
