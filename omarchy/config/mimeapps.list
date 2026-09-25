@@ -5,5 +5,7 @@ x-scheme-handler/https=google-chrome.desktop
 x-scheme-handler/about=google-chrome.desktop
 x-scheme-handler/unknown=google-chrome.desktop
 x-scheme-handler/slack=slack.desktop
+x-scheme-handler/claude=com.anthropic.Claude.desktop
+x-scheme-handler/mailto=google-chrome.desktop
 
 [Added Associations]
