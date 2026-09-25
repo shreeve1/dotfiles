@@ -935,6 +935,9 @@ class Deck:
         # Restore only the previous foreground and the new workspace's peers.
         # Repositioning every hidden workspace on each switch can make Hyprland
         # re-evaluate floating placement off-screen and appears as slot swaps.
+        # A previous foreground on another workspace keeps its overlap, so
+        # leaving a workspace (possibly still visible on another monitor) and
+        # returning does not flash its layout back to plain slots.
         previous = self.last_active_address
         restored: set[str] = set()
         if (
@@ -942,6 +945,7 @@ class Deck:
             and previous != address
             and previous in self.state["windows"]
             and previous in live
+            and workspace_id(live[previous]) == ws
             and not self.state["windows"][previous].get("detached")
         ):
             if not live[previous].get("fullscreen"):
@@ -1566,6 +1570,49 @@ def self_test() -> int:
     finally:
         globals()["alter_zorder_top"] = original_alter_zorder_top
     assert raised == ["0xd"]
+    # Switching workspaces leaves the previous foreground overlapping: only a
+    # same-workspace focus change sends it back to its slot.
+    switch_deck = object.__new__(Deck)
+    slot = {"x": 12, "y": 38, "w": 1261, "h": 1390}
+    switch_deck.state = {
+        "enabled": True,
+        "scale": 0.67,
+        "windows": {
+            "0x1": {"workspace": 1, "monitor": 0, "background": dict(slot)},
+            "0x2": {"workspace": 2, "monitor": 0, "background": dict(slot)},
+        },
+        "workspace_focus": {},
+    }
+    switch_deck.last_apply = 0.0
+    switch_deck.dirty_layouts = set()
+    switch_deck.last_active_address = "0x1"
+    switch_deck.last_workspace = 1
+    switch_live = {
+        "0x1": {"workspace": {"id": 1}, "monitor": 0, "fullscreen": 0, "at": [12, 38], "size": [1699, 1390]},
+        "0x2": {"workspace": {"id": 2}, "monitor": 0, "fullscreen": 0, "at": [12, 38], "size": [1261, 1390]},
+    }
+    switch_deck.read_state = lambda: switch_deck.state
+    switch_deck.live = lambda: switch_live
+    switch_deck.clean_state = lambda _live: None
+    switch_deck.reconcile_workspace_moves = lambda _live: False
+    switch_deck.reconcile_monitor_assignments = lambda _live: False
+    switch_deck.ensure_layouts = lambda _live: False
+    switch_deck.apply_workspace_backgrounds = lambda _workspaces, _live: None
+    switch_deck.adopt_workspace = lambda _ws, _live: False
+    switch_deck.managed_on_workspace = lambda ws, _live: [f"0x{ws}"]
+    switch_deck.monitor_map = lambda: {0: monitor}
+    switch_deck.write_state = lambda: None
+    switch_moves: list[str] = []
+    original_move_resize = globals()["move_resize"]
+    original_bring_to_top = globals()["bring_to_top"]
+    try:
+        globals()["move_resize"] = lambda address, _target: switch_moves.append(address)
+        globals()["bring_to_top"] = lambda _address: None
+        switch_deck._apply("0x2", force=True)
+    finally:
+        globals()["move_resize"] = original_move_resize
+        globals()["bring_to_top"] = original_bring_to_top
+    assert "0x1" not in switch_moves
     print("PASS: reversible orientation-aware geometry and dynamic monitor reflow")
     return 0
 
