@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "ssh": [
+    {
+      "id": "b1ba0e4f4413689ff116e7af57a84cd3",
+      "label": "aidev · default",
+      "target": "aidev",
+      "session": "default",
+      "enabled": true
+    },
+    {
+      "id": "a8d305bbe7b6dcddf0edf56ac56caef9",
+      "label": "n8n",
+      "target": "itan8n",
+      "session": "default",
+      "enabled": true
+    }
+  ]
+}
