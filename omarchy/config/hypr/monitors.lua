@@ -1,9 +1,49 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Monitors/
 -- List current monitors and supported resolutions with: hyprctl monitors all
 
+-- Scaling is a property of the panel, not of the dotfiles, so it is detected
+-- rather than shared. The Surface Laptop 7 (13.8") is comfortable at 1.6 with
+-- 2x GTK scaling; the ThinkPad T14 Gen 5's 14" 1920x1200 panel throws away a
+-- third of its height at 1.6 (1200x750 logical), so it runs 1.25 (1536x960).
+local function omarchy_dmi_value(field)
+  if type(io) ~= "table" or type(io.open) ~= "function" then
+    return ""
+  end
+
+  local opened, handle = pcall(io.open, "/sys/class/dmi/id/" .. field, "r")
+  if not opened or not handle then
+    return ""
+  end
+
+  local read_ok, value = pcall(handle.read, handle, "*l")
+  pcall(handle.close, handle)
+  if not read_ok or type(value) ~= "string" then
+    return ""
+  end
+
+  return value
+end
+
+-- Keyed on this machine, not on the vendor: sys_vendor alone is LENOVO on every
+-- ThinkPad. Both the family string and the MTM count (product_name reports the
+-- MTM here), and any other machine keeps the 1.6 default.
+local function omarchy_host_identity()
+  return table.concat({
+    omarchy_dmi_value("sys_vendor"),
+    omarchy_dmi_value("product_version"),
+    omarchy_dmi_value("product_name"),
+  }, " ")
+end
+
 local omarchy_gdk_scale = 2
 local omarchy_default_monitor_scale = 1.6
 local omarchy_widescreen_scale = 1
+
+local omarchy_host = omarchy_host_identity()
+if omarchy_host:find("LENOVO ThinkPad T14 Gen 5", 1, true) or omarchy_host:find("21MC004YUS", 1, true) then
+  omarchy_gdk_scale = 1
+  omarchy_default_monitor_scale = 1.25
+end
 
 hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_default_monitor_scale })
