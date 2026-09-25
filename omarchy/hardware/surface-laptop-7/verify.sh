@@ -89,6 +89,14 @@ chk "binary carries LiftGraceMs (patch applied)"  "strings /usr/bin/iptsd | grep
 chk "iptsd service active"                        "systemctl is-active iptsd@dev-hidraw2.service"
 chk "virtual touchpad device published"           "grep -q 'IPTSD Virtual Touchpad 045E:0C9F' /proc/bus/input/devices"
 chk "udev still tags hidraw2 for autostart"       "udevadm info /dev/hidraw2 | grep -q 'SYSTEMD_WANTS=iptsd@dev-hidraw2.service'"
+chk "udev rule override installed (add|change)"   "grep -q 'ACTION==\"add|change\"' /etc/udev/rules.d/50-iptsd.rules"
+# Regression: pacman's 35-systemd-udev-reload.hook runs `udevadm trigger -c change` after
+# any transaction touching /usr/lib/udev/rules.d. Without the override above that stopped
+# iptsd for good (pad dead until reboot). Replay it and assert the pad survives.
+udevadm trigger --action=change --sysname-match=hidraw2 >/dev/null 2>&1
+udevadm settle
+chk "iptsd survives a udev change trigger"        "systemctl is-active iptsd@dev-hidraw2.service"
+chk "virtual touchpad survives a change trigger"  "grep -q 'IPTSD Virtual Touchpad 045E:0C9F' /proc/bus/input/devices"
 
 head_ "5. audio: rebuild module, refresh UCM, and test live capture"
 if bash "$REPO/audio/restore-audio-module.sh" >/tmp/sl7-verify-audio.log 2>&1; then

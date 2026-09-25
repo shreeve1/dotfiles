@@ -33,7 +33,7 @@ say() { printf '\n==> %s\n' "$*"; }
 [[ $EUID -eq 0 ]] || die "run me with sudo:  sudo bash $0"
 
 for f in 0004-iptsd-add-Touchpad-LiftGraceMs-option.patch \
-         99-surface-laptop-7-touchpad.conf local-overrides.quirks; do
+         99-surface-laptop-7-touchpad.conf local-overrides.quirks 50-iptsd.rules; do
     [[ -f "$HERE/$f" ]] || die "missing $HERE/$f"
 done
 
@@ -89,11 +89,18 @@ pacman -U --noconfirm "$PKG"
 say "installing configuration"
 install -Dm644 "$HERE/99-surface-laptop-7-touchpad.conf" /etc/iptsd.d/99-surface-laptop-7-touchpad.conf
 install -Dm644 "$HERE/local-overrides.quirks" /etc/libinput/local-overrides.quirks
+install -Dm644 "$HERE/50-iptsd.rules" /etc/udev/rules.d/50-iptsd.rules
+udevadm control --reload
 
 say "starting iptsd via udev"
 # The unit is StopWhenUnneeded + BindsTo the device, so it must be pulled in by the
 # device (udev sets SYSTEMD_WANTS on hidraw2). A bare `systemctl start` stops again
 # immediately - that is expected, not a failure.
+#
+# The installed /etc/udev/rules.d/50-iptsd.rules override matches add|change, not the
+# packaged add only, so the want survives `udevadm trigger -c change` - which pacman's
+# 35-systemd-udev-reload.hook runs after any transaction touching /usr/lib/udev/rules.d
+# (it used to stop iptsd and leave the pad dead until reboot). See that file's header.
 systemctl stop 'iptsd@dev-hidraw2.service' 2>/dev/null || true
 udevadm trigger --action=add --sysname-match=hidraw2
 sleep 4
