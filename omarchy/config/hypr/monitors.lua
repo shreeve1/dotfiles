@@ -58,11 +58,13 @@ local omarchy_gdk_scale = omarchy_thinkpad and 1 or 2
 local omarchy_default_monitor_scale = omarchy_panel_scale()
 local omarchy_widescreen_scale = 1
 
--- The laptop panel, and the connector the dock's monitor appears on (DP-4 on the
--- Surface's dock, DP-8 on the ThinkPad's). With nothing docked, workspaces pinned
--- to the external output fall back to the laptop panel.
+-- The laptop panel, and the dock's monitor. On the ThinkPad the Dell is matched by
+-- description: it sits behind the dock's MST hub, whose connector name (DP-7,
+-- DP-8, ...) changes on every replug. The Surface's dock shows up on DP-4. With
+-- nothing docked, workspaces pinned to the external output fall back to the
+-- laptop panel.
 local omarchy_internal_output = "eDP-1"
-local omarchy_external_output = omarchy_thinkpad and "DP-8" or "DP-4"
+local omarchy_external_output = omarchy_thinkpad and "desc:Dell Inc. DELL S3222DGM 54K20M3" or "DP-4"
 
 hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_default_monitor_scale })
