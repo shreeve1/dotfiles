@@ -134,12 +134,6 @@ setopt HIST_IGNORE_DUPS      # Don't record duplicate entries
 setopt HIST_IGNORE_SPACE     # Don't record commands starting with space
 setopt SHARE_HISTORY         # Share history across terminals
 
-# History substring search key bindings
-bindkey '^[[A' history-substring-search-up
-bindkey '^[[B' history-substring-search-down
-bindkey '^[OA' history-substring-search-up
-bindkey '^[OB' history-substring-search-down
-
 # User configuration
 
 # export MANPATH="/usr/local/man:$MANPATH"
@@ -447,6 +441,14 @@ fi
 bindkey -v
 export KEYTIMEOUT=20
 bindkey -M viins 'jk' vi-cmd-mode
+
+# History substring search key bindings (after bindkey -v, which resets them)
+bindkey '^[[A' history-substring-search-up
+bindkey '^[[B' history-substring-search-down
+bindkey '^[OA' history-substring-search-up
+bindkey '^[OB' history-substring-search-down
+bindkey -M vicmd 'k' history-substring-search-up
+bindkey -M vicmd 'j' history-substring-search-down
 
 [[ -f "$HOME/.atuin/bin/env" ]] && source "$HOME/.atuin/bin/env"
 export PAPERCLIP2_DSN='postgres://postgres:changeme@localhost:5433/windmill?sslmode=disable'
