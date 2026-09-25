@@ -218,11 +218,18 @@ seed_path "herdr/endpoints.json" ".local/state/herdr/client/endpoints.json"
 if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/hypr" ".config/hypr"
   link_path "omarchy/config/omarchy" ".config/omarchy"
-  link_path "omarchy/config/uwsm" ".config/uwsm"
   link_path "omarchy/local/share/keystroke/extensions/hermes" ".local/share/keystroke/extensions/hermes"
   link_path "omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" ".config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf"
   link_path "omarchy/bin/audio-device-restore" ".local/bin/audio-device-restore"
   link_path "omarchy/config/systemd/user/audio-device-restore.service" ".config/systemd/user/audio-device-restore.service"
+  link_path "omarchy/bin/audio-reset" ".local/bin/audio-reset"
+  # Bounce the screen-share portals whenever PipeWire restarts; otherwise they
+  # keep a dead PipeWire connection and the share picker comes up empty.
+  for _portal in xdg-desktop-portal xdg-desktop-portal-hyprland xdg-desktop-portal-gtk; do
+    link_path "omarchy/config/systemd/user/xdg-desktop-portal-pipewire-rebind.conf" \
+      ".config/systemd/user/$_portal.service.d/pipewire-rebind.conf"
+  done
+  unset _portal
   link_path "omarchy/bin/hypr-deck" ".local/bin/hypr-deck"
   link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
