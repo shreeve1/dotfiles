@@ -1,0 +1,19 @@
+# Override of /usr/lib/udev/rules.d/50-iptsd.rules - same filename, so /etc wins.
+#
+# The packaged rule matches ACTION=="add" only. Pacman's 35-systemd-udev-reload.hook
+# (-> /usr/share/libalpm/scripts/systemd-hook udev-reload) runs `udevadm trigger -c change`
+# after ANY transaction that installs/upgrades/removes /usr/lib/udev/rules.d/*. On a change
+# event the add-only rule does not re-set SYSTEMD_WANTS, the device unit is re-created
+# without a want, and iptsd@dev-hidraw2.service (StopWhenUnneeded=yes, BindsTo the device)
+# is stopped - with nothing left to start it again. Result: the pad silently drops back to
+# the relative-mouse fallback (cursor moves, no two-finger scroll, no right-click) until the
+# next add event, i.e. a reboot. Matching add|change keeps the want across change triggers.
+#
+# A systemd drop-in `StopWhenUnneeded=no` does NOT fix this: the stop comes from
+# BindsTo=dev-hidraw2.device going inactive, not from the want merely being unset.
+#
+# Keep in sync with the packaged rule; re-check after an iptsd-sl7 upgrade.
+SUBSYSTEM=="hidraw", ACTION=="add|change", TAG+="systemd", \
+	PROGRAM="/usr/bin/iptsd-check-device --quiet $env{DEVNAME}", \
+	PROGRAM="/bin/systemd-escape --path $env{DEVNAME}", \
+	ENV{SYSTEMD_WANTS}+="iptsd@$result.service"

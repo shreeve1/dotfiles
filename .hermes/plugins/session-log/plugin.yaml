@@ -1,0 +1,5 @@
+name: session-log
+version: "1.0.0"
+description: Write interactive Hermes session transcripts to the project .sessions directory
+provides_hooks:
+  - post_llm_call

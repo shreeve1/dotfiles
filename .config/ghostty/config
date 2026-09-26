@@ -1,6 +1,6 @@
 font-family = JetBrains Mono Nerd Font
-# Persistent default: the previous 14-point size reduced by five steps.
-font-size = 9
+# Persistent default: matches the zoom level James had settled on live.
+font-size = 11
 cursor-style = block
 cursor-style-blink = false
 mouse-hide-while-typing = true

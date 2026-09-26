@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# audio-reset — recover a hung PipeWire audio stack and the screen-share portals.
+#
+# Symptoms this fixes: apps see no mic/speakers (`pactl` times out), or the
+# screen-share picker is blank with Share greyed out.
+#
+# Usage:
+#   audio-reset            restart audio + portals, then verify (asks first)
+#   audio-reset -y         same, no confirmation prompt
+#   audio-reset --bt       also disconnect Bluetooth audio devices first
+#                          (use when a flaky headset triggered the hang)
+#   audio-reset --check    health check only, restarts nothing
+#
+# Restarting drops any live call/audio. Apps that were using audio must be
+# reloaded (browser tabs) or fully quit and reopened (Slack: Ctrl+Q).
+set -uo pipefail
+
+AUDIO_UNITS=(pipewire pipewire-pulse wireplumber)
+PORTAL_UNITS=(xdg-desktop-portal-hyprland xdg-desktop-portal-gtk xdg-desktop-portal)
+# PipeWire clients that are system plumbing, not apps the user needs to reopen.
+SYSTEM_CLIENTS='^(pipewire|WirePlumber.*|pactl|pw-cli|pw-dump|wpctl|xdg-desktop-portal.*|quickshell|audio-device-restore)$'
+
+ASSUME_YES=0
+CHECK_ONLY=0
+BT_DISCONNECT=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y|--yes) ASSUME_YES=1 ;;
+    --check) CHECK_ONLY=1 ;;
+    --bt) BT_DISCONNECT=1 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown arg: $1 (see --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+ok()   { printf '  \033[32mok\033[0m    %s\n' "$*"; }
+bad()  { printf '  \033[31mFAIL\033[0m  %s\n' "$*"; FAILED=1; }
+note() { printf '  \033[33m--\033[0m    %s\n' "$*"; }
+
+# App names of current PipeWire clients (empty if PipeWire is unresponsive).
+client_apps() {
+  timeout 3 pw-dump 2>/dev/null |
+    jq -r '.[] | select(.type == "PipeWire:Interface:Client")
+               | .info.props["application.name"] // empty' 2>/dev/null |
+    grep -Ev "$SYSTEM_CLIENTS" | sort -u
+}
+
+main_pid() { systemctl --user show -p MainPID --value "$1" 2>/dev/null; }
+
+# Journal lines from a unit's *current* process only.
+unit_log() {
+  local pid
+  pid="$(main_pid "$1")"
+  [[ -n "$pid" && "$pid" != 0 ]] || return 0
+  journalctl --user _PID="$pid" -o cat --no-pager 2>/dev/null
+}
+
+# True if the current process of unit $1 has logged a line matching regex $2.
+# (Captured first: `journalctl | grep -q` trips pipefail via SIGPIPE.)
+unit_logged() {
+  local log
+  log="$(unit_log "$1")"
+  grep -q -- "$2" <<<"$log"
+}
+
+check() {
+  FAILED=0
+  echo "Audio:"
+  if timeout 3 pactl info >/dev/null 2>&1; then
+    ok "PipeWire (pulse) responding"
+    local src mute
+    src="$(timeout 3 pactl get-default-source 2>/dev/null)"
+    if [[ -n "$src" && "$src" != *.monitor && "$src" != auto_null ]]; then
+      mute="$(timeout 3 pactl get-source-mute @DEFAULT_SOURCE@ 2>/dev/null)"
+      ok "default mic: $src ($mute)"
+      [[ "$mute" == *yes* ]] && note "default mic is MUTED (wpctl set-mute @DEFAULT_SOURCE@ 0)"
+    else
+      bad "no usable default mic (got: ${src:-none})"
+    fi
+  else
+    bad "PipeWire not responding (pactl info timed out)"
+  fi
+
+  echo "Screen sharing:"
+  local u
+  for u in "${PORTAL_UNITS[@]}"; do
+    if ! systemctl --user is-active --quiet "$u"; then
+      bad "$u not running"
+    elif unit_logged "$u" 'Caught PipeWire error'; then
+      bad "$u lost its PipeWire connection (stale, needs restart)"
+    else
+      ok "$u running"
+    fi
+  done
+  if unit_logged xdg-desktop-portal-hyprland 'screencopy\] init successful'; then
+    ok "screencopy initialised"
+  else
+    bad "hyprland portal has not initialised screencopy"
+  fi
+  return "$FAILED"
+}
+
+if (( CHECK_ONLY )); then
+  check
+  exit $?
+fi
+
+if (( ! ASSUME_YES )) && [[ -t 0 ]]; then
+  read -r -p "This restarts audio and screen sharing and drops any live call. Continue? [y/N] " ans
+  [[ "$ans" == [yY]* ]] || { echo "aborted"; exit 1; }
+fi
+
+before="$(client_apps)"
+
+if (( BT_DISCONNECT )) && command -v bluetoothctl >/dev/null; then
+  echo "Disconnecting Bluetooth audio devices..."
+  while read -r _ mac name; do
+    if timeout 3 bluetoothctl info "$mac" 2>/dev/null | grep -q 'UUID: Audio Sink'; then
+      timeout 10 bluetoothctl disconnect "$mac" >/dev/null 2>&1 && note "disconnected $name"
+    fi
+  done < <(timeout 5 bluetoothctl devices Connected 2>/dev/null)
+fi
+
+echo "Restarting audio: ${AUDIO_UNITS[*]}"
+systemctl --user restart "${AUDIO_UNITS[@]}" || echo "warn: audio restart reported an error" >&2
+
+for _ in $(seq 20); do
+  timeout 2 pactl info >/dev/null 2>&1 && break
+  sleep 0.5
+done
+
+# The PartOf= drop-in already bounces the portals with pipewire; restart them
+# explicitly too so this works even where the drop-in isn't installed.
+echo "Restarting portals: ${PORTAL_UNITS[*]}"
+systemctl --user restart "${PORTAL_UNITS[@]}" || echo "warn: portal restart reported an error" >&2
+
+for _ in $(seq 20); do
+  unit_logged xdg-desktop-portal-hyprland 'screencopy\] init successful' && break
+  sleep 0.5
+done
+sleep 2 # let apps with auto-reconnect come back before comparing
+
+echo
+check
+status=$?
+
+after="$(client_apps)"
+missing="$(comm -23 <(printf '%s\n' "$before" | sed '/^$/d') <(printf '%s\n' "$after" | sed '/^$/d'))"
+echo
+if [[ -n "$missing" ]]; then
+  echo "These apps were connected to audio and haven't reconnected. Reload the"
+  echo "tab (browsers) or fully quit and reopen them (Slack: Ctrl+Q):"
+  printf '%s\n' "$missing" | sed 's/^/    /'
+else
+  echo "Apps using audio or screen share may still need a reload/reopen."
+fi
+exit "$status"

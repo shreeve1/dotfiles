@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Restore the exact non-Bluetooth audio defaults after Bluetooth disconnects."""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import selectors
+import subprocess
+import sys
+import tempfile
+import time
+from typing import Protocol
+
+
+KINDS = ("sink", "source")
+NAME = "audio-device-restore"
+
+
+def state_path() -> Path:
+    root = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / NAME
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    root.chmod(0o700)
+    return root / "defaults.json"
+
+
+def is_bluetooth(kind: str, node: str) -> bool:
+    prefix = "bluez_output." if kind == "sink" else "bluez_input."
+    return node.startswith(prefix)
+
+
+def usable_non_bluetooth(kind: str, node: str, available: set[str]) -> bool:
+    return bool(node and node in available and node != "auto_null" and not is_bluetooth(kind, node))
+
+
+class AudioBackend(Protocol):
+    def available(self, kind: str) -> set[str]: ...
+
+    def default(self, kind: str) -> str: ...
+
+    def set_default(self, kind: str, node: str) -> None: ...
+
+
+class PactlBackend:
+    @staticmethod
+    def _run(*args: str) -> str:
+        result = subprocess.run(
+            ["pactl", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip()
+
+    def available(self, kind: str) -> set[str]:
+        plural = "sinks" if kind == "sink" else "sources"
+        nodes: set[str] = set()
+        for line in self._run("list", "short", plural).splitlines():
+            fields = line.split("\t")
+            if len(fields) >= 2:
+                nodes.add(fields[1])
+        return nodes
+
+    def default(self, kind: str) -> str:
+        return self._run(f"get-default-{kind}")
+
+    def set_default(self, kind: str, node: str) -> None:
+        self._run(f"set-default-{kind}", node)
+
+
+class DefaultRestorer:
+    def __init__(self, backend: AudioBackend, saved: dict[str, str] | None = None) -> None:
+        self.backend = backend
+        self.saved = {kind: value for kind, value in (saved or {}).items() if kind in KINDS}
+        self.had_bluetooth: dict[str, bool] = {kind: False for kind in KINDS}
+        self.pending_restore: dict[str, bool] = {kind: False for kind in KINDS}
+
+    @staticmethod
+    def bluetooth_present(kind: str, available: set[str]) -> bool:
+        return any(is_bluetooth(kind, node) for node in available)
+
+    def initialize(self) -> bool:
+        """Restore saved defaults at startup, or learn current non-Bluetooth ones."""
+        changed = False
+        for kind in KINDS:
+            available = self.backend.available(kind)
+            current = self.backend.default(kind)
+            saved = self.saved.get(kind, "")
+            bluetooth_present = self.bluetooth_present(kind, available)
+            self.had_bluetooth[kind] = bluetooth_present
+
+            if is_bluetooth(kind, current) and current in available:
+                continue
+            if usable_non_bluetooth(kind, saved, available):
+                if current != saved:
+                    self.backend.set_default(kind, saved)
+            elif saved:
+                self.pending_restore[kind] = True
+            elif usable_non_bluetooth(kind, current, available):
+                self.saved[kind] = current
+                changed = True
+        return changed
+
+    def reconcile(self) -> bool:
+        """Track explicit defaults and restore one when its Bluetooth node vanishes."""
+        changed = False
+        for kind in KINDS:
+            available = self.backend.available(kind)
+            current = self.backend.default(kind)
+            saved = self.saved.get(kind, "")
+            bluetooth_present = self.bluetooth_present(kind, available)
+            bluetooth_removed = self.had_bluetooth[kind] and not bluetooth_present
+
+            if bluetooth_removed or self.pending_restore[kind]:
+                if usable_non_bluetooth(kind, saved, available) and current != saved:
+                    self.backend.set_default(kind, saved)
+                    current = self.backend.default(kind)
+                if usable_non_bluetooth(kind, saved, available) and current == saved:
+                    self.pending_restore[kind] = False
+                elif saved:
+                    self.pending_restore[kind] = True
+                self.had_bluetooth[kind] = bluetooth_present
+                continue
+
+            if usable_non_bluetooth(kind, current, available):
+                if self.saved.get(kind) != current:
+                    self.saved[kind] = current
+                    changed = True
+            self.had_bluetooth[kind] = bluetooth_present
+        return changed
+
+
+def load_state(path: Path) -> dict[str, str]:
+    try:
+        value = json.loads(path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(value, dict):
+        return {}
+    return {kind: node for kind, node in value.items() if kind in KINDS and isinstance(node, str)}
+
+
+def save_state(path: Path, state: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent, text=True)
+    try:
+        with os.fdopen(fd, "w") as handle:
+            json.dump(state, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def daemon() -> int:
+    path = state_path()
+    runtime_dir = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    lock_path = runtime_dir / f"{NAME}.lock"
+    lock = lock_path.open("w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return 0
+
+    backend = PactlBackend()
+    restorer = DefaultRestorer(backend, load_state(path))
+    process = subprocess.Popen(
+        ["pactl", "subscribe"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        bufsize=0,
+    )
+    assert process.stdout is not None
+
+    try:
+        if restorer.initialize():
+            save_state(path, restorer.saved)
+
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        deadline: float | None = None
+        while True:
+            timeout = None if deadline is None else max(0.0, deadline - time.monotonic())
+            events = selector.select(timeout)
+            if events:
+                data = os.read(process.stdout.fileno(), 4096)
+                if not data:
+                    return 1
+                if any(word in data for word in (b"sink", b"source", b"card", b"server")):
+                    deadline = time.monotonic() + 0.4
+            elif deadline is not None:
+                if restorer.reconcile():
+                    save_state(path, restorer.saved)
+                deadline = None
+    except (OSError, subprocess.SubprocessError):
+        return 1
+    finally:
+        if process.poll() is None:
+            process.terminate()
+        process.wait()
+
+
+def self_test() -> int:
+    class FakeBackend:
+        def __init__(self) -> None:
+            self.nodes = {
+                "sink": {"speaker", "bluez_output.headset"},
+                "source": {"internal-mic", "webcam", "bluez_input.headset"},
+            }
+            self.defaults = {"sink": "speaker", "source": "internal-mic"}
+            self.set_calls: list[tuple[str, str]] = []
+
+        def available(self, kind: str) -> set[str]:
+            return set(self.nodes[kind])
+
+        def default(self, kind: str) -> str:
+            return self.defaults[kind]
+
+        def set_default(self, kind: str, node: str) -> None:
+            self.defaults[kind] = node
+            self.set_calls.append((kind, node))
+
+    fake = FakeBackend()
+    restorer = DefaultRestorer(fake)
+    assert restorer.initialize()
+    assert restorer.saved == {"sink": "speaker", "source": "internal-mic"}
+
+    fake.defaults = {"sink": "bluez_output.headset", "source": "bluez_input.headset"}
+    assert not restorer.reconcile()
+    assert restorer.saved == {"sink": "speaker", "source": "internal-mic"}
+
+    fake.nodes["sink"].remove("bluez_output.headset")
+    fake.nodes["source"].remove("bluez_input.headset")
+    fake.defaults = {"sink": "speaker", "source": "webcam"}
+    assert not restorer.reconcile()
+    assert fake.defaults == {"sink": "speaker", "source": "internal-mic"}
+
+    fake.nodes["sink"].add("bluez_output.headset")
+    fake.defaults["sink"] = "bluez_output.headset"
+    restorer.reconcile()
+    fake.defaults["sink"] = "speaker"
+    assert not restorer.reconcile()
+    assert restorer.saved["sink"] == "speaker"
+
+    print("PASS: exact non-Bluetooth defaults survive Bluetooth disconnects")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", nargs="?", choices=("daemon", "self-test"), default="daemon")
+    args = parser.parse_args()
+    return self_test() if args.command == "self-test" else daemon()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,8 +1,8 @@
 {
   "version": 1,
   "idle": {
-    "screensaver": 150,
-    "lock": 300
+    "screensaver": 900,
+    "lock": 1800
   },
   "bar": {
     "position": "top",
@@ -10,9 +10,6 @@
     "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [
-        {
-          "id": "omarchy.menu"
-        },
         {
           "id": "omarchy.workspaces"
         }
@@ -34,6 +31,12 @@
           "id": "omarchy.weather"
         },
         {
+          "id": "evindor.keystroke"
+        },
+        {
+          "id": "meviusisback.agent-orchestr"
+        },
+        {
           "id": "omarchy.system-update"
         }
       ],
@@ -42,13 +45,10 @@
           "id": "omarchy.tray"
         },
         {
-          "id": "io.github.omarchy.touchpad-settings"
-        },
-        {
           "id": "hermes.companion"
         },
         {
-          "id": "surface-battery"
+          "id": "io.github.omarchy.touchpad-settings"
         },
         {
           "id": "omarchy.agents"
@@ -63,16 +63,19 @@
           "id": "omarchy.audio"
         },
         {
-          "id": "omarchy.monitor"
+          "id": "omarchy.power"
         },
         {
-          "id": "omarchy.power"
+          "id": "omarchy.monitor"
         }
       ]
     }
   },
   "plugins": [],
   "disabledPlugins": [
-    "omarchy.notifications"
+    "omarchy.menu"
+  ],
+  "cloneSourceRestores": [
+    "evindor.keystroke"
   ]
 }

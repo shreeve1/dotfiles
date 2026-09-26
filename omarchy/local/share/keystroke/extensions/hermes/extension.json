@@ -1,0 +1,30 @@
+{
+  "name": "Hermes",
+  "version": "1.0.0",
+  "author": "James",
+  "description": "Stream Hermes Agent conversations, tools and approvals inside Keystroke",
+  "apiVersion": 1,
+  "icon": "󰚩",
+  "color": "#8bceb4",
+  "license": "MIT",
+  "entry": "Service.qml",
+  "commands": [
+    {
+      "id": "ask",
+      "prefix": "?",
+      "title": "Ask Hermes",
+      "summary": "Start an inline Hermes Agent conversation",
+      "args": [
+        {
+          "name": "prompt",
+          "hint": "your question or task",
+          "rest": true
+        }
+      ],
+      "examples": [
+        "? explain Hyprland workspaces",
+        "? find the largest folders here"
+      ]
+    }
+  ]
+}

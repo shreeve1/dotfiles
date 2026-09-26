@@ -40,6 +40,10 @@ Panel {
   // text is rendered anywhere in the widget (bar ticker or card), only counts,
   // status words and the repo breadcrumb. The collector still returns the text.
   readonly property bool privacyHidePrompts: Boolean(root.setting("privacyHidePrompts", false))
+  // Popup size (logical px before Style spacing scale); clamped to the screen by
+  // KeyboardPanel.fittedContentWidth/cappedContentHeight.
+  readonly property int panelWidth: Math.max(380, Math.min(1400, Number(root.setting("panelWidth", 760)) || 760))
+  readonly property int panelHeight: Math.max(400, Math.min(1400, Number(root.setting("panelHeight", 760)) || 760))
 
   readonly property bool barShowsText: barDisplay.toLowerCase() === "status" || barDisplay.toLowerCase() === "compact"
 
@@ -66,6 +70,9 @@ Panel {
   // press selects the first card rather than moving from it).
   property int selectedIndex: -1
   property bool replyFieldFocused: false
+  // Height of the currently expanded card (0 when none); drives popup growth.
+  property real expandedCardHeight: 0
+  onReplyCardIdChanged: if (!root.replyCardId) root.expandedCardHeight = 0
 
   // Ordered filter ids matching the visible tab row, used for Left/Right
   // keyboard cycling between filters.
@@ -108,6 +115,45 @@ Panel {
     return list[root.selectedIndex]
   }
 
+  function revealCardBottom(index, cardId) {
+    var lastHeight = -1
+    var stablePasses = 0
+    var passes = 0
+
+    function settle() {
+      if (root.replyCardId !== cardId || !agentListView || index < 0 || index >= agentListView.count) return
+
+      agentListView.forceLayout()
+      var card = agentListView.itemAtIndex(index)
+      if (!card) {
+        if (++passes < 12) Qt.callLater(settle)
+        return
+      }
+
+      var cardHeight = card.height
+      if (Math.abs(cardHeight - lastHeight) < 0.5) {
+        stablePasses++
+      } else {
+        stablePasses = 0
+        lastHeight = cardHeight
+      }
+
+      // Wrapped text and nested layouts can need several polish passes after
+      // becoming visible. Wait for two stable passes, but never loop forever.
+      if (stablePasses < 2 && ++passes < 12) {
+        Qt.callLater(settle)
+        return
+      }
+
+      agentListView.forceLayout()
+      // A card as tall as the viewport is shown from its top (request first);
+      // a shorter one keeps the old behaviour of bringing its bottom into view.
+      agentListView.positionViewAtIndex(index, card.height >= agentListView.height - 1 ? ListView.Beginning : ListView.End)
+    }
+
+    Qt.callLater(settle)
+  }
+
   // Enter on a highlighted card expands it: shows full prompt/activity detail
   // and, when the agent can accept a reply, opens the composer and focuses the
   // input. Enter again on the same card collapses it.
@@ -120,6 +166,7 @@ Panel {
     root.replyState = "idle"
     root.replyError = ""
     root.replyDraft = ""
+    root.revealCardBottom(root.selectedIndex, id)
   }
 
   function replyTarget(agent) {
@@ -146,6 +193,18 @@ Panel {
     // click. Deferred so it runs after the composer is hidden.
     Qt.callLater(function() { if (root.opened && keyCatcher) keyCatcher.forceActiveFocus() })
   }
+
+  // Fallback after a focused reply field is destroyed by a list rebuild: if no
+  // rebuilt field has re-taken focus, give it to the key catcher so arrows,
+  // Enter and Esc keep working.
+  function restoreKeyboardFocus() {
+    if (!root.opened || root.replyFieldFocused || !keyCatcher || keyCatcher.activeFocus) return
+    keyCatcher.forceActiveFocus()
+  }
+
+  // Raw collector text of the last applied refresh; identical ticks are skipped
+  // so the card list (and any open composer) is not rebuilt for no change.
+  property string lastStatusText: ""
 
   function submitReply(agent, text) {
     if (!replyAllowed(agent) || root.replyState === "sending" || !String(text || "").trim()) return
@@ -265,9 +324,17 @@ Panel {
         if (output.length > 262144) {
           output = output.substring(0, 262144)
         }
+        if (output === root.lastStatusText) return
         try {
           var data = JSON.parse(output)
+          // Rebuilding the delegates resets the list's scroll; keep the
+          // user's place so an expanded card doesn't jump away mid-read.
+          var keepY = agentListView ? agentListView.contentY : 0
           root.rawData = data
+          root.lastStatusText = output
+          if (agentListView && keepY > 0) Qt.callLater(function() {
+            agentListView.contentY = Math.min(keepY, Math.max(0, agentListView.contentHeight - agentListView.height))
+          })
         } catch (e) {
           // ignore transient parse error
         }
@@ -504,8 +571,24 @@ Panel {
     bar: root.bar
     owner: root
     open: root.opened
-    contentWidth: Style.space(480)
-    contentHeight: Style.space(680)
+    contentWidth: popup.fittedContentWidth(Style.space(root.panelWidth))
+    // Height follows the content: chrome (header, tabs, footer) plus the card
+    // list, capped at `panelHeight`. Expanding a card never sizes the popup to
+    // the whole list: it grows only when that one card is taller than the
+    // normal viewport, and then just enough to show it (up to the screen, via
+    // `cappedContentHeight`); the other cards stay reachable by scrolling.
+    readonly property real chromeHeight: headerRow.implicitHeight + filterRow.implicitHeight
+                                         + footerBar.implicitHeight + mainColumn.spacing * 3
+                                         + mainColumn.anchors.margins * 2 + popup.verticalContentInset
+    readonly property real fitHeight: chromeHeight + Math.max(Style.space(120), agentListView.contentHeight)
+    readonly property real baseHeight: Math.max(Style.space(320), Math.min(fitHeight, Style.space(root.panelHeight)))
+    readonly property real expandedNeed: root.expandedCardHeight > 0
+                                         ? chromeHeight + root.expandedCardHeight + Style.space(4) : 0
+    contentHeight: popup.cappedContentHeight(Math.max(baseHeight, expandedNeed))
+    Behavior on contentHeight {
+      enabled: root.opened
+      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    }
     focusTarget: keyCatcher
 
     // Keyboard driver: arrows / j k move card selection, Left/Right cycle
@@ -528,12 +611,14 @@ Panel {
       onTabRequested: function(direction) { root.cycleFilter(direction) }
 
     ColumnLayout {
+      id: mainColumn
       anchors.fill: parent
       anchors.margins: Style.space(4)
       spacing: Style.space(12)
 
       // --------------------------------------------------------- Header Row
       RowLayout {
+        id: headerRow
         Layout.fillWidth: true
         spacing: Style.space(14)
 
@@ -603,6 +688,7 @@ Panel {
 
       // --------------------------------------------------------- Filter Tabs
       RowLayout {
+        id: filterRow
         Layout.fillWidth: true
         spacing: Style.space(6)
 
@@ -679,11 +765,19 @@ Panel {
           boundsBehavior: Flickable.StopAtBounds
 
           delegate: Rectangle {
+            id: agentCard
             required property var modelData
             required property int index
 
+            readonly property bool expanded: root.replyCardId === String(modelData.pane_id || index)
+            readonly property bool hasActivity: Boolean(modelData.detail) && modelData.detail !== modelData.title
+
             width: agentListView.width - Style.space(4)
             implicitHeight: cardContent.implicitHeight + Style.space(16)
+            function reportExpandedHeight() { if (agentCard.expanded) root.expandedCardHeight = agentCard.implicitHeight }
+            onImplicitHeightChanged: reportExpandedHeight()
+            onExpandedChanged: reportExpandedHeight()
+            Component.onCompleted: reportExpandedHeight()
             radius: Style.cornerRadius
 
             color: {
@@ -860,10 +954,12 @@ Panel {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                      root.replyCardId = String(modelData.pane_id || index)
+                      var id = String(modelData.pane_id || index)
+                      root.replyCardId = id
                       root.replyState = "idle"
                       root.replyError = ""
                       root.replyDraft = ""
+                      root.revealCardBottom(index, id)
                     }
                   }
                 }
@@ -899,6 +995,7 @@ Panel {
 
               // Task Title
               Text {
+                visible: !agentCard.expanded || root.privacyHidePrompts
                 Layout.fillWidth: true
                 text: root.privacyHidePrompts ? "Session details hidden" : (modelData.title || "Active agent session")
                 textFormat: Text.PlainText
@@ -913,7 +1010,7 @@ Panel {
 
               // Activity Detail (if running tool, prompt question, or concluding tail)
               Text {
-                visible: !root.privacyHidePrompts && Boolean(modelData.detail) && modelData.detail !== modelData.title
+                visible: !agentCard.expanded && !root.privacyHidePrompts && agentCard.hasActivity
                 Layout.fillWidth: true
                 text: modelData.detail || ""
                 textFormat: Text.PlainText
@@ -927,12 +1024,13 @@ Panel {
                 }
                 font.weight: (modelData.status === "waiting" || modelData.status === "working") ? Font.DemiBold : Font.Normal
                 wrapMode: Text.Wrap
-                maximumLineCount: 3
+                maximumLineCount: 4
                 elide: Text.ElideRight
               }
 
               // Breadcrumbs / Location Metadata
               RowLayout {
+                visible: !agentCard.expanded || root.privacyHidePrompts
                 Layout.fillWidth: true
                 spacing: Style.space(6)
 
@@ -986,15 +1084,13 @@ Panel {
                 }
               }
 
-              // Expanded detail — shown for the same card whose composer is open
-              // (Enter on a selected card, or the reply button). Renders the full
-              // latest prompt and latest activity/reply un-truncated and wrapped,
-              // plus metadata, so the user can read context before replying.
+              // Expanded detail replaces the collapsed summary rather than
+              // duplicating it. It shows one request, one real activity/reply
+              // field, and one compact source/location line before the composer.
               ColumnLayout {
                 id: expandedDetail
                 visible: !root.privacyHidePrompts
-                         && root.replyCardId === String(modelData.pane_id || index)
-                         && (Boolean(modelData.title) || Boolean(modelData.detail))
+                         && agentCard.expanded
                 Layout.fillWidth: true
                 spacing: Style.space(4)
                 z: 2
@@ -1004,7 +1100,7 @@ Panel {
                 Text {
                   visible: Boolean(modelData.title)
                   Layout.fillWidth: true
-                  text: "Latest prompt"
+                  text: "Request"
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(9)
@@ -1023,9 +1119,12 @@ Panel {
                 }
 
                 Text {
-                  visible: Boolean(modelData.detail) && modelData.detail !== modelData.title
                   Layout.fillWidth: true
-                  text: "Latest activity"
+                  text: {
+                    if (modelData.status === "working") return "Current activity"
+                    if (modelData.status === "waiting" || modelData.status === "blocked") return "Waiting for"
+                    return "Last response"
+                  }
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(9)
@@ -1033,23 +1132,33 @@ Panel {
                   color: root.dim
                 }
                 Text {
-                  visible: Boolean(modelData.detail) && modelData.detail !== modelData.title
                   Layout.fillWidth: true
-                  text: modelData.detail || ""
+                  // Prefer the collector's multi-line `response` (fuller reply
+                  // excerpt) while idle/completed so the user can verify what
+                  // the agent said before replying; live activity keeps `detail`.
+                  text: {
+                    var resp = String(modelData.response || "")
+                    var live = modelData.status === "working" || modelData.status === "waiting" || modelData.status === "blocked"
+                    if (resp && !live) return resp
+                    return agentCard.hasActivity
+                           ? modelData.detail
+                           : (resp || "Response preview unavailable — open the Herdr session for full context.")
+                  }
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(11)
-                  color: root.dim
+                  color: Qt.lighter(root.dim, 1.25)
                   wrapMode: Text.Wrap
+                  lineHeight: 1.1
                 }
 
                 Text {
                   Layout.fillWidth: true
                   text: {
                     var bits = []
-                    if (modelData.model) bits.push(String(modelData.model))
-                    if (modelData.agent_display) bits.push(String(modelData.agent_display))
+                    if (modelData.origin_label) bits.push(String(modelData.origin_label))
                     if (modelData.herdr_session) bits.push("session " + modelData.herdr_session)
+                    if (modelData.model) bits.push(String(modelData.model))
                     if (modelData.cwd) bits.push(String(modelData.cwd))
                     return bits.join("  ·  ")
                   }
@@ -1092,7 +1201,38 @@ Panel {
                   onVisibleChanged: if (visible && root.replyAllowed(modelData)) Qt.callLater(function() { forceActiveFocus() })
                   // While this field holds focus the PanelKeyCatcher is blocked
                   // (see keyCatcher.blocked) so keystrokes reach the editor.
-                  onActiveFocusChanged: root.replyFieldFocused = activeFocus
+                  // Focus can also vanish without anyone taking it: the field is
+                  // disabled when the card's status changes or a reply is sent,
+                  // and a disabled item drops active focus with no successor.
+                  // Hand it back to the key catcher so Esc/arrows keep working.
+                  onActiveFocusChanged: {
+                    root.replyFieldFocused = activeFocus
+                    if (!activeFocus) Qt.callLater(root.restoreKeyboardFocus)
+                  }
+                  // Re-take focus if the field becomes usable again after being
+                  // disabled (e.g. a failed send re-enables it).
+                  onEnabledChanged: if (enabled && replyComposer.visible && root.opened && !root.replyFieldFocused) Qt.callLater(function() { if (replyField && replyField.enabled && replyComposer.visible) replyField.forceActiveFocus() })
+                  // A status refresh swaps the ListView's JS-array model, which
+                  // rebuilds every delegate. A destroyed field never reports
+                  // losing focus, so without this the key catcher stays blocked
+                  // and nothing holds focus (typing and Esc both go dead).
+                  // The rebuilt field re-grabs focus (onVisibleChanged does not
+                  // fire at creation) and keeps the draft via root.replyDraft.
+                  Component.onCompleted: {
+                    if (replyComposer.visible && root.opened && root.replyAllowed(modelData)) {
+                      Qt.callLater(function() {
+                        if (!replyField || !replyComposer.visible || !root.opened) return
+                        replyField.forceActiveFocus()
+                        replyField.cursorPosition = replyField.text.length
+                      })
+                    }
+                  }
+                  Component.onDestruction: {
+                    if (root.replyFieldFocused) {
+                      root.replyFieldFocused = false
+                      Qt.callLater(root.restoreKeyboardFocus)
+                    }
+                  }
                 }
 
                 RowLayout {
@@ -1180,6 +1320,7 @@ Panel {
 
       // --------------------------------------------------------- Footer
       Rectangle {
+        id: footerBar
         Layout.fillWidth: true
         implicitHeight: Style.space(28)
         radius: Style.cornerRadius

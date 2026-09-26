@@ -143,6 +143,24 @@ class TestHerdrReadPreview(unittest.TestCase):
             self.assertTrue(card["can_reply"])
             self.assertEqual(card["reply_machine_id"], "m1")
 
+    def test_remote_prompt_without_reply_does_not_use_cwd_as_activity(self):
+        snapshot = {"version": "0.9.1", "workspaces": [], "tabs": [], "panes": [], "agents": [
+            {"pane_id": "w1:p1", "agent": "hermes", "agent_status": "done", "cwd": "/home/test/.hermes"},
+        ]}
+        machine = {"id": "m1", "label": "n8n", "target": "n8n", "session": "default"}
+        with mock.patch.object(ac, "get_herdr_server_pids", return_value=[]), \
+             mock.patch.object(ac, "herdr_session_sockets", return_value=[]), \
+             mock.patch.object(ac, "herdr_machine_list", return_value=[machine]), \
+             mock.patch.object(ac, "query_remote_herdr_snapshot", return_value={"result": {"snapshot": snapshot}}), \
+             mock.patch.object(ac, "query_remote_herdr_agent_read", return_value="│ ○ You: will update rewrite skills? │"), \
+             mock.patch.object(ac, "scan_orca_agents", return_value=[]), \
+             mock.patch.object(ac, "scan_standalone_agents", return_value=[]), \
+             mock.patch.object(ac, "query_orca_terminals", return_value=[]):
+            card = ac.fetch_all_agents()["agents"][0]
+        self.assertEqual(card["title"], "will update rewrite skills?")
+        self.assertEqual(card["detail"], "")
+        self.assertEqual(card["cwd"], "/home/test/.hermes")
+
 
     def test_reply_capability_is_version_gated_per_snapshot(self):
         self.assertFalse(ac.herdr_replies_supported("0.8.2"))
