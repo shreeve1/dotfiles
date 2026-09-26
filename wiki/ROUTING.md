@@ -31,6 +31,11 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Claims: C-0130, C-0131, C-0132, C-0133
 - Raw: `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`
 - Keywords: Omarchy, Hyprland, hypr-deck, workspace, eDP-1, DP-4, Surface Laptop 7, MSHW0551, SAM, BAT1, ADP1, iptsd, SoundWire, UCM, Bluetooth, btintel_pcie, kernel update, bare metal
+## Projectlean Wiki-First SOUL
+
+- Pages: `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md` (candidate, non-authoritative)
+- Raw: `wiki/raw/sessions/2026-09-19-projectlean-wiki-first-soul.md`, `wiki/raw/sessions/2026-09-19-projectlean-soul-final-apply.md`, `wiki/raw/sessions/2026-09-19-projectlean-query-skill-repair.md`
+- Keywords: projectlean, SOUL.md, wiki-first, llm-wiki-setup, wiki-update, protected file, prompt-size, template parity, native issue tracking
 
 ## Research
 
