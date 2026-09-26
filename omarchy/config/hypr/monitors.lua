@@ -82,17 +82,10 @@ for workspace = 2, 10 do
   })
 end
 
--- Screen-off on lock blanks only the laptop panel on the ThinkPad. The lock's
--- blank step calls hl.dsp.dpms without a monitor, meaning "all", and that
--- global DPMS-off was followed by an amdgpu Type-C alt-mode timeout and the
--- dock's MST link going away until a replug. Keeping the Dell active avoided
--- that Alt Mode/MST loss in testing; eDP-only DPMS-off still logs a REG_WAIT.
--- Only the lock issues a monitor-less disable; enable and targeted calls pass
--- through unchanged. (Omarchy's shell puts /usr/share/omarchy/bin first on its
--- PATH, so the lock's command cannot be overridden from ~/.local/bin.)
--- Lua state may outlive a reload, so the real dispatcher is kept once in a
--- namespaced global; every reload wraps that, never a previous wrapper.
--- ponytail: workaround for the driver bug; drop once DPMS-off survives the dock.
+-- On the ThinkPad, the lock's all-monitor DPMS-off knocked the dock's MST link
+-- out until a replug; blanking only eDP-1 avoided it. The real dispatcher is
+-- kept once in _G so reloads never wrap a previous wrapper.
+-- ponytail: drop once an all-monitor DPMS-off keeps the dock's link up.
 _G.omarchy_original_dpms = _G.omarchy_original_dpms or hl.dsp.dpms
 if omarchy_thinkpad then
   hl.dsp.dpms = function(args)
