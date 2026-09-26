@@ -234,6 +234,9 @@ alias claude-minimax='claude-provider minimax'
 alias claude-openai='claude-provider openai'
 alias cc='claude'
 
+# RUDR9 isolated Hermes instance (separate HERMES_HOME, own board/profiles)
+alias rud9='HERMES_HOME=/home/james/.hermes-rudr9 hermes chat'
+
 # Android SDK
 if [[ $IS_MACOS -eq 1 ]]; then
   export ANDROID_HOME=$HOME/Library/Android/sdk
@@ -459,3 +462,16 @@ export PATH="$HOME/.opencode/bin:$PATH"
 export XDG_RUNTIME_DIR
 : "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
 export DBUS_SESSION_BUS_ADDRESS
+
+HERMES_YOLO_MODE=1
+
+# Unlock Bitwarden and export BW_SESSION into the current shell: `bwunlock`
+# (reads BW_CLIENTID/BW_CLIENTSECRET/BW_PASSWORD from ~/.zshrc.secrets)
+bwunlock() {
+  if [ "$(bw status 2>/dev/null | grep -o '"status":"[a-z]*"')" = '"status":"unauthenticated"' ]; then
+    bw login --apikey || return 1
+  fi
+  export BW_SESSION="$(bw unlock --passwordenv BW_PASSWORD --raw)" \
+    && echo "Bitwarden unlocked (session exported)." \
+    || echo "Bitwarden unlock failed."
+}
