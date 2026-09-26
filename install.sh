@@ -204,6 +204,12 @@ link_path ".config/zellij" ".config/zellij"
 link_path ".config/systemd/user/ralph-loop.service" ".config/systemd/user/ralph-loop.service"
 link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 
+# herdr's saved remote machines are XDG state that herdr itself rewrites on
+# every machine add/remove/enable. Seed (copy, not link): the tracked backup
+# stays clean, and the live list stays machine-local and unaffected once it
+# exists. The file holds only labels and SSH aliases — no credentials.
+seed_path "herdr/endpoints.json" ".local/state/herdr/client/endpoints.json"
+
 # ─── Omarchy (Linux only) ──────────────────────────────────
 # The portable user-owned Omarchy configuration lives in omarchy/ rather than
 # under the generic .config tree because this repository also syncs to macOS.
@@ -212,15 +218,40 @@ link_path "home/herdr/config.toml" ".config/herdr/config.toml"
 if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/hypr" ".config/hypr"
   link_path "omarchy/config/omarchy" ".config/omarchy"
-  link_path "omarchy/config/uwsm" ".config/uwsm"
   link_path "omarchy/local/share/keystroke/extensions/hermes" ".local/share/keystroke/extensions/hermes"
   link_path "omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" ".config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf"
   link_path "omarchy/bin/audio-device-restore" ".local/bin/audio-device-restore"
   link_path "omarchy/config/systemd/user/audio-device-restore.service" ".config/systemd/user/audio-device-restore.service"
+  link_path "omarchy/bin/audio-reset" ".local/bin/audio-reset"
+  # Bounce the screen-share portals whenever PipeWire restarts; otherwise they
+  # keep a dead PipeWire connection and the share picker comes up empty.
+  for _portal in xdg-desktop-portal xdg-desktop-portal-hyprland xdg-desktop-portal-gtk; do
+    link_path "omarchy/config/systemd/user/xdg-desktop-portal-pipewire-rebind.conf" \
+      ".config/systemd/user/$_portal.service.d/pipewire-rebind.conf"
+  done
+  unset _portal
   link_path "omarchy/bin/hypr-deck" ".local/bin/hypr-deck"
   link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
   link_path "omarchy/config/mimeapps.list" ".config/mimeapps.list"
+
+  # Keystroke (evindor.keystroke) is an unmodified upstream plugin, so it is
+  # pinned here rather than vendored: it ships its own .git (which
+  # `omarchy plugin update` needs) and a prebuilt matching binary. It lives
+  # inside the linked ~/.config/omarchy tree and is gitignored in this repo.
+  # shell.json places it in the bar and restores omarchy.menu if removed.
+  _ks_dir="$DOTFILES_DIR/omarchy/config/omarchy/plugins/evindor.keystroke"
+  _ks_rev="4ea4eede3bcee10c4f2c984843284cb2dcc8d4b7" # Keystroke 1.4.4
+  if [ ! -e "$_ks_dir" ] && command -v git >/dev/null 2>&1; then
+    if git clone --quiet https://github.com/evindor/keystroke.git "$_ks_dir" &&
+      git -C "$_ks_dir" -c advice.detachedHead=false checkout --quiet "$_ks_rev"; then
+      printf 'ok: cloned evindor.keystroke at %s\n' "${_ks_rev:0:7}"
+    else
+      rm -rf "$_ks_dir"
+      printf 'warn: could not clone evindor.keystroke; run: omarchy plugin add https://github.com/evindor/keystroke\n'
+    fi
+  fi
+  unset _ks_dir _ks_rev
 
   # Omapager owns org.freedesktop.Notifications and retains Omarchy's existing
   # notifications IPC target. Quiet mode stops its toast deck while preserving

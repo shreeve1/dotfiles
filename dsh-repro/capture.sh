@@ -50,7 +50,7 @@ done
 
 # portability rewrite: replace local plugin specs in package.json.
 # Six known local plugins were rewritten to github:shreeve1/* pins in item 1
-# (see docs/specs/k881-reproducible-dsh-install.md). If a future capture sees
+# (see archive/docs/specs/k881-reproducible-dsh-install.md). If a future capture sees
 # a `file:` / `link:` spec, the rewrite here is a no-op and the manifest-portable
 # probe will flag the drift on the next Verify tick.
 #
