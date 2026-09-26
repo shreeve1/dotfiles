@@ -226,6 +226,8 @@ from a two-finger tap.
 
 ### Files
     iptsd-sl7 (pacman)                     /usr/bin/iptsd, udev rule, systemd unit
+    /etc/udev/rules.d/50-iptsd.rules       packaged rule + ACTION=="add|change"
+                                           (shadows the /usr/lib copy; see below)
     /etc/iptsd.d/99-surface-laptop-7-touchpad.conf
         [Device] Vendor=0x045E Product=0x0C9F   (optional; without it a file applies
                                                 to every device - config-loader seeds
@@ -254,6 +256,34 @@ Restart by hand:
     sudo systemctl stop iptsd@dev-hidraw2.service
     sudo udevadm trigger --action=add --sysname-match=hidraw2
 
+### Failure mode — a pacman transaction can kill the pad mid-session
+Observed 2026-09-24 15:39: the AUR claude-desktop upgrade pulled in qemu/edk2-ovmf/virtiofsd,
+and the touchpad lost scrolling and right-click without a reboot. The §2 symptom came back
+exactly, and the cause was not the pad:
+
+    journalctl -b -u iptsd@dev-hidraw2.service
+      15:39:30 Stopping Intel Precise Touch & Stylus Daemon ... Stopped   <- never restarted
+    hyprctl devices          -> only quickspi-hid-045e:0c9f-touchpad (the fallback mouse)
+
+Cause: the packaged `/usr/lib/udev/rules.d/50-iptsd.rules` matches `ACTION=="add"` only, but
+pacman's `35-systemd-udev-reload.hook` -> `/usr/share/libalpm/scripts/systemd-hook
+udev-reload` runs `udevadm trigger -c change` after **any** transaction that installs,
+upgrades or removes `/usr/lib/udev/rules.d/*`. On a change event the add-only rule does not
+re-set `SYSTEMD_WANTS`, the device unit is re-created without a want, and `BindsTo` +
+`StopWhenUnneeded` stop iptsd — with no add event left to start it again. So it stays dead
+until reboot, while the cursor still moves (fallback relative-mouse mode).
+
+Fix: `/etc/udev/rules.d/50-iptsd.rules`, a copy of the packaged rule with
+`ACTION=="add|change"`; the identical filename makes `/etc` win over `/usr/lib`. A systemd
+drop-in `StopWhenUnneeded=no` does **not** work — the stop comes from `BindsTo` on the device
+unit going inactive, not from the want merely being unset (tested, still stopped).
+
+Repro / regression check — fails without the override, passes with it (`verify.sh` runs it):
+
+    sudo udevadm trigger --action=change --sysname-match=hidraw2
+    systemctl is-active iptsd@dev-hidraw2.service      # must stay active
+    sudo /usr/share/libalpm/scripts/systemd-hook udev-reload   # the real hook
+
 ### Tuning knobs (config only; `restore-touchpad.sh` instructions repeat these)
     LiftGraceMs       80 daily; 70 still let rare ghosts through, 110 was fully clean
     ButtonDebounceMs  30; ~45 catches short (32-48 ms) firmware ghost clicks
@@ -263,6 +293,7 @@ Restart by hand:
 ### Rollback
     sudo pacman -R iptsd-sl7
     sudo rm /etc/iptsd.d/99-surface-laptop-7-touchpad.conf /etc/libinput/local-overrides.quirks
+    sudo rm /etc/udev/rules.d/50-iptsd.rules && sudo udevadm control --reload
 
 ---
 

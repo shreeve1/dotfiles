@@ -27,7 +27,9 @@
       "barDisplay": "Icon",
       "showIdleInBar": false,
       "maxTaskLength": 45,
-      "privacyHidePrompts": false
+      "privacyHidePrompts": false,
+      "panelWidth": 760,
+      "panelHeight": 760
     },
     "schema": [
       {
@@ -75,6 +77,26 @@
         "label": "Hide prompt text (screen sharing)",
         "defaultValue": false,
         "description": "Hide agent-supplied task and prompt text in the bar and cards, showing counts, status, repo and workspace only — useful when recording or sharing your screen."
+      },
+      {
+        "key": "panelWidth",
+        "type": "integer",
+        "label": "Popup width",
+        "min": 380,
+        "max": 1400,
+        "step": 20,
+        "defaultValue": 760,
+        "description": "Width of the popup panel (clamped to the screen). Wider shows more of each agent's last response."
+      },
+      {
+        "key": "panelHeight",
+        "type": "integer",
+        "label": "Popup height",
+        "min": 400,
+        "max": 1400,
+        "step": 20,
+        "defaultValue": 760,
+        "description": "Height of the popup panel (clamped to the screen)."
       }
     ]
   }

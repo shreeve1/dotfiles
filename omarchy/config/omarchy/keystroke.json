@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "providers": {
+    "codex": {
+      "enabled": false
+    },
+    "hermes": {
+      "enabled": true,
+      "prefix": "?",
+      "binary": "hermes",
+      "workspace": "",
+      "model": "",
+      "mode": "default"
+    }
+  }
+}
