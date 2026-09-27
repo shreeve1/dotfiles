@@ -1,0 +1,13 @@
+[Unit]
+Description=Prevent suspend while the Dell TB16 dock is connected
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/omarchy-dock-suspend-inhibitor
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
