@@ -149,6 +149,15 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 3. Independent Review After Prewalk
+
+When prewalk handed implementation to a cheaper model, after implementation and verification are complete:
+
+- MUST launch the `reviewer` subagent before yielding.
+- MUST give the reviewer the original user request, the complete todo list, and the verification commands and results. Task subagents have isolated context; never assume the reviewer can see the parent conversation.
+- Instruct the reviewer to inspect the implementation and affected call sites against those acceptance criteria, then return `ACCEPT`, `REWORK`, or `BLOCKED` with severity-ranked findings.
+- MUST resolve confirmed findings and re-run affected verification before yielding.
+
 ---
 
 These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
