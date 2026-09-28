@@ -255,6 +255,21 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   fi
   unset _ks_dir _ks_rev
 
+  # HyprVim: system-wide Vim mode built on Hyprland submaps. Unmodified
+  # upstream, pinned rather than vendored; hypr/hyprland.lua loads it from here.
+  _hv_dir="$HOME/.local/share/hyprvim"
+  _hv_rev="c9a33bf44cfaa9a702e0ac4985a5937efff9b828" # HyprVim v4.0.1
+  if [ ! -e "$_hv_dir" ] && command -v git >/dev/null 2>&1; then
+    if git clone --quiet https://github.com/uhs-robert/hyprvim.git "$_hv_dir" &&
+      git -C "$_hv_dir" -c advice.detachedHead=false checkout --quiet "$_hv_rev"; then
+      printf 'ok: cloned hyprvim at %s\n' "${_hv_rev:0:7}"
+    else
+      rm -rf "$_hv_dir"
+      printf 'warn: could not clone hyprvim; Vim mode (SUPER+U) stays disabled\n'
+    fi
+  fi
+  unset _hv_dir _hv_rev
+
   # Omapager owns org.freedesktop.Notifications and retains Omarchy's existing
   # notifications IPC target. Quiet mode stops its toast deck while preserving
   # the notification history that can be opened from the Omapager bar widget.
