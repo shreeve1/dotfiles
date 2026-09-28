@@ -9,12 +9,11 @@
     "transparent": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
-      "left": [
+      "left": [],
+      "center": [
         {
           "id": "omarchy.workspaces"
-        }
-      ],
-      "center": [
+        },
         {
           "id": "omarchy.indicators"
         },
