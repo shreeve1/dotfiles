@@ -79,7 +79,7 @@ A lesson should be **beautiful**, with clean, readable typography and layout, si
 
 The lesson should be short, and completable very quickly. Learners' working memory is very small, and we need to stay within it. But each lesson should give the user a single tangible win that they can build on. It should be directly tied to the mission, and should be in the user's zone of proximal development.
 
-Open the lesson in the learner-controlled Chrome tab whose relay/CDP context the agent has verified for later review. Verify interaction and storage access before handing over the lesson; do not use a generic CLI opener that may select another browser profile.
+Open the lesson in a shared browser context that both the learner and agent can access. Prefer the platform's built-in browser pane; a browser relay, extension, or CDP connection is also acceptable. Before handing over the lesson, verify that the learner can interact with the page and that the agent can later revisit the same browser profile and inspect the rendered lesson state. Do not use a generic opener that may select another browser profile.
 
 Each lesson should link via HTML anchors to other lessons and reference documents.
 
@@ -104,11 +104,11 @@ A shared stylesheet is the first component every workspace earns. Every lesson m
 
 ### Browser feedback proof of concept
 
-This proof of concept works only in a learner-controlled Chrome tab that the agent can revisit through relay or CDP in the same browser context. Before relying on browser review, verify that the learner can interact with the tab and that the agent can later read its storage. If either condition fails, state that browser review is unavailable; do not pretend responses are visible.
+This proof of concept works only in a shared, learner-interactive browser that the agent can revisit and inspect. Examples include Codex or ChatGPT Desktop's `@Browser`, Claude Code Desktop's Browser pane, and OMP's browser relay/CDP integration. Platform names are examples, not requirements: the required capabilities are learner interaction, a stable browser profile, the same lesson URL and storage origin, page reload with saved state, and agent access to the rendered DOM. Direct browser-storage or CDP access is optional. If any required capability is unavailable, state that browser review is unavailable; do not pretend responses are visible.
 
 Reusable lesson components must:
 
-- Autosave responses, submitted attempts, ordering state, and hint use to browser storage under a stable key namespaced by the absolute subject-workspace path and lesson filename. Restore that state before accepting input whenever the lesson loads or reloads.
+- Autosave responses, submitted attempts, ordering state, and hint use to browser storage under a stable key namespaced by the absolute subject-workspace path and lesson filename. Restore that state before accepting input whenever the lesson loads or reloads. Render the restored responses, attempts, ordering state, and hint use in a semantic, agent-readable review view in the page; do not require direct storage inspection for review.
 - Give immediate feedback only where correctness can be determined in the browser. For objective questions and ordering challenges, allow two unaided attempts before offering an optional hint. Never reveal the complete solution automatically.
 - For written and code responses, confirm that a response was entered and defer substantive critique to the agent.
 - Keep objective answer keys unobfuscated. This is self-study material, not a secure examination system.
@@ -159,7 +159,7 @@ Each activity should use a tight feedback loop. Give immediate browser feedback 
 
 When the learner says they are done:
 
-1. Revisit the lesson in the same relay/CDP browser context and read its saved responses, attempts, ordering state, and hint use.
+1. Revisit the lesson in the same shared browser context and read its agent-readable review view. Direct storage or CDP inspection may supplement this but is not required.
 2. Report what the learner demonstrated correctly, cite evidence from their work, identify the most important gap or misconception, give one focused correction prompt when needed, and state whether they appear ready for the next lesson.
 3. Ask the learner to correct a material misconception before advancing. If they explicitly choose to continue, explain the likely consequence once and follow their decision.
 4. Persist only information that should shape future teaching:
