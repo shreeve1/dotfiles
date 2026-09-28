@@ -5,11 +5,11 @@
     "disable_while_typing": true,
     "middle_button_emulation": false,
     "natural_scroll": false,
-    "scroll_factor": 0.7,
+    "scroll_factor": 0.4,
     "tap_and_drag": true,
     "tap_to_click": true,
     "touchpad_sensitivity": 0.5,
     "trackpoint_middle_scroll": true,
-    "trackpoint_sensitivity": -0.4
+    "trackpoint_sensitivity": -0.3
   }
 }
