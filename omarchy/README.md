@@ -18,6 +18,11 @@ This directory is the portable, user-owned part of the Omarchy desktop setup fro
 
 The installer backs up a conflicting live target with a UTC timestamp before linking it. It leaves the paths untouched on macOS or on Linux systems without Omarchy.
 
+`install.sh` clones HyprVim v4.0.1 to `~/.local/share/hyprvim` (not as an
+Omarchy bar plugin). The Hyprland config loads it with `SUPER+U` to enter
+NORMAL mode; press `SUPER+U` again to exit Vim mode. HyprVim's Which-Key popup
+is disabled because it requires `eww`, which is not installed.
+
 ## Intentional exclusions
 
 - `~/.local/share/omarchy/` is Omarchy runtime/package content, not personal configuration. Reinstall Omarchy rather than syncing it.
