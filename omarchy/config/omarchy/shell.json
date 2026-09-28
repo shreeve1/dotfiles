@@ -9,18 +9,17 @@
     "transparent": false,
     "centerAnchor": "omarchy.clock",
     "layout": {
-      "left": [
+      "left": [],
+      "center": [
         {
           "id": "omarchy.workspaces"
-        }
-      ],
-      "center": [
+        },
         {
           "id": "omarchy.indicators"
         },
         {
           "id": "omarchy.clock",
-          "format": "dddd h:mm AP",
+          "format": "dddd d h:mm AP",
           "formatAlt": "d MMMM 'W'ww yyyy",
           "verticalFormat": "HH\n—\nmm"
         },

@@ -11,11 +11,17 @@ This directory is the portable, user-owned part of the Omarchy desktop setup fro
 | `omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf` | `~/.config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf` | Persistent Bluetooth profile state with automatic A2DP/HFP switching disabled to avoid competing transport acquisition on headsets such as HD65. |
 | `omarchy/bin/audio-device-restore` + `omarchy/config/systemd/user/audio-device-restore.service` | `~/.local/bin/audio-device-restore` + `~/.config/systemd/user/audio-device-restore.service` | Remembers the exact last selected non-Bluetooth input and output, then restores them when the active Bluetooth nodes disappear. |
 | `omarchy/bin/hypr-deck` + `omarchy/config/systemd/user/hypr-deck.service` | `~/.local/bin/hypr-deck` + `~/.config/systemd/user/hypr-deck.service` | Focus-driven overlapping Hyprland deck layout. The unit must be enabled and running after installation. |
+| `omarchy/bin/omarchy-dock-suspend-inhibitor` + `omarchy/config/systemd/user/omarchy-dock-suspend-inhibitor.service` | `~/.local/bin/omarchy-dock-suspend-inhibitor` + `~/.config/systemd/user/omarchy-dock-suspend-inhibitor.service` | Prevents suspend on the ThinkPad while its Dell TB16 dock is connected, avoiding the amdgpu MST resume failure; releases the inhibitor when the dock disconnects. |
 | `omarchy/config/chromium-flags.conf` | `~/.config/chromium-flags.conf` | Wayland/secret-store flags and the Omarchy Chromium extensions. |
 | `omarchy/config/mimeapps.list` | `~/.config/mimeapps.list` | Chrome and HEY default associations. |
 
 
 The installer backs up a conflicting live target with a UTC timestamp before linking it. It leaves the paths untouched on macOS or on Linux systems without Omarchy.
+
+`install.sh` clones HyprVim v4.0.1 to `~/.local/share/hyprvim` (not as an
+Omarchy bar plugin). The Hyprland config loads it with `SUPER+U` to enter
+NORMAL mode; press `SUPER+U` again to exit Vim mode. HyprVim's Which-Key popup
+is disabled because it requires `eww`, which is not installed.
 
 ## Intentional exclusions
 

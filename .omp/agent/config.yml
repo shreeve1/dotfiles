@@ -1,18 +1,18 @@
 setupVersion: 2
 modelRoles:
   vision: cliproxy/claude-sonnet-4-6:high
-  advisor: openrouter/deepseek/deepseek-v4.1-flash:low
-  task: openrouter/deepseek/deepseek-v4.1-flash:low
+  advisor: openai-codex/gpt-5.6-sol:medium
+  task: openai-codex/gpt-6-luna:high
   slow: cliproxy/claude-opus-5-5:medium
   designer: cliproxy/claude-opus-4-8:high
   commit: openrouter/deepseek/deepseek-v4.1-flash:low
   tiny: openrouter/deepseek/deepseek-v4.1-flash:low
-  plan: cliproxy/claude-opus-5-5:medium
-  smol: openrouter/deepseek/deepseek-v4.1-flash:low
-  default: openrouter/deepseek/deepseek-v4.1-flash:low
-  judge: openrouter/deepseek/deepseek-v4.1-flash:high
-  web: openai-codex/gpt-5.6-terra:medium
+  plan: cliproxy/claude-opus-5-5:high
+  smol: openai-codex/gpt-6-luna:high
   memory: openrouter/deepseek/deepseek-v4.1-flash:low
+  judge: openrouter/deepseek/deepseek-v4.1-flash:low
+  image: openai-codex/gpt-image-1
+  default: openai-codex/gpt-5.6-sol:medium
 theme:
   dark: neon80s
 statusLine:
@@ -27,37 +27,53 @@ autolearn:
 astGrep:
   enabled: true
 task:
-  eager: always
-  maxConcurrency: 4
-  enableLsp: false
+  eager: preferred
+  enableLsp: true
   agentModelOverrides:
     scout: "@smol"
     task: "@task"
-    reviewer: deepseek/deepseek-v4-flash:high
+    reviewer: "@slow"
     planner: "@plan"
-  enableEffort: true
+  enableEffort: false
+  prewalk: false
+  maxEffort: low
+  maxConcurrency: 8
+  maxRuntimeMs: 900000
+  maxRecursionDepth: 1
 composer:
-  shape: borderless
-compaction:
-  methodOrder:
-    - remote
-    - snapcompact
-    - shake
-    - soft
-bash:
-  enabled: true
-commands:
-  enableClaudeProject: false
-  enableOpencodeProject: false
+  shape: claude
+  tokenRate: false
 advisor:
-  enabled: true
+  enabled: false
   syncBacklog: "1"
 prewalk:
   enabled: true
-retry:
-  waitForUsageReset: true
-  usageAwareFallback: false
-personality: pragmatic
-defaultThinkingLevel: medium
+compaction:
+  midTurnEnabled: true
+  experimentalContextManagement: false
+  methodOrder:
+    - handoff
+    - remote
+    - snapcompact
+    - soft
+    - shake
+commands:
+  enableClaudeProject: false
+  enableOpencodeProject: false
+images:
+  blockImages: false
+defaultThinkingLevel: low
+steeringMode: one-at-a-time
+doubleEscapeAction: rewind
+contextPromotion:
+  enabled: false
 dev:
-  autoqaConsent: denied
+  autoqaConsent: granted
+tier:
+  advisor: auto
+followUpMode: one-at-a-time
+interruptMode: immediate
+tools:
+  approvalMode: yolo
+browser:
+  relay: true

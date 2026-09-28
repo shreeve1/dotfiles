@@ -22,6 +22,19 @@ require("hypr.bindings")
 require("hypr.looknfeel")
 require("hypr.autostart")
 
+-- HyprVim (cloned + pinned by install.sh). SUPER+U enters NORMAL mode and
+-- exits again; the defaults SUPER+V / SUPER+ESCAPE are Omarchy's paste and
+-- system menu. Which-key needs eww (not installed), so it is off.
+local hyprvim = loadfile(os.getenv("HOME") .. "/.local/share/hyprvim/init.lua")
+if hyprvim then
+  hyprvim().setup({
+    keys = { activate = "U" },
+    applications = { terminal = "ghostty" },
+    which_key = { enabled = false },
+    updates = { channel = "off" },
+  })
+end
+
 -- Toggle config flags dynamically.
 require("default.hypr.toggles")
 

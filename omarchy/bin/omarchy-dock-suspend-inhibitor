@@ -1,0 +1,43 @@
+#!/bin/bash
+
+set -u
+
+identity="$(cat /sys/class/dmi/id/sys_vendor /sys/class/dmi/id/product_version /sys/class/dmi/id/product_name 2>/dev/null)"
+[[ $identity == *"LENOVO ThinkPad T14 Gen 5"* || $identity == *"21MC004YUS"* ]] || exit 0
+
+inhibitor_pid=""
+
+cleanup() {
+  if [[ -n $inhibitor_pid ]]; then
+    kill "$inhibitor_pid" 2>/dev/null || true
+    wait "$inhibitor_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+
+dock_connected() {
+  local device product vendor
+  for device in /sys/bus/usb/devices/*; do
+    [[ -r $device/idVendor && -r $device/idProduct ]] || continue
+    read -r vendor < "$device/idVendor"
+    read -r product < "$device/idProduct"
+    [[ $vendor == 0424 && ( $product == 2807 || $product == 5807 ) ]] && return 0
+  done
+  return 1
+}
+
+while true; do
+  if dock_connected; then
+    if [[ -z $inhibitor_pid ]] || ! kill -0 "$inhibitor_pid" 2>/dev/null; then
+      systemd-inhibit --what=sleep --mode=block --who="Omarchy dock guard" \
+        --why="amdgpu loses the TB16 MST display after s2idle" sleep infinity &
+      inhibitor_pid=$!
+    fi
+  elif [[ -n $inhibitor_pid ]]; then
+    kill "$inhibitor_pid" 2>/dev/null || true
+    wait "$inhibitor_pid" 2>/dev/null || true
+    inhibitor_pid=""
+  fi
+  sleep 2
+done

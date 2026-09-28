@@ -82,15 +82,16 @@ for workspace = 2, 10 do
   })
 end
 
--- On the ThinkPad, the lock's all-monitor DPMS-off knocked the dock's MST link
--- out until a replug; blanking only eDP-1 avoided it. The real dispatcher is
--- kept once in _G so reloads never wrap a previous wrapper.
--- ponytail: drop once an all-monitor DPMS-off keeps the dock's link up.
+-- On the ThinkPad, any DRM DPMS disable destabilizes the dock's MST link:
+-- disabling only eDP-1 still removed the external connector. Ignore the lock
+-- screen's monitor-less disable; the secure lock remains visible on both
+-- displays instead of requiring a dock replug and Hyprland restart.
+-- ponytail: drop once eDP-only DPMS keeps the dock's MST link up.
 _G.omarchy_original_dpms = _G.omarchy_original_dpms or hl.dsp.dpms
 if omarchy_thinkpad then
   hl.dsp.dpms = function(args)
     if type(args) == "table" and args.action == "disable" and args.monitor == nil then
-      return _G.omarchy_original_dpms({ action = "disable", monitor = omarchy_internal_output })
+      return hl.dsp.exec_cmd("true")
     end
     return _G.omarchy_original_dpms(args)
   end
