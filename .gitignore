@@ -231,4 +231,4 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 omarchy/config/omarchy/plugins/evindor.keystroke/
 
 # Personal teaching workspaces
-.teaching/
+/.teaching/
