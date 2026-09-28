@@ -1306,13 +1306,15 @@ Panel {
               }
             }
 
-            // Click entire card to focus pane / window
+            // Keep whole-card focus clicks out of the expanded composer. The
+            // field and its buttons own pointer input until it is collapsed.
             MouseArea {
               id: cardMouseArea
               anchors.fill: parent
-              cursorShape: modelData.can_focus === false ? Qt.ArrowCursor : Qt.PointingHandCursor
-              hoverEnabled: true
-              onClicked: if (modelData.can_focus !== false) root.focusPane(modelData.pane_id)
+              enabled: !agentCard.expanded && modelData.can_focus !== false
+              cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+              hoverEnabled: enabled
+              onClicked: root.focusPane(modelData.pane_id)
             }
           }
         }

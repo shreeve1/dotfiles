@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "id": "io.github.omarchy.touchpad-settings",
-  "name": "Touchpad Settings",
-  "version": "1.0.0",
+  "name": "ThinkPad Input",
+  "version": "1.1.0",
   "author": "Local",
   "license": "MIT",
-  "description": "Adjust generic Hyprland/libinput touchpad settings from the Omarchy bar.",
+  "description": "Tune the T14 Gen 5 ELAN touchpad and TrackPoint from the Omarchy bar.",
   "kinds": ["bar-widget"],
   "entryPoints": {"barWidget": "Panel.qml"},
   "barWidget": {
-    "displayName": "Touchpad Settings",
-    "description": "Sensitivity, scrolling, tapping, and touchpad behavior.",
+    "displayName": "ThinkPad Input",
+    "description": "Per-device touchpad and TrackPoint speed, touchpad behavior, and middle-button scrolling.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right"
