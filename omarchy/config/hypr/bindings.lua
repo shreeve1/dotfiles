@@ -25,14 +25,14 @@
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
--- Use hold-to-talk for both Voxtype shortcuts. Omarchy defaults
+-- Toggle-mode dictation on both Voxtype shortcuts. Omarchy defaults
 -- SUPER+CTRL+X to toggle mode and F9 to push-to-talk, so replace both.
+-- Toggle has no release-timing requirement, so it cannot stick the way
+-- hold-to-talk did (release binds drop the stop if CTRL lifts first).
 hl.unbind("SUPER + CTRL + X")
-o.bind("SUPER + CTRL + X", "Start dictation (push-to-talk)", "voxtype record start")
-o.bind("SUPER + CTRL + X", "Stop dictation (push-to-talk)", "voxtype record stop", { release = true })
+o.bind("SUPER + CTRL + X", "Toggle dictation", "voxtype record toggle")
 hl.unbind("F9")
-o.bind("CTRL + SPACE", "Start dictation (push-to-talk)", "voxtype record start")
-o.bind("CTRL + SPACE", "Stop dictation (push-to-talk)", "voxtype record stop", { release = true })
+o.bind("CTRL + SPACE", "Toggle dictation", "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, "omarchy-shell shell toggle omarchy.emojis")
 
 -- Super+Enter originally used Omarchy's direct terminal launcher. In this VM,
