@@ -66,9 +66,10 @@ another, the cause is almost always a name, not the network:
   (`100.95.31.143`), not this laptop. This laptop is `omarchy-55-243`.
 - **Users differ:** itan8n is `itadmin`, the others `james`. SSH without an
   alias uses the local username and fails on itan8n.
-- **SSH aliases (`~/.ssh/config`, machine-local, not in this repo):** omarchy
-  has `aidev` + `itan8n`; aidev has `itan8n` + `omarchy`; itan8n has **none**.
-  From itan8n, use `ssh james@100.95.230.15` / `ssh james@100.95.55.243`.
+- **SSH aliases (`~/.ssh/config`, machine-local, not in this repo):** each
+  machine has aliases for the other two — omarchy: `aidev`, `itan8n`; aidev:
+  `itan8n`, `omarchy`; itan8n: `aidev`, `omarchy` (added 2026-09-30). A fresh
+  machine needs them added by hand.
 - Check what an alias really resolves to with `ssh -G <alias> | grep -E '^(hostname|user) '`.
 
 ## Non-obvious requirements
