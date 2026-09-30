@@ -27,12 +27,35 @@ require("hypr.autostart")
 -- system menu. Which-key needs eww (not installed), so it is off.
 local hyprvim = loadfile(os.getenv("HOME") .. "/.local/share/hyprvim/init.lua")
 if hyprvim then
-  hyprvim().setup({
-    keys = { activate = "U" },
-    applications = { terminal = "ghostty" },
-    which_key = { enabled = false },
-    updates = { channel = "off" },
-  })
+hyprvim().setup({
+  keys = { activate = "U" },
+  applications = { terminal = "ghostty" },
+  which_key = { enabled = false },
+  updates = { channel = "off" },
+  -- i/a enter INSERT normally (a passthrough submap). Prefer fully exiting
+  -- HyprVim: reset the submap and send the key's effect to the window instead.
+  -- ponytail: only i and a are overridden; I/A/o/O still use built-in INSERT.
+  keymaps = {
+    NORMAL = {
+      {
+        "i",
+        function()
+          require("hyprvim.lib.submap").reset()
+          require("hyprvim.hypr").send("", "i")
+        end,
+        "Insert before cursor (exit HyprVim)",
+      },
+      {
+        "a",
+        function()
+          require("hyprvim.lib.submap").reset()
+          require("hyprvim.hypr").send("", "RIGHT")
+        end,
+        "Insert after cursor (exit HyprVim)",
+      },
+    },
+  },
+})
 end
 
 -- Toggle config flags dynamically.
