@@ -237,6 +237,13 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
   link_path "omarchy/config/mimeapps.list" ".config/mimeapps.list"
 
+  if command -v gsettings >/dev/null 2>&1 &&
+    gsettings list-keys org.gnome.nautilus.preferences >/dev/null 2>&1; then
+    gsettings set org.gnome.nautilus.preferences show-hidden-files true
+    gsettings set org.gnome.nautilus.preferences default-folder-viewer 'list-view'
+    printf 'ok: Nautilus shows hidden items in list view\n'
+  fi
+
   # Keystroke (evindor.keystroke) is an unmodified upstream plugin, so it is
   # pinned here rather than vendored: it ships its own .git (which
   # `omarchy plugin update` needs) and a prebuilt matching binary. It lives
