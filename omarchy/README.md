@@ -15,8 +15,10 @@ This directory is the portable, user-owned part of the Omarchy desktop setup fro
 | `omarchy/config/chromium-flags.conf` | `~/.config/chromium-flags.conf` | Wayland/secret-store flags and the Omarchy Chromium extensions. |
 | `omarchy/config/mimeapps.list` | `~/.config/mimeapps.list` | Chrome and HEY default associations. |
 
-
-The installer backs up a conflicting live target with a UTC timestamp before linking it. It leaves the paths untouched on macOS or on Linux systems without Omarchy.
+The installer also sets Nautilus to show hidden files and folders and use list
+view by default. It backs up a conflicting live target with a UTC timestamp
+before linking it, and leaves these settings and paths untouched on macOS or
+on Linux systems without Omarchy.
 
 `install.sh` clones HyprVim v4.0.1 to `~/.local/share/hyprvim` (not as an
 Omarchy bar plugin). The Hyprland config loads it with `SUPER+U` to enter
