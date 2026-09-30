@@ -176,8 +176,14 @@ Panel {
     backend.refresh()
   }
 
+  // Omarchy's bar API exposes centerHoverRevealSuppressed read-only; writing it
+  // throws, which aborted close() before controller.hide() and left the
+  // full-screen panel layer grabbing all input. Use the setter like the
+  // built-in clock/weather panels.
   function setCenterHoverRevealSuppressed(value) {
-    if (root.bar && "centerHoverRevealSuppressed" in root.bar)
+    if (root.bar && typeof root.bar.setCenterHoverRevealSuppressed === "function")
+      root.bar.setCenterHoverRevealSuppressed(value)
+    else if (root.bar && "centerHoverRevealSuppressed" in root.bar)
       root.bar.centerHoverRevealSuppressed = value
   }
 
