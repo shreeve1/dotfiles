@@ -2,17 +2,17 @@ setupVersion: 2
 modelRoles:
   vision: cliproxy/claude-sonnet-4-6:high
   advisor: openai-codex/gpt-5.6-sol:medium
-  task: openai-codex/gpt-6-luna:high
+  task: zai/glm-5.3-flash:low
   slow: cliproxy/claude-opus-5-5:medium
   designer: cliproxy/claude-opus-4-8:high
   commit: openrouter/deepseek/deepseek-v4.1-flash:low
   tiny: openrouter/deepseek/deepseek-v4.1-flash:low
   plan: cliproxy/claude-opus-5-5:high
-  smol: openai-codex/gpt-6-luna:high
+  smol: zai/glm-5.3-flash:low
   memory: openrouter/deepseek/deepseek-v4.1-flash:low
   judge: openrouter/deepseek/deepseek-v4.1-flash:low
   image: openai-codex/gpt-image-1
-  default: openai-codex/gpt-5.6-sol:medium
+  default: zai/glm-5.3:low
 theme:
   dark: neon80s
 statusLine:
@@ -47,7 +47,7 @@ advisor:
   enabled: false
   syncBacklog: "1"
 prewalk:
-  enabled: true
+  enabled: false
 compaction:
   midTurnEnabled: true
   experimentalContextManagement: false
@@ -77,3 +77,7 @@ tools:
   approvalMode: yolo
 browser:
   relay: true
+codexResets:
+  autoRedeem: "no"
+tui:
+  vimMode: true
