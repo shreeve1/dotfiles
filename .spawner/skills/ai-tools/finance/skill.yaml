@@ -1,0 +1,324 @@
+# Finance AI Tools
+# AI for accounting, budgeting, forecasting, and financial operations
+
+id: finance-ai-tools
+name: Finance AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that transform financial operations.
+  From bookkeeping to forecasting, manage money smarter
+  and make data-driven financial decisions.
+
+business_value:
+  time_saved: "60-80% on bookkeeping and reporting"
+  cost_saved: "$2,000-10,000/month in accounting labor"
+  revenue_impact: "Better forecasts = better decisions"
+  competitive_edge: "Real-time financial visibility"
+
+tools:
+  accounting:
+    - id: quickbooks-ai
+      name: QuickBooks Online
+      website: https://quickbooks.intuit.com
+      best_for: "SMB accounting with AI features"
+      pricing:
+        free_tier: "30-day trial"
+        paid_starts: "$30/month"
+      strengths:
+        - "AI categorization"
+        - "Receipt capture"
+        - "Bank reconciliation"
+        - "Invoicing automation"
+      weaknesses:
+        - "Limited for complex businesses"
+      best_for_stage: "Startups to mid-size"
+
+    - id: xero
+      name: Xero
+      website: https://xero.com
+      best_for: "Cloud accounting with integrations"
+      pricing:
+        paid_starts: "$15/month"
+      strengths:
+        - "Bank feeds"
+        - "Multi-currency"
+        - "Strong integrations"
+        - "Beautiful interface"
+      best_for_stage: "Growing companies"
+
+    - id: freshbooks
+      name: FreshBooks
+      website: https://freshbooks.com
+      best_for: "Service business invoicing"
+      pricing:
+        paid_starts: "$17/month"
+      strengths:
+        - "Time tracking"
+        - "Invoicing"
+        - "Expense capture"
+        - "Client portal"
+      best_for_stage: "Freelancers and agencies"
+
+    - id: sage-intacct
+      name: Sage Intacct
+      website: https://sage.com/intacct
+      best_for: "Enterprise financial management"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Multi-entity"
+        - "Advanced reporting"
+        - "Audit trails"
+        - "AI insights"
+      best_for_stage: "Enterprise"
+
+  budgeting_forecasting:
+    - id: planful
+      name: Planful
+      website: https://planful.com
+      best_for: "FP&A and planning"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI forecasting"
+        - "Scenario modeling"
+        - "Consolidation"
+        - "Reporting"
+      best_for_stage: "Series A+"
+
+    - id: anaplan
+      name: Anaplan
+      website: https://anaplan.com
+      best_for: "Enterprise planning"
+      pricing:
+        paid_starts: "Enterprise"
+      strengths:
+        - "Connected planning"
+        - "AI/ML predictions"
+        - "Hyperscale"
+        - "Collaboration"
+      best_for_stage: "Large enterprise"
+
+    - id: cube
+      name: Cube
+      website: https://cubesoftware.com
+      best_for: "Spreadsheet-native FP&A"
+      pricing:
+        paid_starts: "$1,500/month"
+      strengths:
+        - "Excel/Sheets integration"
+        - "No code setup"
+        - "Multi-source data"
+        - "Fast implementation"
+      best_for_stage: "Mid-market"
+
+    - id: jirav
+      name: Jirav
+      website: https://jirav.com
+      best_for: "Driver-based planning"
+      pricing:
+        paid_starts: "$500/month"
+      strengths:
+        - "Visual dashboards"
+        - "Scenario analysis"
+        - "Workforce planning"
+        - "Quick setup"
+      best_for_stage: "Growing startups"
+
+  expense_management:
+    - id: brex
+      name: Brex
+      website: https://brex.com
+      best_for: "Startup corporate cards"
+      pricing:
+        free_tier: "No annual fee"
+        paid_starts: "$0 (premium $12/user)"
+      strengths:
+        - "AI expense categorization"
+        - "Instant virtual cards"
+        - "Travel rewards"
+        - "Spend controls"
+      best_for_stage: "Startups"
+
+    - id: ramp
+      name: Ramp
+      website: https://ramp.com
+      best_for: "Spend management + savings"
+      pricing:
+        free_tier: "Free tier available"
+      strengths:
+        - "AI savings insights"
+        - "Receipt matching"
+        - "Vendor negotiations"
+        - "Policy automation"
+      best_for_stage: "Growing companies"
+
+    - id: expensify
+      name: Expensify
+      website: https://expensify.com
+      best_for: "Expense reports"
+      pricing:
+        free_tier: "Free for individuals"
+        paid_starts: "$5/user/month"
+      strengths:
+        - "SmartScan receipts"
+        - "Mileage tracking"
+        - "Approval workflows"
+        - "Integrations"
+      best_for_stage: "All sizes"
+
+  ai_finance:
+    - id: runway-finance
+      name: Runway
+      website: https://runway.com
+      best_for: "Financial modeling for startups"
+      pricing:
+        paid_starts: "$500/month"
+      strengths:
+        - "AI-powered forecasts"
+        - "Scenario planning"
+        - "Investor updates"
+        - "Burn rate tracking"
+      best_for_stage: "Funded startups"
+
+    - id: mosaic
+      name: Mosaic
+      website: https://mosaic.tech
+      best_for: "Strategic finance"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Real-time metrics"
+        - "AI insights"
+        - "Board reporting"
+        - "Benchmarking"
+      best_for_stage: "Series A+"
+
+    - id: finmark
+      name: Finmark
+      website: https://finmark.com
+      best_for: "Startup financial planning"
+      pricing:
+        paid_starts: "$50/month"
+      strengths:
+        - "Cash runway"
+        - "Hiring plans"
+        - "Revenue forecasts"
+        - "Simple interface"
+      best_for_stage: "Early stage"
+
+  tax_compliance:
+    - id: avalara
+      name: Avalara
+      website: https://avalara.com
+      best_for: "Sales tax automation"
+      pricing:
+        paid_starts: "$50/month"
+      strengths:
+        - "Tax calculation"
+        - "Filing automation"
+        - "Nexus tracking"
+        - "Exemption management"
+      best_for_stage: "E-commerce, SaaS"
+
+    - id: bench
+      name: Bench
+      website: https://bench.co
+      best_for: "Bookkeeping + tax prep"
+      pricing:
+        paid_starts: "$299/month"
+      strengths:
+        - "AI + human hybrid"
+        - "Tax ready books"
+        - "Financial statements"
+        - "Year-end tax package"
+      best_for_stage: "Small businesses"
+
+decision_guide:
+  by_stage:
+    pre_seed:
+      tools: [quickbooks-ai, brex]
+      budget: "$50-100/month"
+    seed:
+      tools: [quickbooks-ai, ramp, finmark]
+      budget: "$100-500/month"
+    series_a:
+      tools: [xero, ramp, runway-finance, planful]
+      budget: "$500-3000/month"
+    series_b_plus:
+      tools: [sage-intacct, anaplan, mosaic]
+      budget: "$5000+/month"
+
+  by_use_case:
+    basic_accounting: [quickbooks-ai, xero, freshbooks]
+    startup_finance: [runway-finance, finmark, brex]
+    enterprise_fp_a: [planful, anaplan, mosaic]
+    expense_control: [ramp, brex, expensify]
+    tax_compliance: [avalara, bench]
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1 day for basic accounting"
+  time_to_proficiency: "2-4 weeks"
+
+  onboarding_steps:
+    - step: 1
+      action: "Connect bank accounts"
+      time: "15 minutes"
+    - step: 2
+      action: "Set up chart of accounts"
+      time: "1 hour"
+    - step: 3
+      action: "Configure automations"
+      time: "2 hours"
+    - step: 4
+      action: "Build first reports"
+      time: "1 day"
+    - step: 5
+      action: "Create forecasting models"
+      time: "1 week"
+
+patterns:
+  - name: "Real-time close"
+    description: "Continuous close vs month-end crunch"
+    impact: "Faster decisions, less stress"
+
+  - name: "Driver-based planning"
+    description: "Model business drivers, not just numbers"
+    impact: "More accurate forecasts"
+
+  - name: "Automated reconciliation"
+    description: "AI matches transactions automatically"
+    impact: "Hours saved weekly"
+
+anti_patterns:
+  - name: "Spreadsheet dependency"
+    description: "Critical finance in uncontrolled Excel"
+    fix: "Migrate to proper FP&A tools"
+
+  - name: "Month-end fire drill"
+    description: "Last-minute close chaos"
+    fix: "Implement continuous close"
+
+  - name: "Manual data entry"
+    description: "Typing what should be automated"
+    fix: "Use integrations and AI capture"
+
+triggers:
+  - "finance"
+  - "accounting"
+  - "budgeting"
+  - "forecasting"
+  - "FP&A"
+  - "bookkeeping"
+  - "expense management"
+
+tags:
+  - finance
+  - accounting
+  - budgeting
+  - forecasting
+  - fpa
+  - expenses

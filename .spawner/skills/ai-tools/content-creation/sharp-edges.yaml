@@ -1,0 +1,411 @@
+# Content Creation AI Tools - Sharp Edges
+# Gotchas and pitfalls when using AI content generation tools
+
+sharp_edges:
+  # =============================================================================
+  # IMAGE GENERATION GOTCHAS
+  # =============================================================================
+
+  - id: midjourney-prompt-length
+    summary: "Longer prompts don't mean better images"
+    severity: medium
+    tools_affected: [midjourney, flux, dall-e-3]
+    situation: "Writing paragraph-length prompts expecting better results"
+    why: |
+      AI image models have attention limits. After ~60-80 words, later
+      concepts get ignored or muddy. The model can't focus on everything.
+
+      Ironically, shorter focused prompts often produce better results
+      than detailed essays.
+    solution: |
+      1. Focus on 2-3 key concepts maximum
+      2. Use weighted syntax (::2) for important elements
+      3. Put important concepts first
+      4. Use style references instead of describing style
+
+      ```
+      # Bad: Too long, conflicts
+      A beautiful majestic mountain landscape at sunset with
+      golden light streaming through clouds and a small cabin
+      in the foreground with smoke coming from chimney and
+      birds flying overhead and a river running through...
+
+      # Good: Focused
+      Mountain cabin at golden hour, smoke from chimney,
+      dramatic clouds --ar 16:9 --style raw
+      ```
+    symptoms:
+      - "Images ignore parts of prompt"
+      - "Muddy, confused outputs"
+      - "Results don't match description"
+
+  - id: ai-art-copyright
+    summary: "AI-generated images have murky copyright status"
+    severity: high
+    tools_affected: [midjourney, flux, dall-e-3, stable-diffusion, ideogram, leonardo-ai]
+    situation: "Using AI images for commercial products without understanding legal risk"
+    why: |
+      As of 2024, AI-generated images have unclear copyright status:
+      - US Copyright Office says "no copyright for purely AI-generated works"
+      - Human creative input MAY establish some rights
+      - Training data lawsuits ongoing (Getty vs Stability AI)
+      - Different countries have different rules
+
+      Using AI art commercially carries legal uncertainty.
+    solution: |
+      1. Add significant human creative modification
+      2. Don't use for trademark/logo without legal review
+      3. Keep generation records (prompts, seeds)
+      4. Consider stock images for legally-sensitive uses
+      5. Watch for regulatory developments
+      6. Some tools (Adobe Firefly) train only on licensed content
+    symptoms:
+      - "Can't register copyright"
+      - "Legal challenges from artists"
+      - "Platform terms changes"
+
+  - id: style-artist-name-ethics
+    summary: "Using artist names in prompts is ethically contentious"
+    severity: medium
+    tools_affected: [midjourney, stable-diffusion]
+    situation: "Prompting 'in the style of [living artist]'"
+    why: |
+      Using living artists' names to replicate their style:
+      - Potentially devalues their original work
+      - May violate their publicity rights
+      - Contributes to training data concerns
+      - Some platforms now block artist names
+
+      Dead artists (Monet, Van Gogh) are generally safer.
+    solution: |
+      1. Use style descriptors instead of names ("impressionist" not "Monet")
+      2. Use movement/era names ("art nouveau", "bauhaus")
+      3. Describe specific techniques ("heavy impasto", "pointillism")
+      4. Commission original style training on your own art
+    symptoms:
+      - "Prompts rejected by platform"
+      - "Ethical concerns from team"
+      - "Artist community backlash"
+
+  - id: consistent-characters-hard
+    summary: "Character consistency across images is extremely difficult"
+    severity: high
+    tools_affected: [midjourney, dall-e-3, flux]
+    situation: "Need same character in multiple scenes for story/brand"
+    why: |
+      Base image models generate independently. Each image is new.
+      "Same person" means nothing to the model - it will create
+      similar but different faces every time.
+
+      This is a fundamental limitation, not a prompting problem.
+    solution: |
+      1. Use specialized tools (Leonardo AI character training)
+      2. Use reference images with --cref (Midjourney V6)
+      3. Use ControlNet with face reference (Stable Diffusion)
+      4. Accept variation and use for non-hero shots
+      5. Consider 3D character rendering for perfect consistency
+
+      ```
+      # Midjourney V6 character reference
+      /imagine [description] --cref [image_url] --cw 100
+      ```
+    symptoms:
+      - "Character looks different in every image"
+      - "Brand mascot is inconsistent"
+      - "Story visuals don't match"
+
+  # =============================================================================
+  # VIDEO GENERATION GOTCHAS
+  # =============================================================================
+
+  - id: video-credit-burn
+    summary: "AI video credits burn extremely fast"
+    severity: high
+    tools_affected: [runway, pika, kling, luma]
+    situation: "Running out of video credits mid-project"
+    why: |
+      Video generation is expensive:
+      - Each 4-second clip might cost $0.50-2.00
+      - Iterations multiply cost (5 tries = 5x cost)
+      - Upscaling and extending cost extra
+      - Easy to burn $50-100 in an afternoon
+
+      Unlike images (pennies each), video adds up fast.
+    solution: |
+      1. Perfect your image FIRST, then animate it
+      2. Use image-to-video (more predictable than text-to-video)
+      3. Batch your generation sessions
+      4. Start with shorter clips to test
+      5. Budget credits per project upfront
+      6. Use free tiers for experimentation
+    symptoms:
+      - "Hit monthly limit in first week"
+      - "Project stalls waiting for credits"
+      - "Unexpected billing"
+
+  - id: uncanny-valley-avatars
+    summary: "AI avatars can feel creepy to viewers"
+    severity: medium
+    tools_affected: [heygen, synthesia]
+    situation: "Creating talking head videos that make viewers uncomfortable"
+    why: |
+      AI avatars hit uncanny valley:
+      - Micro-expressions are off
+      - Eye movement is unnatural
+      - Lip sync timing slightly wrong
+      - Viewers feel "something's wrong" even if they can't articulate it
+
+      This affects trust and engagement.
+    solution: |
+      1. Use for internal/training videos first (more forgiving audience)
+      2. Keep clips short (under 60 seconds)
+      3. Add b-roll to break up talking head
+      4. Use clearly-stylized avatars (less uncanny)
+      5. Test with real audience before launch
+      6. Consider real human for trust-critical content
+    symptoms:
+      - "Low engagement on avatar videos"
+      - "Viewers comment 'creepy'"
+      - "Lower conversion than human videos"
+
+  - id: video-motion-artifacts
+    summary: "AI video creates impossible physics and artifacts"
+    severity: medium
+    tools_affected: [runway, pika, kling, luma]
+    situation: "Generated video has weird distortions, morphing, or physics breaks"
+    why: |
+      Current AI video models don't understand physics:
+      - Objects morph unexpectedly
+      - Hands/fingers multiply or disappear
+      - Motion can be jittery or unnatural
+      - Scene elements drift or change
+
+      This is the current state of the art, not a user error.
+    solution: |
+      1. Keep camera movement simple (or static)
+      2. Avoid complex hand/finger movements
+      3. Use shorter clips (less time for errors)
+      4. Pick best 2-3 seconds from longer generation
+      5. Use motion brush to control specific areas
+      6. Accept some imperfection for speed/cost benefit
+    symptoms:
+      - "Hands morph weirdly"
+      - "Objects change mid-video"
+      - "Physics feel wrong"
+
+  # =============================================================================
+  # VOICE & AUDIO GOTCHAS
+  # =============================================================================
+
+  - id: voice-clone-consent
+    summary: "Voice cloning without consent is illegal in many places"
+    severity: critical
+    tools_affected: [elevenlabs, murf]
+    situation: "Cloning someone's voice without their permission"
+    why: |
+      Voice cloning laws are tightening rapidly:
+      - California, Tennessee have voice protection laws
+      - EU AI Act has requirements
+      - Platforms require consent verification
+      - Can be used for fraud (family scams)
+
+      Even if technically possible, may be illegal.
+    solution: |
+      1. Only clone voices with explicit written consent
+      2. Keep consent records for compliance
+      3. Use only your own voice or licensed voices
+      4. Check local laws before commercial use
+      5. Use pre-made voices for lower risk
+      6. Add watermarking where possible
+    symptoms:
+      - "Platform account banned"
+      - "Legal demand letters"
+      - "Reputation damage"
+
+  - id: ai-music-licensing
+    summary: "AI-generated music licensing is legally uncertain"
+    severity: high
+    tools_affected: [suno, udio]
+    situation: "Using AI music in commercial projects"
+    why: |
+      AI music has unclear rights:
+      - Generated from copyrighted training data
+      - May inadvertently replicate existing songs
+      - Streaming platforms may reject
+      - Lawsuits ongoing (RIAA vs Suno/Udio)
+
+      Not safe for revenue-generating projects.
+    solution: |
+      1. Use for personal/internal projects only
+      2. For commercial: use licensed stock music
+      3. Check for melody matches before publishing
+      4. Keep platform terms updated (they change)
+      5. Consider tools trained on licensed data
+    symptoms:
+      - "Content ID claims"
+      - "Platform takedowns"
+      - "Can't monetize"
+
+  - id: voice-uncanny-detection
+    summary: "Audiences are increasingly detecting AI voices"
+    severity: medium
+    tools_affected: [elevenlabs, murf]
+    situation: "Using AI voice where authenticity matters"
+    why: |
+      As AI voice becomes common:
+      - Listeners are learning to spot it
+      - Slight unnatural patterns emerge
+      - Trust decreases when detected
+      - Some platforms may require disclosure
+
+      The "just as good as human" claim is becoming less true
+      as audiences develop detection skills.
+    solution: |
+      1. Use AI voice for draft/internal content
+      2. Record human for final/trust-critical content
+      3. Disclose AI voice use proactively
+      4. Focus on high quality over quantity
+      5. Use AI for languages you don't speak (expected)
+    symptoms:
+      - "Comments calling out AI voice"
+      - "Lower engagement than human narration"
+      - "Trust concerns from audience"
+
+  # =============================================================================
+  # WRITING GOTCHAS
+  # =============================================================================
+
+  - id: ai-detection-penalties
+    summary: "AI-detected content may be penalized or rejected"
+    severity: high
+    tools_affected: [claude, chatgpt, jasper, copy-ai]
+    situation: "Publishing AI-written content without human editing"
+    why: |
+      AI detection is everywhere:
+      - Google may downrank AI content (unconfirmed but suspected)
+      - Academic/professional settings flag it
+      - Clients may reject AI-written deliverables
+      - AI has detectable patterns (hedging, certain phrases)
+
+      Even if "allowed", detection can hurt credibility.
+    solution: |
+      1. ALWAYS edit AI output substantially
+      2. Add personal examples and voice
+      3. Rewrite key sections completely
+      4. Don't publish first drafts
+      5. For SEO: add original research/data
+      6. Disclose AI assistance where appropriate
+    symptoms:
+      - "Content flagged by detection tools"
+      - "SEO rankings drop"
+      - "Client rejects work"
+
+  - id: ai-hallucination-facts
+    summary: "AI confidently makes up facts, quotes, and citations"
+    severity: critical
+    tools_affected: [claude, chatgpt, jasper, copy-ai]
+    situation: "Publishing AI-generated facts without verification"
+    why: |
+      LLMs hallucinate:
+      - Invent plausible-sounding statistics
+      - Create fake quotes attributed to real people
+      - Generate non-existent citations
+      - Mix up facts between similar topics
+
+      This can destroy credibility and create legal liability.
+    solution: |
+      1. VERIFY every fact, statistic, and quote
+      2. Don't trust ANY citation without checking
+      3. Use AI for structure, not facts
+      4. Add your own verified research
+      5. For critical content: fact-check with multiple sources
+
+      ```
+      # Bad: Trust AI
+      "Studies show 73% of users prefer..." <- AI made this up
+
+      # Good: Verify
+      Take AI stat -> Google it -> Find real source -> Cite properly
+      ```
+    symptoms:
+      - "Readers call out fake stats"
+      - "Cited paper doesn't exist"
+      - "Quote attributed to wrong person"
+
+  - id: generic-ai-tone
+    summary: "AI content sounds like everyone else's AI content"
+    severity: medium
+    tools_affected: [claude, chatgpt, jasper, copy-ai]
+    situation: "All your content sounds the same as competitors using same tools"
+    why: |
+      Default AI output has recognizable patterns:
+      - "In today's fast-paced world..."
+      - "It's important to note that..."
+      - Lists of exactly 5 points
+      - Hedging language ("can", "may", "might")
+
+      If everyone uses AI defaults, everyone sounds identical.
+    solution: |
+      1. Develop custom prompt templates with your voice
+      2. Train on your existing content
+      3. Inject strong opinions (AI is neutral by default)
+      4. Add personal anecdotes AI can't know
+      5. Use AI for structure, write voice yourself
+      6. Delete AI-isms in editing
+    symptoms:
+      - "Content feels generic"
+      - "Sounds like competitors"
+      - "No distinctive voice"
+
+  # =============================================================================
+  # UNIVERSAL GOTCHAS
+  # =============================================================================
+
+  - id: over-reliance-creativity
+    summary: "AI tools can atrophy your creative skills"
+    severity: medium
+    tools_affected: [all]
+    situation: "Using AI for everything without developing own skills"
+    why: |
+      If you only use AI:
+      - You can't create without it
+      - You can't evaluate quality properly
+      - You become a "prompt monkey"
+      - When AI fails, you're stuck
+
+      AI should augment skills, not replace learning them.
+    solution: |
+      1. Learn fundamentals of each craft
+      2. Use AI for speed, not for avoiding learning
+      3. Practice without AI regularly
+      4. Understand what makes outputs good or bad
+      5. Be able to do basic version manually
+    symptoms:
+      - "Can't work when AI is down"
+      - "Can't explain why something works"
+      - "Quality judgment declining"
+
+  - id: terms-of-service-trap
+    summary: "Platform ToS can change and remove your rights"
+    severity: high
+    tools_affected: [all]
+    situation: "Building business on AI tool that changes terms"
+    why: |
+      AI platforms are new and volatile:
+      - Terms change frequently
+      - Output ownership varies by platform
+      - Training on your inputs may be default
+      - Platforms can shut down or pivot
+
+      Building core business on third-party AI is risky.
+    solution: |
+      1. Read ToS, especially ownership sections
+      2. Keep local copies of important outputs
+      3. Don't build on a single tool
+      4. Check if outputs can be used commercially
+      5. Understand training data policies
+      6. Have backup tools for critical workflows
+    symptoms:
+      - "Terms change, lose output rights"
+      - "Platform shuts down"
+      - "Outputs used to train competitors"

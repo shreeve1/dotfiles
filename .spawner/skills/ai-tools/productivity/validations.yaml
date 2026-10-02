@@ -1,0 +1,33 @@
+# Productivity AI Tools - Validations
+
+validations:
+  - id: meeting-setup
+    name: Meeting Tool Setup
+    type: checklist
+    items:
+      - "Recording consent process defined"
+      - "Auto-join configured correctly"
+      - "Summary delivery settings set"
+      - "Team access configured"
+      - "Custom vocabulary added"
+      - "Integration tested"
+
+  - id: email-workflow
+    name: Email AI Workflow
+    type: checklist
+    items:
+      - "Inbox rules configured"
+      - "AI suggestions reviewed before sending"
+      - "Unsubscribe from noise"
+      - "VIP contacts identified"
+      - "Response templates created"
+
+  - id: calendar-optimization
+    name: Calendar Optimization
+    type: checklist
+    items:
+      - "Focus time blocked"
+      - "Buffer between meetings"
+      - "Personal appointments protected"
+      - "Meeting preferences set"
+      - "Time zone handling configured"

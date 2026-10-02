@@ -1,0 +1,73 @@
+# Finance AI Tools - Validations
+
+validations:
+  - id: accounting-setup
+    name: Accounting Setup Check
+    type: checklist
+    items:
+      - "Chart of accounts configured"
+      - "Bank accounts connected"
+      - "Opening balances entered"
+      - "Tax settings correct"
+      - "User permissions set"
+      - "Backup process established"
+
+  - id: month-end-close
+    name: Month-End Close
+    type: checklist
+    items:
+      - "Bank reconciliation complete"
+      - "Credit card reconciliation done"
+      - "Accounts receivable reviewed"
+      - "Accounts payable reviewed"
+      - "Accruals recorded"
+      - "Revenue recognized correctly"
+      - "Expenses categorized"
+      - "AI categorizations reviewed"
+      - "Intercompany eliminated"
+      - "Financial statements generated"
+
+  - id: forecast-review
+    name: Forecast Quality Check
+    type: checklist
+    items:
+      - "Assumptions documented"
+      - "Multiple scenarios created"
+      - "Historical data validated"
+      - "Driver relationships make sense"
+      - "Sensitivity analysis done"
+      - "Stakeholder review complete"
+
+  - id: expense-compliance
+    name: Expense Compliance
+    type: checklist
+    items:
+      - "Receipts attached"
+      - "Business purpose documented"
+      - "Policy limits respected"
+      - "Approval workflow followed"
+      - "Vendor legitimacy verified"
+      - "Tax deductibility confirmed"
+
+  - id: tax-readiness
+    name: Tax Readiness
+    type: checklist
+    items:
+      - "Nexus tracking current"
+      - "Tax rates updated"
+      - "Exemption certificates filed"
+      - "1099s prepared"
+      - "Sales tax filed"
+      - "Payroll taxes current"
+      - "Documentation retained"
+
+  - id: audit-prep
+    name: Audit Preparation
+    type: checklist
+    items:
+      - "Audit trail complete"
+      - "Supporting documentation accessible"
+      - "Reconciliations saved"
+      - "AI adjustments documented"
+      - "Control documentation ready"
+      - "Prior year comparison prepared"

@@ -1,0 +1,35 @@
+# Marketing AI Tools - Validations
+
+validations:
+  - id: content-checklist
+    name: AI Content Quality
+    type: checklist
+    items:
+      - "Original insights added"
+      - "Facts verified"
+      - "Brand voice consistent"
+      - "SEO score acceptable"
+      - "Not detectable as pure AI"
+      - "Call to action clear"
+
+  - id: campaign-launch
+    name: Campaign Launch
+    type: checklist
+    items:
+      - "Target audience defined"
+      - "Creative tested"
+      - "Tracking configured"
+      - "Budget set correctly"
+      - "Landing pages ready"
+      - "A/B tests planned"
+
+  - id: email-quality
+    name: Email Quality Check
+    type: checklist
+    items:
+      - "Subject line tested"
+      - "Preview text set"
+      - "Personalization working"
+      - "Links verified"
+      - "Unsubscribe working"
+      - "Mobile preview checked"

@@ -1,0 +1,488 @@
+# Development AI Tools
+# AI coding assistants, code generation, and developer productivity
+
+id: development-ai-tools
+name: Development AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that supercharge software development.
+  From code completion to full application generation, write
+  better code faster and automate the tedious parts.
+
+business_value:
+  time_saved: "30-50% faster development"
+  cost_saved: "$5,000-20,000/month per developer"
+  revenue_impact: "Ship features faster, iterate quickly"
+  competitive_edge: "Small team productivity of large team"
+
+# =============================================================================
+# AI CODE ASSISTANTS
+# =============================================================================
+
+tools:
+  code_assistants:
+    - id: github-copilot
+      name: GitHub Copilot
+      website: https://github.com/features/copilot
+      best_for: "Best overall AI coding assistant"
+      pricing:
+        individual: "$10/month"
+        business: "$19/user/month"
+        enterprise: "$39/user/month"
+      strengths:
+        - "Best code completion"
+        - "Great IDE integration"
+        - "Chat in IDE"
+        - "Understands context well"
+        - "Multi-language support"
+      weaknesses:
+        - "Can suggest insecure patterns"
+        - "Subscription required"
+        - "Privacy concerns for some"
+      best_for_stage: "Any developer"
+
+    - id: cursor
+      name: Cursor
+      website: https://cursor.sh
+      best_for: "AI-first code editor"
+      pricing:
+        free_tier: true
+        pro: "$20/month"
+        business: "$40/user/month"
+      strengths:
+        - "Built from ground up for AI"
+        - "Excellent codebase understanding"
+        - "Composer for multi-file edits"
+        - "Fast and responsive"
+        - "VS Code compatible"
+      weaknesses:
+        - "Newer, less mature"
+        - "Learning curve from VS Code"
+      best_for_stage: "Developers wanting AI-native experience"
+
+    - id: claude-code
+      name: Claude Code
+      website: https://claude.ai/code
+      best_for: "AI pair programmer CLI"
+      pricing:
+        via_claude: "$20/month (Pro) or API"
+      strengths:
+        - "Excellent reasoning"
+        - "Full codebase context"
+        - "Terminal-native"
+        - "Multi-file changes"
+        - "Great for complex tasks"
+      weaknesses:
+        - "CLI only (terminal)"
+        - "Needs API or Pro subscription"
+      best_for_stage: "Power users, complex projects"
+
+    - id: codeium
+      name: Codeium
+      website: https://codeium.com
+      best_for: "Free Copilot alternative"
+      pricing:
+        free_tier: true
+        teams: "$12/user/month"
+        enterprise: "Custom"
+      strengths:
+        - "Free for individuals"
+        - "Good completions"
+        - "Many IDE integrations"
+        - "Chat included"
+      weaknesses:
+        - "Not quite Copilot quality"
+        - "Less context awareness"
+      best_for_stage: "Budget-conscious developers"
+
+    - id: tabnine
+      name: Tabnine
+      website: https://tabnine.com
+      best_for: "Privacy-focused AI completion"
+      pricing:
+        free_tier: true
+        pro: "$12/month"
+        enterprise: "Custom"
+      strengths:
+        - "Can run locally"
+        - "Privacy focused"
+        - "Train on your codebase"
+        - "Good enterprise features"
+      weaknesses:
+        - "Less powerful than Copilot"
+        - "Local models limited"
+      best_for_stage: "Privacy-sensitive organizations"
+
+    - id: supermaven
+      name: Supermaven
+      website: https://supermaven.com
+      best_for: "Fast, context-aware completions"
+      pricing:
+        free_tier: true
+        pro: "$10/month"
+      strengths:
+        - "Very fast"
+        - "1M token context"
+        - "Good quality"
+        - "Affordable"
+      weaknesses:
+        - "Newer, less proven"
+        - "Fewer integrations"
+      best_for_stage: "Developers wanting speed"
+
+  # =============================================================================
+  # AI CODING AGENTS
+  # =============================================================================
+
+  coding_agents:
+    - id: devin
+      name: Devin
+      website: https://cognition.ai
+      best_for: "Autonomous AI software engineer"
+      pricing:
+        paid_starts: "$500/month (waitlist)"
+      strengths:
+        - "Full autonomy"
+        - "Complete tasks end-to-end"
+        - "Self-debugging"
+        - "Uses browser, terminal, editor"
+      weaknesses:
+        - "Very expensive"
+        - "Early stage"
+        - "Limited access"
+      best_for_stage: "Well-funded teams exploring agents"
+
+    - id: codegen
+      name: Codegen (various)
+      website: "Multiple providers"
+      best_for: "AI that writes whole features"
+      examples: [lovable, bolt, v0]
+      pricing:
+        varies: "Free to $50+/month"
+      strengths:
+        - "Generate full apps"
+        - "Fast prototyping"
+        - "No coding required"
+      weaknesses:
+        - "Quality varies"
+        - "Hard to customize"
+        - "Technical debt"
+      best_for_stage: "Rapid prototyping, MVPs"
+
+    - id: aider
+      name: Aider
+      website: https://aider.chat
+      best_for: "Open source AI pair programming"
+      pricing:
+        self_hosted: "Free (open source)"
+        api_costs: "Pay for LLM API"
+      strengths:
+        - "Open source"
+        - "Terminal-based"
+        - "Git integration"
+        - "Multi-file edits"
+        - "Bring your own model"
+      weaknesses:
+        - "Requires terminal comfort"
+        - "API costs add up"
+      best_for_stage: "Technical users, open source fans"
+
+  # =============================================================================
+  # CODE REVIEW & QUALITY
+  # =============================================================================
+
+  code_quality:
+    - id: codacy
+      name: Codacy
+      website: https://codacy.com
+      best_for: "Automated code review"
+      pricing:
+        free_tier: true
+        pro: "$15/user/month"
+      strengths:
+        - "AI code review"
+        - "Security scanning"
+        - "Coverage tracking"
+        - "Multiple languages"
+      weaknesses:
+        - "Can be noisy"
+        - "Configuration needed"
+      best_for_stage: "Teams wanting automated review"
+
+    - id: coderabbit
+      name: CodeRabbit
+      website: https://coderabbit.ai
+      best_for: "AI PR reviewer"
+      pricing:
+        free_tier: true
+        pro: "$12/user/month"
+      strengths:
+        - "AI-powered PR summaries"
+        - "Contextual review comments"
+        - "Learns from feedback"
+        - "GitHub/GitLab integration"
+      weaknesses:
+        - "Can miss context"
+        - "Sometimes overly verbose"
+      best_for_stage: "Teams wanting faster PR reviews"
+
+    - id: sourcery
+      name: Sourcery
+      website: https://sourcery.ai
+      best_for: "Python code quality"
+      pricing:
+        free_tier: true
+        pro: "$10/user/month"
+      strengths:
+        - "Real-time refactoring suggestions"
+        - "Python focused"
+        - "IDE integration"
+        - "Code quality metrics"
+      weaknesses:
+        - "Python only"
+        - "Suggestions can be aggressive"
+      best_for_stage: "Python teams"
+
+  # =============================================================================
+  # DOCUMENTATION & TESTING
+  # =============================================================================
+
+  docs_testing:
+    - id: mintlify
+      name: Mintlify
+      website: https://mintlify.com
+      best_for: "AI-powered docs"
+      pricing:
+        free_tier: true
+        startup: "$150/month"
+        growth: "$500/month"
+      strengths:
+        - "Beautiful docs"
+        - "AI writing assistant"
+        - "Search included"
+        - "API reference generation"
+      weaknesses:
+        - "Opinionated design"
+        - "Can get expensive"
+      best_for_stage: "Teams needing professional docs"
+
+    - id: docstring-ai
+      name: Docstring AI
+      website: "Various tools"
+      best_for: "Auto-generate code comments"
+      examples: [copilot, codeium, doxygen-gpt]
+      pricing:
+        included: "In code assistants"
+      strengths:
+        - "Saves documentation time"
+        - "Consistent format"
+        - "Catches undocumented code"
+      weaknesses:
+        - "Can be generic"
+        - "Needs review"
+      best_for_stage: "Any codebase needing docs"
+
+    - id: codiumai
+      name: CodiumAI
+      website: https://codium.ai
+      best_for: "AI test generation"
+      pricing:
+        free_tier: true
+        teams: "$19/user/month"
+      strengths:
+        - "Generate tests automatically"
+        - "Edge case coverage"
+        - "Behavior analysis"
+        - "IDE integration"
+      weaknesses:
+        - "Tests need review"
+        - "May miss business logic"
+      best_for_stage: "Teams wanting better test coverage"
+
+  # =============================================================================
+  # DEVOPS & INFRASTRUCTURE
+  # =============================================================================
+
+  devops:
+    - id: harness-ai
+      name: Harness AI
+      website: https://harness.io
+      best_for: "AI-powered DevOps"
+      pricing:
+        free_tier: true
+        team: "$100/developer/month"
+      strengths:
+        - "AI for CI/CD"
+        - "Error analysis"
+        - "Cost optimization"
+        - "Security scanning"
+      weaknesses:
+        - "Complex platform"
+        - "Enterprise pricing"
+      best_for_stage: "Enterprise DevOps teams"
+
+    - id: pulumi-ai
+      name: Pulumi AI
+      website: https://pulumi.com
+      best_for: "AI infrastructure as code"
+      pricing:
+        free_tier: true
+        team: "$75/user/month"
+      strengths:
+        - "Generate IaC with natural language"
+        - "Multiple clouds"
+        - "Real programming languages"
+        - "Copilot integration"
+      weaknesses:
+        - "Learning curve"
+        - "AI suggestions need review"
+      best_for_stage: "Teams doing IaC"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_use_case:
+    code_completion:
+      primary: github-copilot
+      alternative: cursor
+      budget: codeium
+      privacy: tabnine
+
+    full_ide_experience:
+      primary: cursor
+      alternative: "VS Code + Copilot"
+
+    complex_refactoring:
+      primary: claude-code
+      alternative: aider
+
+    code_review:
+      primary: coderabbit
+      alternative: codacy
+
+    test_generation:
+      primary: codiumai
+
+    documentation:
+      primary: mintlify
+
+  by_stage:
+    individual:
+      recommended: [github-copilot, cursor]
+      reason: "Best productivity boost"
+      total_cost: "$10-20/month"
+
+    startup:
+      recommended: [cursor, coderabbit, mintlify]
+      reason: "Full AI development stack"
+      total_cost: "$50-200/month"
+
+    scale_up:
+      recommended: [github-copilot-business, coderabbit, codiumai]
+      reason: "Team features, quality gates"
+      total_cost: "$40-60/user/month"
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: low-to-medium
+  time_to_value: "10 minutes"
+  time_to_proficiency: "1 week"
+  time_to_mastery: "1 month"
+
+  onboarding_steps:
+    - step: 1
+      action: "Install code assistant"
+      details: "Copilot or Cursor"
+      time: "10 min"
+
+    - step: 2
+      action: "Learn Tab completion"
+      details: "Accept, reject, partial accept"
+      time: "1 hour"
+
+    - step: 3
+      action: "Use inline chat"
+      details: "Ask questions about code"
+      time: "1 hour"
+
+    - step: 4
+      action: "Generate from comments"
+      details: "Write intent, let AI code"
+      time: "2 hours"
+
+    - step: 5
+      action: "Multi-file operations"
+      details: "Composer, Claude Code, Aider"
+      time: "Ongoing"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Comment-driven development"
+    description: "Write what you want, let AI implement"
+    example: "// Function to parse CSV and return JSON"
+    impact: "Faster coding, clearer intent"
+
+  - name: "Test-first with AI"
+    description: "Write test cases, let AI implement"
+    example: "Describe expected behavior, AI writes implementation"
+    impact: "Better test coverage, TDD made easier"
+
+  - name: "Code review with AI"
+    description: "Have AI review before human review"
+    example: "CodeRabbit first pass, human for architecture"
+    impact: "Faster reviews, catch more issues"
+
+  - name: "Refactor with AI"
+    description: "Explain desired refactor, AI executes"
+    example: "Convert this class to use dependency injection"
+    impact: "Faster refactoring, fewer mistakes"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Blindly accepting suggestions"
+    description: "Tabbing through without reading"
+    impact: "Bugs, security issues, tech debt"
+    fix: "Always review AI suggestions"
+
+  - name: "AI for architecture"
+    description: "Letting AI decide system design"
+    impact: "Inconsistent, over-engineered systems"
+    fix: "Humans decide architecture, AI implements"
+
+  - name: "Skipping understanding"
+    description: "Using AI code you don't understand"
+    impact: "Can't debug or maintain"
+    fix: "Understand before using"
+
+  - name: "Over-prompting"
+    description: "Writing paragraphs for simple tasks"
+    impact: "Slower than just writing code"
+    fix: "Quick prompts for quick tasks"
+
+triggers:
+  - "AI coding"
+  - "code assistant"
+  - "Copilot"
+  - "Cursor"
+  - "code generation"
+  - "AI developer tools"
+
+tags:
+  - development
+  - coding
+  - ai-assistant
+  - productivity
+  - code-generation

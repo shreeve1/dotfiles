@@ -1,0 +1,41 @@
+# Research AI Tools - Validations
+
+validations:
+  - id: research-quality-checklist
+    name: Research Quality Check
+    type: checklist
+    description: "Verify research quality before using"
+    items:
+      - "Key claims verified from multiple sources"
+      - "Primary sources consulted where important"
+      - "Source credibility evaluated"
+      - "Recency of information verified"
+      - "Limitations and caveats noted"
+      - "Counterarguments considered"
+      - "Methodology reviewed (for studies)"
+      - "Author credentials checked"
+
+  - id: source-evaluation
+    name: Source Evaluation Criteria
+    type: checklist
+    description: "Evaluate source quality"
+    items:
+      - "Author expertise established"
+      - "Publication reputable"
+      - "Date recent enough"
+      - "Methodology transparent"
+      - "Citations provided"
+      - "Conflicts of interest disclosed"
+      - "Primary vs secondary source understood"
+
+  - id: fact-check-workflow
+    name: Fact Checking Workflow
+    type: checklist
+    description: "Verify important claims"
+    items:
+      - "Claim isolated and clearly stated"
+      - "Original source located"
+      - "Cross-referenced with independent source"
+      - "Expert sources consulted"
+      - "Statistical claims verified"
+      - "Context preserved"

@@ -1,0 +1,526 @@
+# Content Creation AI Tools
+# Image, video, audio, and writing generation
+
+id: content-creation-ai-tools
+name: Content Creation AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that generate unlimited content at scale.
+  From stunning images to professional videos, voiceovers to
+  compelling copy - create content that used to require entire teams.
+
+business_value:
+  time_saved: "20-40 hours/week on content creation"
+  cost_saved: "$10,000-50,000/month vs agencies/freelancers"
+  revenue_impact: "10x content output = 10x marketing reach"
+  competitive_edge: "Create content faster than competitors can hire"
+
+# =============================================================================
+# IMAGE GENERATION
+# =============================================================================
+
+tools:
+  image_generation:
+    - id: midjourney
+      name: Midjourney
+      website: https://midjourney.com
+      best_for: "Highest quality artistic images"
+      pricing:
+        free_tier: false
+        basic: "$10/month (200 images)"
+        standard: "$30/month (15hr fast)"
+        pro: "$60/month (30hr fast)"
+      strengths:
+        - "Best-in-class image quality"
+        - "Incredible artistic styles"
+        - "Active community and inspiration"
+        - "V6 handles text reasonably well"
+      weaknesses:
+        - "Discord-only interface"
+        - "No API access"
+        - "Learning curve for prompts"
+      best_for_stage: "Anyone needing marketing visuals"
+
+    - id: flux
+      name: Flux (by Black Forest Labs)
+      website: https://blackforestlabs.ai
+      best_for: "API access, open source option"
+      pricing:
+        free_tier: true
+        api: "Pay per image"
+        self_hosted: true
+      strengths:
+        - "API access for automation"
+        - "Can self-host (Flux.1 open)"
+        - "Excellent photorealism"
+        - "Fast generation"
+      weaknesses:
+        - "Less artistic than Midjourney"
+        - "Smaller community"
+      best_for_stage: "Developers needing programmatic access"
+
+    - id: dall-e-3
+      name: DALL-E 3
+      website: https://openai.com/dall-e-3
+      best_for: "ChatGPT integration, text in images"
+      pricing:
+        via_chatgpt: "$20/month (ChatGPT Plus)"
+        api: "$0.04-0.12/image"
+      strengths:
+        - "Best text rendering in images"
+        - "Integrated with ChatGPT"
+        - "Good prompt understanding"
+        - "API available"
+      weaknesses:
+        - "Less artistic control"
+        - "Safety filters can be restrictive"
+      best_for_stage: "ChatGPT users, text-heavy graphics"
+
+    - id: ideogram
+      name: Ideogram
+      website: https://ideogram.ai
+      best_for: "Text and logos in images"
+      pricing:
+        free_tier: true
+        basic: "$8/month"
+        plus: "$20/month"
+      strengths:
+        - "Best-in-class text generation"
+        - "Great for logos and posters"
+        - "Free tier available"
+      weaknesses:
+        - "Less artistic range"
+        - "Newer, less mature"
+      best_for_stage: "Logo design, text-heavy content"
+
+    - id: leonardo-ai
+      name: Leonardo AI
+      website: https://leonardo.ai
+      best_for: "Game assets, consistent characters"
+      pricing:
+        free_tier: true
+        basic: "$12/month"
+        pro: "$30/month"
+      strengths:
+        - "Train custom models"
+        - "Great for game assets"
+        - "Character consistency"
+        - "Good free tier"
+      weaknesses:
+        - "Can be overwhelming"
+        - "Quality varies by model"
+      best_for_stage: "Game devs, character-heavy content"
+
+    - id: stable-diffusion
+      name: Stable Diffusion
+      website: https://stability.ai
+      best_for: "Local/private, unlimited generation"
+      pricing:
+        free_tier: true
+        self_hosted: true
+        cloud: "Various providers"
+      strengths:
+        - "Completely open source"
+        - "Run locally (privacy)"
+        - "Unlimited free generations"
+        - "Massive model ecosystem"
+      weaknesses:
+        - "Requires technical setup"
+        - "GPU needed for local"
+        - "Quality varies by model"
+      best_for_stage: "Technical teams, high volume, privacy needs"
+
+  # =============================================================================
+  # VIDEO GENERATION
+  # =============================================================================
+
+  video_generation:
+    - id: runway
+      name: Runway Gen-3
+      website: https://runway.ml
+      best_for: "Best overall video quality"
+      pricing:
+        free_tier: true
+        standard: "$12/month"
+        pro: "$28/month"
+        unlimited: "$76/month"
+      strengths:
+        - "Highest quality AI video"
+        - "Image-to-video excellent"
+        - "Good motion control"
+        - "Professional-grade output"
+      weaknesses:
+        - "Expensive at scale"
+        - "Credits burn fast"
+      best_for_stage: "Marketing teams, ad creative"
+
+    - id: kling
+      name: Kling AI
+      website: https://klingai.com
+      best_for: "Realistic motion, longer videos"
+      pricing:
+        free_tier: true
+        pro: "$5-70/month"
+      strengths:
+        - "Very realistic motion"
+        - "Longer video clips (up to 2min)"
+        - "Good value"
+      weaknesses:
+        - "Chinese company (data concerns)"
+        - "Interface can be clunky"
+      best_for_stage: "Budget-conscious, longer clips needed"
+
+    - id: pika
+      name: Pika
+      website: https://pika.art
+      best_for: "Quick iterations, stylized video"
+      pricing:
+        free_tier: true
+        basic: "$8/month"
+        standard: "$28/month"
+        unlimited: "$58/month"
+      strengths:
+        - "Fast generation"
+        - "Good for stylized content"
+        - "Easy to use"
+        - "Lip sync feature"
+      weaknesses:
+        - "Less photorealistic"
+        - "Shorter clips"
+      best_for_stage: "Social media content, quick turnaround"
+
+    - id: heygen
+      name: HeyGen
+      website: https://heygen.com
+      best_for: "Talking head avatars"
+      pricing:
+        free_tier: true
+        creator: "$29/month"
+        business: "$89/month"
+      strengths:
+        - "Best avatar quality"
+        - "Clone your own voice/face"
+        - "Multi-language lip sync"
+        - "Great for training videos"
+      weaknesses:
+        - "Limited to talking heads"
+        - "Can feel uncanny"
+      best_for_stage: "Training videos, personalized outreach"
+
+    - id: synthesia
+      name: Synthesia
+      website: https://synthesia.io
+      best_for: "Enterprise training videos"
+      pricing:
+        starter: "$29/month"
+        creator: "$89/month"
+        enterprise: "Custom"
+      strengths:
+        - "Professional avatars"
+        - "140+ languages"
+        - "Enterprise features"
+        - "Templates library"
+      weaknesses:
+        - "Expensive"
+        - "Less creative flexibility"
+      best_for_stage: "Enterprise L&D teams"
+
+    - id: luma
+      name: Luma Dream Machine
+      website: https://lumalabs.ai/dream-machine
+      best_for: "Dreamy, artistic video"
+      pricing:
+        free_tier: true
+        standard: "$30/month"
+      strengths:
+        - "Unique aesthetic"
+        - "Good free tier"
+        - "Fast generation"
+      weaknesses:
+        - "Less realistic"
+        - "Limited control"
+      best_for_stage: "Creative, artistic content"
+
+  # =============================================================================
+  # AUDIO & VOICE
+  # =============================================================================
+
+  audio_voice:
+    - id: elevenlabs
+      name: ElevenLabs
+      website: https://elevenlabs.io
+      best_for: "Best voice quality, cloning"
+      pricing:
+        free_tier: true
+        starter: "$5/month"
+        creator: "$22/month"
+        pro: "$99/month"
+      strengths:
+        - "Most realistic voices"
+        - "Excellent voice cloning"
+        - "Many languages"
+        - "Great API"
+      weaknesses:
+        - "Can get expensive"
+        - "Clone requires consent"
+      best_for_stage: "Anyone needing voiceovers"
+
+    - id: murf
+      name: Murf
+      website: https://murf.ai
+      best_for: "Business voiceovers"
+      pricing:
+        free_tier: true
+        basic: "$23/month"
+        pro: "$59/month"
+        enterprise: "$79/month"
+      strengths:
+        - "Professional voices"
+        - "Good for corporate"
+        - "Easy editing"
+      weaknesses:
+        - "Less natural than ElevenLabs"
+        - "Fewer languages"
+      best_for_stage: "Corporate videos, training"
+
+    - id: suno
+      name: Suno
+      website: https://suno.com
+      best_for: "AI music generation"
+      pricing:
+        free_tier: true
+        pro: "$10/month"
+        premier: "$30/month"
+      strengths:
+        - "Full songs from text"
+        - "Multiple genres"
+        - "Good quality"
+      weaknesses:
+        - "Copyright unclear"
+        - "Hit or miss quality"
+      best_for_stage: "Background music, jingles"
+
+    - id: udio
+      name: Udio
+      website: https://udio.com
+      best_for: "High-quality AI music"
+      pricing:
+        free_tier: true
+        standard: "$10/month"
+        pro: "$30/month"
+      strengths:
+        - "Higher quality than Suno"
+        - "Better lyrics"
+        - "More control"
+      weaknesses:
+        - "Similar copyright concerns"
+      best_for_stage: "Music production, demos"
+
+  # =============================================================================
+  # WRITING & COPY
+  # =============================================================================
+
+  writing:
+    - id: claude
+      name: Claude
+      website: https://claude.ai
+      best_for: "Long-form, nuanced writing"
+      pricing:
+        free_tier: true
+        pro: "$20/month"
+        api: "Pay per token"
+      strengths:
+        - "Best for long-form content"
+        - "Nuanced, thoughtful writing"
+        - "200K context window"
+        - "Great for editing/feedback"
+      weaknesses:
+        - "Can be verbose"
+        - "Sometimes overly cautious"
+      best_for_stage: "Serious content creation"
+
+    - id: chatgpt
+      name: ChatGPT
+      website: https://chat.openai.com
+      best_for: "Versatile, all-purpose"
+      pricing:
+        free_tier: true
+        plus: "$20/month"
+        api: "Pay per token"
+      strengths:
+        - "Most versatile"
+        - "Great plugin ecosystem"
+        - "DALL-E integration"
+        - "Voice mode"
+      weaknesses:
+        - "Can be generic"
+        - "Context limits"
+      best_for_stage: "General purpose"
+
+    - id: jasper
+      name: Jasper
+      website: https://jasper.ai
+      best_for: "Marketing team workflows"
+      pricing:
+        creator: "$49/month"
+        pro: "$69/month"
+        business: "$125/month"
+      strengths:
+        - "Marketing templates"
+        - "Brand voice training"
+        - "Team collaboration"
+        - "Campaign workflows"
+      weaknesses:
+        - "Expensive"
+        - "Generic outputs without training"
+      best_for_stage: "Marketing teams with budget"
+
+    - id: copy-ai
+      name: Copy.ai
+      website: https://copy.ai
+      best_for: "Quick marketing copy"
+      pricing:
+        free_tier: true
+        pro: "$49/month"
+        team: "$249/month"
+      strengths:
+        - "Fast copy generation"
+        - "Good templates"
+        - "Workflow automation"
+      weaknesses:
+        - "Quality varies"
+        - "Needs editing"
+      best_for_stage: "Quick copy needs"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  image:
+    quality_first: midjourney
+    api_needed: flux
+    text_in_image: ideogram
+    budget_conscious: leonardo-ai
+    privacy_required: stable-diffusion
+
+  video:
+    quality_first: runway
+    talking_heads: heygen
+    training_videos: synthesia
+    budget_conscious: kling
+    quick_social: pika
+
+  audio:
+    voice_quality: elevenlabs
+    corporate: murf
+    music: suno
+
+  writing:
+    long_form: claude
+    versatile: chatgpt
+    marketing_team: jasper
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1-2 hours"
+  time_to_proficiency: "1 week"
+  time_to_mastery: "1-2 months"
+
+  onboarding_steps:
+    - step: 1
+      action: "Pick one tool per content type you need"
+      time: "30 min"
+
+    - step: 2
+      action: "Learn basic prompting"
+      time: "2 hours"
+      resources:
+        - "Tool documentation"
+        - "Community galleries for inspiration"
+
+    - step: 3
+      action: "Create your first content piece"
+      time: "1 hour"
+
+    - step: 4
+      action: "Build prompt templates for your use cases"
+      time: "2 hours"
+
+    - step: 5
+      action: "Establish content workflow"
+      time: "1 hour"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Start with reference images"
+    applies_to: [midjourney, flux, runway]
+    description: "Use existing images to guide style and composition"
+    example: "Upload brand images as style reference"
+
+  - name: "Iterate, don't perfect first try"
+    applies_to: [all]
+    description: "Generate multiple variations, pick best, refine"
+    example: "Generate 4 options, vary the best one, repeat"
+
+  - name: "Build prompt templates"
+    applies_to: [all]
+    description: "Create reusable prompt structures for consistency"
+    example: "Brand photo template: [subject], brand colors, professional lighting, --ar 16:9"
+
+  - name: "Batch similar content"
+    applies_to: [all]
+    description: "Create all similar content at once for efficiency"
+    example: "Generate all social posts for the month in one session"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Prompt stuffing"
+    description: "Adding too many conflicting concepts"
+    impact: "Confused, muddy outputs"
+    fix: "Focus on 2-3 key elements"
+
+  - name: "No iteration"
+    description: "Accepting first output"
+    impact: "Mediocre results"
+    fix: "Always generate variations and refine"
+
+  - name: "Ignoring aspect ratios"
+    description: "Using default for everything"
+    impact: "Content doesn't fit platforms"
+    fix: "Match aspect ratio to final use"
+
+  - name: "Over-relying on AI"
+    description: "Publishing without human review"
+    impact: "Brand inconsistency, errors"
+    fix: "Always human review before publish"
+
+triggers:
+  - "need images"
+  - "create video"
+  - "generate content"
+  - "voiceover"
+  - "marketing visuals"
+  - "social media content"
+  - "ad creative"
+
+tags:
+  - content
+  - images
+  - video
+  - audio
+  - writing
+  - marketing
+  - creative

@@ -1,0 +1,34 @@
+# HR & Recruiting AI Tools - Sharp Edges
+
+sharp_edges:
+  - id: ai-bias-hiring
+    summary: "AI can perpetuate hiring bias"
+    severity: critical
+    tools_affected: [all]
+    situation: "AI trained on biased historical data"
+    why: "Past hiring patterns embedded in AI"
+    solution: "Audit for bias, diverse training data, human oversight"
+
+  - id: candidate-experience
+    summary: "AI can dehumanize candidate experience"
+    severity: high
+    tools_affected: [hirevu, chatbots]
+    situation: "Candidates feel rejected by robots"
+    why: "Automation without personalization"
+    solution: "Personal touch at key moments, clear communication"
+
+  - id: legal-compliance
+    summary: "AI hiring faces regulatory scrutiny"
+    severity: critical
+    tools_affected: [all]
+    situation: "Laws like NYC Local Law 144"
+    why: "AI employment decisions being regulated"
+    solution: "Audit requirements, bias testing, compliance checks"
+
+  - id: data-privacy
+    summary: "Candidate data requires careful handling"
+    severity: high
+    tools_affected: [all]
+    situation: "GDPR, CCPA apply to candidate data"
+    why: "Personal data in recruitment systems"
+    solution: "Data retention policies, consent management"

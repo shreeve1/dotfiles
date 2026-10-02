@@ -1,0 +1,516 @@
+# Automation AI Tools
+# Workflow automation, no-code/low-code, and process automation
+
+id: automation-ai-tools
+name: Automation AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that automate repetitive work and connect
+  your tools. From simple Zapier integrations to complex AI-powered
+  workflows, reclaim hours every week.
+
+business_value:
+  time_saved: "20-40 hours/week on manual processes"
+  cost_saved: "$5,000-20,000/month vs manual labor"
+  revenue_impact: "Faster execution, fewer errors, scale without hiring"
+  competitive_edge: "Do more with less, respond faster"
+
+# =============================================================================
+# INTEGRATION PLATFORMS
+# =============================================================================
+
+tools:
+  integration_platforms:
+    - id: zapier
+      name: Zapier
+      website: https://zapier.com
+      best_for: "Simple no-code automation"
+      pricing:
+        free_tier: true
+        free_limits: "100 tasks/month, 5 zaps"
+        starter: "$19.99/month (750 tasks)"
+        professional: "$49/month (2K tasks)"
+        team: "$69/month (unlimited)"
+      strengths:
+        - "6,000+ app integrations"
+        - "Easiest to use"
+        - "AI features improving"
+        - "Most reliable"
+        - "Great documentation"
+      weaknesses:
+        - "Gets expensive at volume"
+        - "Limited for complex logic"
+        - "Per-task pricing adds up"
+      best_for_stage: "Any stage, simple automations"
+
+    - id: make
+      name: Make (formerly Integromat)
+      website: https://make.com
+      best_for: "Complex visual workflows"
+      pricing:
+        free_tier: true
+        free_limits: "1,000 ops/month"
+        core: "$9/month (10K ops)"
+        pro: "$16/month (10K ops + features)"
+        teams: "$29/month"
+      strengths:
+        - "Visual builder is powerful"
+        - "Better pricing than Zapier"
+        - "Complex logic support"
+        - "Data transformation"
+        - "API flexibility"
+      weaknesses:
+        - "Steeper learning curve"
+        - "Can be confusing at first"
+      best_for_stage: "Technical teams, complex workflows"
+
+    - id: n8n
+      name: n8n
+      website: https://n8n.io
+      best_for: "Self-hosted, developer-friendly"
+      pricing:
+        self_hosted: "Free (open source)"
+        cloud_starter: "$20/month"
+        cloud_pro: "$50/month"
+      strengths:
+        - "Open source, self-hostable"
+        - "Developer-friendly"
+        - "No per-execution pricing"
+        - "Code when needed"
+        - "AI integrations built-in"
+      weaknesses:
+        - "Fewer integrations than Zapier"
+        - "Requires technical skills"
+      best_for_stage: "Technical teams, privacy-conscious"
+
+    - id: tray-io
+      name: Tray.io
+      website: https://tray.io
+      best_for: "Enterprise automation"
+      pricing:
+        paid_starts: "Custom (typically $5K+/month)"
+      strengths:
+        - "Enterprise-grade"
+        - "Complex multi-step workflows"
+        - "Strong governance"
+        - "API-first"
+        - "AI Merlin features"
+      weaknesses:
+        - "Very expensive"
+        - "Enterprise sales cycle"
+      best_for_stage: "Enterprise, complex requirements"
+
+    - id: workato
+      name: Workato
+      website: https://workato.com
+      best_for: "Enterprise iPaaS"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Best enterprise platform"
+        - "AI-powered recipes"
+        - "Strong security/compliance"
+        - "Advanced error handling"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Complex for simple needs"
+      best_for_stage: "Large enterprises"
+
+  # =============================================================================
+  # AI AUTOMATION AGENTS
+  # =============================================================================
+
+  ai_agents:
+    - id: bardeen
+      name: Bardeen
+      website: https://bardeen.ai
+      best_for: "Browser automation with AI"
+      pricing:
+        free_tier: true
+        professional: "$10/month"
+        business: "$15/user/month"
+      strengths:
+        - "AI-powered web scraping"
+        - "Browser extension"
+        - "No-code automation"
+        - "Integrates with apps"
+        - "Magic Box AI builder"
+      weaknesses:
+        - "Browser-focused"
+        - "Can break with site changes"
+      best_for_stage: "Individual automation needs"
+
+    - id: browse-ai
+      name: Browse AI
+      website: https://browse.ai
+      best_for: "Web scraping automation"
+      pricing:
+        free_tier: true
+        starter: "$39/month"
+        professional: "$99/month"
+      strengths:
+        - "No-code web scraping"
+        - "Monitoring changes"
+        - "Scheduled extraction"
+        - "Anti-bot handling"
+      weaknesses:
+        - "Only for scraping"
+        - "Complex sites can break"
+      best_for_stage: "Data collection needs"
+
+    - id: clay
+      name: Clay
+      website: https://clay.com
+      best_for: "GTM data automation"
+      pricing:
+        free_tier: true
+        starter: "$149/month"
+        explorer: "$349/month"
+        pro: "$800/month"
+      strengths:
+        - "50+ data sources"
+        - "AI enrichment"
+        - "Waterfall logic"
+        - "GTM-focused"
+        - "Powerful formulas"
+      weaknesses:
+        - "GTM specific"
+        - "Credit costs"
+      best_for_stage: "Sales/marketing teams"
+
+    - id: relevance-ai
+      name: Relevance AI
+      website: https://relevanceai.com
+      best_for: "Custom AI agents"
+      pricing:
+        free_tier: true
+        pro: "$19/month"
+        team: "$199/month"
+      strengths:
+        - "Build custom AI agents"
+        - "No-code AI workflows"
+        - "Template library"
+        - "Deploy anywhere"
+      weaknesses:
+        - "Newer platform"
+        - "Agent quality varies"
+      best_for_stage: "Custom AI automation needs"
+
+    - id: lindy
+      name: Lindy
+      website: https://lindy.ai
+      best_for: "Personal AI employee"
+      pricing:
+        free_tier: true
+        pro: "$49/month"
+        business: "Custom"
+      strengths:
+        - "AI executive assistant"
+        - "Email management"
+        - "Scheduling"
+        - "Research tasks"
+      weaknesses:
+        - "Limited to specific tasks"
+        - "Needs training time"
+      best_for_stage: "Busy executives, founders"
+
+  # =============================================================================
+  # RPA & DESKTOP AUTOMATION
+  # =============================================================================
+
+  rpa:
+    - id: uipath
+      name: UiPath
+      website: https://uipath.com
+      best_for: "Enterprise RPA"
+      pricing:
+        free_tier: true
+        community: "Free for small use"
+        enterprise: "Custom"
+      strengths:
+        - "Industry leader"
+        - "Desktop automation"
+        - "AI capabilities"
+        - "Enterprise security"
+        - "Huge community"
+      weaknesses:
+        - "Complex to set up"
+        - "Expensive at scale"
+        - "Needs IT involvement"
+      best_for_stage: "Enterprise legacy systems"
+
+    - id: power-automate
+      name: Power Automate
+      website: https://powerautomate.microsoft.com
+      best_for: "Microsoft ecosystem automation"
+      pricing:
+        per_user: "$15/user/month"
+        per_flow: "$500/month (5 flows)"
+        desktop: "$40/user/month"
+      strengths:
+        - "Deep Microsoft integration"
+        - "Desktop + cloud flows"
+        - "AI Builder included"
+        - "Copilot assistance"
+      weaknesses:
+        - "Best in Microsoft stack"
+        - "Can be complex"
+      best_for_stage: "Microsoft-heavy organizations"
+
+    - id: automator
+      name: Apple Automator/Shortcuts
+      website: https://support.apple.com/guide/automator
+      best_for: "Mac desktop automation"
+      pricing:
+        free_tier: true
+      strengths:
+        - "Free with macOS"
+        - "Deep system integration"
+        - "Shortcuts on iOS"
+        - "Quick actions"
+      weaknesses:
+        - "Mac/iOS only"
+        - "Limited compared to full RPA"
+      best_for_stage: "Personal Mac automation"
+
+  # =============================================================================
+  # AI WORKFLOW BUILDERS
+  # =============================================================================
+
+  ai_builders:
+    - id: zapier-ai
+      name: Zapier AI Actions
+      website: https://zapier.com/ai
+      best_for: "AI in existing Zaps"
+      pricing:
+        included: "With Zapier subscription"
+      strengths:
+        - "GPT in your zaps"
+        - "Classify, summarize, generate"
+        - "No extra setup"
+        - "Easy to use"
+      weaknesses:
+        - "Basic AI capabilities"
+        - "OpenAI only"
+      best_for_stage: "Adding AI to Zapier workflows"
+
+    - id: respell
+      name: Respell
+      website: https://respell.ai
+      best_for: "AI workflow automation"
+      pricing:
+        free_tier: true
+        plus: "$30/month"
+        pro: "$150/month"
+      strengths:
+        - "AI-native workflows"
+        - "Multi-model support"
+        - "Template library"
+        - "Visual builder"
+      weaknesses:
+        - "Newer platform"
+        - "Limited integrations"
+      best_for_stage: "AI-first automation"
+
+    - id: activepieces
+      name: Activepieces
+      website: https://activepieces.com
+      best_for: "Open source automation"
+      pricing:
+        self_hosted: "Free"
+        cloud_free: "Free tier"
+        cloud_pro: "$10/month"
+      strengths:
+        - "Open source"
+        - "Self-hostable"
+        - "Growing integrations"
+        - "AI pieces included"
+      weaknesses:
+        - "Smaller ecosystem"
+        - "Newer than alternatives"
+      best_for_stage: "Open source enthusiasts"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_complexity:
+    simple:
+      primary: zapier
+      alternative: make
+      reason: "Easiest to use, most integrations"
+
+    moderate:
+      primary: make
+      alternative: n8n
+      reason: "More power, better pricing"
+
+    complex:
+      primary: n8n
+      alternative: tray-io
+      reason: "Full control, developer-friendly"
+
+    enterprise:
+      primary: workato
+      alternative: tray-io
+      reason: "Governance, security, scale"
+
+  by_use_case:
+    crm_integrations:
+      primary: zapier
+      alternative: make
+
+    web_scraping:
+      primary: browse-ai
+      alternative: bardeen
+
+    desktop_automation:
+      primary: power-automate
+      alternative: uipath
+
+    ai_workflows:
+      primary: make
+      alternative: respell
+
+    gtm_automation:
+      primary: clay
+      alternative: bardeen
+
+  by_stage:
+    pre_seed:
+      recommended: zapier
+      reason: "Free tier, fast setup"
+      total_cost: "$0"
+
+    seed:
+      recommended: zapier
+      reason: "Scale with tasks needed"
+      total_cost: "$20-50/month"
+
+    series_a:
+      recommended: make
+      reason: "Better pricing at volume"
+      total_cost: "$50-200/month"
+
+    series_b_plus:
+      recommended: [make, n8n]
+      reason: "Mix based on workflow complexity"
+      total_cost: "$200-1,000/month"
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: low-to-medium
+  time_to_value: "30 minutes"
+  time_to_proficiency: "1-2 weeks"
+  time_to_mastery: "1-2 months"
+
+  onboarding_steps:
+    - step: 1
+      action: "Identify automation opportunity"
+      details: "Find repetitive manual process"
+      time: "30 min"
+
+    - step: 2
+      action: "Build first simple automation"
+      details: "2-3 step workflow"
+      time: "30 min"
+
+    - step: 3
+      action: "Test and refine"
+      details: "Run with test data, fix issues"
+      time: "30 min"
+
+    - step: 4
+      action: "Enable and monitor"
+      details: "Turn on, watch for errors"
+      time: "Ongoing"
+
+    - step: 5
+      action: "Build more complex workflows"
+      details: "Add conditions, multiple steps"
+      time: "As needed"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Start small, expand"
+    description: "Begin with simple 2-step zaps before complex flows"
+    example: "Form submission → Slack notification"
+    impact: "Quick wins, learn the tool"
+
+  - name: "Error handling first"
+    description: "Plan for failures before building"
+    example: "What if API is down? What if data is missing?"
+    impact: "Reliable automations that don't break"
+
+  - name: "Centralize triggers"
+    description: "One source of truth triggers multiple actions"
+    example: "New customer → CRM, Slack, email, project management"
+    impact: "Consistency, single point of failure"
+
+  - name: "Version your automations"
+    description: "Document and version control complex workflows"
+    example: "Keep changelog of changes to critical automations"
+    impact: "Easy debugging, rollback capability"
+
+  - name: "Monitor task usage"
+    description: "Track tasks/operations to manage costs"
+    example: "Weekly review of task consumption by automation"
+    impact: "No billing surprises, optimize heavy workflows"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Over-automation"
+    description: "Automating everything without considering value"
+    impact: "Maintenance burden, fragile systems"
+    fix: "Only automate high-value, repetitive processes"
+
+  - name: "No error handling"
+    description: "Assuming automations will always work"
+    impact: "Silent failures, lost data"
+    fix: "Add error paths, notifications, retry logic"
+
+  - name: "Hardcoded values"
+    description: "Putting specific values in automations"
+    impact: "Breaks when things change"
+    fix: "Use variables, lookup tables, configuration"
+
+  - name: "Single point of failure"
+    description: "Critical business process on one automation"
+    impact: "Business stops when automation breaks"
+    fix: "Monitoring, fallbacks, manual override process"
+
+  - name: "Task explosion"
+    description: "Triggering automations too frequently"
+    impact: "Huge bills, rate limits"
+    fix: "Batch operations, time triggers, deduplication"
+
+triggers:
+  - "automation"
+  - "workflow"
+  - "integrate tools"
+  - "connect apps"
+  - "zapier"
+  - "no-code"
+  - "automate process"
+  - "rpa"
+
+tags:
+  - automation
+  - workflow
+  - integration
+  - no-code
+  - zapier
+  - make
+  - rpa

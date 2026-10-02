@@ -1,0 +1,195 @@
+# HR & Recruiting AI Tools
+# AI for hiring, talent management, and HR operations
+
+id: hr-recruiting-ai-tools
+name: HR & Recruiting AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that transform hiring and HR operations.
+  From sourcing candidates to onboarding, find and retain
+  great talent faster.
+
+business_value:
+  time_saved: "50-70% faster hiring"
+  cost_saved: "$5,000-15,000/hire in recruiter time"
+  revenue_impact: "Better hires = better outcomes"
+  competitive_edge: "Win talent in competitive market"
+
+tools:
+  recruiting:
+    - id: linkedin-recruiter
+      name: LinkedIn Recruiter
+      website: https://linkedin.com/talent
+      best_for: "AI-powered talent sourcing"
+      pricing:
+        paid_starts: "$170/user/month"
+      strengths:
+        - "AI candidate matching"
+        - "InMail automation"
+        - "Largest talent pool"
+        - "Insights and analytics"
+      best_for_stage: "Professional hiring"
+
+    - id: gem
+      name: Gem
+      website: https://gem.com
+      best_for: "Recruiting CRM + automation"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI-powered sourcing"
+        - "Sequence automation"
+        - "Analytics dashboard"
+        - "DEI features"
+      best_for_stage: "Growing recruiting teams"
+
+    - id: lever
+      name: Lever
+      website: https://lever.co
+      best_for: "ATS + CRM combined"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI resume parsing"
+        - "DEI analytics"
+        - "Nurture campaigns"
+        - "Interview scheduling"
+      best_for_stage: "Mid-size companies"
+
+    - id: greenhouse
+      name: Greenhouse
+      website: https://greenhouse.io
+      best_for: "Enterprise ATS"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Structured hiring"
+        - "AI features growing"
+        - "Strong integrations"
+        - "Reporting"
+      best_for_stage: "Enterprise hiring"
+
+  sourcing:
+    - id: hiretual
+      name: HireEZ
+      website: https://hireez.com
+      best_for: "AI candidate sourcing"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Boolean builder"
+        - "AI search"
+        - "Contact info"
+        - "Diversity sourcing"
+      best_for_stage: "High-volume sourcing"
+
+    - id: eightfold
+      name: Eightfold AI
+      website: https://eightfold.ai
+      best_for: "Talent intelligence platform"
+      pricing:
+        paid_starts: "Enterprise"
+      strengths:
+        - "Skills-based matching"
+        - "Internal mobility"
+        - "Diversity"
+        - "Career pathing"
+      best_for_stage: "Enterprise talent management"
+
+  screening:
+    - id: hirevu
+      name: HireVue
+      website: https://hirevue.com
+      best_for: "Video interview AI"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI assessment"
+        - "Video interviews"
+        - "Game-based assessment"
+        - "Bias reduction"
+      weaknesses:
+        - "AI interview concerns"
+      best_for_stage: "High-volume hiring"
+
+    - id: pymetrics
+      name: Pymetrics
+      website: https://pymetrics.ai
+      best_for: "Soft skills assessment"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Neuroscience-based games"
+        - "Bias reduction"
+        - "Skills matching"
+      best_for_stage: "Skills-based hiring"
+
+  hr_operations:
+    - id: rippling
+      name: Rippling
+      website: https://rippling.com
+      best_for: "All-in-one HR platform"
+      pricing:
+        paid_starts: "$8/employee/month"
+      strengths:
+        - "Unified platform"
+        - "Automation"
+        - "IT + HR combined"
+        - "Growing AI features"
+      best_for_stage: "Growing companies"
+
+    - id: lattice
+      name: Lattice
+      website: https://lattice.com
+      best_for: "Performance management"
+      pricing:
+        paid_starts: "$6/person/month"
+      strengths:
+        - "AI-powered reviews"
+        - "Goals and OKRs"
+        - "Engagement surveys"
+        - "Compensation"
+      best_for_stage: "Performance-focused orgs"
+
+decision_guide:
+  by_use_case:
+    ats: [lever, greenhouse]
+    sourcing: [gem, hiretual]
+    assessment: [pymetrics, hirevu]
+    performance: lattice
+    all_in_one: rippling
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1-2 weeks"
+  time_to_proficiency: "1-2 months"
+
+patterns:
+  - name: "Skills-based hiring"
+    description: "Focus on skills not credentials"
+    impact: "Better matches, more diverse"
+
+  - name: "Structured interviews"
+    description: "Consistent evaluation"
+    impact: "Fairer, better decisions"
+
+anti_patterns:
+  - name: "Over-automation"
+    description: "Removing human touch"
+    fix: "Balance efficiency with experience"
+
+triggers:
+  - "hiring"
+  - "recruiting"
+  - "HR"
+  - "talent"
+  - "performance management"
+
+tags:
+  - hr
+  - recruiting
+  - hiring
+  - talent
+  - people
