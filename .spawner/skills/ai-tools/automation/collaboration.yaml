@@ -1,0 +1,280 @@
+# Automation AI Tools - Collaboration
+# How automation tools work together and with other systems
+
+prerequisites:
+  technical:
+    - "Understanding of APIs and webhooks"
+    - "Basic logic and data concepts"
+    - "Access to apps being connected"
+  business:
+    - "Processes documented"
+    - "Clear automation goals"
+    - "Stakeholder buy-in"
+
+# =============================================================================
+# TOOL COMBINATIONS
+# =============================================================================
+
+tool_combinations:
+  - name: "Starter Stack"
+    flow: [zapier, slack]
+    description: |
+      Basic automation for small teams:
+      1. Zapier connects all apps
+      2. Slack for notifications
+    why: "Simplest to set up and maintain"
+    tip: "Start here, add complexity as needed"
+
+  - name: "Power User Stack"
+    flow: [make, airtable, slack]
+    description: |
+      Flexible automation with database:
+      1. Make for complex workflows
+      2. Airtable as flexible database
+      3. Slack for team notifications
+    why: "Handle complex logic with data storage"
+    tip: "Make scenarios + Airtable = mini custom app"
+
+  - name: "Developer Stack"
+    flow: [n8n, postgres, grafana]
+    description: |
+      Self-hosted, full control:
+      1. n8n for unlimited workflows
+      2. Postgres for data storage
+      3. Grafana for monitoring
+    why: "No per-execution costs, full ownership"
+    tip: "Requires DevOps skills to maintain"
+
+  - name: "Enterprise Stack"
+    flow: [workato, salesforce, servicenow]
+    description: |
+      Enterprise iPaaS:
+      1. Workato as integration hub
+      2. Salesforce for CRM
+      3. ServiceNow for IT
+    why: "Governance, security, compliance"
+    tip: "Long implementation, high ROI"
+
+  - name: "AI Automation Stack"
+    flow: [make, openai, airtable]
+    description: |
+      AI-powered workflows:
+      1. Make for orchestration
+      2. OpenAI for AI processing
+      3. Airtable for results storage
+    why: "Add AI to any workflow"
+    tip: "Prompt engineering is critical"
+
+# =============================================================================
+# RECOMMENDED STACKS BY USE CASE
+# =============================================================================
+
+recommended_stacks:
+  marketing_automation:
+    tools: [zapier, hubspot, mailchimp, slack]
+    description: "Lead nurturing, email automation"
+    example: "New lead → enrich → email sequence → Slack alert"
+
+  sales_automation:
+    tools: [make, salesforce, apollo, slack]
+    description: "Prospecting and deal management"
+    example: "New MQL → research → create opp → notify AE"
+
+  support_automation:
+    tools: [zapier, zendesk, slack, notion]
+    description: "Ticket routing and knowledge"
+    example: "New ticket → categorize → route → update KB"
+
+  operations_automation:
+    tools: [make, airtable, quickbooks, google-sheets]
+    description: "Back-office processes"
+    example: "Invoice → approval flow → payment → reconcile"
+
+  product_automation:
+    tools: [n8n, segment, amplitude, slack]
+    description: "User behavior and product data"
+    example: "User action → enrich → analyze → alert team"
+
+  hr_automation:
+    tools: [zapier, workday, slack, google-workspace]
+    description: "Employee lifecycle"
+    example: "New hire → create accounts → notify team → onboarding tasks"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: lead-processing
+    name: "Inbound Lead Processing"
+    description: "Automate lead qualification and routing"
+    tools: [zapier, clearbit, hubspot, slack]
+    steps:
+      - step: 1
+        action: "Lead captured"
+        trigger: "Form submission webhook"
+
+      - step: 2
+        action: "Enrich lead data"
+        tool: clearbit
+        output: "Company info, role, size"
+
+      - step: 3
+        action: "Score and segment"
+        logic: "Enterprise vs SMB vs disqualified"
+
+      - step: 4
+        action: "Route to appropriate owner"
+        tool: hubspot
+        logic: "Based on segment and territory"
+
+      - step: 5
+        action: "Notify team"
+        tool: slack
+        output: "Rich notification with context"
+
+  - id: invoice-processing
+    name: "Invoice Processing Workflow"
+    description: "Automate invoice approval and payment"
+    tools: [make, quickbooks, slack, gmail]
+    steps:
+      - step: 1
+        action: "Invoice received"
+        trigger: "Email or upload"
+
+      - step: 2
+        action: "Extract invoice data"
+        tool: "AI/OCR"
+        output: "Vendor, amount, due date"
+
+      - step: 3
+        action: "Match to PO"
+        tool: quickbooks
+        output: "Matched or exception"
+
+      - step: 4
+        action: "Route for approval"
+        tool: slack
+        output: "Approval button to manager"
+
+      - step: 5
+        action: "Schedule payment"
+        tool: quickbooks
+        output: "Payment queued"
+
+  - id: content-distribution
+    name: "Content Distribution"
+    description: "Publish content across channels"
+    tools: [make, buffer, linkedin, twitter]
+    steps:
+      - step: 1
+        action: "Content published"
+        trigger: "New blog post"
+
+      - step: 2
+        action: "Generate social posts"
+        tool: "AI (GPT)"
+        output: "Platform-specific versions"
+
+      - step: 3
+        action: "Schedule posts"
+        tool: buffer
+        timing: "Optimal times per platform"
+
+      - step: 4
+        action: "Post to LinkedIn"
+        tool: linkedin
+        output: "Published post"
+
+      - step: 5
+        action: "Post to Twitter"
+        tool: twitter
+        output: "Published tweet"
+
+  - id: customer-onboarding
+    name: "Customer Onboarding"
+    description: "Automate new customer setup"
+    tools: [zapier, salesforce, slack, google-workspace]
+    steps:
+      - step: 1
+        action: "Deal closed won"
+        trigger: "Salesforce update"
+
+      - step: 2
+        action: "Create customer records"
+        outputs: "Slack channel, Drive folder, calendar"
+
+      - step: 3
+        action: "Notify CS team"
+        tool: slack
+        output: "Assignment notification"
+
+      - step: 4
+        action: "Schedule kickoff"
+        tool: calendly
+        output: "Kickoff meeting booked"
+
+      - step: 5
+        action: "Send welcome sequence"
+        output: "Onboarding emails triggered"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - team: marketing
+      receives: "Lead data, campaign info"
+      purpose: "Lead routing and nurturing automation"
+
+    - team: sales
+      receives: "Deal data, customer info"
+      purpose: "Sales process automation"
+
+    - team: product
+      receives: "User events, feature flags"
+      purpose: "Product-led automation"
+
+    - team: finance
+      receives: "Invoice data, payment info"
+      purpose: "Financial process automation"
+
+  sends_to:
+    - team: all_teams
+      sends: "Automated notifications and updates"
+
+    - team: analytics
+      sends: "Event data for dashboards"
+
+    - team: engineering
+      sends: "Webhook triggers, API calls"
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+
+integrations:
+  - category: crm
+    examples: [salesforce, hubspot, pipedrive]
+    pattern: "Trigger on record changes, update records"
+
+  - category: communication
+    examples: [slack, teams, email]
+    pattern: "Send notifications, create channels"
+
+  - category: productivity
+    examples: [notion, airtable, google-sheets]
+    pattern: "Create records, update data"
+
+  - category: marketing
+    examples: [mailchimp, hubspot, marketo]
+    pattern: "Add to lists, trigger campaigns"
+
+  - category: payments
+    examples: [stripe, quickbooks, xero]
+    pattern: "Invoice events, payment notifications"
+
+  - category: project-management
+    examples: [asana, monday, jira]
+    pattern: "Create tasks, update status"

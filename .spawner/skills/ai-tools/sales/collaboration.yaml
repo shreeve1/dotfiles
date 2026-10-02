@@ -1,0 +1,318 @@
+# Sales AI Tools - Collaboration
+# How sales tools work together and with other teams
+
+prerequisites:
+  technical:
+    - "CRM access and basic configuration skills"
+    - "Email deliverability fundamentals"
+    - "Basic data hygiene understanding"
+  business:
+    - "Defined ideal customer profile (ICP)"
+    - "Clear value proposition"
+    - "Sales process documented"
+    - "Quota and goals established"
+
+# =============================================================================
+# TOOL COMBINATIONS
+# =============================================================================
+
+tool_combinations:
+  - name: "Prospecting Engine"
+    flow: [apollo, clay, instantly]
+    description: |
+      Automated prospecting workflow:
+      1. Apollo for initial lead sourcing (ICP filters)
+      2. Clay for waterfall enrichment (phone, LinkedIn)
+      3. Instantly for cold email sequences
+    why: "Apollo data + Clay enrichment = complete profiles at scale"
+    tip: "Verify emails before loading into Instantly"
+
+  - name: "Enterprise Sales Stack"
+    flow: [zoominfo, outreach, salesforce, gong]
+    description: |
+      Full enterprise workflow:
+      1. ZoomInfo for accurate enterprise data
+      2. Outreach for multi-channel sequences
+      3. Salesforce for opportunity management
+      4. Gong for call intelligence and coaching
+    why: "Premium tools for premium deal sizes"
+    tip: "Integration setup takes 2-4 weeks"
+
+  - name: "SMB Velocity Stack"
+    flow: [apollo, hubspot-sales, lavender]
+    description: |
+      High-velocity SMB sales:
+      1. Apollo for prospecting + sequences
+      2. HubSpot for CRM + automation
+      3. Lavender for email optimization
+    why: "All-in-one at reasonable cost"
+    tip: "Great for teams of 1-10 reps"
+
+  - name: "ABM Campaign Stack"
+    flow: [zoominfo, clearbit, salesloft]
+    description: |
+      Account-based selling:
+      1. ZoomInfo for target account mapping
+      2. Clearbit Reveal for website visitor ID
+      3. SalesLoft for coordinated multi-thread outreach
+    why: "Know your accounts deeply, engage everyone"
+    tip: "Works best with 50-500 target accounts"
+
+  - name: "Revenue Intelligence Stack"
+    flow: [salesforce, gong, clari]
+    description: |
+      Full funnel visibility:
+      1. Salesforce as system of record
+      2. Gong for deal and call intelligence
+      3. Clari for forecasting and pipeline inspection
+    why: "Know exactly where every deal stands"
+    tip: "Needs 6+ months of data for accurate forecasting"
+
+# =============================================================================
+# RECOMMENDED STACKS BY STAGE
+# =============================================================================
+
+recommended_stacks:
+  founder_selling:
+    crm: hubspot-sales
+    data: apollo
+    email: apollo-sequences
+    why: "Minimal tools, founder can manage alone"
+    total_cost: "$0-100/month"
+    limitations: "No dedicated rep features"
+
+  first_sales_hire:
+    crm: hubspot-sales
+    data: apollo
+    outreach: instantly
+    coaching: lavender
+    why: "Dedicated email infrastructure, learning tools"
+    total_cost: "$100-300/month"
+
+  sales_team_5_10:
+    crm: hubspot-sales
+    data: apollo
+    outreach: outreach
+    intelligence: gong
+    why: "Team coordination, call coaching"
+    total_cost: "$500-1,500/month"
+
+  scale_up_20_plus:
+    crm: salesforce
+    data: zoominfo
+    outreach: outreach
+    intelligence: [gong, clari]
+    enrichment: clay
+    why: "Enterprise-grade, full visibility"
+    total_cost: "$3,000-10,000/month"
+
+  enterprise_sales:
+    crm: salesforce
+    data: zoominfo
+    outreach: outreach
+    intelligence: [gong, clari]
+    abm: 6sense
+    cpq: salesforce-cpq
+    why: "Complex deals, multiple stakeholders"
+    total_cost: "$10,000+/month"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: new-lead-workflow
+    name: "Inbound Lead Processing"
+    description: "Handle new inbound leads efficiently"
+    tools: [hubspot-sales, clearbit, apollo]
+    steps:
+      - step: 1
+        action: "Lead captured"
+        tool: hubspot-sales
+        trigger: "Form submission, demo request"
+
+      - step: 2
+        action: "Enrich contact"
+        tool: clearbit
+        output: "Company size, industry, role"
+
+      - step: 3
+        action: "Score and route"
+        tool: hubspot-sales
+        logic: "Enterprise → AE, SMB → SDR"
+
+      - step: 4
+        action: "Research account"
+        tool: apollo
+        output: "Additional stakeholders, news"
+
+      - step: 5
+        action: "Personalized outreach"
+        output: "Custom first touch within 5 min"
+
+  - id: outbound-campaign
+    name: "Outbound Campaign Workflow"
+    description: "Launch new outbound campaign"
+    tools: [apollo, clay, instantly]
+    steps:
+      - step: 1
+        action: "Define ICP and build list"
+        tool: apollo
+        output: "500-1000 target contacts"
+
+      - step: 2
+        action: "Enrich and verify"
+        tool: clay
+        output: "Verified emails, phone numbers"
+
+      - step: 3
+        action: "Segment by signal"
+        logic: "Recent funding, job change, tech install"
+        output: "Priority tiers"
+
+      - step: 4
+        action: "Write personalized sequences"
+        output: "5-7 touch sequence per segment"
+
+      - step: 5
+        action: "Load and launch"
+        tool: instantly
+        output: "Sequences live"
+
+      - step: 6
+        action: "Monitor and optimize"
+        metrics: "Open, reply, meeting rate"
+        output: "Weekly optimization"
+
+  - id: deal-review
+    name: "Deal Review Workflow"
+    description: "Weekly deal inspection process"
+    tools: [salesforce, gong, clari]
+    steps:
+      - step: 1
+        action: "Review pipeline changes"
+        tool: salesforce
+        check: "Stage movements, new deals, closed"
+
+      - step: 2
+        action: "Inspect at-risk deals"
+        tool: clari
+        check: "Engagement dropping, stuck deals"
+
+      - step: 3
+        action: "Review recent calls"
+        tool: gong
+        check: "Key meetings, competitive mentions"
+
+      - step: 4
+        action: "Update forecast"
+        tool: clari
+        output: "Commit, best case, pipe"
+
+      - step: 5
+        action: "Action items"
+        output: "Specific next steps for each deal"
+
+  - id: new-rep-onboarding
+    name: "New Rep Onboarding"
+    description: "Get new rep productive quickly"
+    tools: [gong, salesforce, outreach]
+    steps:
+      - step: 1
+        action: "CRM training"
+        tool: salesforce
+        time: "Day 1-2"
+
+      - step: 2
+        action: "Listen to best calls"
+        tool: gong
+        time: "Day 2-5"
+        output: "Understand what good looks like"
+
+      - step: 3
+        action: "Shadow live calls"
+        tool: gong
+        time: "Week 2"
+
+      - step: 4
+        action: "First outreach with review"
+        tool: outreach
+        time: "Week 2"
+
+      - step: 5
+        action: "Coached calls"
+        tool: gong
+        time: "Week 3-4"
+        output: "Feedback on recorded calls"
+
+      - step: 6
+        action: "Full independence"
+        time: "Week 4+"
+        output: "Solo with coaching check-ins"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - team: marketing
+      receives: "MQLs with lead source, content consumed, score"
+      tools: [hubspot-marketing, marketo]
+      sla: "Follow up <5 min for hot leads"
+
+    - team: product
+      receives: "Product-qualified leads (PQLs), trial users"
+      tools: [amplitude, pendo]
+      context: "Usage data, features activated"
+
+    - team: customer-success
+      receives: "Expansion opportunities, at-risk save attempts"
+      tools: [gainsight, totango]
+      context: "Health score, usage trends"
+
+  sends_to:
+    - team: customer-success
+      sends: "Closed-won deals with context"
+      handoff: "Implementation kickoff call"
+      includes: "Deal notes, stakeholders, use cases"
+
+    - team: legal
+      sends: "Contract redlines, custom terms"
+      sla: "24-48 hour turnaround"
+
+    - team: finance
+      sends: "Quote approvals, discount requests"
+      tools: [salesforce-cpq]
+
+    - team: marketing
+      sends: "Closed-lost reasons, competitive intel"
+      purpose: "Improve positioning and content"
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+
+integrations:
+  - tool: marketing-automation
+    examples: [hubspot-marketing, marketo, pardot]
+    pattern: "Lead handoff, scoring sync, activity sharing"
+
+  - tool: customer-success
+    examples: [gainsight, totango, churnzero]
+    pattern: "Expansion pipeline, health signals"
+
+  - tool: billing
+    examples: [stripe, chargebee, zuora]
+    pattern: "Deal closed → subscription created"
+
+  - tool: contract-management
+    examples: [docusign, pandadoc, ironclad]
+    pattern: "Quote → contract → signature"
+
+  - tool: video-conferencing
+    examples: [zoom, teams, google-meet]
+    pattern: "Calendar sync, recording integration"
+
+  - tool: slack
+    pattern: "Deal alerts, team notifications, approvals"

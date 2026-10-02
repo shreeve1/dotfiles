@@ -1,0 +1,58 @@
+# Research AI Tools - Collaboration
+
+prerequisites:
+  skills:
+    - "Critical thinking"
+    - "Source evaluation"
+    - "Clear question formulation"
+
+tool_combinations:
+  - name: "Comprehensive Research Stack"
+    flow: [perplexity, claude, notion-ai]
+    description: "Find → analyze → organize"
+    why: "Each tool excels at different phase"
+
+  - name: "Academic Research Stack"
+    flow: [elicit, consensus, claude]
+    description: "Papers → synthesis → analysis"
+    why: "Peer-reviewed, cited sources"
+
+  - name: "Market Research Stack"
+    flow: [perplexity, statista, chatgpt]
+    description: "Trends → data → insights"
+    why: "Combine qualitative and quantitative"
+
+workflows:
+  - id: research-project
+    name: "Research Project Workflow"
+    steps:
+      - step: 1
+        action: "Define research questions"
+        human: true
+      - step: 2
+        action: "Initial broad search"
+        tool: perplexity
+      - step: 3
+        action: "Deep dive on key topics"
+        tool: claude
+      - step: 4
+        action: "Verify claims"
+        tools: [consensus, primary-sources]
+      - step: 5
+        action: "Synthesize findings"
+        tool: claude
+      - step: 6
+        action: "Organize and share"
+        tool: notion-ai
+
+handoffs:
+  receives_from:
+    - team: strategy
+      receives: "Research questions"
+    - team: product
+      receives: "User research needs"
+  sends_to:
+    - team: content
+      sends: "Research findings for content"
+    - team: strategy
+      sends: "Insights and recommendations"

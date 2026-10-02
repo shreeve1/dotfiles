@@ -1,0 +1,122 @@
+# Finance AI Tools - Sharp Edges
+
+sharp_edges:
+  - id: ai-categorization-errors
+    summary: "AI miscategorizes transactions"
+    severity: high
+    tools_affected: [quickbooks-ai, xero, ramp]
+    situation: "AI learns from limited data"
+    why: "Financial data is nuanced, categories overlap"
+    solution: "Review AI suggestions, train with corrections, audit monthly"
+    symptoms:
+      - "Expenses in wrong categories"
+      - "Tax deductions missed"
+      - "Reports inaccurate"
+
+  - id: bank-feed-delays
+    summary: "Bank connections break or lag"
+    severity: medium
+    tools_affected: [all]
+    situation: "Bank APIs change, connections drop"
+    why: "Banks update security, third-party aggregators fail"
+    solution: "Monitor connections, have backup import process"
+    symptoms:
+      - "Missing transactions"
+      - "Duplicate entries after reconnect"
+      - "Reconciliation gaps"
+
+  - id: integration-data-sync
+    summary: "Data doesn't sync between tools"
+    severity: high
+    tools_affected: [all]
+    situation: "Multi-tool finance stack"
+    why: "Different data models, timing issues"
+    solution: "Single source of truth, audit sync regularly"
+    symptoms:
+      - "Numbers don't match across systems"
+      - "Duplicate data"
+      - "Missing records"
+
+  - id: forecast-over-confidence
+    summary: "AI forecasts treated as certainty"
+    severity: critical
+    tools_affected: [planful, anaplan, runway-finance]
+    situation: "AI generates confident predictions"
+    why: "Models extrapolate from limited data"
+    solution: "Always use scenarios, understand assumptions"
+    symptoms:
+      - "Missed runway"
+      - "Over-hiring based on projections"
+      - "Board confusion when actuals differ"
+
+  - id: tax-compliance-gaps
+    summary: "AI doesn't catch all tax rules"
+    severity: critical
+    tools_affected: [avalara, quickbooks-ai]
+    situation: "Tax laws are complex and local"
+    why: "AI can't know every jurisdiction, every exception"
+    solution: "Work with tax professional, don't rely solely on AI"
+    symptoms:
+      - "Nexus violations"
+      - "Incorrect tax rates"
+      - "Audit exposure"
+
+  - id: expense-policy-gaming
+    summary: "Employees game AI expense rules"
+    severity: medium
+    tools_affected: [ramp, brex, expensify]
+    situation: "AI enforces policies automatically"
+    why: "People learn to phrase things to pass AI checks"
+    solution: "Random audits, manager reviews, clear policies"
+    symptoms:
+      - "Unusual spending patterns"
+      - "Creative expense descriptions"
+      - "Policy violations that slip through"
+
+  - id: receipt-ocr-errors
+    summary: "Receipt scanning makes mistakes"
+    severity: medium
+    tools_affected: [expensify, ramp, quickbooks-ai]
+    situation: "AI reads receipts automatically"
+    why: "Poor image quality, unusual formats"
+    solution: "Verify large expenses, spot-check regularly"
+    symptoms:
+      - "Wrong amounts"
+      - "Incorrect vendors"
+      - "Missing tax details"
+
+  - id: multi-currency-complexity
+    summary: "Currency conversion causes issues"
+    severity: high
+    tools_affected: [xero, quickbooks-ai, sage-intacct]
+    situation: "International business"
+    why: "Exchange rates fluctuate, timing matters"
+    solution: "Consistent rate sources, understand gain/loss"
+    symptoms:
+      - "Unexpected forex gains/losses"
+      - "Reconciliation nightmares"
+      - "Reporting inconsistencies"
+
+  - id: audit-trail-gaps
+    summary: "AI changes without documentation"
+    severity: high
+    tools_affected: [all]
+    situation: "AI auto-corrects or adjusts"
+    why: "Automation can obscure what happened"
+    solution: "Ensure full audit logs, review AI actions"
+    symptoms:
+      - "Can't explain changes to auditors"
+      - "Historical data looks different"
+      - "Compliance questions"
+
+  - id: startup-burn-miscalculation
+    summary: "AI calculates runway wrong"
+    severity: critical
+    tools_affected: [runway-finance, finmark]
+    situation: "Cash runway is critical metric"
+    why: "AI may not account for timing, commitments"
+    solution: "Manual runway check, include all obligations"
+    symptoms:
+      - "Surprised by cash crunch"
+      - "Missed payroll risk"
+      - "Emergency fundraising"

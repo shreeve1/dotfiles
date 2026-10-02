@@ -1,0 +1,304 @@
+# Customer Support AI Tools - Collaboration
+# How support tools work together and with other teams
+
+prerequisites:
+  technical:
+    - "Basic helpdesk administration"
+    - "Content writing for knowledge base"
+    - "Understanding of customer journey"
+  business:
+    - "Support SLAs defined"
+    - "Escalation paths documented"
+    - "Product knowledge"
+
+# =============================================================================
+# TOOL COMBINATIONS
+# =============================================================================
+
+tool_combinations:
+  - name: "AI-First Support Stack"
+    flow: [document360, intercom-fin, intercom]
+    description: |
+      Modern AI-powered support:
+      1. Document360 for comprehensive KB
+      2. Intercom Fin as AI frontline
+      3. Intercom for human escalation
+    why: "AI handles 50%+, humans handle complex"
+    tip: "Invest heavily in content quality"
+
+  - name: "Enterprise Support Stack"
+    flow: [zendesk, ada, guru, klaus]
+    description: |
+      Full enterprise operations:
+      1. Zendesk as hub
+      2. Ada for AI frontline
+      3. Guru for agent knowledge
+      4. Klaus for quality assurance
+    why: "Scale support while maintaining quality"
+    tip: "Integration setup takes 4-6 weeks"
+
+  - name: "SMB Efficient Stack"
+    flow: [freshdesk, tidio, notion]
+    description: |
+      Budget-conscious support:
+      1. Freshdesk free tier
+      2. Tidio for chat/AI
+      3. Notion for internal KB
+    why: "Functional support at minimal cost"
+    tip: "Good starting point, upgrade as you scale"
+
+  - name: "High-Touch Stack"
+    flow: [front, helpscout, guru]
+    description: |
+      Premium support experience:
+      1. Front for shared inbox
+      2. Help Scout for email
+      3. Guru for agent knowledge
+    why: "Feels personal, not like ticketing"
+    tip: "Best for high-value customer relationships"
+
+  - name: "Developer Support Stack"
+    flow: [intercom, gitbook, github-issues]
+    description: |
+      Technical product support:
+      1. Intercom for user support
+      2. GitBook for technical docs
+      3. GitHub Issues for bug tracking
+    why: "Developers expect certain workflows"
+    tip: "Community forums also valuable"
+
+# =============================================================================
+# RECOMMENDED STACKS BY SCALE
+# =============================================================================
+
+recommended_stacks:
+  solo_founder:
+    helpdesk: "email + spreadsheet"
+    knowledge: notion
+    why: "Don't over-tool early"
+    total_cost: "$0"
+    upgrade_trigger: ">20 tickets/week"
+
+  first_support_hire:
+    helpdesk: freshdesk
+    knowledge: notion
+    chat: tidio
+    why: "Free tier covers early needs"
+    total_cost: "$0-50/month"
+    upgrade_trigger: ">100 tickets/week"
+
+  support_team_3_5:
+    helpdesk: intercom
+    ai: intercom-fin
+    knowledge: intercom-articles
+    why: "Unified modern experience"
+    total_cost: "$300-800/month"
+
+  support_team_10_plus:
+    helpdesk: zendesk
+    ai: ada
+    knowledge: document360
+    internal_kb: guru
+    qa: klaus
+    why: "Enterprise operations, quality at scale"
+    total_cost: "$2,000-8,000/month"
+
+  large_scale_100_plus:
+    helpdesk: zendesk
+    ai: ada
+    knowledge: document360
+    internal_kb: guru
+    qa: maestroqa
+    workforce: assembled
+    why: "Full operational infrastructure"
+    total_cost: "$20,000+/month"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: ticket-lifecycle
+    name: "Standard Ticket Workflow"
+    description: "From customer query to resolution"
+    tools: [intercom, intercom-fin]
+    steps:
+      - step: 1
+        action: "Customer initiates contact"
+        channel: "Chat, email, or form"
+
+      - step: 2
+        action: "AI agent attempts resolution"
+        tool: intercom-fin
+        outcome: "Resolved OR escalated"
+
+      - step: 3
+        action: "Human agent picks up"
+        trigger: "AI escalation or customer request"
+        context: "Full conversation history passed"
+
+      - step: 4
+        action: "Agent resolves issue"
+        includes: "Solution, KB update if needed"
+
+      - step: 5
+        action: "CSAT survey sent"
+        timing: "Immediately after resolution"
+
+      - step: 6
+        action: "Follow-up if needed"
+        trigger: "Low CSAT or complex issue"
+
+  - id: escalation-workflow
+    name: "Escalation Workflow"
+    description: "When issues need higher expertise"
+    tools: [zendesk, slack]
+    steps:
+      - step: 1
+        action: "Agent identifies need for escalation"
+        criteria: "Technical, policy, or severity"
+
+      - step: 2
+        action: "Document escalation reason"
+        required: "Context, attempts, customer impact"
+
+      - step: 3
+        action: "Route to appropriate team"
+        options: "Engineering, billing, management"
+
+      - step: 4
+        action: "Alert via Slack"
+        tool: slack
+        channel: "#escalations"
+
+      - step: 5
+        action: "Specialist takes over"
+        expectation: "Response within SLA"
+
+      - step: 6
+        action: "Resolution and handback"
+        includes: "Update to original agent"
+
+  - id: content-improvement
+    name: "Knowledge Improvement Loop"
+    description: "Continuously improve self-service"
+    tools: [zendesk, document360]
+    steps:
+      - step: 1
+        action: "Monitor AI and search failures"
+        source: "'I don't know' responses, zero results"
+
+      - step: 2
+        action: "Identify content gaps"
+        output: "List of missing/incomplete topics"
+
+      - step: 3
+        action: "Create or update articles"
+        tool: document360
+        assignment: "Support team or tech writers"
+
+      - step: 4
+        action: "Verify AI uses new content"
+        test: "Ask questions that should match"
+
+      - step: 5
+        action: "Monitor improvement"
+        metric: "AI resolution rate, search success"
+
+  - id: product-feedback-loop
+    name: "Product Feedback Loop"
+    description: "Surface product issues from support"
+    tools: [zendesk, productboard, slack]
+    steps:
+      - step: 1
+        action: "Agent tags ticket with feedback type"
+        tags: "bug, feature_request, ux_issue"
+
+      - step: 2
+        action: "Weekly digest compiled"
+        output: "Top issues by volume and impact"
+
+      - step: 3
+        action: "Support lead reviews with product"
+        frequency: "Weekly"
+
+      - step: 4
+        action: "Issues logged in product tool"
+        tool: productboard
+        includes: "Customer quotes, volume data"
+
+      - step: 5
+        action: "Loop back to customer"
+        when: "Issue is fixed"
+        message: "We heard you and fixed it"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - team: sales
+      receives: "New customer onboarding handoff"
+      context: "Deal notes, use case, key stakeholders"
+      tool_sync: "CRM → Helpdesk customer record"
+
+    - team: product
+      receives: "Known issues, workarounds, release notes"
+      tool_sync: "Jira → KB article"
+
+    - team: engineering
+      receives: "Bug resolutions, incident updates"
+      timing: "Real-time during incidents"
+
+  sends_to:
+    - team: sales
+      sends: "Expansion opportunities, success stories"
+      trigger: "Happy customer, growing usage"
+
+    - team: product
+      sends: "Feature requests, bug reports, friction points"
+      format: "Quantified by volume and impact"
+
+    - team: customer-success
+      sends: "At-risk signals, escalations"
+      trigger: "Repeated issues, frustration expressed"
+
+    - team: marketing
+      sends: "Testimonial candidates, case study leads"
+      trigger: "High CSAT, vocal advocates"
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+
+integrations:
+  - tool: crm
+    examples: [salesforce, hubspot]
+    pattern: "Customer context in helpdesk, activity logged back"
+    why: "360° customer view for everyone"
+
+  - tool: product-analytics
+    examples: [amplitude, mixpanel, pendo]
+    pattern: "Usage data in support context"
+    why: "Understand what customer was doing"
+
+  - tool: billing
+    examples: [stripe, chargebee]
+    pattern: "Subscription status, invoice access"
+    why: "Handle billing questions without tab-switching"
+
+  - tool: engineering
+    examples: [jira, linear, github]
+    pattern: "Bug tickets from support, status back"
+    why: "Close the loop on technical issues"
+
+  - tool: communication
+    examples: [slack, teams]
+    pattern: "Escalations, alerts, quick questions"
+    why: "Real-time collaboration"
+
+  - tool: status-page
+    examples: [statuspage, betteruptime]
+    pattern: "Incident status visible to support"
+    why: "Know about outages before customers"

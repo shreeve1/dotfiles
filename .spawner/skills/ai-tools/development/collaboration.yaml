@@ -1,0 +1,283 @@
+# Development AI Tools - Collaboration
+# How AI dev tools work together and with the team
+
+prerequisites:
+  technical:
+    - "Familiarity with at least one programming language"
+    - "Understanding of version control (git)"
+    - "IDE/editor proficiency"
+  mindset:
+    - "Willingness to review AI suggestions critically"
+    - "Understanding AI is a tool, not replacement"
+    - "Commitment to code quality"
+
+# =============================================================================
+# TOOL COMBINATIONS
+# =============================================================================
+
+tool_combinations:
+  - name: "Modern Developer Stack"
+    flow: [cursor, claude-code, coderabbit]
+    description: |
+      Full AI development workflow:
+      1. Cursor for IDE with AI
+      2. Claude Code for complex tasks
+      3. CodeRabbit for PR review
+    why: "AI at every stage of development"
+    tip: "Use Cursor for daily coding, Claude Code for major features"
+
+  - name: "Minimal AI Stack"
+    flow: [github-copilot, github-actions]
+    description: |
+      Simple, effective setup:
+      1. Copilot for code completion
+      2. GitHub Actions for CI/CD
+    why: "Least friction, most productivity"
+    tip: "Start here, add tools as needed"
+
+  - name: "Quality-Focused Stack"
+    flow: [cursor, codiumai, coderabbit, codacy]
+    description: |
+      AI with quality gates:
+      1. Cursor for development
+      2. CodiumAI for test generation
+      3. CodeRabbit for review
+      4. Codacy for quality checks
+    why: "Speed without sacrificing quality"
+    tip: "Good for teams that ship fast"
+
+  - name: "Open Source Stack"
+    flow: [aider, ollama, github]
+    description: |
+      Self-hosted AI development:
+      1. Aider with local models
+      2. Ollama for running models
+      3. GitHub for collaboration
+    why: "Privacy, no subscription costs"
+    tip: "Requires good hardware"
+
+# =============================================================================
+# RECOMMENDED STACKS BY TEAM SIZE
+# =============================================================================
+
+recommended_stacks:
+  solo_developer:
+    tools: [cursor, github-copilot]
+    why: "Maximum individual productivity"
+    total_cost: "$30/month"
+    focus: "Speed and quality"
+
+  small_team:
+    tools: [cursor, coderabbit, mintlify]
+    why: "AI at every step"
+    total_cost: "$60-100/user/month"
+    focus: "Consistency and speed"
+
+  growth_team:
+    tools: [github-copilot-business, coderabbit, codacy, mintlify]
+    why: "Enterprise features, quality gates"
+    total_cost: "$50-80/user/month"
+    focus: "Scale and governance"
+
+  enterprise:
+    tools: [github-copilot-enterprise, custom-llm, sonarqube]
+    why: "Privacy, customization, compliance"
+    total_cost: "$100+/user/month"
+    focus: "Security and control"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: feature-development
+    name: "AI-Assisted Feature Development"
+    description: "Build features with AI help"
+    tools: [cursor, codiumai, coderabbit]
+    steps:
+      - step: 1
+        action: "Design and plan"
+        human: true
+        output: "Architecture decision"
+
+      - step: 2
+        action: "Generate scaffolding"
+        tool: cursor
+        prompt: "Create [component] with [requirements]"
+
+      - step: 3
+        action: "Implement logic"
+        tool: cursor
+        process: "Iterative coding with AI"
+
+      - step: 4
+        action: "Generate tests"
+        tool: codiumai
+        output: "Test suite"
+
+      - step: 5
+        action: "Review and refine"
+        human: true
+        output: "Polished code"
+
+      - step: 6
+        action: "Create PR"
+        output: "Pull request"
+
+      - step: 7
+        action: "AI PR review"
+        tool: coderabbit
+        output: "Automated review comments"
+
+      - step: 8
+        action: "Human review and merge"
+        human: true
+
+  - id: bug-fixing
+    name: "AI-Assisted Bug Fixing"
+    description: "Fix bugs with AI help"
+    tools: [cursor, claude-code]
+    steps:
+      - step: 1
+        action: "Understand the bug"
+        input: "Error logs, reproduction steps"
+
+      - step: 2
+        action: "Ask AI to analyze"
+        prompt: "What could cause this error?"
+
+      - step: 3
+        action: "Generate fix"
+        tool: cursor
+        prompt: "Fix this bug: [description]"
+
+      - step: 4
+        action: "Verify fix"
+        human: true
+        check: "Does it work? No regressions?"
+
+      - step: 5
+        action: "Add regression test"
+        tool: codiumai
+
+      - step: 6
+        action: "Create PR with fix"
+
+  - id: refactoring
+    name: "AI-Assisted Refactoring"
+    description: "Large-scale refactoring with AI"
+    tools: [claude-code, cursor]
+    steps:
+      - step: 1
+        action: "Define refactoring scope"
+        human: true
+        output: "Clear specification"
+
+      - step: 2
+        action: "Ensure test coverage"
+        check: "Tests exist for affected code"
+
+      - step: 3
+        action: "AI performs refactoring"
+        tool: claude-code
+        mode: "Multi-file changes"
+
+      - step: 4
+        action: "Run tests"
+        check: "All tests pass"
+
+      - step: 5
+        action: "Human review"
+        human: true
+        focus: "Architecture, edge cases"
+
+      - step: 6
+        action: "Incremental merge"
+        tip: "Small PRs if possible"
+
+  - id: code-review
+    name: "AI-Enhanced Code Review"
+    description: "Faster, thorough reviews"
+    tools: [coderabbit, codacy]
+    steps:
+      - step: 1
+        action: "PR opened"
+        trigger: "New pull request"
+
+      - step: 2
+        action: "Automated analysis"
+        tool: codacy
+        output: "Quality/security issues"
+
+      - step: 3
+        action: "AI review"
+        tool: coderabbit
+        output: "Contextual comments"
+
+      - step: 4
+        action: "Human review"
+        human: true
+        focus: "Architecture, business logic"
+
+      - step: 5
+        action: "Author addresses feedback"
+        iterative: true
+
+      - step: 6
+        action: "Approval and merge"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - team: product
+      receives: "Requirements, specifications"
+      context: "What to build"
+
+    - team: design
+      receives: "Mockups, prototypes"
+      context: "How it should look"
+
+    - team: security
+      receives: "Security requirements, review findings"
+      context: "Security constraints"
+
+  sends_to:
+    - team: qa
+      sends: "Completed features for testing"
+      includes: "Test instructions, known limitations"
+
+    - team: devops
+      sends: "Deployment requirements"
+      includes: "Infrastructure needs, configs"
+
+    - team: documentation
+      sends: "Technical documentation, API specs"
+      tool_help: "mintlify, docstring-ai"
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+
+integrations:
+  - category: version_control
+    examples: [github, gitlab, bitbucket]
+    pattern: "AI tools integrate with PRs, commits"
+
+  - category: ci_cd
+    examples: [github-actions, jenkins, circleci]
+    pattern: "Automated testing, AI review in pipeline"
+
+  - category: project_management
+    examples: [jira, linear, asana]
+    pattern: "Link code to tickets, AI summaries"
+
+  - category: communication
+    examples: [slack, teams]
+    pattern: "Notifications on reviews, deployments"
+
+  - category: documentation
+    examples: [notion, confluence, gitbook]
+    pattern: "Auto-generate docs from code"

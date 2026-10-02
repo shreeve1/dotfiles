@@ -1,0 +1,184 @@
+# Development AI Tools - Validations
+# Checklists for AI development tool usage
+
+validations:
+  # =============================================================================
+  # SETUP CHECKLISTS
+  # =============================================================================
+
+  - id: ai-tool-setup
+    name: AI Coding Tool Setup
+    type: checklist
+    description: "Before using AI coding tools"
+    items:
+      - "Tool installed and configured"
+      - "Authentication completed"
+      - "Privacy settings reviewed"
+      - "Training data opt-out (if desired)"
+      - "Keyboard shortcuts learned"
+      - "Context settings configured"
+      - "Team guidelines reviewed"
+
+  - id: security-setup
+    name: Security Configuration
+    type: checklist
+    description: "Security setup for AI tools"
+    items:
+      - "No secrets in prompts policy"
+      - "Duplication detection enabled"
+      - "Code review process includes AI code"
+      - "SAST scanning in place"
+      - "API keys not in codebase"
+      - "Team trained on AI security risks"
+
+  # =============================================================================
+  # CODE REVIEW CHECKLISTS
+  # =============================================================================
+
+  - id: ai-code-review
+    name: AI-Generated Code Review
+    type: checklist
+    description: "Review AI-generated code"
+    items:
+      - "Logic is correct and complete"
+      - "Edge cases handled"
+      - "No security vulnerabilities"
+      - "No deprecated patterns"
+      - "Matches project conventions"
+      - "Tests cover new code"
+      - "No hallucinated APIs"
+      - "Documentation included"
+      - "Performance acceptable"
+      - "Complexity appropriate"
+
+  - id: security-review
+    name: Security Review for AI Code
+    type: checklist
+    description: "Security-specific review"
+    items:
+      - "No SQL injection vulnerabilities"
+      - "No XSS vulnerabilities"
+      - "Input validation present"
+      - "Output encoding where needed"
+      - "No hardcoded secrets"
+      - "Proper authentication checks"
+      - "Authorization verified"
+      - "Secure randomness used"
+      - "Crypto done correctly"
+      - "Error messages don't leak info"
+
+  - id: quality-review
+    name: Code Quality Review
+    type: checklist
+    description: "Quality check for AI code"
+    items:
+      - "DRY principle followed"
+      - "Single responsibility"
+      - "Appropriate abstraction level"
+      - "Naming is clear"
+      - "Comments explain why, not what"
+      - "Error handling is appropriate"
+      - "No dead code"
+      - "Consistent style"
+
+  # =============================================================================
+  # WORKFLOW CHECKLISTS
+  # =============================================================================
+
+  - id: prompt-best-practices
+    name: Prompting Best Practices
+    type: checklist
+    description: "Effective AI prompting"
+    items:
+      - "Clear and specific request"
+      - "Context provided (language, framework)"
+      - "Constraints specified"
+      - "Examples included if helpful"
+      - "Expected output format stated"
+      - "Incremental for complex tasks"
+      - "Review before accepting"
+
+  - id: large-task-workflow
+    name: Large Task Workflow
+    type: checklist
+    description: "AI assistance for big tasks"
+    items:
+      - "Task broken into steps"
+      - "Architecture decided by human"
+      - "AI handles implementation"
+      - "Review each step before next"
+      - "Tests written incrementally"
+      - "Integration verified"
+      - "Full code review at end"
+
+  - id: refactoring-workflow
+    name: Refactoring with AI
+    type: checklist
+    description: "Safe AI-assisted refactoring"
+    items:
+      - "Tests exist before refactoring"
+      - "Scope clearly defined"
+      - "AI understands current structure"
+      - "Changes made incrementally"
+      - "Tests run after each change"
+      - "Functionality unchanged verified"
+      - "Performance verified"
+
+  # =============================================================================
+  # TEAM GUIDELINES
+  # =============================================================================
+
+  - id: team-ai-policy
+    name: Team AI Usage Policy
+    type: checklist
+    description: "Establish team guidelines"
+    items:
+      - "Approved tools defined"
+      - "Privacy requirements documented"
+      - "Code review requirements for AI code"
+      - "Security review requirements"
+      - "Attribution/licensing policy"
+      - "Training and onboarding"
+      - "Sharing learnings process"
+
+  - id: onboarding-checklist
+    name: AI Tool Onboarding
+    type: checklist
+    description: "Onboard new team member"
+    items:
+      - "Tool access granted"
+      - "Configuration shared"
+      - "Team guidelines reviewed"
+      - "Security policies explained"
+      - "Best practices shared"
+      - "Pairing session completed"
+      - "First PR with AI reviewed"
+
+  # =============================================================================
+  # QUALITY METRICS
+  # =============================================================================
+
+  - id: ai-effectiveness-metrics
+    name: AI Tool Effectiveness
+    type: checklist
+    description: "Measure AI tool value"
+    items:
+      - "Acceptance rate tracked"
+      - "Bug rate in AI code vs manual"
+      - "Developer satisfaction measured"
+      - "Time savings estimated"
+      - "Cost per developer known"
+      - "Security issues from AI tracked"
+      - "ROI justified"
+
+  - id: continuous-improvement
+    name: Continuous Improvement
+    type: checklist
+    description: "Improve AI tool usage"
+    items:
+      - "Regular retrospectives include AI"
+      - "Prompt patterns shared"
+      - "Failures discussed and learned from"
+      - "Tool updates evaluated"
+      - "New features adopted"
+      - "Training refreshed periodically"

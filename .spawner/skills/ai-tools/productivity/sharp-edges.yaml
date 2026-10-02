@@ -1,0 +1,42 @@
+# Productivity AI Tools - Sharp Edges
+
+sharp_edges:
+  - id: meeting-privacy
+    summary: "Recording meetings raises privacy concerns"
+    severity: high
+    tools_affected: [otter-ai, fireflies, krisp]
+    situation: "Recording without consent"
+    why: "Legal requirements vary, trust issues with clients"
+    solution: "Always get consent, announce at meeting start"
+
+  - id: calendar-ai-conflicts
+    summary: "AI scheduling can create conflicts"
+    severity: medium
+    tools_affected: [motion, clockwise, reclaim]
+    situation: "AI moves meetings unexpectedly"
+    why: "AI optimizes without human context"
+    solution: "Lock important meetings, review changes"
+
+  - id: email-ai-tone
+    summary: "AI email drafts may not match your voice"
+    severity: medium
+    tools_affected: [superhuman, shortwave]
+    situation: "AI draft sounds generic or wrong"
+    why: "AI doesn't know your relationships"
+    solution: "Always review before sending"
+
+  - id: transcription-errors
+    summary: "Transcription mistakes in important notes"
+    severity: medium
+    tools_affected: [otter-ai, fireflies]
+    situation: "Key terms or names transcribed wrong"
+    why: "Accents, jargon, technical terms"
+    solution: "Review action items, add custom vocabulary"
+
+  - id: over-scheduling
+    summary: "AI fills every minute, no buffer"
+    severity: medium
+    tools_affected: [motion, clockwise]
+    situation: "Back-to-back meetings, no breaks"
+    why: "AI optimizes for time use, not energy"
+    solution: "Configure buffer time, protect breaks"

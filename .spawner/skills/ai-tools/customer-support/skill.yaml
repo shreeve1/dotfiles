@@ -1,0 +1,525 @@
+# Customer Support AI Tools
+# Helpdesks, chatbots, ticketing, and customer service automation
+
+id: customer-support-ai-tools
+name: Customer Support AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that transform customer support from cost center
+  to competitive advantage. Automate routine queries, empower agents,
+  and delight customers at scale.
+
+business_value:
+  time_saved: "50-70% reduction in first response time"
+  cost_saved: "$10,000-50,000/month in support costs"
+  revenue_impact: "Higher retention = 25-95% profit increase"
+  competitive_edge: "24/7 instant support without hiring"
+
+# =============================================================================
+# HELPDESK & TICKETING
+# =============================================================================
+
+tools:
+  helpdesk:
+    - id: intercom
+      name: Intercom
+      website: https://intercom.com
+      best_for: "Modern conversational support"
+      pricing:
+        starter: "$74/month"
+        pro: "$153/month"
+        premium: "Custom"
+        ai_addon: "$0.99/resolution"
+      strengths:
+        - "Best-in-class AI (Fin)"
+        - "Beautiful messenger"
+        - "Product tours included"
+        - "Great automation"
+        - "Strong integrations"
+      weaknesses:
+        - "Expensive at scale"
+        - "Complex pricing"
+        - "AI costs per resolution"
+      best_for_stage: "Series A+, product-led growth"
+
+    - id: zendesk
+      name: Zendesk
+      website: https://zendesk.com
+      best_for: "Enterprise support operations"
+      pricing:
+        suite_team: "$55/agent/month"
+        suite_growth: "$89/agent/month"
+        suite_professional: "$115/agent/month"
+        ai_addon: "Additional cost"
+      strengths:
+        - "Most mature platform"
+        - "Massive app marketplace"
+        - "Strong enterprise features"
+        - "Good AI features improving"
+        - "Omnichannel support"
+      weaknesses:
+        - "Can feel dated"
+        - "Complex to configure"
+        - "AI features catching up"
+      best_for_stage: "Series B+, enterprise operations"
+
+    - id: freshdesk
+      name: Freshdesk
+      website: https://freshdesk.com
+      best_for: "Value-focused helpdesk"
+      pricing:
+        free_tier: true
+        growth: "$15/agent/month"
+        pro: "$49/agent/month"
+        enterprise: "$79/agent/month"
+      strengths:
+        - "Great free tier"
+        - "Good automation"
+        - "Freddy AI included"
+        - "Easy to set up"
+        - "Part of Freshworks suite"
+      weaknesses:
+        - "Less modern UX than Intercom"
+        - "AI less sophisticated"
+      best_for_stage: "Seed to Series A, budget-conscious"
+
+    - id: helpscout
+      name: Help Scout
+      website: https://helpscout.com
+      best_for: "Human-first email support"
+      pricing:
+        standard: "$20/user/month"
+        plus: "$40/user/month"
+        pro: "$65/user/month"
+      strengths:
+        - "Clean, simple interface"
+        - "Feels like email, not tickets"
+        - "Great for personal touch"
+        - "Beacon widget included"
+        - "AI features improving"
+      weaknesses:
+        - "Less powerful automation"
+        - "No built-in chat"
+      best_for_stage: "Companies prioritizing personal support"
+
+    - id: front
+      name: Front
+      website: https://front.com
+      best_for: "Shared inbox for teams"
+      pricing:
+        starter: "$19/seat/month"
+        growth: "$59/seat/month"
+        scale: "$99/seat/month"
+      strengths:
+        - "Familiar email interface"
+        - "Great collaboration"
+        - "Multi-channel"
+        - "Strong integrations"
+        - "AI features (Front Intelligence)"
+      weaknesses:
+        - "Less traditional helpdesk features"
+        - "Can get expensive"
+      best_for_stage: "Teams managing high-touch support"
+
+  # =============================================================================
+  # AI CHATBOTS & AGENTS
+  # =============================================================================
+
+  chatbots:
+    - id: intercom-fin
+      name: Intercom Fin
+      website: https://intercom.com/fin
+      best_for: "Best-in-class AI agent"
+      pricing:
+        per_resolution: "$0.99"
+      strengths:
+        - "Resolves 50%+ of queries"
+        - "Uses your knowledge base"
+        - "Seamless handoff to humans"
+        - "Learns from conversations"
+        - "Multi-language"
+      weaknesses:
+        - "Needs good knowledge base"
+        - "Per-resolution pricing adds up"
+      best_for_stage: "Companies with strong documentation"
+
+    - id: ada
+      name: Ada
+      website: https://ada.cx
+      best_for: "Enterprise AI support"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Enterprise-grade AI"
+        - "Custom training"
+        - "Strong analytics"
+        - "Multi-channel deployment"
+        - "Good integrations"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Implementation time"
+      best_for_stage: "Large-scale support operations"
+
+    - id: tidio
+      name: Tidio
+      website: https://tidio.com
+      best_for: "SMB chat + AI"
+      pricing:
+        free_tier: true
+        starter: "$29/month"
+        growth: "$59/month"
+        plus: "$749/month"
+      strengths:
+        - "Good free tier"
+        - "Easy to set up"
+        - "Lyro AI included"
+        - "E-commerce focused"
+        - "Multi-channel"
+      weaknesses:
+        - "AI less sophisticated"
+        - "Limited at scale"
+      best_for_stage: "SMB, e-commerce"
+
+    - id: drift
+      name: Drift (Salesloft)
+      website: https://drift.com
+      best_for: "Sales + support hybrid"
+      pricing:
+        paid_starts: "$2,500/month"
+      strengths:
+        - "Conversational marketing"
+        - "Sales integration"
+        - "AI playbooks"
+        - "Account-based"
+      weaknesses:
+        - "Expensive"
+        - "More sales-focused"
+      best_for_stage: "B2B with hybrid sales/support"
+
+    - id: chatbase
+      name: Chatbase
+      website: https://chatbase.co
+      best_for: "Custom ChatGPT for support"
+      pricing:
+        free_tier: true
+        hobby: "$19/month"
+        standard: "$99/month"
+        unlimited: "$399/month"
+      strengths:
+        - "Train on your content"
+        - "Easy to build"
+        - "Embed anywhere"
+        - "Affordable"
+      weaknesses:
+        - "Less sophisticated than purpose-built"
+        - "Needs content to train on"
+      best_for_stage: "Quick AI chatbot deployment"
+
+  # =============================================================================
+  # KNOWLEDGE BASE & SELF-SERVICE
+  # =============================================================================
+
+  knowledge_base:
+    - id: notion
+      name: Notion (as KB)
+      website: https://notion.so
+      best_for: "Internal + simple external KB"
+      pricing:
+        free_tier: true
+        plus: "$8/user/month"
+        business: "$15/user/month"
+      strengths:
+        - "Flexible and powerful"
+        - "Easy to maintain"
+        - "Can publish publicly"
+        - "Great collaboration"
+      weaknesses:
+        - "Not purpose-built for support"
+        - "No analytics"
+        - "Limited customization"
+      best_for_stage: "Early stage, internal docs"
+
+    - id: document360
+      name: Document360
+      website: https://document360.com
+      best_for: "Dedicated knowledge base"
+      pricing:
+        free_tier: true
+        standard: "$149/project/month"
+        professional: "$299/project/month"
+      strengths:
+        - "Purpose-built for KB"
+        - "AI-powered search"
+        - "Analytics included"
+        - "Multiple KB support"
+        - "Version control"
+      weaknesses:
+        - "Can be pricey"
+        - "Learning curve"
+      best_for_stage: "Growing teams needing proper KB"
+
+    - id: gitbook
+      name: GitBook
+      website: https://gitbook.com
+      best_for: "Developer documentation"
+      pricing:
+        free_tier: true
+        plus: "$6.70/user/month"
+        pro: "$12.50/user/month"
+      strengths:
+        - "Great for technical docs"
+        - "Git sync"
+        - "Beautiful output"
+        - "AI search"
+      weaknesses:
+        - "Developer-focused"
+        - "Less for non-technical support"
+      best_for_stage: "Developer-focused products"
+
+    - id: guru
+      name: Guru
+      website: https://getguru.com
+      best_for: "Internal knowledge for agents"
+      pricing:
+        free_tier: true
+        builder: "$10/user/month"
+        enterprise: "Custom"
+      strengths:
+        - "AI-powered suggestions"
+        - "Browser extension"
+        - "Verification workflows"
+        - "Slack integration"
+      weaknesses:
+        - "Internal focused"
+        - "Not for customer-facing"
+      best_for_stage: "Teams needing agent knowledge tools"
+
+  # =============================================================================
+  # QUALITY & ANALYTICS
+  # =============================================================================
+
+  quality_analytics:
+    - id: klaus
+      name: Klaus
+      website: https://klausapp.com
+      best_for: "Support QA and coaching"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI-powered QA"
+        - "Conversation review"
+        - "Agent scorecards"
+        - "Coaching workflows"
+      weaknesses:
+        - "Additional tool cost"
+        - "Needs volume to be useful"
+      best_for_stage: "Teams of 5+ agents"
+
+    - id: maestroqa
+      name: MaestroQA
+      website: https://maestroqa.com
+      best_for: "Enterprise QA automation"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Advanced QA workflows"
+        - "AI grading"
+        - "Coaching tools"
+        - "Strong analytics"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Implementation time"
+      best_for_stage: "Large support teams"
+
+    - id: forethought
+      name: Forethought
+      website: https://forethought.ai
+      best_for: "AI for ticket triage and resolution"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Automatic ticket tagging"
+        - "AI-suggested responses"
+        - "Resolution prediction"
+        - "Workflow automation"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Needs integration work"
+      best_for_stage: "High-volume ticket operations"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_stage:
+    pre_seed:
+      helpdesk: freshdesk
+      knowledge: notion
+      reason: "Free/cheap, gets job done"
+      total_cost: "$0"
+
+    seed:
+      helpdesk: intercom
+      ai: intercom-fin
+      knowledge: intercom-articles
+      reason: "Modern, AI-native"
+      total_cost: "$100-300/month"
+
+    series_a:
+      helpdesk: intercom
+      ai: intercom-fin
+      knowledge: document360
+      internal_kb: guru
+      reason: "Scale support intelligently"
+      total_cost: "$500-1,500/month"
+
+    series_b_plus:
+      helpdesk: zendesk
+      ai: ada
+      knowledge: document360
+      qa: klaus
+      reason: "Enterprise operations"
+      total_cost: "$2,000-10,000/month"
+
+  by_use_case:
+    conversational_support:
+      primary: intercom
+      alternative: freshdesk
+
+    enterprise_operations:
+      primary: zendesk
+      alternative: freshdesk
+
+    human_touch:
+      primary: helpscout
+      alternative: front
+
+    high_volume_ai:
+      primary: ada
+      alternative: intercom-fin
+
+    developer_support:
+      primary: intercom
+      knowledge: gitbook
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1-2 hours"
+  time_to_proficiency: "2-4 weeks"
+  time_to_mastery: "2-3 months"
+
+  onboarding_steps:
+    - step: 1
+      action: "Set up helpdesk"
+      details: "Configure channels, routing, basic automations"
+      time: "2-4 hours"
+
+    - step: 2
+      action: "Build knowledge base"
+      details: "Create top 20 FAQ articles"
+      time: "4-8 hours"
+
+    - step: 3
+      action: "Enable AI agent"
+      details: "Connect to KB, configure handoffs"
+      time: "1-2 hours"
+
+    - step: 4
+      action: "Set up macros/templates"
+      details: "Create response templates for common queries"
+      time: "2 hours"
+
+    - step: 5
+      action: "Configure reporting"
+      details: "Dashboard for key metrics"
+      time: "1 hour"
+
+    - step: 6
+      action: "Establish workflows"
+      details: "Escalation paths, SLAs, routing rules"
+      time: "2 hours"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Deflection-first design"
+    description: "Help users help themselves before contacting support"
+    example: "KB search in messenger, FAQ before ticket form"
+    impact: "50-70% reduction in ticket volume"
+
+  - name: "Tiered support model"
+    description: "AI → Level 1 → Level 2 → Specialists"
+    example: "Fin handles basic, humans handle complex"
+    impact: "Focus human effort where it matters"
+
+  - name: "Proactive support"
+    description: "Reach out before users have problems"
+    example: "In-app messages for common friction points"
+    impact: "Prevent tickets before they happen"
+
+  - name: "Knowledge-centered service"
+    description: "Every resolution improves knowledge base"
+    example: "Agent writes KB article while solving ticket"
+    impact: "Continuously improving deflection"
+
+  - name: "CSAT at every touchpoint"
+    description: "Collect feedback on all interactions"
+    example: "Rating after AI resolution AND human help"
+    impact: "Continuous improvement signal"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Hiding contact options"
+    description: "Making it hard to reach a human"
+    impact: "Frustrated customers, negative reviews"
+    fix: "Clear escalation path from AI to human"
+
+  - name: "AI without knowledge base"
+    description: "Deploying AI agent without training content"
+    impact: "Bad AI responses, worse than no AI"
+    fix: "Build KB first, then enable AI"
+
+  - name: "One-size-fits-all responses"
+    description: "Using same template for every query"
+    impact: "Impersonal, robotic support"
+    fix: "Personalize responses, use templates as starting point"
+
+  - name: "Ignoring support data"
+    description: "Not analyzing tickets for product insights"
+    impact: "Missing product improvement opportunities"
+    fix: "Regular ticket reviews with product team"
+
+  - name: "Infinite ticket backlog"
+    description: "Letting tickets age without addressing"
+    impact: "Customer churn, agent burnout"
+    fix: "SLAs with real consequences, proper staffing"
+
+triggers:
+  - "customer support"
+  - "helpdesk"
+  - "ticketing system"
+  - "chatbot"
+  - "knowledge base"
+  - "support automation"
+  - "CSAT"
+  - "customer service"
+
+tags:
+  - support
+  - helpdesk
+  - chatbot
+  - knowledge-base
+  - customer-service
+  - automation

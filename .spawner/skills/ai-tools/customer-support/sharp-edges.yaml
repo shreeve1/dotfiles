@@ -1,0 +1,306 @@
+# Customer Support AI Tools - Sharp Edges
+# Gotchas and pitfalls when using support tools
+
+sharp_edges:
+  # =============================================================================
+  # AI CHATBOT GOTCHAS
+  # =============================================================================
+
+  - id: ai-without-content
+    summary: "AI chatbots are useless without quality content"
+    severity: critical
+    tools_affected: [intercom-fin, ada, chatbase, tidio]
+    situation: "Deploying AI agent before building knowledge base"
+    why: |
+      AI chatbots work by finding relevant content and generating responses.
+      No content = no good answers = frustrated customers.
+
+      The AI is only as good as what you feed it.
+    solution: |
+      1. Build comprehensive KB BEFORE enabling AI
+      2. Cover top 50 questions thoroughly
+      3. Include edge cases and exceptions
+      4. Update content based on AI failures
+      5. Monitor "I don't know" responses
+    symptoms:
+      - "AI says 'I don't know' constantly"
+      - "Wrong or generic answers"
+      - "High escalation rate"
+
+  - id: per-resolution-cost-explosion
+    summary: "Per-resolution AI pricing can explode unexpectedly"
+    severity: high
+    tools_affected: [intercom-fin]
+    situation: "Enabling AI without understanding pricing model"
+    why: |
+      $0.99/resolution sounds cheap until:
+      - Volume is higher than expected
+      - Definition of "resolution" is broad
+      - Simple queries still count
+      - No volume discount
+
+      Easy to 10x expected AI costs.
+    solution: |
+      1. Understand exactly what counts as "resolution"
+      2. Set spending limits/alerts
+      3. Calculate expected volume realistically
+      4. Compare to human agent cost
+      5. Negotiate caps for high volume
+    symptoms:
+      - "Unexpected AI charges"
+      - "Cost per ticket higher than expected"
+      - "Bill shock"
+
+  - id: ai-hallucination
+    summary: "AI can confidently give wrong information"
+    severity: high
+    tools_affected: [intercom-fin, chatbase, tidio]
+    situation: "AI provides incorrect product/policy information"
+    why: |
+      Even the best AI can:
+      - Mix up similar topics
+      - Invent policies that don't exist
+      - Give outdated information
+      - Miss important exceptions
+
+      Customers take AI answers as official.
+    solution: |
+      1. Monitor AI conversations regularly
+      2. Flag high-stakes topics for human review
+      3. Keep content current and specific
+      4. Avoid vague or conflicting content
+      5. Have clear correction process
+    symptoms:
+      - "Customer complaints about wrong info"
+      - "Support for things you don't offer"
+      - "Policy confusion"
+
+  - id: poor-handoff
+    summary: "Bad AI-to-human handoff destroys customer experience"
+    severity: high
+    tools_affected: [intercom-fin, ada, tidio]
+    situation: "Customer repeats entire issue to human after AI fails"
+    why: |
+      Nothing frustrates customers more than:
+      - Repeating their problem
+      - Agent not seeing AI conversation
+      - Starting over from scratch
+      - Long wait after AI failure
+
+      Worse than no AI at all.
+    solution: |
+      1. Full conversation context passes to agent
+      2. Agent can see what AI tried
+      3. Seamless handoff (no new ticket)
+      4. Priority routing after AI failure
+      5. Warm handoff with summary
+    symptoms:
+      - "Customer complaints about repetition"
+      - "Lower CSAT after AI handoff"
+      - "Longer handle times"
+
+  # =============================================================================
+  # HELPDESK GOTCHAS
+  # =============================================================================
+
+  - id: inbox-zero-obsession
+    summary: "Chasing inbox zero leads to rushed, poor responses"
+    severity: medium
+    tools_affected: [zendesk, freshdesk, helpscout, front]
+    situation: "Agents racing to close tickets, not solve problems"
+    why: |
+      When you incentivize speed:
+      - Quality suffers
+      - First response != first resolution
+      - Tickets reopen
+      - Customers unsatisfied
+
+      Fast bad support is still bad support.
+    solution: |
+      1. Measure resolution, not just response
+      2. Track reopen rate
+      3. Balance speed and quality metrics
+      4. CSAT as primary metric
+      5. Allow proper resolution time
+    symptoms:
+      - "High reopen rate"
+      - "Fast response, low CSAT"
+      - "Same issue comes back"
+
+  - id: zombie-tickets
+    summary: "Old tickets haunt your queue forever"
+    severity: medium
+    tools_affected: [zendesk, freshdesk, intercom]
+    situation: "Tickets sitting for weeks awaiting customer response"
+    why: |
+      Some tickets never close:
+      - Customer stops responding
+      - Agent forgets to follow up
+      - No auto-close policy
+      - Metrics look terrible
+
+      Skews all your reporting.
+    solution: |
+      1. Auto-close after X days of no response
+      2. Clear follow-up reminders
+      3. Final "closing this unless you respond"
+      4. Separate "awaiting customer" status
+      5. Regular queue cleanup
+    symptoms:
+      - "Average resolution time is weeks"
+      - "Thousands of open tickets"
+      - "Metrics don't reflect reality"
+
+  - id: routing-chaos
+    summary: "Tickets go to wrong team/agent constantly"
+    severity: medium
+    tools_affected: [zendesk, freshdesk, intercom]
+    situation: "Manual routing or poor automation leads to chaos"
+    why: |
+      Bad routing means:
+      - Delays while ticket finds right person
+      - Agents working outside expertise
+      - Finger-pointing between teams
+      - Customer frustration
+
+      Support org runs inefficiently.
+    solution: |
+      1. Clear routing rules based on keywords, customer
+      2. Skills-based routing
+      3. Auto-tagging with AI
+      4. Default to triage queue if unsure
+      5. Audit routing accuracy regularly
+    symptoms:
+      - "Tickets bounced between teams"
+      - "Long time in queue"
+      - "Agents complaining about wrong tickets"
+
+  - id: agent-burnout
+    summary: "Support work leads to high turnover"
+    severity: high
+    tools_affected: [all]
+    situation: "High-volume, repetitive support work burns out agents"
+    why: |
+      Support is emotionally demanding:
+      - Angry customers all day
+      - Repetitive questions
+      - Unrealistic metrics
+      - Little autonomy
+
+      Burned out agents = bad support = churn.
+    solution: |
+      1. Use AI to handle repetitive queries
+      2. Rotate difficult queues
+      3. Reasonable workload expectations
+      4. Career growth paths
+      5. Recognition and support
+      6. Breaks and mental health support
+    symptoms:
+      - "High turnover rate"
+      - "Declining CSAT"
+      - "Absenteeism"
+      - "Negative Glassdoor reviews"
+
+  # =============================================================================
+  # KNOWLEDGE BASE GOTCHAS
+  # =============================================================================
+
+  - id: stale-content
+    summary: "Knowledge base becomes outdated and wrong"
+    severity: high
+    tools_affected: [document360, notion, gitbook, guru]
+    situation: "Articles written once and never updated"
+    why: |
+      Your product changes but content doesn't:
+      - Features added/removed
+      - Policies change
+      - Pricing changes
+      - UI changes
+
+      Outdated KB = wrong AI answers = bad support.
+    solution: |
+      1. Regular content audits (quarterly minimum)
+      2. Ownership for each article
+      3. Product releases trigger content review
+      4. Track "this didn't help" feedback
+      5. Archive outdated content
+    symptoms:
+      - "Articles reference old UI"
+      - "Pricing/policy conflicts"
+      - "AI gives wrong answers"
+
+  - id: knowledge-silos
+    summary: "Knowledge stuck in people's heads, not systems"
+    severity: medium
+    tools_affected: [all]
+    situation: "Only certain agents can answer certain questions"
+    why: |
+      When knowledge isn't documented:
+      - Certain agents become bottlenecks
+      - Quality varies by who responds
+      - Risk when people leave
+      - Can't train AI on it
+
+      Tribal knowledge hurts scale.
+    solution: |
+      1. Knowledge-centered service (every resolution → article)
+      2. Regular knowledge sharing sessions
+      3. Documentation as part of resolution
+      4. Cross-training requirements
+      5. Exit interviews capture knowledge
+    symptoms:
+      - "Only Maria knows billing"
+      - "Inconsistent answers to same question"
+      - "Knowledge leaves with people"
+
+  # =============================================================================
+  # INTEGRATION GOTCHAS
+  # =============================================================================
+
+  - id: customer-context-scattered
+    summary: "Customer info scattered across tools"
+    severity: medium
+    tools_affected: [all]
+    situation: "Agent tabs between 5 tools to understand customer"
+    why: |
+      Without integration:
+      - CRM in one place
+      - Product usage in another
+      - Billing somewhere else
+      - Previous tickets not visible
+
+      Slow, frustrating, impersonal support.
+    solution: |
+      1. Customer data in helpdesk sidebar
+      2. API integrations to pull context
+      3. Single customer view
+      4. Auto-populate relevant info
+      5. Deep links to other tools
+    symptoms:
+      - "Long handle times"
+      - "Agent asks for info you should know"
+      - "Alt-tabbing constantly"
+
+  - id: survey-fatigue
+    summary: "Too many CSAT surveys annoy customers"
+    severity: low
+    tools_affected: [all]
+    situation: "Surveying after every interaction"
+    why: |
+      When you survey too much:
+      - Response rates drop
+      - Only angry people respond
+      - Becomes noise
+      - Customers unsubscribe
+
+      Less feedback, not more.
+    solution: |
+      1. Sample-based surveys (not every ticket)
+      2. Vary survey timing
+      3. Make it very quick (1-click)
+      4. Don't survey same person too often
+      5. Consider relationship surveys (NPS) instead
+    symptoms:
+      - "Low survey response rate"
+      - "Complaints about survey spam"
+      - "Biased responses"

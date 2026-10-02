@@ -1,0 +1,46 @@
+# Marketing AI Tools - Collaboration
+
+prerequisites:
+  skills:
+    - "Marketing fundamentals"
+    - "Platform knowledge"
+    - "Analytics understanding"
+
+tool_combinations:
+  - name: "Content Marketing Stack"
+    flow: [surfer-seo, jasper, buffer]
+    description: "Research → write → distribute"
+  - name: "Performance Marketing Stack"
+    flow: [adcreative-ai, semrush, analytics]
+    description: "Create → test → optimize"
+
+workflows:
+  - id: content-creation
+    name: "Content Creation Workflow"
+    steps:
+      - step: 1
+        action: "Keyword research"
+        tool: semrush
+      - step: 2
+        action: "AI draft"
+        tool: jasper
+      - step: 3
+        action: "Optimize content"
+        tool: surfer-seo
+      - step: 4
+        action: "Human edit"
+      - step: 5
+        action: "Publish and promote"
+        tool: buffer
+
+handoffs:
+  receives_from:
+    - team: product
+      receives: "Feature announcements"
+    - team: sales
+      receives: "Customer stories"
+  sends_to:
+    - team: sales
+      sends: "Leads, MQLs"
+    - team: analytics
+      sends: "Campaign data"
