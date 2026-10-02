@@ -1,0 +1,23 @@
+# Design AI Tools - Validations
+
+validations:
+  - id: design-quality-check
+    name: AI Design Quality Check
+    type: checklist
+    items:
+      - "Brand colors and fonts applied"
+      - "Accessibility standards met"
+      - "Consistent spacing and alignment"
+      - "Mobile responsive"
+      - "No AI artifacts or distortions"
+      - "Licensing verified for commercial use"
+
+  - id: handoff-checklist
+    name: Design Handoff
+    type: checklist
+    items:
+      - "Design tokens exported"
+      - "Assets properly named"
+      - "Responsive breakpoints defined"
+      - "Interaction states documented"
+      - "Dev notes added"

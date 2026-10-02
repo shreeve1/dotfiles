@@ -1,0 +1,257 @@
+# Analytics AI Tools - Collaboration
+# How analytics tools work with other tools and systems
+
+prerequisites:
+  technical:
+    - "Basic understanding of events and properties"
+    - "Access to codebase to implement tracking"
+    - "Understanding of user journey"
+  business:
+    - "Defined key metrics and KPIs"
+    - "Understanding of user activation"
+    - "Product roadmap context"
+
+# =============================================================================
+# COMPLEMENTARY TOOLS
+# =============================================================================
+
+complementary_tools:
+  - tool: segment
+    category: data-infrastructure
+    relationship: "Data collection layer"
+    why_combine: |
+      Segment acts as a single source of truth for tracking.
+      Track once to Segment, send to Amplitude + Mixpanel + warehouse.
+      Makes switching analytics tools painless.
+    workflow: "Track in Segment SDK -> Segment routes to analytics tools"
+    recommendation: "Use Segment if budget allows, especially at scale"
+
+  - tool: posthog-recordings
+    category: session-replay
+    relationship: "See WHY users do things"
+    why_combine: |
+      Analytics shows WHAT users do. Session recordings show WHY.
+      When funnel shows 40% drop-off, watch recordings to see why.
+    workflow: "Find anomaly in analytics -> Watch session recordings"
+    recommendation: "Essential for understanding drop-offs"
+
+  - tool: optimizely
+    category: experimentation
+    relationship: "A/B testing integration"
+    why_combine: |
+      Analytics tools have basic experiments. Optimizely has:
+      - Feature flags
+      - Advanced targeting
+      - Statistical rigor
+      - Multi-variate tests
+    workflow: "Optimizely runs experiment -> Analytics measures results"
+
+  - tool: data-warehouse
+    category: data-storage
+    relationship: "Long-term data storage"
+    why_combine: |
+      Analytics tools have retention limits. Warehouse stores forever.
+      Also enables joining with other data (revenue, support, etc.)
+    tools: [snowflake, bigquery, redshift]
+    workflow: "Analytics for real-time -> Warehouse for deep analysis"
+
+  - tool: reverse-etl
+    category: data-activation
+    relationship: "Send insights back to tools"
+    why_combine: |
+      Identify power users in analytics, sync to sales tools.
+      Find at-risk users, trigger email campaigns.
+    tools: [census, hightouch]
+    workflow: "Analytics identifies segments -> Reverse ETL syncs to tools"
+
+  - tool: customer-support
+    category: support-integration
+    relationship: "User context for support"
+    why_combine: |
+      Support agent sees user's recent activity, features used,
+      errors encountered. Better support, faster resolution.
+    tools: [intercom, zendesk]
+    workflow: "Analytics user profile -> Embedded in support tool"
+
+# =============================================================================
+# TOOL STACKS BY STAGE
+# =============================================================================
+
+recommended_stacks:
+  bootstrapped:
+    analytics: posthog
+    why: "Free, includes session recordings"
+    total_cost: "$0"
+    limitations: "Less mature than established players"
+
+  seed_stage:
+    analytics: amplitude
+    recordings: posthog
+    why: "Best-in-class product analytics + free recordings"
+    total_cost: "$0-49/month"
+
+  series_a:
+    analytics: amplitude
+    data_layer: segment
+    recordings: posthog
+    experimentation: amplitude-experiment
+    why: "Proper data infrastructure, ready to scale"
+    total_cost: "$500-1,500/month"
+
+  series_b_plus:
+    analytics: amplitude
+    data_layer: segment
+    warehouse: snowflake
+    recordings: fullstory
+    experimentation: optimizely
+    reverse_etl: census
+    why: "Full data stack, enterprise-grade"
+    total_cost: "$5,000-20,000/month"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: product-health-monitoring
+    name: "Weekly Product Health Review"
+    description: "Regular check on product metrics"
+    frequency: "Weekly"
+    tools: [amplitude, slack]
+    steps:
+      - step: 1
+        action: "Review core metrics dashboard"
+        tool: amplitude
+        check: "DAU, activation, retention within normal range?"
+
+      - step: 2
+        action: "Check funnel health"
+        tool: amplitude
+        check: "Any unexpected drop-offs?"
+
+      - step: 3
+        action: "Review anomaly alerts"
+        tool: amplitude
+        check: "Any alerts fired this week?"
+
+      - step: 4
+        action: "Share summary"
+        tool: slack
+        output: "Weekly metrics digest to #product"
+
+  - id: feature-launch-analysis
+    name: "New Feature Launch Analysis"
+    description: "Measure if new feature is working"
+    tools: [amplitude, posthog, slack]
+    steps:
+      - step: 1
+        action: "Verify tracking is live"
+        tool: amplitude
+        check: "Feature events appearing in real-time?"
+
+      - step: 2
+        action: "Monitor adoption"
+        tool: amplitude
+        metric: "% of users trying feature in first week"
+
+      - step: 3
+        action: "Watch user sessions"
+        tool: posthog
+        purpose: "Understand how users interact with feature"
+
+      - step: 4
+        action: "Compare cohorts"
+        tool: amplitude
+        analysis: "Feature users vs non-users: engagement, retention"
+
+      - step: 5
+        action: "Share results"
+        tool: slack
+        output: "Feature launch report with recommendations"
+
+  - id: conversion-optimization
+    name: "Funnel Optimization Workflow"
+    description: "Find and fix conversion drop-offs"
+    tools: [amplitude, posthog, optimizely]
+    steps:
+      - step: 1
+        action: "Identify drop-off"
+        tool: amplitude
+        analysis: "Which funnel step has biggest drop?"
+
+      - step: 2
+        action: "Watch sessions"
+        tool: posthog
+        purpose: "Why are users dropping off?"
+
+      - step: 3
+        action: "Form hypothesis"
+        output: "Users drop because X, we'll fix with Y"
+
+      - step: 4
+        action: "Run experiment"
+        tool: optimizely
+        setup: "A/B test the fix"
+
+      - step: 5
+        action: "Measure results"
+        tool: amplitude
+        check: "Did conversion improve significantly?"
+
+  - id: user-segmentation
+    name: "Power User Identification"
+    description: "Find and understand your best users"
+    tools: [amplitude, census, hubspot]
+    steps:
+      - step: 1
+        action: "Define power user"
+        tool: amplitude
+        criteria: "Users in top 10% by engagement"
+
+      - step: 2
+        action: "Create cohort"
+        tool: amplitude
+        output: "Power Users cohort"
+
+      - step: 3
+        action: "Analyze behavior"
+        tool: amplitude
+        question: "What do power users do that others don't?"
+
+      - step: 4
+        action: "Sync to CRM"
+        tool: census
+        destination: hubspot
+        purpose: "Sales can prioritize power users"
+
+      - step: 5
+        action: "Replicate success"
+        output: "Product changes to help more users become power users"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - tool: customer-support
+      receives: "Bug reports and feature requests to validate with data"
+
+    - tool: sales
+      receives: "Questions about user engagement for deals"
+
+    - tool: marketing
+      receives: "Campaign effectiveness questions"
+
+  sends_to:
+    - tool: development
+      sends: "Feature usage data to inform roadmap"
+
+    - tool: customer-support
+      sends: "User activity context for support tickets"
+
+    - tool: sales
+      sends: "Engagement scores and usage patterns"
+
+    - tool: marketing
+      sends: "User segments for targeting"

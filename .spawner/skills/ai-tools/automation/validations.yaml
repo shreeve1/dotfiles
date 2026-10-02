@@ -1,0 +1,226 @@
+# Automation AI Tools - Validations
+# Checklists for automation implementation
+
+validations:
+  # =============================================================================
+  # SETUP CHECKLISTS
+  # =============================================================================
+
+  - id: automation-setup-checklist
+    name: Automation Platform Setup
+    type: checklist
+    description: "Before building first automation"
+    items:
+      - "Account created with appropriate plan"
+      - "Team members invited with correct roles"
+      - "Folder/organization structure defined"
+      - "Naming convention documented"
+      - "Error notification channel set up"
+      - "Usage alerts configured"
+      - "Key integrations connected"
+      - "Test mode understood"
+
+  - id: pre-build-checklist
+    name: Pre-Build Requirements
+    type: checklist
+    description: "Before building any automation"
+    items:
+      - "Process documented manually first"
+      - "Trigger source identified"
+      - "Required data fields mapped"
+      - "API access/permissions verified"
+      - "Rate limits understood"
+      - "Error scenarios identified"
+      - "Success criteria defined"
+      - "Fallback process documented"
+
+  - id: connection-setup-checklist
+    name: Connection Setup
+    type: checklist
+    description: "When connecting new apps"
+    items:
+      - "Minimum permissions selected"
+      - "Dedicated automation user (if applicable)"
+      - "Connection tested successfully"
+      - "Token refresh understood"
+      - "Connection documented"
+      - "Owner assigned for connection"
+
+  # =============================================================================
+  # BUILD CHECKLISTS
+  # =============================================================================
+
+  - id: automation-build-checklist
+    name: Automation Build Checklist
+    type: checklist
+    description: "While building automation"
+    items:
+      - "Clear, descriptive name"
+      - "Description added explaining purpose"
+      - "Trigger conditions properly filtered"
+      - "Data mapped correctly"
+      - "Error handling added"
+      - "Retry logic configured"
+      - "Test data prepared"
+      - "All paths tested"
+      - "Edge cases considered"
+      - "Performance impact assessed"
+
+  - id: error-handling-checklist
+    name: Error Handling Configuration
+    type: checklist
+    description: "Error handling for automation"
+    items:
+      - "Error notification configured"
+      - "Retry settings appropriate"
+      - "Fallback path defined"
+      - "Data preserved on failure"
+      - "Alert recipients defined"
+      - "Error categorization set"
+      - "Recovery procedure documented"
+
+  - id: data-handling-checklist
+    name: Data Handling Best Practices
+    type: checklist
+    description: "Proper data handling in automations"
+    items:
+      - "Sensitive data identified"
+      - "PII handled appropriately"
+      - "Secrets not passed in data"
+      - "Data validation added"
+      - "Null/empty handling included"
+      - "Data types correct"
+      - "Field mapping verified"
+
+  # =============================================================================
+  # TESTING CHECKLISTS
+  # =============================================================================
+
+  - id: testing-checklist
+    name: Automation Testing
+    type: checklist
+    description: "Before enabling automation"
+    items:
+      - "Happy path tested"
+      - "Error path tested"
+      - "Empty/null data tested"
+      - "Large data volume tested"
+      - "Rate limits considered"
+      - "Duplicate handling tested"
+      - "End-to-end verified"
+      - "Real data test completed"
+
+  - id: go-live-checklist
+    name: Go-Live Checklist
+    type: checklist
+    description: "Before turning on automation"
+    items:
+      - "All testing completed"
+      - "Monitoring in place"
+      - "Team notified of new automation"
+      - "Documentation updated"
+      - "Rollback plan ready"
+      - "Manual process disabled (if replacing)"
+      - "Initial run monitored closely"
+
+  # =============================================================================
+  # MAINTENANCE CHECKLISTS
+  # =============================================================================
+
+  - id: monthly-audit-checklist
+    name: Monthly Automation Audit
+    type: checklist
+    description: "Monthly health check"
+    items:
+      - "Error rate reviewed"
+      - "Task/operation usage reviewed"
+      - "Failed runs investigated"
+      - "Unused automations identified"
+      - "Connection health verified"
+      - "Performance issues addressed"
+      - "Documentation current"
+
+  - id: quarterly-review-checklist
+    name: Quarterly Automation Review
+    type: checklist
+    description: "Quarterly deep review"
+    items:
+      - "All automations inventoried"
+      - "Ownership verified"
+      - "Business value confirmed"
+      - "Redundant automations consolidated"
+      - "Outdated automations sunset"
+      - "Security review completed"
+      - "Cost optimization done"
+      - "New opportunities identified"
+
+  - id: connection-audit-checklist
+    name: Connection Audit
+    type: checklist
+    description: "Regular connection review"
+    items:
+      - "All connections inventoried"
+      - "Unused connections removed"
+      - "Permissions still appropriate"
+      - "Tokens refreshed/valid"
+      - "Owner for each connection"
+      - "No shared credentials"
+
+  # =============================================================================
+  # SECURITY CHECKLISTS
+  # =============================================================================
+
+  - id: security-checklist
+    name: Automation Security Review
+    type: checklist
+    description: "Security best practices"
+    items:
+      - "Minimum permissions used"
+      - "Dedicated automation accounts"
+      - "No secrets in data payloads"
+      - "Sensitive data masked in logs"
+      - "Access restricted appropriately"
+      - "API keys rotated regularly"
+      - "Audit log reviewed"
+      - "Compliance requirements met"
+
+  - id: access-control-checklist
+    name: Access Control
+    type: checklist
+    description: "Team access configuration"
+    items:
+      - "Roles defined and documented"
+      - "Appropriate access per role"
+      - "Sensitive automations restricted"
+      - "Offboarded users removed"
+      - "SSO enabled (if available)"
+      - "MFA enabled"
+
+  # =============================================================================
+  # PERFORMANCE CHECKLISTS
+  # =============================================================================
+
+  - id: performance-checklist
+    name: Performance Optimization
+    type: checklist
+    description: "Optimize automation performance"
+    items:
+      - "Unnecessary steps removed"
+      - "Filters applied early"
+      - "Batch operations used where possible"
+      - "Rate limits respected"
+      - "Delays added where needed"
+      - "Parallel execution optimized"
+      - "Large data handled efficiently"
+
+  - id: cost-optimization-checklist
+    name: Cost Optimization
+    type: checklist
+    description: "Reduce automation costs"
+    items:
+      - "Task-heavy automations identified"
+      - "Filters reduce unnecessary runs"
+      - "Batch operations where possible"
+      - "Alternative platforms considered"
+      - "Unused automations disabled"
+      - "Plan appropriate for usage"

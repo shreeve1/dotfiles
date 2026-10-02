@@ -1,0 +1,272 @@
+# Analytics AI Tools - Sharp Edges
+# Gotchas and pitfalls when using analytics tools
+
+sharp_edges:
+  # =============================================================================
+  # UNIVERSAL ANALYTICS GOTCHAS
+  # =============================================================================
+
+  - id: event-volume-explosion
+    summary: "Event volume can explode and burn your budget"
+    severity: high
+    tools_affected: [amplitude, mixpanel, posthog, heap]
+    situation: "Tracking events in loops, high-frequency actions, or client-side spam"
+    why: |
+      Every event counts against your quota. Common traps:
+      - Tracking scroll events without throttling
+      - Events firing in loops (forEach with tracking)
+      - Bots and scrapers triggering events
+      - Duplicate tracking from multiple SDKs
+
+      A single bug can 10x your volume overnight.
+    solution: |
+      1. Throttle high-frequency events (scroll, resize, mousemove)
+      2. Use server-side tracking for critical events
+      3. Set up volume alerts at 70% of quota
+      4. Review tracking weekly for anomalies
+      5. Filter bot traffic (use user-agent filtering)
+
+      ```javascript
+      // Bad: Fires on every scroll
+      window.onscroll = () => track('Scrolled');
+
+      // Good: Throttled scroll tracking
+      const throttledTrack = throttle(() => track('Scrolled'), 5000);
+      window.onscroll = throttledTrack;
+      ```
+    symptoms:
+      - "Hit monthly limit mid-month"
+      - "Unexpected billing spike"
+      - "Event volume 10x overnight"
+
+  - id: identity-fragmentation
+    summary: "Same user appears as multiple users"
+    severity: high
+    tools_affected: [amplitude, mixpanel, posthog, heap]
+    situation: "Users tracked before and after login aren't connected"
+    why: |
+      Anonymous visitors get a device ID. After login, they get a user ID.
+      If you don't properly merge these, one person = two users.
+
+      This inflates user counts, breaks funnels, and makes retention
+      metrics meaningless.
+    solution: |
+      1. Call identify() IMMEDIATELY on login
+      2. Call identify() before any post-login events
+      3. Test identity merge in staging environment
+      4. Audit user counts vs auth system counts
+
+      ```javascript
+      // On successful login
+      async function onLogin(user) {
+        // FIRST: Identify the user (merges anonymous)
+        analytics.identify(user.id, {
+          email: user.email,
+          name: user.name
+        });
+
+        // THEN: Track the login event
+        analytics.track('User_Logged_In');
+      }
+      ```
+    symptoms:
+      - "User count >> actual registered users"
+      - "Funnels show impossible drop-offs"
+      - "Same person appears multiple times"
+
+  - id: retroactive-analysis-impossible
+    summary: "Can't analyze events you didn't track"
+    severity: medium
+    tools_affected: [amplitude, mixpanel, posthog, june]
+    situation: "Need to analyze something from 3 months ago that wasn't tracked"
+    why: |
+      Unlike Heap (which auto-captures), most tools only have data for
+      events you explicitly track. If you didn't track "Feature_Used"
+      from launch, you have no historical data.
+    solution: |
+      1. Start tracking early, even if imperfect
+      2. Use Heap if you're unsure what to track
+      3. Plan tracking spec BEFORE feature launches
+      4. Track generic events with properties for flexibility
+
+      ```javascript
+      // Flexible: Can filter by feature later
+      track('Feature_Used', {
+        feature_name: 'dark_mode',
+        feature_version: '2.0'
+      });
+
+      // Inflexible: Stuck with this specific event
+      track('Dark_Mode_Used');
+      ```
+    symptoms:
+      - "No data for important features"
+      - "Can't answer exec questions about history"
+      - "Feature launched without tracking"
+
+  - id: sample-size-delusion
+    summary: "Making decisions on statistically insignificant data"
+    severity: high
+    tools_affected: [amplitude, mixpanel, posthog, june]
+    situation: "A/B test shows 15% lift... with 50 users per variant"
+    why: |
+      Small sample sizes produce random noise that looks like signal.
+      A "15% improvement" might just be chance if n=50.
+
+      Most analytics tools don't warn you about significance.
+    solution: |
+      1. Wait for statistical significance (p < 0.05)
+      2. Use sample size calculators before tests
+      3. Run experiments for minimum 1-2 weeks
+      4. Don't peek at results daily (peeking bias)
+      5. Use tools with built-in significance (Amplitude Experiment)
+
+      Rule of thumb: Need ~1,000 conversions per variant for
+      reliable results on conversion rate changes.
+    symptoms:
+      - "Test results flip-flop daily"
+      - "Launched 'winning' variant that didn't perform"
+      - "Can't reproduce experiment results"
+
+  # =============================================================================
+  # TOOL-SPECIFIC GOTCHAS
+  # =============================================================================
+
+  - id: amplitude-credit-consumption
+    summary: "Amplitude MTU pricing is confusing"
+    severity: medium
+    tools_affected: [amplitude]
+    situation: "Bill higher than expected on Amplitude"
+    why: |
+      Amplitude charges by Monthly Tracked Users (MTU), not events.
+      But understanding what counts as a "user" is tricky:
+      - Anonymous visitors count
+      - Each device = separate user until identified
+      - Test/dev traffic counts too
+    solution: |
+      1. Filter out dev/test environments
+      2. Identify users early to reduce anonymous MTU
+      3. Monitor MTU in Amplitude dashboard
+      4. Consider server-side tracking for known users only
+    symptoms:
+      - "MTU count >> actual users"
+      - "Unexpected billing"
+
+  - id: mixpanel-data-delay
+    summary: "Mixpanel real-time isn't always real-time"
+    severity: low
+    tools_affected: [mixpanel]
+    situation: "Events not showing up immediately"
+    why: |
+      Mixpanel batches events and processes them. During high volume,
+      there can be 5-30 minute delays. Not ideal for real-time debugging.
+    solution: |
+      1. Use Live View for debugging (separate real-time stream)
+      2. Don't panic if events are delayed
+      3. For real-time needs, consider PostHog
+    symptoms:
+      - "Just triggered event, not in dashboard"
+      - "Counts don't match between views"
+
+  - id: posthog-self-host-maintenance
+    summary: "Self-hosted PostHog requires DevOps commitment"
+    severity: medium
+    tools_affected: [posthog]
+    situation: "Chose self-hosted for privacy, now it's a maintenance burden"
+    why: |
+      Self-hosting PostHog means:
+      - You manage upgrades
+      - You handle scaling
+      - You're responsible for backups
+      - ClickHouse can be resource-hungry
+    solution: |
+      1. Use PostHog Cloud unless you MUST self-host
+      2. If self-hosting, use their Helm charts
+      3. Plan for 16GB+ RAM minimum
+      4. Set up monitoring and alerts
+    symptoms:
+      - "PostHog slow or crashing"
+      - "Missed important upgrades"
+      - "Data loss from failed backups"
+
+  - id: heap-data-noise
+    summary: "Heap auto-capture creates overwhelming noise"
+    severity: medium
+    tools_affected: [heap]
+    situation: "So much data that useful insights are buried"
+    why: |
+      Heap captures EVERYTHING by default. Every click, every input,
+      every page view. Great for retroactive analysis, terrible for
+      finding signal in noise.
+    solution: |
+      1. Create Virtual Events for important actions
+      2. Use Heap's event visualizer to define key events
+      3. Build dashboards with curated metrics
+      4. Don't try to analyze raw auto-captured data
+    symptoms:
+      - "Analysis takes forever"
+      - "Can't find relevant events"
+      - "Dashboards are cluttered"
+
+  - id: julius-hallucination
+    summary: "Julius AI can misinterpret your data"
+    severity: medium
+    tools_affected: [julius]
+    situation: "AI gives confident but wrong analysis"
+    why: |
+      Julius uses LLMs to interpret queries. It can:
+      - Misunderstand column meanings
+      - Apply wrong calculations
+      - Give confident wrong answers
+      - Miss context humans would catch
+    solution: |
+      1. Always verify key numbers manually
+      2. Be specific in your queries
+      3. Check the generated code/SQL
+      4. Don't use for financial reporting without verification
+    symptoms:
+      - "Numbers don't match other sources"
+      - "Analysis seems off but AI is confident"
+
+  # =============================================================================
+  # INTEGRATION GOTCHAS
+  # =============================================================================
+
+  - id: duplicate-tracking
+    summary: "Same event tracked multiple times"
+    severity: medium
+    tools_affected: [all]
+    situation: "Using Segment + direct SDK = double counting"
+    why: |
+      Common setup mistakes:
+      - Segment AND direct Amplitude SDK both tracking
+      - Multiple GTM tags firing same event
+      - Server-side AND client-side both sending
+    solution: |
+      1. Audit all tracking sources
+      2. Use ONE source of truth (Segment recommended)
+      3. Disable direct SDKs if using Segment
+      4. Document your tracking architecture
+    symptoms:
+      - "Event counts 2x expected"
+      - "Funnels show >100% conversion"
+
+  - id: timezone-confusion
+    summary: "Data looks wrong due to timezone mismatches"
+    severity: low
+    tools_affected: [all]
+    situation: "Daily metrics don't match between tools"
+    why: |
+      Different tools use different timezone defaults:
+      - Amplitude: Project timezone setting
+      - Mixpanel: Project timezone setting
+      - Your database: Might be UTC
+      - Your server: Might be different
+    solution: |
+      1. Standardize on UTC for all tracking
+      2. Set project timezone in analytics tools
+      3. Document timezone assumptions
+      4. Always include timestamp in events
+    symptoms:
+      - "Same day, different numbers across tools"
+      - "Events seem to happen at wrong time"

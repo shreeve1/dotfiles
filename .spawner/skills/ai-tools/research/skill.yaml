@@ -1,0 +1,424 @@
+# Research AI Tools
+# AI-powered research, analysis, and information gathering
+
+id: research-ai-tools
+name: Research AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that accelerate research and information
+  gathering. From market research to academic analysis, find
+  insights faster and make better decisions.
+
+business_value:
+  time_saved: "70-80% faster research"
+  cost_saved: "$2,000-10,000/month vs research analysts"
+  revenue_impact: "Better decisions = better outcomes"
+  competitive_edge: "Know things before competitors"
+
+# =============================================================================
+# AI CHAT & RESEARCH ASSISTANTS
+# =============================================================================
+
+tools:
+  ai_assistants:
+    - id: chatgpt
+      name: ChatGPT
+      website: https://chat.openai.com
+      best_for: "General research assistant"
+      pricing:
+        free_tier: true
+        plus: "$20/month"
+        team: "$30/user/month"
+      strengths:
+        - "Most versatile"
+        - "Web browsing"
+        - "Code interpreter"
+        - "GPT-4 access"
+        - "Plugin ecosystem"
+      weaknesses:
+        - "Can hallucinate"
+        - "Knowledge cutoff"
+        - "No citations by default"
+      best_for_stage: "Anyone doing research"
+
+    - id: claude
+      name: Claude
+      website: https://claude.ai
+      best_for: "Long document analysis"
+      pricing:
+        free_tier: true
+        pro: "$20/month"
+        team: "$30/user/month"
+      strengths:
+        - "200K context window"
+        - "Excellent writing"
+        - "Document upload"
+        - "Nuanced analysis"
+        - "Thoughtful responses"
+      weaknesses:
+        - "No web browsing (chat)"
+        - "Can be verbose"
+      best_for_stage: "Deep analysis, long documents"
+
+    - id: perplexity
+      name: Perplexity
+      website: https://perplexity.ai
+      best_for: "Research with citations"
+      pricing:
+        free_tier: true
+        pro: "$20/month"
+      strengths:
+        - "Real-time web search"
+        - "Cited sources"
+        - "Follow-up questions"
+        - "Pro Search for deep research"
+        - "Academic mode"
+      weaknesses:
+        - "Sources not always reliable"
+        - "Summary can miss nuance"
+      best_for_stage: "Anyone needing sourced research"
+
+    - id: gemini
+      name: Google Gemini
+      website: https://gemini.google.com
+      best_for: "Google ecosystem research"
+      pricing:
+        free_tier: true
+        advanced: "$20/month"
+      strengths:
+        - "Google Search integration"
+        - "Multimodal (images, docs)"
+        - "Google Workspace integration"
+        - "Real-time information"
+      weaknesses:
+        - "Less refined than GPT-4"
+        - "Inconsistent quality"
+      best_for_stage: "Google-heavy workflows"
+
+  # =============================================================================
+  # SPECIALIZED RESEARCH TOOLS
+  # =============================================================================
+
+  specialized:
+    - id: consensus
+      name: Consensus
+      website: https://consensus.app
+      best_for: "Academic/scientific research"
+      pricing:
+        free_tier: true
+        premium: "$10/month"
+      strengths:
+        - "Academic paper search"
+        - "AI-synthesized answers"
+        - "Cited peer-reviewed sources"
+        - "Research metrics"
+      weaknesses:
+        - "Academic focus only"
+        - "Limited to published papers"
+      best_for_stage: "Scientific research, evidence-based decisions"
+
+    - id: elicit
+      name: Elicit
+      website: https://elicit.org
+      best_for: "Literature review automation"
+      pricing:
+        free_tier: true
+        plus: "$10/month"
+        team: "$20/user/month"
+      strengths:
+        - "Academic paper analysis"
+        - "Automated extraction"
+        - "Comparison tables"
+        - "Citation mapping"
+      weaknesses:
+        - "Academic papers only"
+        - "Can miss context"
+      best_for_stage: "Researchers, academics, analysts"
+
+    - id: semantic-scholar
+      name: Semantic Scholar
+      website: https://semanticscholar.org
+      best_for: "AI-enhanced paper search"
+      pricing:
+        free_tier: true
+      strengths:
+        - "Free academic search"
+        - "Citation analysis"
+        - "TLDR summaries"
+        - "Research feeds"
+      weaknesses:
+        - "Less sophisticated than Elicit"
+        - "No chat interface"
+      best_for_stage: "Academic research"
+
+    - id: you-com
+      name: You.com
+      website: https://you.com
+      best_for: "Privacy-focused AI search"
+      pricing:
+        free_tier: true
+        pro: "$15/month"
+      strengths:
+        - "Privacy focused"
+        - "Multiple AI models"
+        - "Code, images, writing modes"
+        - "Cited sources"
+      weaknesses:
+        - "Less polished than alternatives"
+        - "Smaller user base"
+      best_for_stage: "Privacy-conscious researchers"
+
+  # =============================================================================
+  # DATA & MARKET RESEARCH
+  # =============================================================================
+
+  market_research:
+    - id: statista
+      name: Statista + AI
+      website: https://statista.com
+      best_for: "Market statistics and data"
+      pricing:
+        basic: "$39/month"
+        professional: "$59/month"
+        business: "$79/month"
+      strengths:
+        - "Curated statistics"
+        - "Industry reports"
+        - "Infographics included"
+        - "AI search assistant"
+      weaknesses:
+        - "Expensive for individuals"
+        - "Not all industries covered"
+      best_for_stage: "Business strategy, market analysis"
+
+    - id: crayon
+      name: Crayon
+      website: https://crayon.co
+      best_for: "Competitive intelligence"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Automated competitor tracking"
+        - "AI-powered insights"
+        - "Battle cards"
+        - "Market signals"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Needs competitor list"
+      best_for_stage: "Competitive strategy teams"
+
+    - id: glimpse
+      name: Glimpse
+      website: https://meetglimpse.com
+      best_for: "Trend discovery"
+      pricing:
+        free_tier: true
+        pro: "$40/month"
+      strengths:
+        - "Emerging trend detection"
+        - "Search trend analysis"
+        - "Industry signals"
+        - "Newsletter format"
+      weaknesses:
+        - "US-focused"
+        - "Consumer trends mainly"
+      best_for_stage: "Trend spotting, early signals"
+
+  # =============================================================================
+  # NOTE-TAKING & KNOWLEDGE
+  # =============================================================================
+
+  knowledge_tools:
+    - id: notion-ai
+      name: Notion AI
+      website: https://notion.so
+      best_for: "AI in your knowledge base"
+      pricing:
+        add_on: "$10/member/month"
+      strengths:
+        - "Q&A over your docs"
+        - "Summarization"
+        - "Writing assistance"
+        - "In your workflow"
+      weaknesses:
+        - "Only searches Notion"
+        - "Context can be limited"
+      best_for_stage: "Notion-heavy teams"
+
+    - id: mem
+      name: Mem
+      website: https://mem.ai
+      best_for: "AI-native note-taking"
+      pricing:
+        free_tier: true
+        pro: "$15/month"
+        team: "$25/user/month"
+      strengths:
+        - "AI search and chat"
+        - "Automatic organization"
+        - "Meeting notes"
+        - "Smart connections"
+      weaknesses:
+        - "Newer, less mature"
+        - "Different paradigm"
+      best_for_stage: "Personal knowledge management"
+
+    - id: scite
+      name: Scite
+      website: https://scite.ai
+      best_for: "Citation context analysis"
+      pricing:
+        individual: "$12/month"
+        team: "Custom"
+      strengths:
+        - "Shows if cited supportingly or contrastingly"
+        - "Citation analysis"
+        - "Reference checking"
+        - "Dashboard"
+      weaknesses:
+        - "Academic focus"
+        - "Learning curve"
+      best_for_stage: "Academic researchers"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_use_case:
+    general_research:
+      primary: perplexity
+      alternative: chatgpt
+      reason: "Citations built in"
+
+    academic_research:
+      primary: elicit
+      alternative: consensus
+      reason: "Peer-reviewed sources"
+
+    competitive_intel:
+      primary: crayon
+      alternative: perplexity
+      reason: "Automated tracking"
+
+    long_document_analysis:
+      primary: claude
+      reason: "Largest context window"
+
+    market_data:
+      primary: statista
+      alternative: perplexity
+      reason: "Verified statistics"
+
+  by_budget:
+    free:
+      recommended: [perplexity, chatgpt-free, semantic-scholar]
+      reason: "Solid research capability at no cost"
+
+    individual:
+      recommended: [perplexity-pro, chatgpt-plus]
+      reason: "Best individual value"
+      total_cost: "$20-40/month"
+
+    team:
+      recommended: [perplexity-pro, claude-team, notion-ai]
+      reason: "Collaborative research"
+      total_cost: "$50-100/user/month"
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: low
+  time_to_value: "5 minutes"
+  time_to_proficiency: "1 week"
+  time_to_mastery: "1 month"
+
+  onboarding_steps:
+    - step: 1
+      action: "Pick primary research tool"
+      details: "Perplexity for most, Claude for docs"
+      time: "5 min"
+
+    - step: 2
+      action: "Learn effective prompting"
+      details: "Be specific, ask follow-ups"
+      time: "1 hour"
+
+    - step: 3
+      action: "Verify important claims"
+      details: "Check sources, cross-reference"
+      time: "Ongoing"
+
+    - step: 4
+      action: "Build research workflow"
+      details: "Capture → synthesize → share"
+      time: "1 hour"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Start broad, go deep"
+    description: "Initial broad search, then drill into specifics"
+    example: "What is X? → How does X work? → What are problems with X?"
+    impact: "Comprehensive understanding"
+
+  - name: "Multi-source verification"
+    description: "Cross-check claims across tools"
+    example: "Perplexity finding → verify in Consensus → primary source"
+    impact: "Higher accuracy"
+
+  - name: "Structured prompts"
+    description: "Ask for specific formats"
+    example: "Give me 5 bullet points on... with sources"
+    impact: "Actionable outputs"
+
+  - name: "Follow-up chains"
+    description: "Build on previous responses"
+    example: "Expand on point 3... What about exceptions?"
+    impact: "Deeper understanding"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Trusting without verification"
+    description: "Accepting AI claims as fact"
+    impact: "Spreading misinformation"
+    fix: "Always verify important claims"
+
+  - name: "Shallow research"
+    description: "Stopping at first answer"
+    impact: "Missing nuance and context"
+    fix: "Follow up, explore edges"
+
+  - name: "Ignoring citations"
+    description: "Not checking sources"
+    impact: "Using bad sources"
+    fix: "Evaluate source quality"
+
+  - name: "Over-relying on one tool"
+    description: "Only using ChatGPT"
+    impact: "Missing specialized insights"
+    fix: "Right tool for right task"
+
+triggers:
+  - "research"
+  - "find information"
+  - "academic papers"
+  - "market research"
+  - "competitive intelligence"
+  - "fact check"
+
+tags:
+  - research
+  - information
+  - analysis
+  - academic
+  - market-research

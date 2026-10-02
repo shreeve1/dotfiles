@@ -1,0 +1,432 @@
+# Next.js + Supabase Auth Sharp Edges
+# These are the gotchas that catch developers off guard
+
+sharp_edges:
+  - id: auth-getsession-vs-getuser
+    summary: getSession() is not secure for auth checks
+    severity: critical
+    situation: Using getSession() to verify user authentication in Server Components
+    why: |
+      getSession() reads the JWT from cookies but DOES NOT validate it.
+      An attacker could forge a JWT, and getSession() would trust it.
+      getUser() makes a request to Supabase to verify the token.
+    solution: |
+      Always use getUser() for security-critical operations:
+
+      // WRONG - trusts unverified JWT
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) { /* could be spoofed */ }
+
+      // RIGHT - verifies with Supabase
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) { /* actually authenticated */ }
+    symptoms:
+      - Security vulnerability in auth
+      - User spoofing possible
+      - Auth seems to work but is not secure
+    detection_pattern: 'getSession\\(\\)(?![\\s\\S]{0,100}?getUser)'
+    version_range: ">=2.0.0"
+
+  - id: auth-middleware-order
+    summary: Middleware not refreshing session before route protection
+    severity: high
+    situation: Checking auth in middleware without refreshing the session first
+    why: |
+      JWT tokens expire. If you check auth before refreshing, expired
+      tokens cause spurious redirects. The session might be valid but
+      the token just needs a refresh.
+    solution: |
+      Always refresh session first in middleware:
+
+      export async function middleware(request: NextRequest) {
+        const response = NextResponse.next({ request })
+        const supabase = createServerClient(...)
+
+        // Refresh FIRST - this updates cookies if needed
+        const { data: { user } } = await supabase.auth.getUser()
+
+        // THEN check auth
+        if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+          return NextResponse.redirect(new URL('/login', request.url))
+        }
+
+        return response
+      }
+    symptoms:
+      - Users randomly logged out
+      - Auth works sometimes, fails other times
+      - Session seems to expire early
+    detection_pattern: 'middleware[\\s\\S]*?pathname[\\s\\S]*?getUser'
+    version_range: ">=1.0.0"
+
+  - id: auth-callback-missing
+    summary: Missing auth callback route for OAuth
+    severity: high
+    situation: Setting up OAuth providers without the callback handler
+    why: |
+      OAuth providers redirect back to your app with a code.
+      Without the callback route, there's nowhere to exchange
+      this code for a session, so login appears to fail.
+    solution: |
+      Create the callback route handler:
+
+      // app/auth/callback/route.ts
+      import { createClient } from '@/lib/supabase/server'
+      import { NextResponse } from 'next/server'
+
+      export async function GET(request: Request) {
+        const { searchParams, origin } = new URL(request.url)
+        const code = searchParams.get('code')
+        const next = searchParams.get('next') ?? '/'
+
+        if (code) {
+          const supabase = await createClient()
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          if (!error) {
+            return NextResponse.redirect(`${origin}${next}`)
+          }
+        }
+
+        return NextResponse.redirect(`${origin}/auth/error`)
+      }
+
+      // In Supabase dashboard, set redirect URL to:
+      // https://yoursite.com/auth/callback
+    symptoms:
+      - "OAuth login fails after provider redirect"
+      - "User lands on 404 after OAuth"
+      - "code parameter in URL but not logged in"
+    detection_pattern: null
+    version_range: ">=1.0.0"
+
+  - id: auth-client-server-mismatch
+    summary: Using wrong Supabase client for the context
+    severity: high
+    situation: Using browser client in Server Component or vice versa
+    why: |
+      Browser client (createBrowserClient) can't access server-only
+      cookies. Server client (createServerClient) doesn't work in
+      browser. Using the wrong one means auth state is lost.
+    solution: |
+      Use the right client for each context:
+
+      // In Server Components, Server Actions, Route Handlers:
+      import { createClient } from '@/lib/supabase/server'
+
+      // In Client Components:
+      import { createClient } from '@/lib/supabase/client'
+
+      // In middleware.ts - create inline with request/response cookies
+
+      // Separate files make it clear:
+      // lib/supabase/client.ts - 'use client', createBrowserClient
+      // lib/supabase/server.ts - createServerClient with cookies()
+    symptoms:
+      - Auth works on server but not client
+      - User appears logged out after refresh
+      - getUser returns null when user is logged in
+    detection_pattern: "createBrowserClient.*cookies\\(\\)|createServerClient.*'use client'"
+    version_range: ">=1.0.0"
+
+  - id: auth-no-listener
+    summary: Client Component doesn't listen for auth changes
+    severity: medium
+    situation: Checking auth once without onAuthStateChange listener
+    why: |
+      Auth state can change at any time: user logs out in another tab,
+      token refreshes, session expires. Without a listener, your UI
+      gets out of sync with reality.
+    solution: |
+      Use onAuthStateChange in Client Components:
+
+      'use client'
+      import { useEffect, useState } from 'react'
+      import { createClient } from '@/lib/supabase/client'
+
+      export function AuthProvider({ children }) {
+        const [user, setUser] = useState(null)
+        const supabase = createClient()
+
+        useEffect(() => {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            (event, session) => {
+              setUser(session?.user ?? null)
+            }
+          )
+
+          return () => subscription.unsubscribe()
+        }, [])
+
+        return <AuthContext.Provider value={user}>{children}</AuthContext.Provider>
+      }
+    symptoms:
+      - UI shows logged in after logout
+      - Auth state stuck until refresh
+      - Multiple tabs get out of sync
+    detection_pattern: 'createClient\\(\\)(?![\\s\\S]{0,500}?onAuthStateChange)'
+    version_range: ">=1.0.0"
+
+  - id: auth-redirect-loop
+    summary: Redirect loop between login and protected route
+    severity: medium
+    situation: Middleware redirects to login, but login also gets redirected
+    why: |
+      If your middleware matcher is too broad, it catches the login page
+      itself. User gets redirected to login, which redirects to login,
+      infinite loop.
+    solution: |
+      Exclude auth routes from middleware, or handle them explicitly:
+
+      // Option 1: Matcher excludes auth routes
+      export const config = {
+        matcher: ['/((?!_next/static|_next/image|favicon.ico|login|auth).*)'],
+      }
+
+      // Option 2: Explicit handling in middleware
+      export async function middleware(request: NextRequest) {
+        const { pathname } = request.nextUrl
+
+        // Skip auth-related routes
+        if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
+          return NextResponse.next()
+        }
+
+        // ... rest of auth check
+      }
+    symptoms:
+      - Browser shows "too many redirects"
+      - Login page never loads
+      - Infinite loading
+    detection_pattern: 'matcher.*(?!.*login|auth)'
+    version_range: ">=1.0.0"
+
+  - id: auth-pkce-cors
+    summary: CORS issues with PKCE flow
+    severity: medium
+    situation: Using signInWithOAuth and getting CORS errors
+    why: |
+      OAuth with PKCE requires specific redirect URL configuration.
+      If the redirect URL in Supabase dashboard doesn't match your
+      actual callback URL exactly, you get CORS errors.
+    solution: |
+      1. In Supabase Dashboard > Authentication > URL Configuration:
+         - Site URL: https://yoursite.com
+         - Redirect URLs: https://yoursite.com/auth/callback
+
+      2. For local development, add:
+         - http://localhost:3000/auth/callback
+
+      3. In your OAuth call:
+         await supabase.auth.signInWithOAuth({
+           provider: 'google',
+           options: {
+             redirectTo: `${window.location.origin}/auth/callback`,
+           },
+         })
+
+      4. Make sure the callback route exists at that path
+    symptoms:
+      - "CORS error in console"
+      - "OAuth popup closes but login fails"
+      - "Invalid redirect URL error"
+    detection_pattern: 'signInWithOAuth(?![\\s\\S]{0,100}?redirectTo)'
+    version_range: ">=1.0.0"
+
+  - id: auth-server-action-cookies
+    summary: Cookies not being set in Server Actions
+    severity: medium
+    situation: Login works but session doesn't persist
+    why: |
+      Server Actions can set cookies, but only if you use the right
+      pattern. The createServerClient needs the cookies() function
+      with both getAll and setAll implemented.
+    solution: |
+      Make sure your server client sets cookies:
+
+      // lib/supabase/server.ts
+      import { createServerClient } from '@supabase/ssr'
+      import { cookies } from 'next/headers'
+
+      export async function createClient() {
+        const cookieStore = await cookies()
+
+        return createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() {
+                return cookieStore.getAll()
+              },
+              setAll(cookiesToSet) {
+                // This is critical for Server Actions!
+                try {
+                  cookiesToSet.forEach(({ name, value, options }) =>
+                    cookieStore.set(name, value, options)
+                  )
+                } catch {
+                  // Called from Server Component - can't set cookies
+                }
+              },
+            },
+          }
+        )
+      }
+    symptoms:
+      - Login succeeds but immediately logged out
+      - getUser() returns null after signIn
+      - Works in API routes but not Server Actions
+    detection_pattern: 'createServerClient(?![\\s\\S]{0,200}?setAll)'
+    version_range: ">=1.0.0"
+
+# Maps error messages to solutions for quick debugging
+symptom_index:
+  # Authentication errors
+  - error_pattern: "AuthApiError: Invalid login credentials"
+    edge_id: null
+    quick_fix: "Check email/password spelling. Verify user exists in Supabase dashboard."
+    solution: |
+      1. Check Supabase Dashboard > Authentication > Users
+      2. Verify email is confirmed (if email confirmation enabled)
+      3. Try password reset flow
+
+  - error_pattern: "AuthApiError: User already registered"
+    edge_id: null
+    quick_fix: "User exists. Use signInWithPassword instead of signUp."
+    solution: "Redirect to login or offer password reset"
+
+  - error_pattern: "AuthApiError: Email not confirmed"
+    edge_id: null
+    quick_fix: "User needs to click confirmation link in email."
+    solution: |
+      1. Check spam folder
+      2. Resend confirmation: supabase.auth.resend({ type: 'signup', email })
+      3. Or disable email confirmation in Supabase Dashboard
+
+  - error_pattern: "AuthSessionMissingError"
+    edge_id: auth-server-action-cookies
+    quick_fix: "Server client not setting cookies properly."
+    solution: "Ensure setAll is implemented in createServerClient cookies config"
+
+  - error_pattern: "AuthRetryableFetchError"
+    edge_id: null
+    quick_fix: "Network issue or Supabase is down."
+    solution: "Check internet connection and status.supabase.com"
+
+  # Session errors
+  - error_pattern: "invalid JWT"
+    edge_id: auth-getsession-vs-getuser
+    quick_fix: "Token is malformed or expired. Refresh with getUser()."
+    solution: "Call supabase.auth.getUser() to refresh the session"
+
+  - error_pattern: "JWT expired"
+    edge_id: auth-middleware-order
+    quick_fix: "Token expired. Add session refresh in middleware."
+    solution: "Middleware should call getUser() before auth checks"
+
+  - error_pattern: "no session found"
+    edge_id: auth-client-server-mismatch
+    quick_fix: "Using wrong Supabase client for context."
+    solution: "Use createServerClient in server, createBrowserClient in client"
+
+  # OAuth errors
+  - error_pattern: "invalid redirect_uri"
+    edge_id: auth-pkce-cors
+    quick_fix: "Redirect URL not whitelisted in Supabase dashboard."
+    solution: "Add exact URL to Authentication > URL Configuration > Redirect URLs"
+
+  - error_pattern: "CORS"
+    edge_id: auth-pkce-cors
+    quick_fix: "Supabase redirect URL mismatch."
+    solution: "Ensure Site URL and Redirect URLs match your domain exactly"
+
+  - error_pattern: "code parameter"
+    edge_id: auth-callback-missing
+    quick_fix: "Missing auth callback route."
+    solution: "Create app/auth/callback/route.ts to handle OAuth code exchange"
+
+  - error_pattern: "provider.*disabled"
+    edge_id: null
+    quick_fix: "OAuth provider not enabled."
+    solution: "Enable provider in Supabase Dashboard > Authentication > Providers"
+
+  # Cookie errors
+  - error_pattern: "cookies is not a function"
+    edge_id: auth-client-server-mismatch
+    quick_fix: "Calling server code from client context."
+    solution: "Check 'use client' directive. Server code can't run in browser."
+
+  - error_pattern: "Failed to set cookie"
+    edge_id: auth-server-action-cookies
+    quick_fix: "Server Component trying to set cookies."
+    solution: "Move auth logic to Server Action or Route Handler"
+
+# Critical mistakes that need immediate attention
+red_flags:
+  - id: exposed-service-role-key
+    severity: critical
+    pattern: 'SUPABASE_SERVICE_ROLE|service_role_key'
+    in_files:
+      - "*.tsx"
+      - "*.jsx"
+      - "components/**"
+      - "app/**/page.tsx"
+    message: "Service role key exposed in client code!"
+    why: "Service role bypasses RLS. Never expose to browser."
+    immediate_action: |
+      1. ROTATE the key immediately in Supabase Dashboard
+      2. Move to server-only code (Route Handler, Server Action)
+      3. Use NEXT_PUBLIC_ only for anon key
+
+  - id: auth-in-client-component
+    severity: high
+    pattern: "'use client'[\\s\\S]{0,500}?signInWithPassword"
+    in_files:
+      - "app/**/page.tsx"
+      - "components/**"
+    message: "Password auth in Client Component exposes credentials in network tab"
+    why: "Client-side auth means passwords visible in browser DevTools"
+    immediate_action: "Move to Server Action for secure credential handling"
+
+  - id: no-rls-with-auth
+    severity: critical
+    pattern: 'createClient[\\s\\S]{0,300}?from\\([\'"](?!public\\.)'
+    in_files:
+      - "*.ts"
+      - "*.tsx"
+    message: "Querying non-public tables without RLS check"
+    why: "Auth without RLS = data exposed to any authenticated user"
+    immediate_action: |
+      1. Enable RLS on all tables: ALTER TABLE x ENABLE ROW LEVEL SECURITY;
+      2. Add policies: CREATE POLICY "Users own data" ON x FOR ALL USING (auth.uid() = user_id);
+
+  - id: storing-password-plaintext
+    severity: critical
+    pattern: 'password[\'"]?\\s*[=:]\\s*[\'"](?!.*\\$2[aby])'
+    in_files:
+      - "*.ts"
+      - "*.tsx"
+      - "*.js"
+    message: "Possible plaintext password storage"
+    why: "Supabase handles password hashing. Never store passwords yourself."
+    immediate_action: "Remove custom password storage. Use Supabase Auth exclusively."
+
+  - id: jwt-in-localstorage
+    severity: high
+    pattern: 'localStorage\\.setItem.*(?:token|jwt|session|access_token)'
+    in_files:
+      - "*.ts"
+      - "*.tsx"
+    message: "Storing auth token in localStorage"
+    why: "localStorage is vulnerable to XSS. Use httpOnly cookies."
+    immediate_action: "Remove localStorage token storage. @supabase/ssr handles cookies."
+
+  - id: disabled-email-verification
+    severity: medium
+    pattern: 'signUp[\\s\\S]{0,200}?emailRedirectTo.*#'
+    in_files:
+      - "*.ts"
+      - "*.tsx"
+    message: "Email verification might be bypassed"
+    why: "Hash fragments can leak. Use proper redirect flow."
+    immediate_action: "Use proper callback URL without fragments"

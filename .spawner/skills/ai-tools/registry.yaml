@@ -1,0 +1,129 @@
+# AI Tools Registry
+# Business-transforming AI tools organized by category
+# Each category is a skill with comprehensive tool coverage
+
+version: "1.0.0"
+updated: "2025-01-01"
+total_categories: 12
+total_tools: 150+
+
+description: |
+  A curated directory of AI tools that can 10x your business.
+  Each category contains multiple tools with comparisons,
+  best practices, gotchas, and real workflows.
+
+categories:
+  # Core Business Tools
+  - id: analytics
+    name: "Analytics AI Tools"
+    description: "Product analytics, data analysis, and BI platforms"
+    tool_count: 15
+    top_tools: [amplitude, mixpanel, posthog, julius, hex]
+
+  - id: content-creation
+    name: "Content Creation AI Tools"
+    description: "Image, video, audio, and writing generation"
+    tool_count: 30
+    top_tools: [midjourney, runway, elevenlabs, claude, heygen]
+
+  - id: sales
+    name: "Sales AI Tools"
+    description: "AI SDRs, lead intelligence, and CRM automation"
+    tool_count: 15
+    top_tools: [apollo, clay, 11x, instantly, hubspot-ai]
+
+  - id: customer-support
+    name: "Customer Support AI Tools"
+    description: "AI support agents, chatbots, and ticket automation"
+    tool_count: 12
+    top_tools: [intercom-fin, zendesk-ai, ada, voiceflow]
+
+  - id: automation
+    name: "Automation AI Tools"
+    description: "Workflow automation, AI agents, and browser RPA"
+    tool_count: 15
+    top_tools: [zapier, make, n8n, crewai, bardeen]
+
+  - id: development
+    name: "Development AI Tools"
+    description: "Coding assistants, app builders, and design-to-code"
+    tool_count: 18
+    top_tools: [cursor, github-copilot, v0, bolt, claude-code]
+
+  - id: research
+    name: "Research AI Tools"
+    description: "AI search, competitive intelligence, and market research"
+    tool_count: 12
+    top_tools: [perplexity, elicit, crayon, glimpse]
+
+  - id: productivity
+    name: "Productivity AI Tools"
+    description: "Meeting AI, knowledge management, and email assistants"
+    tool_count: 15
+    top_tools: [fireflies, notion-ai, granola, superhuman]
+
+  - id: design
+    name: "Design AI Tools"
+    description: "UI/UX design, graphic design, and brand tools"
+    tool_count: 12
+    top_tools: [figma-ai, canva-ai, framer, photoroom]
+
+  - id: marketing
+    name: "Marketing AI Tools"
+    description: "Content marketing, SEO, social media, and ads"
+    tool_count: 15
+    top_tools: [jasper, surfer-seo, buffer-ai, adcreative]
+
+  - id: hr-recruiting
+    name: "HR & Recruiting AI Tools"
+    description: "Recruiting automation, interview AI, and HR operations"
+    tool_count: 10
+    top_tools: [hirevue, paradox, metaview, rippling]
+
+  - id: finance
+    name: "Finance AI Tools"
+    description: "Accounting automation, expense management, and FP&A"
+    tool_count: 10
+    top_tools: [ramp, vic-ai, brex, pigment]
+
+# How to use this directory
+usage:
+  finding_tools: |
+    1. Identify your business need (category)
+    2. Read the category skill.yaml for tool comparisons
+    3. Check sharp-edges.yaml for gotchas
+    4. Use workflows in collaboration.yaml
+
+  mastering_tools: |
+    1. Start with the "recommended" tool for your stage
+    2. Follow the onboarding steps in skill.yaml
+    3. Implement one workflow from collaboration.yaml
+    4. Avoid the mistakes in sharp-edges.yaml
+
+# Business impact tiers
+impact_tiers:
+  tier_1_game_changers:
+    description: "10x+ ROI, fundamental business transformation"
+    tools:
+      - cursor        # 10x development speed
+      - midjourney    # Unlimited visual content
+      - claude        # Universal AI reasoning
+      - elevenlabs    # Voice at scale
+      - zapier        # Automate everything
+
+  tier_2_function_multipliers:
+    description: "5x ROI, supercharge specific functions"
+    tools:
+      - amplitude     # Product intelligence
+      - intercom-fin  # Support at scale
+      - apollo        # Sales intelligence
+      - perplexity    # Instant research
+      - fireflies     # Meeting productivity
+
+  tier_3_specialists:
+    description: "3x ROI, domain excellence"
+    tools:
+      - 11x           # AI SDR
+      - julius        # Data analysis
+      - synthesia     # Training videos
+      - ramp          # Expense AI

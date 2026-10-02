@@ -1,0 +1,102 @@
+# HR & Recruiting AI Tools - Collaboration
+
+prerequisites:
+  skills:
+    - "Recruiting fundamentals"
+    - "Interview techniques"
+    - "Employment law basics"
+    - "HR operations knowledge"
+
+tool_combinations:
+  - name: "Full-Cycle Recruiting Stack"
+    flow: [linkedin-recruiter, lever, hirevu, rippling]
+    description: "Source → track → assess → onboard"
+  - name: "High-Volume Hiring Stack"
+    flow: [hiretual, greenhouse, pymetrics]
+    description: "Mass source → structured process → skills assessment"
+  - name: "Enterprise Talent Stack"
+    flow: [eightfold, greenhouse, lattice]
+    description: "Intelligence → hiring → performance management"
+
+recommended_stacks:
+  startup:
+    tools: [linkedin-recruiter, lever]
+    cost: "$200-500/month"
+  growth:
+    tools: [gem, greenhouse, hirevu]
+    cost: "$500-2000/month"
+  enterprise:
+    tools: [eightfold, greenhouse, rippling, lattice]
+    cost: "$5000+/month"
+
+workflows:
+  - id: candidate-sourcing
+    name: "Candidate Sourcing Workflow"
+    steps:
+      - step: 1
+        action: "Define role requirements"
+        tool: lever
+      - step: 2
+        action: "AI-powered candidate search"
+        tool: linkedin-recruiter
+      - step: 3
+        action: "Enrich candidate profiles"
+        tool: hiretual
+      - step: 4
+        action: "Outreach sequences"
+        tool: gem
+      - step: 5
+        action: "Track in ATS"
+        tool: lever
+
+  - id: interview-process
+    name: "Interview Process Workflow"
+    steps:
+      - step: 1
+        action: "Screen applications"
+        tool: greenhouse
+      - step: 2
+        action: "Skills assessment"
+        tool: pymetrics
+      - step: 3
+        action: "Video interview"
+        tool: hirevu
+      - step: 4
+        action: "Structured evaluation"
+        tool: greenhouse
+      - step: 5
+        action: "Offer and onboard"
+        tool: rippling
+
+handoffs:
+  receives_from:
+    - team: hiring_managers
+      receives: "Role requirements, team needs"
+    - team: leadership
+      receives: "Headcount plans, budget"
+    - team: finance
+      receives: "Compensation bands"
+  sends_to:
+    - team: onboarding
+      sends: "New hire details"
+    - team: it
+      sends: "Equipment and access needs"
+    - team: leadership
+      sends: "Hiring metrics, pipeline reports"
+
+integrations:
+  ats_systems:
+    - lever
+    - greenhouse
+    - workday
+  hris_systems:
+    - rippling
+    - bamboohr
+    - workday
+  communication:
+    - slack
+    - email
+    - calendar
+  background_checks:
+    - checkr
+    - sterling

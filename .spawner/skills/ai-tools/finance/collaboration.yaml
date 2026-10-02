@@ -1,0 +1,130 @@
+# Finance AI Tools - Collaboration
+
+prerequisites:
+  skills:
+    - "Accounting fundamentals"
+    - "Financial statement understanding"
+    - "Business metrics knowledge"
+    - "Compliance awareness"
+
+tool_combinations:
+  - name: "Startup Finance Stack"
+    flow: [quickbooks-ai, brex, finmark]
+    description: "Track → spend → forecast"
+  - name: "Growth Finance Stack"
+    flow: [xero, ramp, runway-finance, planful]
+    description: "Account → control → model → plan"
+  - name: "Enterprise Finance Stack"
+    flow: [sage-intacct, anaplan, mosaic]
+    description: "ERP → planning → strategic insights"
+
+recommended_stacks:
+  bootstrapped:
+    tools: [quickbooks-ai, expensify]
+    cost: "$50-100/month"
+  funded_startup:
+    tools: [quickbooks-ai, brex, finmark]
+    cost: "$100-300/month"
+  scaling:
+    tools: [xero, ramp, runway-finance]
+    cost: "$500-1500/month"
+  enterprise:
+    tools: [sage-intacct, anaplan, mosaic]
+    cost: "$5000+/month"
+
+workflows:
+  - id: monthly-close
+    name: "Monthly Close Workflow"
+    steps:
+      - step: 1
+        action: "Download bank statements"
+        tool: bank
+      - step: 2
+        action: "Reconcile accounts"
+        tool: quickbooks-ai
+      - step: 3
+        action: "Review AI categorizations"
+        tool: quickbooks-ai
+      - step: 4
+        action: "Process expense reports"
+        tool: expensify
+      - step: 5
+        action: "Generate financial statements"
+        tool: quickbooks-ai
+      - step: 6
+        action: "Update forecasts"
+        tool: runway-finance
+
+  - id: board-reporting
+    name: "Board Reporting Workflow"
+    steps:
+      - step: 1
+        action: "Pull actuals"
+        tool: xero
+      - step: 2
+        action: "Compare to plan"
+        tool: planful
+      - step: 3
+        action: "Generate insights"
+        tool: mosaic
+      - step: 4
+        action: "Create board deck"
+        tool: runway-finance
+      - step: 5
+        action: "Share with investors"
+
+  - id: expense-processing
+    name: "Expense Processing Workflow"
+    steps:
+      - step: 1
+        action: "Employee submits receipt"
+        tool: ramp
+      - step: 2
+        action: "AI categorizes expense"
+        tool: ramp
+      - step: 3
+        action: "Manager approves"
+        tool: ramp
+      - step: 4
+        action: "Sync to accounting"
+        tool: quickbooks-ai
+      - step: 5
+        action: "Reimburse if needed"
+
+handoffs:
+  receives_from:
+    - team: sales
+      receives: "Revenue data, bookings"
+    - team: operations
+      receives: "Headcount, cost inputs"
+    - team: leadership
+      receives: "Strategic priorities, targets"
+  sends_to:
+    - team: leadership
+      sends: "Financial reports, forecasts"
+    - team: board
+      sends: "Board deck, metrics"
+    - team: hr
+      sends: "Compensation data, budget"
+    - team: operations
+      sends: "Budget allocations"
+
+integrations:
+  erp_systems:
+    - quickbooks
+    - xero
+    - netsuite
+    - sage
+  banking:
+    - plaid
+    - direct_bank_feeds
+  payroll:
+    - gusto
+    - rippling
+    - deel
+  crm:
+    - salesforce
+    - hubspot
+  billing:
+    - stripe
+    - chargebee

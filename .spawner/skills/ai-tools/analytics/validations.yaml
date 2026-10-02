@@ -1,0 +1,177 @@
+# Analytics AI Tools - Validations
+# Checklists and checks for analytics implementation
+
+validations:
+  # =============================================================================
+  # SETUP CHECKLIST
+  # =============================================================================
+
+  - id: tracking-setup-checklist
+    name: Analytics Setup Checklist
+    type: checklist
+    description: "Verify your analytics is properly set up"
+    items:
+      - "SDK installed and initialized correctly"
+      - "Test events firing in development"
+      - "Production vs development environments separated"
+      - "User identification implemented"
+      - "Key events defined and documented"
+      - "Event naming convention documented"
+      - "Team trained on tracking spec"
+      - "Dashboard with core metrics created"
+      - "Alerts set up for anomalies"
+      - "Data retention policy configured"
+
+  - id: event-naming-check
+    name: Event Naming Convention
+    type: regex
+    severity: warning
+    description: "Events should follow Object_Action pattern"
+    pattern:
+      - "track\\(['\"]([a-z_]+)['\"]"  # lowercase_snake = wrong
+      - "track\\(['\"]([A-Z][a-z]+ [A-Z][a-z]+)['\"]"  # Space separated = wrong
+    correct_pattern: "track\\(['\"][A-Z][a-z]+_[A-Z][a-z]+['\"]"
+    message: "Use PascalCase_Action pattern: Button_Clicked, Form_Submitted"
+    fix_action: "Rename to Object_Action format"
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"
+      - "**/*.tsx"
+      - "**/*.jsx"
+
+  - id: identify-before-track
+    name: Identify Before Track After Login
+    type: pattern
+    severity: error
+    description: "Must call identify() before tracking post-login events"
+    pattern:
+      - "onLogin.*track\\("
+      - "login.*\\{[^}]*track\\([^}]*\\}"
+    message: "Call identify(userId) BEFORE any track() calls after login"
+    fix_action: |
+      // Correct order:
+      analytics.identify(user.id);
+      analytics.track('User_Logged_In');
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"
+
+  - id: no-pii-in-events
+    name: No PII in Event Properties
+    type: regex
+    severity: error
+    description: "Don't track personally identifiable information in events"
+    pattern:
+      - "track\\([^)]*email['\"]?\\s*:"
+      - "track\\([^)]*password"
+      - "track\\([^)]*ssn"
+      - "track\\([^)]*credit_card"
+      - "track\\([^)]*phone['\"]?\\s*:"
+    message: "Remove PII from event properties. Use identify() for user traits."
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"
+
+  # =============================================================================
+  # IMPLEMENTATION QUALITY
+  # =============================================================================
+
+  - id: throttle-high-frequency
+    name: Throttle High-Frequency Events
+    type: pattern
+    severity: warning
+    description: "High-frequency events should be throttled"
+    pattern:
+      - "scroll.*track\\("
+      - "resize.*track\\("
+      - "mousemove.*track\\("
+      - "input.*track\\("
+    message: "Throttle high-frequency events to avoid quota burn"
+    fix_action: |
+      // Use throttle for scroll/resize/input events
+      const throttledTrack = throttle(() => track('Page_Scrolled'), 5000);
+      window.addEventListener('scroll', throttledTrack);
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"
+
+  - id: hardcoded-user-ids
+    name: No Hardcoded User IDs
+    type: regex
+    severity: error
+    description: "User IDs should come from auth, not hardcoded"
+    pattern:
+      - "identify\\(['\"][a-zA-Z0-9-]+['\"]\\)"
+      - "userId\\s*[=:]\\s*['\"][a-zA-Z0-9-]+['\"]"
+    message: "Get user ID from authentication system, not hardcoded"
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"
+
+  # =============================================================================
+  # DATA QUALITY CHECKS
+  # =============================================================================
+
+  - id: metric-health-checklist
+    name: Weekly Metric Health Check
+    type: checklist
+    description: "Weekly review of analytics health"
+    items:
+      - "Event volume within expected range (not 2x or 0.5x)"
+      - "User counts match auth system (within 10%)"
+      - "Key funnels showing expected conversion rates"
+      - "No broken tracking (0 events for active features)"
+      - "No duplicate event names with different meanings"
+      - "Properties being captured correctly"
+      - "Mobile and web both tracking"
+      - "Server-side events (if used) flowing"
+
+  - id: dashboard-requirements
+    name: Core Dashboard Requirements
+    type: checklist
+    description: "Every product should have these metrics visible"
+    items:
+      - "DAU/WAU/MAU chart"
+      - "Activation rate (define your activation event)"
+      - "Retention curves (D1, D7, D30)"
+      - "Core action frequency"
+      - "Conversion funnel for main flow"
+      - "Revenue metrics (if applicable)"
+      - "Comparison to previous period"
+
+  # =============================================================================
+  # SECURITY & COMPLIANCE
+  # =============================================================================
+
+  - id: gdpr-compliance-checklist
+    name: GDPR Compliance for Analytics
+    type: checklist
+    description: "Ensure analytics comply with GDPR"
+    items:
+      - "Cookie consent banner implemented"
+      - "Analytics only fire after consent"
+      - "User can opt-out of tracking"
+      - "Data deletion process documented"
+      - "Privacy policy mentions analytics tools"
+      - "Data processing agreements signed with vendors"
+      - "EU data residency (if required)"
+      - "No PII in event properties"
+
+  - id: consent-before-tracking
+    name: Consent Before Tracking
+    type: pattern
+    severity: error
+    description: "Analytics should only fire after user consent"
+    pattern:
+      - "analytics\\.init\\("
+      - "amplitude\\.init\\("
+      - "mixpanel\\.init\\("
+    message: "Wrap analytics initialization in consent check"
+    fix_action: |
+      // Only initialize after consent
+      if (hasUserConsent()) {
+        analytics.init(API_KEY);
+      }
+    applies_to:
+      - "**/*.ts"
+      - "**/*.js"

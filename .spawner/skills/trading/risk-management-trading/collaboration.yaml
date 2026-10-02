@@ -1,0 +1,363 @@
+id: risk-management-trading
+skill: Risk Management for Trading
+version: "1.1"
+
+receives_from:
+  - skill: technical-analysis
+    receives:
+      - Entry and exit levels
+      - Stop loss placement (structure-based)
+      - Target levels
+      - Volatility regime assessment
+    provides:
+      - Position sizing for given stops
+      - Risk/reward calculations
+      - Trade viability assessment
+
+  - skill: quantitative-research
+    receives:
+      - Backtest statistics (win rate, avg win/loss)
+      - Strategy drawdown history
+      - Edge quantification
+      - Regime-conditional performance
+    provides:
+      - Kelly criterion sizing
+      - Risk of ruin calculations
+      - Strategy risk budget
+
+  - skill: execution-algorithms
+    receives:
+      - Expected slippage
+      - Execution costs
+      - Fill probabilities
+      - Market impact estimates
+    provides:
+      - Slippage-adjusted risk calculations
+      - True cost of stops
+      - Execution risk assessment
+
+  - skill: portfolio-optimization
+    receives:
+      - Portfolio composition
+      - Correlation structure
+      - Allocation weights
+      - Factor exposures
+    provides:
+      - Position-level risk limits
+      - Correlation-adjusted sizing
+      - Portfolio VaR contribution
+
+  - skill: algorithmic-trading
+    receives:
+      - Live position data
+      - P&L streams
+      - Execution reports
+    provides:
+      - Risk limit enforcement signals
+      - Position reduction triggers
+      - Circuit breaker activations
+
+delegation_triggers:
+  - pattern: "backtest|edge|statistical|win.*rate"
+    delegate_to: quantitative-research
+    context: "Need statistics for risk calculations"
+
+  - pattern: "technical|chart|stop.*placement"
+    delegate_to: technical-analysis
+    context: "Need technical levels for stop placement"
+
+  - pattern: "execute|slippage|fill|order"
+    delegate_to: execution-algorithms
+    context: "Need execution analysis for risk assessment"
+
+  - pattern: "portfolio|allocation|correlation"
+    delegate_to: portfolio-optimization
+    context: "Portfolio-level risk analysis needed"
+
+  - pattern: "emotion|psychology|discipline"
+    delegate_to: trading-psychology
+    context: "Psychological aspects of following risk rules"
+
+  - pattern: "stress.*test|scenario|tail.*risk"
+    delegate_to: risk-modeling
+    context: "Advanced risk modeling scenarios"
+
+  - pattern: "compliance|regulatory|reporting"
+    delegate_to: compliance-automation
+    context: "Regulatory risk requirements"
+
+escalation_paths:
+  - situation: "Drawdown exceeds predefined thresholds"
+    escalate_to: portfolio-optimization
+    context: "Need portfolio-level response to drawdown"
+    urgency: critical
+    data_to_provide:
+      - "Current drawdown by strategy"
+      - "Correlation spike analysis"
+      - "Factor exposure changes"
+
+  - situation: "Risk models failing validation"
+    escalate_to: quantitative-research
+    context: "Model assumptions may be invalid"
+    urgency: high
+    data_to_provide:
+      - "Model backtest vs live performance"
+      - "Distribution assumption violations"
+      - "Regime change indicators"
+
+  - situation: "Execution costs invalidating risk/reward"
+    escalate_to: execution-algorithms
+    context: "Slippage eroding expected edge"
+    urgency: medium
+    data_to_provide:
+      - "Expected vs actual slippage"
+      - "Order size analysis"
+      - "Timing and venue breakdown"
+
+  - situation: "Systematic rule violations detected"
+    escalate_to: trading-psychology
+    context: "Behavioral patterns overriding risk rules"
+    urgency: high
+    data_to_provide:
+      - "Rule violation frequency"
+      - "Patterns (time of day, after losses)"
+      - "P&L impact of violations"
+
+  - situation: "Regulatory risk limits approaching"
+    escalate_to: compliance-automation
+    context: "Need compliance guidance on position limits"
+    urgency: critical
+    data_to_provide:
+      - "Current exposures by limit type"
+      - "Historical utilization trends"
+      - "Upcoming trade impact"
+
+  - situation: "System failure during risk-critical period"
+    escalate_to: devops
+    context: "Infrastructure failure impacting risk monitoring"
+    urgency: critical
+    data_to_provide:
+      - "Last known position state"
+      - "Affected monitoring components"
+      - "Manual override procedures needed"
+
+common_combinations:
+  - name: Complete Trade Risk Assessment
+    skills:
+      - risk-management-trading
+      - technical-analysis
+      - quantitative-research
+    workflow: |
+      1. Identify setup and stop level (technical-analysis)
+      2. Get system statistics (quantitative-research)
+      3. Calculate position size and validate (risk-management-trading)
+
+  - name: Portfolio Risk Management
+    skills:
+      - risk-management-trading
+      - portfolio-optimization
+      - quantitative-research
+    workflow: |
+      1. Analyze portfolio correlation (portfolio-optimization)
+      2. Calculate strategy-level risk (quantitative-research)
+      3. Set position limits and monitor (risk-management-trading)
+
+  - name: Execution-Aware Risk
+    skills:
+      - risk-management-trading
+      - execution-algorithms
+      - technical-analysis
+    workflow: |
+      1. Define entry/exit levels (technical-analysis)
+      2. Estimate execution costs (execution-algorithms)
+      3. Adjust risk calculations for slippage (risk-management-trading)
+
+cross_domain_insights:
+  - domain: Insurance Actuarial Science
+    insight: Risk pooling and diversification principles apply to trading portfolios
+    application: Treat each trade as an "insured event" in a portfolio of bets
+
+  - domain: Casino Gaming
+    insight: Kelly Criterion was developed for gambling, applies perfectly to trading
+    application: Optimal bet sizing for positive expectancy games
+
+  - domain: Aviation Safety
+    insight: Defense in depth - multiple layers of protection
+    application: Stop loss + position size + portfolio limits + drawdown rules
+
+  - domain: Nuclear Power
+    insight: Fail-safe design assumes worst case
+    application: Size for the worst historical drawdown × 2
+
+  - domain: Epidemiology
+    insight: Fat-tailed distributions dominate extreme events
+    application: Normal VaR is worthless; focus on tail risk
+
+ecosystem_alternatives:
+  position_sizing:
+    - name: Fixed Fractional
+      when: Standard approach, simple to implement
+      tradeoff: Doesn't adapt to changing conditions
+    - name: Kelly Criterion
+      when: Have reliable statistics, want mathematical optimum
+      tradeoff: Very aggressive, requires accurate inputs
+    - name: Volatility Targeting
+      when: Want consistent portfolio volatility
+      tradeoff: More complex, requires volatility estimation
+
+  risk_metrics:
+    - name: VaR (Value at Risk)
+      when: Regulatory requirements, common language
+      tradeoff: Ignores tail risk
+    - name: CVaR (Expected Shortfall)
+      when: Better tail risk capture
+      tradeoff: Less intuitive, harder to compute
+    - name: Maximum Drawdown
+      when: Simple, meaningful to traders
+      tradeoff: Backward-looking only
+
+  stop_methods:
+    - name: Fixed Percentage
+      when: Simple, easy to implement
+      tradeoff: Doesn't adapt to volatility
+    - name: ATR-Based
+      when: Want volatility-adjusted stops
+      tradeoff: Requires ATR calculation
+    - name: Structure-Based
+      when: Want stops at meaningful levels
+      tradeoff: Requires technical analysis skill
+
+feedback_loops:
+  receives_feedback_from:
+    - skill: quantitative-research
+      signal: "Updated strategy statistics"
+      incorporates:
+        - Updated strategy statistics
+        - Drawdown history
+        - Edge decay analysis
+      into: Position sizing parameters and limits
+      response_expected: "Confirmation of parameter updates with new limits"
+
+    - skill: execution-algorithms
+      signal: "Execution quality data"
+      incorporates:
+        - Actual slippage data
+        - Execution costs
+        - Fill rate analysis
+      into: Slippage assumptions in risk models
+      response_expected: "Updated slippage buffers in risk calculations"
+
+    - skill: trading-psychology
+      signal: "Behavioral analysis"
+      incorporates:
+        - Behavioral patterns during drawdowns
+        - Rule-following analysis
+        - Emotional state correlations
+      into: Circuit breaker thresholds and rules
+      response_expected: "Updated circuit breaker configurations"
+
+    - skill: algorithmic-trading
+      signal: "Live execution events"
+      incorporates:
+        - Real-time P&L updates
+        - Position changes
+        - Order flow data
+      into: Live risk monitoring and alerts
+      response_expected: "Risk limit status and any breach alerts"
+
+    - skill: portfolio-optimization
+      signal: "Correlation regime changes"
+      incorporates:
+        - Updated correlation matrices
+        - Factor loading changes
+        - Diversification metrics
+      into: Correlation-adjusted position limits
+      response_expected: "Revised cross-asset position limits"
+
+  sends_feedback_to:
+    - skill: algorithmic-trading
+      signal: "Risk limit breach"
+      action: "Enforce position reduction or trading halt"
+      frequency: "Real-time on breach detection"
+      data_provided:
+        - "Affected positions and limits"
+        - "Required reduction amounts"
+        - "Deadline for compliance"
+
+    - skill: quantitative-research
+      signal: "Risk model performance"
+      action: "Recalibrate risk models based on live data"
+      frequency: "Daily reconciliation, immediate on anomalies"
+      data_provided:
+        - "Predicted vs actual risk metrics"
+        - "Model breakdown analysis"
+        - "Regime classification disagreements"
+
+    - skill: execution-algorithms
+      signal: "Slippage impact on risk"
+      action: "Adjust execution parameters for risk optimization"
+      frequency: "Post-trade batch analysis"
+      data_provided:
+        - "Risk-adjusted slippage costs"
+        - "Stop-out events and costs"
+        - "Urgency vs slippage tradeoff data"
+
+    - skill: portfolio-optimization
+      signal: "Position-level risk metrics"
+      action: "Inform allocation decisions with risk data"
+      frequency: "End of day, intraday for significant changes"
+      data_provided:
+        - "Position VaR contributions"
+        - "Marginal risk per position"
+        - "Concentration risk metrics"
+
+    - skill: trading-psychology
+      signal: "Rule compliance data"
+      action: "Identify patterns requiring behavioral intervention"
+      frequency: "Weekly review, immediate on significant violations"
+      data_provided:
+        - "Rule adherence statistics"
+        - "Override frequency and outcomes"
+        - "Correlation with market conditions"
+
+    - skill: technical-analysis
+      signal: "Stop-out analysis"
+      action: "Feedback on stop placement effectiveness"
+      frequency: "Post-trade analysis"
+      data_provided:
+        - "Stop-out rates by placement method"
+        - "Whipsaw frequency"
+        - "ATR vs structure-based performance"
+
+prerequisites:
+  required_knowledge:
+    - Basic probability and statistics
+    - Compound interest mathematics
+    - Spreadsheet proficiency
+
+  recommended_tools:
+    - Excel/Google Sheets (quick calculations)
+    - Python with numpy, scipy
+    - Position size calculator
+    - Risk monitoring dashboard
+
+  environment_setup: |
+    # Python risk management setup
+    pip install numpy scipy pandas matplotlib
+
+    # Basic position size calculator
+    def position_size(account, risk_pct, entry, stop):
+        risk_amount = account * risk_pct
+        risk_per_share = abs(entry - stop)
+        return int(risk_amount / risk_per_share)
+
+    # Example usage
+    account = 100000
+    risk_pct = 0.01  # 1%
+    entry = 50.00
+    stop = 47.00
+
+    shares = position_size(account, risk_pct, entry, stop)
+    print(f"Position: {shares} shares")
+    print(f"Value: ${shares * entry:,.2f}")
+    print(f"Risk: ${shares * (entry - stop):,.2f}")

@@ -1,0 +1,23 @@
+# HR & Recruiting AI Tools - Validations
+
+validations:
+  - id: hiring-process
+    name: Hiring Process Check
+    type: checklist
+    items:
+      - "Job description bias-checked"
+      - "Structured interview questions"
+      - "Diverse candidate slate"
+      - "Consistent evaluation criteria"
+      - "Candidate experience touchpoints"
+      - "Compliance requirements met"
+
+  - id: ai-audit
+    name: AI Hiring Audit
+    type: checklist
+    items:
+      - "Bias audit completed annually"
+      - "Adverse impact analysis done"
+      - "Results documented"
+      - "Remediation plan if needed"
+      - "Regulatory compliance verified"

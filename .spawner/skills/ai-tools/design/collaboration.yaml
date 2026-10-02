@@ -1,0 +1,41 @@
+# Design AI Tools - Collaboration
+
+prerequisites:
+  skills:
+    - "Basic design principles"
+    - "Brand guidelines"
+    - "Design tool familiarity"
+
+tool_combinations:
+  - name: "Product Design Stack"
+    flow: [uizard, figma-ai]
+    description: "Prototype → refine in Figma"
+  - name: "Marketing Design Stack"
+    flow: [canva-ai, adobe-firefly]
+    description: "Quick graphics with commercial images"
+
+workflows:
+  - id: ui-design-workflow
+    name: "UI Design with AI"
+    steps:
+      - step: 1
+        action: "Generate initial concepts"
+        tool: uizard
+      - step: 2
+        action: "Refine in Figma"
+        tool: figma-ai
+      - step: 3
+        action: "Review with stakeholders"
+      - step: 4
+        action: "Handoff to development"
+        tool: figma-dev-mode
+
+handoffs:
+  receives_from:
+    - team: product
+      receives: "Requirements, wireframes"
+  sends_to:
+    - team: development
+      sends: "Design specs, assets"
+    - team: marketing
+      sends: "Brand assets"

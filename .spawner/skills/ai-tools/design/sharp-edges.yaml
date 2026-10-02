@@ -1,0 +1,34 @@
+# Design AI Tools - Sharp Edges
+
+sharp_edges:
+  - id: ai-design-sameness
+    summary: "AI designs all look similar"
+    severity: medium
+    tools_affected: [uizard, galileo-ai, canva-ai]
+    situation: "Generated designs lack brand uniqueness"
+    why: "AI trained on similar data, produces similar outputs"
+    solution: "Use AI for speed, add unique brand elements"
+
+  - id: image-licensing
+    summary: "AI image licensing can be unclear"
+    severity: high
+    tools_affected: [midjourney, stable-diffusion]
+    situation: "Using AI images commercially"
+    why: "Training data may include copyrighted images"
+    solution: "Use Adobe Firefly or similar with clear licensing"
+
+  - id: accessibility-ignored
+    summary: "AI designs may not be accessible"
+    severity: medium
+    tools_affected: [all]
+    situation: "Generated UI lacks accessibility"
+    why: "AI doesn't prioritize a11y"
+    solution: "Always check contrast, screen reader compatibility"
+
+  - id: brand-consistency
+    summary: "AI doesn't know your brand"
+    severity: medium
+    tools_affected: [all]
+    situation: "Generated designs don't match brand"
+    why: "No brand context unless provided"
+    solution: "Provide brand guidelines, color palettes"

@@ -1,0 +1,541 @@
+# Sales AI Tools
+# CRM automation, outreach, lead scoring, and sales intelligence
+
+id: sales-ai-tools
+name: Sales AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that supercharge your sales process.
+  From prospecting to closing, automate the grind and focus
+  on building relationships that convert.
+
+business_value:
+  time_saved: "15-25 hours/week on prospecting and admin"
+  cost_saved: "$5,000-20,000/month vs additional SDRs"
+  revenue_impact: "2-5x pipeline generation, 20-40% faster close"
+  competitive_edge: "Reach more prospects with personalized outreach"
+
+# =============================================================================
+# SALES ENGAGEMENT & OUTREACH
+# =============================================================================
+
+tools:
+  outreach:
+    - id: apollo
+      name: Apollo.io
+      website: https://apollo.io
+      best_for: "All-in-one prospecting and outreach"
+      pricing:
+        free_tier: true
+        free_limits: "50 credits/month"
+        basic: "$49/month"
+        professional: "$99/month"
+        organization: "$149/month"
+      strengths:
+        - "275M+ contact database"
+        - "Email sequencing built-in"
+        - "Intent data included"
+        - "LinkedIn integration"
+        - "AI-powered email writing"
+      weaknesses:
+        - "Data accuracy varies"
+        - "Can feel overwhelming"
+        - "Email deliverability needs setup"
+      best_for_stage: "Seed to Series B, volume outreach"
+
+    - id: outreach
+      name: Outreach.io
+      website: https://outreach.io
+      best_for: "Enterprise sales engagement"
+      pricing:
+        paid_starts: "Custom (typically $100+/user/month)"
+      strengths:
+        - "Best-in-class sequences"
+        - "Advanced analytics"
+        - "AI recommendations"
+        - "Deep CRM integrations"
+        - "Conversation intelligence"
+      weaknesses:
+        - "Expensive"
+        - "Complex setup"
+        - "Enterprise sales cycle"
+      best_for_stage: "Series B+, enterprise sales teams"
+
+    - id: salesloft
+      name: SalesLoft
+      website: https://salesloft.com
+      best_for: "Sales engagement with coaching"
+      pricing:
+        paid_starts: "Custom (typically $100+/user/month)"
+      strengths:
+        - "Strong coaching features"
+        - "Good Salesforce integration"
+        - "Conversation intelligence"
+        - "Revenue intelligence"
+      weaknesses:
+        - "Expensive"
+        - "Steeper learning curve"
+      best_for_stage: "Mid-market to enterprise"
+
+    - id: instantly
+      name: Instantly
+      website: https://instantly.ai
+      best_for: "Cold email at scale"
+      pricing:
+        growth: "$37/month"
+        hypergrowth: "$97/month"
+        light_speed: "$358/month"
+      strengths:
+        - "Unlimited email accounts"
+        - "Email warmup included"
+        - "Lead database included"
+        - "Great deliverability"
+        - "Simple interface"
+      weaknesses:
+        - "Email only (no calls)"
+        - "Less sophisticated than enterprise tools"
+      best_for_stage: "Early stage, cold email focus"
+
+    - id: lemlist
+      name: Lemlist
+      website: https://lemlist.com
+      best_for: "Personalized cold outreach"
+      pricing:
+        free_tier: true
+        starter: "$39/month"
+        pro: "$69/month"
+        scale: "$99/month"
+      strengths:
+        - "Image/video personalization"
+        - "Multi-channel sequences"
+        - "Good deliverability"
+        - "LinkedIn automation"
+      weaknesses:
+        - "Personalization takes time"
+        - "Smaller database than Apollo"
+      best_for_stage: "Startups wanting creative outreach"
+
+  # =============================================================================
+  # LEAD INTELLIGENCE
+  # =============================================================================
+
+  lead_intelligence:
+    - id: zoominfo
+      name: ZoomInfo
+      website: https://zoominfo.com
+      best_for: "Enterprise B2B data"
+      pricing:
+        paid_starts: "Custom ($15,000+/year typical)"
+      strengths:
+        - "Most accurate B2B data"
+        - "Intent signals"
+        - "Org charts"
+        - "Technographics"
+        - "Workflow automation"
+      weaknesses:
+        - "Very expensive"
+        - "Long contracts"
+        - "Enterprise sales process"
+      best_for_stage: "Series B+, enterprise teams"
+
+    - id: lusha
+      name: Lusha
+      website: https://lusha.com
+      best_for: "Quick contact lookup"
+      pricing:
+        free_tier: true
+        free_limits: "5 credits/month"
+        pro: "$39/month"
+        premium: "$69/month"
+      strengths:
+        - "Chrome extension is great"
+        - "Good accuracy"
+        - "Simple to use"
+        - "GDPR compliant"
+      weaknesses:
+        - "Limited features"
+        - "No sequences"
+      best_for_stage: "Individual reps, quick lookups"
+
+    - id: clearbit
+      name: Clearbit
+      website: https://clearbit.com
+      best_for: "Data enrichment API"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Best enrichment API"
+        - "Real-time data"
+        - "CRM integrations"
+        - "Intent data"
+        - "Reveal (identify website visitors)"
+      weaknesses:
+        - "API focus (less self-serve)"
+        - "Can get expensive"
+      best_for_stage: "Teams building custom workflows"
+
+    - id: cognism
+      name: Cognism
+      website: https://cognism.com
+      best_for: "EMEA data, phone numbers"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Diamond Data (verified mobiles)"
+        - "Strong EMEA coverage"
+        - "GDPR compliant"
+        - "Intent data"
+      weaknesses:
+        - "Weaker US coverage"
+        - "Enterprise pricing"
+      best_for_stage: "Teams selling into Europe"
+
+  # =============================================================================
+  # CRM & AUTOMATION
+  # =============================================================================
+
+  crm_automation:
+    - id: hubspot-sales
+      name: HubSpot Sales Hub
+      website: https://hubspot.com/products/sales
+      best_for: "SMB sales CRM with automation"
+      pricing:
+        free_tier: true
+        starter: "$20/month"
+        professional: "$100/month"
+        enterprise: "$150/month"
+      strengths:
+        - "Great free tier"
+        - "Easy to use"
+        - "Marketing integration"
+        - "AI features improving"
+        - "Sequences included"
+      weaknesses:
+        - "Less powerful than Salesforce"
+        - "Gets expensive with features"
+      best_for_stage: "Seed to Series A"
+
+    - id: salesforce
+      name: Salesforce
+      website: https://salesforce.com
+      best_for: "Enterprise CRM"
+      pricing:
+        essentials: "$25/user/month"
+        professional: "$80/user/month"
+        enterprise: "$165/user/month"
+      strengths:
+        - "Most powerful CRM"
+        - "Einstein AI"
+        - "Massive app ecosystem"
+        - "Infinitely customizable"
+      weaknesses:
+        - "Complex to set up"
+        - "Expensive with add-ons"
+        - "Needs admin expertise"
+      best_for_stage: "Series A+, complex sales processes"
+
+    - id: pipedrive
+      name: Pipedrive
+      website: https://pipedrive.com
+      best_for: "Visual pipeline management"
+      pricing:
+        essential: "$14/user/month"
+        advanced: "$29/user/month"
+        professional: "$49/user/month"
+      strengths:
+        - "Intuitive interface"
+        - "Great pipeline view"
+        - "AI sales assistant"
+        - "Affordable"
+      weaknesses:
+        - "Limited customization"
+        - "Basic reporting"
+      best_for_stage: "Early stage, simple sales process"
+
+    - id: close
+      name: Close
+      website: https://close.com
+      best_for: "Built-in calling CRM"
+      pricing:
+        startup: "$59/user/month"
+        professional: "$109/user/month"
+        enterprise: "$149/user/month"
+      strengths:
+        - "Built-in calling"
+        - "Email sequences"
+        - "Great for inside sales"
+        - "Fast to implement"
+      weaknesses:
+        - "Less enterprise features"
+        - "Smaller ecosystem"
+      best_for_stage: "Inside sales teams, SMB"
+
+  # =============================================================================
+  # AI SALES ASSISTANTS
+  # =============================================================================
+
+  ai_assistants:
+    - id: gong
+      name: Gong
+      website: https://gong.io
+      best_for: "Conversation intelligence"
+      pricing:
+        paid_starts: "Custom ($100+/user/month typical)"
+      strengths:
+        - "Best call analytics"
+        - "Deal intelligence"
+        - "Coaching insights"
+        - "Accurate transcription"
+        - "Competitive intel"
+      weaknesses:
+        - "Very expensive"
+        - "Enterprise sales cycle"
+      best_for_stage: "Series B+, call-heavy teams"
+
+    - id: clari
+      name: Clari
+      website: https://clari.com
+      best_for: "Revenue intelligence"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI forecasting"
+        - "Pipeline inspection"
+        - "Deal scoring"
+        - "Exec dashboards"
+      weaknesses:
+        - "Enterprise pricing"
+        - "Needs CRM data quality"
+      best_for_stage: "Series B+, revenue teams"
+
+    - id: lavender
+      name: Lavender
+      website: https://lavender.ai
+      best_for: "AI email coaching"
+      pricing:
+        free_tier: true
+        starter: "$29/month"
+        team: "$49/user/month"
+      strengths:
+        - "Real-time email coaching"
+        - "Personalization suggestions"
+        - "Reply rate predictions"
+        - "Gmail/Outlook integration"
+      weaknesses:
+        - "Email only"
+        - "Suggestions can be generic"
+      best_for_stage: "Any team doing cold email"
+
+    - id: clay
+      name: Clay
+      website: https://clay.com
+      best_for: "Data enrichment automation"
+      pricing:
+        free_tier: true
+        starter: "$149/month"
+        explorer: "$349/month"
+        pro: "$800/month"
+      strengths:
+        - "50+ data sources"
+        - "AI enrichment"
+        - "Workflow automation"
+        - "Waterfall enrichment"
+      weaknesses:
+        - "Complex for beginners"
+        - "Credit costs add up"
+      best_for_stage: "GTM teams automating prospecting"
+
+    - id: regie-ai
+      name: Regie.ai
+      website: https://regie.ai
+      best_for: "AI content generation for sales"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "AI sequence writing"
+        - "Persona-based content"
+        - "A/B testing built-in"
+        - "Content library"
+      weaknesses:
+        - "Needs human review"
+        - "Can sound generic"
+      best_for_stage: "Teams needing scale content"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_stage:
+    pre_seed:
+      crm: hubspot-sales
+      outreach: instantly
+      data: apollo
+      reason: "Free/cheap, gets the job done"
+      total_cost: "$50-100/month"
+
+    seed:
+      crm: hubspot-sales
+      outreach: apollo
+      data: apollo
+      ai: lavender
+      reason: "All-in-one with email coaching"
+      total_cost: "$100-300/month"
+
+    series_a:
+      crm: salesforce
+      outreach: outreach
+      data: [apollo, clearbit]
+      ai: gong
+      reason: "Professional stack, scales with team"
+      total_cost: "$500-2,000/month"
+
+    series_b_plus:
+      crm: salesforce
+      outreach: outreach
+      data: zoominfo
+      intelligence: [gong, clari]
+      enrichment: clay
+      reason: "Enterprise stack, full visibility"
+      total_cost: "$5,000+/month"
+
+  by_use_case:
+    cold_email:
+      primary: instantly
+      alternative: lemlist
+      enterprise: outreach
+
+    prospecting:
+      primary: apollo
+      enterprise: zoominfo
+      europe: cognism
+
+    call_coaching:
+      primary: gong
+      alternative: salesloft
+
+    pipeline_management:
+      primary: hubspot-sales
+      enterprise: salesforce
+      simple: pipedrive
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1-2 hours"
+  time_to_proficiency: "2-4 weeks"
+  time_to_mastery: "2-3 months"
+
+  onboarding_steps:
+    - step: 1
+      action: "Set up CRM foundation"
+      details: "Configure pipeline stages, properties, automations"
+      time: "2-4 hours"
+
+    - step: 2
+      action: "Build ideal customer profile"
+      details: "Define target accounts, personas, signals"
+      time: "1 hour"
+
+    - step: 3
+      action: "Set up data enrichment"
+      details: "Connect data source, configure enrichment"
+      time: "1 hour"
+
+    - step: 4
+      action: "Create first sequence"
+      details: "5-7 touch sequence with personalization"
+      time: "2 hours"
+
+    - step: 5
+      action: "Configure analytics"
+      details: "Set up dashboards for tracking"
+      time: "1 hour"
+
+    - step: 6
+      action: "Launch and iterate"
+      details: "Start outreach, measure, improve"
+      time: "Ongoing"
+
+# =============================================================================
+# PATTERNS
+# =============================================================================
+
+patterns:
+  - name: "Waterfall enrichment"
+    description: "Use multiple data sources in sequence for best coverage"
+    example: "Apollo first, Clearbit second, manual research third"
+    impact: "80%+ match rate vs 50-60% single source"
+
+  - name: "Multi-channel sequences"
+    description: "Combine email, LinkedIn, calls in one sequence"
+    example: "Email Day 1, LinkedIn Day 3, Call Day 5, Email Day 7"
+    impact: "2-3x reply rates vs email only"
+
+  - name: "Signal-based outreach"
+    description: "Trigger outreach on buying signals"
+    example: "Job change, funding, tech install, website visit"
+    impact: "10x better timing than cold spray"
+
+  - name: "Account-based campaigns"
+    description: "Coordinate outreach across account stakeholders"
+    example: "Economic buyer + champion + end user sequenced together"
+    impact: "Faster deal cycles, higher win rates"
+
+  - name: "CRM as single source of truth"
+    description: "All activity, data, and insights flow to CRM"
+    example: "Automatic activity logging, enrichment sync"
+    impact: "Accurate forecasting, no data silos"
+
+# =============================================================================
+# ANTI-PATTERNS
+# =============================================================================
+
+anti_patterns:
+  - name: "Spray and pray"
+    description: "Blasting generic emails to huge lists"
+    impact: "Low reply rates, domain reputation damage"
+    fix: "Smaller, targeted lists with personalization"
+
+  - name: "Too many tools"
+    description: "Different tool for every function"
+    impact: "Data silos, inefficiency, high cost"
+    fix: "Choose integrated stack, minimize point solutions"
+
+  - name: "Ignoring deliverability"
+    description: "Sending cold email without warmup"
+    impact: "Emails go to spam, domain blacklisted"
+    fix: "Warm up domains, monitor deliverability, use tools"
+
+  - name: "No activity tracking"
+    description: "Failing to log calls, emails, meetings"
+    impact: "No visibility, poor forecasting"
+    fix: "Auto-logging, CRM discipline"
+
+  - name: "Buying data without process"
+    description: "Purchasing ZoomInfo without knowing how to use it"
+    impact: "Expensive shelfware"
+    fix: "Define workflows before buying data"
+
+triggers:
+  - "sales automation"
+  - "cold outreach"
+  - "lead generation"
+  - "prospecting tools"
+  - "CRM setup"
+  - "sales engagement"
+  - "pipeline management"
+  - "conversation intelligence"
+
+tags:
+  - sales
+  - crm
+  - outreach
+  - prospecting
+  - leads
+  - automation

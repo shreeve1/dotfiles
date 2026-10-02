@@ -1,0 +1,358 @@
+id: nextjs-supabase-auth
+name: Next.js + Supabase Auth
+version: 1.0.0
+layer: 2
+description: Expert integration of Supabase Auth with Next.js App Router
+
+owns:
+  - nextjs-auth
+  - supabase-auth-nextjs
+  - auth-middleware
+  - auth-callback
+
+pairs_with:
+  - nextjs-app-router
+  - supabase-backend
+
+requires:
+  - nextjs-app-router
+  - supabase-backend
+
+tags:
+  - authentication
+  - auth
+  - supabase
+  - nextjs
+  - middleware
+  - session
+
+triggers:
+  - supabase auth next
+  - authentication next.js
+  - login supabase
+  - auth middleware
+  - protected route
+  - auth callback
+  - session management
+
+identity: |
+  You are an expert in integrating Supabase Auth with Next.js App Router.
+  You understand the server/client boundary, how to handle auth in middleware,
+  Server Components, Client Components, and Server Actions.
+
+  Your core principles:
+  1. Use @supabase/ssr for App Router integration
+  2. Handle tokens in middleware for protected routes
+  3. Never expose auth tokens to client unnecessarily
+  4. Use Server Actions for auth operations when possible
+  5. Understand the cookie-based session flow
+
+patterns:
+  - name: Supabase Client Setup
+    description: Create properly configured Supabase clients for different contexts
+    when: Setting up auth in a Next.js project
+    example: |
+      // lib/supabase/client.ts (Browser client)
+      'use client'
+      import { createBrowserClient } from '@supabase/ssr'
+
+      export function createClient() {
+        return createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+      }
+
+      // lib/supabase/server.ts (Server client)
+      import { createServerClient } from '@supabase/ssr'
+      import { cookies } from 'next/headers'
+
+      export async function createClient() {
+        const cookieStore = await cookies()
+        return createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() {
+                return cookieStore.getAll()
+              },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value, options }) => {
+                  cookieStore.set(name, value, options)
+                })
+              },
+            },
+          }
+        )
+      }
+
+  - name: Auth Middleware
+    description: Protect routes and refresh sessions in middleware
+    when: You need route protection or session refresh
+    example: |
+      // middleware.ts
+      import { createServerClient } from '@supabase/ssr'
+      import { NextResponse, type NextRequest } from 'next/server'
+
+      export async function middleware(request: NextRequest) {
+        let response = NextResponse.next({ request })
+
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              getAll() {
+                return request.cookies.getAll()
+              },
+              setAll(cookiesToSet) {
+                cookiesToSet.forEach(({ name, value, options }) => {
+                  response.cookies.set(name, value, options)
+                })
+              },
+            },
+          }
+        )
+
+        // Refresh session if expired
+        const { data: { user } } = await supabase.auth.getUser()
+
+        // Protect dashboard routes
+        if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
+          return NextResponse.redirect(new URL('/login', request.url))
+        }
+
+        return response
+      }
+
+      export const config = {
+        matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+      }
+
+  - name: Auth Callback Route
+    description: Handle OAuth callback and exchange code for session
+    when: Using OAuth providers (Google, GitHub, etc.)
+    example: |
+      // app/auth/callback/route.ts
+      import { createClient } from '@/lib/supabase/server'
+      import { NextResponse } from 'next/server'
+
+      export async function GET(request: Request) {
+        const { searchParams, origin } = new URL(request.url)
+        const code = searchParams.get('code')
+        const next = searchParams.get('next') ?? '/'
+
+        if (code) {
+          const supabase = await createClient()
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          if (!error) {
+            return NextResponse.redirect(`${origin}${next}`)
+          }
+        }
+
+        return NextResponse.redirect(`${origin}/auth/error`)
+      }
+
+  - name: Server Action Auth
+    description: Handle auth operations in Server Actions
+    when: Login, logout, or signup from Server Components
+    example: |
+      // app/actions/auth.ts
+      'use server'
+      import { createClient } from '@/lib/supabase/server'
+      import { redirect } from 'next/navigation'
+      import { revalidatePath } from 'next/cache'
+
+      export async function signIn(formData: FormData) {
+        const supabase = await createClient()
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.get('email') as string,
+          password: formData.get('password') as string,
+        })
+
+        if (error) {
+          return { error: error.message }
+        }
+
+        revalidatePath('/', 'layout')
+        redirect('/dashboard')
+      }
+
+      export async function signOut() {
+        const supabase = await createClient()
+        await supabase.auth.signOut()
+        revalidatePath('/', 'layout')
+        redirect('/')
+      }
+
+  - name: Get User in Server Component
+    description: Access the authenticated user in Server Components
+    when: Rendering user-specific content server-side
+    example: |
+      // app/dashboard/page.tsx
+      import { createClient } from '@/lib/supabase/server'
+      import { redirect } from 'next/navigation'
+
+      export default async function DashboardPage() {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          redirect('/login')
+        }
+
+        return (
+          <div>
+            <h1>Welcome, {user.email}</h1>
+          </div>
+        )
+      }
+
+anti_patterns:
+  - name: getSession in Server Components
+    description: Using getSession() instead of getUser() for auth checks
+    why: getSession() trusts the JWT without verification. getUser() validates with Supabase.
+    instead: Always use getUser() for security-critical operations
+
+  - name: Auth State in Client Without Listener
+    description: Checking auth once without listening for changes
+    why: Auth state can change (logout in another tab, token refresh)
+    instead: Use onAuthStateChange listener in Client Components
+
+  - name: Storing Tokens Manually
+    description: Extracting and storing JWT tokens yourself
+    why: The @supabase/ssr library handles cookies properly
+    instead: Let the library manage tokens via cookies
+
+  - name: Missing Middleware Session Refresh
+    description: Not refreshing the session in middleware
+    why: Sessions expire - middleware is the right place to refresh
+    instead: Always call supabase.auth.getUser() in middleware
+
+  - name: No Auth Callback Route
+    description: Forgetting the callback route for OAuth
+    why: OAuth redirects need a route to exchange the code for a session
+    instead: Create app/auth/callback/route.ts
+
+quick_wins:
+  - id: add-middleware-refresh
+    title: Add Session Refresh to Middleware
+    effort: 5min
+    impact: high
+    description: Prevents random logouts by refreshing expired tokens
+    code: |
+      // middleware.ts - Add this before any auth checks
+      const { data: { user } } = await supabase.auth.getUser()
+    when: Users report being randomly logged out
+
+  - id: switch-getsession-to-getuser
+    title: Replace getSession with getUser
+    effort: 2min
+    impact: critical
+    description: Fixes security vulnerability where JWTs aren't verified
+    before: |
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) { ... }
+    after: |
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) { ... }
+    when: Any security-critical auth check
+
+  - id: add-auth-listener
+    title: Add Auth State Listener
+    effort: 5min
+    impact: medium
+    description: Keeps UI in sync with auth state changes
+    code: |
+      useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          (event, session) => setUser(session?.user ?? null)
+        )
+        return () => subscription.unsubscribe()
+      }, [])
+    when: Auth state gets out of sync between tabs
+
+  - id: add-loading-state
+    title: Add Auth Loading State
+    effort: 3min
+    impact: medium
+    description: Prevents flash of wrong content during auth check
+    code: |
+      const [loading, setLoading] = useState(true)
+
+      useEffect(() => {
+        supabase.auth.getUser().then(({ data: { user } }) => {
+          setUser(user)
+          setLoading(false)
+        })
+      }, [])
+
+      if (loading) return <Skeleton />
+    when: Users see protected content flash before redirect
+
+  - id: add-oauth-callback
+    title: Create OAuth Callback Route
+    effort: 5min
+    impact: high
+    description: Required for any OAuth provider to work
+    code: |
+      // app/auth/callback/route.ts
+      export async function GET(request: Request) {
+        const { searchParams, origin } = new URL(request.url)
+        const code = searchParams.get('code')
+        if (code) {
+          const supabase = await createClient()
+          await supabase.auth.exchangeCodeForSession(code)
+        }
+        return NextResponse.redirect(origin)
+      }
+    when: Setting up Google, GitHub, or any OAuth provider
+
+  - id: add-error-handling
+    title: Add Proper Error Handling
+    effort: 3min
+    impact: medium
+    description: Surface auth errors to users instead of silent failures
+    before: |
+      await supabase.auth.signInWithPassword({ email, password })
+      redirect('/dashboard')
+    after: |
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) return { error: error.message }
+      redirect('/dashboard')
+    when: Login "doesn't work" with no error shown
+
+  - id: add-revalidate
+    title: Add Cache Revalidation After Auth
+    effort: 1min
+    impact: medium
+    description: Clears cached auth state after login/logout
+    code: |
+      // After any auth operation in Server Action
+      revalidatePath('/', 'layout')
+    when: User sees stale auth state after login/logout
+
+  - id: secure-redirect-url
+    title: Use Dynamic Redirect URL
+    effort: 2min
+    impact: medium
+    description: Works across all environments without hardcoding
+    before: |
+      redirectTo: 'http://localhost:3000/auth/callback'
+    after: |
+      redirectTo: `${window.location.origin}/auth/callback`
+    when: OAuth works locally but fails in production
+
+handoffs:
+  - trigger: database or rls
+    to: supabase-backend
+    context: User is working on database operations
+
+  - trigger: server component or client component
+    to: nextjs-app-router
+    context: User is working on component architecture
+
+  - trigger: oauth provider setup
+    to: supabase-auth-providers
+    context: User is configuring OAuth providers

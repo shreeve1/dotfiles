@@ -1,0 +1,274 @@
+# Content Creation AI Tools - Validations
+# Checklists and checks for AI content creation
+
+validations:
+  # =============================================================================
+  # PRE-CREATION CHECKLISTS
+  # =============================================================================
+
+  - id: content-brief-checklist
+    name: Content Brief Checklist
+    type: checklist
+    description: "Complete before generating any content"
+    items:
+      - "Target audience defined"
+      - "Content goal/purpose clear"
+      - "Platform and format specified"
+      - "Brand guidelines documented"
+      - "Required aspect ratios known"
+      - "Tone/voice defined"
+      - "Deadline and volume requirements set"
+      - "Approval workflow established"
+
+  - id: image-generation-setup
+    name: Image Generation Setup
+    type: checklist
+    description: "Before starting image generation project"
+    items:
+      - "Tool selected based on use case"
+      - "Reference images collected"
+      - "Style direction documented"
+      - "Prompt templates prepared"
+      - "Color palette defined (if brand)"
+      - "Output formats specified (PNG, JPG, etc.)"
+      - "Resolution requirements known"
+      - "Budget/credit allocation set"
+
+  - id: video-generation-setup
+    name: Video Generation Setup
+    type: checklist
+    description: "Before starting AI video project"
+    items:
+      - "Storyboard or shot list created"
+      - "Source images prepared (for img2vid)"
+      - "Duration requirements defined"
+      - "Audio/music needs identified"
+      - "Credit budget calculated"
+      - "Quality threshold defined"
+      - "Export format requirements known"
+      - "Platform specs confirmed (aspect ratio, length)"
+
+  - id: voice-generation-setup
+    name: Voice Generation Setup
+    type: checklist
+    description: "Before creating AI voiceovers"
+    items:
+      - "Script finalized and proofread"
+      - "Voice style selected"
+      - "Pronunciation guide for names/terms"
+      - "Pacing requirements defined"
+      - "Output format specified (MP3, WAV)"
+      - "Consent documented (if cloning)"
+      - "Language/accent confirmed"
+      - "Background music coordination planned"
+
+  # =============================================================================
+  # QUALITY CHECKS
+  # =============================================================================
+
+  - id: image-quality-checklist
+    name: Image Quality Check
+    type: checklist
+    description: "Before using generated images"
+    items:
+      - "No obvious artifacts or distortions"
+      - "Text renders correctly (if any)"
+      - "Hands/fingers look natural"
+      - "Faces have correct features"
+      - "Colors match brand guidelines"
+      - "Resolution sufficient for use case"
+      - "Composition works for final layout"
+      - "No unintended watermarks or signatures"
+
+  - id: video-quality-checklist
+    name: Video Quality Check
+    type: checklist
+    description: "Before using generated video"
+    items:
+      - "Motion is smooth and natural"
+      - "No morphing artifacts"
+      - "Physics look believable"
+      - "Character consistency maintained"
+      - "No unintended object changes"
+      - "Audio syncs properly (if avatar)"
+      - "Transitions are smooth"
+      - "Final export quality acceptable"
+
+  - id: writing-quality-checklist
+    name: Writing Quality Check
+    type: checklist
+    description: "Before publishing AI-assisted writing"
+    items:
+      - "All facts verified independently"
+      - "All citations checked for existence"
+      - "Quotes attributed correctly"
+      - "No obvious AI-isms remaining"
+      - "Brand voice consistent throughout"
+      - "Grammar and spelling checked"
+      - "Logical flow makes sense"
+      - "Human examples/anecdotes added"
+      - "Call-to-action clear"
+      - "SEO requirements met"
+
+  - id: audio-quality-checklist
+    name: Audio Quality Check
+    type: checklist
+    description: "Before using generated audio"
+    items:
+      - "Pronunciation is correct"
+      - "Pacing sounds natural"
+      - "No robotic artifacts"
+      - "Emphasis on right words"
+      - "Volume levels consistent"
+      - "No background noise"
+      - "Emotion/tone appropriate"
+      - "Syncs with video (if applicable)"
+
+  # =============================================================================
+  # COMPLIANCE CHECKS
+  # =============================================================================
+
+  - id: legal-compliance-checklist
+    name: Legal Compliance Check
+    type: checklist
+    description: "Before commercial use of AI content"
+    items:
+      - "Platform ToS allows commercial use"
+      - "No artist names in prompts (or verified allowed)"
+      - "Voice cloning consent documented"
+      - "No copyrighted material in inputs"
+      - "Trademark concerns reviewed"
+      - "Disclosure requirements met (if applicable)"
+      - "Data privacy considered for inputs"
+      - "Output ownership documented"
+
+  - id: brand-compliance-checklist
+    name: Brand Compliance Check
+    type: checklist
+    description: "Before publishing brand content"
+    items:
+      - "Colors match brand palette"
+      - "Typography consistent with brand"
+      - "Tone matches brand voice"
+      - "Imagery style fits brand guidelines"
+      - "Logo usage correct (if included)"
+      - "Messaging aligns with brand values"
+      - "No off-brand elements"
+      - "Approval from brand owner obtained"
+
+  - id: platform-specs-checklist
+    name: Platform Specs Check
+    type: checklist
+    description: "Before posting to specific platforms"
+    items:
+      - "Aspect ratio correct for platform"
+      - "File size within limits"
+      - "Duration within limits (video)"
+      - "Resolution sufficient"
+      - "Format supported"
+      - "Caption/alt text prepared"
+      - "Hashtags/keywords ready"
+      - "Link/CTA configured"
+
+  # =============================================================================
+  # WORKFLOW VALIDATIONS
+  # =============================================================================
+
+  - id: prompt-quality-check
+    name: Prompt Quality Patterns
+    type: pattern
+    severity: warning
+    description: "Check prompts for common issues"
+    checks:
+      - issue: "Prompt too long"
+        pattern: "prompt with more than 100 words"
+        fix: "Focus on 2-3 key concepts, under 60 words"
+
+      - issue: "Conflicting concepts"
+        examples: ["minimal and detailed", "simple and complex", "dark and bright"]
+        fix: "Remove contradictions, pick one direction"
+
+      - issue: "Missing key parameters"
+        required_for_midjourney: ["--ar", "--style or --v"]
+        required_for_dalle: ["size specification"]
+        fix: "Always specify aspect ratio and style"
+
+      - issue: "Using banned/blocked terms"
+        note: "Each platform has different content policies"
+        fix: "Review platform guidelines before prompting"
+
+  - id: iteration-workflow
+    name: Iteration Workflow Check
+    type: checklist
+    description: "Verify proper iteration process"
+    items:
+      - "Generated at least 4 variations"
+      - "Selected best option objectively"
+      - "Documented winning prompt"
+      - "Refined based on feedback"
+      - "Final version meets brief requirements"
+      - "Backup options saved"
+
+  # =============================================================================
+  # OUTPUT ORGANIZATION
+  # =============================================================================
+
+  - id: asset-organization-checklist
+    name: Asset Organization Check
+    type: checklist
+    description: "Verify AI assets are properly organized"
+    items:
+      - "Files named descriptively"
+      - "Prompts saved with outputs"
+      - "Versions numbered/dated"
+      - "Original and edited versions separate"
+      - "Platform-specific exports organized"
+      - "Unused variations archived or deleted"
+      - "Final approved versions marked"
+      - "Backup copies stored"
+
+  - id: prompt-library-checklist
+    name: Prompt Library Maintenance
+    type: checklist
+    description: "Keep prompt templates organized"
+    items:
+      - "Working prompts documented"
+      - "Categorized by use case"
+      - "Include parameter notes"
+      - "Success rate noted"
+      - "Failed prompts documented with why"
+      - "Updated with new learnings"
+      - "Shared with team (if applicable)"
+      - "Version controlled"
+
+  # =============================================================================
+  # BATCH PRODUCTION CHECKS
+  # =============================================================================
+
+  - id: batch-production-checklist
+    name: Batch Content Production
+    type: checklist
+    description: "When creating content in bulk"
+    items:
+      - "Content calendar/plan defined"
+      - "Templates prepared for each content type"
+      - "Consistent parameters across batch"
+      - "Quality check process defined"
+      - "Production tracking system in place"
+      - "Review/approval queue organized"
+      - "Publication schedule mapped"
+      - "Analytics tracking prepared"
+
+  - id: content-repurposing-checklist
+    name: Content Repurposing Check
+    type: checklist
+    description: "When adapting content across formats"
+    items:
+      - "Source content quality verified"
+      - "Target format requirements known"
+      - "Platform-specific adaptations planned"
+      - "Aspect ratios mapped out"
+      - "Message consistency maintained"
+      - "CTAs updated for each platform"
+      - "Tracking links updated"
+      - "Publication timing coordinated"

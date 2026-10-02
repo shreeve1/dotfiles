@@ -1,0 +1,47 @@
+# Productivity AI Tools - Collaboration
+
+prerequisites:
+  technical:
+    - "Calendar access"
+    - "Email access"
+    - "Meeting platform access"
+
+tool_combinations:
+  - name: "Meeting Productivity Stack"
+    flow: [otter-ai, notion-ai]
+    description: "Record → transcribe → organize"
+
+  - name: "Email Productivity Stack"
+    flow: [sanebox, shortwave]
+    description: "Filter → prioritize → AI assist"
+
+  - name: "Calendar Stack"
+    flow: [reclaim, motion]
+    description: "Protect focus → schedule tasks"
+
+workflows:
+  - id: meeting-workflow
+    name: "Meeting Follow-up"
+    steps:
+      - step: 1
+        action: "Otter captures meeting"
+      - step: 2
+        action: "Review AI summary"
+      - step: 3
+        action: "Confirm action items"
+      - step: 4
+        action: "Share with team"
+      - step: 5
+        action: "Tasks to calendar"
+
+handoffs:
+  receives_from:
+    - team: calendar
+      receives: "Meeting invites"
+    - team: email
+      receives: "Inbound messages"
+  sends_to:
+    - team: project-management
+      sends: "Action items from meetings"
+    - team: crm
+      sends: "Call notes"

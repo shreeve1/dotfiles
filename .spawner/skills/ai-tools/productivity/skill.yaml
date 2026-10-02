@@ -1,0 +1,274 @@
+# Productivity AI Tools
+# AI assistants for meetings, email, scheduling, and personal productivity
+
+id: productivity-ai-tools
+name: Productivity AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that handle administrative work and boost
+  personal productivity. From meeting notes to email management,
+  get more done with less effort.
+
+business_value:
+  time_saved: "10-20 hours/week on admin tasks"
+  cost_saved: "$2,000-5,000/month vs executive assistant"
+  revenue_impact: "Focus on high-value work"
+  competitive_edge: "Leaders focused on strategy, not admin"
+
+tools:
+  meeting_tools:
+    - id: otter-ai
+      name: Otter.ai
+      website: https://otter.ai
+      best_for: "Meeting transcription and notes"
+      pricing:
+        free_tier: true
+        pro: "$16.99/month"
+        business: "$30/user/month"
+      strengths:
+        - "Accurate transcription"
+        - "AI meeting summaries"
+        - "Action item extraction"
+        - "Speaker identification"
+        - "Integrations (Zoom, Meet, Teams)"
+      weaknesses:
+        - "Not perfect transcription"
+        - "English best"
+      best_for_stage: "Anyone with frequent meetings"
+
+    - id: fireflies
+      name: Fireflies.ai
+      website: https://fireflies.ai
+      best_for: "Team meeting intelligence"
+      pricing:
+        free_tier: true
+        pro: "$18/user/month"
+        business: "$29/user/month"
+      strengths:
+        - "Great integrations"
+        - "Search across meetings"
+        - "AI summaries"
+        - "CRM integration"
+        - "Custom vocabulary"
+      weaknesses:
+        - "Premium features expensive"
+      best_for_stage: "Sales and customer-facing teams"
+
+    - id: krisp
+      name: Krisp
+      website: https://krisp.ai
+      best_for: "Noise cancellation + notes"
+      pricing:
+        free_tier: true
+        pro: "$12/month"
+      strengths:
+        - "AI noise cancellation"
+        - "Meeting transcription"
+        - "Works with any app"
+        - "Privacy (local processing)"
+      weaknesses:
+        - "CPU intensive"
+      best_for_stage: "Remote workers, noisy environments"
+
+  email_tools:
+    - id: superhuman
+      name: Superhuman
+      website: https://superhuman.com
+      best_for: "Fastest email experience"
+      pricing:
+        starter: "$30/month"
+      strengths:
+        - "Blazingly fast"
+        - "AI triage and writing"
+        - "Keyboard shortcuts"
+        - "Split inbox"
+        - "Scheduled send"
+      weaknesses:
+        - "Expensive"
+        - "Gmail/Outlook only"
+      best_for_stage: "Executives, heavy email users"
+
+    - id: shortwave
+      name: Shortwave
+      website: https://shortwave.com
+      best_for: "AI-first email"
+      pricing:
+        free_tier: true
+        pro: "$9/month"
+      strengths:
+        - "AI assistant built-in"
+        - "Automatic bundling"
+        - "Search with AI"
+        - "Affordable"
+      weaknesses:
+        - "Gmail only"
+        - "Newer product"
+      best_for_stage: "Gmail users wanting AI"
+
+    - id: sanebox
+      name: SaneBox
+      website: https://sanebox.com
+      best_for: "Email triage"
+      pricing:
+        snack: "$7/month"
+        lunch: "$12/month"
+        dinner: "$36/month"
+      strengths:
+        - "Automatic sorting"
+        - "Works with any email"
+        - "Follow-up reminders"
+        - "Attachment management"
+      weaknesses:
+        - "No AI writing"
+        - "Just filtering"
+      best_for_stage: "Email overload management"
+
+  scheduling_tools:
+    - id: reclaim
+      name: Reclaim.ai
+      website: https://reclaim.ai
+      best_for: "AI calendar management"
+      pricing:
+        free_tier: true
+        starter: "$8/user/month"
+        business: "$12/user/month"
+      strengths:
+        - "Smart scheduling"
+        - "Habit protection"
+        - "Task scheduling"
+        - "Meeting optimization"
+        - "Google Calendar integration"
+      weaknesses:
+        - "Google Calendar only"
+        - "Learning curve"
+      best_for_stage: "Teams optimizing calendar"
+
+    - id: clockwise
+      name: Clockwise
+      website: https://clockwise.com
+      best_for: "Team calendar optimization"
+      pricing:
+        free_tier: true
+        team: "$6.75/user/month"
+        business: "$11.50/user/month"
+      strengths:
+        - "Focus time protection"
+        - "Flexible meetings"
+        - "Team analytics"
+        - "Conflict resolution"
+      weaknesses:
+        - "Needs team adoption"
+      best_for_stage: "Teams wanting focus time"
+
+    - id: motion
+      name: Motion
+      website: https://usemotion.com
+      best_for: "AI task + calendar manager"
+      pricing:
+        individual: "$19/month"
+        team: "$12/user/month"
+      strengths:
+        - "Auto-schedules tasks"
+        - "Project management"
+        - "Meeting scheduling"
+        - "Intelligent prioritization"
+      weaknesses:
+        - "Opinionated workflow"
+        - "Takes over calendar"
+      best_for_stage: "Task-heavy professionals"
+
+  note_taking:
+    - id: notion-ai
+      name: Notion AI
+      website: https://notion.so
+      best_for: "AI in your workspace"
+      pricing:
+        add_on: "$10/member/month"
+      strengths:
+        - "Q&A over your docs"
+        - "Writing assistance"
+        - "Summarization"
+        - "In your workflow"
+      best_for_stage: "Notion users"
+
+    - id: reflect
+      name: Reflect
+      website: https://reflect.app
+      best_for: "AI-enhanced personal notes"
+      pricing:
+        pro: "$10/month"
+      strengths:
+        - "GPT-4 integration"
+        - "Networked notes"
+        - "Encryption"
+        - "Clean design"
+      best_for_stage: "Personal knowledge work"
+
+decision_guide:
+  meetings:
+    transcription: otter-ai
+    team_search: fireflies
+    noise_cancellation: krisp
+
+  email:
+    speed: superhuman
+    ai_features: shortwave
+    budget: sanebox
+
+  scheduling:
+    task_focused: motion
+    team_optimization: clockwise
+    habit_protection: reclaim
+
+mastery:
+  learning_curve: low
+  time_to_value: "10 minutes"
+  time_to_proficiency: "1 week"
+
+  onboarding_steps:
+    - step: 1
+      action: "Pick biggest time drain"
+      time: "10 min"
+    - step: 2
+      action: "Set up one tool"
+      time: "30 min"
+    - step: 3
+      action: "Use for 1 week"
+      time: "Ongoing"
+    - step: 4
+      action: "Evaluate and expand"
+      time: "30 min"
+
+patterns:
+  - name: "Automate the mundane"
+    description: "Let AI handle administrative tasks"
+    impact: "Focus on high-value work"
+
+  - name: "Review, don't create"
+    description: "AI drafts, you refine"
+    impact: "Faster with quality"
+
+anti_patterns:
+  - name: "Tool overload"
+    description: "Too many productivity tools"
+    fix: "Pick 2-3 core tools"
+
+  - name: "Ignoring AI outputs"
+    description: "Setting up but not using"
+    fix: "Build into workflow"
+
+triggers:
+  - "meeting notes"
+  - "email management"
+  - "calendar optimization"
+  - "productivity"
+  - "time management"
+
+tags:
+  - productivity
+  - meetings
+  - email
+  - calendar
+  - personal

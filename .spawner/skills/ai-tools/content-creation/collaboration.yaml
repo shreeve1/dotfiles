@@ -1,0 +1,311 @@
+# Content Creation AI Tools - Collaboration
+# How content creation tools work together
+
+prerequisites:
+  technical:
+    - "Basic understanding of image/video formats"
+    - "Familiarity with at least one content platform"
+    - "Ability to evaluate visual quality"
+  creative:
+    - "Understanding of brand guidelines"
+    - "Basic composition/design principles"
+    - "Content strategy or brief"
+
+# =============================================================================
+# TOOL COMBINATIONS
+# =============================================================================
+
+tool_combinations:
+  - name: "Image to Video Pipeline"
+    flow: [midjourney, runway]
+    description: |
+      Best quality video creation workflow:
+      1. Generate hero image in Midjourney
+      2. Perfect the image (variations, upscale)
+      3. Feed to Runway Gen-3 for animation
+    why: "Midjourney quality + Runway motion = best results"
+    tip: "Use img2vid, not text2vid, for predictable output"
+
+  - name: "Avatar Video Production"
+    flow: [chatgpt, heygen, elevenlabs]
+    description: |
+      Professional talking head videos:
+      1. Write/refine script with ChatGPT
+      2. Generate voice with ElevenLabs (better quality)
+      3. Create avatar video in HeyGen with voice
+    why: "ElevenLabs voice quality > HeyGen built-in voices"
+    tip: "Keep clips under 60 seconds to avoid uncanny valley"
+
+  - name: "Social Content Factory"
+    flow: [midjourney, canva, copy-ai]
+    description: |
+      Rapid social media content:
+      1. Generate base images in Midjourney
+      2. Add text/branding in Canva
+      3. Generate captions with Copy.ai
+    why: "AI for creative, Canva for polish and consistency"
+    tip: "Batch similar content for efficiency"
+
+  - name: "Music Video Pipeline"
+    flow: [suno, runway, premiere]
+    description: |
+      AI-assisted music video:
+      1. Generate track with Suno
+      2. Create video clips with Runway
+      3. Edit/sync in Premiere Pro
+    why: "AI generates, human assembles"
+    tip: "Generate more clips than needed for editing flexibility"
+
+  - name: "Podcast Enhancement"
+    flow: [descript, elevenlabs, adobe-podcast]
+    description: |
+      Podcast production with AI:
+      1. Record in any quality
+      2. Enhance audio with Adobe Podcast
+      3. Edit transcript in Descript
+      4. Clone voice for corrections with ElevenLabs
+    why: "AI fixes mistakes without re-recording"
+    tip: "Keep original recordings for authenticity"
+
+  - name: "Blog to Video"
+    flow: [claude, elevenlabs, synthesia]
+    description: |
+      Convert written content to video:
+      1. Condense blog to script with Claude
+      2. Generate narration with ElevenLabs
+      3. Create avatar video with Synthesia
+    why: "Repurpose content across formats"
+    tip: "Add b-roll to break up talking head"
+
+# =============================================================================
+# RECOMMENDED STACKS BY USE CASE
+# =============================================================================
+
+recommended_stacks:
+  solo_creator:
+    image: midjourney
+    video: pika
+    voice: elevenlabs
+    writing: claude
+    music: suno
+    why: "Best balance of quality and accessibility"
+    total_cost: "$50-100/month"
+
+  marketing_team:
+    image: midjourney
+    video: runway
+    avatar: heygen
+    voice: elevenlabs
+    writing: jasper
+    why: "Professional quality, team features"
+    total_cost: "$200-500/month"
+
+  agency:
+    image: [midjourney, flux]
+    video: [runway, heygen, synthesia]
+    voice: elevenlabs
+    writing: [claude, jasper]
+    music: [suno, udio]
+    why: "Multiple tools for different client needs"
+    total_cost: "$500-1000/month"
+
+  enterprise:
+    image: [adobe-firefly, dall-e-3]
+    video: synthesia
+    voice: murf
+    writing: jasper
+    why: "Licensed training data, compliance features"
+    total_cost: "$1000+/month"
+
+  budget_conscious:
+    image: leonardo-ai
+    video: kling
+    voice: elevenlabs-free
+    writing: chatgpt-free
+    music: suno-free
+    why: "Maximum free tiers, good quality"
+    total_cost: "$0-30/month"
+
+# =============================================================================
+# WORKFLOWS
+# =============================================================================
+
+workflows:
+  - id: product-launch-content
+    name: "Product Launch Content Package"
+    description: "Create all assets for product launch"
+    tools: [midjourney, runway, elevenlabs, claude, canva]
+    steps:
+      - step: 1
+        action: "Write launch messaging"
+        tool: claude
+        output: "Key messages, headlines, descriptions"
+
+      - step: 2
+        action: "Generate hero images"
+        tool: midjourney
+        output: "5-10 hero product images"
+
+      - step: 3
+        action: "Create product video"
+        tool: runway
+        input: "Best hero image"
+        output: "15-30 second product video"
+
+      - step: 4
+        action: "Generate voiceover"
+        tool: elevenlabs
+        input: "Launch script"
+        output: "Professional narration"
+
+      - step: 5
+        action: "Create social assets"
+        tool: canva
+        input: "Hero images + copy"
+        output: "Platform-specific graphics"
+
+  - id: weekly-social-content
+    name: "Weekly Social Content Batch"
+    description: "Create a week's worth of social content"
+    frequency: "Weekly"
+    tools: [midjourney, copy-ai, canva]
+    steps:
+      - step: 1
+        action: "Plan content calendar"
+        output: "7 post concepts with themes"
+
+      - step: 2
+        action: "Batch generate images"
+        tool: midjourney
+        output: "7-14 images (variations)"
+
+      - step: 3
+        action: "Generate captions"
+        tool: copy-ai
+        output: "Captions for each post"
+
+      - step: 4
+        action: "Assemble posts"
+        tool: canva
+        output: "Final graphics with text"
+
+      - step: 5
+        action: "Schedule"
+        tool: "scheduling tool"
+        output: "Week scheduled"
+
+  - id: training-video-creation
+    name: "Training Video Production"
+    description: "Create professional training content"
+    tools: [claude, synthesia, elevenlabs]
+    steps:
+      - step: 1
+        action: "Write training script"
+        tool: claude
+        output: "Structured training content"
+
+      - step: 2
+        action: "Create avatar video"
+        tool: synthesia
+        output: "Talking head segments"
+
+      - step: 3
+        action: "Add voiceover sections"
+        tool: elevenlabs
+        output: "Narration for screen recordings"
+
+      - step: 4
+        action: "Add screen recordings"
+        tool: "screen recorder"
+        output: "Demo sections"
+
+      - step: 5
+        action: "Edit together"
+        output: "Final training video"
+
+  - id: ad-creative-testing
+    name: "Ad Creative Variation Testing"
+    description: "Generate multiple ad variants for testing"
+    tools: [midjourney, copy-ai, runway]
+    steps:
+      - step: 1
+        action: "Define value propositions"
+        output: "3-5 key messages to test"
+
+      - step: 2
+        action: "Generate image variations"
+        tool: midjourney
+        output: "5 images per message"
+
+      - step: 3
+        action: "Generate copy variations"
+        tool: copy-ai
+        output: "3 copy variants per message"
+
+      - step: 4
+        action: "Create video variants"
+        tool: runway
+        output: "Video versions of top images"
+
+      - step: 5
+        action: "Launch tests"
+        output: "Ads live in platform"
+
+      - step: 6
+        action: "Analyze and iterate"
+        output: "Winning combinations identified"
+
+# =============================================================================
+# HANDOFFS
+# =============================================================================
+
+handoffs:
+  receives_from:
+    - tool: marketing-strategy
+      receives: "Campaign briefs, target audience, messaging"
+
+    - tool: brand-team
+      receives: "Brand guidelines, approved assets, tone of voice"
+
+    - tool: product-team
+      receives: "Product info, features, screenshots"
+
+    - tool: sales-team
+      receives: "Customer pain points, objections, testimonials"
+
+  sends_to:
+    - tool: social-media
+      sends: "Platform-ready content assets"
+
+    - tool: website-team
+      sends: "Hero images, videos, graphics"
+
+    - tool: email-marketing
+      sends: "Email graphics, GIFs"
+
+    - tool: sales-team
+      sends: "Sales collateral, demo videos"
+
+    - tool: hr-team
+      sends: "Training videos, onboarding content"
+
+# =============================================================================
+# INTEGRATION PATTERNS
+# =============================================================================
+
+integrations:
+  - tool: project-management
+    examples: [notion, asana, monday]
+    pattern: "Track content requests and approvals"
+
+  - tool: dam
+    examples: [brandfolder, bynder, air]
+    pattern: "Store and organize AI-generated assets"
+
+  - tool: scheduling
+    examples: [buffer, hootsuite, later]
+    pattern: "Schedule and publish content"
+
+  - tool: analytics
+    examples: [google-analytics, mixpanel]
+    pattern: "Track content performance"

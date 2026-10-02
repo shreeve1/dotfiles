@@ -1,0 +1,383 @@
+# Analytics AI Tools
+# Product analytics, data analysis, and business intelligence
+
+id: analytics-ai-tools
+name: Analytics AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI-powered analytics tools that help you understand users,
+  make data-driven decisions, and grow your business intelligently.
+  From product analytics to natural language data analysis.
+
+business_value:
+  time_saved: "10-20 hours/week on analytics and reporting"
+  cost_saved: "$5,000-15,000/month vs data analyst hires"
+  revenue_impact: "Data-driven decisions = 20-40% better outcomes"
+  competitive_edge: "Understand users deeper than competitors"
+
+# =============================================================================
+# TOOL COMPARISON
+# =============================================================================
+
+tools:
+  product_analytics:
+    - id: amplitude
+      name: Amplitude
+      website: https://amplitude.com
+      best_for: "Product analytics with AI insights"
+      pricing:
+        free_tier: true
+        free_limits: "10M events/month"
+        paid_starts: "$49/month"
+      strengths:
+        - "Best-in-class behavioral analytics"
+        - "AI-powered insights and anomaly detection"
+        - "Excellent cohort and retention analysis"
+        - "Strong experimentation integration"
+      weaknesses:
+        - "Learning curve for advanced features"
+        - "Can get expensive at scale"
+        - "Event volume can explode unexpectedly"
+      best_for_stage: "Series A+ with product-market fit focus"
+
+    - id: mixpanel
+      name: Mixpanel
+      website: https://mixpanel.com
+      best_for: "Event tracking with marketing focus"
+      pricing:
+        free_tier: true
+        free_limits: "20M events/month"
+        paid_starts: "$28/month"
+      strengths:
+        - "Generous free tier"
+        - "Great for marketing analytics"
+        - "Easy to set up"
+        - "Good mobile analytics"
+      weaknesses:
+        - "Less powerful than Amplitude for product"
+        - "Limited AI features compared to competitors"
+      best_for_stage: "Early stage, mobile-first apps"
+
+    - id: posthog
+      name: PostHog
+      website: https://posthog.com
+      best_for: "Open source, all-in-one analytics"
+      pricing:
+        free_tier: true
+        free_limits: "1M events/month + session recordings"
+        paid_starts: "$0 (usage-based)"
+        self_hosted: true
+      strengths:
+        - "Open source, can self-host"
+        - "Analytics + session recordings + feature flags"
+        - "Privacy-friendly (EU hosting, self-host)"
+        - "Generous free tier"
+      weaknesses:
+        - "Fewer integrations than established players"
+        - "Newer, less mature"
+      best_for_stage: "Privacy-conscious, technical teams"
+
+    - id: heap
+      name: Heap
+      website: https://heap.io
+      best_for: "Auto-capture everything"
+      pricing:
+        free_tier: true
+        paid_starts: "Custom"
+      strengths:
+        - "Retroactive analytics (captures everything)"
+        - "No manual event tracking needed"
+        - "Great for discovering unknown patterns"
+      weaknesses:
+        - "Data can be noisy"
+        - "Expensive at scale"
+        - "Less control over what's tracked"
+      best_for_stage: "Teams who forgot to track events"
+
+    - id: june
+      name: June
+      website: https://june.so
+      best_for: "B2B SaaS analytics"
+      pricing:
+        free_tier: true
+        free_limits: "1,000 users"
+        paid_starts: "$149/month"
+      strengths:
+        - "Built specifically for B2B SaaS"
+        - "Company-level analytics (not just users)"
+        - "Beautiful, simple UI"
+        - "Quick setup with Segment"
+      weaknesses:
+        - "Limited for non-SaaS"
+        - "Fewer advanced features"
+      best_for_stage: "B2B SaaS startups"
+
+  data_analysis:
+    - id: julius
+      name: Julius AI
+      website: https://julius.ai
+      best_for: "Chat with your data"
+      pricing:
+        free_tier: true
+        paid_starts: "$20/month"
+      strengths:
+        - "Natural language queries"
+        - "Handles CSV, Excel, databases"
+        - "Creates visualizations automatically"
+        - "No SQL or Python needed"
+      weaknesses:
+        - "Limited for complex analysis"
+        - "Can misinterpret ambiguous questions"
+      best_for_stage: "Non-technical teams needing data insights"
+
+    - id: hex
+      name: Hex
+      website: https://hex.tech
+      best_for: "Collaborative data notebooks"
+      pricing:
+        free_tier: true
+        paid_starts: "$80/month"
+      strengths:
+        - "SQL + Python + AI in one place"
+        - "Beautiful shareable reports"
+        - "Version control for analysis"
+        - "Great for data teams"
+      weaknesses:
+        - "Requires technical skills"
+        - "Expensive for small teams"
+      best_for_stage: "Data teams at growth companies"
+
+    - id: obviously-ai
+      name: Obviously AI
+      website: https://obviously.ai
+      best_for: "No-code machine learning"
+      pricing:
+        paid_starts: "$75/month"
+      strengths:
+        - "Build ML models without code"
+        - "Predictions on your data"
+        - "Churn prediction, lead scoring"
+      weaknesses:
+        - "Limited customization"
+        - "Black box models"
+      best_for_stage: "Business teams wanting ML predictions"
+
+  bi_platforms:
+    - id: metabase
+      name: Metabase
+      website: https://metabase.com
+      best_for: "Open source BI"
+      pricing:
+        free_tier: true
+        self_hosted: true
+        cloud_starts: "$85/month"
+      strengths:
+        - "Free and open source"
+        - "Easy to self-host"
+        - "Simple for non-technical users"
+        - "Good for internal dashboards"
+      weaknesses:
+        - "Limited AI features"
+        - "Less powerful than enterprise tools"
+      best_for_stage: "Early stage, budget-conscious"
+
+    - id: tableau-ai
+      name: Tableau AI
+      website: https://tableau.com
+      best_for: "Enterprise visualization"
+      pricing:
+        paid_starts: "$15/user/month"
+      strengths:
+        - "Best-in-class visualizations"
+        - "Einstein AI integration"
+        - "Handles massive datasets"
+      weaknesses:
+        - "Expensive"
+        - "Complex to master"
+      best_for_stage: "Enterprise with dedicated analysts"
+
+    - id: thoughtspot
+      name: ThoughtSpot
+      website: https://thoughtspot.com
+      best_for: "Search-driven analytics"
+      pricing:
+        paid_starts: "Custom"
+      strengths:
+        - "Google-like search for data"
+        - "AI-generated insights"
+        - "Self-service for business users"
+      weaknesses:
+        - "Very expensive"
+        - "Enterprise sales process"
+      best_for_stage: "Large enterprises"
+
+# =============================================================================
+# DECISION GUIDE
+# =============================================================================
+
+decision_guide:
+  by_stage:
+    pre_seed:
+      recommended: posthog
+      reason: "Free, open source, includes session recordings"
+      alternatives: [mixpanel, june]
+
+    seed:
+      recommended: amplitude
+      reason: "Best product analytics, good free tier"
+      alternatives: [mixpanel, posthog]
+
+    series_a:
+      recommended: amplitude
+      reason: "Scale with you, AI insights mature"
+      alternatives: [heap]
+
+    series_b_plus:
+      recommended: "amplitude + hex"
+      reason: "Product analytics + data team capabilities"
+
+  by_use_case:
+    product_analytics:
+      primary: amplitude
+      alternative: mixpanel
+      budget: posthog
+
+    marketing_analytics:
+      primary: mixpanel
+      alternative: amplitude
+
+    b2b_saas:
+      primary: june
+      alternative: amplitude
+
+    data_exploration:
+      primary: julius
+      alternative: hex
+
+    dashboards:
+      primary: metabase
+      alternative: tableau-ai
+
+    ml_predictions:
+      primary: obviously-ai
+
+# =============================================================================
+# MASTERY PATH
+# =============================================================================
+
+mastery:
+  learning_curve: medium
+  time_to_value: "2-4 hours"
+  time_to_proficiency: "2 weeks"
+  time_to_mastery: "2-3 months"
+
+  onboarding_steps:
+    - step: 1
+      action: "Choose your tool"
+      details: "Use decision guide above based on stage and use case"
+      time: "30 min"
+
+    - step: 2
+      action: "Install tracking"
+      details: "Add SDK or connect via Segment"
+      time: "1-2 hours"
+
+    - step: 3
+      action: "Define key events"
+      details: "Track 10-15 critical user actions"
+      time: "2 hours"
+
+    - step: 4
+      action: "Build first dashboard"
+      details: "Create product health metrics view"
+      time: "1 hour"
+
+    - step: 5
+      action: "Set up alerts"
+      details: "Get notified on anomalies"
+      time: "30 min"
+
+    - step: 6
+      action: "Create first cohort analysis"
+      details: "Compare user segments"
+      time: "1 hour"
+
+# =============================================================================
+# PATTERNS (Best Practices)
+# =============================================================================
+
+patterns:
+  - name: "Event naming taxonomy"
+    description: "Use Object_Action pattern consistently"
+    example: "Button_Clicked, Form_Submitted, Item_Purchased"
+    impact: "Makes events findable and consistent"
+
+  - name: "Track properties, not events"
+    description: "Use event properties for variants"
+    example: "Button_Clicked with button_name property, not Button_A_Clicked"
+    impact: "Cleaner event stream, easier analysis"
+
+  - name: "Define metrics before building"
+    description: "Know your north star and supporting metrics first"
+    example: "North star: Weekly Active Users. Supporting: Activation, Retention, Revenue"
+    impact: "Focus on what matters"
+
+  - name: "Use cohorts for comparison"
+    description: "Always compare segments, not just totals"
+    example: "Compare power users vs casual users behavior"
+    impact: "Find actionable insights"
+
+  - name: "Set up anomaly alerts"
+    description: "Get notified when metrics deviate"
+    example: "Alert if DAU drops >10% day-over-day"
+    impact: "Catch problems early"
+
+# =============================================================================
+# ANTI-PATTERNS (Mistakes to Avoid)
+# =============================================================================
+
+anti_patterns:
+  - name: "Tracking everything"
+    description: "Adding every possible event"
+    impact: "Noise drowns signal, quota burns fast"
+    fix: "Track 10-20 key events deeply"
+
+  - name: "No naming convention"
+    description: "Random event names across team"
+    impact: "Can't find events, duplicates everywhere"
+    fix: "Document and enforce Object_Action pattern"
+
+  - name: "Vanity metrics focus"
+    description: "Celebrating page views and signups"
+    impact: "Misleading success signals"
+    fix: "Focus on activation, retention, revenue"
+
+  - name: "Ignoring funnels"
+    description: "Only looking at end conversion"
+    impact: "Can't identify where users drop off"
+    fix: "Build funnels for every key flow"
+
+  - name: "No user identity"
+    description: "Not connecting anonymous to logged-in users"
+    impact: "Fragmented user journey, inflated counts"
+    fix: "Implement proper identify() on login"
+
+triggers:
+  - "need product analytics"
+  - "understand user behavior"
+  - "track events"
+  - "funnel analysis"
+  - "retention metrics"
+  - "cohort analysis"
+  - "data dashboard"
+  - "business intelligence"
+
+tags:
+  - analytics
+  - product
+  - data
+  - metrics
+  - dashboards
+  - business-intelligence

@@ -1,0 +1,34 @@
+# Marketing AI Tools - Sharp Edges
+
+sharp_edges:
+  - id: ai-content-penalties
+    summary: "Search engines may penalize AI content"
+    severity: high
+    tools_affected: [surfer-seo, jasper, copy-ai]
+    situation: "Publishing pure AI content for SEO"
+    why: "Google's helpful content update targets thin AI content"
+    solution: "Add unique insights, edit heavily, add expertise"
+
+  - id: social-algorithm-changes
+    summary: "Platform algorithms change constantly"
+    severity: medium
+    tools_affected: [buffer, hootsuite]
+    situation: "AI recommendations become outdated"
+    why: "Platforms update frequently, AI lags"
+    solution: "Stay current, test constantly"
+
+  - id: ad-fatigue
+    summary: "AI ads can become repetitive"
+    severity: medium
+    tools_affected: [adcreative-ai]
+    situation: "Generated ads all look similar"
+    why: "AI patterns become recognizable"
+    solution: "Mix AI with human creativity"
+
+  - id: email-deliverability
+    summary: "AI emails may trigger spam filters"
+    severity: high
+    tools_affected: [mailchimp, klaviyo]
+    situation: "AI-generated subject lines flagged"
+    why: "Spam filters detect patterns"
+    solution: "Test deliverability, personalize"

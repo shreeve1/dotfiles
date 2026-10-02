@@ -1,0 +1,293 @@
+# Development AI Tools - Sharp Edges
+# Gotchas and pitfalls when using AI coding tools
+
+sharp_edges:
+  # =============================================================================
+  # CODE QUALITY GOTCHAS
+  # =============================================================================
+
+  - id: security-vulnerabilities
+    summary: "AI often suggests insecure code patterns"
+    severity: critical
+    tools_affected: [github-copilot, cursor, codeium, tabnine]
+    situation: "AI suggests code with security vulnerabilities"
+    why: |
+      AI training data includes insecure code:
+      - SQL injection patterns
+      - Hardcoded secrets
+      - Insecure random number generation
+      - Missing input validation
+      - Unsafe deserialization
+
+      AI doesn't understand security context.
+    solution: |
+      1. Always review security-sensitive code
+      2. Run security scanners (SAST)
+      3. Never trust AI with auth/crypto
+      4. Use security-focused prompts
+      5. Code review for security explicitly
+
+      ```python
+      # Bad: AI might suggest
+      query = f"SELECT * FROM users WHERE id = {user_id}"
+
+      # Good: Always parameterize
+      query = "SELECT * FROM users WHERE id = %s"
+      cursor.execute(query, (user_id,))
+      ```
+    symptoms:
+      - "Security scanner finds vulnerabilities"
+      - "Code review catches injection risks"
+      - "Secrets appear in suggestions"
+
+  - id: outdated-patterns
+    summary: "AI suggests deprecated or outdated patterns"
+    severity: medium
+    tools_affected: [github-copilot, cursor, codeium]
+    situation: "AI suggests old library versions or deprecated APIs"
+    why: |
+      Training data includes old code:
+      - Deprecated React patterns (class components)
+      - Old library versions
+      - Superseded APIs
+      - Legacy approaches
+
+      AI doesn't know "best practice" changed.
+    solution: |
+      1. Know current best practices
+      2. Question patterns that seem old
+      3. Check library documentation
+      4. Update prompts with version info
+      5. Configure AI for modern patterns
+    symptoms:
+      - "Using class components in React"
+      - "Old callback patterns vs async/await"
+      - "Deprecated warnings at runtime"
+
+  - id: hallucinated-apis
+    summary: "AI invents APIs that don't exist"
+    severity: high
+    tools_affected: [github-copilot, cursor, claude-code]
+    situation: "AI uses function/method that doesn't exist"
+    why: |
+      AI confuses or invents:
+      - Similar library APIs mixed up
+      - Methods that "should" exist
+      - Plausible but fake functions
+      - Wrong library versions
+
+      Code looks right but won't compile.
+    solution: |
+      1. Always test AI code
+      2. Verify imports work
+      3. Check documentation
+      4. Don't trust unfamiliar APIs
+      5. Type checking helps catch this
+    symptoms:
+      - "Module not found errors"
+      - "AttributeError: no such method"
+      - "TypeScript errors on AI code"
+
+  # =============================================================================
+  # PRODUCTIVITY GOTCHAS
+  # =============================================================================
+
+  - id: context-loss
+    summary: "AI loses context in large codebases"
+    severity: medium
+    tools_affected: [github-copilot, codeium]
+    situation: "AI suggestions ignore project patterns"
+    why: |
+      Limited context window means:
+      - Can't see whole codebase
+      - Misses project conventions
+      - Ignores related files
+      - Suggests inconsistent patterns
+
+      More context-aware tools help.
+    solution: |
+      1. Use Cursor/Claude Code for large projects
+      2. Provide context in prompts
+      3. Reference existing patterns
+      4. Use consistent file naming
+      5. Keep related code near cursor
+    symptoms:
+      - "Suggestions don't match project style"
+      - "Different patterns for same thing"
+      - "Ignores existing utilities"
+
+  - id: over-engineering
+    summary: "AI over-complicates simple tasks"
+    severity: medium
+    tools_affected: [github-copilot, cursor, claude-code]
+    situation: "AI writes 50 lines when 5 would do"
+    why: |
+      AI tends to:
+      - Add unnecessary abstractions
+      - Include unused error handling
+      - Over-generalize solutions
+      - Add features not requested
+
+      More code = more bugs, more maintenance.
+    solution: |
+      1. Ask for simple solutions
+      2. Specify constraints in prompts
+      3. Delete unnecessary code
+      4. Request minimal implementation
+      5. Review for YAGNI violations
+    symptoms:
+      - "Way more code than needed"
+      - "Abstractions for single use cases"
+      - "Features nobody asked for"
+
+  - id: copy-paste-licensing
+    summary: "AI may reproduce copyrighted code"
+    severity: high
+    tools_affected: [github-copilot, cursor, codeium]
+    situation: "AI generates code from copyleft or proprietary sources"
+    why: |
+      Training data includes:
+      - GPL licensed code
+      - Stack Overflow (CC-BY-SA)
+      - Proprietary code (leaked)
+      - Various license restrictions
+
+      Using could violate licenses.
+    solution: |
+      1. Enable Copilot's duplication filter
+      2. Review long blocks of generated code
+      3. Run license scanning
+      4. Be cautious with recognizable patterns
+      5. Understand your company's policy
+    symptoms:
+      - "Recognizable code from elsewhere"
+      - "License scanner flags"
+      - "Exact match to Stack Overflow"
+
+  # =============================================================================
+  # LEARNING GOTCHAS
+  # =============================================================================
+
+  - id: skill-atrophy
+    summary: "Relying on AI can degrade programming skills"
+    severity: medium
+    tools_affected: [all]
+    situation: "Developer forgets fundamentals, can't code without AI"
+    why: |
+      Over-reliance leads to:
+      - Forgetting syntax
+      - Not understanding generated code
+      - Unable to debug without AI
+      - Losing problem-solving skills
+
+      AI should augment, not replace.
+    solution: |
+      1. Understand code before using it
+      2. Code without AI regularly
+      3. Explain AI code to yourself
+      4. Don't skip learning fundamentals
+      5. Use AI to accelerate, not replace thinking
+    symptoms:
+      - "Can't code without Copilot"
+      - "Don't understand own codebase"
+      - "Can't solve problems AI can't"
+
+  - id: junior-developer-risk
+    summary: "Junior devs accept bad suggestions more"
+    severity: medium
+    tools_affected: [all]
+    situation: "Less experienced developers trust AI too much"
+    why: |
+      Junior developers may:
+      - Not recognize bad patterns
+      - Can't evaluate suggestions
+      - Accept insecure code
+      - Miss better alternatives
+
+      AI amplifies existing skill gaps.
+    solution: |
+      1. Senior review of AI-heavy code
+      2. Pair programming with AI
+      3. Teach how to evaluate suggestions
+      4. Emphasis on fundamentals first
+      5. Create team guidelines for AI use
+    symptoms:
+      - "PRs with copied AI patterns"
+      - "Security issues in junior code"
+      - "Inconsistent code quality"
+
+  # =============================================================================
+  # INFRASTRUCTURE GOTCHAS
+  # =============================================================================
+
+  - id: cost-surprise
+    summary: "AI API costs can explode"
+    severity: high
+    tools_affected: [claude-code, aider]
+    situation: "Using API-based tools without cost awareness"
+    why: |
+      Pay-per-token adds up:
+      - Large codebases = large context
+      - Multiple iterations
+      - Multi-file changes
+      - Long conversations
+
+      Easy to spend $100+ per day.
+    solution: |
+      1. Set API spending limits
+      2. Monitor usage closely
+      3. Use smaller models when possible
+      4. Be efficient with prompts
+      5. Consider subscription tools instead
+    symptoms:
+      - "Unexpected API bill"
+      - "Hitting spending limits"
+      - "Cost per feature too high"
+
+  - id: privacy-exposure
+    summary: "Code sent to AI providers"
+    severity: high
+    tools_affected: [github-copilot, cursor, codeium]
+    situation: "Proprietary code sent to external AI"
+    why: |
+      Default settings often:
+      - Send code for completion
+      - Send code for training
+      - Store conversation history
+      - Share with third parties
+
+      May violate security policies or regulations.
+    solution: |
+      1. Review privacy settings
+      2. Opt out of training data
+      3. Use self-hosted options
+      4. Enterprise tiers for more control
+      5. Policy: no secrets in prompts
+    symptoms:
+      - "Security audit concerns"
+      - "Compliance questions"
+      - "Code in AI training sets"
+
+  - id: vendor-lock-in
+    summary: "Tooling lock-in to specific AI provider"
+    severity: low
+    tools_affected: [cursor, github-copilot]
+    situation: "Team becomes dependent on one AI tool"
+    why: |
+      Different tools, different experiences:
+      - Cursor workflows don't transfer
+      - Copilot muscle memory
+      - Extension dependencies
+      - Pricing changes affect budget
+
+      Switching is painful.
+    solution: |
+      1. Keep skills tool-agnostic
+      2. Know alternatives exist
+      3. Don't build processes on one tool
+      4. Evaluate periodically
+      5. Standard IDE + extensions as fallback
+    symptoms:
+      - "Panic when tool is down"
+      - "Can't switch easily"
+      - "Price increases hurt"

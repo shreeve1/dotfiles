@@ -1,0 +1,205 @@
+# Marketing AI Tools
+# AI for SEO, advertising, social media, and marketing automation
+
+id: marketing-ai-tools
+name: Marketing AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that supercharge marketing efforts.
+  From SEO optimization to ad creative generation, reach
+  more customers with less effort.
+
+business_value:
+  time_saved: "20-40 hours/week on marketing tasks"
+  cost_saved: "$5,000-20,000/month vs agencies"
+  revenue_impact: "Better targeting = higher ROAS"
+  competitive_edge: "Personalization at scale"
+
+tools:
+  seo_tools:
+    - id: surfer-seo
+      name: Surfer SEO
+      website: https://surferseo.com
+      best_for: "AI content optimization"
+      pricing:
+        essential: "$89/month"
+        scale: "$129/month"
+        enterprise: "$219/month"
+      strengths:
+        - "Real-time content scoring"
+        - "AI writing assistant"
+        - "Keyword clustering"
+        - "SERP analysis"
+      best_for_stage: "Content-heavy SEO"
+
+    - id: semrush
+      name: Semrush
+      website: https://semrush.com
+      best_for: "All-in-one SEO platform"
+      pricing:
+        pro: "$130/month"
+        guru: "$250/month"
+        business: "$500/month"
+      strengths:
+        - "Comprehensive SEO toolkit"
+        - "AI writing tools"
+        - "Competitor analysis"
+        - "Site audit"
+      best_for_stage: "Serious SEO operations"
+
+    - id: clearscope
+      name: Clearscope
+      website: https://clearscope.io
+      best_for: "Content optimization"
+      pricing:
+        paid_starts: "$170/month"
+      strengths:
+        - "AI content grading"
+        - "Topic coverage"
+        - "Google Docs integration"
+      best_for_stage: "Enterprise content teams"
+
+  social_media:
+    - id: buffer
+      name: Buffer
+      website: https://buffer.com
+      best_for: "Simple social scheduling"
+      pricing:
+        free_tier: true
+        essentials: "$6/channel/month"
+        team: "$12/channel/month"
+      strengths:
+        - "AI caption generation"
+        - "Easy scheduling"
+        - "Analytics"
+        - "Multi-platform"
+      best_for_stage: "Small teams, simple needs"
+
+    - id: hootsuite
+      name: Hootsuite
+      website: https://hootsuite.com
+      best_for: "Enterprise social management"
+      pricing:
+        professional: "$99/month"
+        team: "$249/month"
+        enterprise: "Custom"
+      strengths:
+        - "AI content recommendations"
+        - "Social listening"
+        - "Team collaboration"
+        - "Advanced analytics"
+      best_for_stage: "Larger marketing teams"
+
+    - id: lately
+      name: Lately
+      website: https://lately.ai
+      best_for: "AI content repurposing"
+      pricing:
+        paid_starts: "$49/month"
+      strengths:
+        - "Long-form to social posts"
+        - "AI learns your voice"
+        - "Automated scheduling"
+      best_for_stage: "Content repurposing"
+
+  advertising:
+    - id: adcreative-ai
+      name: AdCreative.ai
+      website: https://adcreative.ai
+      best_for: "AI ad creative generation"
+      pricing:
+        starter: "$29/month"
+        professional: "$59/month"
+      strengths:
+        - "Generate ad creatives"
+        - "A/B testing"
+        - "Platform-specific formats"
+        - "Fast iteration"
+      best_for_stage: "Performance marketing"
+
+    - id: albert
+      name: Albert AI
+      website: https://albert.ai
+      best_for: "Autonomous ad optimization"
+      pricing:
+        paid_starts: "Custom (enterprise)"
+      strengths:
+        - "Self-optimizing campaigns"
+        - "Cross-channel"
+        - "Budget allocation"
+      best_for_stage: "Enterprise advertisers"
+
+  email_marketing:
+    - id: mailchimp
+      name: Mailchimp
+      website: https://mailchimp.com
+      best_for: "SMB email with AI"
+      pricing:
+        free_tier: true
+        essentials: "$13/month"
+        standard: "$20/month"
+      strengths:
+        - "AI subject lines"
+        - "Send time optimization"
+        - "Easy to use"
+        - "Automation"
+      best_for_stage: "Small business email"
+
+    - id: klaviyo
+      name: Klaviyo
+      website: https://klaviyo.com
+      best_for: "E-commerce email AI"
+      pricing:
+        free_tier: true
+        paid_starts: "$45/month"
+      strengths:
+        - "AI segments"
+        - "Predictive analytics"
+        - "E-commerce focus"
+        - "Deep integrations"
+      best_for_stage: "E-commerce marketing"
+
+decision_guide:
+  by_use_case:
+    seo_content: surfer-seo
+    seo_comprehensive: semrush
+    social_simple: buffer
+    social_enterprise: hootsuite
+    ad_creative: adcreative-ai
+    email_ecommerce: klaviyo
+    email_smb: mailchimp
+
+mastery:
+  learning_curve: medium
+  time_to_value: "1-2 hours"
+  time_to_proficiency: "2-4 weeks"
+
+patterns:
+  - name: "Test everything"
+    description: "AI enables more testing"
+    impact: "Find winners faster"
+
+  - name: "Repurpose content"
+    description: "One piece → many formats"
+    impact: "10x content efficiency"
+
+anti_patterns:
+  - name: "AI without strategy"
+    description: "Tools without plan"
+    fix: "Strategy first, tools support"
+
+triggers:
+  - "marketing"
+  - "SEO"
+  - "social media"
+  - "advertising"
+  - "email marketing"
+
+tags:
+  - marketing
+  - seo
+  - social
+  - advertising
+  - email

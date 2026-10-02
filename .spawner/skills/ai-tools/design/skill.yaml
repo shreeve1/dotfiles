@@ -1,0 +1,182 @@
+# Design AI Tools
+# AI for UI/UX, graphic design, and creative work
+
+id: design-ai-tools
+name: Design AI Tools
+version: "1.0.0"
+category: ai-tools
+
+description: |
+  Master the AI tools that accelerate design work. From UI generation
+  to image editing, create professional designs faster.
+
+business_value:
+  time_saved: "50-70% faster design iterations"
+  cost_saved: "$5,000-20,000/month vs additional designers"
+  revenue_impact: "Ship faster, test more variants"
+  competitive_edge: "Design quality without design team"
+
+tools:
+  ui_design:
+    - id: figma-ai
+      name: Figma AI
+      website: https://figma.com
+      best_for: "AI-assisted UI design"
+      pricing:
+        professional: "$15/editor/month"
+        organization: "$45/editor/month"
+      strengths:
+        - "Native to Figma workflow"
+        - "AI-powered features"
+        - "Layer renaming"
+        - "Asset generation"
+      best_for_stage: "Any Figma user"
+
+    - id: uizard
+      name: Uizard
+      website: https://uizard.io
+      best_for: "Rapid UI prototyping"
+      pricing:
+        free_tier: true
+        pro: "$12/month"
+        business: "$39/user/month"
+      strengths:
+        - "Sketch to UI"
+        - "Screenshot to design"
+        - "Theme generation"
+        - "Quick prototypes"
+      weaknesses:
+        - "Not production-ready designs"
+      best_for_stage: "Non-designers, rapid prototyping"
+
+    - id: galileo-ai
+      name: Galileo AI
+      website: https://usegalileo.ai
+      best_for: "Text to UI design"
+      pricing:
+        paid_starts: "Waitlist"
+      strengths:
+        - "Generate UI from text"
+        - "Editable outputs"
+        - "High quality"
+      weaknesses:
+        - "Limited access"
+      best_for_stage: "Early concept generation"
+
+  image_editing:
+    - id: adobe-firefly
+      name: Adobe Firefly
+      website: https://firefly.adobe.com
+      best_for: "Commercial-safe AI images"
+      pricing:
+        free_tier: true
+        premium: "$5/month (100 credits)"
+      strengths:
+        - "Commercial licensing"
+        - "Adobe integration"
+        - "Generative fill"
+        - "Text effects"
+      weaknesses:
+        - "Less powerful than Midjourney"
+      best_for_stage: "Commercial design work"
+
+    - id: canva-ai
+      name: Canva AI
+      website: https://canva.com
+      best_for: "AI in familiar design tool"
+      pricing:
+        free_tier: true
+        pro: "$15/month"
+      strengths:
+        - "Magic Design"
+        - "Text to image"
+        - "Background removal"
+        - "Magic Resize"
+        - "Easy for non-designers"
+      best_for_stage: "Marketing teams, quick designs"
+
+    - id: remove-bg
+      name: Remove.bg
+      website: https://remove.bg
+      best_for: "Background removal"
+      pricing:
+        free_tier: true
+        subscription: "$9/month"
+      strengths:
+        - "Best background removal"
+        - "Batch processing"
+        - "API available"
+      best_for_stage: "Product photos, headshots"
+
+    - id: photoroom
+      name: PhotoRoom
+      website: https://photoroom.com
+      best_for: "Product photography"
+      pricing:
+        free_tier: true
+        pro: "$10/month"
+      strengths:
+        - "AI background replacement"
+        - "Product staging"
+        - "Batch editing"
+        - "E-commerce focused"
+      best_for_stage: "E-commerce, product photos"
+
+  design_systems:
+    - id: figma-dev-mode
+      name: Figma Dev Mode
+      website: https://figma.com
+      best_for: "Design to code"
+      pricing:
+        included: "With Figma"
+      strengths:
+        - "AI code snippets"
+        - "Design tokens"
+        - "Developer handoff"
+      best_for_stage: "Design-dev collaboration"
+
+decision_guide:
+  by_use_case:
+    ui_prototyping: uizard
+    production_ui: figma-ai
+    quick_graphics: canva-ai
+    commercial_images: adobe-firefly
+    product_photos: photoroom
+
+  by_skill_level:
+    non_designer: canva-ai
+    designer: figma-ai
+    developer: uizard
+
+mastery:
+  learning_curve: low-medium
+  time_to_value: "15 minutes"
+  time_to_proficiency: "1-2 weeks"
+
+patterns:
+  - name: "Generate, then refine"
+    description: "AI creates base, human polishes"
+    impact: "Faster with professional quality"
+
+  - name: "Multiple variations"
+    description: "Generate many options quickly"
+    impact: "Better decisions, less attachment"
+
+anti_patterns:
+  - name: "AI as final output"
+    description: "Using AI designs without refinement"
+    fix: "Always human review and polish"
+
+triggers:
+  - "design"
+  - "UI"
+  - "graphics"
+  - "image editing"
+  - "prototyping"
+
+tags:
+  - design
+  - ui
+  - graphics
+  - creative
+  - visual
