@@ -44,7 +44,7 @@ composer:
   shape: claude
   tokenRate: false
 advisor:
-  enabled: false
+  enabled: true
   syncBacklog: "1"
 prewalk:
   enabled: false
