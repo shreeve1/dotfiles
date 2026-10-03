@@ -14,12 +14,12 @@ If both exist, update both and keep the LLM Wiki section wording consistent betw
 ## Rules
 
 - Read the target file before editing it.
+- Run autonomously: apply the refactor end-to-end without asking for approval before, during, or after. Never block the setup on a question about the LLM Wiki section; use the compact template from `Templates.md` and the defaults in this workflow.
 - If the target file does not exist and is the chosen default, create it with a concise project agent guide and the LLM Wiki section from `Templates.md`.
 - If the target file exists, preserve every existing rule unless James explicitly approves removal.
 - Prefer a light reorganization over a rewrite.
 - Do not duplicate existing sections.
 - Keep the LLM Wiki section operational, not philosophical.
-
 ## Procedure
 
 Run these steps once per target file (`CLAUDE.md`, `AGENTS.md`):
@@ -37,9 +37,9 @@ Run these steps once per target file (`CLAUDE.md`, `AGENTS.md`):
 Keep the injected section compact (use the compact `Agent Instructions Section` in `Templates.md` verbatim, adapting only heading depth). Each updated file (`CLAUDE.md` and/or `AGENTS.md`) must mention, and no more:
 
 - A one-line pointer that the project uses `wiki/` and is operated via the `/llm-wiki-setup` and `/wiki-update` skills, which own the ingest/query/promotion/lint/discard procedures (do NOT inline those procedures).
-- Layout essentials: `wiki/` is an OKF v0.1 bundle; `wiki/index.md` (root, read first) + per-directory `index.md` + `wiki/ROUTING.md` (narrow), `wiki/raw/` immutable, `wiki/candidates/` review gate, promoted dirs (OKF concept pages: `type` frontmatter, bundle-relative markdown links not `[[wikilinks]]`, `# Citations`), `wiki/CLAIMS.md` (gated claims), `wiki/log.md` (append operations).
-- A `Wiki-First Search` rule: for project-specific questions, investigations, design tasks, bug hunts, or code searches needing project context, check the wiki before broad repository search; when non-wiki search reveals durable knowledge the wiki lacks, note the gap and propose an ingest/candidate/promotion path.
-- A `Mandatory End-of-Run Wiki Check` framed as required, not advisory: before reporting any task complete, decide whether it produced durable knowledge (direction/scope/ownership decisions, terminology/architecture/contract changes, superseding facts); if yes, run `/wiki-update` before reporting done (or state the gap + proposed path if deferred); if no, state one line confirming the check ran and nothing qualified. Mark superseded claims `superseded` with a pointer, never delete.
+- Layout essentials: `wiki/index.md` (root, read first) + per-directory `index.md` + `wiki/ROUTING.md` (narrow), `wiki/raw/` immutable, `wiki/candidates/` transient holding where successful candidates are verified and auto-promoted in the same run and failed candidates stay logged and retryable (never a human review queue), promoted dirs (OKF concept pages: `type` frontmatter, bundle-relative markdown links not `[[wikilinks]]`, `# Citations`), `wiki/CLAIMS.md` (gated claims), `wiki/log.md` (append operations).
+- A `Wiki-First Search` rule: for project-specific questions, investigations, design tasks, bug hunts, or code searches needing project context, check the wiki before broad repository search; when non-wiki search reveals durable knowledge the wiki lacks, capture it via `/wiki-update` rather than merely proposing a path.
+- A `Mandatory End-of-Run Wiki Check` framed as required, not advisory: before reporting any task complete, decide whether it produced durable knowledge (direction/scope/ownership decisions, terminology/architecture/contract changes, superseding facts); if yes, run `/wiki-update` before reporting done — promotion is autonomous, so a successful run ends with the knowledge promoted and indexed, while a failed-check candidate stays logged and retryable, never queued for approval; if no, state one line confirming the check ran and nothing qualified. Mark superseded claims `superseded` with a pointer, never delete.
 
 ### Directories
 

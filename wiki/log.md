@@ -9,12 +9,39 @@ Append entries with this format:
 - Outputs: changed pages
 - Notes: key decisions or unresolved questions
 
+## 2026-10-03
+
+- **Promote** (omarchy bare-metal and Surface recovery → promoted): `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md` → `wiki/analyses/analysis-session-omarchy-bare-metal-and-surface-recovery.md` (Branch B: copy → verify → remove; no `git mv`). Legacy claims C-0130..C-0133 still pointed at the candidate path; repaired via gated `demote --force` + `check --apply` re-adds as C-0135..C-0138 pointing at the promoted page. Root index rows moved in the existing table format; `wiki/analyses/index.md` extended in its bullet style.
+- **Promote** (projectlean wiki-first SOUL → promoted): `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md` → `wiki/analyses/analysis-session-projectlean-wiki-first-soul.md` (Branch B). Stale "Candidate Promotion Notes" section (promotion-still-requires-approval) removed on the promoted copy; promotion is autonomous under the current contract. No claims existed for this candidate.
+- **Promote** (OpenCode subagents source summary → promoted): `wiki/candidates/source-opencode-subagents.md` → `wiki/sources/opencode-subagents.md` (Branch B, new `wiki/sources/` directory). Candidate failed the OKF `# Citations` check; fixed by adding the Citations section, then verified and promoted. Candidate Promotion Notes removed; `wiki/sources/index.md` created in bullet style.
+- **Update** (session-update, wiki skills made autonomous): llm-wiki-setup and wiki-update contracts updated for fully autonomous operation (same-run verify-and-promote, auto-omission of sensitive material, no approval questions). Raw capture `wiki/raw/sessions/2026-10-03-wiki-skills-autonomous.md`; promoted `wiki/analyses/analysis-session-wiki-skills-autonomous.md`; claim C-0134 admitted via gate after independent verify (3/3 VERIFIED); page-path convention fixed by gated prune + re-add (eval 15/16 held). Dotfiles `AGENTS.md` gained the `## LLM Wiki` section (transitional OKF wording; root index legacy table-format).
+
 ## 2026-09-19 session-update | Omarchy bare-metal configuration and Surface recovery
 
 - Actor: Hermes Agent
 - Inputs: current session; committed Omarchy work from `02b18771` through `542dac3e`; `install.sh`; `omarchy/README.md`; `omarchy/HARDWARE-surface-laptop-7.md`; `omarchy/config/hypr/{monitors,bindings}.lua`; `omarchy/bin/hypr-deck`.
 - Outputs: `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`; `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md`; `wiki/CLAIMS.md` C-0130..C-0133 via `gate.py ADMIT`; `wiki/eval/omarchy.eval`; `wiki/index.md`; `wiki/ROUTING.md`; `wiki/log.md`.
 - Notes: Captured the portable user-config versus host-repair boundary; Hypr Deck service and fixed workspace placement; four Surface repair areas; and the kernel-update rebuild order. The configured independent checker could not authenticate to DeepSeek, so the documented fallback was used: each claim was re-grounded against exact current source lines before gate admission. No existing candidate, route, or claim overlapped or contradicted this topic. Scheduled maintenance merged RPIV stage-order claim C-0107 into related pipeline-mechanics claim C-0106 through gated consolidation; active claims dropped 28→27 while the pre-existing 15/16 eval baseline held. Candidate awaits promote/discard. Host-specific monitor output names may change after dock/hardware changes; kernel overrides should be retired when upstream support lands.
+## 2026-09-19 session-update | projectlean wiki-first SOUL staging
+
+- Actor: Hermes Kanban worker
+- Inputs: `.hermes/templates/projectlean-soul.md.template`, `.hermes/bin/{install-projectlean.py,verify-projectlean.py}`, `.hermes/docs/project-scoped-hermes-spec.md`, deterministic preflight/post-apply probes.
+- Outputs: `wiki/raw/sessions/2026-09-19-projectlean-wiki-first-soul.md`, `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/log.md`.
+- Notes: Candidate only. The installer is non-writing for `SOUL.md`; a human-approved backup/copy remains required before exact parity, prompt-size, and a real wiki-backed query can establish final acceptance. No claims added; source code and spec remain authoritative.
+
+## 2026-09-19 session-update | projectlean SOUL final apply
+
+- Actor: Hermes Kanban worker
+- Inputs: `.hermes/templates/projectlean-soul.md.template`, `.hermes/bin/{install-projectlean.py,verify-projectlean.py}`, protected-copy receipt, post-apply verifier, prompt-size, and Hermes wiki-backed query.
+- Outputs: `wiki/raw/sessions/2026-09-19-projectlean-soul-final-apply.md`, updated `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/log.md`.
+- Notes: Captured the accepted merged communication/wiki-first/project-native-follow-up contract and final exact-parity receipt. Candidate remains non-authoritative pending James's promotion approval. No claims or external issues created.
+
+## 2026-09-19 session-update | projectlean query skill repair
+
+- Actor: Hermes Kanban worker
+- Inputs: one-shot projectlean wiki query, failed post-apply receipt, idempotent installer, final post-apply and SHA-parity receipts.
+- Outputs: `wiki/raw/sessions/2026-09-19-projectlean-query-skill-repair.md`, updated `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md`, `wiki/ROUTING.md`, `wiki/log.md`.
+- Notes: Runtime query left extra profile skill directories; the installer restored the six-tree invariant without writing SOUL.md. No claims or external issues created.
 
 ## 2026-09-04 promote | dsh-board pipeline analysis → promoted
 
@@ -83,3 +110,4 @@ Append entries with this format:
 - Inputs: James request to remove confusing retired-system references from all local wikis.
 - Outputs: pruned retired-system source/candidate pages from this wiki; refreshed `wiki/README.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md`.
 - Notes: Kept only non-retired-system OpenCode subagent and RPIV pipeline wiki knowledge.
+

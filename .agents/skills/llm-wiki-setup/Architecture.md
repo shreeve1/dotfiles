@@ -45,7 +45,7 @@ Raw sources:
 - Are immutable after ingest unless James explicitly says otherwise.
 - Preserve original filenames when possible.
 - Are the source of truth for citations.
-- May contain large or binary files; setup must ask whether raw sources are committed, ignored, or stored externally before adding raw-source `.gitignore` rules.
+- May contain large or binary files; setup applies the default git policy autonomously (commit text sources, ignore the raw binary patterns from the Setup workflow) without asking.
 
 Wiki pages (OKF concepts):
 
@@ -74,9 +74,9 @@ Schema and operating rules:
 
 ## Write Policy
 
-Use the candidate review gate by default:
+Use the candidate gate by default, and promote autonomously:
 
-- New entity, concept, source summary, and analysis pages start in `wiki/candidates/`.
+- New entity, concept, source summary, and analysis pages start in `wiki/candidates/`, then are verified and auto-promoted in the same run; candidates are never parked awaiting human review.
 - Low-risk maintenance edits to `index.md`, `log.md`, `ROUTING.md`, and `CLAIMS.md` can happen during setup and ingest.
 - During ingest, `index.md` must list candidate pages in a candidate review queue, not in promoted-page sections.
 - Candidate routes and claim entries must clearly point to `wiki/candidates/...` until promotion.

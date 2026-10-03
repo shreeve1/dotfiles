@@ -11,7 +11,7 @@ Use this workflow to health-check the wiki.
 - Indexed pages that no longer exist.
 - Orphan promoted pages with no route or inbound links.
 - Candidate pages older than the project threshold.
-- Candidate index rows, routes, or claim references whose candidate files no longer exist.
+- Candidate files under `wiki/candidates/` with no root-index queue row (rollouts found files missing from the queue and queue rows whose files were gone — reconcile both directions; the queue and the directory must agree 1:1, excluding `index.md`).
 - Claims without citations.
 - Claims whose source paths no longer exist.
 - Claim content drift: claims whose cited source path still exists but whose current content no longer supports the claim (renamed symbol, changed behavior, edited raw source, moved code).
@@ -38,7 +38,7 @@ Structural checks confirm a cited path still exists. The drift check confirms th
 Run the companion gate's own audit, which checks `CLAIMS.md` for budget and schema violations the structural checks above do not cover (over-budget hot file, malformed rows, a claim that reached the file without passing the write gate):
 
 ```sh
-python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki audit
+python3 "$WIKI_GATE" --wiki wiki audit
 ```
 
 Report any problems it prints (non-zero exit, or `maintenance_due: true`). A non-zero exit is a `critical` finding. `maintenance_due` is a `warning` — recommend the `wiki-update` §7b hot/cold split and gated consolidation. If `gate.py` is missing, report that as a `critical` finding (the wiki cannot enforce its claim schema without it).
@@ -48,9 +48,8 @@ Report any problems it prints (non-zero exit, or `maintenance_due: true`). A non
 1. Inspect wiki files and report structural findings first.
 2. Run the Claim Gate Audit and the Content Drift Check within scope.
 3. Categorize findings as `critical`, `warning`, or `suggestion`.
-4. Ask before broad rewrites, mass link changes, or any claim supersession.
-5. Apply small deterministic fixes when safe: missing log entry, missing index row, stale candidate reference, obvious broken relative path. Drift fixes are never auto-applied.
-6. Append a lint entry to `wiki/log.md`.
+4. Never ask. Apply small deterministic structural fixes autonomously when safe: missing log entry, missing index row, stale candidate reference, obvious broken relative path. Drift fixes and claim supersessions are never auto-applied — report them as deferred, evidence-based findings (claim/page, cited path, asserted vs. current, proposed action) for a future explicit fix run. Broad rewrites and mass link changes are likewise deferred, not asked about.
+5. Append a lint entry to `wiki/log.md`.
 
 ## Output
 
@@ -59,5 +58,5 @@ Report:
 - Findings with file paths.
 - Content drift findings: claim ID or page, cited path, asserted vs. current, proposed action.
 - Safe fixes applied.
-- Fixes requiring approval.
+- Deferred fixes (broad rewrites, mass link changes, claim supersessions) with their proposed actions, awaiting a later run rather than approval.
 - Suggested next source or promotion action.
