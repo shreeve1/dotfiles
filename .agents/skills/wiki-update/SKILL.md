@@ -19,13 +19,13 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 
 - Wiki root: `wiki/`
 - Raw session captures: `wiki/raw/sessions/YYYY-MM-DD-<slug>.md`
-- Candidate review gate: enabled by default
+- Candidate review gate: structural only — candidates are verified and auto-promoted in the same run via `llm-wiki-setup` `Workflows/Promote.md`; no human approval step
 - Claim provenance: required for important factual claims
 - Full transcript capture: disabled unless James explicitly requests it
 - Existing promoted page edits: allowed only for low-risk, cited maintenance
 - Raw session capture collisions: never overwrite; append `-2`, `-3`, etc.
 - Claim writes: gated by `gate.py` (deterministic). No claim enters `CLAIMS.md` except through an `ADMIT` verdict.
-- Gate path: resolve `gate.py` as `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). Commands in `Workflows/SessionUpdate.md` use the global path.
+- Gate path: set `WIKI_UPDATE_SKILL_DIR` to this installed skill directory, then resolve with `WIKI_GATE="$(python3 "$WIKI_UPDATE_SKILL_DIR/resolve-gate.py" --project-root .)"`; invoke it as `python3 "$WIKI_GATE" ...`. The resolver prefers this companion gate and then supports installed and project-vendored `.agents`, `.hermes`, and legacy `.claude` locations. A resolver failure blocks claim writes; it never authorizes hand-editing.
 - Claim budget: `BUDGET` active claims per hot file (default 40); over budget forces a demotion before any add.
 - Hot/cold: `CLAIMS.md` is loaded by default; `CLAIMS-cold.md` is the searchable archive, not loaded.
 
@@ -33,10 +33,10 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 
 - Require an existing LLM Wiki. If core files are missing, stop and suggest `/llm-wiki-setup` first.
 - Extract only durable knowledge: decisions, accepted terminology, architecture/process rules, source summaries, contradictions, follow-ups, and reusable context.
-- Do not store secrets, credentials, private personal information, or raw pasted user content without explicit approval.
+- Do not store secrets, credentials, private personal information, or raw pasted user content. Omit sensitive material automatically and log the exclusion; never ask.
 - Prefer citations to project files, diffs, issues, docs, or raw sources over conversation-only evidence.
 - For conversation-only decisions, create a curated raw session capture under `wiki/raw/sessions/` and cite that raw capture.
-- New pages and risky updates go through `wiki/candidates/` until promoted.
+- New pages and risky updates go through `wiki/candidates/`, then are verified and auto-promoted in the same run via `llm-wiki-setup` `Workflows/Promote.md`; do not leave candidates parked for human review.
 - Before creating candidates, reconcile against existing promoted pages, candidates, routes, and claims to avoid duplicates and record contradictions.
 - Update indexes (root `wiki/index.md` candidate queue for candidates; destination directory `index.md` for promoted-page edits), `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md` whenever wiki content changes.
 - Mark session-derived claims with appropriate confidence; do not present them as stronger than the evidence supports.

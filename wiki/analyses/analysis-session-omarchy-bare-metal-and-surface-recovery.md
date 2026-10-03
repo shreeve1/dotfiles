@@ -2,9 +2,10 @@
 title: Omarchy Bare-Metal Configuration and Surface Laptop Recovery
 type: analysis
 description: Portable Omarchy ownership, Hypr Deck and workspace policy, and the Surface Laptop 7 Intel hardware recovery runbook.
-status: candidate
+status: promoted
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-10-03
+promoted: 2026-10-03
 sources:
   - wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md
   - omarchy/README.md
