@@ -28,11 +28,11 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default omp agent (uses minimax/MiniMax-M3)
+tralph                                      # normal tmux, default omp agent (uses openrouter/deepseek/deepseek-v4.1-flash)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'omp --model minimax/MiniMax-M3' tmux  # explicit model override
+tralph --agent-cmd 'omp --model openrouter/deepseek/deepseek-v4.1-flash' tmux  # explicit model override
 tralph omp                                  # omp non-interactive adapter
 ```
 
