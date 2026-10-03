@@ -19,7 +19,7 @@ Before editing, read:
 
 Determine the project root before creating files. If the current project root is this skill's install repository, or contains `.claude/skills/llm-wiki-setup/`, stop and ask James to confirm that the dotfiles repo is the intended target before creating `wiki/`.
 
-Confirm the companion gate is resolvable: `gate.py` must exist at `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). It is the only sanctioned path into `CLAIMS.md` and backs migrate, verify, and consolidation. If it is missing in both locations, stop and report that the `wiki-update` skill must be installed before the wiki can be operated — do not silently fall back to hand-editing claim rows. This wiki relies on the globally-installed `/llm-wiki-setup` and `/wiki-update` skills; project-local vendoring is optional, not required.
+Confirm the companion gate is resolvable. Set `WIKI_UPDATE_SKILL_DIR` to the installed `wiki-update` skill directory and run `WIKI_GATE="$(python3 "$WIKI_UPDATE_SKILL_DIR/resolve-gate.py" --project-root .)"`. It is the only sanctioned path into `CLAIMS.md` and backs migrate, verify, and consolidation. If resolution fails, stop and report that the `wiki-update` skill must be installed before the wiki can be operated — do not silently fall back to hand-editing claim rows. The resolver supports installed and project-vendored `.agents`, `.hermes`, and legacy `.claude` locations.
 
 Detect existing wiki state before writing:
 
@@ -27,7 +27,7 @@ Detect existing wiki state before writing:
 - If `wiki/` exists but lacks all four core files and contains content that looks unrelated (non-template Markdown, non-wiki subdirs), warn and ask whether to reuse `wiki/`, choose another root, or abort.
 - If only some core files exist and the rest of `wiki/` matches the template structure, treat it as a partial initialization: create only missing files and append a recovery/setup entry to `wiki/log.md`.
 
-Do not overwrite existing wiki files. If a file exists, update it surgically or ask before replacing.
+Do not overwrite existing wiki files. If a file exists, update it surgically; never wholesale-replace an existing wiki file.
 
 ### Migrate an existing CLAIMS.md to the current schema
 
@@ -36,7 +36,7 @@ On a re-run or partial recovery, check whether the existing `wiki/CLAIMS.md` hea
 If the header is narrower, migrate it in place by running the companion skill's gate:
 
 ```sh
-python3 ~/.claude/skills/wiki-update/gate.py --wiki wiki migrate
+python3 "$WIKI_GATE" --wiki wiki migrate
 ```
 
 This is idempotent and reuses `gate.py`'s own parser/serializer: every existing row is preserved, missing columns are added with safe defaults (`Hits=0`, blank `Kind`/`Impact`/`Created`), and an already-canonical file is left byte-identical. It widens `CLAIMS.md` and, if present, `CLAIMS-cold.md`. Note the migration in the setup log entry. After migrating, the blank `Kind`/`Impact` fields on legacy rows are filled opportunistically by later gated `wiki-update` writes; do not bulk-edit them during setup.
@@ -126,7 +126,7 @@ Do not touch `.gitignore` further. Generated wiki files commit by default.
 
 ## 5. Refactor CLAUDE.md and AGENTS.md
 
-Run `Workflows/RefactorAgents.md` against each of `CLAUDE.md` and `AGENTS.md` that exists at the project root. If neither exists, create `CLAUDE.md`. Do not create `AGENTS.md` when `CLAUDE.md` already exists or was just created — OpenCode reads `CLAUDE.md` via the dotfiles `instructions[]` config.
+Run `Workflows/RefactorAgents.md` against each of `CLAUDE.md` and `AGENTS.md` that exists at the project root, autonomously and without pausing for approval. If neither exists, create `CLAUDE.md`. Do not create `AGENTS.md` when `CLAUDE.md` already exists or was just created — OpenCode reads `CLAUDE.md` via the dotfiles `instructions[]` config.
 
 ## 6. Verify
 
@@ -135,7 +135,7 @@ Verify with exact probes:
 - `wiki/` directory exists.
 - All required subdirectories exist, including `wiki/eval/` with a `README.md` documenting the `.eval` format.
 - All required core files exist.
-- `gate.py` is resolvable — present at `~/.claude/skills/wiki-update/gate.py` (global install) or `.claude/skills/wiki-update/gate.py` (project-vendored). The wiki depends on it but does not require the project to vendor it.
+- `gate.py` is resolvable through `wiki-update/resolve-gate.py`; the resolver supports installed and project-vendored locations. The wiki depends on the gate but does not require a project copy.
 - `wiki/CLAIMS.md` header is the 12-column `gate.py` schema (`| ID | Kind | Claim | Source | Page | Confidence | Status | Created | Hits | Superseded | Impact | Notes |`). A narrower hand-curated table will break the `wiki-update` skill's claim gate.
 - OKF conformance: `wiki/index.md` uses the bullet listing with `okf_version: "0.1"`; each concept directory has its own `index.md`; `CLAIMS.md`/`ROUTING.md`/`README.md`/`eval/README.md` carry a `type` frontmatter block; no promoted page uses `[[wikilinks]]` (`grep -rl '\[\[' wiki --include='*.md' | grep -v '^wiki/raw/'` returns nothing among promoted/candidate pages); `wiki/log.md` uses `## YYYY-MM-DD` headings.
 - Each of `CLAUDE.md` and `AGENTS.md` that exists contains an `LLM Wiki` section.

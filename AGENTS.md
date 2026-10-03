@@ -104,3 +104,29 @@ Environment facts that aren't in that doc:
   The repo-level context file is this file (`AGENTS.md` at the repo root).
 - Claude `settings-*.json`, if used, live machine-local in `~/.claude` (gitignored).
 - Plans under `plans/` are gitignored (machine-local scratch).
+
+## LLM Wiki
+
+This project uses `wiki/` as an LLM-maintained knowledge base following the Open Knowledge Format (OKF) v0.1 layout contract (this wiki predates full OKF migration: the root index is legacy table-format and per-directory `index.md` coverage is incomplete, e.g. `analyses/` has one but others may not, until a migration run). Operate it with the `/llm-wiki-setup` skill (setup, ingest, query, promote, lint) and the `/wiki-update` skill (capture durable session knowledge). Those skills own the full procedures — follow them rather than reinventing the steps here.
+
+### Layout
+
+- `wiki/index.md` — root index (legacy table format until OKF migration); read first for any wiki-backed question; `wiki/ROUTING.md` narrows broad searches. Per-directory `index.md` coverage is incomplete until migration (`analyses/` has one); where absent, use the root index's per-section tables.
+- `wiki/raw/` — immutable source material (read, never rewrite); `wiki/raw/sessions/` holds `/wiki-update` captures.
+- `wiki/candidates/` — transient holding for generated pages; successful candidates are verified and auto-promoted in the same run. Candidates that fail verification stay in place as logged, retryable work items — no human review queue either way.
+- `wiki/sources/`, `wiki/entities/`, `wiki/concepts/`, `wiki/analyses/` — promoted OKF concept pages (`type` frontmatter required; link with bundle-relative markdown links like `[Name](/concepts/name.md)`, not `[[wikilinks]]`; external sources under a `# Citations` section).
+- `wiki/CLAIMS.md` — tracked factual claims (12-column schema, gated by `/wiki-update`). `wiki/log.md` — append every ingest, query, lint, and promotion (OKF `## YYYY-MM-DD` format).
+
+### Wiki-First Search
+
+For any project-specific question, investigation, design task, bug hunt, or code search needing project context: read `wiki/index.md` (then `wiki/ROUTING.md`) and the relevant pages and `wiki/CLAIMS.md` entries before broad repository search. When non-wiki search reveals durable knowledge the wiki lacks, capture it — run `/wiki-update` so the gap is ingested, promoted, and citable in the same run rather than merely proposed.
+
+### Mandatory End-of-Run Wiki Check
+
+The wiki is a standing obligation, not opt-in. Before reporting ANY task complete:
+
+1. Decide whether the task produced durable knowledge — a decision setting/reversing project direction, scope, or ownership; accepted or changed terminology; a new or changed architecture, process, or contract; or a verified fact, root cause, or fix that supersedes existing wiki knowledge.
+2. If yes, run `/wiki-update` before reporting done. Promotion is autonomous, so a successful run ends with the knowledge promoted and indexed; a candidate that failed its checks stays logged and retryable, never queued for approval.
+3. If no, state one line confirming the wiki check ran and nothing qualified.
+
+Mark superseded knowledge `superseded` in `wiki/CLAIMS.md` with a pointer to the newer claim; never delete it to clean up history.

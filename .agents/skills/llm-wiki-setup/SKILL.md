@@ -26,13 +26,13 @@ Initial setup is built for future AI sessions, not for James. Apply defaults sil
 
 - Wiki root: `wiki/`
 - Raw sources: `wiki/raw/`
-- Candidate review gate: enabled
+- Candidate review gate: structural only — candidates are verified (frontmatter, OKF conformance, citations, duplicate check) and auto-promoted in the same run; no human approval step
 - Claim provenance: required for factual claims via `wiki/CLAIMS.md`
-- Gate path: `gate.py` ships with the `wiki-update` skill. Resolve it as `~/.claude/skills/wiki-update/gate.py` (global install — the default) or `.claude/skills/wiki-update/gate.py` (if the project vendors the skill). Command examples below use the global path; substitute the project-local path only when the project vendors it. The wiki relies on the globally-installed skills and does not require project-local vendoring.
+- Gate path: `gate.py` ships with the `wiki-update` skill. Set `WIKI_UPDATE_SKILL_DIR` to that installed skill directory, then resolve the gate with `WIKI_GATE="$(python3 "$WIKI_UPDATE_SKILL_DIR/resolve-gate.py" --project-root .)"`; invoke it as `python3 "$WIKI_GATE" ...`. The resolver prefers its companion gate and then supports installed and project-vendored `.agents`, `.hermes`, and legacy `.claude` locations. A resolver failure is blocking: never hand-edit claim rows.
 - Routing file: `wiki/ROUTING.md`
 - Search tooling: documented only; do not install
 - Git policy: commit generated wiki files; ignore common raw binary patterns (`wiki/raw/**/*.{pdf,mp4,mov,zip,tar,gz,bin}`, `wiki/assets/**`) without asking
-- Candidate promotion approval: James
+- Candidate promotion approval: autonomous — verify first, then promote without asking. Sensitive, private, or secret-shaped content is omitted automatically and logged, never promoted and never asked about
 - Format: OKF v0.1 conformant — `type` frontmatter required on every page, per-directory `index.md`, bundle-relative markdown links (`[Name](/concepts/name.md)`, never `[[wikilinks]]`), external sources under a `# Citations` section
 - Citation style: inline path references (`wiki/raw/...`) for source-derived facts; external sources under `# Citations` (OKF §8); cross-page links are bundle-relative markdown links
 - Domain: infer from project `README.md`, `CLAUDE.md`, `AGENTS.md`, or top-level docs; if nothing is inferrable, use a generic project-knowledge framing
@@ -46,7 +46,7 @@ Initial setup is built for future AI sessions, not for James. Apply defaults sil
 - If both `CLAUDE.md` and `AGENTS.md` exist, update both with the LLM Wiki section; keep wording consistent across the two files. Do not create a new `AGENTS.md` when `CLAUDE.md` exists.
 - Treat `wiki/raw/` as immutable source-of-truth input.
 - Generated wiki pages must cite raw sources or existing wiki pages, and must be OKF-conformant: `type` frontmatter, bundle-relative markdown links, `# Citations` section for external sources.
-- New pages and risky updates go through `wiki/candidates/` first.
+- New pages and risky updates go through `wiki/candidates/` first, then are verified and auto-promoted in the same run via `Workflows/Promote.md`; do not leave candidates parked for human review.
 - Candidate pages must remain discoverable until promoted or discarded.
 - Existing pages can be updated directly only when the source impact is clear and cited.
 - After setup, do not stop at an empty wiki: report a prioritized ingest shortlist with exact source paths. Ingest runs only on a follow-up invocation.

@@ -1,9 +1,10 @@
 ---
 title: OpenCode Subagent Reference Source Summary
 type: source-summary
-status: candidate
+status: promoted
 created: 2026-05-16
-updated: 2026-05-16
+updated: 2026-10-03
+promoted: 2026-10-03
 sources:
   - wiki/raw/opencode-subagents.md
 confidence: high
@@ -51,6 +52,6 @@ The source explicitly states the infrastructure pipeline rule: infrastructure wo
 - Avoid delegation when the task needs unstated conversation context. Source: `wiki/raw/opencode-subagents.md`.
 - `anvil` is disabled in this OpenCode port; use `forge` for GPT-family code production. Source: `wiki/raw/opencode-subagents.md`.
 
-## Candidate Promotion Notes
+# Citations
 
-If promoted, this page should become `wiki/sources/opencode-subagents.md`. It should route to Skills And Agents, OpenCode Runtime, and Decisions.
+- `wiki/raw/opencode-subagents.md` — raw capture of the OpenCode Subagent Reference; every factual line in this summary is drawn from it.

@@ -1,10 +1,15 @@
 # Wiki Routing
 
+## LLM Wiki Skills
+
+- Pages: `wiki/analyses/analysis-session-wiki-skills-autonomous.md` (promoted)
+- Keywords: wiki, llm-wiki-setup, wiki-update, promote, candidate, autonomy, gate, claims
+
 Use this file after reading `wiki/index.md` when narrowing a wiki-backed question to likely branches.
 
 ## OpenCode Subagents
 
-- Pages: `wiki/candidates/source-opencode-subagents.md` (candidate, non-authoritative)
+- Pages: `wiki/sources/opencode-subagents.md` (promoted)
 - Keywords: opencode, subagents, delegation, routing, agents, forge, cato, validator, infra-scout
 
 ## RPIV Pipeline Automation
@@ -27,13 +32,13 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 
 ## Omarchy Bare-Metal and Surface Recovery
 
-- Pages: `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md` (candidate, non-authoritative)
-- Claims: C-0130, C-0131, C-0132, C-0133
+- Pages: `wiki/analyses/analysis-session-omarchy-bare-metal-and-surface-recovery.md` (promoted)
+- Claims: C-0135, C-0136, C-0137, C-0138
 - Raw: `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`
 - Keywords: Omarchy, Hyprland, hypr-deck, workspace, eDP-1, DP-4, Surface Laptop 7, MSHW0551, SAM, BAT1, ADP1, iptsd, SoundWire, UCM, Bluetooth, btintel_pcie, kernel update, bare metal
 ## Projectlean Wiki-First SOUL
 
-- Pages: `wiki/candidates/analysis-session-projectlean-wiki-first-soul.md` (candidate, non-authoritative)
+- Pages: `wiki/analyses/analysis-session-projectlean-wiki-first-soul.md` (promoted)
 - Raw: `wiki/raw/sessions/2026-09-19-projectlean-wiki-first-soul.md`, `wiki/raw/sessions/2026-09-19-projectlean-soul-final-apply.md`, `wiki/raw/sessions/2026-09-19-projectlean-query-skill-repair.md`
 - Keywords: projectlean, SOUL.md, wiki-first, llm-wiki-setup, wiki-update, protected file, prompt-size, template parity, native issue tracking
 
