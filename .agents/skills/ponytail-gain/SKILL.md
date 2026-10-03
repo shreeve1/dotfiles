@@ -33,7 +33,6 @@ carries the exact figure:
   Speed           ponytail  ▸ 3–6× faster
 
   This repo:  /ponytail-debt  (shortcuts you deferred)
-              /ponytail-audit (what's still cuttable)
 ```
 
 ## Honesty boundary
