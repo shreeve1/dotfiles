@@ -1,7 +1,7 @@
 {
   "actor": {
-    "provider": "minimax",
-    "model": "MiniMax-M3"
+    "provider": "openrouter",
+    "model": "deepseek/deepseek-v4.1-flash"
   },
   "verifier": {
     "provider": "deepseek",

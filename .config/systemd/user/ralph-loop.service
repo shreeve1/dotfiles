@@ -15,7 +15,7 @@ Environment=PATH=/home/james/.bun/bin:/home/james/.npm-global/bin:/usr/local/bin
 EnvironmentFile=-%h/.config/ralph-loop.env
 Environment=TMUX_TMPDIR=/tmp
 Environment=RALPH_SESSION_NAME=ralph-loop
-Environment=RALPH_MODEL=minimax/MiniMax-M3
+Environment=RALPH_MODEL=openrouter/deepseek/deepseek-v4.1-flash
 # Worktree isolation: runs in ~/symphony-ralph on branch ralph/run, branched
 # from ~/symphony main, so the live checkout symphony-host runs from is never
 # touched. Land a finished batch with the rpiv-merge skill (ralph/run -> main).

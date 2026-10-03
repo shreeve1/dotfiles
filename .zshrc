@@ -406,7 +406,7 @@ HELP
 			(( i++ ))
 		done
 		if [[ -z "$agent_cmd" ]]; then
-			local model="${RALPH_MODEL:-minimax/MiniMax-M3}"
+			local model="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
 			agent_cmd="omp --model ${model} --no-session -p"
 		fi
 		if [[ ! -d .kanban ]]; then
@@ -429,7 +429,7 @@ HELP
 	fi
 
 	# Sequential mode (--jobs 1, default): delegate to ralph-loop.sh unchanged.
-	RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}" \
+	RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}" \
 		~/.agents/skills/ralph/ralph-loop.sh "${args[@]}"
 }
 
