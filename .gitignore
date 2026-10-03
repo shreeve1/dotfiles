@@ -223,6 +223,27 @@ wiki/graphify-out/cache/
 .rebuild.lock
 # graphify timestamped snapshot archives (YYYY-MM-DD dirs)
 graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+# graphify generated graph output (rebuildable; ~200 MB)
+graphify-out/
+
+# Paperclip-managed pi skill symlinks (absolute, machine-local)
+.pi/agent/skills/*--*
+.pi/agent/skills/paperclip-converting-plans-to-tasks
+
+# Old DSH-era pstack import (superseded by .agents/skills/pstack-*; ADR 0012)
+archive/pstack/
+
+# Hermes work-in-progress not owned by the dotfiles sync (2026-10-03)
+.hermes/bin/
+.hermes/docs/carried-commits/
+.hermes/docs/hermes-update-reconciliation-2026-09-21.md
+.hermes/skills/grill-me/
+.hermes/skills/handoff/
+.hermes/skills/hermes-agent/
+.hermes/skills/independent-reviewer/
+.hermes/skills/llm-wiki-setup/
+.hermes/skills/wiki-update/
+.hermes/templates/
 
 # tpm machine-local plugin clones (symlinked config dir)
 .config/tmux/plugins/
