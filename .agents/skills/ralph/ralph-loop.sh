@@ -9,7 +9,7 @@
 #   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
 #   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
 #   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
-#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: omp with RALPH_MODEL (minimax/MiniMax-M3))
+#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: omp with RALPH_MODEL (openrouter/deepseek/deepseek-v4.1-flash))
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
@@ -42,7 +42,7 @@ SKIP_BLOCKED="${RALPH_SKIP_BLOCKED:-false}"
 UNATTENDED="${RALPH_UNATTENDED:-false}"
 MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
-RALPH_MODEL="${RALPH_MODEL:-minimax/MiniMax-M3}"
+RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Read skill://ralph and follow the Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
@@ -62,7 +62,7 @@ OPTIONS:
   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
-  --agent-cmd CMD       Interactive agent command for tmux adapter (default: omp with RALPH_MODEL, minimax/MiniMax-M3)
+  --agent-cmd CMD       Interactive agent command for tmux adapter (default: omp with RALPH_MODEL, openrouter/deepseek/deepseek-v4.1-flash)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)

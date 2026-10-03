@@ -9,8 +9,10 @@
     "@earendil-works/pi-tui": "^0.82.0",
     "@juicesharp/rpiv-advisor": "1.13.0",
     "@juicesharp/rpiv-config": "1.13.0",
+    "@langfuse/otel": "^5.11.1",
+    "@langfuse/tracing": "^5.11.1",
+    "@opentelemetry/sdk-node": "^0.221.0",
     "@sinclair/typebox": "^0.34.0",
-    "puppeteer": "^24.40.0",
     "typebox": "1.1.38"
   },
   "devDependencies": {
