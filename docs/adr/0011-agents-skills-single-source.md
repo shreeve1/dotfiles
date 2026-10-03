@@ -22,7 +22,7 @@ prompt-input` from `/var/tmp` with an empty `CODEX_HOME` lists
   (`claude-plugins:user`, currently only `skill-creator`; separate
   provider, not covered by `enableClaudeUser`).
 - `~/.codex/skills` emptied except Codex's own `.system/`.
-- Retired skills move to `dotfiles/.agents/skills-archive/`, which no
+- Retired skills move to `dotfiles/archive/skills/`, which no
   harness scans, instead of being deleted.
 
 ## Consequences
