@@ -48,6 +48,14 @@ commands).
 
 Three machines share this repo, all on the self-hosted NetBird mesh
 (`*.netbird.selfhosted`). Recorded 2026-09-30 from `netbird status -d`.
+These three are the only machines this repo is installed on. Homelab servers
+(`pve1`, `pve4`, `jellyfin`, and the rest) never get these dotfiles or agent
+config; do not sync or apply changes there. `macbook-air` is retired
+(2026-10-03).
+
+`aidev` is the source of truth. Edit and commit here, push, then pull on
+`omarchy` and `itan8n`. Machine-specific edits on those two should be
+committed upstream from aidev or kept out of the tracked files.
 
 | Machine | Role | User | NetBird IP | NetBird DNS name | LAN |
 | --- | --- | --- | --- | --- | --- |
