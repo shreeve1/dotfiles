@@ -16,6 +16,13 @@ HaloClient paths have **no `/api` prefix** (`/Tickets/<id>`; `/api/Tickets` retu
 - Background your waits (`sleep N`) at ≤300 s — the hub kills longer commands at the 300 s cap;
   chain several short waits instead of one long one.
 - Make sure the change is live (`apply-changes.md`).
+- **Test mode must be on** (ADR 0021; James flips it, a session never does):
+  `docker exec itastack-temporal-worker python -m itastack.agents.dispatch_checks test-mode status`.
+  While on, no Halo ticket gets a Paperclip card automatically and none is created when it goes
+  off. If it is off, ask James to turn it on before creating any Halo test ticket.
+- **Ticket run budget:** each Area owner 4 runs (Owner's call or Briefed) or 8 (Shared change);
+  the ticket 3 for the Lead + 5 per Owner's-call owner + 11 per Shared-change owner. You own the
+  spend of every test ticket you create (section 2 → Watch the run budget).
 
 ## 1. Create the Halo test ticket
 
@@ -42,14 +49,10 @@ c.post('Tickets', json=[{'summary': ..., 'details': ..., 'client_id': 12, 'site_
 - Halo may refuse `DELETE Tickets/<id>` on a fresh ticket (401 "restricted"); close it with
   status 9 per Cleanup. `paperclipai issue delete` needs `--yes`.
 
-## 2. Create the Paperclip Ticket issue
+## 2. Create the Paperclip Ticket issue — by hand, only if the test needs Paperclip
 
-Temporal creates `halo ticket <id>` itself (`ITASTACK_PAPERCLIP_CARDS=on`, `dispatch_checks.py`
-`ensure_paperclip_card`); seen on Halo #70497/#70499/#70500, 2026-10-01. **Look for it by the Lead's
-retitle too**: the Lead renames it `Halo #<id>: <summary>` within a minute, so `--match "halo ticket <id>"`
-misses it, while `--match <id>` finds it. On 2026-10-02 I missed the retitled issue for 70554/70555, created
-the issue by hand, and the Lead cancelled my duplicates (ITA-317/318). Create it by hand only if
-`issue list --match <id>` returns nothing after ~3 min.
+With Test mode on, Temporal creates no card. Many Halo tests (Temporal triage, Jev, Slack alert,
+webhooks) need no Paperclip at all — then skip this step. When the test does need the agents:
 
 ```sh
 paperclipai issue create -C e777c451-cb6b-4159-9c0b-3f2d67493601 --title "halo ticket <id>" \
@@ -57,8 +60,41 @@ paperclipai issue create -C e777c451-cb6b-4159-9c0b-3f2d67493601 --title "halo t
   --assignee-agent-id c2eef6f8-bbc9-46aa-ac15-0bd279821564 --api-base http://172.20.0.1:3100 --json
 ```
 
-The Lead opens children (e.g. `Dispatch — Halo #<id>`, an area/owner child) within ~2 min; the
-Dispatcher finishes in ~5–8 min. Wait ~9–10 min with a backgrounded `sleep`, then check.
+The Lead retitles it `Halo #<id>: <summary>` within a minute, so find it later with
+`issue list --match <id>`, not `--match "halo ticket <id>"`. The Lead opens children (e.g.
+`Dispatch — Halo #<id>`, an area/owner child) within ~2 min; the Dispatcher finishes in ~5–8 min.
+
+**Dispatcher-only test (Slack approval card), 2026-10-04, Halo #70619:** skip the Lead and the owner fan-out.
+Create the root **unassigned** (just the watcher anchor), then one child
+`Dispatch — Halo #<id>` assigned to the Dispatcher with the Lead's `executionPolicy` (Librarian review stage,
+`ticket-intake` skill), write the root id to `jev_log.paperclip_issue_id`, and start
+`SlackApprovalWatcherWorkflow` with args `[<id>, "C0B55R3031C", <alert ts>, false]`, id
+`slack-approvals-<id>`, queue `itastack-default` (from inside `itastack-temporal-worker`). Do not call
+`ensure_paperclip_card`. Since option A (Ready card on the Dispatch card itself, no `Ready:` child, no
+Pre-check) a plan + one No + one Yes took exactly 3 Dispatcher runs.
+
+### Watch the run budget (every wait)
+
+After every backgrounded wait, count the Ticket issue's runs before doing anything else:
+
+```sh
+P=/home/itadmin/.local/bin/paperclipai; A="--api-base http://172.20.0.1:3100"
+for i in $($P issue list -C e777c451-cb6b-4159-9c0b-3f2d67493601 --match <id> $A --json | jq -r '.[].id'); do
+  curl -sS "${AUTH[@]}" "$API/api/issues/$i/runs"; done | jq -s 'add | unique_by(.runId) | group_by(.agentId) | map({agentId: .[0].agentId, runs: length})'
+```
+
+Over budget (an Area owner over 4, or over 8 once it has a Pre-check card or `Plan:`/`Result:`
+child; or the ticket over its total): stop. Cancel the test's issues
+(`issue update ITA-n --status cancelled`, children first — they are your own test issues), then
+find the cause from each run's `contextSnapshot.wakeReason` (`SKILL.md` → Diagnose step 3).
+Fix your own test behaviour yourself; bring any change to an agent's instructions to James as a
+ready-to-apply proposal with the run evidence. Never pause an agent: that freezes real work.
+
+### Steer without extra runs
+
+- Steer only through the card's reject reason. A follow-up comment is a second full run.
+- Never post an "audit note" or FYI comment on an agent's issue; put it in your report to James.
+- Every comment on an agent-assigned issue, and every `agent://` mention, can start a run.
 
 ## 3. Observe — check what the change touches
 
@@ -125,6 +161,9 @@ Slack approvals: terminate any still-running `slack-approvals-<id>` workflow
 --reason "test cleanup"`), then delete the bot's sandbox messages, replies first, using
 `SLACK_APPROVALS_BOT_TOKEN` `chat.delete` (a bot can delete its own messages).
 Only delete what this test created — never real tickets or James's real appointments.
+Never delete Slack messages by text match on a ticket-number range (e.g. `7061[4-7]`): on 2026-10-04 that
+deleted the live alert for #70615, another session's ticket, and left its watcher pointing at the deleted
+`ts`. Delete only the parent `ts` values this test recorded.
 
 ## Halo gotchas
 
