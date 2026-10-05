@@ -39,7 +39,9 @@ commands).
   `~/.dsh/AGENTS.md` plus `AGENTS.md`/`CLAUDE.md` from project root down to
   cwd; dsh does **not** read `~/.claude/CLAUDE.md`.
 - **Claude Code lane (retired 2026-09-10, archive deleted 2026-09-19):**
-  nothing in the repo links `~/.claude`. Note: Claude Code reads only
+  the only link into `~/.claude` is `~/.claude/skills` →
+  `dotfiles/.agents/skills` (added 2026-10-05 via `install.sh`), so Claude Code
+  sees the same skills as dsh; new skills appear automatically. Note: Claude Code reads only
   `CLAUDE.md` as its project doc — it does not auto-load `AGENTS.md` — which is
   why Claude-flavored repos keep the `CLAUDE.md` name.
 - See `README.md` § "Canonical vs tool-specific" for the full table.
