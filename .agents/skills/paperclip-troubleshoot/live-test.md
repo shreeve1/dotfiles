@@ -139,6 +139,13 @@ test: user 127 → channel `C0B55R3031C`). Checks:
 - Read Slack with `conversations.replies` using `SLACK_BOT_TOKEN` (`@automation`). The ITA Approvals bot has no
   `channels:history`.
 
+### Struggle review (every test)
+
+Before reporting, run `python3 ~/.agents/skills/paperclip-troubleshoot/struggle.py --since <test start
+UTC>` (`SKILL.md` → Struggle review). Report each streak of 2+ flagged requests with what the agent
+was looking for and the fix you propose. A test passes only when no streak comes from a gap in our
+instructions.
+
 ## 4. Cleanup (always, for everything the test created)
 
 ```python
