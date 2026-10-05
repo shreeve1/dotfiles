@@ -132,7 +132,7 @@ For client-operations requests—tickets, users, email, endpoints, networks, sec
 
 ## Paperclip changes: test live, then adjust
 
-For any Paperclip work (troubleshooting, or changing agent instructions, skills, area rules, scripts, models, Jev gates, or ITAStack code the agents call) use the global `paperclip-troubleshoot` skill.
+For any Paperclip work (troubleshooting, or changing agent instructions, skills, area rules, scripts, models, Jev gates, or ITAStack code the agents call) use the `paperclip-troubleshoot` skill (project skill in `~/itastack/.agents/skills/`, not part of these dotfiles).
 
 - A change that alters what a Paperclip agent does is not done until a live test ticket has gone through Paperclip and every expected outcome was checked. Loop: change → apply → test ticket → observe → report expected vs actual → adjust → repeat.
 - Doc-only edits and small known-safe changes may skip the live test; say so in one line. Big behavioural changes always get one.
