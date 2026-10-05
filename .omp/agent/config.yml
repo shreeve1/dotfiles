@@ -1,7 +1,7 @@
 setupVersion: 2
 modelRoles:
-  vision: cliproxy/claude-sonnet-4-6:high
-  advisor: openai-codex/gpt-5.6-sol:high
+  vision: cliproxy/claude-sonnet-5-5:high
+  advisor: zai/glm-5.3-flash:high
   task: zai/glm-5.3-flash:high
   slow: cliproxy/claude-opus-5-5:medium
   designer: cliproxy/claude-opus-4-8:high
