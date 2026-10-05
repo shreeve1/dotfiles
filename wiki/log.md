@@ -9,6 +9,10 @@ Append entries with this format:
 - Outputs: changed pages
 - Notes: key decisions or unresolved questions
 
+## 2026-10-05
+
+- **Update** (session-update, Claude Code skills link): `~/.claude/skills` replaced with a symlink to `dotfiles/.agents/skills` (old dir kept as `~/.claude/skills.bak-openrig`; its `openrig-skills` was identical to the repo copy). `install.sh` gained `link_path ".agents/skills" ".claude/skills"`; `AGENTS.md` Claude-lane bullet updated. Claims-only update: C-0139 admitted via gate (cited to `install.sh`, verified against the live symlink). No raw capture, candidate, or promotion needed.
+
 ## 2026-10-03
 
 - **Promote** (omarchy bare-metal and Surface recovery → promoted): `wiki/candidates/analysis-session-omarchy-bare-metal-and-surface-recovery.md` → `wiki/analyses/analysis-session-omarchy-bare-metal-and-surface-recovery.md` (Branch B: copy → verify → remove; no `git mv`). Legacy claims C-0130..C-0133 still pointed at the candidate path; repaired via gated `demote --force` + `check --apply` re-adds as C-0135..C-0138 pointing at the promoted page. Root index rows moved in the existing table format; `wiki/analyses/index.md` extended in its bullet style.
