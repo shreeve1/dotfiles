@@ -130,16 +130,6 @@ For client-operations requests—tickets, users, email, endpoints, networks, sec
 - Treat discovery as read-only; it does not authorize changes in any connected service.
 - If memory is unavailable, continue with active context and service discovery.
 
-## Paperclip changes: test live, then adjust
-
-For any Paperclip work (troubleshooting, or changing agent instructions, skills, area rules, scripts, models, Jev gates, or ITAStack code the agents call) use the `paperclip-troubleshoot` skill (project skill in `~/itastack/.agents/skills/`, not part of these dotfiles).
-
-- A change that alters what a Paperclip agent does is not done until a live test ticket has gone through Paperclip and every expected outcome was checked. Loop: change → apply → test ticket → observe → report expected vs actual → adjust → repeat.
-- Doc-only edits and small known-safe changes may skip the live test; say so in one line. Big behavioural changes always get one.
-- Creating Halo test tickets and Paperclip test issues is always allowed, and you may act freely on the ones you created. Never touch real tickets or James's real appointments without his OK.
-- Cleanup always deletes every test ticket, appointment and Paperclip card you created.
-- Record new Paperclip facts and test recipes in `paperclip-troubleshoot` (or its `live-test.md` / `apply-changes.md`). Do not create new `paperclip-*` skills, managed or otherwise.
-
 ---
 
 These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
