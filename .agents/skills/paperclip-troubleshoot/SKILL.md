@@ -5,8 +5,9 @@ description: >
   agent that never picked up its ticket, a failed run, an approval that woke nobody, Paperclip
   down, a missing skill) AND change anything about how Paperclip behaves — agent instructions,
   skills, area rules, scripts, models, Jev gates, ITAStack code the agents call — then prove it
-  with a live test ticket and adjust until it is right. Use for any Paperclip troubleshooting or
-  change, not only dispatch.
+  with a live test ticket and adjust until it is right. Also: find where agents waste requests
+  struggling (searching for tools, paths, pages) and give them what they need. Use for any
+  Paperclip troubleshooting, change or usage question, not only dispatch.
 ---
 
 # Paperclip: diagnose, change, test live, adjust
@@ -28,6 +29,7 @@ Reference files in this folder:
 - `live-test.md` — creating a test ticket, what to check, cleanup, Halo gotchas.
 - `apply-changes.md` — pushing msp-ops changes to live Paperclip, model switches, Jev gates,
   committing safely.
+- `struggle.py` — struggle review of run transcripts (section below).
 
 ## The change loop (any behavioural change)
 
@@ -40,7 +42,8 @@ Reference files in this folder:
    ticket shape that hits the changed path (business hours vs after hours, client vs staff,
    placeholder sender, tier 1 vs tier 2, …). State up front what you expect to see.
 4. **Observe.** Wait for the runs, then check every expectation: Paperclip cards and closing
-   comments, Halo actions and their order, fields, appointments, emails, run logs.
+   comments, Halo actions and their order, fields, appointments, emails, run logs. Then run the
+   **struggle review** (next section) on the test's runs — every time, not only when something broke.
 5. **Report.** Plain words: expected vs actual, per check. Anything off → name the cause from
    the evidence and propose the next adjustment.
 6. **Adjust and repeat** from step 1 until every check passes and James is happy.
@@ -57,6 +60,51 @@ issues at any time without asking, and act on them freely, as long as you only t
 tickets you created (and their appointments/cards). You must delete them at the end. Touching
 any real ticket, client, or James's real appointments still needs his OK. Changing live agent
 instructions, skills or config still needs his go-ahead on the change itself.
+
+## Struggle review — make repetitive work effortless (top priority)
+
+**Principle (James, 2026-10-04):** for any workflow agents repeat, they must already have
+everything they need — the exact command, absolute path, page URL, API call and parameters. A model
+request spent *finding* a tool, a path, an API shape or a page is a defect in our instructions, not
+in the agent. Recommended order (not a James decision): fix struggle before touching budgets,
+models or review gates — it cuts quota use and makes runs more predictable, without giving agents
+any new freedom.
+
+**When:** after every live test (change loop step 4), on every Ticket run budget alert, and as a
+sweep whenever James asks where usage goes.
+
+```sh
+python3 ~/.agents/skills/paperclip-troubleshoot/struggle.py --since 2026-10-04T20:00 [--agent Voice]
+python3 ~/.agents/skills/paperclip-troubleshoot/struggle.py ~/.pi/paperclips/<run>.jsonl
+```
+
+It reads the Pi run transcripts in `~/.pi/paperclips/` (one file per run, named
+`<start>-<agent id>.jsonl`). **One assistant turn = one model request**; parallel tool calls inside one
+turn cost one request, so count turns, not tool calls. A turn is flagged `search` (find, grep -R,
+readlink, openapi, Paperclip server source, ITAStack `__describe__`), `failed` (a tool error),
+`stale-ref` (browser ref from an old snapshot) or `env-dump`. Streaks of 2+ flagged turns in a row are
+what to fix.
+
+**Fix pattern:** name what the agent was looking for, then put the answer where it reads at that
+step — the skill or area index for that workflow, or a script in msp-ops `scripts/` when it takes
+several calls. Absolute paths only (agents run with cwd `/home/itadmin/msp-ops`; a relative
+`scripts/…` from another skill does not resolve). Then rerun the same test: the streak must be gone and
+the run's request count lower. Instruction changes go to James as a proposal, as with any change.
+
+Found 2026-10-03/04 (3,207 requests, 670 flagged — about 1 in 5):
+
+| Struggle | Requests | Fix |
+|---|---|---|
+| 3CX browser clicks on stale refs / ambiguous selectors (Voice) | ~140 | Part of it was the ITGlue extension overlay swallowing clicks (fixed 2026-10-04, pi-browser patch 8, wiki C-0490). Remaining: `browser-3cx` gives direct page URLs for common screens; take a fresh snapshot after every navigation before using a ref |
+| Inspecting env vars at start of run (all agents) | ~95 | Rule: never list or print env vars; `PAPERCLIP_*`, `PI_*` are documented in the paperclip skill. Since 2026-10-04 `scripts/pi-run` starts Pi with an env allowlist (wiki C-0488), so a dump no longer leaks server secrets, but it still costs a request |
+| ITAStack CLI `__describe__` to learn op names/params | ~75 | Area skills list the exact `itastack <service> <op> --param …` lines they use |
+| Upload helper hunt (Voice, 3 runs) | 5–11 per run | The paperclip skill says `bash scripts/paperclip-upload-artifact.sh`; bash resolves that against the agent's cwd `/home/itadmin/msp-ops`, where it did not exist (the helper ships inside the skill folder). Fix: msp-ops `scripts/paperclip-upload-artifact.sh` forwards to the bundled helper, so the documented command works as written |
+| Mistyped skill folder hash (`browser-control--964a0dfe9`) | ~8 | Name skills by their skill name, not the hashed folder path |
+
+**Secrets:** transcripts hold tool output. Runs before the `pi-run` allowlist (2026-10-04) include
+env dumps with the agent JWT signing secret and the Paperclip database URL (wiki C-0488; not
+rotated, per James). The folder has been mode 700 since 2026-10-04. Never paste raw transcript text;
+`struggle.py` redacts tokens and `*KEY/SECRET/TOKEN/PASSWORD=` values.
 
 ## Diagnose
 
