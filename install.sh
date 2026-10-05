@@ -598,6 +598,7 @@ fi
 if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   link_path ".agents/AGENTS.md" ".agents/AGENTS.md"
   link_path ".agents/skills" ".agents/skills"
+  link_path ".agents/skills" ".claude/skills"
   link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
 else
   printf 'skip: ~/.agents/* + ~/.dsh/AGENTS.md links (INSTALL_AGENTS=0)\n'
