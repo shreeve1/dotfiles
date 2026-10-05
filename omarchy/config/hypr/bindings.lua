@@ -70,3 +70,7 @@ end
 -- Agent Orchestrator: toggle the panel, then use arrow keys (or j/k) to select
 -- an agent card and Enter to open its reply composer.
 o.bind("SUPER + A", "Agent Orchestrator", "omarchy-shell shell toggle meviusisback.agent-orchestr")
+
+-- SUPER+L locks the session; adding SHIFT suspends instead. Safe with the
+-- lid switch ignored: omarchy-sleep-lock locks the session before logind sleeps.
+o.bind("SUPER + SHIFT + L", "Suspend system", "systemctl suspend")
