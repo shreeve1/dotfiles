@@ -1,18 +1,18 @@
 setupVersion: 2
 modelRoles:
-  vision: cliproxy/claude-sonnet-5-5:high
-  advisor: zai/glm-5.3-flash:high
-  task: zai/glm-5.3-flash:high
-  slow: cliproxy/claude-opus-5-5:medium
-  designer: cliproxy/claude-opus-4-8:high
+  vision: cliproxy/claude-opus-5-5
+  advisor: cliproxy/gpt-6.1-sol:high
+  task: zai/glm-5.3-flash
+  slow: cliproxy/claude-opus-5-5
+  designer: cliproxy/claude-opus-5-5
   commit: openrouter/deepseek/deepseek-v4.1-flash:low
   tiny: openrouter/deepseek/deepseek-v4.1-flash:low
-  plan: cliproxy/claude-opus-5-5:high
-  smol: zai/glm-5.3-flash:low
+  plan: cliproxy/claude-opus-5-5
+  smol: deepseek/deepseek-flash:high
   memory: openrouter/deepseek/deepseek-v4.1-flash:low
   judge: openrouter/deepseek/deepseek-v4.1-flash:low
   image: openai-codex/gpt-image-1
-  default: zai/glm-5.3:high
+  default: cliproxy/claude-sonnet-5-5:high
 cycleOrder:
   - default
   - slow
@@ -41,7 +41,7 @@ task:
   prewalk: false
   maxEffort: low
   maxConcurrency: 8
-  maxRuntimeMs: 900000
+  maxRuntimeMs: 1800000
   maxRecursionDepth: 2
 skills:
   enableCodexUser: false
