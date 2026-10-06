@@ -218,7 +218,7 @@ confidence: high | medium | low                                  # skill extensi
 
 Adapt heading levels to the target project's existing `CLAUDE.md` or `AGENTS.md` structure. The `##` and `###` headings below are defaults, not mandatory depths.
 
-Keep this section compact. The detailed ingest, query, promotion, lint, and discard procedures live in the `/llm-wiki-setup` and `/wiki-update` skills — do not inline them here; CLAUDE.md only needs the layout, the wiki-first rule, and the mandatory end-of-run check.
+Keep this section compact. The detailed ingest, query, promotion, lint, and discard procedures live in the `/llm-wiki-setup` and `/wiki-update` skills — do not inline them here; CLAUDE.md only needs the layout, the wiki-first rule, and the end-of-run check.
 
 ```markdown
 ## LLM Wiki
@@ -235,15 +235,17 @@ This project uses `wiki/` as an LLM-maintained knowledge base — a conformant O
 
 ### Wiki-First Search
 
-For any project-specific question, investigation, design task, bug hunt, or code search needing project context: read `wiki/index.md` (then `wiki/ROUTING.md`) and the relevant pages and `wiki/CLAIMS.md` entries before broad repository search. When non-wiki search reveals durable knowledge the wiki lacks, capture it — run `/wiki-update` so the gap is ingested, promoted, and citable in the same run rather than merely proposed.
+For any project-specific question, investigation, design task, bug hunt, or code search needing project context: read `wiki/index.md` (then `wiki/ROUTING.md`) and the relevant pages and `wiki/CLAIMS.md` entries before broad repository search. A gap found this way is input to the end-of-run check below — do not run `/wiki-update` mid-task.
 
-### Mandatory End-of-Run Wiki Check
+### End-of-Run Wiki Check
 
-The wiki is a standing obligation, not opt-in. Before reporting ANY task complete:
+Before reporting a task complete, decide whether it produced knowledge a future session would need and could not cheaply rediscover from code, committed docs, or the ticket itself.
 
-1. Decide whether the task produced durable knowledge — a decision setting/reversing project direction, scope, or ownership; accepted or changed terminology; a new/changed architecture, process, or contract; or a verified fact, root cause, or fix that supersedes existing wiki knowledge.
-2. If yes, run `/wiki-update` before reporting done. Promotion is autonomous, so a successful run ends with the knowledge promoted and indexed; a candidate that failed its checks stays logged and retryable, never queued for approval.
-3. If no, state one line confirming the wiki check ran and nothing qualified.
+1. Qualifies: a decision setting/reversing project direction, scope, or ownership; accepted or changed terminology; a new/changed architecture, process, or contract; a non-obvious gotcha likely to recur (undocumented API behaviour, misleading error, environment quirk); or a verified fact that makes existing wiki knowledge wrong.
+2. Does not qualify: one-off ticket or incident specifics (a single user, record, or device); the status of work still in motion (rollout stages, flag flips, test-mode toggles, "built but not live"); anything the wiki, code, or committed docs already state correctly.
+3. Capture in-progress workstreams once, when they reach a stable state (shipped, abandoned, or handed off) — not after every step.
+4. If something qualifies, run `/wiki-update` before reporting done. Promotion is autonomous, so a successful run ends with the knowledge promoted and indexed; a candidate that failed its checks stays logged and retryable, never queued for approval.
+5. If nothing qualifies, state one line confirming the wiki check ran and nothing qualified.
 
 Mark superseded knowledge `superseded` in `wiki/CLAIMS.md` with a pointer to the newer claim; never delete it to clean up history.
 ```

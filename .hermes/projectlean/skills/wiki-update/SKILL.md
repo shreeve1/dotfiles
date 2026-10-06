@@ -33,6 +33,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 
 - Require an existing LLM Wiki. If core files are missing, stop and suggest `/llm-wiki-setup` first.
 - Extract only durable knowledge: decisions, accepted terminology, architecture/process rules, source summaries, contradictions, follow-ups, and reusable context.
+- Skip what the end-of-run check excludes: one-off ticket or incident specifics, the status of work still in motion (rollout stages, flag flips, "built but not live" — capture once the workstream is stable), and facts the wiki, code, or committed docs already state. If nothing remains, write nothing and say so in one line.
 - Do not store secrets, credentials, private personal information, or raw pasted user content without explicit approval.
 - Prefer citations to project files, diffs, issues, docs, or raw sources over conversation-only evidence.
 - For conversation-only decisions, create a curated raw session capture under `wiki/raw/sessions/` and cite that raw capture.
