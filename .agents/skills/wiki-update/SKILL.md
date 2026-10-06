@@ -24,7 +24,7 @@ Companion skill for `llm-wiki-setup`. Use it during or after a session to extrac
 - Full transcript capture: disabled unless James explicitly requests it
 - Existing promoted page edits: allowed only for low-risk, cited maintenance
 - Raw session capture collisions: never overwrite; append `-2`, `-3`, etc.
-- Claim writes: gated by `gate.py` (deterministic). No claim enters `CLAIMS.md` except through an `ADMIT` verdict.
+- Claim writes: gated by `gate.py` (deterministic). No claim enters `CLAIMS.md` except through an `ADMIT` or `SUPERSEDE` verdict applied with `gate.py check --apply`.
 - Gate path: set `WIKI_UPDATE_SKILL_DIR` to this installed skill directory, then resolve with `WIKI_GATE="$(python3 "$WIKI_UPDATE_SKILL_DIR/resolve-gate.py" --project-root .)"`; invoke it as `python3 "$WIKI_GATE" ...`. The resolver prefers this companion gate and then supports installed and project-vendored `.agents`, `.hermes`, and legacy `.claude` locations. A resolver failure blocks claim writes; it never authorizes hand-editing.
 - Claim budget: `BUDGET` active claims per hot file (default 40); over budget forces a demotion before any add.
 - Hot/cold: `CLAIMS.md` is loaded by default; `CLAIMS-cold.md` is the searchable archive, not loaded.
