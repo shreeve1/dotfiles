@@ -29,21 +29,21 @@ local hyprvim = loadfile(os.getenv("HOME") .. "/.local/share/hyprvim/init.lua")
 if hyprvim then
 hyprvim().setup({
   keys = { activate = "U" },
-  applications = { terminal = "ghostty" },
+  -- ghostty can't set a plain window class (needs a dotted id), so prompt bars use foot.
+  applications = { terminal = "foot" },
   which_key = { enabled = false },
   updates = { channel = "off" },
   -- i/a enter INSERT normally (a passthrough submap). Prefer fully exiting
   -- HyprVim: reset the submap and send the key's effect to the window instead.
-  -- ponytail: only i and a are overridden; I/A/o/O still use built-in INSERT.
+  -- ponytail: o/O still use built-in INSERT.
   keymaps = {
     NORMAL = {
       {
         "i",
         function()
           require("hyprvim.lib.submap").reset()
-          require("hyprvim.hypr").send("", "i")
         end,
-        "Insert before cursor (exit HyprVim)",
+        "Exit HyprVim (no char typed)",
       },
       {
         "a",
@@ -51,7 +51,23 @@ hyprvim().setup({
           require("hyprvim.lib.submap").reset()
           require("hyprvim.hypr").send("", "RIGHT")
         end,
-        "Insert after cursor (exit HyprVim)",
+        "Exit HyprVim, cursor right (no char typed)",
+      },
+      {
+        "SHIFT + i",
+        function()
+          require("hyprvim.lib.submap").reset()
+          require("hyprvim.hypr").send("", "HOME")
+        end,
+        "Exit HyprVim, line start (no char typed)",
+      },
+      {
+        "SHIFT + a",
+        function()
+          require("hyprvim.lib.submap").reset()
+          require("hyprvim.hypr").send("", "END")
+        end,
+        "Exit HyprVim, line end (no char typed)",
       },
     },
   },
