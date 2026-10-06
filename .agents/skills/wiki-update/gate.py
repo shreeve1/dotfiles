@@ -231,10 +231,16 @@ def gate_check(wiki, entry):
         if not target:
             return {"verdict": "REJECT", "gate": "supersede",
                     "reasons": [f"supersedes {sup} but no such claim exists"]}
+        if target["Status"] not in ("active", ""):
+            return {"verdict": "REJECT", "gate": "supersede",
+                    "reasons": [f"{sup} is already {target['Status']}; supersede its "
+                                "current active replacement instead"]}
+        nid = next_id(wiki, *rows)
+        notes = "; ".join(x for x in (f"supersedes {sup}", entry.get("notes", "").strip()) if x)
         return {"verdict": "SUPERSEDE", "gate": "supersede", "target": sup,
-                "instruction": (f"mark {sup} status=superseded, set its Superseded={TODAY}; "
-                                f"add new claim Created={TODAY}, "
-                                f"Notes 'supersedes {sup}'")}
+                "new_id": nid, "row": _row_from_entry(nid, {**entry, "notes": notes}),
+                "instruction": (f"re-run with --apply: marks {sup} status=superseded, "
+                                f"Superseded={TODAY}, and writes {nid} noting 'supersedes {sup}'")}
 
     # 3. dedup on write
     dups = sorted(((ratio(claim, r["Claim"]), r) for r in acts),
@@ -281,17 +287,23 @@ def cmd_check(args):
                        else sys.stdin.read())
     v = gate_check(wiki, entry)
     print(json.dumps(v, indent=2))
-    if v["verdict"] == "ADMIT":
+    if v["verdict"] in ("ADMIT", "SUPERSEDE"):
         if args.apply:
             path = wiki / "CLAIMS.md"
             pre, rows, foot = parse(path)
+            if v["verdict"] == "SUPERSEDE":
+                old = next(r for r in rows if r["ID"] == v["target"])
+                old["Status"], old["Superseded"] = "superseded", TODAY
+                old["Notes"] = "; ".join(x for x in (old["Notes"], f"superseded by {v['new_id']}") if x)
             rows.append(v["row"])
             path.write_text(serialize(pre, rows, foot))
             n = bump_writes(wiki)
-            print(f"# applied {v['new_id']}; writes_since_maint={n}"
+            print(f"# applied {v['new_id']}"
+                  + (f" (superseded {v['target']})" if v["verdict"] == "SUPERSEDE" else "")
+                  + f"; writes_since_maint={n}"
                   + ("  >>> maintenance due (demote/consolidate)" if n >= MAINT_EVERY else ""))
         return 0
-    return 3  # any non-ADMIT verdict blocks the write
+    return 3  # any other verdict blocks the write
 
 
 # ---------- scheduled gates ----------
