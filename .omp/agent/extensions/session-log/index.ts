@@ -310,7 +310,7 @@ export default function (pi: ExtensionAPI) {
 
       let out = "";
       if (n === 1 && !existsSync(outFile)) {
-        out += `# Session ${sessionId}\n\n- cwd: ${ctx.cwd}\n- started: ${iso}\n`;
+        out += `# Session ${sessionId}\n\n- cwd: ${ctx.cwd}\n- started: ${new Date().toISOString()}\n`;
       }
       out +=
         `**Prompt:**\n\n${prompt}\n` +
