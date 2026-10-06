@@ -253,3 +253,7 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 
 # Personal teaching workspaces
 /.teaching/
+
+# Skill tooling machine-local state (trash + sync cache)
+.agents/skills/.trash/
+.agents/skills/synced/
