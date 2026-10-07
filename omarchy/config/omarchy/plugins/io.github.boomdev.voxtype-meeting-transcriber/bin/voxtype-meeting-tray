@@ -23,6 +23,7 @@ import tomllib
 
 APP = "Voxtype Meeting Transcriber"
 EXPORT_SIDECAR = "export.json"
+AUTO_EXPORT_SINCE = Path.home() / ".config/voxtype-meeting-service/auto-export-since"
 CONTROL_IDLE_TIMEOUT_SECS = 30
 CONTROL_MAX_LINE_BYTES = 64 * 1024
 SUBPROCESS_MAX_BYTES = 64 * 1024
@@ -742,6 +743,29 @@ def normalize_session(item: dict) -> dict:
         "exportedPath": read_exported_path(session_dir),
     }
 
+def _parse_rfc3339(value: str):
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed
+
+def pending_export_sessions(sessions: list[dict], since: str) -> list[dict]:
+    cutoff = _parse_rfc3339(since) if since else None
+    eligible = []
+    for item in sessions or []:
+        normalized = normalize_session(item)
+        if normalized["status"] != "complete" or not normalized["transcriptExists"] or normalized["exportedPath"]:
+            continue
+        if cutoff is not None:
+            ended = _parse_rfc3339(str(item.get("ended_at") or normalized["endedAt"] or ""))
+            if ended is None or ended < cutoff:
+                continue
+        eligible.append(normalized)
+    return eligible
+
 def device_options(items: list[dict], configured: str) -> list[dict]:
     options = [{"value": "default", "label": "System default"}]
     seen = {"default"}
@@ -837,26 +861,90 @@ def open_path(path: Path) -> dict | None:
         return {"ok": False, "error": f"Could not open the transcript: {exc}", "path": str(path)}
     return None
 
-def export_meeting(meeting_id: str, directory: str, open_after: bool) -> dict:
-    found = find_session(meeting_id)
-    if not found.get("ok"): return found
-    selected = found["session"]
-    source = Path(str(selected.get("transcript_md") or ""))
+def _export_selected(selected: dict, directory: str, open_after: bool) -> dict:
+    source = Path(str(selected.get("transcript_md") or selected.get("transcriptPath") or ""))
     if not source.name:
         return {"ok": False, "error": "The transcript is still being prepared."}
+    session_dir = str(selected.get("session_dir") or selected.get("storagePath") or "")
     target_dir = home_path(directory)
-    target = target_dir / safe_name(str(selected.get("title") or "Meeting"), str(selected.get("started_at") or ""))
+    target = target_dir / safe_name(str(selected.get("title") or "Meeting"), str(selected.get("started_at") or selected.get("startedAt") or ""))
     try:
         written = copy_private_file(source, target, max_bytes=TRANSCRIPT_MAX_BYTES)
     except FileNotFoundError:
         return {"ok": False, "error": "The transcript is still being prepared."}
     except OSError as exc:
         return {"ok": False, "error": f"Could not export the transcript: {exc}"}
-    write_exported_path(str(selected.get("session_dir") or ""), written)
+    write_exported_path(session_dir, written)
     if open_after:
         failed = open_path(written)
         if failed: return {**failed, "message": "Transcript exported"}
     return {"ok": True, "message": "Transcript exported", "path": str(written), "meetingId": selected.get("id")}
+
+def export_meeting(meeting_id: str, directory: str, open_after: bool) -> dict:
+    found = find_session(meeting_id)
+    if not found.get("ok"): return found
+    return _export_selected(found["session"], directory, open_after)
+
+def _auto_export_since() -> tuple[str, str | None]:
+    """Return the persisted auto-export cutoff, seeding it on first use.
+
+    Returns (value, error); error is set when the anchor cannot be read or
+    seeded, so a failed poll never advances the cutoff past unfinished work.
+    """
+    try:
+        payload = read_private_file(AUTO_EXPORT_SINCE, max_bytes=SIDECAR_MAX_BYTES)
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        return "", f"Could not read the auto-export cutoff: {exc}"
+    else:
+        value = payload.decode("utf-8", errors="replace").strip()
+        if not value:
+            return "", "The stored auto-export cutoff is invalid."
+        if _parse_rfc3339(value) is None:
+            return "", "The stored auto-export cutoff is invalid."
+        return value, None
+    value = dt.datetime.now(dt.timezone.utc).isoformat()
+    try:
+        write_private_file(
+            AUTO_EXPORT_SINCE,
+            (value + "\n").encode("utf-8"),
+            max_bytes=SIDECAR_MAX_BYTES,
+            create_dir=True,
+        )
+    except OSError as exc:
+        return "", f"Could not save the auto-export cutoff: {exc}"
+    return value, None
+
+def export_pending(directory: str, since: str) -> dict:
+    if not since:
+        since, error = _auto_export_since()
+        if error:
+            return {"ok": False, "error": error}
+    sessions = request({"op": "list_sessions"})
+    if not sessions.get("ok"):
+        return sessions
+    eligible = pending_export_sessions(sessions.get("sessions") or [], since)
+    exported = []
+    failed = []
+    for session in eligible:
+        result = _export_selected(session, directory, open_after=False)
+        entry = {"meetingId": session.get("id")}
+        if result.get("ok"):
+            entry["path"] = str(result.get("path") or "")
+            exported.append(entry)
+        else:
+            entry["error"] = str(result.get("error") or "Export failed")
+            failed.append(entry)
+    if exported and failed:
+        message = f"{len(exported)} transcript(s) auto-exported, {len(failed)} failed"
+    elif exported:
+        message = f"{len(exported)} transcript(s) auto-exported"
+    elif failed:
+        message = f"{len(failed)} export(s) failed"
+    else:
+        message = "Nothing to auto-export"
+    return {"ok": True, "message": message, "exported": exported, "failed": failed}
 
 def open_meeting(meeting_id: str) -> dict:
     found = find_session(meeting_id)
@@ -927,6 +1015,9 @@ def parser() -> argparse.ArgumentParser:
     exp.add_argument("meeting_id")
     exp.add_argument("--directory", required=True)
     exp.add_argument("--open", action="store_true", dest="open_after")
+    pending = sub.add_parser("export-pending")
+    pending.add_argument("--directory", required=True)
+    pending.add_argument("--since", default="")
     opened = sub.add_parser("open")
     opened.add_argument("meeting_id")
     folder = sub.add_parser("open-folder")
@@ -941,6 +1032,7 @@ def main() -> int:
         if args.command == "snapshot": result = snapshot()
         elif args.command == "action": result = action(args.name, args.title, args.language)
         elif args.command == "export": result = export_meeting(args.meeting_id, args.directory, args.open_after)
+        elif args.command == "export-pending": result = export_pending(args.directory, args.since)
         elif args.command == "open": result = open_meeting(args.meeting_id)
         elif args.command == "open-folder": result = open_export_folder(args.directory)
         elif args.command == "settings": result = save_options(args.json)

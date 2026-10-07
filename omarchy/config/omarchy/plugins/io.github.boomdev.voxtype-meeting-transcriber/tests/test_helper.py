@@ -327,4 +327,193 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(dest.read_text(encoding="utf-8"), "old")
             self.assertEqual(written.read_text(encoding="utf-8"), "notes")
 
+    def _session(self, sid, status="complete", transcript_exists=True,
+                 ended_at="2026-09-01T12:00:00Z", session_dir=""):
+        return {"id": sid, "title": "Meeting " + sid,
+                "started_at": "2026-08-30T10:00:00Z", "ended_at": ended_at,
+                "ui_status": status, "transcript_md": str(Path(session_dir or "/tmp") / "transcript.md"),
+                "transcript_exists": transcript_exists, "session_dir": session_dir}
+
+    def test_pending_export_sessions_filters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exported_dir = root / "exported"
+            exported_dir.mkdir()
+            exported = exported_dir / "one.md"
+            exported.write_text("done", encoding="utf-8")
+            helper.write_exported_path(str(exported_dir), exported)
+            sessions = [
+                self._session("a", status="transcribing", session_dir=str(root / "a")),
+                self._session("b", transcript_exists=False, session_dir=str(root / "b")),
+                self._session("c", session_dir=str(exported_dir)),
+                self._session("d", session_dir=str(root / "d")),
+            ]
+            eligible = helper.pending_export_sessions(sessions, "")
+            self.assertEqual([item["id"] for item in eligible], ["d"])
+            self.assertEqual(eligible[0]["status"], "complete")
+            self.assertTrue(eligible[0]["transcriptExists"])
+            self.assertEqual(eligible[0]["exportedPath"], "")
+
+    def test_pending_export_sessions_respects_since(self):
+        sessions = [
+            self._session("old", ended_at="2026-08-01T10:00:00Z"),
+            self._session("new", ended_at="2026-09-05T10:00:00Z"),
+            self._session("missing", ended_at=""),
+            self._session("bad", ended_at="not-a-date"),
+        ]
+        eligible = helper.pending_export_sessions(sessions, "2026-09-01T00:00:00Z")
+        self.assertEqual([item["id"] for item in eligible], ["new"])
+        eligible = helper.pending_export_sessions(sessions, "")
+        self.assertEqual(sorted(item["id"] for item in eligible), ["bad", "missing", "new", "old"])
+
+    def test_export_pending_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / "sessions" / "abc"
+            session_dir.mkdir(parents=True)
+            transcript = session_dir / "transcript.md"
+            transcript.write_text("# Notes\n", encoding="utf-8")
+            target = root / "out"
+            session = self._session("abc", ended_at="2026-09-01T11:00:00Z", session_dir=str(session_dir))
+            session["title"] = "Design Review"
+            session["transcript_md"] = str(transcript)
+            with patch.object(helper, "request", return_value={"ok": True, "sessions": [session]}):
+                result = helper.export_pending(str(target), "2020-01-01T00:00:00Z")
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["message"], "1 transcript(s) auto-exported")
+            self.assertEqual(result["failed"], [])
+            self.assertEqual(len(result["exported"]), 1)
+            self.assertEqual(result["exported"][0]["meetingId"], "abc")
+            written = Path(result["exported"][0]["path"])
+            self.assertEqual(written.parent, target)
+            self.assertTrue(written.is_file())
+            self.assertEqual(written.read_text(encoding="utf-8"), "# Notes\n")
+            self.assertEqual(helper.normalize_session(session)["exportedPath"], str(written))
+            with patch.object(helper, "request", return_value={"ok": True, "sessions": [session]}):
+                again = helper.export_pending(str(target), "2020-01-01T00:00:00Z")
+            self.assertTrue(again["ok"])
+            self.assertEqual(again["message"], "Nothing to auto-export")
+            self.assertEqual(again["exported"], [])
+            self.assertEqual(again["failed"], [])
+
+    def test_export_pending_partial_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            good_dir = root / "good"
+            good_dir.mkdir()
+            bad_dir = root / "bad"
+            bad_dir.mkdir()
+            transcript = good_dir / "transcript.md"
+            transcript.write_text("notes", encoding="utf-8")
+            target = root / "out"
+            sessions = [
+                self._session("good", ended_at="2026-09-01T11:00:00Z", session_dir=str(good_dir)),
+                self._session("bad", ended_at="2026-09-02T11:00:00Z", session_dir=str(bad_dir)),
+            ]
+            sessions[0]["transcript_md"] = str(transcript)
+            sessions[1]["transcript_md"] = str(bad_dir / "missing.md")
+            with patch.object(helper, "request", return_value={"ok": True, "sessions": sessions}):
+                result = helper.export_pending(str(target), "2020-01-01T00:00:00Z")
+            self.assertTrue(result["ok"])
+            self.assertEqual(len(result["exported"]), 1)
+            self.assertEqual(result["exported"][0]["meetingId"], "good")
+            self.assertEqual(len(result["failed"]), 1)
+            self.assertEqual(result["failed"][0]["meetingId"], "bad")
+            self.assertIn("still being prepared", result["failed"][0]["error"])
+
+    def test_export_pending_passes_through_service_failure(self):
+        with patch.object(helper, "request", return_value={"ok": False, "error": "Service not running."}):
+            result = helper.export_pending("/tmp/out", "2020-01-01T00:00:00Z")
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "Service not running.")
+
+    def test_auto_export_since_seeds_and_stays_stable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            anchor = Path(tmp) / "auto-export-since"
+            with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                first, error = helper._auto_export_since()
+            self.assertIsNone(error)
+            self.assertIsNotNone(helper._parse_rfc3339(first))
+            self.assertTrue(anchor.is_file())
+            with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                second, error = helper._auto_export_since()
+            self.assertIsNone(error)
+            self.assertEqual(first, second)
+
+    def test_auto_export_since_write_failure_is_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            root.chmod(0o500)
+            anchor = root / "auto-export-since"
+            try:
+                with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                    value, error = helper._auto_export_since()
+                self.assertEqual(value, "")
+                self.assertIn("Could not save the auto-export cutoff", error)
+                self.assertFalse(anchor.exists())
+            finally:
+                root.chmod(0o700)
+
+    def test_auto_export_since_invalid_value_is_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            anchor = Path(tmp) / "auto-export-since"
+            anchor.write_text("not-a-date\n", encoding="utf-8")
+            with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                value, error = helper._auto_export_since()
+            self.assertEqual(value, "")
+            self.assertIn("invalid", error)
+            self.assertEqual(anchor.read_text(encoding="utf-8"), "not-a-date\n")
+
+    def test_auto_export_since_empty_value_is_not_first_use(self):
+        for content in ("", "   \n", "\n"):
+            with tempfile.TemporaryDirectory() as tmp:
+                anchor = Path(tmp) / "auto-export-since"
+                anchor.write_text(content, encoding="utf-8")
+                with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                    value, error = helper._auto_export_since()
+                self.assertEqual(value, "")
+                self.assertIn("invalid", error)
+                self.assertEqual(anchor.read_text(encoding="utf-8"), content)
+
+    def test_export_pending_no_since_uses_anchor_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / "sessions" / "abc"
+            session_dir.mkdir(parents=True)
+            transcript = session_dir / "transcript.md"
+            transcript.write_text("# Notes\n", encoding="utf-8")
+            target = root / "out"
+            session = self._session("abc", ended_at="2026-09-01T11:00:00Z", session_dir=str(session_dir))
+            session["title"] = "Design Review"
+            session["transcript_md"] = str(transcript)
+            anchor = root / "config" / "auto-export-since"
+            with patch.object(helper, "AUTO_EXPORT_SINCE", anchor):
+                with patch.object(helper, "request", return_value={"ok": True, "sessions": [session]}):
+                    result = helper.export_pending(str(target), "")
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["message"], "Nothing to auto-export")
+                self.assertEqual(result["exported"], [])
+                self.assertTrue(anchor.is_file())
+
+    def test_export_pending_all_failed_reports_each_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "out"
+            sessions = [
+                self._session("one", ended_at="2026-09-01T11:00:00Z", session_dir=str(root / "one")),
+                self._session("two", ended_at="2026-09-02T11:00:00Z", session_dir=str(root / "two")),
+            ]
+            sessions[0]["transcript_md"] = str(root / "one" / "missing.md")
+            sessions[1]["transcript_md"] = str(root / "two" / "missing.md")
+            with patch.object(helper, "request", return_value={"ok": True, "sessions": sessions}):
+                result = helper.export_pending(str(target), "2020-01-01T00:00:00Z")
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["exported"], [])
+            self.assertEqual(len(result["failed"]), 2)
+            self.assertEqual(result["failed"][0]["meetingId"], "one")
+            self.assertEqual(result["failed"][1]["meetingId"], "two")
+            self.assertIn("still being prepared", result["failed"][0]["error"])
+            self.assertEqual(result["message"], "2 export(s) failed")
+            self.assertFalse(target.exists())
+
 if __name__ == "__main__": unittest.main()
