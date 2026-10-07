@@ -107,10 +107,6 @@ I direct the work but don't write the code myself. Assume I'm capable but not a 
 
 The test: could a smart non-coder follow this and make the call confidently?
 
-## Scout before diving in
-
-Prefer a read-only `scout` subagent for exploration and unknown-code mapping — always at the start of a conversation involving a repo, and whenever files aren't already known. Don't read file after file yourself.
-
 ## Explore via the code graph before grep (graphify)
 
 When the user types `/graphify`, use the graphify skill (`~/.agents/skills/graphify/SKILL.md`) before doing anything else.
