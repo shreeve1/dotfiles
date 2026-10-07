@@ -48,6 +48,7 @@
 ## Recent meetings and exports
 
 - Show the five most recent meetings with title, date, duration, status, and utterance count.
+- Automatically export each finished meeting to the configured export folder, on by default, toggled in the panel under TRAY; the cutoff is anchored when auto-export first runs, so enabling it never backfills earlier meetings, and the anchor persists across shell reloads.
 - Export and open a transcript that has not been exported yet; later opens reuse that exported file in the default text editor.
 - Copy canonical Markdown transcripts to `~/Documents/Meetings` by default when export/open needs it.
 - Use filesystem-safe, collision-resistant filenames and never silently overwrite an export.
