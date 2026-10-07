@@ -44,7 +44,7 @@ That script compiles this repository's `service/` crate with Cargo, installs `vo
 - Right click refreshes service state.
 - Start, stop, pause, and resume provide immediate pending feedback.
 - The gear configures capture source/devices, audio retention, and which languages appear on the meeting page; engine and model are read-only (those are configured in Voxtype).
-- Recent meetings offer **Export and Open**, then **Open** after a transcript has been exported.
+- Recent meetings offer **Export and Open**, then **Open** after a transcript has been exported; finished meetings also auto-export to the export folder (on by default, toggled in the panel under TRAY).
 - `S` starts or stops while the main view has focus; `R` refreshes.
 
 To disable the widget without removing its files:

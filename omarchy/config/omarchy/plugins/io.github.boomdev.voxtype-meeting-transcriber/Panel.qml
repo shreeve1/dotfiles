@@ -326,6 +326,7 @@ Panel {
     idleRefreshSec: Number(root.setting("refreshIntervalSec", 15))
     fastRefresh: root.recentTranscribing
     notificationsEnabled: root.setting("notificationsEnabled", false) === true
+    autoExport: root.setting("autoExportEnabled", true) === true
 
     onCommandFinished: function(kind, ok, message, result) {
       if (kind === "start" && ok) root.meetingTitle = ""
@@ -959,6 +960,15 @@ Panel {
         checked: root.setting("notificationsEnabled", false) === true
         foreground: root.foreground
         onClicked: root.persistSetting("notificationsEnabled", !(root.setting("notificationsEnabled", false) === true))
+      }
+
+      Toggle {
+        width: parent.width
+        label: "Auto-export finished meetings"
+        description: "Save the transcript to the export folder when a meeting finishes."
+        checked: root.setting("autoExportEnabled", true) === true
+        foreground: root.foreground
+        onClicked: root.persistSetting("autoExportEnabled", !(root.setting("autoExportEnabled", true) === true))
       }
 
       RowLayout {

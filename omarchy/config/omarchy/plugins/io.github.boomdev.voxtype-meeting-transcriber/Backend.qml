@@ -9,6 +9,8 @@ Item {
   property int idleRefreshSec: 15
   property bool fastRefresh: false
   property bool notificationsEnabled: false
+  property bool autoExport: false
+  property string autoExportLastFailure: ""
 
   property bool available: false
   property bool installed: false
@@ -191,8 +193,43 @@ Item {
     argv: [root.helperPath, "snapshot"]
     onExited: function(code) {
       var data = root.helperResult(snapshotProcess, "Could not inspect Voxtype.")
-      if (data.ok === true) root.applySnapshot(data)
+      if (data.ok === true) {
+        root.applySnapshot(data)
+        if (root.autoExport && !root.busy && !autoExportProcess.running) {
+          autoExportProcess.argv = [root.helperPath, "export-pending", "--directory", root.exportDirectory]
+          autoExportProcess.running = true
+        }
+      }
       else root.lastError = String(data.error || "Could not inspect Voxtype.")
+    }
+  }
+
+  CappedProcess {
+    id: autoExportProcess
+    timeoutSec: 45
+    onExited: function(code) {
+      var data = root.helperResult(autoExportProcess, "Could not auto-export transcripts.")
+      if (data.ok === true) {
+        var exported = Array.isArray(data.exported) ? data.exported : []
+        var failed = Array.isArray(data.failed) ? data.failed : []
+        if (exported.length > 0) {
+          var message = String(data.message || "Transcripts auto-exported")
+          root.autoExportLastFailure = ""
+          root.notify("auto-export", true, message, data)
+          root.commandFinished("auto-export", true, message, data)
+          Qt.callLater(root.refresh)
+        }
+        if (failed.length > 0) {
+          var failure = String((failed[0] && failed[0].error) || "Could not auto-export some transcripts.")
+          if (!root.busy) root.lastError = failure
+          if (root.autoExportLastFailure !== failure) {
+            root.autoExportLastFailure = failure
+            root.notify("auto-export", false, failure, data)
+          }
+        }
+      } else if (!root.busy) {
+        root.lastError = String(data.error || "Could not auto-export transcripts.")
+      }
     }
   }
 
