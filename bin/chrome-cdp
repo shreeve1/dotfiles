@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Reusable Chrome instance with CDP remote debugging on a dedicated profile
+# (Chrome M136+ forbids --remote-debugging-port on the default profile).
+# Sessions/cookies persist in ~/.config/chrome-cdp, so logins survive reboots.
+set -u
+
+PORT=9222
+DIR="$HOME/.config/chrome-cdp"
+LOG="${XDG_STATE_HOME:-$HOME/.local/state}/chrome-cdp.log"
+
+if curl -s --max-time 2 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; then
+  echo "already running on port $PORT"
+  exit 0
+fi
+
+mkdir -p "$DIR" "$(dirname "$LOG")"
+exec setsid /opt/google/chrome/chrome \
+  --user-data-dir="$DIR" \
+  --remote-debugging-port=$PORT \
+  --class=chrome-cdp \
+  --disable-background-timer-throttling \
+  --disable-backgrounding-occluded-windows \
+  --disable-renderer-backgrounding \
+  --ozone-platform=wayland \
+  --ozone-platform-hint=wayland \
+  --password-store=gnome-libsecret \
+  --load-extension=/usr/share/omarchy/default/chromium/extensions/copy-url,/usr/share/omarchy/default/chromium/extensions/yt-dlp,/usr/share/omarchy/default/chromium/extensions/whatsapp-slim \
+  >>"$LOG" 2>&1 < /dev/null
