@@ -1,0 +1,2304 @@
+# Converted from AutoHotkey hotstrings by dotfiles/bin/ahk2espanso.
+# Edit and save; espanso reloads automatically.
+matches:
+
+# HotStrings
+
+# Network
+  - trigger: "ipc"
+    replace: "ipconfig /all"
+    word: true
+  - trigger: "pg1"
+    replace: "ping 192.168."
+    word: true
+  - trigger: "pg10"
+    replace: "ping 10.1.10."
+    word: true
+  - trigger: "255"
+    replace: "255.255.255.0"
+    word: true
+  - trigger: "n8nnetb"
+    replace: "itadmin@100.95.224.218"
+    word: true
+  - trigger: "aidevnetb"
+    replace: "james@100.95.230.15"
+    word: true
+  - trigger: "omarchynetb"
+    replace: "james@100.95.55.243"
+    word: true
+  - trigger: "dcfr"
+    replace: "sudo docker compose up -d --force-recreate"
+    word: true
+  - trigger: "ige"
+    replace: "I'm getting this error"
+    word: true
+  - trigger: "aptuu"
+    replace: "sudo apt update && sudo apt upgrade -y"
+    word: true
+  - trigger: "gcpr"
+    replace: "git commit to add changes then push to remote"
+    word: true
+  - trigger: "lusk"
+    replace: "Let us know if you need anything else.\n\nBest,\nJames"
+    word: true
+    force_clipboard: true
+
+# Work
+  - trigger: "wrkeml"
+    replace: "james@itassurance.com"
+    word: true
+  - trigger: "nswv"
+    replace: "ns: wait to hear back from vendor"
+    word: true
+  - trigger: "calen"
+    replace: "https://calendly.com/ita-james/15"
+    word: true
+
+# Personal
+  - trigger: "eml"
+    replace: "jamesschriever@gmail.com"
+    word: true
+  - trigger: "addr"
+    replace: "17390 SW Clearwater Ct, Beaverton, OR 97006"
+    word: true
+  - trigger: "ttn"
+    replace: "testytech.net"
+    word: true
+  - trigger: "bj"
+    replace: "Best,\nJames"
+    word: true
+    force_clipboard: true
+  - trigger: "tj"
+    replace: "Thank You,\nJames"
+    word: true
+    force_clipboard: true
+
+# Common misspellings with corrections
+
+# Format: ::misspelling::correction
+
+# Common "A" words
+  - trigger: "abotu"
+    replace: "about"
+    word: true
+  - trigger: "abouta"
+    replace: "about a"
+    word: true
+  - trigger: "abscence"
+    replace: "absence"
+    word: true
+  - trigger: "absense"
+    replace: "absence"
+    word: true
+  - trigger: "absolutly"
+    replace: "absolutely"
+    word: true
+  - trigger: "accomodate"
+    replace: "accommodate"
+    word: true
+  - trigger: "acommodate"
+    replace: "accommodate"
+    word: true
+  - trigger: "acomplish"
+    replace: "accomplish"
+    word: true
+  - trigger: "acomplishment"
+    replace: "accomplishment"
+    word: true
+  - trigger: "acurate"
+    replace: "accurate"
+    word: true
+  - trigger: "acuracy"
+    replace: "accuracy"
+    word: true
+  - trigger: "acumulate"
+    replace: "accumulate"
+    word: true
+  - trigger: "addres"
+    replace: "address"
+    word: true
+  - trigger: "adress"
+    replace: "address"
+    word: true
+  - trigger: "adaquate"
+    replace: "adequate"
+    word: true
+  - trigger: "admited"
+    replace: "admitted"
+    word: true
+  - trigger: "admitance"
+    replace: "admittance"
+    word: true
+  - trigger: "adolecent"
+    replace: "adolescent"
+    word: true
+  - trigger: "adquate"
+    replace: "adequate"
+    word: true
+  - trigger: "advantagous"
+    replace: "advantageous"
+    word: true
+  - trigger: "advertisment"
+    replace: "advertisement"
+    word: true
+  - trigger: "adviced"
+    replace: "advised"
+    word: true
+  - trigger: "advise"
+    replace: "advice"
+    word: true
+  - trigger: "afair"
+    replace: "affair"
+    word: true
+  - trigger: "afected"
+    replace: "affected"
+    word: true
+  - trigger: "afiliation"
+    replace: "affiliation"
+    word: true
+  - trigger: "afordable"
+    replace: "affordable"
+    word: true
+  - trigger: "agian"
+    replace: "again"
+    word: true
+  - trigger: "agianst"
+    replace: "against"
+    word: true
+  - trigger: "agressive"
+    replace: "aggressive"
+    word: true
+  - trigger: "agre"
+    replace: "agree"
+    word: true
+  - trigger: "agred"
+    replace: "agreed"
+    word: true
+  - trigger: "agrement"
+    replace: "agreement"
+    word: true
+  - trigger: "alegance"
+    replace: "allegiance"
+    word: true
+  - trigger: "allready"
+    replace: "already"
+    word: true
+  - trigger: "almsot"
+    replace: "almost"
+    word: true
+  - trigger: "alot"
+    replace: "a lot"
+    word: true
+  - trigger: "alright"
+    replace: "all right"
+    word: true
+  - trigger: "alwasy"
+    replace: "always"
+    word: true
+  - trigger: "alway"
+    replace: "always"
+    word: true
+  - trigger: "amatuer"
+    replace: "amateur"
+    word: true
+  - trigger: "amature"
+    replace: "amateur"
+    word: true
+  - trigger: "ambishous"
+    replace: "ambitious"
+    word: true
+  - trigger: "amongs"
+    replace: "among"
+    word: true
+  - trigger: "amout"
+    replace: "amount"
+    word: true
+  - trigger: "anbd"
+    replace: "and"
+    word: true
+  - trigger: "anmd"
+    replace: "and"
+    word: true
+  - trigger: "aniversary"
+    replace: "anniversary"
+    word: true
+  - trigger: "anual"
+    replace: "annual"
+    word: true
+  - trigger: "anounce"
+    replace: "announce"
+    word: true
+  - trigger: "anouncement"
+    replace: "announcement"
+    word: true
+  - trigger: "anser"
+    replace: "answer"
+    word: true
+  - trigger: "answere"
+    replace: "answer"
+    word: true
+  - trigger: "antoher"
+    replace: "another"
+    word: true
+  - trigger: "anxeity"
+    replace: "anxiety"
+    word: true
+  - trigger: "anythin"
+    replace: "anything"
+    word: true
+  - trigger: "anywahy"
+    replace: "anyway"
+    word: true
+  - trigger: "aparent"
+    replace: "apparent"
+    word: true
+  - trigger: "aparently"
+    replace: "apparently"
+    word: true
+  - trigger: "apparant"
+    replace: "apparent"
+    word: true
+  - trigger: "apparrent"
+    replace: "apparent"
+    word: true
+  - trigger: "appearence"
+    replace: "appearance"
+    word: true
+  - trigger: "apear"
+    replace: "appear"
+    word: true
+  - trigger: "apearance"
+    replace: "appearance"
+    word: true
+  - trigger: "aplogy"
+    replace: "apology"
+    word: true
+  - trigger: "apolgize"
+    replace: "apologize"
+    word: true
+  - trigger: "apolegize"
+    replace: "apologize"
+    word: true
+  - trigger: "apointment"
+    replace: "appointment"
+    word: true
+  - trigger: "apreciate"
+    replace: "appreciate"
+    word: true
+  - trigger: "aproach"
+    replace: "approach"
+    word: true
+  - trigger: "apropriate"
+    replace: "appropriate"
+    word: true
+  - trigger: "aquire"
+    replace: "acquire"
+    word: true
+  - trigger: "aquit"
+    replace: "acquit"
+    word: true
+  - trigger: "archtecture"
+    replace: "architecture"
+    word: true
+  - trigger: "arguement"
+    replace: "argument"
+    word: true
+  - trigger: "artifical"
+    replace: "artificial"
+    word: true
+  - trigger: "asist"
+    replace: "assist"
+    word: true
+  - trigger: "asistance"
+    replace: "assistance"
+    word: true
+  - trigger: "asthetic"
+    replace: "aesthetic"
+    word: true
+  - trigger: "athiest"
+    replace: "atheist"
+    word: true
+  - trigger: "athourity"
+    replace: "authority"
+    word: true
+  - trigger: "attemt"
+    replace: "attempt"
+    word: true
+  - trigger: "attemp"
+    replace: "attempt"
+    word: true
+  - trigger: "atention"
+    replace: "attention"
+    word: true
+  - trigger: "atitude"
+    replace: "attitude"
+    word: true
+  - trigger: "atract"
+    replace: "attract"
+    word: true
+  - trigger: "atractive"
+    replace: "attractive"
+    word: true
+  - trigger: "austrailia"
+    replace: "australia"
+    word: true
+  - trigger: "auxillary"
+    replace: "auxiliary"
+    word: true
+  - trigger: "availible"
+    replace: "available"
+    word: true
+  - trigger: "avaliable"
+    replace: "available"
+    word: true
+  - trigger: "awsome"
+    replace: "awesome"
+    word: true
+  - trigger: "awya"
+    replace: "away"
+    word: true
+
+# Common "B" words
+  - trigger: "basicly"
+    replace: "basically"
+    word: true
+  - trigger: "basicaly"
+    replace: "basically"
+    word: true
+  - trigger: "beatiful"
+    replace: "beautiful"
+    word: true
+  - trigger: "beautyful"
+    replace: "beautiful"
+    word: true
+  - trigger: "becasue"
+    replace: "because"
+    word: true
+  - trigger: "becuase"
+    replace: "because"
+    word: true
+  - trigger: "becomming"
+    replace: "becoming"
+    word: true
+  - trigger: "beggining"
+    replace: "beginning"
+    word: true
+  - trigger: "begining"
+    replace: "beginning"
+    word: true
+  - trigger: "beleive"
+    replace: "believe"
+    word: true
+  - trigger: "belive"
+    replace: "believe"
+    word: true
+  - trigger: "benfit"
+    replace: "benefit"
+    word: true
+  - trigger: "beween"
+    replace: "between"
+    word: true
+  - trigger: "befor"
+    replace: "before"
+    word: true
+  - trigger: "behavor"
+    replace: "behavior"
+    word: true
+  - trigger: "bievable"
+    replace: "believable"
+    word: true
+  - trigger: "billionair"
+    replace: "billionaire"
+    word: true
+  - trigger: "bigest"
+    replace: "biggest"
+    word: true
+  - trigger: "bothe"
+    replace: "both"
+    word: true
+  - trigger: "bottem"
+    replace: "bottom"
+    word: true
+  - trigger: "breathe"
+    replace: "breath"
+    word: true
+  - trigger: "brievity"
+    replace: "brevity"
+    word: true
+  - trigger: "briliant"
+    replace: "brilliant"
+    word: true
+  - trigger: "broght"
+    replace: "brought"
+    word: true
+  - trigger: "brough"
+    replace: "brought"
+    word: true
+  - trigger: "buisness"
+    replace: "business"
+    word: true
+  - trigger: "busines"
+    replace: "business"
+    word: true
+  - trigger: "bussiness"
+    replace: "business"
+    word: true
+  - trigger: "bussines"
+    replace: "business"
+    word: true
+  - trigger: "buget"
+    replace: "budget"
+    word: true
+  - trigger: "buiding"
+    replace: "building"
+    word: true
+  - trigger: "builded"
+    replace: "built"
+    word: true
+  - trigger: "beutiful"
+    replace: "beautiful"
+    word: true
+  - trigger: "beteen"
+    replace: "between"
+    word: true
+  - trigger: "bottel"
+    replace: "bottle"
+    word: true
+  - trigger: "briegfly"
+    replace: "briefly"
+    word: true
+  - trigger: "brances"
+    replace: "branches"
+    word: true
+  - trigger: "breakfest"
+    replace: "breakfast"
+    word: true
+  - trigger: "brakefast"
+    replace: "breakfast"
+    word: true
+  - trigger: "breth"
+    replace: "breath"
+    word: true
+  - trigger: "breif"
+    replace: "brief"
+    word: true
+  - trigger: "brieﬂy"
+    replace: "briefly"
+    word: true
+  - trigger: "broard"
+    replace: "broad"
+    word: true
+  - trigger: "brocken"
+    replace: "broken"
+    word: true
+  - trigger: "bronw"
+    replace: "brown"
+    word: true
+  - trigger: "buyout"
+    replace: "buy out"
+    word: true
+
+# Common "C" words
+  - trigger: "calender"
+    replace: "calendar"
+    word: true
+  - trigger: "cancle"
+    replace: "cancel"
+    word: true
+  - trigger: "camoflage"
+    replace: "camouflage"
+    word: true
+  - trigger: "cancelation"
+    replace: "cancellation"
+    word: true
+  - trigger: "carefull"
+    replace: "careful"
+    word: true
+  - trigger: "carrer"
+    replace: "career"
+    word: true
+  - trigger: "catagory"
+    replace: "category"
+    word: true
+  - trigger: "cemetary"
+    replace: "cemetery"
+    word: true
+  - trigger: "charachter"
+    replace: "character"
+    word: true
+  - trigger: "caracteristic"
+    replace: "characteristic"
+    word: true
+  - trigger: "changable"
+    replace: "changeable"
+    word: true
+  - trigger: "childern"
+    replace: "children"
+    word: true
+  - trigger: "comming"
+    replace: "coming"
+    word: true
+  - trigger: "commitee"
+    replace: "committee"
+    word: true
+  - trigger: "committe"
+    replace: "committee"
+    word: true
+  - trigger: "completly"
+    replace: "completely"
+    word: true
+  - trigger: "competetive"
+    replace: "competitive"
+    word: true
+  - trigger: "concious"
+    replace: "conscious"
+    word: true
+  - trigger: "conciousness"
+    replace: "consciousness"
+    word: true
+  - trigger: "concensus"
+    replace: "consensus"
+    word: true
+  - trigger: "consience"
+    replace: "conscience"
+    word: true
+  - trigger: "convience"
+    replace: "convenience"
+    word: true
+  - trigger: "convienient"
+    replace: "convenient"
+    word: true
+  - trigger: "creater"
+    replace: "creator"
+    word: true
+  - trigger: "critisism"
+    replace: "criticism"
+    word: true
+  - trigger: "curiousity"
+    replace: "curiosity"
+    word: true
+  - trigger: "certian"
+    replace: "certain"
+    word: true
+  - trigger: "certianly"
+    replace: "certainly"
+    word: true
+  - trigger: "chalenge"
+    replace: "challenge"
+    word: true
+  - trigger: "challanged"
+    replace: "challenged"
+    word: true
+  - trigger: "chanel"
+    replace: "channel"
+    word: true
+  - trigger: "charactor"
+    replace: "character"
+    word: true
+  - trigger: "charecter"
+    replace: "character"
+    word: true
+  - trigger: "cheif"
+    replace: "chief"
+    word: true
+  - trigger: "choise"
+    replace: "choice"
+    word: true
+  - trigger: "choosen"
+    replace: "chosen"
+    word: true
+  - trigger: "circut"
+    replace: "circuit"
+    word: true
+  - trigger: "cirle"
+    replace: "circle"
+    word: true
+  - trigger: "ciuded"
+    replace: "concluded"
+    word: true
+  - trigger: "clasical"
+    replace: "classical"
+    word: true
+  - trigger: "cleint"
+    replace: "client"
+    word: true
+  - trigger: "climat"
+    replace: "climate"
+    word: true
+  - trigger: "colection"
+    replace: "collection"
+    word: true
+  - trigger: "colege"
+    replace: "college"
+    word: true
+  - trigger: "collectable"
+    replace: "collectible"
+    word: true
+  - trigger: "colloqual"
+    replace: "colloquial"
+    word: true
+  - trigger: "comon"
+    replace: "common"
+    word: true
+  - trigger: "comonly"
+    replace: "commonly"
+    word: true
+  - trigger: "comapny"
+    replace: "company"
+    word: true
+  - trigger: "comare"
+    replace: "compare"
+    word: true
+  - trigger: "comparision"
+    replace: "comparison"
+    word: true
+  - trigger: "compatability"
+    replace: "compatibility"
+    word: true
+  - trigger: "competance"
+    replace: "competence"
+    word: true
+  - trigger: "competant"
+    replace: "competent"
+    word: true
+  - trigger: "compleatly"
+    replace: "completely"
+    word: true
+  - trigger: "complext"
+    replace: "complex"
+    word: true
+  - trigger: "comprhensive"
+    replace: "comprehensive"
+    word: true
+  - trigger: "comfirm"
+    replace: "confirm"
+    word: true
+  - trigger: "comfirmation"
+    replace: "confirmation"
+    word: true
+  - trigger: "conceed"
+    replace: "concede"
+    word: true
+  - trigger: "concentarte"
+    replace: "concentrate"
+    word: true
+  - trigger: "concidering"
+    replace: "considering"
+    word: true
+  - trigger: "conductive"
+    replace: "conducive"
+    word: true
+  - trigger: "conferance"
+    replace: "conference"
+    word: true
+  - trigger: "confindence"
+    replace: "confidence"
+    word: true
+  - trigger: "confindent"
+    replace: "confident"
+    word: true
+  - trigger: "congnitive"
+    replace: "cognitive"
+    word: true
+  - trigger: "congrulations"
+    replace: "congratulations"
+    word: true
+  - trigger: "consern"
+    replace: "concern"
+    word: true
+  - trigger: "conserned"
+    replace: "concerned"
+    word: true
+  - trigger: "consept"
+    replace: "concept"
+    word: true
+  - trigger: "considerd"
+    replace: "considered"
+    word: true
+  - trigger: "consitent"
+    replace: "consistent"
+    word: true
+  - trigger: "consol"
+    replace: "console"
+    word: true
+  - trigger: "consraints"
+    replace: "constraints"
+    word: true
+  - trigger: "contary"
+    replace: "contrary"
+    word: true
+  - trigger: "contect"
+    replace: "context"
+    word: true
+  - trigger: "contects"
+    replace: "contexts"
+    word: true
+  - trigger: "contine"
+    replace: "continue"
+    word: true
+  - trigger: "continu"
+    replace: "continue"
+    word: true
+  - trigger: "continuos"
+    replace: "continuous"
+    word: true
+  - trigger: "contracict"
+    replace: "contract"
+    word: true
+  - trigger: "contrats"
+    replace: "contracts"
+    word: true
+  - trigger: "contribtion"
+    replace: "contribution"
+    word: true
+  - trigger: "contribtor"
+    replace: "contributor"
+    word: true
+  - trigger: "contol"
+    replace: "control"
+    word: true
+  - trigger: "controle"
+    replace: "control"
+    word: true
+  - trigger: "conveniance"
+    replace: "convenience"
+    word: true
+  - trigger: "cooperat"
+    replace: "cooperate"
+    word: true
+  - trigger: "coperate"
+    replace: "cooperate"
+    word: true
+  - trigger: "coporation"
+    replace: "corporation"
+    word: true
+  - trigger: "coresponding"
+    replace: "corresponding"
+    word: true
+  - trigger: "correclty"
+    replace: "correctly"
+    word: true
+  - trigger: "correect"
+    replace: "correct"
+    word: true
+  - trigger: "corrent"
+    replace: "current"
+    word: true
+  - trigger: "corset"
+    replace: "course"
+    word: true
+  - trigger: "counsil"
+    replace: "council"
+    word: true
+  - trigger: "countires"
+    replace: "countries"
+    word: true
+  - trigger: "coutries"
+    replace: "countries"
+    word: true
+  - trigger: "critcal"
+    replace: "critical"
+    word: true
+  - trigger: "crtical"
+    replace: "critical"
+    word: true
+  - trigger: "curiculum"
+    replace: "curriculum"
+    word: true
+  - trigger: "customes"
+    replace: "customers"
+    word: true
+  - trigger: "cutsomer"
+    replace: "customer"
+    word: true
+  - trigger: "cyclinder"
+    replace: "cylinder"
+    word: true
+
+# Common "D" words
+  - trigger: "decideing"
+    replace: "deciding"
+    word: true
+  - trigger: "decison"
+    replace: "decision"
+    word: true
+  - trigger: "defiantly"
+    replace: "definitely"
+    word: true
+  - trigger: "definately"
+    replace: "definitely"
+    word: true
+  - trigger: "defintion"
+    replace: "definition"
+    word: true
+  - trigger: "desicion"
+    replace: "decision"
+    word: true
+  - trigger: "developement"
+    replace: "development"
+    word: true
+  - trigger: "differance"
+    replace: "difference"
+    word: true
+  - trigger: "difinite"
+    replace: "definite"
+    word: true
+  - trigger: "discription"
+    replace: "description"
+    word: true
+  - trigger: "doesnt"
+    replace: "doesn't"
+    word: true
+  - trigger: "dotn"
+    replace: "don't"
+    word: true
+  - trigger: "dont"
+    replace: "don't"
+    word: true
+  - trigger: "dael"
+    replace: "deal"
+    word: true
+  - trigger: "dager"
+    replace: "danger"
+    word: true
+  - trigger: "dangrous"
+    replace: "dangerous"
+    word: true
+  - trigger: "databse"
+    replace: "database"
+    word: true
+  - trigger: "daugther"
+    replace: "daughter"
+    word: true
+  - trigger: "deafult"
+    replace: "default"
+    word: true
+  - trigger: "deaper"
+    replace: "deeper"
+    word: true
+  - trigger: "defendent"
+    replace: "defendant"
+    word: true
+  - trigger: "defeted"
+    replace: "defeated"
+    word: true
+  - trigger: "deficiancy"
+    replace: "deficiency"
+    word: true
+  - trigger: "definaly"
+    replace: "definitely"
+    word: true
+  - trigger: "definatly"
+    replace: "definitely"
+    word: true
+  - trigger: "definetly"
+    replace: "definitely"
+    word: true
+  - trigger: "defintely"
+    replace: "definitely"
+    word: true
+  - trigger: "delicios"
+    replace: "delicious"
+    word: true
+  - trigger: "delievery"
+    replace: "delivery"
+    word: true
+  - trigger: "democrasy"
+    replace: "democracy"
+    word: true
+  - trigger: "deprestion"
+    replace: "depression"
+    word: true
+  - trigger: "descripion"
+    replace: "description"
+    word: true
+  - trigger: "desparate"
+    replace: "desperate"
+    word: true
+  - trigger: "desparatly"
+    replace: "desperately"
+    word: true
+  - trigger: "destory"
+    replace: "destroy"
+    word: true
+  - trigger: "destoryed"
+    replace: "destroyed"
+    word: true
+  - trigger: "destrucive"
+    replace: "destructive"
+    word: true
+  - trigger: "detemine"
+    replace: "determine"
+    word: true
+  - trigger: "detemir"
+    replace: "determine"
+    word: true
+  - trigger: "deteorize"
+    replace: "deteriorate"
+    word: true
+  - trigger: "develope"
+    replace: "develop"
+    word: true
+  - trigger: "develpment"
+    replace: "development"
+    word: true
+  - trigger: "devided"
+    replace: "divided"
+    word: true
+  - trigger: "dialouge"
+    replace: "dialogue"
+    word: true
+  - trigger: "diamon"
+    replace: "diamond"
+    word: true
+  - trigger: "diference"
+    replace: "difference"
+    word: true
+  - trigger: "diferent"
+    replace: "different"
+    word: true
+  - trigger: "dificult"
+    replace: "difficult"
+    word: true
+  - trigger: "dificulty"
+    replace: "difficulty"
+    word: true
+  - trigger: "dinasour"
+    replace: "dinosaur"
+    word: true
+  - trigger: "diretor"
+    replace: "director"
+    word: true
+  - trigger: "disbale"
+    replace: "disable"
+    word: true
+  - trigger: "disapoint"
+    replace: "disappoint"
+    word: true
+  - trigger: "disapointed"
+    replace: "disappointed"
+    word: true
+  - trigger: "disaproval"
+    replace: "disapproval"
+    word: true
+  - trigger: "disatisfied"
+    replace: "dissatisfied"
+    word: true
+  - trigger: "discsion"
+    replace: "discussion"
+    word: true
+  - trigger: "diseminated"
+    replace: "disseminated"
+    word: true
+  - trigger: "disicion"
+    replace: "decision"
+    word: true
+  - trigger: "disimilar"
+    replace: "dissimilar"
+    word: true
+  - trigger: "disiplinary"
+    replace: "disciplinary"
+    word: true
+  - trigger: "dispair"
+    replace: "despair"
+    word: true
+  - trigger: "dispaly"
+    replace: "display"
+    word: true
+  - trigger: "disqualifyed"
+    replace: "disqualified"
+    word: true
+  - trigger: "disstatisfied"
+    replace: "dissatisfied"
+    word: true
+  - trigger: "disterbance"
+    replace: "disturbance"
+    word: true
+  - trigger: "distrubition"
+    replace: "distribution"
+    word: true
+  - trigger: "divison"
+    replace: "division"
+    word: true
+  - trigger: "docment"
+    replace: "document"
+    word: true
+  - trigger: "documnets"
+    replace: "documents"
+    word: true
+  - trigger: "documnet"
+    replace: "document"
+    word: true
+  - trigger: "dosent"
+    replace: "doesn't"
+    word: true
+  - trigger: "doub"
+    replace: "doubt"
+    word: true
+  - trigger: "doulbe"
+    replace: "double"
+    word: true
+  - trigger: "dramtic"
+    replace: "dramatic"
+    word: true
+  - trigger: "driking"
+    replace: "drinking"
+    word: true
+  - trigger: "droped"
+    replace: "dropped"
+    word: true
+  - trigger: "durring"
+    replace: "during"
+    word: true
+  - trigger: "dyas"
+    replace: "days"
+    word: true
+
+# Common "E" words
+  - trigger: "eigth"
+    replace: "eighth"
+    word: true
+  - trigger: "embarass"
+    replace: "embarrass"
+    word: true
+  - trigger: "enviroment"
+    replace: "environment"
+    word: true
+  - trigger: "equiptment"
+    replace: "equipment"
+    word: true
+  - trigger: "especialy"
+    replace: "especially"
+    word: true
+  - trigger: "excercise"
+    replace: "exercise"
+    word: true
+  - trigger: "exersize"
+    replace: "exercise"
+    word: true
+  - trigger: "existance"
+    replace: "existence"
+    word: true
+  - trigger: "experiance"
+    replace: "experience"
+    word: true
+  - trigger: "explaination"
+    replace: "explanation"
+    word: true
+  - trigger: "earily"
+    replace: "early"
+    word: true
+  - trigger: "eariler"
+    replace: "earlier"
+    word: true
+  - trigger: "easely"
+    replace: "easily"
+    word: true
+  - trigger: "ecstacy"
+    replace: "ecstasy"
+    word: true
+  - trigger: "editer"
+    replace: "editor"
+    word: true
+  - trigger: "efective"
+    replace: "effective"
+    word: true
+  - trigger: "eficient"
+    replace: "efficient"
+    word: true
+  - trigger: "efort"
+    replace: "effort"
+    word: true
+  - trigger: "elimentary"
+    replace: "elementary"
+    word: true
+  - trigger: "embarasing"
+    replace: "embarrassing"
+    word: true
+  - trigger: "emition"
+    replace: "emission"
+    word: true
+  - trigger: "empasize"
+    replace: "emphasize"
+    word: true
+  - trigger: "emplementation"
+    replace: "implementation"
+    word: true
+  - trigger: "employe"
+    replace: "employee"
+    word: true
+  - trigger: "employes"
+    replace: "employees"
+    word: true
+  - trigger: "enginire"
+    replace: "engineer"
+    word: true
+  - trigger: "engirnee"
+    replace: "engineer"
+    word: true
+  - trigger: "enourmous"
+    replace: "enormous"
+    word: true
+  - trigger: "eqipment"
+    replace: "equipment"
+    word: true
+  - trigger: "especaily"
+    replace: "especially"
+    word: true
+  - trigger: "espesially"
+    replace: "especially"
+    word: true
+  - trigger: "essencial"
+    replace: "essential"
+    word: true
+  - trigger: "essentail"
+    replace: "essential"
+    word: true
+  - trigger: "estabilish"
+    replace: "establish"
+    word: true
+  - trigger: "estabalished"
+    replace: "established"
+    word: true
+  - trigger: "estaimate"
+    replace: "estimate"
+    word: true
+  - trigger: "etrnal"
+    replace: "eternal"
+    word: true
+  - trigger: "etrnity"
+    replace: "eternity"
+    word: true
+  - trigger: "europian"
+    replace: "european"
+    word: true
+  - trigger: "evaulation"
+    replace: "evaluation"
+    word: true
+  - trigger: "evential"
+    replace: "eventual"
+    word: true
+  - trigger: "exagerate"
+    replace: "exaggerate"
+    word: true
+  - trigger: "exageration"
+    replace: "exaggeration"
+    word: true
+  - trigger: "exampel"
+    replace: "example"
+    word: true
+  - trigger: "excede"
+    replace: "exceed"
+    word: true
+  - trigger: "excesive"
+    replace: "excessive"
+    word: true
+  - trigger: "excition"
+    replace: "excitation"
+    word: true
+  - trigger: "excitment"
+    replace: "excitement"
+    word: true
+  - trigger: "exculsive"
+    replace: "exclusive"
+    word: true
+  - trigger: "excusme"
+    replace: "excuse"
+    word: true
+  - trigger: "execise"
+    replace: "exercise"
+    word: true
+  - trigger: "exerience"
+    replace: "experience"
+    word: true
+  - trigger: "exersice"
+    replace: "exercise"
+    word: true
+  - trigger: "exibition"
+    replace: "exhibition"
+    word: true
+  - trigger: "exicting"
+    replace: "exciting"
+    word: true
+  - trigger: "exilerate"
+    replace: "exhilarate"
+    word: true
+  - trigger: "expalin"
+    replace: "explain"
+    word: true
+  - trigger: "expalined"
+    replace: "explained"
+    word: true
+  - trigger: "expence"
+    replace: "expense"
+    word: true
+  - trigger: "expericing"
+    replace: "experiencing"
+    word: true
+  - trigger: "expierence"
+    replace: "experience"
+    word: true
+  - trigger: "expirience"
+    replace: "experience"
+    word: true
+  - trigger: "explaine"
+    replace: "explain"
+    word: true
+  - trigger: "explaned"
+    replace: "explained"
+    word: true
+  - trigger: "explaning"
+    replace: "explaining"
+    word: true
+  - trigger: "explict"
+    replace: "explicit"
+    word: true
+  - trigger: "explotation"
+    replace: "exploitation"
+    word: true
+  - trigger: "expresion"
+    replace: "expression"
+    word: true
+  - trigger: "expres"
+    replace: "express"
+    word: true
+  - trigger: "expreience"
+    replace: "experience"
+    word: true
+  - trigger: "exprience"
+    replace: "experience"
+    word: true
+  - trigger: "expriment"
+    replace: "experiment"
+    word: true
+  - trigger: "exsiting"
+    replace: "existing"
+    word: true
+  - trigger: "exspect"
+    replace: "expect"
+    word: true
+  - trigger: "exspected"
+    replace: "expected"
+    word: true
+  - trigger: "exspensive"
+    replace: "expensive"
+    word: true
+  - trigger: "exsperts"
+    replace: "experts"
+    word: true
+  - trigger: "exspression"
+    replace: "expression"
+    word: true
+  - trigger: "exstatic"
+    replace: "ecstatic"
+    word: true
+  - trigger: "exstensive"
+    replace: "extensive"
+    word: true
+  - trigger: "extendet"
+    replace: "extended"
+    word: true
+  - trigger: "extention"
+    replace: "extension"
+    word: true
+  - trigger: "extersive"
+    replace: "extensive"
+    word: true
+  - trigger: "extrernal"
+    replace: "external"
+    word: true
+  - trigger: "extrme"
+    replace: "extreme"
+    word: true
+  - trigger: "extrordinary"
+    replace: "extraordinary"
+    word: true
+  - trigger: "exumple"
+    replace: "example"
+    word: true
+  - trigger: "eyar"
+    replace: "year"
+    word: true
+
+# Common "F" words
+  - trigger: "familar"
+    replace: "familiar"
+    word: true
+  - trigger: "febuary"
+    replace: "february"
+    word: true
+  - trigger: "finaly"
+    replace: "finally"
+    word: true
+  - trigger: "foriegn"
+    replace: "foreign"
+    word: true
+  - trigger: "fourty"
+    replace: "forty"
+    word: true
+  - trigger: "freind"
+    replace: "friend"
+    word: true
+  - trigger: "freinds"
+    replace: "friends"
+    word: true
+  - trigger: "fullfill"
+    replace: "fulfill"
+    word: true
+  - trigger: "funtion"
+    replace: "function"
+    word: true
+  - trigger: "facinating"
+    replace: "fascinating"
+    word: true
+  - trigger: "facilty"
+    replace: "facility"
+    word: true
+  - trigger: "falied"
+    replace: "failed"
+    word: true
+  - trigger: "famouse"
+    replace: "famous"
+    word: true
+  - trigger: "fanatsy"
+    replace: "fantasy"
+    word: true
+  - trigger: "fantacy"
+    replace: "fantasy"
+    word: true
+  - trigger: "fascilitating"
+    replace: "facilitating"
+    word: true
+  - trigger: "fashipn"
+    replace: "fashion"
+    word: true
+  - trigger: "faught"
+    replace: "fought"
+    word: true
+  - trigger: "featur"
+    replace: "feature"
+    word: true
+  - trigger: "feautred"
+    replace: "featured"
+    word: true
+  - trigger: "fesibility"
+    replace: "feasibility"
+    word: true
+  - trigger: "feild"
+    replace: "field"
+    word: true
+  - trigger: "ferral"
+    replace: "feral"
+    word: true
+  - trigger: "fiancee"
+    replace: "fiancée"
+    word: true
+  - trigger: "figth"
+    replace: "fight"
+    word: true
+  - trigger: "finacial"
+    replace: "financial"
+    word: true
+  - trigger: "finace"
+    replace: "finance"
+    word: true
+  - trigger: "fininsh"
+    replace: "finish"
+    word: true
+  - trigger: "fininished"
+    replace: "finished"
+    word: true
+  - trigger: "firends"
+    replace: "friends"
+    word: true
+  - trigger: "firsat"
+    replace: "first"
+    word: true
+  - trigger: "firsy"
+    replace: "first"
+    word: true
+  - trigger: "fisrt"
+    replace: "first"
+    word: true
+  - trigger: "flaged"
+    replace: "flagged"
+    word: true
+  - trigger: "flaging"
+    replace: "flagging"
+    word: true
+  - trigger: "flaoting"
+    replace: "floating"
+    word: true
+  - trigger: "floatig"
+    replace: "floating"
+    word: true
+  - trigger: "floting"
+    replace: "floating"
+    word: true
+  - trigger: "fluk"
+    replace: "fluke"
+    word: true
+  - trigger: "flused"
+    replace: "flushed"
+    word: true
+  - trigger: "folow"
+    replace: "follow"
+    word: true
+  - trigger: "folowed"
+    replace: "followed"
+    word: true
+  - trigger: "folowing"
+    replace: "following"
+    word: true
+  - trigger: "folows"
+    replace: "follows"
+    word: true
+  - trigger: "fondation"
+    replace: "foundation"
+    word: true
+  - trigger: "fora"
+    replace: "for a"
+    word: true
+  - trigger: "foraward"
+    replace: "forward"
+    word: true
+  - trigger: "forcast"
+    replace: "forecast"
+    word: true
+  - trigger: "foreing"
+    replace: "foreign"
+    word: true
+  - trigger: "forgetery"
+    replace: "forgery"
+    word: true
+  - trigger: "forgivness"
+    replace: "forgiveness"
+    word: true
+  - trigger: "formard"
+    replace: "forward"
+    word: true
+  - trigger: "formost"
+    replace: "foremost"
+    word: true
+  - trigger: "forpet"
+    replace: "forget"
+    word: true
+  - trigger: "forprofit"
+    replace: "for profit"
+    word: true
+  - trigger: "forrest"
+    replace: "forest"
+    word: true
+  - trigger: "forseeable"
+    replace: "foreseeable"
+    word: true
+  - trigger: "fortell"
+    replace: "foretell"
+    word: true
+  - trigger: "forthe"
+    replace: "for the"
+    word: true
+  - trigger: "fortuante"
+    replace: "fortunate"
+    word: true
+  - trigger: "fortunatly"
+    replace: "fortunately"
+    word: true
+  - trigger: "forumn"
+    replace: "forum"
+    word: true
+  - trigger: "foryth"
+    replace: "forth"
+    word: true
+  - trigger: "foth"
+    replace: "forth"
+    word: true
+  - trigger: "foundamental"
+    replace: "fundamental"
+    word: true
+  - trigger: "fource"
+    replace: "force"
+    word: true
+  - trigger: "fragement"
+    replace: "fragment"
+    word: true
+  - trigger: "franch"
+    replace: "branch"
+    word: true
+  - trigger: "frech"
+    replace: "french"
+    word: true
+  - trigger: "freindly"
+    replace: "friendly"
+    word: true
+  - trigger: "frequentely"
+    replace: "frequently"
+    word: true
+  - trigger: "freze"
+    replace: "freeze"
+    word: true
+  - trigger: "frined"
+    replace: "friend"
+    word: true
+  - trigger: "frm"
+    replace: "from"
+    word: true
+  - trigger: "frombirth"
+    replace: "from birth"
+    word: true
+  - trigger: "fron"
+    replace: "from"
+    word: true
+  - trigger: "fruite"
+    replace: "fruit"
+    word: true
+  - trigger: "fullfil"
+    replace: "fulfill"
+    word: true
+  - trigger: "fullfilll"
+    replace: "fulfill"
+    word: true
+  - trigger: "futher"
+    replace: "further"
+    word: true
+  - trigger: "futre"
+    replace: "future"
+    word: true
+  - trigger: "futureproofing"
+    replace: "future-proofing"
+    word: true
+  - trigger: "fuze"
+    replace: "fuse"
+    word: true
+
+# Common "G" words
+  - trigger: "goverment"
+    replace: "government"
+    word: true
+  - trigger: "govement"
+    replace: "government"
+    word: true
+  - trigger: "gramar"
+    replace: "grammar"
+    word: true
+  - trigger: "grammer"
+    replace: "grammar"
+    word: true
+  - trigger: "greatful"
+    replace: "grateful"
+    word: true
+  - trigger: "greif"
+    replace: "grief"
+    word: true
+  - trigger: "guage"
+    replace: "gauge"
+    word: true
+  - trigger: "gaurd"
+    replace: "guard"
+    word: true
+  - trigger: "gaurantee"
+    replace: "guarantee"
+    word: true
+  - trigger: "guarentee"
+    replace: "guarantee"
+    word: true
+  - trigger: "galary"
+    replace: "gallery"
+    word: true
+  - trigger: "gard"
+    replace: "guard"
+    word: true
+  - trigger: "geneology"
+    replace: "genealogy"
+    word: true
+  - trigger: "genious"
+    replace: "genius"
+    word: true
+  - trigger: "gental"
+    replace: "gentle"
+    word: true
+  - trigger: "geting"
+    replace: "getting"
+    word: true
+  - trigger: "gettign"
+    replace: "getting"
+    word: true
+  - trigger: "giberish"
+    replace: "gibberish"
+    word: true
+  - trigger: "gilr"
+    replace: "girl"
+    word: true
+  - trigger: "gived"
+    replace: "given"
+    word: true
+  - trigger: "glaobal"
+    replace: "global"
+    word: true
+  - trigger: "gloabl"
+    replace: "global"
+    word: true
+  - trigger: "gobal"
+    replace: "global"
+    word: true
+  - trigger: "godess"
+    replace: "goddess"
+    word: true
+  - trigger: "goign"
+    replace: "going"
+    word: true
+  - trigger: "goingto"
+    replace: "going to"
+    word: true
+  - trigger: "govermnet"
+    replace: "government"
+    word: true
+  - trigger: "govenrment"
+    replace: "government"
+    word: true
+  - trigger: "gragually"
+    replace: "gradually"
+    word: true
+  - trigger: "gramatical"
+    replace: "grammatical"
+    word: true
+  - trigger: "gramer"
+    replace: "grammar"
+    word: true
+  - trigger: "graunted"
+    replace: "granted"
+    word: true
+  - trigger: "grear"
+    replace: "great"
+    word: true
+  - trigger: "greiving"
+    replace: "grieving"
+    word: true
+  - trigger: "gropu"
+    replace: "group"
+    word: true
+  - trigger: "groth"
+    replace: "growth"
+    word: true
+  - trigger: "grpah"
+    replace: "graph"
+    word: true
+  - trigger: "grpahs"
+    replace: "graphs"
+    word: true
+  - trigger: "grwo"
+    replace: "grow"
+    word: true
+  - trigger: "guality"
+    replace: "quality"
+    word: true
+  - trigger: "guareentee"
+    replace: "guarantee"
+    word: true
+  - trigger: "guarenteeing"
+    replace: "guaranteeing"
+    word: true
+  - trigger: "guarentees"
+    replace: "guarantees"
+    word: true
+  - trigger: "guarnteed"
+    replace: "guaranteed"
+    word: true
+  - trigger: "gurantee"
+    replace: "guarantee"
+    word: true
+  - trigger: "guranteed"
+    replace: "guaranteed"
+    word: true
+  - trigger: "gurantees"
+    replace: "guarantees"
+    word: true
+  - trigger: "guranteeing"
+    replace: "guaranteeing"
+    word: true
+  - trigger: "guidence"
+    replace: "guidance"
+    word: true
+  - trigger: "gulity"
+    replace: "guilty"
+    word: true
+  - trigger: "guraentee"
+    replace: "guarantee"
+    word: true
+  - trigger: "gussing"
+    replace: "guessing"
+    word: true
+  - trigger: "gutteral"
+    replace: "guttural"
+    word: true
+  - trigger: "guyded"
+    replace: "guided"
+    word: true
+  - trigger: "guyding"
+    replace: "guiding"
+    word: true
+  - trigger: "guylines"
+    replace: "guidelines"
+    word: true
+  - trigger: "guyves"
+    replace: "gives"
+    word: true
+  - trigger: "guyze"
+    replace: "guys"
+    word: true
+
+# Common "H" words
+  - trigger: "habbit"
+    replace: "habit"
+    word: true
+  - trigger: "harrass"
+    replace: "harass"
+    word: true
+  - trigger: "hieght"
+    replace: "height"
+    word: true
+  - trigger: "heirarchy"
+    replace: "hierarchy"
+    word: true
+  - trigger: "hten"
+    replace: "then"
+    word: true
+  - trigger: "htis"
+    replace: "this"
+    word: true
+  - trigger: "hte"
+    replace: "the"
+    word: true
+  - trigger: "htat"
+    replace: "that"
+    word: true
+  - trigger: "hwat"
+    replace: "what"
+    word: true
+  - trigger: "hwere"
+    replace: "where"
+    word: true
+  - trigger: "hwile"
+    replace: "while"
+    word: true
+  - trigger: "hwole"
+    replace: "whole"
+    word: true
+
+# Common "I" words
+  - trigger: "imediate"
+    replace: "immediate"
+    word: true
+  - trigger: "imediately"
+    replace: "immediately"
+    word: true
+  - trigger: "independant"
+    replace: "independent"
+    word: true
+  - trigger: "inital"
+    replace: "initial"
+    word: true
+  - trigger: "intrested"
+    replace: "interested"
+    word: true
+  - trigger: "intersting"
+    replace: "interesting"
+    word: true
+  - trigger: "intergrate"
+    replace: "integrate"
+    word: true
+  - trigger: "inteligence"
+    replace: "intelligence"
+    word: true
+  - trigger: "inteligent"
+    replace: "intelligent"
+    word: true
+  - trigger: "irresistable"
+    replace: "irresistible"
+    word: true
+  - trigger: "irregardless"
+    replace: "regardless"
+    word: true
+
+# Common "J" words
+  - trigger: "judgement"
+    replace: "judgment"
+    word: true
+  - trigger: "jewlery"
+    replace: "jewelry"
+    word: true
+
+# Common "K" words
+  - trigger: "knowlege"
+    replace: "knowledge"
+    word: true
+  - trigger: "knowlegde"
+    replace: "knowledge"
+    word: true
+
+# Common "L" words
+  - trigger: "lenght"
+    replace: "length"
+    word: true
+  - trigger: "leizure"
+    replace: "leisure"
+    word: true
+  - trigger: "liason"
+    replace: "liaison"
+    word: true
+  - trigger: "libary"
+    replace: "library"
+    word: true
+  - trigger: "liesure"
+    replace: "leisure"
+    word: true
+  - trigger: "lightening"
+    replace: "lightning"
+    word: true
+  - trigger: "lisence"
+    replace: "license"
+    word: true
+  - trigger: "lisense"
+    replace: "license"
+    word: true
+  - trigger: "losse"
+    replace: "lose"
+    word: true
+
+# Common "M" words
+  - trigger: "maintainence"
+    replace: "maintenance"
+    word: true
+  - trigger: "managment"
+    replace: "management"
+    word: true
+  - trigger: "manuver"
+    replace: "maneuver"
+    word: true
+  - trigger: "marraige"
+    replace: "marriage"
+    word: true
+  - trigger: "mathmatics"
+    replace: "mathematics"
+    word: true
+  - trigger: "medcine"
+    replace: "medicine"
+    word: true
+  - trigger: "memeber"
+    replace: "member"
+    word: true
+  - trigger: "migreate"
+    replace: "migrate"
+    word: true
+  - trigger: "millenium"
+    replace: "millennium"
+    word: true
+  - trigger: "minature"
+    replace: "miniature"
+    word: true
+  - trigger: "mischievious"
+    replace: "mischievous"
+    word: true
+  - trigger: "neccessary"
+    replace: "necessary"
+    word: true
+  - trigger: "necessery"
+    replace: "necessary"
+    word: true
+
+# Common "N" words
+  - trigger: "naturaly"
+    replace: "naturally"
+    word: true
+  - trigger: "neice"
+    replace: "niece"
+    word: true
+  - trigger: "nieghbor"
+    replace: "neighbor"
+    word: true
+  - trigger: "noone"
+    replace: "no one"
+    word: true
+  - trigger: "noticable"
+    replace: "noticeable"
+    word: true
+  - trigger: "neccesarily"
+    replace: "necessarily"
+    word: true
+
+# Common "O" words
+  - trigger: "ocassion"
+    replace: "occasion"
+    word: true
+  - trigger: "occassion"
+    replace: "occasion"
+    word: true
+  - trigger: "occured"
+    replace: "occurred"
+    word: true
+  - trigger: "occurence"
+    replace: "occurrence"
+    word: true
+  - trigger: "occurance"
+    replace: "occurrence"
+    word: true
+  - trigger: "oficer"
+    replace: "officer"
+    word: true
+  - trigger: "omited"
+    replace: "omitted"
+    word: true
+  - trigger: "oppertunity"
+    replace: "opportunity"
+    word: true
+  - trigger: "orginal"
+    replace: "original"
+    word: true
+  - trigger: "originaly"
+    replace: "originally"
+    word: true
+  - trigger: "oringal"
+    replace: "original"
+    word: true
+  - trigger: "outragous"
+    replace: "outrageous"
+    word: true
+
+# Common "P" words
+  - trigger: "paralel"
+    replace: "parallel"
+    word: true
+  - trigger: "parliment"
+    replace: "parliament"
+    word: true
+  - trigger: "particualr"
+    replace: "particular"
+    word: true
+  - trigger: "particulary"
+    replace: "particularly"
+    word: true
+  - trigger: "percieve"
+    replace: "perceive"
+    word: true
+  - trigger: "peice"
+    replace: "piece"
+    word: true
+  - trigger: "penatly"
+    replace: "penalty"
+    word: true
+  - trigger: "perfomance"
+    replace: "performance"
+    word: true
+  - trigger: "permenant"
+    replace: "permanent"
+    word: true
+  - trigger: "personel"
+    replace: "personnel"
+    word: true
+  - trigger: "plesant"
+    replace: "pleasant"
+    word: true
+  - trigger: "posession"
+    replace: "possession"
+    word: true
+  - trigger: "posible"
+    replace: "possible"
+    word: true
+  - trigger: "potatos"
+    replace: "potatoes"
+    word: true
+  - trigger: "practicaly"
+    replace: "practically"
+    word: true
+  - trigger: "preffered"
+    replace: "preferred"
+    word: true
+  - trigger: "prefered"
+    replace: "preferred"
+    word: true
+  - trigger: "presense"
+    replace: "presence"
+    word: true
+  - trigger: "probaly"
+    replace: "probably"
+    word: true
+  - trigger: "problably"
+    replace: "probably"
+    word: true
+  - trigger: "proceedure"
+    replace: "procedure"
+    word: true
+  - trigger: "profesional"
+    replace: "professional"
+    word: true
+  - trigger: "professer"
+    replace: "professor"
+    word: true
+  - trigger: "progres"
+    replace: "progress"
+    word: true
+  - trigger: "promiss"
+    replace: "promise"
+    word: true
+  - trigger: "pronounciation"
+    replace: "pronunciation"
+    word: true
+  - trigger: "psycology"
+    replace: "psychology"
+    word: true
+  - trigger: "publically"
+    replace: "publicly"
+    word: true
+  - trigger: "puting"
+    replace: "putting"
+    word: true
+
+# Common "Q" words
+  - trigger: "quesiton"
+    replace: "question"
+    word: true
+  - trigger: "questoin"
+    replace: "question"
+    word: true
+  - trigger: "quikc"
+    replace: "quick"
+    word: true
+  - trigger: "quize"
+    replace: "quiz"
+    word: true
+
+# Common "R" words
+  - trigger: "recieve"
+    replace: "receive"
+    word: true
+  - trigger: "recieved"
+    replace: "received"
+    word: true
+  - trigger: "reciept"
+    replace: "receipt"
+    word: true
+  - trigger: "recomend"
+    replace: "recommend"
+    word: true
+  - trigger: "recomendation"
+    replace: "recommendation"
+    word: true
+  - trigger: "refered"
+    replace: "referred"
+    word: true
+  - trigger: "relvent"
+    replace: "relevant"
+    word: true
+  - trigger: "religous"
+    replace: "religious"
+    word: true
+  - trigger: "realy"
+    replace: "really"
+    word: true
+  - trigger: "resistence"
+    replace: "resistance"
+    word: true
+  - trigger: "restaraunt"
+    replace: "restaurant"
+    word: true
+  - trigger: "rythm"
+    replace: "rhythm"
+    word: true
+  - trigger: "rythym"
+    replace: "rhythm"
+    word: true
+
+# Common "S" words
+  - trigger: "safty"
+    replace: "safety"
+    word: true
+  - trigger: "scedule"
+    replace: "schedule"
+    word: true
+  - trigger: "secratary"
+    replace: "secretary"
+    word: true
+  - trigger: "seperate"
+    replace: "separate"
+    word: true
+  - trigger: "similiar"
+    replace: "similar"
+    word: true
+  - trigger: "similer"
+    replace: "similar"
+    word: true
+  - trigger: "sincerly"
+    replace: "sincerely"
+    word: true
+  - trigger: "speach"
+    replace: "speech"
+    word: true
+  - trigger: "statment"
+    replace: "statement"
+    word: true
+  - trigger: "stength"
+    replace: "strength"
+    word: true
+  - trigger: "strenght"
+    replace: "strength"
+    word: true
+  - trigger: "studing"
+    replace: "studying"
+    word: true
+  - trigger: "suceed"
+    replace: "succeed"
+    word: true
+  - trigger: "sucess"
+    replace: "success"
+    word: true
+  - trigger: "sucessful"
+    replace: "successful"
+    word: true
+  - trigger: "suprise"
+    replace: "surprise"
+    word: true
+  - trigger: "surley"
+    replace: "surely"
+    word: true
+  - trigger: "sychology"
+    replace: "psychology"
+    word: true
+
+# Common "T" words
+  - trigger: "tecnology"
+    replace: "technology"
+    word: true
+  - trigger: "teh"
+    replace: "the"
+    word: true
+  - trigger: "temperture"
+    replace: "temperature"
+    word: true
+  - trigger: "thier"
+    replace: "their"
+    word: true
+  - trigger: "theif"
+    replace: "thief"
+    word: true
+  - trigger: "thsi"
+    replace: "this"
+    word: true
+  - trigger: "throught"
+    replace: "thought"
+    word: true
+  - trigger: "tommorow"
+    replace: "tomorrow"
+    word: true
+  - trigger: "tongiht"
+    replace: "tonight"
+    word: true
+  - trigger: "transfered"
+    replace: "transferred"
+    word: true
+  - trigger: "transfferred"
+    replace: "transferred"
+    word: true
+  - trigger: "truely"
+    replace: "truly"
+    word: true
+  - trigger: "twelth"
+    replace: "twelfth"
+    word: true
+  - trigger: "typcial"
+    replace: "typical"
+    word: true
+
+# Common "U" words
+  - trigger: "udner"
+    replace: "under"
+    word: true
+  - trigger: "uderstand"
+    replace: "understand"
+    word: true
+  - trigger: "untill"
+    replace: "until"
+    word: true
+  - trigger: "usualy"
+    replace: "usually"
+    word: true
+  - trigger: "utilise"
+    replace: "utilize"
+    word: true
+
+# Common "V" words
+  - trigger: "vaccum"
+    replace: "vacuum"
+    word: true
+  - trigger: "valuble"
+    replace: "valuable"
+    word: true
+  - trigger: "visable"
+    replace: "visible"
+    word: true
+  - trigger: "vrey"
+    replace: "very"
+    word: true
+
+# Common "W" words
+  - trigger: "waht"
+    replace: "what"
+    word: true
+  - trigger: "wanteed"
+    replace: "wanted"
+    word: true
+  - trigger: "wether"
+    replace: "whether"
+    word: true
+  - trigger: "whcih"
+    replace: "which"
+    word: true
+  - trigger: "whihc"
+    replace: "which"
+    word: true
+  - trigger: "whta"
+    replace: "what"
+    word: true
+  - trigger: "wihch"
+    replace: "which"
+    word: true
+  - trigger: "wiht"
+    replace: "with"
+    word: true
+  - trigger: "wnat"
+    replace: "want"
+    word: true
+  - trigger: "wnated"
+    replace: "wanted"
+    word: true
+  - trigger: "woudl"
+    replace: "would"
+    word: true
+  - trigger: "wriet"
+    replace: "write"
+    word: true
+  - trigger: "wrtie"
+    replace: "write"
+    word: true
+  - trigger: "wont"
+    replace: "won't"
+    word: true
+  - trigger: "writting"
+    replace: "writing"
+    word: true
+  - trigger: "wriiten"
+    replace: "written"
+    word: true
+
+# Common "Y" words
+  - trigger: "yuo"
+    replace: "you"
+    word: true
+  - trigger: "yuor"
+    replace: "your"
+    word: true
+  - trigger: "yoru"
+    replace: "your"
+    word: true
+  - trigger: "youre"
+    replace: "you're"
+    word: true
