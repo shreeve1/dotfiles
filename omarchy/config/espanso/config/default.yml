@@ -1,0 +1,12 @@
+# Espanso configuration.
+# System prerequisites (not tracked here): /etc/udev/rules.d/70-uinput.rules
+# grants group "input" rw on /dev/uinput, and /etc/modules-load.d/uinput.conf
+# loads uinput at boot. Without both, injection on Wayland silently does nothing.
+backend: Inject
+
+keyboard_layout:
+  rules: ""
+  model: "pc105"
+  layout: "us"
+  variant: ""
+  options: "ctrl:nocaps"

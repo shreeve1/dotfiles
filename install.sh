@@ -218,6 +218,7 @@ seed_path "herdr/endpoints.json" ".local/state/herdr/client/endpoints.json"
 if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/hypr" ".config/hypr"
   link_path "omarchy/config/omarchy" ".config/omarchy"
+  link_path "omarchy/config/espanso" ".config/espanso"
   link_path "omarchy/local/share/keystroke/extensions/hermes" ".local/share/keystroke/extensions/hermes"
   link_path "omarchy/config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf" ".config/wireplumber/wireplumber.conf.d/bluetooth-a2dp-autoconnect.conf"
   link_path "omarchy/bin/audio-device-restore" ".local/bin/audio-device-restore"
