@@ -48,3 +48,9 @@
 --     column_width = 0.97,
 --   },
 -- })
+
+-- Agent CDP Chrome (~/dotfiles/bin/chrome-cdp, --class=chrome-cdp): opens silently
+-- on workspace 5, omp clicks must not pull you to its workspace (it only marks
+-- itself urgent), and it keeps rendering on a hidden workspace so omp
+-- screenshots don't time out.
+o.window("chrome-cdp", { tag = "+chromium-based-browser", workspace = "5 silent", focus_on_activate = false, render_unfocused = true })
