@@ -18,6 +18,11 @@ Warnings (never block): VERIFY_FINAL_WARN=all (default) shows UNSURE claims and
 "check could not run"; =errors shows only "check could not run"; =none shows
 neither. Hidden UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims
 always block, whatever the level.
+
+--rewake (Claude Code `asyncRewake` hook): a FALSE finding is written to stderr and the
+script exits 2, which wakes Claude in the background with the findings as a system
+reminder. A marker file under ~/.cache/verify-final/ makes the Stop that follows the
+correction turn skip the check, so there is at most one correction per wake.
 """
 import json
 import os
@@ -34,6 +39,7 @@ MODEL = os.environ.get("VERIFY_FINAL_MODEL", "openrouter/deepseek/deepseek-v4.1-
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")
+STATE = os.path.expanduser("~/.cache/verify-final")
 
 PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
 
@@ -74,6 +80,15 @@ def main():
         ev = json.load(sys.stdin)
     except ValueError:
         return
+    rewake = "--rewake" in sys.argv
+    sid = re.sub(r"[^A-Za-z0-9_-]", "", str(ev.get("session_id") or ""))
+    marker = os.path.join(STATE, f"rewoke-{sid}") if rewake and sid else None
+    if marker and os.path.exists(marker):
+        fresh = time.time() - os.path.getmtime(marker) < 3600
+        os.unlink(marker)
+        if fresh:
+            log(harness, "skip_correction_pass", 0.0)
+            return
     answer = (ev.get("last_assistant_message") or "").strip()
     if ev.get("stop_hook_active") or len(answer) < MIN_CHARS:
         return
@@ -135,6 +150,12 @@ def main():
             + "\nRe-ground on that evidence, correct these claims, then give the corrected final answer "
             "and say in one line what you changed."
         )
+    if rewake and false:
+        if marker:
+            os.makedirs(STATE, exist_ok=True)
+            open(marker, "w").close()
+        sys.stderr.write(out_obj["reason"] + "\n")
+        sys.exit(2)
     if out_obj:
         say(out_obj)
 
