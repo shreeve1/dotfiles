@@ -2,6 +2,10 @@
 """Idempotently add (or --remove) the verify-final Stop hook in the machine-local
 Claude Code (~/.claude/settings.json) and Codex (~/.codex/hooks.json) configs.
 
+Claude Code runs it as an `asyncRewake` hook (background; a FALSE finding exits 2 and
+wakes Claude). Codex runs it as an ordinary blocking Stop hook. An outdated entry of
+ours is replaced in place.
+
 omp needs no install step: .omp/agent/extensions/verify-final.ts is tracked and
 auto-discovered through the ~/.omp/agent -> dotfiles/.omp/agent link.
 
@@ -15,8 +19,8 @@ import sys
 REMOVE = "--remove" in sys.argv
 HOME = os.path.expanduser("~")
 TARGETS = [
-    (os.path.join(HOME, ".claude", "settings.json"), "claude", {}),
-    (os.path.join(HOME, ".codex", "hooks.json"), "codex", {"statusMessage": "Verifying final answer"}),
+    (os.path.join(HOME, ".claude", "settings.json"), "claude", "--rewake", {"asyncRewake": True}),
+    (os.path.join(HOME, ".codex", "hooks.json"), "codex", "", {"statusMessage": "Verifying final answer"}),
 ]
 
 
@@ -24,14 +28,16 @@ def has_ours(group):
     return any("verify-final" in str(h.get("command", "")) for h in group.get("hooks", []))
 
 
-for path, harness, extra in TARGETS:
+for path, harness, flag, extra in TARGETS:
     if not os.path.isfile(path):
         print(f"skip: {path} not found")
         continue
     with open(path) as f:
         data = json.load(f)
     stop = data.setdefault("hooks", {}).setdefault("Stop", [])
-    present = any(has_ours(g) for g in stop)
+    present = [g for g in stop if has_ours(g)]
+    entry = {"type": "command", "command": f'"$HOME/.agents/bin/verify-final" --harness {harness}{" " + flag if flag else ""}', "timeout": 150, **extra}
+    want = {"hooks": [entry]}
     if REMOVE:
         if not present:
             print(f"ok: {harness} hook already absent")
@@ -39,12 +45,11 @@ for path, harness, extra in TARGETS:
         data["hooks"]["Stop"] = [g for g in stop if not has_ours(g)]
         action = "removed"
     else:
-        if present:
+        if present == [want]:
             print(f"ok: {harness} hook already installed")
             continue
-        entry = {"type": "command", "command": f'"$HOME/.agents/bin/verify-final" --harness {harness}', "timeout": 150, **extra}
-        stop.append({"hooks": [entry]})
-        action = "installed"
+        data["hooks"]["Stop"] = [g for g in stop if not has_ours(g)] + [want]
+        action = "updated" if present else "installed"
     bak = path + ".bak-verify-final"
     if not os.path.exists(bak):
         shutil.copy2(path, bak)
