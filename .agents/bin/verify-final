@@ -29,7 +29,9 @@ MODEL = os.environ.get("VERIFY_FINAL_MODEL", "openrouter/deepseek/deepseek-v4.1-
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 LOG = os.path.expanduser("~/.cache/verify-final.log")
 
-PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed or verified). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
+PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
+
+Only report claims whose truth can be established by reading files. SKIP, and write no line at all for, claims that need something you cannot do read-only: test or build results ("all tests pass"), command output, git history or staging state, other sessions' activity, live or runtime behaviour, and whether the agent ran something. Use UNSURE only when a file-checkable claim has ambiguous or missing evidence in the files.
 
 Reply with one line per claim, nothing else:
 VERIFIED | <file:line evidence> | <claim>
@@ -101,7 +103,7 @@ def main():
 
     verdicts = [VERDICT.match(l) for l in out.splitlines()]
     verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
-    if rc == 0 and "NO_CLAIMS" in out and not verdicts:
+    if rc == 0 and not verdicts and ("NO_CLAIMS" in out or not out.strip()):
         log(harness, "no_claims", secs)
         return
     if rc != 0 or not verdicts:
