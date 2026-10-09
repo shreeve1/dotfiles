@@ -60,35 +60,51 @@ export default function (pi: ExtensionAPI) {
   // One correction pass per user turn: the follow-up turn's own agent_end is skipped.
   let correcting = false;
 
-  pi.on("agent_end", async (event, ctx) => {
-    try {
-      if (process.env.VERIFY_FINAL === "0") return;
-      if (field(event, "willContinue") === true) return;
-      if (ctx.mode !== "tui" && process.env.VERIFY_FINAL_HEADLESS !== "1") return;
-      const wasCorrecting = correcting;
-      correcting = false;
-      const answer = lastAssistantText(field(event, "messages"));
-      if (!answer) return;
+  // A newer agent run invalidates any verification still in flight.
+  let generation = 0;
+  pi.on("agent_start", () => {
+    generation++;
+  });
 
-      const out = await runVerify({
-        last_assistant_message: answer,
-        cwd: ctx.cwd,
-        stop_hook_active: wasCorrecting,
+  // omp aborts agent_end handlers after 30 s and the checker can take longer, so the
+  // handler only starts the check; the result is delivered when it finishes.
+  pi.on("agent_end", (event, ctx) => {
+    if (process.env.VERIFY_FINAL === "0") return;
+    if (field(event, "willContinue") === true) return;
+    if (ctx.mode !== "tui" && process.env.VERIFY_FINAL_HEADLESS !== "1") return;
+    const answer = lastAssistantText(field(event, "messages"));
+    if (!answer) return;
+    const wasCorrecting = correcting;
+    correcting = false;
+    const started = generation;
+    const cwd = ctx.cwd;
+    void runVerify({
+      last_assistant_message: answer,
+      cwd,
+      stop_hook_active: wasCorrecting,
+    })
+      .then((out) => {
+        if (!out.trim() || started !== generation) return;
+        const res: unknown = JSON.parse(out);
+        const warning = field(res, "systemMessage");
+        const reason = field(res, "reason");
+        if (typeof warning === "string") {
+          try {
+            if (ctx.hasUI) ctx.ui.notify(warning, "warning");
+          } catch {
+            // Context went stale while the check ran; drop the warning.
+          }
+        }
+        if (field(res, "decision") === "block" && typeof reason === "string") {
+          correcting = true;
+          pi.sendMessage(
+            { customType: "verify-final", content: reason, display: true },
+            { triggerTurn: true, deliverAs: "nextTurn" },
+          );
+        }
+      })
+      .catch(() => {
+        // Never disturb the session because the verifier failed.
       });
-      if (!out.trim()) return;
-      const res: unknown = JSON.parse(out);
-      const warning = field(res, "systemMessage");
-      const reason = field(res, "reason");
-      if (typeof warning === "string" && ctx.hasUI) ctx.ui.notify(warning, "warning");
-      if (field(res, "decision") === "block" && typeof reason === "string") {
-        correcting = true;
-        pi.sendMessage(
-          { customType: "verify-final", content: reason, display: true },
-          { triggerTurn: true, deliverAs: "nextTurn" },
-        );
-      }
-    } catch {
-      // Never disturb the session because the verifier failed.
-    }
   });
 }
