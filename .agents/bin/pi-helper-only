@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Make Pi a helper-only harness (ADR 0014): a plain `pi` loads built-in tools only.
+
+Rewrites ~/.pi/agent/settings.json: `packages` -> [] and `extensions` -> an exact-file
+`-path` exclusion for every extension entry point found under ~/.pi/agent/extensions
+(directory-level exclusions do not work). Re-run after adding an extension.
+Helpers keep working: they pass --no-extensions and load what they need with -e.
+
+  pi-helper-only            apply (backs up settings.json once to settings.json.bak-helper-only)
+  pi-helper-only --dry-run  print the new extensions list only
+"""
+import json
+import os
+import shutil
+import sys
+
+AGENT = os.path.expanduser("~/.pi/agent")
+EXT = os.path.join(AGENT, "extensions")
+SETTINGS = os.path.join(AGENT, "settings.json")
+SKIP = {"node_modules", "shared"}
+NESTED = {"@juicesharp", "@tintinweb"}
+
+
+def entries(d):
+    out = [f for f in ("index.ts", "index.js") if os.path.isfile(os.path.join(d, f))]
+    pj = os.path.join(d, "package.json")
+    if os.path.isfile(pj):
+        try:
+            manifest = (json.load(open(pj)).get("pi") or {}).get("extensions") or []
+        except ValueError:
+            manifest = []
+        for e in manifest:
+            e = e[2:] if e.startswith("./") else e
+            if e not in out and os.path.isfile(os.path.join(d, e)):
+                out.append(e)
+    return out
+
+
+def exclusions():
+    exc = []
+    for n in sorted(os.listdir(EXT)):
+        p = os.path.join(EXT, n)
+        if n in SKIP:
+            continue
+        if os.path.isfile(p) and n.endswith(".ts"):
+            exc.append(f"-extensions/{n}")
+        elif os.path.isdir(p):
+            subs = [f"{n}/{c}" for c in sorted(os.listdir(p)) if os.path.isdir(os.path.join(p, c))] if n in NESTED else [n]
+            for s in subs:
+                exc += [f"-extensions/{s}/{e}" for e in entries(os.path.join(EXT, s))]
+    if os.path.isdir(os.path.join(EXT, "rpiv-pi", "extensions")):
+        exc.append("-extensions/rpiv-pi/extensions")
+    return exc
+
+
+def main():
+    if not os.path.isdir(EXT) or not os.path.isfile(SETTINGS):
+        print(f"skip: no Pi install at {AGENT}")
+        return
+    exc = exclusions()
+    if "--dry-run" in sys.argv:
+        print(json.dumps(exc, indent=2))
+        return
+    with open(SETTINGS) as f:
+        s = json.load(f)
+    if s.get("extensions") == exc and s.get("packages") == []:
+        print(f"ok: {SETTINGS} already helper-only ({len(exc)} exclusions)")
+        return
+    bak = SETTINGS + ".bak-helper-only"
+    if not os.path.exists(bak):
+        shutil.copy2(SETTINGS, bak)
+    s["extensions"], s["packages"] = exc, []
+    with open(SETTINGS, "w") as f:
+        json.dump(s, f, indent=2)
+        f.write("\n")
+    print(f"updated: {SETTINGS} ({len(exc)} exclusions, packages cleared)")
+
+
+if __name__ == "__main__":
+    main()

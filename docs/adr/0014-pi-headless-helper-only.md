@@ -40,3 +40,6 @@ unload anything.
   `--engine claude` or restore the exclusions if it breaks.
 - Revert: restore the exclusion list from `settings.json.bak-20261009-helper-only`
   (or `git checkout` the template) and re-add the old `packages`.
+- `.agents/bin/pi-helper-only` applies (and re-applies after a new extension is
+  added) this configuration to a machine's live `~/.pi/agent/settings.json`;
+  `--dry-run` previews. The template only seeds fresh installs.

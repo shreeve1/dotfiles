@@ -611,6 +611,8 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   done
   unset _persona
   link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
+  # The hooks call ~/.agents/bin/verify-final; ~/.agents is a real dir on some machines.
+  link_path ".agents/bin" ".agents/bin"
   # End-of-turn fact-check hook for Claude Code + Codex (omp loads its own
   # extension from .omp/agent/extensions/verify-final.ts). Idempotent.
   python3 "$DOTFILES_DIR/.agents/bin/verify-final-install" || printf 'warn: verify-final hook install failed\n'
