@@ -600,6 +600,12 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   link_path ".agents/AGENTS.md" ".agents/AGENTS.md"
   link_path ".agents/skills" ".agents/skills"
   link_path ".agents/skills" ".claude/skills"
+  # /ship fans out to these personas; Claude Code reads ~/.claude/agents.
+  # Per-file links keep ~/.claude/agents a real dir for other agents.
+  for _persona in code-reviewer security-auditor test-engineer; do
+    link_path ".omp/agent/agents/$_persona.md" ".claude/agents/$_persona.md"
+  done
+  unset _persona
   link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
 else
   printf 'skip: ~/.agents/* + ~/.dsh/AGENTS.md links (INSTALL_AGENTS=0)\n'
