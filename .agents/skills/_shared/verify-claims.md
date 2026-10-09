@@ -2,12 +2,12 @@
 
 Shared engine — the single source of truth for fact-checking claims against
 ground truth with a fresh, independent `pi -p` process. Consumed by `to-spec`,
-`to-tickets`, `wayfinder`, `code-review`, `implement`, `teach`, and
-`wiki-update`. Callers reach it via the phrase *independent verify (see
-`_shared/verify-claims.md`)*; change the mechanics here, not in each skill. It
-generalises the turn-by-turn fact-check that `grill-with-docs/VERIFY.md` runs —
-that skill keeps its own copy tuned for the grill loop; this one is the reusable
-form for everything else.
+`to-tickets`, `wayfinder`, `code-review`, `implement`, `teach`, `wiki-update`,
+and `grill-with-docs` (once, on a brainstorm intent doc). Callers reach it via
+the phrase *independent verify (see `_shared/verify-claims.md`)*; change the
+mechanics here, not in each skill. The end-of-turn hook
+`.agents/bin/verify-final` runs the same checker command. There are no
+per-skill copies.
 
 **Order matters. Ground your claim first — then check it, never the reverse.**
 
@@ -52,7 +52,7 @@ the same VERIFIED / FALSE / UNSURE + file:line format.
 Run from the repo root:
 
 ```bash
-pi -p --no-session --no-skills --no-context-files \
+timeout 120 pi -p --no-session --no-skills --no-context-files \
   --no-extensions --tools read,grep,find,ls \
   --model openrouter/deepseek/deepseek-v4.1-flash \
   "You are fact-checking claims against ground truth. For each claim, read the
@@ -66,8 +66,8 @@ pi -p --no-session --no-skills --no-context-files \
 ### When Fusion is active
 
 Fusion caps the parent's tool surface, so spawning `pi -p` from `bash` is
-denied — that's a harness restriction, **not** the `pi unavailable` condition
-(see *Fallback when `pi` is unavailable* below). Use one fresh `subagent`
+denied — that's a harness restriction, **not** a failed check
+(see *Fallback when the check can't run* below). Use one fresh `subagent`
 call instead. The `reviewer` role in `settings.json` already pins a read-only
 tool set (`read`, `grep`, `find`, `ls`) and the model/thinking — do not
 override either per-call:
@@ -119,19 +119,28 @@ Notes:
   claim out in full, self-contained (name the term, the file, the behaviour,
   the source). "The thing we discussed" verifies nothing.
 
-## Fallback when `pi` is unavailable
+## Fallback when the check can't run
 
-If `pi` is not on PATH (some harnesses/machines lack it), you cannot spawn the
-independent checker. Fall back to **re-grounding yourself**: re-read the specific
-files or sources each claim depends on *this run* — do not trust your earlier
-reading — and confirm file:line (or source) evidence before you assert. Say
-you're using the fallback so the user knows the check wasn't independent. The
-independent `pi -p` check is preferred whenever `pi` is available.
+You cannot get an independent result when any of these happens:
+
+- `pi` is not on PATH.
+- `pi` exits non-zero: auth or API-key error, rate limit, unknown model, or the
+  `timeout` firing (exit 124).
+- The output lacks a VERIFIED / FALSE / UNSURE line for a claim (fall back for
+  the missing claims only).
+- On Fusion: the `subagent` route is unavailable (no `reviewer` role, or
+  `pi-subagents` not loaded) or the reviewer errors or returns nothing usable.
+
+Don't retry in a loop — these failures are usually config, not transient. Fall
+back to **re-grounding yourself**: re-read the specific files or sources each
+claim depends on *this run* — do not trust your earlier reading — and confirm
+file:line (or source) evidence before you assert. Tell the user you used the
+fallback and why (one line, including the error), so they know the check wasn't
+independent. The independent check is preferred whenever it can run.
 
 A Fusion Bash denial is **not** this condition — on Fusion the parent cannot
 spawn `pi -p` from `bash` by design; that's what the reviewer-subagent route
-exists for. The fallback only applies when the `subagent` route itself is
-unavailable (no `reviewer` role, or `pi-subagents` not loaded).
+exists for.
 
 ## Acting on the result
 

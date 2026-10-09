@@ -34,21 +34,36 @@ Authentication is not authorization. "Logged in" never implies "allowed to see t
 
 ## Surgical Changes
 
-**Touch only what you must. Flag any mess you see; clean it up once I say go.**
+**Touch only what you must. Fix what's already decided; surface what isn't.**
 
 When editing existing code:
 
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code or mess anywhere, point it out and offer to clean it up. Wait for my go-ahead before deleting.
+- If you notice unrelated mess (dead code, drift, broken references), handle it under "Fixes vs decisions" below.
 
 When your changes create orphans:
 
 - Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code silently - surface it first, then remove it once I approve.
+- Pre-existing dead code: surface it. Delete it automatically only after checking it can't be reached indirectly (dynamic imports, plugin or entry-point discovery, string-based lookups, external callers), and report what you checked.
 
-The test: Every changed line should trace to my request or to cleanup I approved.
+## Fixes vs decisions
+
+A **fix** restores something to what was already decided: a broken reference, a doc that contradicts the code or an ADR, a bug against stated behavior, drift between copies, a typo, dead code that passes the deletion check above. There is one correct answer. **Apply fixes automatically**, including ones you find while doing other work, and report each in one line afterward.
+
+A **decision** changes what was decided or picks between real options: new behavior, a different design, removing something that might be intentional, scope growth, a new dependency. **Don't apply it. Surface it** with the options and your recommendation.
+
+Still ask first, even for a fix:
+
+- Anything irreversible or outside the repo (deleting data, pushing, changing live systems, sending messages).
+- A fix that would alter behavior beyond the reported case. That is a second change.
+
+When unsure which it is, treat it as a decision.
+
+Keep each fix its own small, separate change so I can revert it alone.
+
+The test: Every changed line traces to my request, or is a reported fix to something already decided.
 
 ## Think Before Coding
 
@@ -85,6 +100,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - **Fix root causes.** Find why it broke and fix it there. Don't add a guard that only hides the crash.
 - **Test behavior, not implementation.** A test checks what a user would see. If it would still pass with the code gutted, rewrite or delete it.
 - **Encode repeated lessons.** If you've written the same instruction twice, turn it into a lint, hook or script instead of more text.
+- **Final answers are fact-checked by a hook.** An end-of-turn hook (`~/.agents/bin/verify-final`) runs the independent verify on your final answer; don't run your own on it. If it sends findings back, correct each claim from the evidence and say in one line what you changed. Kill switch: `VERIFY_FINAL=0`.
 
 ## Changing code that has no tests (legacy)
 
