@@ -37,7 +37,7 @@ Reply with one line per claim, nothing else:
 VERIFIED | <file:line evidence> | <claim>
 FALSE | <file:line evidence> | <claim> -- <one-line correction>
 UNSURE | <why it could not be confirmed> | <claim>
-If the answer has no checkable claims, reply exactly: NO_CLAIMS
+If there is nothing to report (no checkable claims, or every claim was skipped), reply exactly: NO_CLAIMS. Never reply with an empty message.
 
 FINAL ANSWER:
 <<<
@@ -103,7 +103,7 @@ def main():
 
     verdicts = [VERDICT.match(l) for l in out.splitlines()]
     verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
-    if rc == 0 and not verdicts and ("NO_CLAIMS" in out or not out.strip()):
+    if rc == 0 and not verdicts and "NO_CLAIMS" in out:
         log(harness, "no_claims", secs)
         return
     if rc != 0 or not verdicts:
