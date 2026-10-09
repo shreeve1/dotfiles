@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "hooks": [
@@ -20,15 +9,6 @@
           }
         ],
         "matcher": "^Bash$"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "PostToolUseFailure": [
@@ -51,79 +31,6 @@
           }
         ],
         "matcher": "^Bash$"
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "command": "bash '/home/james/.codex/herdr-agent-state.sh' session",
-            "timeout": 10,
-            "type": "command"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [ -f '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -r '/home/james/.orca/agent-hooks/codex-hook.sh' ] && [ -x '/home/james/.orca/agent-hooks/codex-hook.sh' ]; then /bin/sh '/home/james/.orca/agent-hooks/codex-hook.sh'; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi",
-            "timeout": 10
-          }
-        ]
       }
     ]
   }
