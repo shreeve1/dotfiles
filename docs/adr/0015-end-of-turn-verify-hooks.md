@@ -25,14 +25,17 @@ Code, Codex and omp.
   omp uses the `agent_end` extension `.omp/agent/extensions/verify-final.ts`.
 - Claude Code runs the hook in the background (`asyncRewake`, script flag
   `--rewake`): you are not held up after the answer. A FALSE finding is written
-  to stderr with exit 2, which wakes Claude with the findings; a marker file
-  under `~/.cache/verify-final/` makes the Stop after that correction skip the
-  check. omp also runs detached, because omp aborts `agent_end` handlers after
-  30 s. Codex stays a blocking Stop hook: its background hooks cannot start a
-  turn, so a correction would only arrive on your next message.
+  to stderr with exit 2, which wakes Claude with the findings. Claude sends
+  `stop_hook_active=true` on the Stop that follows that wake and `false` on a
+  fresh user turn (checked in a real session, including a new prompt sent right
+  after a wake), so the correction pass is skipped by that flag alone; there is
+  no state file. omp also runs detached, because omp aborts `agent_end`
+  handlers after 30 s. Codex stays a blocking Stop hook: its background hooks
+  cannot start a turn, so a correction would only arrive on your next message.
 - Scope: every final answer of 200+ characters in the main interactive
   session. One correction pass per turn (`stop_hook_active`). Kill switch
-  `VERIFY_FINAL=0`. Every run is logged to `~/.cache/verify-final.log`.
+  `VERIFY_FINAL=0`. Every outcome (checked, skipped, dropped) is logged to
+  `~/.cache/verify-final.log` with the session id prefix and answer length.
 
 ## Consequences
 
