@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Idempotently add (or --remove) the verify-final Stop hook in the machine-local
+Claude Code (~/.claude/settings.json) and Codex (~/.codex/hooks.json) configs.
+
+omp needs no install step: .omp/agent/extensions/verify-final.ts is tracked and
+auto-discovered through the ~/.omp/agent -> dotfiles/.omp/agent link.
+
+Codex requires you to trust the hook once: run `codex`, then `/hooks`.
+"""
+import json
+import os
+import shutil
+import sys
+
+REMOVE = "--remove" in sys.argv
+HOME = os.path.expanduser("~")
+TARGETS = [
+    (os.path.join(HOME, ".claude", "settings.json"), "claude", {}),
+    (os.path.join(HOME, ".codex", "hooks.json"), "codex", {"statusMessage": "Verifying final answer"}),
+]
+
+
+def has_ours(group):
+    return any("verify-final" in str(h.get("command", "")) for h in group.get("hooks", []))
+
+
+for path, harness, extra in TARGETS:
+    if not os.path.isfile(path):
+        print(f"skip: {path} not found")
+        continue
+    with open(path) as f:
+        data = json.load(f)
+    stop = data.setdefault("hooks", {}).setdefault("Stop", [])
+    present = any(has_ours(g) for g in stop)
+    if REMOVE:
+        if not present:
+            print(f"ok: {harness} hook already absent")
+            continue
+        data["hooks"]["Stop"] = [g for g in stop if not has_ours(g)]
+        action = "removed"
+    else:
+        if present:
+            print(f"ok: {harness} hook already installed")
+            continue
+        entry = {"type": "command", "command": f'"$HOME/.agents/bin/verify-final" --harness {harness}', "timeout": 150, **extra}
+        stop.append({"hooks": [entry]})
+        action = "installed"
+    bak = path + ".bak-verify-final"
+    if not os.path.exists(bak):
+        shutil.copy2(path, bak)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"{action}: {harness} Stop hook in {path}")

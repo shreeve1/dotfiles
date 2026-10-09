@@ -21,9 +21,10 @@ _Avoid_: oversight, missing feature.
 
 **Grounding gate**:
 A pass that catches grounding failures by checking claims against evidence.
-Cheap; can run every turn. pi-duo's TERMINAL gate is this. (pi-duo also has a
-separate mid-loop SCOPE gate, but that checks proportionality / over-reach —
-explicitly not grounding.)
+Cheap; runs after the agent finishes a turn. A false or unsupported claim is
+fed back to the agent, which corrects it in the same session. Supersedes
+pi-duo's terminal gate (pi-duo has been removed). pi-duo's separate mid-loop
+SCOPE gate checked proportionality / over-reach, never grounding.
 _Avoid_: correctness checker, fact-checker.
 
 **Completeness review**:
