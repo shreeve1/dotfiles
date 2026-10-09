@@ -21,8 +21,8 @@ always block, whatever the level.
 
 --rewake (Claude Code `asyncRewake` hook): a FALSE finding is written to stderr and the
 script exits 2, which wakes Claude in the background with the findings as a system
-reminder. A marker file under ~/.cache/verify-final/ makes the Stop that follows the
-correction turn skip the check, so there is at most one correction per wake.
+reminder. Claude sends stop_hook_active=true on the Stop that follows that wake (and
+false on a fresh user turn), so the correction pass is skipped by that flag alone.
 """
 import json
 import os
@@ -59,11 +59,16 @@ FINAL ANSWER:
 VERDICT = re.compile(r"^\W*(VERIFIED|FALSE|UNSURE)\b\W*(.*)$", re.IGNORECASE)
 
 
+SID = ""
+ANSWER_LEN = 0
+
+
 def log(harness, status, secs, detail=""):
     try:
         os.makedirs(os.path.dirname(LOG), exist_ok=True)
+        ident = f"sid={SID} len={ANSWER_LEN}" if SID else f"len={ANSWER_LEN}"
         with open(LOG, "a") as f:
-            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {harness} {status} {secs:.1f}s {detail}\n")
+            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {harness} {status} {secs:.1f}s {detail} {ident}\n")
     except OSError:
         pass
 
@@ -81,16 +86,15 @@ def main():
     except ValueError:
         return
     rewake = "--rewake" in sys.argv
-    sid = re.sub(r"[^A-Za-z0-9_-]", "", str(ev.get("session_id") or ""))
-    marker = os.path.join(STATE, f"rewoke-{sid}") if rewake and sid else None
-    if marker and os.path.exists(marker):
-        fresh = time.time() - os.path.getmtime(marker) < 3600
-        os.unlink(marker)
-        if fresh:
-            log(harness, "skip_correction_pass", 0.0)
-            return
+    global SID, ANSWER_LEN
+    SID = re.sub(r"[^A-Za-z0-9]", "", str(ev.get("session_id") or ""))[:8]
     answer = (ev.get("last_assistant_message") or "").strip()
-    if ev.get("stop_hook_active") or len(answer) < MIN_CHARS:
+    ANSWER_LEN = len(answer)
+    if ev.get("stop_hook_active"):
+        log(harness, "skip_correction_pass", 0.0)
+        return
+    if len(answer) < MIN_CHARS:
+        log(harness, "skip_short", 0.0)
         return
 
     pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
@@ -151,9 +155,6 @@ def main():
             "and say in one line what you changed."
         )
     if rewake and false:
-        if marker:
-            os.makedirs(STATE, exist_ok=True)
-            open(marker, "w").close()
         sys.stderr.write(out_obj["reason"] + "\n")
         sys.exit(2)
     if out_obj:
