@@ -13,6 +13,11 @@ Silent (exit 0, no output) when clean, skipped, or no checkable claims.
 
 Skips: VERIFY_FINAL=0, answers under 200 chars, stop_hook_active (one correction
 pass per turn). Never blocks when the check itself fails.
+
+Warnings (never block): VERIFY_FINAL_WARN=all (default) shows UNSURE claims and
+"check could not run"; =errors shows only "check could not run"; =none shows
+neither. Hidden UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims
+always block, whatever the level.
 """
 import json
 import os
@@ -27,11 +32,12 @@ MIN_CHARS = 200
 INLINE_MAX_BYTES = 100_000  # one argv entry is capped near 128 KB; longer answers go via a file
 MODEL = os.environ.get("VERIFY_FINAL_MODEL", "openrouter/deepseek/deepseek-v4.1-flash")
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
+WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")
 
 PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
 
-Only report claims whose truth can be established by reading files. SKIP, and write no line at all for, claims that need something you cannot do read-only: test or build results ("all tests pass"), command output, git history or staging state, other sessions' activity, live or runtime behaviour, and whether the agent ran something. Use UNSURE only when a file-checkable claim has ambiguous or missing evidence in the files.
+Only report claims whose truth can be established by reading files. SKIP, and write no line at all for, claims that need something you cannot do read-only: test or build results ("all tests pass"), command output, git history or staging state, other sessions' activity, live or runtime behaviour, whether the agent ran something, previous versions of a file, and other machines or hosts. Use UNSURE only when a file-checkable claim has ambiguous or missing evidence in the files.
 
 Reply with one line per claim, nothing else:
 VERIFIED | <file:line evidence> | <claim>
@@ -109,15 +115,18 @@ def main():
     if rc != 0 or not verdicts:
         why = (err.strip().splitlines() or ["no verdict lines in checker output"])[-1][:200]
         log(harness, "error", secs, why)
-        say({"systemMessage": f"verify-final: check could not run ({why}); the final answer was not independently verified."})
+        if WARN != "none":
+            say({"systemMessage": f"verify-final: check could not run ({why}); the final answer was not independently verified."})
         return
 
     false = [l.strip() for v, l in verdicts if v == "FALSE"]
     unsure = [l.strip() for v, l in verdicts if v == "UNSURE"]
     log(harness, "ok", secs, f"false={len(false)} unsure={len(unsure)} verified={len(verdicts) - len(false) - len(unsure)}")
     out_obj = {}
-    if unsure:
+    if unsure and WARN == "all":
         out_obj["systemMessage"] = "verify-final UNSURE (not blocking):\n" + "\n".join(unsure)
+    elif unsure:
+        log(harness, "unsure_hidden", secs, " || ".join(unsure)[:1500])
     if false:
         out_obj["decision"] = "block"
         out_obj["reason"] = (
