@@ -575,9 +575,9 @@ link_path ".agents/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
 # Bridge every canonical AGENTS skill into codex's skills dir. Codex loads
-# its own .system/ skills natively; we widen the bridge (previously only
-# orca-cli + orchestration were linked) so codex sees the full AGENTS skill
-# set. _shared (helpers, not a skill) is included as the 83rd entry.
+# its own .system/ skills natively; we link every canonical AGENTS skill so
+# codex sees the full set. _shared (helpers, not a skill) is included as the
+# 83rd entry.
 if [ -d "$DOTFILES_DIR/.agents/skills" ]; then
   for _skill_dir in "$DOTFILES_DIR/.agents/skills/"*/; do
     [ -d "$_skill_dir" ] || continue
@@ -600,6 +600,10 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   link_path ".agents/AGENTS.md" ".agents/AGENTS.md"
   link_path ".agents/skills" ".agents/skills"
   link_path ".agents/skills" ".claude/skills"
+  # Claude Code's user-level instructions are ~/.claude/CLAUDE.md; it does not
+  # read ~/.agents/AGENTS.md. A user-level CLAUDE.md does not suppress a repo's
+  # own AGENTS.md (unlike a project-level one).
+  link_path ".agents/AGENTS.md" ".claude/CLAUDE.md"
   # /ship fans out to these personas; Claude Code reads ~/.claude/agents.
   # Per-file links keep ~/.claude/agents a real dir for other agents.
   for _persona in code-reviewer security-auditor test-engineer; do
@@ -607,6 +611,9 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
   done
   unset _persona
   link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
+  # End-of-turn fact-check hook for Claude Code + Codex (omp loads its own
+  # extension from .omp/agent/extensions/verify-final.ts). Idempotent.
+  python3 "$DOTFILES_DIR/.agents/bin/verify-final-install" || printf 'warn: verify-final hook install failed\n'
 else
   printf 'skip: ~/.agents/* + ~/.dsh/AGENTS.md links (INSTALL_AGENTS=0)\n'
 fi

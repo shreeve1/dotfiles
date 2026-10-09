@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""verify-final: end-of-turn grounding gate shared by Claude Code, Codex and omp.
+
+Reads one Stop-hook event as JSON on stdin (Claude Code / Codex shape):
+  {"last_assistant_message": str, "cwd": str, "stop_hook_active": bool}
+Runs the independent read-only `pi -p` checker from
+.agents/skills/_shared/verify-claims.md on the final answer.
+
+Stdout (JSON, only when there is something to say):
+  {"decision":"block","reason":...}   a claim is FALSE -> the agent must correct it
+  {"systemMessage":...}               UNSURE claims, or the check could not run
+Silent (exit 0, no output) when clean, skipped, or no checkable claims.
+
+Skips: VERIFY_FINAL=0, answers under 200 chars, stop_hook_active (one correction
+pass per turn). Never blocks when the check itself fails.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+MIN_CHARS = 200
+INLINE_MAX_BYTES = 100_000  # one argv entry is capped near 128 KB; longer answers go via a file
+MODEL = os.environ.get("VERIFY_FINAL_MODEL", "openrouter/deepseek/deepseek-v4.1-flash")
+TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
+LOG = os.path.expanduser("~/.cache/verify-final.log")
+
+PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed or verified). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
+
+Reply with one line per claim, nothing else:
+VERIFIED | <file:line evidence> | <claim>
+FALSE | <file:line evidence> | <claim> -- <one-line correction>
+UNSURE | <why it could not be confirmed> | <claim>
+If the answer has no checkable claims, reply exactly: NO_CLAIMS
+
+FINAL ANSWER:
+<<<
+{answer}
+>>>"""
+
+VERDICT = re.compile(r"^\W*(VERIFIED|FALSE|UNSURE)\b\W*(.*)$", re.IGNORECASE)
+
+
+def log(harness, status, secs, detail=""):
+    try:
+        os.makedirs(os.path.dirname(LOG), exist_ok=True)
+        with open(LOG, "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {harness} {status} {secs:.1f}s {detail}\n")
+    except OSError:
+        pass
+
+
+def say(obj):
+    print(json.dumps(obj))
+
+
+def main():
+    harness = sys.argv[sys.argv.index("--harness") + 1] if "--harness" in sys.argv else "unknown"
+    if os.environ.get("VERIFY_FINAL") == "0" or os.environ.get("VERIFY_FINAL_RUNNING"):
+        return
+    try:
+        ev = json.load(sys.stdin)
+    except ValueError:
+        return
+    answer = (ev.get("last_assistant_message") or "").strip()
+    if ev.get("stop_hook_active") or len(answer) < MIN_CHARS:
+        return
+
+    pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
+    spill = None
+    if len(answer.encode()) <= INLINE_MAX_BYTES:
+        body = answer
+    else:
+        fd, spill = tempfile.mkstemp(prefix="verify-final-", suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write(answer)
+        body = f"(The answer is too long to inline. Read the ENTIRE file {spill} and check every claim in it, through to the last line.)"
+    t0 = time.time()
+    cmd = [
+        pi, "-p", "--no-session", "--no-skills", "--no-context-files",
+        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL,
+        PROMPT.format(answer=body),
+    ]
+    env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
+    try:
+        r = subprocess.run(cmd, cwd=ev.get("cwd") or None, env=env, capture_output=True,
+                           text=True, timeout=TIMEOUT, stdin=subprocess.DEVNULL)
+        out, err, rc = r.stdout, r.stderr, r.returncode
+    except subprocess.TimeoutExpired:
+        out, err, rc = "", f"timed out after {TIMEOUT}s", 124
+    except OSError as e:
+        out, err, rc = "", str(e), 127
+    finally:
+        if spill:
+            os.unlink(spill)
+    secs = time.time() - t0
+
+    verdicts = [VERDICT.match(l) for l in out.splitlines()]
+    verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
+    if rc == 0 and "NO_CLAIMS" in out and not verdicts:
+        log(harness, "no_claims", secs)
+        return
+    if rc != 0 or not verdicts:
+        why = (err.strip().splitlines() or ["no verdict lines in checker output"])[-1][:200]
+        log(harness, "error", secs, why)
+        say({"systemMessage": f"verify-final: check could not run ({why}); the final answer was not independently verified."})
+        return
+
+    false = [l.strip() for v, l in verdicts if v == "FALSE"]
+    unsure = [l.strip() for v, l in verdicts if v == "UNSURE"]
+    log(harness, "ok", secs, f"false={len(false)} unsure={len(unsure)} verified={len(verdicts) - len(false) - len(unsure)}")
+    out_obj = {}
+    if unsure:
+        out_obj["systemMessage"] = "verify-final UNSURE (not blocking):\n" + "\n".join(unsure)
+    if false:
+        out_obj["decision"] = "block"
+        out_obj["reason"] = (
+            "An independent fact-check of your final answer found claims that do not match the files:\n"
+            + "\n".join(false)
+            + "\nRe-ground on that evidence, correct these claims, then give the corrected final answer "
+            "and say in one line what you changed."
+        )
+    if out_obj:
+        say(out_obj)
+
+
+if __name__ == "__main__":
+    main()

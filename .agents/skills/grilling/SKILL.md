@@ -17,13 +17,11 @@ Each question should be formatted like so:
 ➡️ <your recommended answer>
 ```
 
-Explore, then fact-check — EVERY turn
+Explore first, then ground — EVERY turn
 
-Your exploration drifts. What you read early goes stale, and a mental model built once gets asserted as fact many turns later. So on every turn where you present findings, ask a question, or make a recommendation: first explore — read the actual files this turn depends on and form your claim from them — then run an independent fact-check on that claim. Order matters; the check is a second opinion on findings you already grounded, not your researcher. See VERIFY.md. No exceptions: even a turn that feels purely design-level usually rests on some claim about what the repo already does.
+Your exploration drifts. What you read early goes stale, and a mental model built once gets asserted as fact many turns later. So on every turn where you present findings, ask a question, or make a recommendation: first explore — read the actual files this turn depends on and form your claim from them, never from memory. Even a turn that feels purely design-level usually rests on some claim about what the repo already does.
 
-The check runs in a fresh, independent process — direct pi -p with openrouter/deepseek/deepseek-v4.1-flash by default, or the Fusion reviewer subagent when Fusion is active (model and tools pinned in settings.json). It loads no skills and is grounded only in the actual files, so it has none of your accumulated assumptions. It returns VERIFIED / FALSE / UNSURE per claim with file:line evidence.
-
-Surface the result to me inline before your question, e.g.: "Fact-check: my claim that Orders cancel wholesale came back FALSE — order.ts:88 shows line-item cancellation. Corrected question: …". If the check disagrees with you but you have fuller context and still believe you're right, say so and go with your judgment — note the disagreement so I can weigh in. The check informs the turn; it does not override you.
+Don't run your own fact-check on the final message: an end-of-turn hook (`~/.agents/bin/verify-final`) fact-checks it independently against the actual files and sends back anything FALSE. When findings come back, open your corrected message with them, e.g.: "Fact-check: my claim that Orders cancel wholesale came back FALSE — order.ts:88 shows line-item cancellation. Corrected question: …". If the check disagrees with you but you have fuller context and still believe you're right, say so and go with your judgment — note the disagreement so I can weigh in. The check informs the turn; it does not override you. If the hook isn't active in this harness, run the independent verify yourself before asking (`../_shared/verify-claims.md`).
 
 Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it — don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report — ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
 
