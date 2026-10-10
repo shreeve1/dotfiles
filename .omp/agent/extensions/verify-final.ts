@@ -83,21 +83,21 @@ export default function (pi: ExtensionAPI) {
   // handler only starts the check; the result is delivered when it finishes.
   pi.on("agent_end", (event, ctx) => {
     if (process.env.VERIFY_FINAL === "0") return;
+    if (ctx.mode !== "tui" && process.env.VERIFY_FINAL_HEADLESS !== "1") return;
+    const sid = ctx.sessionManager.getSessionId();
     if (field(event, "willContinue") === true) {
-      note("skip_will_continue");
+      note("skip_will_continue", `sid=${sid.slice(0, 8)}`);
       return;
     }
-    if (ctx.mode !== "tui" && process.env.VERIFY_FINAL_HEADLESS !== "1") return;
     const answer = lastAssistantText(field(event, "messages"));
     if (!answer) {
-      note("skip_no_answer");
+      note("skip_no_answer", `sid=${sid.slice(0, 8)}`);
       return;
     }
     const wasCorrecting = correcting;
     correcting = false;
     const started = generation;
     const cwd = ctx.cwd;
-    const sid = ctx.sessionManager.getSessionId();
     void runVerify({
       last_assistant_message: answer,
       cwd,
