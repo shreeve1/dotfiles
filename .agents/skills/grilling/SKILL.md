@@ -25,4 +25,4 @@ Don't run your own fact-check on the final message: an end-of-turn hook (`~/.age
 
 Finding _facts_ is your job, never the user's. When a frontier question needs a fact from the environment (filesystem, tools, etc.), dispatch a sub-agent to find it — don't ask the user for anything you could look up yourself. Don't block on it: a running exploration is an unsettled prerequisite, so only the questions downstream of it wait for the sub-agent to report — ask the rest of the frontier now. The _decisions_ are the user's — put each to them and wait.
 
-The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
+The session is done when every remaining open question is low-stakes: say so and list the defaults you are assuming for the rest. Do not act on it until the user confirms you have reached a shared understanding.
