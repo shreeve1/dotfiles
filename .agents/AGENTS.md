@@ -161,6 +161,15 @@ automation (that stays in background tabs per the `browser-cdp` skill). From a
 herdr pane I am not looking at, it opens nothing and prints the target; pass
 that path on in your reply.
 
+When I should be able to click a file myself, give me an explicit scheme link,
+never a bare path or codespan:
+`[glossary](agent-open:///home/james/Documents/itastack/memory/glossary.md)`.
+The dedicated scheme leaves the Markdown default unchanged and opens through
+the same Obsidian/browser route as before. Put the absolute path after the
+triple slash and percent-encode spaces and #, ?, % in filenames:
+`[final report](agent-open:///home/james/Documents/itastack/final%20report.md)`.
+Only link files that exist; a dead link fails loudly at click time.
+
 ## Client Operations Context
 
 For client-operations requests—tickets, users, email, endpoints, networks, security, phones, monitoring, licensing, or internal knowledge:
