@@ -1,0 +1,18 @@
+id = "dotfiles.agent-open"
+name = "Agent Open File Links"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Route clicked local file links through the existing agent-open opener"
+platforms = ["linux"]
+
+[[actions]]
+id = "open-file"
+title = "Open clicked local file"
+contexts = ["workspace"]
+command = ["python3", "open.py"]
+
+[[link_handlers]]
+id = "local-file"
+title = "Open file link with agent-open"
+pattern = "^(?:file|agent-open)://"
+action = "open-file"

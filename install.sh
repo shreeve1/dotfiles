@@ -332,6 +332,39 @@ else
   fi
 fi
 
+if [ "$(uname -s)" = "Linux" ]; then
+  _ao_bin="$(command -v herdr || printf '%s' "$HOME/.local/bin/herdr")"
+  if [ ! -x "$_ao_bin" ]; then
+    printf 'warn: cannot link agent-open herdr plugin; herdr unavailable\n'
+  elif "$_ao_bin" plugin link "$DOTFILES_DIR/home/herdr/plugins/agent-open" >/dev/null; then
+    printf 'ok: herdr plugin dotfiles.agent-open linked\n'
+  else
+    printf 'warn: agent-open herdr plugin registration failed\n'
+  fi
+  unset _ao_bin
+
+  link_path "home/herdr/plugins/agent-open/open.py" ".local/bin/agent-open-link"
+  mkdir -p "$HOME/.local/share/applications"
+  printf '%s\n' \
+    '[Desktop Entry]' \
+    'Type=Application' \
+    'Name=Agent Open' \
+    "Exec=$HOME/.local/bin/agent-open-link %u" \
+    'NoDisplay=true' \
+    'Terminal=false' \
+    'MimeType=x-scheme-handler/agent-open;' \
+    > "$HOME/.local/share/applications/agent-open-link.desktop"
+  if command -v xdg-mime >/dev/null 2>&1; then
+    if xdg-mime default agent-open-link.desktop x-scheme-handler/agent-open; then
+      printf 'ok: agent-open scheme default -> agent-open-link.desktop\n'
+    else
+      printf 'warn: xdg-mime default failed for agent-open scheme\n'
+    fi
+  else
+    printf 'warn: xdg-mime not found; agent-open scheme default not registered\n'
+  fi
+fi
+
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
 link_path "bin/rralph" ".local/bin/rralph"
 link_path "bin/osc52" ".local/bin/osc52"
