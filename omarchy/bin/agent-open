@@ -28,7 +28,8 @@ focus() {
   for _ in $(seq 60); do
     addr=$(hyprctl clients -j | jq -r --arg c "$1" 'first(.[] | select(.class == $c)).address // empty')
     if [[ -n $addr ]]; then
-      hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null
+      hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null 2>&1 ||
+        hyprctl dispatch focuswindow "address:$addr" >/dev/null 2>&1 || true
       [[ $(hyprctl activewindow -j | jq -r .address) == "$addr" ]] && return
     fi
     sleep 0.25
