@@ -224,3 +224,27 @@ machine reproduces the default-on behavior with no local setup. `/fusion
 default on` writes that tracked file. State precedence on session start:
 latest `fusion-state` session entry > `--fusion` flag > `.omp/agent/fusion.json`
 > off.
+
+## Security watch
+
+The vocabulary for the daily check that looks for malicious activity: known exploits, supply-chain attacks through installed packages, and the Footholds an attack (often a prompt injection) leaves behind. aidev, itan8n and the laptop get the full check; every other Wazuh agent gets a daily summary of its Wazuh alerts. Anything found goes to an agent to investigate.
+
+**Foothold**:
+Something an attacker leaves on a server so they keep access or keep running: a new ssh key, a cron job or systemd unit, a line added to a shell startup file, an agent hook, MCP server or skill, or a new program listening on the network.
+_Avoid_: persistence (also means saved data), backdoor, implant
+
+**Finding**:
+Something the check reports that differs from the previous run: a new, changed, or removed Foothold, or a new malicious or vulnerable package result. The hourly Wazuh check also reports a level 12 or higher alert for a rule and host pair not seen before. Only a Finding starts an Investigation.
+_Avoid_: alert (Wazuh's word for every event, most of which are not Findings), warning, hit
+
+**Baseline**:
+The saved results of one host's previous successful full check, which today's Foothold and malicious or vulnerable package results are compared against. A failed check does not replace it. A missing or unreadable Baseline after initialization fails the run and is never treated as empty; the first successful check only saves one. Pending Findings remain queued when the next Baseline is saved.
+_Avoid_: allowlist, whitelist, ignore list
+
+**Investigation**:
+An omp session, opened in its own herdr tab, that starts from one host's Findings and decides whether they are real. It starts from the daily check, or within the hour for a serious Wazuh alert never seen before. It never runs on the host the Findings came from: aidev's Findings are investigated from itan8n, and every other host's from aidev. It chooses and applies any Quarantine itself, with no approval step and no fixed list of allowed actions.
+_Avoid_: triage, incident, ticket
+
+**Quarantine**:
+Cutting off a suspected threat on the affected server without destroying evidence: moving a file aside, stopping a container, disabling a skill, or isolating the server from the network. Isolation always leaves NetBird, ssh and the Wazuh connection open so you and the Investigation can still reach the server. Applied without waiting for you; you undo it if it was a false positive.
+_Avoid_: delete, remove, block
