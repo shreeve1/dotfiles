@@ -232,6 +232,7 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   done
   unset _portal
   link_path "omarchy/bin/hypr-deck" ".local/bin/hypr-deck"
+  link_path "omarchy/bin/agent-open" ".local/bin/agent-open"
   link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
   link_path "omarchy/bin/omarchy-dock-suspend-inhibitor" ".local/bin/omarchy-dock-suspend-inhibitor"
   link_path "omarchy/config/systemd/user/omarchy-dock-suspend-inhibitor.service" ".config/systemd/user/omarchy-dock-suspend-inhibitor.service"

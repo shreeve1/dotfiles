@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Open a note in Obsidian or a URL in the chrome-cdp browser, launching the
+# app if it is not running, then focus its window. Safe to call from herdr
+# panes and SSH shells that lack the Hyprland/Wayland environment.
+#
+#   agent-open note <file>     open a vault file in Obsidian
+#   agent-open obsidian        just launch/focus Obsidian
+#   agent-open url <url>       new tab in chrome-cdp (port 9222)
+#   agent-open browser         just launch/focus chrome-cdp
+set -eu
+
+usage() { sed -n '6,9s/^#   //p' "$0" >&2; exit 2; }
+(($#)) || usage
+
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
+# herdr panes carry XDG_SESSION_TYPE=tty; Electron (Obsidian) then tries X11 and quits silently.
+export XDG_SESSION_TYPE=wayland
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} || -z ${WAYLAND_DISPLAY:-} ]]; then
+  inst=$(hyprctl instances -j | jq -r '.[0] | "\(.instance) \(.wl_socket)"')
+  export HYPRLAND_INSTANCE_SIGNATURE=${inst% *} WAYLAND_DISPLAY=${inst#* }
+fi
+
+# Wait for a window of this class, then focus it until Hyprland reports it
+# active (a just-mapped window, e.g. chrome-cdp's "5 silent" rule, drops early focus).
+focus() {
+  local addr=""
+  for _ in $(seq 60); do
+    addr=$(hyprctl clients -j | jq -r --arg c "$1" 'first(.[] | select(.class == $c)).address // empty')
+    if [[ -n $addr ]]; then
+      hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null
+      [[ $(hyprctl activewindow -j | jq -r .address) == "$addr" ]] && return
+    fi
+    sleep 0.25
+  done
+  echo "agent-open: could not focus a $1 window within 15s" >&2; exit 1
+}
+
+obsidian_open() {
+  setsid -f obsidian "$@" >/dev/null 2>&1 </dev/null
+  focus md.obsidian.Obsidian
+}
+
+chrome_up() {
+  curl -s --max-time 2 http://127.0.0.1:9222/json/version >/dev/null && return
+  chrome-cdp >/dev/null &
+  for _ in $(seq 40); do
+    curl -s --max-time 1 http://127.0.0.1:9222/json/version >/dev/null && return
+    sleep 0.25
+  done
+  echo "agent-open: chrome-cdp did not answer on 9222" >&2; exit 1
+}
+
+case $1 in
+  note)
+    [[ ${2:-} ]] || usage
+    path=$(realpath -e -- "$2")
+    obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')"
+    ;;
+  obsidian) obsidian_open ;;
+  url)
+    [[ ${2:-} ]] || usage
+    chrome_up
+    # /json/new opens a fresh tab; James's existing tabs are left alone.
+    curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$2" >/dev/null
+    focus chrome-cdp
+    ;;
+  browser) chrome_up; focus chrome-cdp ;;
+  *) usage ;;
+esac
