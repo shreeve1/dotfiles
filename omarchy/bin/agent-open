@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Open a note in Obsidian or a URL in the chrome-cdp browser, launching the
-# app if it is not running, then focus its window. Safe to call from herdr
+# Show James a file or page: launch Obsidian or the chrome-cdp browser if it is
+# not running, open the target, then focus its window. Safe to call from herdr
 # panes and SSH shells that lack the Hyprland/Wayland environment.
 #
-#   agent-open note <file>     open a vault file in Obsidian
-#   agent-open obsidian        just launch/focus Obsidian
-#   agent-open url <url>       new tab in chrome-cdp (port 9222)
-#   agent-open browser         just launch/focus chrome-cdp
+#   agent-open <url>        http(s)/file URL: new tab in chrome-cdp (port 9222)
+#   agent-open <file>       html/pdf/image/video: chrome-cdp; anything else: Obsidian
+#   agent-open obsidian     just launch/focus Obsidian
+#   agent-open browser      just launch/focus chrome-cdp
 set -eu
 
 usage() { sed -n '6,9s/^#   //p' "$0" >&2; exit 2; }
@@ -52,20 +52,23 @@ chrome_up() {
   echo "agent-open: chrome-cdp did not answer on 9222" >&2; exit 1
 }
 
+# /json/new opens a fresh tab; James's existing tabs are left alone.
+browser_open() {
+  chrome_up
+  curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$1" >/dev/null
+  focus chrome-cdp
+}
+
 case $1 in
-  note)
-    [[ ${2:-} ]] || usage
-    path=$(realpath -e -- "$2")
-    obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')"
-    ;;
   obsidian) obsidian_open ;;
-  url)
-    [[ ${2:-} ]] || usage
-    chrome_up
-    # /json/new opens a fresh tab; James's existing tabs are left alone.
-    curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$2" >/dev/null
-    focus chrome-cdp
-    ;;
   browser) chrome_up; focus chrome-cdp ;;
-  *) usage ;;
+  http://* | https://* | file://*) browser_open "$1" ;;
+  *)
+    path=$(realpath -e -- "$1")
+    case ${path,,} in
+      *.html | *.htm | *.pdf | *.svg | *.png | *.jpg | *.jpeg | *.gif | *.webp | *.mp4 | *.webm)
+        browser_open "file://$(jq -rn --arg p "$path" '$p | split("/") | map(@uri) | join("/")')" ;;
+      *) obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')" ;;
+    esac
+    ;;
 esac

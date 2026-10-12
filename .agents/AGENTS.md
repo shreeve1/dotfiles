@@ -144,11 +144,12 @@ those). Load the full `graphify` skill only for building or refreshing a graph.
 ## Show me notes and pages (agent-open)
 
 When I should see something you made or found, open it for me with
-`agent-open`. It launches the app if it is not running and focuses its window:
+`agent-open <file-or-url>`. It launches the app if it is not running, opens
+the target and focuses its window. It picks the app by type:
 
-- Vault file (research, report, Markdown): `agent-open note <file>` (Obsidian).
-- Web page, HTML preview or a site I must sign in to: `agent-open url <url>`
-  (chrome-cdp on port 9222, my logins; my existing tabs are left alone).
+- URL, or a local HTML, PDF, SVG, image or video file: new tab in chrome-cdp
+  (port 9222, my logins; my existing tabs are left alone).
+- Any other file (Markdown research, reports, notes): Obsidian.
 
 Use it at the point you hand something to me, not for background browser
 automation (that stays in background tabs per the `browser-cdp` skill).
