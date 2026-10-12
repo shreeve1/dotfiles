@@ -141,6 +141,18 @@ Fall through to grep/glob when there is no `graphify-out/graph.json`, when the
 graph has no hit, or for exact string/line-level matches (grep is better at
 those). Load the full `graphify` skill only for building or refreshing a graph.
 
+## Show me notes and pages (agent-open)
+
+When I should see something you made or found, open it for me with
+`agent-open`. It launches the app if it is not running and focuses its window:
+
+- Vault file (research, report, Markdown): `agent-open note <file>` (Obsidian).
+- Web page, HTML preview or a site I must sign in to: `agent-open url <url>`
+  (chrome-cdp on port 9222, my logins; my existing tabs are left alone).
+
+Use it at the point you hand something to me, not for background browser
+automation (that stays in background tabs per the `browser-cdp` skill).
+
 ## Client Operations Context
 
 For client-operations requests—tickets, users, email, endpoints, networks, security, phones, monitoring, licensing, or internal knowledge:
