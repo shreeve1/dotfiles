@@ -3,14 +3,26 @@
 # not running, open the target, then focus its window. Safe to call from herdr
 # panes and SSH shells that lack the Hyprland/Wayland environment.
 #
-#   agent-open <url>        http(s)/file URL: new tab in chrome-cdp (port 9222)
+#   agent-open <url>        http(s)/file URL: chrome-cdp tab (port 9222)
 #   agent-open <file>       html/pdf/image/video: chrome-cdp; anything else: Obsidian
+#   agent-open changes [dir] lazygit in a herdr split beside this session
 #   agent-open obsidian     just launch/focus Obsidian
 #   agent-open browser      just launch/focus chrome-cdp
+#
+# Called from a herdr pane James is not looking at (startday research tabs,
+# background runs), it opens nothing and prints the target instead.
 set -eu
 
-usage() { sed -n '6,9s/^#   //p' "$0" >&2; exit 2; }
+usage() { sed -n '6,10s/^#   //p' "$0" >&2; exit 2; }
 (($#)) || usage
+
+# 1. Focus guard: only the herdr pane James has in front may move his focus.
+# `changes` stays inside herdr, so it never moves desktop focus.
+if [[ $1 != changes && -n ${HERDR_PANE_ID:-} ]] &&
+  [[ $(herdr pane get "$HERDR_PANE_ID" 2>/dev/null | jq -r '.result.pane.focused') == false ]]; then
+  echo "agent-open: not opened, this session is not the herdr pane in view. Target: $*"
+  exit 0
+fi
 
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}
@@ -52,22 +64,78 @@ chrome_up() {
   echo "agent-open: chrome-cdp did not answer on 9222" >&2; exit 1
 }
 
-# /json/new opens a fresh tab; James's existing tabs are left alone.
+uri() { jq -rn --arg p "$1" '$p | split("/") | map(@uri) | join("/")'; }
+
+# 2+3. A local preview (file:// or localhost) already open in a tab is reloaded
+# and brought to the front; other URLs always get a new tab, so James's own
+# tabs are never reloaded.
 browser_open() {
+  local url=$1 tab=""
   chrome_up
-  curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$1" >/dev/null
+  if [[ $url =~ ^(file://|http://(127\.0\.0\.1|localhost)[:/]) ]]; then
+    tab=$(curl -s --max-time 5 http://127.0.0.1:9222/json |
+      jq -r --arg u "$url" 'first(.[] | select(.type == "page" and .url == $u)) | "\(.id) \(.webSocketDebuggerUrl)"')
+  fi
+  if [[ -n $tab ]]; then
+    node -e '
+      const s = new WebSocket(process.argv[1]);
+      s.onopen = () => s.send(JSON.stringify({ id: 1, method: "Page.reload", params: { ignoreCache: true } }));
+      s.onmessage = () => process.exit(0);
+      setTimeout(() => process.exit(1), 5000);' "${tab#* }"
+    curl -s --max-time 5 "http://127.0.0.1:9222/json/activate/${tab%% *}" >/dev/null
+  else
+    curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$url" >/dev/null
+  fi
   focus chrome-cdp
+}
+
+# 4. Serve HTML over http so module scripts and fetch() work (file:// blocks
+# them). One server per directory, port derived from the path, loopback only.
+# ponytail: servers live until logout; add idle shutdown if they pile up.
+html_url() {
+  local dir=${1%/*} name=${1##*/} port code
+  port=$((47000 + $(cksum <<<"$dir" | cut -d' ' -f1) % 1000))
+  local url="http://127.0.0.1:$port/$(uri "$name")"
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" || true)
+  if [[ $code == 000 ]]; then
+    setsid -f python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dir" >/dev/null 2>&1 </dev/null
+    for _ in $(seq 20); do
+      code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "$url" || true)
+      [[ $code == 200 ]] && break
+      sleep 0.15
+    done
+  fi
+  # Port held by something else, or server failed: fall back to the file.
+  [[ $code == 200 ]] && echo "$url" || echo "file://$(uri "$1")"
+}
+
+# 5. lazygit in a split to the right of the calling herdr pane (reused if open).
+changes_open() {
+  [[ -n ${HERDR_PANE_ID:-} ]] || { echo "agent-open: changes needs a herdr pane" >&2; exit 1; }
+  local repo pane
+  repo=$(git -C "${1:-$PWD}" rev-parse --show-toplevel)
+  for pane in $(herdr pane list --workspace "$HERDR_WORKSPACE_ID" |
+    jq -r --arg t "$HERDR_TAB_ID" '.result.panes[] | select(.tab_id == $t) | .pane_id'); do
+    if herdr pane process-info --pane "$pane" | jq -e '.result.process_info.foreground_processes[] | select(.name == "lazygit")' >/dev/null; then
+      echo "agent-open: lazygit already open in pane $pane"; return
+    fi
+  done
+  pane=$(herdr pane split "$HERDR_PANE_ID" --direction right --ratio 0.45 --cwd "$repo" | jq -r '.result.pane.pane_id // .result.pane_id')
+  herdr pane run "$pane" lazygit >/dev/null
+  echo "agent-open: lazygit opened in pane $pane ($repo)"
 }
 
 case $1 in
   obsidian) obsidian_open ;;
   browser) chrome_up; focus chrome-cdp ;;
+  changes) changes_open "${2:-}" ;;
   http://* | https://* | file://*) browser_open "$1" ;;
   *)
     path=$(realpath -e -- "$1")
     case ${path,,} in
-      *.html | *.htm | *.pdf | *.svg | *.png | *.jpg | *.jpeg | *.gif | *.webp | *.mp4 | *.webm)
-        browser_open "file://$(jq -rn --arg p "$path" '$p | split("/") | map(@uri) | join("/")')" ;;
+      *.html | *.htm) browser_open "$(html_url "$path")" ;;
+      *.pdf | *.svg | *.png | *.jpg | *.jpeg | *.gif | *.webp | *.mp4 | *.webm)
+        browser_open "file://$(uri "$path")" ;;
       *) obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')" ;;
     esac
     ;;

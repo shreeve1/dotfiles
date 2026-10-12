@@ -147,12 +147,17 @@ When I should see something you made or found, open it for me with
 `agent-open <file-or-url>`. It launches the app if it is not running, opens
 the target and focuses its window. It picks the app by type:
 
-- URL, or a local HTML, PDF, SVG, image or video file: new tab in chrome-cdp
-  (port 9222, my logins; my existing tabs are left alone).
+- URL, or a local HTML, PDF, SVG, image or video file: chrome-cdp (port 9222,
+  my logins). HTML is served from a local web server so scripts work.
+  Re-running it on the same preview reloads that tab instead of adding one.
 - Any other file (Markdown research, reports, notes): Obsidian.
+- `agent-open changes`: lazygit in a split beside your herdr pane, to review
+  what changed.
 
-Use it at the point you hand something to me, not for background browser
-automation (that stays in background tabs per the `browser-cdp` skill).
+Run it at the point you hand something to me, not for background browser
+automation (that stays in background tabs per the `browser-cdp` skill). From a
+herdr pane I am not looking at, it opens nothing and prints the target; pass
+that path on in your reply.
 
 ## Client Operations Context
 
