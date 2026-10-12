@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Show James a file or page: launch Obsidian or the chrome-cdp browser if it is
-# not running, open the target, then focus its window. Safe to call from herdr
-# panes and SSH shells that lack the Hyprland/Wayland environment.
+# not running and open the target. Obsidian is focused; the browser never is
+# (James switches to workspace 5 himself). Safe to call from herdr panes and
+# SSH shells that lack the Hyprland/Wayland environment.
 #
 #   agent-open <url>        http(s)/file URL: chrome-cdp tab (port 9222)
 #   agent-open <file>       html/pdf/image/video: chrome-cdp; anything else: Obsidian
 #   agent-open changes [dir] lazygit in a herdr split beside this session
 #   agent-open obsidian     just launch/focus Obsidian
-#   agent-open browser      just launch/focus chrome-cdp
+#   agent-open browser      just make sure chrome-cdp is running
 #
 # Called from a herdr pane James is not looking at (startday research tabs,
 # background runs), it opens nothing and prints the target instead.
 set -eu
 
-usage() { sed -n '6,10s/^#   //p' "$0" >&2; exit 2; }
+usage() { sed -n '7,11s/^#   //p' "$0" >&2; exit 2; }
 (($#)) || usage
 
 # 1. Focus guard: only the herdr pane James has in front may move his focus.
@@ -67,8 +68,9 @@ chrome_up() {
 uri() { jq -rn --arg p "$1" '$p | split("/") | map(@uri) | join("/")'; }
 
 # 2+3. A local preview (file:// or localhost) already open in a tab is reloaded
-# and brought to the front; other URLs always get a new tab, so James's own
-# tabs are never reloaded.
+# and made Chrome's current tab; other URLs always get a new tab, so James's own
+# tabs are never reloaded. No desktop focus change: chrome-cdp's Hyprland rule
+# (workspace "5 silent", focus_on_activate = false) keeps it from taking focus.
 browser_open() {
   local url=$1 tab=""
   chrome_up
@@ -86,7 +88,7 @@ browser_open() {
   else
     curl -s --max-time 5 -X PUT "http://127.0.0.1:9222/json/new?$url" >/dev/null
   fi
-  focus chrome-cdp
+  echo "agent-open: in chrome-cdp on workspace 5: $url"
 }
 
 # 4. Serve HTML over http so module scripts and fetch() work (file:// blocks
@@ -127,7 +129,7 @@ changes_open() {
 
 case $1 in
   obsidian) obsidian_open ;;
-  browser) chrome_up; focus chrome-cdp ;;
+  browser) chrome_up; echo "agent-open: chrome-cdp running on workspace 5" ;;
   changes) changes_open "${2:-}" ;;
   http://* | https://* | file://*) browser_open "$1" ;;
   *)
