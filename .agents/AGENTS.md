@@ -144,13 +144,15 @@ those). Load the full `graphify` skill only for building or refreshing a graph.
 ## Show me notes and pages (agent-open)
 
 When I should see something you made or found, open it for me with
-`agent-open <file-or-url>`. It launches the app if it is not running, opens
-the target and focuses its window. It picks the app by type:
+`agent-open <file-or-url>`. It launches the app if it is not running and opens
+the target. It picks the app by type:
 
-- URL, or a local HTML, PDF, SVG, image or video file: chrome-cdp (port 9222,
-  my logins). HTML is served from a local web server so scripts work.
+- URL, or a local HTML, PDF, SVG, image or video file: a tab in chrome-cdp
+  (port 9222, my logins, workspace 5). The browser never takes focus, even
+  while you work for me or work a ticket: tell me the page is waiting on
+  workspace 5. HTML is served from a local web server so scripts work.
   Re-running it on the same preview reloads that tab instead of adding one.
-- Any other file (Markdown research, reports, notes): Obsidian.
+- Any other file (Markdown research, reports, notes): Obsidian, focused.
 - `agent-open changes`: lazygit in a split beside your herdr pane, to review
   what changed.
 
