@@ -45,6 +45,7 @@ bin/*
 .pi-lens/*
 !.pi-lens/config.json
 .pi/agent/bin/
+.pi/agent/install/
 .pi/agent/node_modules/
 .pi/agent/**/node_modules/
 .pi/agent/npm/node_modules/
@@ -140,6 +141,7 @@ bin/*
 .omp/agent/cache/
 .omp/agent/custom-session-files/
 .omp/agent/last-changelog-version
+.omp/agent/predict/
 
 # Backup / temp files
 *.bak
