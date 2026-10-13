@@ -36,6 +36,8 @@ bin/*
 .pi/agent/auth.json
 .pi/agent/auth.json.*
 .pi/agent/settings.json
+# pi-advisor-flow config (machine-local; guided setup may store API keys here)
+.pi/agent/advisor.json
 
 # Langfuse observability layer — machine-local to host `aidev` only, never synced
 .pi/agent/extensions/langfuse/

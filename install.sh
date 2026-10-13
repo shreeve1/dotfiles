@@ -353,7 +353,7 @@ if [ "$(uname -s)" = "Linux" ]; then
     'NoDisplay=true' \
     'Terminal=false' \
     'MimeType=x-scheme-handler/agent-open;' \
-    > "$HOME/.local/share/applications/agent-open-link.desktop"
+    >"$HOME/.local/share/applications/agent-open-link.desktop"
   if command -v xdg-mime >/dev/null 2>&1; then
     if xdg-mime default agent-open-link.desktop x-scheme-handler/agent-open; then
       printf 'ok: agent-open scheme default -> agent-open-link.desktop\n'
@@ -525,12 +525,27 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   # Fresh-system / AI-session repair command:
   #   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer --ignore-scripts
 
-  # rpiv-advisor is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-advisor`. It is registered in
-  # ~/.pi/agent/settings.json as extensions/rpiv-advisor. Fresh-system /
-  # AI-session repair command:
-  #   cd ~/.pi/agent && npm install
-  #   cd ~/.pi/agent/extensions/rpiv-advisor && npm install --omit=dev --omit=peer
+  # pi-advisor-flow is vendored so it syncs with dotfiles, not installed via
+  # `pi install npm:pi-advisor-flow`. It is auto-discovered in
+  # ~/.pi/agent/extensions/pi-advisor-flow via its manifest
+  # (extensions: ["./dist/index.js"]); no settings.json entry is needed. The
+  # npm tarball ships a prebuilt `dist/index.js` and has 0 runtime
+  # dependencies, so no install step is required and peers resolve from
+  # ~/.pi/agent/node_modules. SKIP this in the generic npm-install loop
+  # because the manifest's `prepare: husky` lifecycle script would write
+  # `.husky/` into the vendored tree on a local `npm install`. Repaired
+  # manually only if the tarball is replaced.
+  # Replacement for rpiv-advisor (archived 2026-10-13): same role, but adds
+  # automatic review gates (before plans, after repeated failures, before
+  # declaring completion) and loop detection — explains the "I never saw
+  # advice" experience with rpiv-advisor, which was strictly model-initiated.
+  # NOTE — peer/runtime version: pi-advisor-flow declares peers
+  # @earendil-works/{pi-ai,pi-coding-agent,pi-tui} at ^1.0.0; the root pin
+  # in ~/.pi/agent/package.json is currently ^0.82.0 (installed 0.82.1),
+  # so the extension imports the 0.82.1 packages at runtime. The module
+  # loads, but 1.x-specific API surfaces in ask_advisor may error until
+  # the root pin is bumped to ^1.0.0. Tracked as a follow-up; do not bump
+  # the root pin silently — it is a multi-extension change.
 
   # rpiv-web-tools is vendored so it syncs with dotfiles, not installed via
   # `pi install npm:@juicesharp/rpiv-web-tools`. It is registered in
@@ -559,6 +574,7 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
     "$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
     "$HOME/.pi/agent/extensions/file-search") continue ;;
     "$HOME/.pi/agent/extensions/git-info") continue ;;
+    "$HOME/.pi/agent/extensions/pi-advisor-flow") continue ;;
     esac
     install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
   done
@@ -615,7 +631,6 @@ if [ -d "$DOTFILES_DIR/.agents/skills" ]; then
   done
   unset _skill_dir _skill_name
 fi
-
 
 # ─── AGENTS standard ──────────────────────────────────────
 # Canonical AGENTS-standard lane that dsh and codex consume natively.

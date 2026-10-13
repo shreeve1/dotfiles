@@ -1,0 +1,612 @@
+# Changelog
+
+All notable changes to this project are documented here.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
+
+## Unreleased
+
+## 0.13.1 - 2026-10-11
+
+### Fixed
+
+- Persisted `/advisor-off` across new sessions by adding a separately configurable Advisor-tools opt-out, while preserving default on-demand tool availability; successful `/advisor` activation re-enables the tools.
+
+## 0.13.0 - 2026-10-10
+
+### Added
+
+- Added a **Jev provider** row in `/advisor-settings` that owns the screening and turn-gate provider, including a new System One–compatible option for pointing pi-advisor at any deployment that speaks TypeSafe's System One contract — your own gateway, a third-party compatible host, or a decision model running on `localhost`. Set `advisorJevBaseUrl` to the endpoint root (`/v1/systemone` is appended) and supply its key either from `JEV_API_KEY`, the guided secure store, or an existing Pi provider login via `advisorJevKeyProvider`. The provider is live-verified before it is saved.
+
+### Changed
+
+- Improved Herdr display reliability by serializing Advisor metadata reports per source, retrying metadata after failed delivery, and avoiding duplicate notification retries after payloads are written.
+- Jev/Decisions provider selection moved out of the consultation-filter row into its own row, so the provider can be configured and verified without enabling screening. The filter row now only switches the filter on and off, and it refuses to enable while no provider resolves. `AdvisorSettingsSelectorOptions` gained `onJevFilter` and `onJevProvider` for the two rows; the combined `onJevSetup` is deprecated and is still called when neither is supplied.
+- Updated Pi development dependencies to 1.1.0 and refreshed transitive dependency versions.
+- Updated `@types/node` to 26.6.5, `bun-types` to 1.4.3, Knip to 6.41.0, and pinned CI to Bun 1.4.3. Switched the typecheck script from `tsc` to `bun check` and added a contributor install guard requiring Bun 1.4.3 or newer.
+
+## 0.12.0 - 2026-10-07
+
+### Added
+
+- Added OpenAI Decisions as an optional, explicitly selected Jev/Decisions screening provider, with live-verified setup and secure Platform API-key storage; the existing `auto` TypeSafe → OpenRouter behavior remains unchanged.
+
+### Changed
+
+- Updated development dependencies: Pi packages to 1.0.4, Oxlint and plugins to 1.87.0, Knip to 6.40.0, Oxfmt to 0.72.0, TypeBox to 1.3.36, and Ultracite to 7.12.4.
+
+## 0.11.2 - 2026-10-07
+
+### Fixed
+
+- Avoided a startup crash when a host omits `systemPromptOptions` from `before_agent_start`.
+- Prevented OMP's legacy session-history fallback from disclosing entries or images before the latest reset boundary or outside the latest compaction's retained range.
+
+### Changed
+
+- Documented support for OMP session managers without Pi's `buildContextEntries()` projection.
+
+## 0.11.1 - 2026-10-04
+
+### Changed
+
+- Updated CI and local validation to Bun 1.4.2.
+- Updated the Pi development toolchain to the 1.0.2 packages (`pi-ai`, `pi-coding-agent`, `pi-tui`); the supported peer range stays `^1.0.0`.
+
+## 0.11.0 - 2026-10-03
+
+### Added
+
+- Native Pi Codemode composition for `ask_advisor`: scripts receive structured advice, IDs, normalized usage, and existing skip metadata, while interactive responses remain unchanged. Documented deterministic-check composition and explicit draft disclosure limits.
+
+### Fixed
+
+- Advisor invocation guidelines no longer replace the whole system prompt, so prompt sections from other extensions, such as the list of MCP servers, still reach the model.
+- Braces Vulnerability patched (CVE-2026-93687)
+
+## 0.10.0 - 2026-10-02
+
+### Added
+
+- Added an optional `advisorFallbackModel`, selectable from `/advisor-models` and `/advisor-settings`, that retries a failed primary Advisor request once while attributing the response to the model that answered.
+- Added `followUpTo` support for short-lived, session-local Advisor follow-ups that reuse the original post-redaction payload prefix, enforce depth and conversation-advance limits, and render distinct usage status.
+- Added `/advisor-stats`, a local rendered report for retained outcome triggers, adoption, followed-versus-rejected validation pass rates, distinct pseudonymous advice hashes, and the capped ledger time window.
+- Added default-on, toggleable `AGENTS.md` context for trusted Advisor calls, with origin labels, redaction, byte caps, untrusted-rule framing, and explicit withholding for untrusted projects.
+
+### Fixed
+
+- Prevented settings saves from overwriting malformed `advisor.json` files and rolled back runtime settings when persistence fails.
+- Kept trusted project preferences inside the trusted project during file replacement races and isolated Advisor safety state between sessions.
+- Stopped discarded streaming renders from retaining repaint timers, made failed manual submissions retryable, and bounded unterminated-secret redaction.
+- Preserved `=` in model arguments, enforced UTF-8 byte caps on reattached advice, deduplicated withheld image paths, and avoided false zero-cost totals for incomplete provider usage.
+
+### Changed
+
+- Fallback retries count as one consultation against the shared Advisor budget; follow-ups count as one consultation each and require a new question without extra attachments or context overrides.
+- Pi 0.87.x and 0.99.x hosts are no longer supported; Pi 1.0.x is now the supported Pi host and the peer range is `^1.0.0`.
+- Updated the development toolchain to the Pi 1.0.0 packages.
+- Updated the Node.js type definitions to 26.6.4.
+
+## 0.9.1 - 2026-09-30
+
+### Fixed
+
+- Overrode transitive `brace-expansion` 5.0.12 and `undici` 8.11.2 to clear four high-severity audit advisories (stack-exhaustion DoS, WebSocket subprotocol DoS, TLS validation bypass).
+
+- Fixed manual Advisor consultations crashing non-interactive (`--print`) sessions on Pi 0.99: UI status updates and scout lifecycle reads now no-op safely once the session context is retired instead of throwing, `/advisor-manual` completes within the command handler in print mode, and streaming tool-result repaint timers stop once their renderer is gone.
+
+### Changed
+
+- Added Pi 0.99.x support (peer range `^0.87.1 || ^0.99.1`); Pi 0.99's context-lifecycle enforcement is now honored. Manual consultation results no longer trigger a follow-up turn in print mode.
+- Updated the dev toolchain: oxlint 1.86.0, @oxlint/plugins 1.86.0, oxfmt 0.71.0, ultracite 7.12.2, knip 6.39.0.
+
+### Added
+
+- Regression tests covering stale-context resilience of the guarded UI helpers.
+
+## 0.9.0 - 2026-09-28
+
+### Added
+
+- **Visual Advisor reviews** — image-capable Advisor models can now review real pixels, not just paths or descriptions. PNG, JPEG, GIF, and WebP images from selected conversation history and full-policy tool results are attached when the Advisor model accepts image input, bounded to 4 images, 8 MiB total, and 4 MiB each. Explicit `includeTrackedFiles` and `includeUntracked` handoffs accept image files under their existing consent rules. Images are format-validated before egress; unsupported formats, mismatched MIME types, oversized files, text-only models, and tool policies that withhold results are reported to the Advisor as pixels-not-reviewed so it cannot claim visual evidence it never saw. Scout and Jev never receive image bytes. Results show an `N images attached · size · withheld` label with human-readable sizes.
+- **Same-model Advisor suppression** — when the active Executor model matches the configured Advisor, `ask_advisor`, `/advisor-manual`, and automatic gates are skipped before any screening, budget, or tracked-file consent is spent, with a rendered skip result instead of an error. Switching either model (including via `/model`) re-enables consultations and shows a notice. Enabled by default; turn off **Disable same-model Advisor** in `/advisor-settings` (or `"advisorDisableSameModel": false`) for intentional higher-effort same-model reviews.
+
+## 0.8.3 - 2026-09-27
+
+### Changed
+
+- Updated dev-dependencies: `@types/node`, `knip`, and `lint-staged`.
+
+### Fixed
+
+- Redact credentials in JSON tool arguments, service-prefixed keys, and quoted secrets truncated at attachment limits.
+- Enforce the session call budget across concurrent consultations and propagate caller cancellation through Jev retries.
+- Keep Jev filter disabling available without credentials and show key-clear failures without reporting success.
+- Scope Herdr block events to their runtime and preserve aggregate activity while consultations overlap across runtimes.
+
+## 0.8.2 - 2026-09-24
+
+### Added
+
+- Added a configurable Advisor Scout response-stream timeout in `/advisor-settings` and `advisor.json`, defaulting to 30 seconds. Model and auth resolution remain outside the timeout window.
+
+### Changed
+
+- Pi peer dependencies now require `^0.87.1`, dropping support for Pi 0.85.x.
+
+### Fixed
+
+- Scout timeout fallbacks now report that the original conversation was retained instead of showing a misleading zero-kept/all-omitted selection count.
+
+## 0.8.1 - 2026-09-23
+
+### Fixed
+
+- Preserve a native subagent's host-selected model and thinking level when `alwaysOn` or explicit `/advisor` activation runs in a process marked with `PI_SUBAGENT_CHILD=1`.
+- Keep marked child model selections out of the persisted parent Executor configuration.
+- Run Advisor Scout with the marked child's active model and thinking level instead of replacing them with the configured parent Executor.
+
+### Added
+
+- Published validated npm development previews for package changes on `main` under the `dev` dist-tag; stable installs continue to use `latest`.
+
+## 0.8.0 - 2026-09-22
+
+### Added
+
+- Added the optional `advisorModelWhitelist` setting. Exact `provider/model` Executor references in the list may use `ask_advisor` or automatic Advisor gates; an empty list preserves the previous unrestricted behavior.
+
+### Changed
+
+- Dropped peer-dependency support for Pi 0.84.x hosts; supported versions are 0.85.x and 0.87.x.
+- Replaced the Biome linter and formatter with Oxlint and Oxfmt, keeping Ultracite presets and the existing scanner rules (`noConsole`, `noFloatingPromises`, `useImportExtensions`, undeclared-dependency checks via a local Oxlint rule; `noPrivateImports` remains enforced by `tsc --noEmit`).
+- Added the Ultracite-bundled anti-slop ruleset (unjustified type assertions, `unknown` leakage, Reflect access, module mocking) and remediated all findings.
+- Updated the Pi development and peer dependencies to `@earendil-works/*` 0.87.1.
+
+## 0.7.0 - 2026-09-19
+
+### Added
+
+- **Jev consultation filter** — an optional gate in front of `ask_advisor`. Jev, a small classification model by TypeSafe, takes one quick, inexpensive look at each consultation request; when it is clearly low-stakes and resolvable without the Advisor, the consultation is skipped with a short note telling the Executor to carry on — saving a full Advisor call. Everything else consults exactly as before, and if Jev cannot be reached the consultation simply goes through. Off by default.
+- **Proactive turn gate** — pi-advisor can now notice when the Executor has worked through several turns without any advice. Every N turns, one quick Jev check asks whether a senior second opinion is warranted right now; on a confident yes the Advisor consults and its advice is delivered to the Executor between turns. Also off by default.
+- **One-step setup** — open `/advisor-settings` → _Jev consultation filter_ for guided setup: it verifies your access with one live call before turning anything on. Either paste a TypeSafe API key (stored securely — in your system's secret store when available, otherwise a dedicated owner-only file under `~/.pi/agent/`) or skip keys entirely: with an existing OpenRouter login in Pi, Jev reuses it automatically. A hand-placed plaintext key in `advisor.json` keeps working read-only and can be migrated to secure storage from the same screen.
+- **Skip-aware accounting** — the Session Advisor Summary shows how many consultations were screened, skipped, or overridden, what the Jev checks cost, and a labelled upper-bound estimate of what the skips saved; skipped consultations never touch the Advisor-call budget.
+- `/advisor-manual` consultations are now remembered by their question: if the Executor later asks the Advisor the exact same thing, the earlier advice is reattached instead of running another consultation. This deduplication is instant, free, and works even with the Jev screening filter turned off; sessions without any Jev activity report it as `Consultation dedup:` in the summary.
+- All Jev thresholds, costs, and the turn-gate interval are tunable from the `Jev …` rows in `/advisor-settings` without editing files. The default Jev call timeout is provisional pending real-world measurements.
+
+### Changed
+
+- The manual Advisor result message to the Executor now states it is informational and that no follow-up consultation is needed, preventing duplicate consultations.
+- Updated development tooling dependencies (ultracite 7.12.0, Biome 2.5.13, knip 6.37.0, lint-staged 17.5.1, typebox 1.3.34, @types/node 26.6.2, bun-types 1.4.2); no runtime dependencies changed. Biome is held at 2.5.13 because 2.5.14's `noUnnecessaryConditions` regression falsely flags the gate parsers' required `RegExp.exec` null-guards as dead code.
+
+## 0.6.0 - 2026-09-12
+
+### Fixed
+
+- Advisor and Scout thinking previews now respect Pi's `hide_thinking` setting, collapsing to a one-line `Thinking…` cue the way Pi renders the Executor's own hidden thinking.
+- The `ask_advisor` result no longer renders a doubled blank gap between the request and the first Scout line; the result box's own top padding was stacking on the call box's padding.
+- Session summaries keep the cumulative gate-intervention count when the loop gate resets repetition after a proceed decision.
+
+### Changed
+
+- Advisor thinking previews no longer render the 💭 emoji; the cue is a plain indented, italic line.
+- Internal code-quality remediation with no behavior change: Biome scanner rules (`noConsole`, `noFloatingPromises`, `noPrivateImports`, `noUndeclaredDependencies`, `useImportExtensions`) activated and all import specifiers normalized to `.ts`; knip-verified dead exports removed; `src/untracked.ts` renamed to `src/attachments.ts` (deep imports of the old path must switch; the four `src/config.ts`, `src/ui.ts`, `src/tools.ts`, and `src/commands.ts` facades are unchanged and now pinned by `test/facade-exports.test.ts`); the registration test suite split into fifteen focused files under 500 lines each with shared mock/config/harness helpers; Scout context building decomposed into `scout-types`, `scout-protocol`, `scout-groups`, and `scout-reconstruct` modules with a single invalid-protocol failure constructor; configuration key lists derived from one declarative `src/config/schema.ts` table; conversation redaction and tool-result capping extracted into `redaction.ts` and `tool-result-cap.ts` with linear-time byte capping; and repeated cancellation/teardown/fallback blocks collapsed in the Scout runner.
+
+## 0.5.6 - 2026-09-11
+
+### Fixed
+
+- Preserve manual `advisor.json` edits when unrelated settings are saved.
+- Bundle the published extension entry so Node's loader shares configuration state.
+
+### Changed
+
+- Raised the Pi compatibility dev/test baseline to 0.85.1 and widened the peer ranges to `^0.84.1 || ^0.85.1`, keeping Pi 0.84.x supported while excluding Pi 0.85.0, whose undeclared `/server` import broke extension loading.
+- The model picker frames its list with single border rules matching the other Advisor surfaces, normalizes every rendered line to the terminal width so long model identifiers no longer wrap the layout, and dims its hint row like the other hint rows.
+- The `/advisor-manual` dialog centers its Submit and Cancel buttons between the dialog borders at supported overlay widths.
+- Settings text submenus clear a validation error as soon as the value changes instead of leaving it until the next submit.
+
+## 0.5.5 - 2026-09-08
+
+### Changed
+
+- Restored README documentation depth that had been condensed in 0.5.1: the feature list, usage accounting and outcome logging behavior, Scout fallback details, and expanded privacy documentation, while keeping the tightened structure and install/quick-start flow.
+
+## 0.5.4 - 2026-09-08
+
+### Fixed
+
+- Pinned the Socket security dependency overrides for `is-unicode-supported` and `safe-buffer` to exact published versions instead of floating `^1` ranges, keeping the resolved dependency tree unchanged while avoiding floating ranges in the published manifest.
+
+## 0.5.3 - 2026-09-08
+
+### Fixed
+
+- Kept a malformed `advisor.json` from blocking every tool call while the Advisor flow is active: the `tool_call` handler now skips Advisor gating, notifies once per distinct configuration error, and resumes gating once the configuration is valid again.
+- Preserved the one-shot tracked-file handoff across rejected follow-up calls: disabled `advisorTrackedFileContent` consent or an exhausted Advisor call budget now fails the `ask_advisor` call up front without consuming the handoff from the prior Advisor response.
+
+## 0.5.2 - 2026-09-05
+
+### Changed
+
+- Reorganized configuration, UI, Advisor tool, and command code into smaller modules behind the existing public facades without changing the extension's public API.
+
+### Fixed
+
+- Kept failed or aborted Advisor streams from treating partial responses as successful advice or automatic gate permission.
+- Made malformed automatic-gate Markdown fences fail closed when their character or delimiter length does not match.
+- Applied optional secret redaction to targeted Advisor questions before sending provider requests while retaining the raw question for local displays.
+- Kept the TUI tab keybinding out of Socket's URL-string heuristic without changing its runtime behavior.
+- Made benchmark extension attestations follow the root `package.json` version instead of a duplicated constant.
+
+## 0.5.1
+
+### Changed
+
+- Updated CI and local validation to Bun 1.4.1 and kept the Pi compatibility packages at 0.84.4; Pi 0.85.0 currently adds an eager `/server` import without declaring the `@earendil-works/pi-server` dependency required by its coding-agent entry point.
+- Kept benchmark tests out of the normal test run; use `bun run test:bench` to run them explicitly.
+- Added Socket security dependency overrides and a `socket` script for `bunx socket optimize`.
+
+### Added
+
+- Added a repository-only failsafe benchmark with an offline replay tier, a 24-item decision-point corpus, a fail-closed Pi/Harbor ReactBench adapter, pinned live-tier controls, hard budget limits, and task-level uplift/dominance reporting. See [Benchmarking](docs/benchmark.md).
+- Added bounded local Harbor runtime controls for Apple Container experiments, Docker build-cache cleanup, and a recorded one-hour agent timeout for complex ReactBench tasks.
+- Added a disposable, credential-free GitHub build compatibility layer for pinned ReactBench Dockerfiles whose Git 2.39 transport is rejected by the GitHub endpoint, with bounded pre-agent Harbor infrastructure retries and per-attempt artifacts for transient build and transport failures.
+- Derived the host Harbor command timeout from the bounded agent timeout and made timeout cleanup terminate the full Harbor process group, including the broker and descendants.
+- Ensured configured Advisor reasoning effort reaches the provider-facing request field used by current Pi AI adapters.
+
+### Fixed
+
+- Made `/advisor` open the available-model picker on first use or when either saved model is missing or unavailable; activation never silently selects a model outside the user's available catalog.
+- Added a concise `/advisor` explanation of the Advisor's second-opinion role.
+- Preserved Markdown formatting in visible Scout and nested Advisor thinking previews while retaining their speech-bubble cue. During streaming, incomplete Markdown delimiters display transiently until they close, which is expected behavior when thinking arrives incrementally.
+- Adopted an explicit `/model` selection made before `/advisor` as the Executor on the next successful activation, without persisting ordinary model changes while the flow is off.
+
+## [5.1.0] - 2026-09-04 [YANKED]
+
+### Release status
+
+- Published by mistake instead of `0.5.1`; withdrawn from npm and removed from Git, with `latest` restored to `0.5.0`.
+
+## 0.5.0
+
+### Changed
+
+- Updated the development toolchain and Pi compatibility packages, including TypeScript 7, Node.js 26 type definitions, Pi 0.84.4 packages, and Bun 1.3.14 validation.
+
+### Added
+
+- Added a centered TUI overlay for `/advisor-manual` with an editable prefilled focus message, optional general review, a Git context selector bounded by the configured disclosure ceiling, and live Scout/Advisor progress without duplicate footer status text; non-TUI invocations remain immediate.
+- Reworked `/advisor-settings` into a compact Pi-style searchable settings list with fuzzy search, arrow-key value adjustment, and immediate persistence for every valid change.
+- Restored the animated Simple mode indicator and added a context-depth meter spanning recent history to the complete branch at `ALL`.
+- Added enabled-by-default per-response usage detail display plus an independent, opt-in `showUsageFooter` setting for cumulative Advisor footer usage; both are presentation-only and do not change usage accounting.
+
+### Performance
+
+- Coalesced Advisor streaming UI updates to roughly 10–12 refreshes per second while flushing the latest partial state immediately on completion or error.
+
+### Fixed
+
+- Fixed `/advisor-settings` context-meter alignment and numeric controls so custom max-call limits advance to the next numeric option.
+- Made blocked automatic-gate decisions honor the configured session, tool, or warning behavior.
+- Allowed failed local Advisor outcome writes to be retried without consuming the advice.
+
+## 0.4.0
+
+### Added
+
+- Exposed provider-reported Advisor and Scout token/cache/cost details per result, tracked cumulative direct Advisor usage in the session footer and optional summary, and attached normalized `ask_advisor` usage to Pi's built-in cost totals without double-counting manual consultations or automatic gates.
+
+### Removed
+
+- Removed the repository-only Benchmark suite and its benchmark-specific telemetry instrumentation.
+
+### Fixed
+
+- Kept Scout's serialized manifest limit separate from the Advisor conversation budget so required context does not fall back solely because of manifest metadata overhead.
+- Made unlimited Advisor call budgets live at every enforcement boundary, preventing stale finite limits from triggering false Herdr budget notifications after switching to unlimited.
+
+## 0.3.6
+
+### Fixed
+
+- Limited `/advisor-models` to models available through the user's configured Pi providers, preventing unavailable defaults from being displayed or selected and ensuring new selections are used immediately by `/advisor` in the same session.
+
+## 0.3.5
+
+### Changed
+
+- Kept intentional local preference filename and Herdr method identifiers in separate components in published code so Socket's URL-string heuristic does not misclassify them.
+- Made Scout recover from hallucinated group IDs by ignoring unknown selections and retaining required context instead of discarding the entire curation.
+- Added visible footer progress and Advisor-stream forwarding for `/advisor-manual` consultations ([#10](https://github.com/philipbrembeck/pi-advisor/issues/10)).
+
+## 0.3.4
+
+### Changed
+
+- Updated the development toolchain and Pi compatibility test matrix to the current supported patch releases.
+- Added pull-request validation and made release tags wait for frozen-install, typecheck, test, lint, package, and security-audit checks.
+- Kept Bun security auditing outside the publish workflow so an audit failure prevents a new tag instead of invalidating an existing release tag.
+- Added a package allowlist check for the published tarball and retained npm provenance publishing.
+
+### Security
+
+- Confirmed the Socket URL-string findings for `advisor-preferences.md` and `notification.show` are intentional command/path identifiers, not network endpoints.
+- Retained the constrained filesystem access required for explicit repository-file handoff; no new Socket issues were reported for 0.3.3.
+
+## 0.3.3
+
+### Added
+
+- Added **EXPERIMENTAL** Advisor Scout, an opt-in conversation curator that uses the configured Executor model before every Advisor invocation. It keeps selected evidence verbatim, labels its synthesis as untrusted inference, reports separate usage and latency, and falls back to the original context without changing Advisor or gate safety behavior. The experiment adapts the context-boundary idea from the [FastContext paper](https://arxiv.org/html/2606.14066v1); it is not the paper's repository explorer and does not claim its reported effect size.
+
+### Fixed
+
+- Kept Scout history within the Advisor's remaining context budget, including zero-budget behavior, and kept pending Advisor drafts and attachment paths outside Scout's input.
+- Included the current repeated tool invocation in automatic-gate Scout context.
+
+## 0.3.2
+
+### Release status
+
+- Not published because the release validation workflow failed three tests before publication.
+
+## 0.3.1
+
+### Changed
+
+- Updated the supported runtime baseline to Pi 0.84.1 and verified Herdr reporting against Herdr 0.8.0 while retaining the same request compatibility with Herdr 0.7.5.
+
+### Fixed
+
+- Show configured models and thinking levels first and ticked in `/advisor-models`, allowing Enter to keep each current selection.
+
+## 0.3.0
+
+### Added
+
+- Added discretionary, sequential Advisor file handoff: when globally enabled, the Executor can attach explicitly named tracked working-tree files with `includeTrackedFiles` after the Advisor says it cannot review one. Tracked and untracked attachments remain separate consent paths and share bounded, redacted disclosure limits.
+
+## 0.2.9
+
+### Fixed
+
+- Preserved custom numeric values when stepping `/advisor-settings` controls instead of resetting off-preset budgets and disclosure caps.
+- Kept recorded session blocks enforced after `/advisor-off`, restored configuration after failed activation, and charged Advisor-call budgets only when consultation execution begins.
+- Kept conversation and repository disclosure within their configured caps and explicitly identified disabled repository context as withheld.
+- Made concurrent outcome records append safely with one exclusively initialized digest salt, and stopped superseded manual consultations from entering session summaries.
+- Preserved and ignored forward-compatible `advisor.json` fields with a warning, and made malformed configuration errors actionable in every Advisor command.
+- Isolated call budgets, repeated-action counters, and safety blocks between concurrent same-process sessions.
+- Kept the repository-context withheld warning visible when its disclosure budget is zero.
+
+## 0.2.8
+
+### Fixed
+
+- Advisor session blocks are reported to Herdr again. Herdr grants each pane a single lifecycle status authority, which for Pi is Herdr's own `herdr-agent-state` integration, and silently drops semantic state from any other source. The Advisor block now signals that integration over Pi's in-process event bus (`herdr:blocked`) instead of relying on display metadata alone, so a blocked pane shows `blocked` rather than `working`. Only the unblocked-to-blocked edge emits, because the listener refcounts; clears are always delivered.
+
+## 0.2.7
+
+### Security
+
+- Escaped every untrusted Advisor prompt region and hardened automatic decision parsing against malformed fenced blocks ([#2](https://github.com/philipbrembeck/pi-advisor/issues/2)).
+- Kept Advisor prompts, models, gates, budgets, disclosure, redaction, integrations, and consent global by no longer applying repository-controlled project `advisor.json` files ([#3](https://github.com/philipbrembeck/pi-advisor/issues/3)).
+- Redacted unterminated oversized PEM blocks before bounded preference or untracked-file content can leave the process ([#4](https://github.com/philipbrembeck/pi-advisor/issues/4)).
+- Bounded and redacted Herdr blocked-state metadata while reliably clearing previously reported labels ([#5](https://github.com/philipbrembeck/pi-advisor/issues/5)).
+- Bounded untracked-file Git probes and switched to NUL-delimited path handling for non-ASCII filenames ([#6](https://github.com/philipbrembeck/pi-advisor/issues/6)).
+
+### Changed
+
+- Advisor settings now load and save globally. Move any intended values from project `.pi/advisor.json` files into the Pi agent directory's global `advisor.json`.
+- Pi's bundled modules (`@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and `typebox`) are declared as optional peer dependencies. Installing the extension no longer installs a copy of them; Pi supplies them at runtime. Version ranges continue to document the supported Pi API.
+- Published packages now include `CHANGELOG.md`.
+- Release workflows pin GitHub Actions to commit SHAs, kept current by Dependabot.
+
+## 0.2.6
+
+### Added
+
+- Draft-aware `ask_advisor` reviews with opaque advice IDs, explicit outcome reporting, trusted-project preferences, and opt-in explicit untracked-file context.
+- Global-only, privacy-minimal outcome JSONL logging with salted advice digests and no raw advice, prompts, paths, repository data, or session identifiers.
+- `.pi/advisor-preferences.md` support for trusted projects; preferences remain untrusted, redacted, capped, and never auto-written.
+
+## 0.2.5
+
+This version was never published to npm; its changes shipped in 0.2.6.
+
+### Added
+
+- Repository change context for consultations, controlled by `advisorGitContext` (`off`, `summary`, `full`, default `summary`) and capped by `advisorGitContextMaxChars`. `summary` discloses changed file names, change status, and line counts; `full` adds the patch. Untracked files are always reported by name only.
+- An optional `gitContext` argument on `ask_advisor` so the Executor can request less, or request more up to the configured allowance. A request above the allowance is narrowed to it and the Advisor is told that a fuller view was withheld.
+- Repository context is escaped and capped as a single labelled untrusted region, so a crafted path cannot end the region early and have following text read as instructions.
+
+### Fixed
+
+- Restored keyboard selection for the Context window slider in advanced `/advisor-settings` mode, matching its position at the top of the screen.
+
+## 0.2.4
+
+### Added
+
+- Simple mode for voluntary `ask_advisor` and `/advisor-manual` consultations without automatic gates, blocks, budgets, or session summaries; privacy and context controls remain active.
+- Persistent `alwaysOn` Advisor-flow activation, including Executor restoration and, while the flow is active, adoption of an explicit `/model` selection as the Executor. `/advisor-off` also turns persistent activation off.
+- Simple-mode settings for voluntary Advisor use and persistent activation.
+- Static `◆ ADVISOR · SOUND` rendering for ordinary Advisor replies beginning with `Verdict: sound`, for both `ask_advisor` results and `/advisor-manual` responses.
+
+### Changed
+
+- Session Advisor Summary now defaults to off.
+
+### Fixed
+
+- `/advisor contextMaxChars=N` now persists, so the supplied limit applies to later consultations instead of reverting at the next tool call.
+- A zero context limit with no targeted focus no longer sends an empty Advisor request that some providers reject.
+- An Advisor gate response that quotes a decision line inside a fenced example is no longer rejected as a duplicate or contradictory decision.
+- Reconstructed Advisor context is assembled without re-joining the accumulated branch on every entry, which removes a slowdown on long sessions with large context limits.
+
+## 0.2.3
+
+### Added
+
+- Optional local secret redaction for reconstructed Advisor context, including user messages, assistant text and tool arguments, compaction summaries, and full tool results.
+- Exact-name Advisor tool disclosure policies: `full` includes call arguments and capped output; `summary` retains only result status and size metadata; `exclude` omits call details and output. Tools without a policy remain `full` for compatibility.
+- `/advisor-settings` controls for secret redaction and inline JSON editing of tool disclosure policies, with validation errors that keep invalid input open for correction.
+- Configuration validation, loading, and persistence for `advisorRedactSecrets` and `advisorToolPolicies`.
+
+### Changed
+
+- Redact eligible tool output before applying line and byte limits so truncated context cannot retain the beginning or end of a matched secret.
+- Reorganize the README around installation, first use, commands, automatic gate behavior, configuration, privacy boundaries, development, and releases.
+
+## 0.2.2
+
+### Fixed
+
+- Reopening `/advisor-settings` now displays values saved earlier in the same Pi session without requiring `/reload`.
+
+## 0.2.1
+
+### Added
+
+- Ultracite lint commands and a Husky pre-commit hook that formats and lints staged TypeScript and JSON files.
+
+### Changed
+
+- Resolved the existing Ultracite lint violations through structural refactors and stronger type boundaries without changing Advisor-flow behavior.
+
+### Fixed
+
+- Empty persisted Executor, Advisor, and reasoning-effort settings now retain their configured defaults.
+- Keep a session blocked after a critical automatic-gate decision or session-blocking gate failure.
+- Preserve custom Advisor context and reasoning settings when saving unrelated changes.
+- Persist an unlimited Advisor-call budget correctly after removing a prior finite limit.
+- Enforce configured Advisor tool-result byte and line limits, including for long Unicode lines.
+- Render automatic and manual Advisor failures in the transcript.
+- Avoid false loop detection for semantic field names such as `update`.
+- Make release automation skip unchanged versions while explicitly dispatching publication after an Action-created tag.
+
+## 0.2.0
+
+### Added
+
+- Separate Markdown consultations from strict automatic loop-gate decisions.
+- Typed gate parsing for `proceed`, `revise`, and `blocked`, including safe failure classification.
+
+### Changed
+
+- Normal Advisor and Executor-requested consultations preserve raw Markdown and no longer fabricate or enforce a structured verdict.
+- Automatic gate decisions render separately from their Markdown explanation.
+- Advisor calls now use one shared per-session budget with explicit used/remaining accounting.
+- Gate failures support `block-session`, `block-tool`, and `warn-and-continue`; Herdr failures also show sanitized `notification.show` toasts when integration is enabled.
+- Advisor settings validate values at startup, preserve unknown fields on save, and expose Herdr integration plus tool-result limits.
+- Advisor context keeps complete semantic entries and caps oversized tool results using Pi-compatible defaults while preserving head/tail sections.
+- Tool-result limits are configurable by line and byte count, with explicit omission markers that never split semantic entries.
+- Loop detection now uses explainable normalized tool signatures with allowlisted volatile-field and shell-whitespace normalization.
+- Local ephemeral summaries distinguish Markdown advice from automatic gate decisions and include triggers, models, usage/cost when available, budget, failures, and execution effects.
+
+## [0.1.9]
+
+### Fixed
+
+- Keep manual and automatic Advisor responses human-readable. Manual consultations return direct Markdown; automatic loop reviews use a concise Markdown `Decision:` line for machine-readable gating without exposing a JSON protocol.
+
+## [0.1.8]
+
+### Added
+
+- Structured Advisor verdicts: `proceed`, `revise`, `insufficient-evidence`, and critical `blocked` responses, with findings, required verification, and a smallest next step.
+- Critical-block handling: optionally abort the active run, mark the session blocked, and report the blocked state to Herdr.
+- Automatic loop gate that consults the Advisor after three equivalent tool calls. A `proceed` verdict resumes execution; `revise` and `insufficient-evidence` block only the repeated action; critical verdicts, failed reviews, and exhausted budgets block the session and report Herdr state.
+- Per-session Advisor-call limit, with an Executor prompt hint only when a finite limit is configured.
+- Local, in-memory-only `[Session Advisor Summary]` after a non-blocked settled run; no summary data is persisted or sent to Herdr.
+- `/advisor-settings` controls for critical blocking, enabling/disabling the automatic loop gate, loop threshold, max Advisor calls per session, and the Session Advisor Summary.
+- Session-state tests covering loop detection, Advisor-call budgets, and summary generation.
+- Research note covering evidence-backed Advisor-flow improvements.
+
+### Changed
+
+- Advisor responses now require validated JSON and safely fall back to `insufficient-evidence` when the response is malformed.
+- Manual, Executor-requested, and automatic Advisor consultations share the configured session call limit.
+- Herdr activity and blocked state use separate extension metadata sources so clearing one does not clear the other.
+
+## [0.1.7]
+
+### Added
+
+- Herdr integration: Advisor consultations display as `seeking advice` while active when Pi runs in a Herdr-managed pane.
+
+## [0.1.6]
+
+### Added
+
+- `/advisor-manual [focus]` to start an Advisor consultation in parallel without interrupting the Executor's active tool work; the completed advice is delivered before the Executor's next model call.
+- Immediate transcript entries and rendered Advisor responses for manual consultations.
+
+### Changed
+
+- Reuse the Advisor call UI for manual consultations and cancel an earlier manual request when a newer one starts or the session shuts down.
+
+## [0.1.5]
+
+### Added
+
+- `/advisor-settings`: one keyboard-navigable screen for Advisor context size, reasoning effort, invocation gates, response collapsing, and a custom invocation rule.
+- Claude Code-style Advisor context selector with `0`, `10k`, `25k`, `100k`, `200k`, and `ALL` presets.
+- Individually configurable plan, repeated-failure, and completion-review Advisor gates.
+- Optional collapsed Advisor responses that expand with `Ctrl+O`.
+- Inline custom invocation-rule editing in Advisor settings.
+
+### Changed
+
+- General `ask_advisor({})` consultations now send conversation context without an invented request or question; targeted questions remain optional.
+- Advisor instructions explicitly tell the Executor not to invent a question for a normal review and tell the Advisor to make a best-effort contextual review without requesting more input.
+- Preserve unknown fields when saving `advisor.json`.
+- Support `0` as a no-history context setting and `Number.MAX_SAFE_INTEGER` as the ALL-context sentinel.
+
+### Fixed
+
+- Ignore persisted Advisor configuration files with invalid field types instead of crashing during model resolution.
+- Restore interactive Advisor settings arrow-key navigation using Pi TUI key matching.
+
+## [0.1.4]
+
+### Added
+
+- Configurable reconstructed-conversation limit via `contextMaxChars` in `advisor.json` or `/advisor contextMaxChars=N` (default: 15,000; maximum: 1,000,000).
+
+### Changed
+
+- Clarified that the Executor may call `ask_advisor({})` without a question for a general review.
+- Removed the extra no-question “General task review” text from the Advisor call UI.
+- Reframed Advisor guidance as a brief second opinion that stress-tests the Executor's own candidate direction rather than taking over planning.
+
+## [0.1.3]
+
+### Documentation
+
+- Changed publication flow, no code changes
+
+## [0.1.2]
+
+### Added
+
+- General contextual Advisor reviews: the Executor can call `ask_advisor({})` without a specific question.
+- A skill-style Advisor invocation row that distinguishes an Executor request from an Advisor response.
+- Markdown rendering support for the Advisor response, including code blocks and inline code.
+
+### Changed
+
+- Advisor responses display the advising model and advice separately from the tool-result payload.
+- The Advisor spinner is shown only while a response is streaming and is cleared when the response completes.
+
+## [0.1.1]
+
+### Documentation
+
+- Fixed documentation link
+
+## [0.1.0]
+
+### Added
+
+- Initial npm and git package release.
