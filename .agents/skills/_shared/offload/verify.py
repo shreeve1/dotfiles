@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
+from typing import Callable
 from urllib.parse import unquote, urlsplit
 
 
@@ -303,6 +304,7 @@ class OffloadFixture(unittest.TestCase):
         prose = (worker / receipt["identity"]["brief_path"]).read_text(encoding="utf-8")
         finish = re.search(r"(?ms)^## Finish\n\n(.+?)(?:\n## |\Z)", prose)
         self.assertIsNotNone(finish, "Worker Brief lacks Finish instructions")
+        assert finish is not None
         command = shlex.split(finish.group(1).strip())
         return self.cli_response(self.run_process(command, worker), "result", forbidden=forbidden)
 
@@ -416,6 +418,7 @@ class GitGuardFixtures(OffloadFixture):
         content = secret + "\n"
         self.put(self.repo, "historical-example.txt", content)
         self.commit(self.repo, "Add repeated historical blob fixture")
+        tip = ""
         for number in range(3):
             self.put(self.repo, "work.txt", f"unrelated historical change {number}\n")
             tip = self.commit(self.repo, f"Unrelated fixture change {number}")
@@ -930,6 +933,7 @@ class GitGuardFixtures(OffloadFixture):
             "--expected", str(expected_worker), "--summary", str(summary), "--allowlist", str(allowance),
         ])
         receipt, expected_source = self.snapshot(allowlist=allowance, forbidden=[sample], finish=finish)
+        assert expected_source is not None
         expected_worker.write_bytes(expected_source.read_bytes())
         self.clone_worker(receipt, worker)
         target_hook = worker / ".git/hooks/pre-commit"
@@ -991,6 +995,7 @@ class GitGuardFixtures(OffloadFixture):
             "--expected", str(expected_worker), "--summary", str(summary), "--allowlist", str(allowance),
         ])
         receipt, expected_source = self.snapshot(allowlist=allowance, forbidden=[sample], finish=finish)
+        assert expected_source is not None
         expected_worker.write_bytes(expected_source.read_bytes())
         self.clone_worker(receipt, worker)
         self.assertFalse((worker / ".git/hooks/pre-commit").exists())
@@ -1104,6 +1109,7 @@ class GitGuardFixtures(OffloadFixture):
         recipe = (SKILLS / "_shared/offload/ignored-copy.md").read_text(encoding="utf-8")
         heredoc = re.search(r"(?ms)^python3 .*? <<'PY'\n(.*?)^PY$", recipe)
         self.assertIsNotNone(heredoc, "Ignored-copy recipe lacks its Python heredoc")
+        assert heredoc is not None
         tree = ast.parse(heredoc.group(1))
         assignments = [
             node for node in tree.body
@@ -1115,6 +1121,7 @@ class GitGuardFixtures(OffloadFixture):
         self.assertEqual(len(assignments), 1, "Ignored-copy remote program must be one literal assignment")
         value = assignments[0].value
         self.assertIsInstance(value, ast.Constant)
+        assert isinstance(value, ast.Constant)
         self.assertIsInstance(value.value, str)
         return value.value
 
@@ -1194,6 +1201,7 @@ class SkillStructureFixtures(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 match = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|\Z)", text, re.DOTALL)
                 self.assertIsNotNone(match, f"{name} lacks frontmatter")
+                assert match is not None
                 fields = {}
                 for line in match.group(1).splitlines():
                     if not line.strip() or line.lstrip().startswith("#") or line[0].isspace():
@@ -1255,9 +1263,9 @@ class ReturnSystemFixture:
         self.helper_pid = 9000
         self.survive_stop = set()
         self.survive_kill = set()
-        self.after_stop = None
-        self.before_members = None
-        self.before_control = None
+        self.after_stop: Callable[[], object] | None = None
+        self.before_members: Callable[[], None] | None = None
+        self.before_control: Callable[[], None] | None = None
         self.controls = []
 
     def boot_id(self):
@@ -1310,6 +1318,7 @@ class ReturnSystemFixture:
         if self.before_control is not None:
             self.before_control()
         observed = self.scope(unit)
+        assert observed is not None
         for field in ("invocation_id", "control_group", "kill_mode", "timeout_stop"):
             if observed[field] != expected_scope[field]:
                 raise importlib.import_module("git_guard").Refusal("SCOPE_CHANGED", 3)
@@ -1347,8 +1356,10 @@ class ReturnLifecycleFixtures(OffloadFixture):
         super().setUp()
         mock.patch.dict(os.environ, self.env, clear=True).start()
         self.receipt, self.expected = self.snapshot(slug=self.SLUG)
+        assert self.expected is not None
         self.expected.chmod(0o600)
         self.worker_receipt = self.base / "worker-receipt.json"
+        assert self.expected is not None
         self.worker_receipt.write_bytes(self.expected.read_bytes())
         self.worker_receipt.chmod(0o600)
         self.worker_path = self.worker(self.receipt)
@@ -1552,6 +1563,7 @@ class ReturnLifecycleFixtures(OffloadFixture):
         return ack
 
     def test_dispatch_is_private_immutable_and_keeps_external_receipt(self):
+        assert self.expected is not None
         receipt_bytes = self.expected.read_bytes()
         response = self.publish()
         dispatch_bytes = Path(response["dispatch"]).read_bytes()
@@ -1560,6 +1572,7 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.assertEqual(document["routes"]["forward"]["ssh_alias"], "fixture-target")
         self.assertEqual(document["worker"]["host"], self.system.host())
         self.assertEqual(document["identity"], self.receipt["identity"])
+        assert self.expected is not None
         self.assertEqual(self.expected.read_bytes(), receipt_bytes)
         self.assertEqual(stat.S_IMODE(self.state_dir.stat().st_mode), 0o700)
         self.assertEqual(stat.S_IMODE(Path(response["dispatch"]).stat().st_mode), 0o600)
@@ -1690,7 +1703,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.processes[101]["start_ticks"] += 4000
         self.freeze(attempt, error="SCOPE_CHANGED")
         self.assertEqual(self.system.controls, [])
-        self.assertEqual(self.system.process(101)["start_ticks"], 104101)
+        entry = self.system.process(101)
+        assert entry is not None
+        self.assertEqual(entry["start_ticks"], 104101)
         self.assert_unpinned()
 
     def assert_enumeration_birth_change_refused(self, pid):
@@ -1704,7 +1719,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.before_members = change_birth_during_enumeration
         before = self.local_state(self.worker_path)
         self.freeze(attempt, error="SCOPE_CHANGED")
-        self.assertEqual(self.system.process(pid)["start_ticks"], birth + 4000)
+        entry = self.system.process(pid)
+        assert entry is not None
+        self.assertEqual(entry["start_ticks"], birth + 4000)
         self.assertEqual(self.system.controls, [])
         self.assertEqual(self.system.properties["active_state"], "active")
         self.assertFalse((self.state_dir / "operation.json").exists())
@@ -1735,8 +1752,12 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.freeze(attempt, error="SCOPE_CHANGED")
         self.assertEqual(self.system.controls, [])
         self.assertEqual(self.system.process(801), replacement_birth)
-        self.assertEqual(self.system.process(101)["state"], "S")
-        self.assertEqual(self.system.process(102)["state"], "S")
+        entry = self.system.process(101)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
+        entry = self.system.process(102)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assert_unpinned()
 
     def test_fresh_kill_boundary_rejects_replacement_after_outer_scope_check(self):
@@ -1760,7 +1781,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.freeze(attempt, error="SCOPE_CHANGED")
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop"])
         self.assertEqual(self.system.process(801), replacement_birth)
-        self.assertEqual(self.system.process(103)["state"], "S")
+        entry = self.system.process(103)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assert_unpinned()
 
     def test_pid_reused_outside_scope_after_stop_is_not_a_surviving_writer(self):
@@ -1775,8 +1798,12 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.after_stop = reuse_exited_pid
         response = self.freeze(attempt)
         self.assert_pinned(response, "pinned")
-        self.assertEqual(self.system.process(101)["start_ticks"], 300101)
-        self.assertEqual(self.system.process(101)["state"], "S")
+        entry = self.system.process(101)
+        assert entry is not None
+        self.assertEqual(entry["start_ticks"], 300101)
+        entry = self.system.process(101)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop"])
 
     def test_dirty_tracked_worker_refuses_before_stop(self):
@@ -1820,7 +1847,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.survive_kill = {103}
         self.freeze(attempt, error="WRITERS_REMAIN")
         self.assertFalse(self.system.quiet(self.system.group))
-        self.assertEqual(self.system.process(103)["state"], "S")
+        entry = self.system.process(103)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop", "kill"])
         self.assert_unpinned()
 
@@ -1845,7 +1874,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.after_stop = replace_scope
         self.freeze(attempt, error="SCOPE_CHANGED")
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop"])
-        self.assertEqual(self.system.process(103)["state"], "S")
+        entry = self.system.process(103)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assert_unpinned()
 
     def test_different_nonempty_terminal_control_group_is_not_treated_as_cleared(self):
@@ -1875,7 +1906,9 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.assertEqual(self.system.properties["invocation_id"], invocation)
         self.assertTrue(self.system.quiet(self.system.group))
         self.assertIsNone(self.system.process(101))
-        self.assertEqual(self.system.process(102)["state"], "Z")
+        entry = self.system.process(102)
+        assert entry is not None
+        self.assertEqual(entry["state"], "Z")
         self.assertIsNone(self.system.process(103))
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop"])
 
@@ -1895,14 +1928,18 @@ class ReturnLifecycleFixtures(OffloadFixture):
         self.system.after_stop = clear_group_before_unit_gc
         self.freeze(attempt, error="WRITERS_REMAIN")
         self.assertFalse(self.system.quiet(self.system.group))
-        self.assertEqual(self.system.process(103)["state"], "S")
+        entry = self.system.process(103)
+        assert entry is not None
+        self.assertEqual(entry["state"], "S")
         self.assertEqual([entry[0] for entry in self.system.controls], ["stop"])
         self.assert_unpinned()
 
     def test_exit_proof_records_descendants_and_accepts_dead_zombie(self):
         attempt, response = self.pin()
         self.assertIsNone(self.system.process(101))
-        self.assertEqual(self.system.process(102)["state"], "Z")
+        entry = self.system.process(102)
+        assert entry is not None
+        self.assertEqual(entry["state"], "Z")
         self.assertIsNone(self.system.process(103))
         self.assertTrue(self.system.quiet(self.system.group))
         proof = json.loads((self.state_dir / "freeze.json").read_bytes())
