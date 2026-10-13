@@ -55,9 +55,12 @@ These three are the only machines this repo is installed on. Homelab servers
 config; do not sync or apply changes there. `macbook-air` is retired
 (2026-10-03).
 
-`aidev` is the source of truth. Edit and commit here, push, then pull on
-`omarchy` and `itan8n`. Machine-specific edits on those two should be
-committed upstream from aidev or kept out of the tracked files.
+No machine is the source of truth: work happens on all three, and
+`origin/main` on GitHub is the sync point. Any machine may edit and commit.
+Pull (`git pull --rebase`) before starting work, commit, push, then
+`git pull --ff-only` on the other two. Never leave committed work unpushed or
+let two machines diverge. Keep machine-specific edits (e.g. a local
+`.codex/hooks.json` change) out of commits unless they belong on every machine.
 
 | Machine | Role | User | NetBird IP | NetBird DNS name | LAN |
 | --- | --- | --- | --- | --- | --- |
