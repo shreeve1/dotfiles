@@ -41,5 +41,6 @@
 - The worker prompt still points pi at `pstack-poteto-mode`, whose compatibility notes (`_shared/pstack-omp-compatibility.md`) describe omp session paths and omp-only `/loop`, `/goal` commands — audit that skill for omp-only instructions.
 - Wanted: `install.sh` warning on untracked `extensions/*` dirs so leftover accumulation surfaces automatically.
 - Full `offload-task` lifecycle (snapshot → Mirror push → freeze → apply → return) not yet exercised with pi — only the dispatch surface was smoke-tested.
-- Root-cause the `ReturnLifecycleFixtures` full-suite hang and clear the 48 pyright findings (offload-owning session).
+- Clear the 48 pre-existing pyright findings in `verify.py` (routed to offload-owning session; now done in commit c920d508).
+- pi-lens rule bug: rule `.pi/agent/extensions/pi-lens/rules/ast-grep-rules/rules/no-identity-operator-on-literals.yml` applies its `\bis\b` regex to the whole comparison_operator node text and fires on any comparison whose operands contain the word `is` as a substring (e.g. git's `--is-shallow-repository` / `--is-ancestor` flags) — worth upstreaming a fix.
 - aidev `defaultModel` fix pending; itan8n `enabledModels` stale deepseek entry pending.
