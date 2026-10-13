@@ -39,11 +39,29 @@ here.
   stale `extensions` exclusion array, clear any pre-migration `packages` array
   (aidev carried one naming archived dirs → load errors), and drop a stale
   `skills: ["~/.claude/skills"]` entry. Remotes may also lag on the pi CLI
-  itself (aidev was 0.99.2, itan8n 0.82.1 — both below the 0.86.1 peer floor
-  pi-subagents 0.77.0 needs); update with
-  `npm install -g @earendil-works/pi-coding-agent@latest`. Known open item:
-  aidev's cliproxy key rejects `claude-opus-4-8` (400, pre-existing, other
-  models fine).
+  itself; 2026-10-13 both were brought to 1.2.0 via
+  `npm install -g @earendil-works/pi-coding-agent` (aidev lands in
+  `~/.npm-global/bin`, on interactive PATH via `.zshrc`; itan8n in
+  `~/.local/bin`), and both run the enabled set cleanly (`pi -p` boot probes
+  OK).
+- **Untracked extension leftovers (found 2026-10-13):** pre-sync servers
+  accumulated untracked dirs under `.pi/agent/extensions/` that Pi
+  auto-discovers and loads on every start — aidev carried 15, itan8n 17
+  (incl. `gap-review`, `web-fetch`, `summaries`, `workflows`, `ponytail`,
+  `pi-moa`, `@tintinweb`, `@juicesharp`). Two were actively harmful:
+  `gap-review` writes `<project>/.gap-reviews/` (would dirty an Offload
+  worktree and break the return/freeze clean-tree gate) and `web-fetch`
+  collides with `rpiv-web-tools` on `web_search`/`web_fetch`. All were
+  quarantined to `~/pi-extension-leftovers-20261013/` (outside discovery;
+  NOT into `extensions-archive/` — that would collide with the tracked
+  archived copies on pull). An `install.sh` warn-on-untracked-`extensions/*`
+  check is a wanted follow-up so this surfaces as a warning, not a manual
+  audit.
+- Known open items: aidev's `defaultModel: claude-opus-4-8` still 400s
+  (pre-existing; `--model gpt-5.6-sol` works — aidev is not a pi Offload
+  target until this is fixed); itan8n's machine-local `enabledModels` still
+  names `deepseek/deepseek-v4-flash`, which no available provider matches
+  (cosmetic boot warning).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
@@ -63,10 +81,22 @@ here.
   reads `agents/planner.md` directly) - `.pi/agent/agents/` is intentionally
   empty (custom agent files there would shadow builtins by name). Per-role
   models are set in `.pi/agent/settings.json` `subagents.agentOverrides`
-  (scout/worker → `minimax/MiniMax-M3`, researcher →
-  `openai-codex/gpt-5.6-terra`, reviewer → `openai-codex/gpt-5.6-sol`, planner →
-  `cliproxy/claude-opus-4-8`), NOT in agent frontmatter — a frontmatter
-  `model:` pin silently shadows settings overrides.
+  (scout/worker/delegate/evidence-auditor/context-builder →
+  `minimax/MiniMax-M3`, researcher → `cliproxy/claude-sonnet-5-5`, reviewer →
+  `cliproxy/gpt-6-luna`, oracle → `openai-codex/gpt-6.1-sol`, planner →
+  `cliproxy/claude-opus-5-5`; the CLI-adapter agents claude-code/codex-exec/
+  cursor-agent stay unpinned — they use their CLI's own model ids, not Pi
+  child models), NOT in agent frontmatter. In 0.77.0 a settings override
+  replaces the frontmatter `model` field (verified in `applyBuiltinOverride`),
+  so frontmatter can no longer shadow settings; the settings-only rule stands
+  because `bin/pi-delegate` sources model+tools from settings exclusively and
+  every role should resolve identically on all three surfaces. 2026-10-12:
+  replaced planner's dead `cliproxy/claude-opus-4-8` pin (400 unknown model on
+  cliproxy), aligned template scout/worker to MiniMax-M3 (was
+  openrouter/deepseek-v4.1-flash), and pinned the four formerly-inheriting
+  utility roles (oracle, delegate, evidence-auditor, context-builder); every
+  pin probe-verified with `pi -p --no-tools --model <id>` (openai-codex needed
+  a fresh login first — `pi auth` / `/login`).
   Vendored at version 0.77.0 (2026-10-12 fresh swap from the 0.35.1 fork;
   enabled the same day by removing the `-extensions/pi-subagents/index.ts`
   exclusion from `settings.json{,.template}`). 0.77.0 ships prebuilt JS +
