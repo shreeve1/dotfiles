@@ -2,7 +2,9 @@
   "name": "pi-extensions",
   "private": true,
   "dependencies": {
+    "@trevonistrevon/pi-loop": "^0.7.17",
     "lsp-pi": "^1.0.5",
+    "pi-background-tasks": "^2.6.9",
     "vscode-languageserver-protocol": "^3.17.5"
   }
 }
