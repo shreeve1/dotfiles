@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "id": "shreeve1.meeting-assistant",
+  "name": "Meeting Assistant",
+  "version": "0.1.0",
+  "author": "shreeve1",
+  "license": "MIT",
+  "description": "Researches questions and claims from a live meeting transcript and shows Research Cards on an Overlay, with an Ask box for follow-up questions. The Overlay takes keyboard focus only while the Ask box is open.",
+  "kinds": ["service", "bar-widget"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Meeting Assistant",
+    "description": "Shows researching and paused state, and pauses or dismisses Research Cards from the bar. SUPER + M opens the Ask box.",
+    "category": "Audio",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "thinking": "low",
+      "cardLifetimeSec": 45,
+      "concurrency": 2,
+      "overlayMonitor": "",
+      "askModel": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "askThinking": "low",
+      "askSkill": "",
+      "personaPath": "~/.config/omarchy/plugins/shreeve1.meeting-assistant/persona.md"
+    },
+    "schema": [
+      {
+        "key": "model",
+        "type": "string",
+        "label": "Research model",
+        "defaultValue": "openrouter/deepseek/deepseek-v4-flash-0731"
+      },
+      {
+        "key": "thinking",
+        "type": "string",
+        "label": "Thinking level",
+        "defaultValue": "low"
+      },
+      {
+        "key": "cardLifetimeSec",
+        "type": "integer",
+        "label": "Card lifetime (seconds)",
+        "min": 10,
+        "max": 600,
+        "step": 5,
+        "defaultValue": 45
+      },
+      {
+        "key": "concurrency",
+        "type": "integer",
+        "label": "Concurrent research runs",
+        "min": 1,
+        "max": 4,
+        "step": 1,
+        "defaultValue": 2
+      },
+      {
+        "key": "overlayMonitor",
+        "type": "string",
+        "label": "Overlay monitor",
+        "description": "Monitor name for the Overlay. Empty uses the focused monitor. The Ask box always opens on the focused monitor.",
+        "defaultValue": ""
+      },
+      {
+        "key": "askModel",
+        "type": "string",
+        "label": "Ask model",
+        "description": "Model for the Ask agent. Separate from the research model.",
+        "defaultValue": "openrouter/deepseek/deepseek-v4-flash-0731"
+      },
+      {
+        "key": "askThinking",
+        "type": "string",
+        "label": "Ask thinking level",
+        "defaultValue": "low"
+      },
+      {
+        "key": "askSkill",
+        "type": "string",
+        "label": "Ask skill",
+        "description": "Bare skill name, sent as /skill:<name> with the first Ask message of each Meeting. Empty means none.",
+        "defaultValue": ""
+      },
+      {
+        "key": "personaPath",
+        "type": "string",
+        "label": "Persona file",
+        "description": "Read when the Ask agent starts, so edits apply after it restarts. Created from the shipped default if missing.",
+        "defaultValue": "~/.config/omarchy/plugins/shreeve1.meeting-assistant/persona.md"
+      }
+    ]
+  }
+}
