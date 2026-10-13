@@ -13,7 +13,7 @@
   "subagents": {
     "agentOverrides": {
       "scout": {
-        "model": "openrouter/deepseek/deepseek-v4.1-flash",
+        "model": "minimax/MiniMax-M3",
         "thinking": "low",
         "tools": [
           "read",
@@ -23,7 +23,7 @@
         ]
       },
       "researcher": {
-        "model": "openai-codex/gpt-5.6-terra",
+        "model": "cliproxy/claude-sonnet-5-5",
         "thinking": "high",
         "tools": [
           "read",
@@ -32,7 +32,7 @@
         ]
       },
       "worker": {
-        "model": "openrouter/deepseek/deepseek-v4.1-flash",
+        "model": "minimax/MiniMax-M3",
         "thinking": "high",
         "tools": [
           "read",
@@ -45,7 +45,7 @@
         ]
       },
       "reviewer": {
-        "model": "openai-codex/gpt-5.6-sol",
+        "model": "cliproxy/gpt-6-luna",
         "thinking": "high",
         "tools": [
           "read",
@@ -56,8 +56,20 @@
         ]
       },
       "planner": {
-        "model": "cliproxy/claude-opus-4-8",
+        "model": "cliproxy/claude-opus-5-5",
         "thinking": "high"
+      },
+      "oracle": {
+        "model": "openai-codex/gpt-6.1-sol"
+      },
+      "delegate": {
+        "model": "minimax/MiniMax-M3"
+      },
+      "evidence-auditor": {
+        "model": "minimax/MiniMax-M3"
+      },
+      "context-builder": {
+        "model": "minimax/MiniMax-M3"
       }
     }
   },
