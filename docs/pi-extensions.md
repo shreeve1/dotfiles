@@ -96,7 +96,11 @@ here.
   openrouter/deepseek-v4.1-flash), and pinned the four formerly-inheriting
   utility roles (oracle, delegate, evidence-auditor, context-builder); every
   pin probe-verified with `pi -p --no-tools --model <id>` (openai-codex needed
-  a fresh login first — `pi auth` / `/login`).
+  a fresh login first — `pi auth` / `/login`). The full 9-role block was
+  synced to aidev + itan8n the same day (aidev had THREE dead opus-4-8 pins;
+  itan8n planner was on the imprecise `claude-opus-5`) — all pins probe-verified
+  on all three machines; per-machine backups at
+  `settings.json.bak-subagent-models`.
   Vendored at version 0.77.0 (2026-10-12 fresh swap from the 0.35.1 fork;
   enabled the same day by removing the `-extensions/pi-subagents/index.ts`
   exclusion from `settings.json{,.template}`). 0.77.0 ships prebuilt JS +
@@ -165,17 +169,67 @@ here.
   `ask_user_question` IS mounted and used (see `docs/deepseek-harness.md`).
   Removing only a `packages` entry is insufficient because Pi auto-discovers
   `extensions/*/index.ts`.
-- Pi `rpiv-advisor` is also a synced vendored extension at
-  `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
-  `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
-  stale. Do not use `pi install npm:@juicesharp/rpiv-advisor`; use the repo copy.
-  Enabled 2026-10-12 and re-vendored fresh at 2.13.8 from npm (the 1.13.0
-  local patches — advisor Fusion hardening and web-tools provider work — were
-  dropped by design; recoverable from git history). 2.x restructures
-  `advisor.ts` into an `advisor/` module dir and adds `docs/`; the whole rpiv
-  family (advisor, ask-user-question, todo, web-tools) moved 1.13.0 → 2.13.8
-  in the same swap, and root `.pi/agent/package.json` pins
-  `@juicesharp/rpiv-{advisor,config}` at 2.13.8.
+- Pi `pi-advisor-flow` (npm `pi-advisor-flow@0.13.1`, by philipbrembeck;
+  `https://pi.dev/packages/pi-advisor-flow`) is a synced vendored extension
+  at `.pi/agent/extensions/pi-advisor-flow`. It replaces the archived
+  `rpiv-advisor` (see below). Install/repair it the same way as other
+  vendored extensions: `bash install.sh`. Do not use
+  `pi install npm:pi-advisor-flow`; use the repo copy. The npm tarball
+  ships a prebuilt `dist/index.js` (manifest: `extensions: ["./dist/index.js"]`)
+  and has 0 runtime dependencies, so no install step is required and peers
+  resolve from `~/.pi/agent/node_modules`. `install.sh` SKIPS it in the
+  generic npm-install loop because the manifest's `prepare: husky` lifecycle
+  script would write `.husky/` into the vendored tree on a local `npm install`.
+  Config persists machine-locally at `~/.pi/agent/advisor.json` (NOT
+  `~/.config/rpiv-advisor/advisor.json` — that path was rpiv-advisor's and
+  is now stale; safe to delete). `~/.pi/agent/advisor.json` is added to
+  `.gitignore` because the guided setup may store provider API keys there.
+  Configure via the interactive `/advisor` command (Executor + Advisor +
+  optional Fallback model picker); also exposes `/advisor-manual`,
+  `/advisor-models`, `/advisor-settings`, `/advisor-stats`, `/advisor-off`.
+  Registers the `ask_advisor` tool — NOT `advisor` (different name from
+  rpiv-advisor, by design to avoid collisions on intermediate syncs).
+  Behavior difference (why this replaces rpiv-advisor): pi-advisor-flow
+  includes **automatic review gates** (before plans, after repeated
+  failures, before declaring completion) and **loop detection** that can
+  stop a tool action or session under its failure policy — the executor
+  model no longer has to remember to call the tool. Manual `ask_advisor`
+  calls still work. This is what rpiv-advisor lacked: rpiv-advisor was
+  strictly model-initiated ("Nothing is injected into your transcript") and
+  the executor models historically never called it, which is why "I never
+  saw advice" was the observed behavior.
+  **Peer/runtime version risk (open follow-up, 2026-10-13):** pi-advisor-flow
+  declares peers `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at
+  `^1.0.0`; the root pin in `~/.pi/agent/package.json` is `^0.82.0`
+  (installed `0.82.1` on aidev). The global pi CLI is `1.2.0`, but Node
+  resolves the extension's `@earendil-works/*` imports from
+  `~/.pi/agent/node_modules` (0.82.1), so the extension imports 0.82.1
+  packages at runtime despite being built against 1.x. The module loads
+  (verified by `pi -p` boot probe and `node --check` on `dist/index.js`),
+  but 1.x-specific API surfaces in `ask_advisor` may error at first call
+  until the root pin is bumped to `^1.0.0`. Bumping the root pin is a
+  multi-extension change (rpiv family, pi-lens, pi-subagents all share
+  those peers) and is tracked as a separate decision — do not bump
+  silently. Verify on a real `ask_advisor` call after the user restarts
+  Pi and configures models with `/advisor`.
+  Security skim (2026-10-13): 0 runtime deps; the only `node:child_process`
+  use is `execFileSync` (no shell, exact argv, used for git ops); all
+  network endpoints in `dist/index.js` are documented Jev/Decisions
+  providers (`api.openai.com/v1/decisions`, `api.typesafe.ai/v1/systemone`,
+  `openrouter.ai/api/alpha/decisions`, `api.codiv.ai`). No exfil
+  patterns observed.
+- Pi `rpiv-advisor` (archived 2026-10-13): moved from
+  `.pi/agent/extensions/rpiv-advisor` to
+  `.pi/agent/extensions-archive/rpiv-advisor` (history intact). Replaced
+  by `pi-advisor-flow` above because rpiv-advisor was strictly
+  model-initiated — the executor model had to call the zero-param
+  `advisor` tool on its own, and historical sessions never did, so the
+  user never saw advice. The `@juicesharp/rpiv-advisor` pin was removed
+  from root `~/.pi/agent/package.json`; `@juicesharp/rpiv-config` is
+  kept (still used by rpiv-ask-user-question, rpiv-todo, rpiv-web-tools).
+  To restore: `git mv .pi/agent/extensions-archive/rpiv-advisor
+  .pi/agent/extensions/` and re-add the pin — but prefer pi-advisor-flow
+  going forward.
 - Pi `rpiv-web-tools` is a synced vendored extension at
   `.pi/agent/extensions/rpiv-web-tools` (fresh 2.13.8, 2026-10-12).
   Install/repair it with `bash install.sh`, or
