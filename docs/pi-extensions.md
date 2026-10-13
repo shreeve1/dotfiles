@@ -33,6 +33,17 @@ here.
   `gap-review`, `graphify-guard` etc. remain archived; restore the same way
   if needed (`.pi/fusion.json` was left in place; it is only a stale
   allowedCommands list; the ADR 0002/0003 docs describe the design).
+- **Sync gotcha (learned 2026-10-12):** enablement lives in the machine-local,
+  gitignored `settings.json` — the template only seeds fresh machines. On pull,
+  each machine still needs its local `settings.json` fixed by hand: clear the
+  stale `extensions` exclusion array, clear any pre-migration `packages` array
+  (aidev carried one naming archived dirs → load errors), and drop a stale
+  `skills: ["~/.claude/skills"]` entry. Remotes may also lag on the pi CLI
+  itself (aidev was 0.99.2, itan8n 0.82.1 — both below the 0.86.1 peer floor
+  pi-subagents 0.77.0 needs); update with
+  `npm install -g @earendil-works/pi-coding-agent@latest`. Known open item:
+  aidev's cliproxy key rejects `claude-opus-4-8` (400, pre-existing, other
+  models fine).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
