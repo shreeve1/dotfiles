@@ -84,10 +84,6 @@ require("default.hypr.toggles")
 -- hypr-deck so opening Zoom does not split and rearrange the current workspace.
 o.window("^zoom$", { float = true, center = true, size = { 1056, 700 } })
 
--- Slack's Huddle preview is a separate window from the main Slack client.
--- Leave the main client managed, but keep Huddle windows out of Deck's tree.
-o.window({ class = "^slack$", title = "^Slack - Huddle Preview$" }, {
-  tag = "+deck-ignore",
-  float = true,
-  center = true,
-})
+-- Meeting Assistant Overlay: ask Hyprland to hide it from screen sharing.
+-- Unverified for layer surfaces; see docs/adr/0014-meeting-assistant-separate-plugin.md.
+hl.layer_rule({ match = { namespace = "^omarchy-meeting-assistant$" }, no_screen_share = true })

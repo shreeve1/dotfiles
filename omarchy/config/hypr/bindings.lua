@@ -74,3 +74,9 @@ o.bind("SUPER + A", "Agent Orchestrator", "omarchy-shell shell toggle meviusisba
 -- SUPER+L locks the session; adding SHIFT suspends instead. Safe with the
 -- lid switch ignored: omarchy-sleep-lock locks the session before logind sleeps.
 o.bind("SUPER + SHIFT + L", "Suspend system", "systemctl suspend")
+
+-- Meeting Assistant: clear every Research Card from the Overlay.
+o.bind("SUPER + SHIFT + PERIOD", "Dismiss research cards", "omarchy-shell meeting-assistant dismissAll")
+
+-- Meeting Assistant: open or close the Ask box in the Overlay.
+o.bind("SUPER + M", "Meeting Assistant: Ask", "omarchy-shell meeting-assistant toggleAsk")

@@ -450,6 +450,16 @@ export XDG_RUNTIME_DIR
 : "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
 export DBUS_SESSION_BUS_ADDRESS
 
+# herdr/ssh shells have no seat session, so WAYLAND_DISPLAY is missing and omp's
+# Ctrl+V clipboard paste (gated on that var) reports "Clipboard is empty".
+# Resolve the live Hyprland socket instead of hardcoding wayland-1 (the number
+# changes per instance slot).
+if [[ -z "$WAYLAND_DISPLAY" ]]; then
+  _wl_sock="$(hyprctl instances -j 2>/dev/null | sed -n 's/.*"wl_socket":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  [[ -n "$_wl_sock" ]] && export WAYLAND_DISPLAY="$_wl_sock"
+  unset _wl_sock
+fi
+
 HERMES_YOLO_MODE=1
 
 # Unlock Bitwarden and export BW_SESSION into the current shell: `bwunlock`

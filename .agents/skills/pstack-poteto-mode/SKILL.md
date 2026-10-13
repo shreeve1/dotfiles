@@ -93,6 +93,8 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
 
 You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. Interrupt-chained resumes silently drop directives, so fire a fresh subagent with consolidated scope rather than trusting a "done" summary. A second opinion is the same prompt against a different model. Agreement is high-signal.
 
+**Runtime cap.** Each subagent is cancelled after 30 minutes (`task.maxRuntimeMs`). Scope every spawn to one slice that finishes in about 15 minutes. Have the worker append findings to a `local://` file as it goes, so a cancelled run leaves its evidence behind. Run probes that inject input (uinput, key or click synthesis) only in a throwaway window or workspace, never against a live tab.
+
 ## Harness
 
 omp specifics for this skill, its playbooks, and the routed skills. Full mapping: `../_shared/pstack-omp-compatibility.md`.

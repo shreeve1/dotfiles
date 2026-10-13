@@ -1,18 +1,18 @@
 setupVersion: 2
 modelRoles:
   vision: cliproxy/claude-opus-5-5
-  advisor: cliproxy/gpt-6.1-sol:high
-  task: zai/glm-5.3-flash
-  slow: cliproxy/claude-opus-5-5
+  advisor: openrouter/deepseek/deepseek-v4.1-flash:high
+  slow: openai-codex/gpt-6.1-sol:high
   designer: cliproxy/claude-opus-5-5
   commit: openrouter/deepseek/deepseek-v4.1-flash:low
-  tiny: openrouter/deepseek/deepseek-v4.1-flash:low
+  tiny: openrouter/deepseek/deepseek-v4-flash:high
   plan: cliproxy/claude-opus-5-5
-  smol: deepseek/deepseek-flash:high
+  smol: zai/glm-5.3:high
   memory: openrouter/deepseek/deepseek-v4.1-flash:low
-  judge: openrouter/deepseek/deepseek-v4.1-flash:low
+  judge: openrouter/deepseek/deepseek-v4-flash:high
   image: openai-codex/gpt-image-1
   default: cliproxy/claude-sonnet-5-5:high
+  task: openrouter/deepseek/deepseek-v4-flash:high
 retry:
   fallbackChains:
     task:
@@ -89,7 +89,9 @@ interruptMode: immediate
 tools:
   approvalMode: yolo
 browser:
-  relay: true
+  relay: false
+  cdpUrl: http://127.0.0.1:9222
+  headless: false
 codexResets:
   autoRedeem: "no"
 tui:
