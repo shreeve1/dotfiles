@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from typing import Literal, Optional, overload
 from urllib.parse import urlsplit
 
 
@@ -160,14 +161,20 @@ class Git:
         self.path = Path(os.fsdecode(top)).resolve()
         self.width = 64 if self.run("rev-parse", "--show-object-format").strip() == b"sha256" else 40
         self.zero = "0" * self.width
-        require(self.run("rev-parse", "--is-shallow-repository").strip() == b"false",
-                "INCOMPLETE_HISTORY", 3)
+        shallow = self.run("rev-parse", "--is-shallow-repository").strip()
+        require(shallow == b"false", "INCOMPLETE_HISTORY", 3)
         require(not self.run("for-each-ref", "--format=%(refname)", "refs/replace/").strip(),
                 "AMBIGUOUS_HISTORY", 3)
         for name in ("info/grafts", "shallow"):
             file = self.git_path(name)
             require(not file.exists() or file.stat().st_size == 0, "AMBIGUOUS_HISTORY", 3)
 
+    @overload
+    def run(self, *args: str, data: Optional[bytes] = ..., env: Optional[dict] = ...,
+            check: Literal[True] = ..., failure: str = ...) -> bytes: ...
+    @overload
+    def run(self, *args: str, data: Optional[bytes] = ..., env: Optional[dict] = ...,
+            check: Literal[False], failure: str = ...) -> subprocess.CompletedProcess[bytes]: ...
     def run(self, *args, data=None, env=None, check=True, failure="GIT_FAILED"):
         process = subprocess.run(["git", "-c", "core.fsmonitor=false", "-C", str(self.path), *args],
                                  input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -231,7 +238,8 @@ class Git:
                              "--ignore-submodules=none"), "DIRTY_WORKTREE", 3)
 
     def ancestor(self, older, newer):
-        return self.run("merge-base", "--is-ancestor", older, newer, check=False).returncode == 0
+        process = self.run("merge-base", "--is-ancestor", older, newer, check=False)
+        return process.returncode == 0
 
 
 FALLBACK = (
@@ -324,23 +332,30 @@ def extract_policy(data):
                 require(node.func.id not in ("exec", "eval", "globals", "locals", "setattr"),
                         "UNSUPPORTED_SECRET_POLICY", 3)
         rules = []
-        for index, entry in enumerate(assignment.value.elts, 1):
+        patterns_node = assignment.value
+        assert isinstance(patterns_node, (ast.List, ast.Tuple))
+        for index, entry in enumerate(patterns_node.elts, 1):
             require(isinstance(entry, ast.Tuple) and len(entry.elts) == 2,
                     "UNSUPPORTED_SECRET_POLICY", 3)
+            assert isinstance(entry, ast.Tuple)
             label, call = entry.elts
-            require(isinstance(label, ast.Constant) and type(label.value) is str
-                    and isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+            assert isinstance(label, ast.Constant) and isinstance(call, ast.Call)
+            require(type(label.value) is str
+                    and isinstance(call.func, ast.Attribute)
                     and isinstance(call.func.value, ast.Name) and call.func.value.id == "re"
                     and call.func.attr == "compile" and 1 <= len(call.args) <= 2,
                     "UNSUPPORTED_SECRET_POLICY", 3)
+            assert isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name)
             pattern = call.args[0]
             require(isinstance(pattern, ast.Constant) and type(pattern.value) is str,
                     "UNSUPPORTED_SECRET_POLICY", 3)
+            assert isinstance(pattern, ast.Constant)
+            assert isinstance(pattern.value, str)
             require(not call.keywords or (len(call.keywords) == 1 and call.keywords[0].arg == "flags"
                                          and len(call.args) == 1), "UNSUPPORTED_SECRET_POLICY", 3)
             flags = literal_flags(call.args[1]) if len(call.args) == 2 else (
                 literal_flags(call.keywords[0].value) if call.keywords else 0)
-            rules.append(("policy_%d" % index, re.compile(pattern.value, flags)))
+            rules.append((f"policy_{index}", re.compile(pattern.value, flags)))
         return rules
     except (SyntaxError, ValueError, TypeError, re.error, UnicodeError):
         raise Refusal("UNSUPPORTED_SECRET_POLICY", 3) from None
@@ -601,6 +616,7 @@ def validate_note(git, binding, result_commit):
             "INVALID_RESULT", 3)
     entry = note_tree.get(binding.result)
     require(entry is not None and entry.mode == "100644" and entry.kind == "blob", "INVALID_RESULT", 3)
+    assert entry is not None
     note = parse_json(git.object("blob", entry.oid))
     keys(note, ("schema", "identity", "work_tip", "state", "summary", "verification", "limitations", "next_steps"))
     require(type(note["schema"]) is int and note["schema"] == 1 and note["identity"] == binding.identity

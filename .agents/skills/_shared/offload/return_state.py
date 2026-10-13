@@ -14,6 +14,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from typing import Any, Optional
 
 sys.dont_write_bytecode = True
 
@@ -362,6 +363,7 @@ def control_scope(system, unit, expected_scope):
             and all(current[key] == expected_scope[key] for key in
                     ('invocation_id', 'control_group', 'kill_mode', 'timeout_stop')),
             'SCOPE_CHANGED', 3)
+    assert current is not None
     return current
 
 
@@ -385,6 +387,7 @@ def birth(process, system):
             and type(process['pid']) is int and process['pid'] > 0
             and type(process['start_ticks']) is int and process['start_ticks'] > 0,
             'SCOPE_NOT_OWNED', 3)
+    assert process is not None
     return {**process, 'boot_id': system.boot_id()}
 
 
@@ -410,11 +413,12 @@ class Task:
     worktree: Path
     common: Path
     state: Path
-    dispatch: dict = None
-    binding: object = None
-    dispatch_sha256: str = None
+    dispatch: Optional[dict] = None
+    binding: Any = None
+    dispatch_sha256: Optional[str] = None
 
     def envelope(self):
+        assert self.dispatch is not None
         return {'schema': 1, 'identity': self.binding.identity,
                 'dispatch_sha256': self.dispatch_sha256,
                 'receipt_sha256': self.dispatch['receipt_sha256']}
@@ -531,6 +535,7 @@ def owned_scope(scope, unit, code):
             and re.fullmatch('[0-9a-f]{32}', scope['invocation_id']) is not None
             and scope['invocation_id'] != '0' * 32
             and scope['control_group'].endswith('/' + unit), code, 3)
+    assert scope is not None
     cgroup_path(scope['control_group'])
 
 
@@ -631,6 +636,7 @@ def request(task, args, data, system):
         ensure_record(task.state / 'intent.json', proposed)
         intent = proposed
     require(intent is not None, 'INCONSISTENT_STATE', 3)
+    assert intent is not None
     attempts = private_dir(task.state / 'attempts', create=True)
     nonce = secrets.token_hex(16)
     attempt_id = digest((task.binding.identity['root'] + ':' + task.state.name + ':' + nonce).encode())
@@ -735,18 +741,22 @@ def lock_freeze(task):
 def freeze(task, args, data, system):
     require(data is None, 'INVALID_INPUT', 2)
     directory, attempt = attempt_record(task, args.attempt)
+    assert task.dispatch is not None
     outside(system.self_identity(), task.dispatch['scope']['control_group'])
     fd = lock_freeze(task)
     try:
         intent, operation, proof, pin = retained(task)
         require(intent is not None and all(attempt[key] == intent[key] for key in
                 ('result_commit', 'work_tip', 'state', 'next_steps')), 'INCONSISTENT_STATE', 3)
+        assert intent is not None
         recovering = operation is not None or proof is not None
+        handoff = None
         if proof is None:
             candidate(task, expected=intent)
             scope = scope_matches(task, system, allow_absent=operation is not None)
             if operation is None:
                 owned_scope(scope, task.dispatch['scope']['unit'], 'SCOPE_CHANGED')
+                assert scope is not None
                 handoff = acceptance(task, args, directory, attempt, system)
                 scope_matches(task, system)
                 for name in ('initial_pid', 'agent_pid'):
@@ -767,10 +777,12 @@ def freeze(task, args, data, system):
                              'boot_id': system.boot_id(), 'members': members,
                              'handoff_sha256': digest(private_bytes(directory / 'handoff.json', True))}
                 publish_record(task.state / 'operation.json', operation)
+            assert operation is not None
             require((scope is not None and bool(scope['control_group']))
                     or writers_exited(operation, system), 'WRITERS_REMAIN', 4)
             if not writers_exited(operation, system) or (scope is not None and scope['active_state'] not in ('inactive', 'failed')):
                 scope = scope_matches(task, system)
+                assert scope is not None
                 captured = {saved['pid']: saved for saved in operation['members']}
                 for current in system.members(operation['scope']['control_group']):
                     require(current['pid'] in captured
@@ -779,6 +791,7 @@ def freeze(task, args, data, system):
                 if not recovering or scope['active_state'] not in ('inactive', 'failed'):
                     outside(system.self_identity(), operation['scope']['control_group'])
                     if not recovering:
+                        assert handoff is not None
                         for name in ('shell', 'controller', 'helper'):
                             saved = handoff[name]
                             current = system.process(saved['pid'])
@@ -852,6 +865,7 @@ def outcome(task, args, data, system):
     directory, attempt = attempt_record(task, args.attempt)
     _, _, _, pin = retained(task)
     require(pin is not None, 'PIN_REQUIRED', 3)
+    assert pin is not None
     require(all(attempt[key] == pin[key] for key in ('result_commit', 'work_tip', 'state', 'next_steps')),
             'INCONSISTENT_STATE', 3)
     value = keys(parse_json(data), ('delivery', 'reason', 'detail', 'paths', 'source_ack'))
