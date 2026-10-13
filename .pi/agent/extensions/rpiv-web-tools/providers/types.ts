@@ -16,21 +16,28 @@ export interface FetchResponse {
 	contentLength?: number;
 }
 
+// Role-split contracts. SearchProvider implementations expose `search()` only;
+// FetchProvider implementations expose `fetch()` only; FullProvider is the
+// intersection — both methods, for providers (Tavily, Exa, Jina, Firecrawl,
+// Ollama) whose vendors have native fetch endpoints worth using directly.
+// The orchestrator narrows on `"fetch" in provider` to dispatch.
 export interface SearchProvider {
 	readonly name: string;
 	readonly label: string;
-	readonly envVar?: string;
-	search(
-		query: string,
-		maxResults: number,
-		signal?: AbortSignal,
-	): Promise<SearchResponse>;
-	fetch(
-		url: string,
-		raw: boolean,
-		signal?: AbortSignal,
-	): Promise<FetchResponse>;
+	readonly envVar: string;
+	search(query: string, maxResults: number, signal?: AbortSignal): Promise<SearchResponse>;
 }
+
+export interface FetchProvider {
+	readonly name: string;
+	readonly label: string;
+	readonly envVar: string;
+	fetch(url: string, raw: boolean, signal?: AbortSignal): Promise<FetchResponse>;
+}
+
+export type FullProvider = SearchProvider & FetchProvider;
+
+export type ProviderRole = "search" | "fetch";
 
 // ---------------------------------------------------------------------------
 // PROVIDER_META + per-provider configure() contract
@@ -75,7 +82,7 @@ export interface ProviderConfigChange {
 //   envVar          — the API-key env var (omit if the provider has no key)
 //   baseUrlEnvVar   — the URL env var (set for self-hosted providers)
 //   defaultBaseUrl  — fallback URL when neither env nor config supplies one
-//   configure       — interactive setup; if present, /web-search-config
+//   configure       — interactive setup; if present, /web-tools
 //                     dispatches here instead of the default single-key prompt
 export interface ProviderMeta {
 	name: string;
@@ -83,8 +90,12 @@ export interface ProviderMeta {
 	envVar?: string;
 	baseUrlEnvVar?: string;
 	defaultBaseUrl?: string;
-	configure?(
-		ui: ProviderConfigUi,
-		current: ProviderConfigCurrent,
-	): Promise<ProviderConfigChange | null>;
+	// Which role(s) the provider plays. Search-only providers (Brave, Serper,
+	// SearXNG) carry ["search"]; full providers (Tavily, Exa, Jina, Firecrawl,
+	// Ollama) carry ["search", "fetch"]. The orchestrator does not consult
+	// `roles` at runtime — capability is checked structurally via
+	// `"fetch" in provider` — but `roles` keeps the META honest and unblocks
+	// future UX (e.g. a fetch-role picker).
+	roles: ReadonlyArray<ProviderRole>;
+	configure?(ui: ProviderConfigUi, current: ProviderConfigCurrent): Promise<ProviderConfigChange | null>;
 }

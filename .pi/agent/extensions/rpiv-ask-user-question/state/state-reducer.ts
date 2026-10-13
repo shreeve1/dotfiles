@@ -2,7 +2,6 @@ import type { QuestionAnswer, QuestionData, QuestionnaireResult } from "../tool/
 import type { WrappingSelectItem } from "../view/components/wrapping-select.js";
 import type { QuestionnaireAction } from "./key-router.js";
 import { ROW_INTENT_META } from "./row-intent.js";
-import { computeFocusedOptionHasPreview } from "./selectors/derivations.js";
 import type { QuestionnaireState } from "./state.js";
 
 /** Session-lifetime constants. No live-component reads — peripheral values live on canonical state. */
@@ -20,9 +19,18 @@ export interface ApplyContext {
 export type Effect =
 	| { kind: "set_input_buffer"; value: string }
 	| { kind: "clear_input_buffer" }
+	| { kind: "open_input_editor"; value: string }
 	| { kind: "set_notes_value"; value: string }
 	| { kind: "set_notes_focused"; focused: boolean }
 	| { kind: "forward_notes_keystroke"; data: string }
+	/**
+	 * Tell the session to hide or show its underlying overlay. Emitted by the
+	 * `toggle_collapsed` action so the runtime can call `OverlayHandle.setHidden(...)`,
+	 * which lets other overlay-aware consumers (e.g. `pi-station`) see the questionnaire
+	 * as truly hidden and resume normal chat scroll while the user reads the transcript
+	 * behind the modal.
+	 */
+	| { kind: "set_overlay_hidden"; hidden: boolean }
 	| { kind: "done"; result: QuestionnaireResult };
 
 export interface ApplyResult {
@@ -37,15 +45,6 @@ function orderedAnswers(state: QuestionnaireState, questions: readonly QuestionD
 		if (a) out.push(a);
 	}
 	return out;
-}
-
-function withFocusedOptionHasPreview(
-	state: QuestionnaireState,
-	questions: readonly QuestionData[],
-): QuestionnaireState {
-	const focusedOptionHasPreview = computeFocusedOptionHasPreview(questions, state.currentTab, state.optionIndex);
-	if (state.focusedOptionHasPreview === focusedOptionHasPreview) return state;
-	return { ...state, focusedOptionHasPreview };
 }
 
 function syncMultiSelectFromAnswers(
@@ -64,15 +63,22 @@ function syncMultiSelectFromAnswers(
 	return indices;
 }
 
+function selectedLabels(state: QuestionnaireState, question: QuestionData): string[] {
+	const selected: string[] = [];
+	for (let i = 0; i < question.options.length; i++) {
+		if (state.multiSelectChecked.has(i)) selected.push(question.options[i]!.label);
+	}
+	return selected;
+}
+
 function persistMultiSelectAnswer(state: QuestionnaireState, ctx: ApplyContext): ReadonlyMap<number, QuestionAnswer> {
 	const q = ctx.questions[state.currentTab];
 	if (!q?.multiSelect) return state.answers;
-	const selected: string[] = [];
-	for (let i = 0; i < q.options.length; i++) {
-		if (state.multiSelectChecked.has(i)) selected.push(q.options[i]!.label);
-	}
+	const selected = selectedLabels(state, q);
+	const custom = customDraftValueFor(state, state.currentTab);
+	const hasCustom = custom.trim().length > 0;
 	const out = new Map(state.answers);
-	if (selected.length === 0) {
+	if (selected.length === 0 && !hasCustom) {
 		out.delete(state.currentTab);
 		return out;
 	}
@@ -81,38 +87,77 @@ function persistMultiSelectAnswer(state: QuestionnaireState, ctx: ApplyContext):
 		questionIndex: state.currentTab,
 		question: q.question,
 		kind: "multi",
-		answer: null,
+		answer: hasCustom ? custom : null,
 		selected,
 		...(pendingNotes && pendingNotes.length > 0 ? { notes: pendingNotes } : {}),
 	});
 	return out;
 }
 
+/**
+ * Note text to seed the editor/draft with for a tab. The in-flight side-band store
+ * (`notesByTab`) is authoritative — before an option is confirmed the note lives ONLY
+ * there; `answer.notes` is a mirror written on exit/confirm.
+ */
+function notesValueFor(state: QuestionnaireState, tab: number): string {
+	return state.notesByTab.get(tab) ?? state.answers.get(tab)?.notes ?? "";
+}
+
+function customDraftValueFor(state: QuestionnaireState, tab: number): string {
+	const draft = state.customDraftsByTab.get(tab);
+	if (draft !== undefined) return draft;
+	const answer = state.answers.get(tab);
+	if (answer?.kind !== "custom" && answer?.kind !== "multi") return "";
+	return typeof answer.answer === "string" ? answer.answer : "";
+}
+
+function setCustomDraft(state: QuestionnaireState, tab: number, value: string): ReadonlyMap<number, string> {
+	const drafts = new Map(state.customDraftsByTab);
+	drafts.set(tab, value);
+	return drafts;
+}
+
+function withoutCustomDraft(state: QuestionnaireState, tab: number): ReadonlyMap<number, string> {
+	if (!state.customDraftsByTab.has(tab)) return state.customDraftsByTab;
+	const drafts = new Map(state.customDraftsByTab);
+	drafts.delete(tab);
+	return drafts;
+}
+
 function switchTabResult(state: QuestionnaireState, nextTab: number, ctx: ApplyContext): ApplyResult {
-	const notesValue = state.notesByTab.get(nextTab) ?? state.answers.get(nextTab)?.notes ?? "";
+	const notesValue = notesValueFor(state, nextTab);
 	const transitioned: QuestionnaireState = {
 		...state,
 		currentTab: nextTab,
 		optionIndex: 0,
 		inputMode: false,
 		notesVisible: false,
-		chatFocused: false,
 		submitChoiceIndex: 0,
 		multiSelectChecked: syncMultiSelectFromAnswers(state.answers, ctx.questions, nextTab),
 		notesDraft: notesValue,
 	};
-	const finalState = withFocusedOptionHasPreview(transitioned, ctx.questions);
 	return {
-		state: finalState,
+		state: transitioned,
 		effects: [
 			{ kind: "set_notes_focused", focused: false },
 			{ kind: "set_notes_value", value: notesValue },
+			{ kind: "set_input_buffer", value: customDraftValueFor(state, nextTab) },
 		],
 	};
 }
 
 function doneFor(state: QuestionnaireState, ctx: ApplyContext, cancelled: boolean): ApplyResult {
-	const result: QuestionnaireResult = { answers: orderedAnswers(state, ctx.questions), cancelled };
+	// Global note lift: the Submit-tab note lives at the `questions.length` pseudo-index
+	// in `notesByTab` — question tabs only occupy 0..questions.length-1, so this can never
+	// cross-contaminate a per-question note. Attached regardless of `cancelled` (the
+	// reducer is truth; the envelope owns decline presentation), with cancel/submit/confirm
+	// sharing this single lift. Conditional spread keeps note-free results byte-identical.
+	const globalNote = state.notesByTab.get(ctx.questions.length);
+	const result: QuestionnaireResult = {
+		answers: orderedAnswers(state, ctx.questions),
+		cancelled,
+		...(globalNote && globalNote.length > 0 ? { globalNote } : {}),
+	};
 	return { state, effects: [{ kind: "done", result }] };
 }
 
@@ -130,23 +175,41 @@ const navHandler: Handler<"nav"> = (state, action, ctx) => {
 	const items = ctx.itemsByTab[state.currentTab] ?? [];
 	const item = items[action.nextIndex];
 	const inputMode = item ? ROW_INTENT_META[item.kind].activatesInputMode : false;
-	const next = withFocusedOptionHasPreview({ ...state, optionIndex: action.nextIndex, inputMode }, ctx.questions);
-	if (!inputMode) {
-		return { state: next, effects: [{ kind: "clear_input_buffer" }] };
+	const customDraftsByTab = state.inputMode
+		? setCustomDraft(state, state.currentTab, action.inputValue)
+		: state.customDraftsByTab;
+	let next: QuestionnaireState = { ...state, optionIndex: action.nextIndex, inputMode, customDraftsByTab };
+	if (state.inputMode && !inputMode && ctx.questions[state.currentTab]?.multiSelect) {
+		next = { ...next, answers: persistMultiSelectAnswer(next, ctx) };
 	}
-	const prior = state.answers.get(state.currentTab);
-	if (prior?.kind === "custom" && typeof prior.answer === "string") {
-		return { state: next, effects: [{ kind: "set_input_buffer", value: prior.answer }] };
-	}
-	return { state: next, effects: [] };
+	if (!inputMode) return { state: next, effects: [] };
+	return {
+		state: next,
+		effects: [{ kind: "set_input_buffer", value: customDraftValueFor(next, state.currentTab) }],
+	};
 };
+
+const inputClearHandler: Handler<"input_clear"> = (state, _action, _ctx) => ({
+	state: { ...state, customDraftsByTab: setCustomDraft(state, state.currentTab, "") },
+	effects: [{ kind: "clear_input_buffer" }],
+});
+const inputEditHandler: Handler<"input_edit"> = (state, action, _ctx) => ({
+	state,
+	effects: [{ kind: "open_input_editor", value: action.value }],
+});
+const inputReplaceHandler: Handler<"input_replace"> = (state, action, _ctx) => ({
+	state: { ...state, customDraftsByTab: setCustomDraft(state, state.currentTab, action.value) },
+	effects: [{ kind: "set_input_buffer", value: action.value }],
+});
 
 const tabSwitchHandler: Handler<"tab_switch"> = (state, action, ctx) => switchTabResult(state, action.nextTab, ctx);
 
 const confirmHandler: Handler<"confirm"> = (state, action, ctx) => {
 	let answer = action.answer;
-	if (answer.kind === "option" && answer.answer) {
-		const q = ctx.questions[answer.questionIndex];
+	const q = ctx.questions[answer.questionIndex];
+	if (answer.kind === "custom" && q?.multiSelect) {
+		answer = { ...answer, kind: "multi", selected: selectedLabels(state, q) };
+	} else if (answer.kind === "option" && answer.answer) {
 		const matched = q?.options.find((o) => o.label === answer.answer);
 		if (matched?.preview && matched.preview.length > 0) {
 			answer = { ...answer, preview: matched.preview };
@@ -158,8 +221,15 @@ const confirmHandler: Handler<"confirm"> = (state, action, ctx) => {
 	}
 	const answers = new Map(state.answers);
 	answers.set(answer.questionIndex, answer);
-	const next: QuestionnaireState = { ...state, answers };
-	if (answer.kind === "chat") return doneFor(next, ctx, false);
+	const hasCustomAnswer = answer.kind === "custom" || (answer.kind === "multi" && answer.answer !== null);
+	const customDraftsByTab = hasCustomAnswer
+		? withoutCustomDraft(state, answer.questionIndex)
+		: state.customDraftsByTab;
+	const next: QuestionnaireState = {
+		...state,
+		answers,
+		customDraftsByTab,
+	};
 	if (action.autoAdvanceTab !== undefined) return switchTabResult(next, action.autoAdvanceTab, ctx);
 	return doneFor(next, ctx, false);
 };
@@ -182,13 +252,14 @@ const multiConfirmHandler: Handler<"multi_confirm"> = (state, action, ctx) => {
 		questionIndex: state.currentTab,
 		question: q.question,
 		kind: "multi",
-		answer: null,
+		answer: action.answer,
 		selected: action.selected,
 		...(pendingNotes && pendingNotes.length > 0 ? { notes: pendingNotes } : {}),
 	});
 	const synced: QuestionnaireState = {
 		...state,
 		answers,
+		customDraftsByTab: withoutCustomDraft(state, state.currentTab),
 		multiSelectChecked: syncMultiSelectFromAnswers(answers, ctx.questions, state.currentTab),
 	};
 	if (action.autoAdvanceTab !== undefined) return switchTabResult(synced, action.autoAdvanceTab, ctx);
@@ -196,7 +267,7 @@ const multiConfirmHandler: Handler<"multi_confirm"> = (state, action, ctx) => {
 };
 
 const notesEnterHandler: Handler<"notes_enter"> = (state, _action, _ctx) => {
-	const value = state.answers.get(state.currentTab)?.notes ?? "";
+	const value = notesValueFor(state, state.currentTab);
 	return {
 		state: { ...state, notesVisible: true, notesDraft: value },
 		effects: [
@@ -229,30 +300,19 @@ const notesExitHandler: Handler<"notes_exit"> = (state, _action, _ctx) => {
 	};
 };
 
-const focusOptionsHandler: Handler<"focus_options"> = (state, action, ctx) => {
-	const items = ctx.itemsByTab[state.currentTab] ?? [];
-	const focused = items[action.optionIndex];
-	const inputMode = focused ? ROW_INTENT_META[focused.kind].activatesInputMode : false;
-	const next = withFocusedOptionHasPreview(
-		{ ...state, chatFocused: false, optionIndex: action.optionIndex, inputMode },
-		ctx.questions,
-	);
-	return { state: next, effects: inputMode ? [] : [{ kind: "clear_input_buffer" }] };
-};
-
 const cancelHandler: Handler<"cancel"> = (s, _a, c) => doneFor(s, c, true);
 const submitHandler: Handler<"submit"> = (s, _a, c) => doneFor(s, c, false);
 const submitNavHandler: Handler<"submit_nav"> = (s, a, _c) => ({
 	state: { ...s, submitChoiceIndex: a.nextIndex },
 	effects: [],
 });
-const focusChatHandler: Handler<"focus_chat"> = (s, _a, _c) => ({
-	state: { ...s, chatFocused: true },
-	effects: [],
-});
 const notesForwardHandler: Handler<"notes_forward"> = (s, a, _c) => ({
 	state: s,
 	effects: [{ kind: "forward_notes_keystroke", data: a.data }],
+});
+const toggleCollapsedHandler: Handler<"toggle_collapsed"> = (s, _a, _c) => ({
+	state: { ...s, collapsed: !s.collapsed },
+	effects: [{ kind: "set_overlay_hidden", hidden: !s.collapsed }],
 });
 const ignoreHandler: Handler<"ignore"> = (s, _a, _c) => ({ state: s, effects: [] });
 
@@ -264,6 +324,9 @@ const ignoreHandler: Handler<"ignore"> = (s, _a, _c) => ({ state: s, effects: []
  */
 const HANDLERS: { [K in QuestionnaireAction["kind"]]: Handler<K> } = {
 	nav: navHandler,
+	input_clear: inputClearHandler,
+	input_edit: inputEditHandler,
+	input_replace: inputReplaceHandler,
 	tab_switch: tabSwitchHandler,
 	confirm: confirmHandler,
 	toggle: toggleHandler,
@@ -274,8 +337,7 @@ const HANDLERS: { [K in QuestionnaireAction["kind"]]: Handler<K> } = {
 	notes_forward: notesForwardHandler,
 	submit: submitHandler,
 	submit_nav: submitNavHandler,
-	focus_chat: focusChatHandler,
-	focus_options: focusOptionsHandler,
+	toggle_collapsed: toggleCollapsedHandler,
 	ignore: ignoreHandler,
 };
 

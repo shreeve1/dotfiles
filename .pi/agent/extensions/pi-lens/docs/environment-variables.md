@@ -30,12 +30,35 @@ config JSON) and how they interact, see [Settings](settings.md).
 
 ### `PI_LENS_CONFIG_PATH`
 
-Override the path of the global config file. **Default:** `~/.pi-lens/config.json`
-(`%USERPROFILE%\.pi-lens\config.json` on Windows). When set, the value is
-resolved to an absolute path and used verbatim.
+Override the path of the global config file. **Default:** the resolution order
+below. When set, the value is resolved to an absolute path and used verbatim;
+it wins over every other location. See the [winning-location table](configuration.md#global-config-location).
 
 **When to set it:** keeping the config under version control or a dotfiles
 manager at a non-default location, or pointing CI at a fixture config.
+
+### `PI_CODING_AGENT_DIR`
+
+Host-relative global config location, honored by pi-lens when pi sets it.
+**Resolved path:** `$PI_CODING_AGENT_DIR/extensions/pi-lens.json`. The tier is
+opt-in by creation: the file is read when it EXISTS and the legacy default
+does not. Absent, nothing changes.
+
+The full resolution order for the global config file, highest first:
+
+1. `PI_LENS_CONFIG_PATH` — an explicit file override, used verbatim.
+2. `~/.pi-lens/config.json` — **only when it already exists**; current users
+   never move.
+3. `$PI_CODING_AGENT_DIR/extensions/pi-lens.json` — **only when it exists**
+   and step 2 missed.
+4. `~/.pi-lens/config.json` — the canonical default (unchanged).
+
+pi-lens does not write the global config; there is no settings writer in this
+repository. Create or edit the selected file by hand. `effective_config` shows
+which file supplies the global tier. If an existence probe errors (a file where
+a directory belongs, permission errors, or a symlink loop), the errored tier is
+retained and the read failure is reported under `PILENS_CFG_0001`; it is not
+treated as absent. See the [XDG-like recipe](configuration.md#global-config-location).
 
 ## Data directory
 
@@ -47,9 +70,9 @@ review-graph, install-choices, etc.).
 
 **Default resolution order:**
 
-1. `$PILENS_DATA_DIR/<sanitized-cwd-slug>/` (if `PILENS_DATA_DIR` is set)
+1. `$PILENS_DATA_DIR/<sanitized-cwd-slug>-<8-hex-hash>/` (if `PILENS_DATA_DIR` is set)
 2. `<cwd>/.pi-lens/` (legacy — only if it already exists in the project)
-3. `~/.pi-lens/projects/<sanitized-cwd-slug>/` (current default)
+3. `~/.pi-lens/projects/<sanitized-cwd-slug>-<8-hex-hash>/` (current default)
 
 **When to set it:** running pi with a local model server (llama.cpp,
 Ollama, etc.) that monitors the project directory — cache-file churn
@@ -81,12 +104,14 @@ without changing the steady-state behaviour of an interactive session.
 
 ### `PI_LENS_STARTUP_SCAN_VERDICT_TTL_MS`
 
-How long (ms) a persisted `too-many-source-files` startup-scan verdict is
-trusted before the source-file count is re-walked (default 24h). The verdict
-is cached in the project snapshot so repeated `pi -p` runs in a very large
-repo skip the counting walk entirely; a repo that shrinks below the threshold
-recovers when the TTL expires. Other verdicts use content-based freshness and
-ignore this setting.
+How long (ms) a persisted size-skip startup-scan verdict (`too-many-source-files`
+or `too-many-entries`) is trusted before the project is re-walked (default
+24h). The verdict is cached in the project snapshot so repeated `pi -p` runs in
+a very large repo skip the counting walk entirely; a repo that shrinks below
+the threshold recovers when the TTL expires. The verdict also records the
+bounds that produced it (`maxProjectFiles`, `PI_LENS_STARTUP_SCAN_MAX_ENTRIES`),
+so raising either one invalidates it at once and the next session re-walks.
+Other verdicts use content-based freshness and ignore this setting.
 
 ## Scale and limits
 
@@ -121,12 +146,25 @@ Minimum wall-clock budget (ms) for every dispatch runner; the effective timeout
 is `max(runner budget, floor)`. **Default:** `0` (no floor). Also settable via
 the `dispatch.runnerTimeoutFloorMs` config key, which wins when both are set.
 
+### `PI_LENS_WORD_INDEX_MEMO_BACKSTOP_MS`
+
+Backstop (ms) for the word index's serialized memo, which is also its
+incremental-serialize cache: it is kept while a run edits (so each per-edit
+persist stays O(dirty tokens)) and released once per run at `agent_settled`.
+The backstop releases it when no persist has refreshed it for this long, for a
+host that never emits `agent_settled` and for a stalled run. It is re-armed by
+every serialize and never keeps the process alive. **Default:** `600000` (10
+minutes). `0`, a negative or a non-numeric value means the default (a backstop
+that fired at once would switch the memo off), and a value above `2147483647`
+(about 24.8 days, Node's largest timer delay) is clamped to it. The default is
+deliberately conservative: the maintainer's
+`latency.log` held only two intra-run gaps between `project_snapshot_persist`
+records (5.8 s), too few to derive a percentile. A release leaves one
+`word_index_memo_released` row in `latency.log` (`trigger`: `settle`,
+`post_settle_persist` or `backstop`). Releasing costs the next persist a full
+re-serialize.
+
 ## Install control
-
-### `PI_LENS_AUTO_INSTALL`
-
-Set to `1` to auto-approve tool installs non-interactively (same as
-`--auto-install`). Off by default — installs prompt interactively.
 
 ### `PI_LENS_DISABLE_LSP_INSTALL`
 
@@ -201,10 +239,68 @@ Several in-memory caches release their contents after a period of inactivity so 
 long-running session does not retain hydrated state indefinitely. Each has an
 env-tunable window; all default to 20 minutes (`1200000` ms).
 
+### V8 heap ceiling for long pi sessions
+
+If a long pi session with pi-lens approaches the memory available on its host,
+set a V8 old-space ceiling before launching pi:
+
+```sh
+NODE_OPTIONS=--max-old-space-size=700 pi
+```
+
+`700` MB is a diagnosis-based starting point, not a universal project limit. In
+the #1999 investigation, the capped and uncapped runs had the same settled live
+heap (about 240 MB), while the cap reduced peak RSS from about 1,870 MB to
+961 MB at the same point and did not add wall time in that run. GC CPU cost was not measured separately, so treat the value as a starting point to tune on your own workload. The measured
+long-session parent heaps were otherwise about 1.3–1.8 GiB, so increase the
+ceiling for a workload that needs more headroom. A ceiling that is too low can
+make Node abort with an out-of-memory crash; it does not reduce the live state
+that the workload requires.
+
+This setting applies to that pi launch only. To make it persistent for a shell,
+export it first, then launch pi:
+
+```sh
+export NODE_OPTIONS=--max-old-space-size=700
+pi
+```
+
+To observe what the session is using, inspect `memory_sample` records in
+`~/.pi-lens/latency.log`. Compare `process.heapUsedBytes` with the settled
+`process.heapSettledBytes`, and check `process.externalNonBufferBytes` for
+external memory that is not ArrayBuffer memory. The latest asynchronous
+persist-worker readings are under
+`subsystems.persistWorkers.reviewGraph` and
+`subsystems.persistWorkers.projectSnapshot`. If `/lens-health` exposes the
+same memory fields in a future pi-lens version, use those current readings
+there as well; the current `/lens-health` output does not render them. The
+complete field definitions are in
+[`pi-lens-monitor.md`](pi-lens-monitor.md#memory-samples).
+
+### `PI_LENS_LSP_IDLE_EVICT_MS`
+
+Shared idle window (ms) after which every language-service client whose registry
+`idleEviction` is `transparent` releases its hydrated program and shuts down,
+rebuilding transparently on the next request. Servers declared `resident` or
+`unmeasured` are never evicted. Which servers are declared which way, and the
+nightly measurement behind each declaration, is in
+[`lsp-idle-eviction.md`](lsp-idle-eviction.md).
+When unset or invalid, `PI_LENS_TS_IDLE_EVICT_MS` (below) is read.
+**Default:** 20 minutes (`1200000`).
+
+### `PI_LENS_EPHEMERAL_LSP_IDLE_EVICT_MS`
+
+Idle window (ms) for language-service clients whose workspace is inside a
+temporary or ephemeral Git checkout. This overrides the shared window above
+for those roots; when unset or invalid, the default is 60 seconds (`60000`).
+The nightly idle-eviction measurement temporarily sets this variable alongside
+`PI_LENS_LSP_IDLE_EVICT_MS` so both root policies are measured.
+
 ### `PI_LENS_TS_IDLE_EVICT_MS`
 
-Idle window (ms) after which TypeScript language-service clients release their
-hydrated program and shut down, rebuilding transparently on the next request.
+The original, TypeScript-named spelling of the same window, retained for
+compatibility with existing configuration. It has exactly the semantics above
+and is ignored when `PI_LENS_LSP_IDLE_EVICT_MS` holds a valid value.
 **Default:** 20 minutes (`1200000`).
 
 ### `PI_LENS_WORD_INDEX_IDLE_EVICT_MS`
@@ -265,12 +361,46 @@ Days to keep rotated logs before cleanup. **Default:** `7`.
 
 Maximum log size (MB) before rotation. **Default:** `10`.
 
+## Diagnostic-only knobs
+
+These use the `PILENS_` (no underscore after `PI`) prefix, so they are
+invisible to a `grep PI_LENS_` sweep — use the wider `grep -E 'PI_?LENS_'`
+below to find them and anything like them. Not part of the supported surface;
+each exists for a narrow diagnostic or escape-hatch purpose, not everyday
+tuning.
+
+### `PILENS_PROBE`
+
+Set to `1` to force an ad-hoc probe (a bare `node -e` or throwaway script
+against built `clients/*.js`, run outside a test harness and without
+`PI_LENS_HOME` set) to redirect its home/log directory away from the real
+`~/.pi-lens`, the same way running from an agent worktree or `os.tmpdir()`
+already does automatically (`clients/probe-home-state.ts`). Prefer setting
+`PI_LENS_HOME` explicitly; this is the forced opt-in for a probe run from an
+ordinary project checkout, where the automatic detection would not fire.
+
+### `PILENS_UNSAFE_FORCE_GRAMMAR_LOAD`
+
+Diagnostic escape hatch for the grammar-health probe only (`clients/grammar-source.ts`).
+Set to `1` to force-load a tree-sitter grammar this runtime has blocklisted,
+to test whether a newer build/runtime lifts the block. Disables the crash
+protection the blocklist provides and can abort the process. Never set in
+normal operation.
+
+### `PILENS_PUB_DEBUG`
+
+Set to `1` to trace each LSP server's `publishDiagnostics` behavior (version +
+diagnostic count) to diagnose the clean-file affirmative-signal question:
+which servers publish an empty-with-version set on a clean scan vs. go silent
+(`clients/lsp/client.ts`). Off by default.
+
 ## Advanced tuning knobs
 
 pi-lens also has many advanced/internal tuning variables — LSP timeouts and
 memory budgets, debounce intervals (`PI_LENS_LSP_*`, and others). These are for
 edge-case tuning, are not part of the supported surface above, and are documented
-in the source; enumerate them with `grep PI_LENS_ clients/`.
+in the source; enumerate them with `grep -E 'PI_?LENS_' clients/` (the wider
+pattern catches the `PILENS_` diagnostic-only knobs above too).
 
 ## Related
 

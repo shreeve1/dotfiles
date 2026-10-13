@@ -112,12 +112,35 @@ New files:
 
 | tool | maps to | purpose |
 |------|---------|---------|
-| `pilens_analyze` | `analyzeFile` (warm) / worker (fresh) | run the per-edit pipeline on a file; returns diagnostics + timing. `mode: warm\|fresh`. **Correctness + mechanism probe.** |
-| `pilens_diagnostics` | lens-diagnostics formatters | delta/all/full project/session diagnostic state. |
+| `pilens_analyze` | `analyzeFile` (warm) / worker (fresh) | run the per-edit pipeline on a file; returns diagnostics + timing. `mode: warm\|fresh`. **Correctness + mechanism probe.** Each `latency.runners[]` row carries `failureKind` when the runner set one: `failed` + `blocking_diagnostics` is a run whose findings failed the check; `failed` with any other kind, or none, is a runner that produced no usable result. |
+| `pilens_ast_grep_search` | `ast_grep_search` | AST-aware structural search. |
+| `pilens_ast_grep_replace` | `ast_grep_replace` | AST-aware structural replace. |
+| `pilens_diagnostics` | `lens_diagnostics` | session or LSP diagnostics, selected by `source`, `scope`, and `severity`. |
+| `pilens_effective_config` | `effective_config` | resolved configuration and provenance. |
 | `pilens_project_scan` | `scanProjectDiagnostics` | project-wide cheap scan. |
 | `pilens_latency` | `getLatencyReports` | latency records (latency.log schema). **Review-loop measurement.** |
 | `pilens_health` | `/lens-health` internals | runtime health snapshot. |
+| `pilens_lsp_navigation` | `lsp_navigation` | IDE-style LSP navigation. |
+| `pilens_module_report` | `module_report` | navigable module outline and dependents. |
+| `pilens_project_report` | `project_report` | project-level structure and diagnostics report. |
+| `pilens_read_enclosing` | `read_enclosing` | read the smallest enclosing symbol or callback. |
+| `pilens_read_symbol` | `read_symbol` | read one symbol body. |
 | `pilens_rebuild` | `npm run build:dist` | rebuild dist so `fresh` reflects the latest commit. Makes the loop self-contained. |
+| `pilens_session_end` | session lifecycle | close the MCP session and flush lifecycle state. |
+| `pilens_session_start` | session lifecycle | initialize session state and caches. |
+| `pilens_symbol_search` | `symbol_search` | search the persisted symbol index. |
+| `pilens_turn_end` | turn lifecycle | settle turn-end work and return findings. |
+
+Every tool's `inputSchema` (from `tools/list`) is also the set of argument keys
+the dispatcher accepts without comment: an undeclared key is reported in the
+result (a leading `Ignored unknown argument(s) ...` line, plus
+`structuredContent.ignoredArguments`). An ignored key that leaves a required
+input missing, or that is a declared parameter the call did not send written
+another way (`pilens_diagnostics {"filePath": ...}` for `path`; predicate in
+[public-api-stability.md](public-api-stability.md)), turns the call into an error
+instead of a run on defaults; a looser "did you mean" stays a warning (#3749;
+details in [agent-tools.md](agent-tools.md)). The check is the one seam in
+`mcp/server.ts` `tools/call`, through `mcp/tool-arguments.ts`.
 
 ## Packaging / wiring
 
@@ -243,8 +266,8 @@ Initial assumption ("knip/jscpd are booboo-only") was **wrong**. Verified:
 | layer | handler | runs |
 |-------|---------|------|
 | per-edit | `dispatchLintWithResult` | LSP, tree-sitter, ast-grep, fact-rules, biome/ruff/eslint/oxlint |
-| per-turn | `handleTurnEnd` (`runtime-turn.ts`) | **knip** (`:298`), **jscpd** (incremental, `getFilesForJscpd`), **madge/dep circular** (`:426`), **cascade merge** (`:175`), **tests** (`:461`), actionable/code-quality warnings aggregation, project-diagnostics delta |
-| per-session | `handleSessionStart` (`runtime-session.ts`) | **jscpd full scan** (`:505`), knip, type-coverage, dep, govulncheck, gitleaks, todo, complexity baselines, dominant-language **LSP warm** (#203). The production path does not currently populate the error-debt baseline. |
+| per-turn | `handleTurnEnd` (`runtime-turn.ts`) | **knip**, **jscpd** (incremental, `getFilesForJscpd`), **madge/dep circular** (opt-in via `--lens-turn-end-madge`), **cascade merge**, **tests**, actionable/code-quality warnings aggregation, project-diagnostics delta |
+| per-session | `handleSessionStart` (`runtime-session.ts`) | **jscpd full scan**, knip, type-coverage, dep, govulncheck, gitleaks, todo, complexity baselines, dominant-language **LSP warm** (#203). The production path does not currently populate the error-debt baseline. |
 
 The initial MCP implementation invoked **none** of the lifecycle handlers —
 only the per-edit layer. The shipped server now exposes `pilens_session_start`
@@ -371,9 +394,14 @@ be exercised + debugged directly through Claude Code without running pi.
   hook (reads the tool payload from stdin → `tool_input.path`/`file_path` + cwd)
   AND as a plain CLI (`--file=`). Defaults to `no-lsp` (FAST: ~1-2s, the cold
   LSP would cost ~5s/edit and under-report anyway — pull `pilens_analyze` on the
-  warm server for type errors). Silent on clean files; advisory (always exit 0).
-  `--hook` emits a PostToolUse `additionalContext` envelope; plain mode prints a
-  report. 4 bin tests (CLI, --hook envelope, clean-file silence, stdin payload).
+  warm server for type errors). Silent on clean files. Clean scans and findings
+  exit 0; an invocation that cannot run reports its failure on stdout and stderr.
+  Plain CLI failures exit 2. `--hook`, stdin hook payloads, and `--turn-end` stay
+  advisory and exit 0, including on failure. `--hook` emits a PostToolUse
+  `additionalContext` envelope; plain mode and Stop hooks print text.
+  `pilens_health` reports failed invocation counts and the last operation,
+  timestamp, and bounded, redacted reason from the workspace status record.
+  These counters are best-effort history, not a current readiness verdict.
 
   Wire it in Claude Code `settings.json`:
 
@@ -431,7 +459,7 @@ be exercised + debugged directly through Claude Code without running pi.
   in the server, and concurrent turn-ends cannot race the turn-state clear.
   **Warm-only, no cold fallback**: only the server process owns the session state
   and pending turn work, so a local pass would report a false clean — no warm
-  server means one stderr line, silent stdout, exit 0.
+  server means a skip reason on stdout and stderr, exit 0.
   The client waits 55s so it gives up inside Claude Code's 60s hook timeout.
   `SubagentStop` is deliberately NOT registered: subagent edits already fire
   PostToolUse into the shared turn-state, the consume bridges are one-shot (a

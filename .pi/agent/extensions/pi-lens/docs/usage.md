@@ -50,9 +50,11 @@ for the consumer-facing version of this routing.
 
 pi-lens exposes these high-value tools to agents:
 
-- `lens_diagnostics` — cached diagnostic state; use `mode=all` before declaring
-  work complete, and `mode=full` for an expensive project-wide LSP scan.
-- `lsp_navigation` / `lsp_diagnostics` — IDE-style navigation and diagnostics.
+- `lens_diagnostics` — `source=session` (default) reports cached findings; an
+  empty cache is not proof of a clean file. If changed files have no cached
+  diagnostics or stale findings, use `source=lsp scope=paths` for targeted
+  active verification (or `scope=workspace` to sweep a whole directory/project).
+- `lsp_navigation` — IDE-style code navigation (definition/references/etc.).
 - `ast_grep_search` / `ast_grep_replace` — AST-aware structural search/replace.
 - `module_report` / `read_symbol` — navigable outline and targeted symbol-body
   reads; prefer these before broad full-file reads.
@@ -105,11 +107,23 @@ pi --no-autofix          # Skip auto-fix (Biome, Ruff, ESLint, stylelint, sqlflu
 pi --no-tests            # Skip test runner
 pi --no-delta            # Disable delta mode (show all diagnostics, not just new ones)
 pi --lens-guard          # Block git commit/push when unresolved blockers exist (experimental)
+pi --lens-checkout-guard # Decline git commands that rewrite the working tree while another live pi-lens session shares this dirty checkout (experimental)
 pi --no-opengrep         # Disable the Opengrep security scanner (default-on auxiliary LSP)
 pi --no-read-guard       # Disable the read-before-edit behavior monitor
 pi --lens-turn-summary   # Persist a per-turn summary of diagnostics, autofixes, and autoformats
 pi --lens-compact-tool-line   # Render tool results as one compact, theme-aware line (closes #1327)
+pi --lens-compact-lsp-status  # Collapse the footer LSP status to one state glyph instead of the server names (refs #3099)
+pi --lens-hide-lsp-status     # Publish no pi-lens-lsp footer status at all, so a status-rendering host stops showing the key (closes #3099)
+pi --lens-compact-widget      # Render the widget as one summary line (languages + totals, LSP↑ chip while servers spawn) with no file rows or blocker details (refs #3959)
 pi --no-lazy-tools       # Keep every pi-lens tool active instead of activating the situational ones on demand
+pi --lens-turn-end-madge # Run the madge circular-dependency check at every turn end, not just at session start
+pi --no-knip             # Disable the knip session-start analyzer
+pi --no-jscpd            # Disable the jscpd session-start analyzer
+pi --no-madge            # Disable the madge session-start analyzer
+pi --no-gitleaks         # Disable the gitleaks session-start analyzer
+pi --no-govulncheck      # Disable the govulncheck session-start analyzer
+pi --no-dead-code        # Disable the dead-code session-start analyzer
+pi --no-complexity       # Disable the complexity session-start analyzer
 
 # Actionable warnings (all default off)
 pi --lens-actionable-warnings          # Report fixable warnings at turn end
@@ -186,4 +200,7 @@ turn-end is skipped, not faked: one line on stderr and nothing on stdout.
 - Check `~/.pi-lens/sessionstart.log`, `~/.pi-lens/latency.log`, and
   `~/.pi-lens/cascade.log` for lifecycle/performance/debug traces.
 - For live tool validation, use `node scripts/smoke-tools.mjs` with the relevant
-  `--lsp`, `--format`, or `--autofix` layer.
+  `--lsp`, `--format`, or `--autofix` layer. `--resolution` checks, without
+  installing or spawning anything, that the resolvers find project-local tools in
+  `.venv/bin`, `vendor/bin` and `node_modules/.bin` (it runs nightly in
+  tool-smoke).

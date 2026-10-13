@@ -556,14 +556,9 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
     case "$(dirname "$package_json")" in
     "$HOME/.pi/agent/extensions/pi-subagents") continue ;;
     "$HOME/.pi/agent/extensions/pi-lens") continue ;;
-    "$HOME/.pi/agent/extensions/rpiv-pi") continue ;;
     "$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
     "$HOME/.pi/agent/extensions/file-search") continue ;;
     "$HOME/.pi/agent/extensions/git-info") continue ;;
-    "$HOME/.pi/agent/extensions/summaries") continue ;;
-    "$HOME/.pi/agent/extensions/background-terminals") continue ;;
-    "$HOME/.pi/agent/extensions/model-info") continue ;;
-    "$HOME/.pi/agent/extensions/ui-customization") continue ;;
     esac
     install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
   done

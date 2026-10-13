@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "missionId": "b790ce76-1d07-4db1-a853-88d5489f7d4e",
+  "projectRoot": "/tmp",
+  "recordPath": "/home/james/.pi/agent/missions/projects/e9671acd244849c57167c658fa2f969752048f7ab184a3dcf5c46cb4d56ae124/b790ce76-1d07-4db1-a853-88d5489f7d4e.json",
+  "title": "[prompt redacted]",
+  "status": "completed",
+  "updatedAt": "2026-10-13T02:59:49.283Z",
+  "lastRunId": "c788cea8-7282-43c9-8207-3af49659845f"
+}

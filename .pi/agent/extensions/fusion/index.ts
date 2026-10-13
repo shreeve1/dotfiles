@@ -163,13 +163,9 @@ export const PARENT_ALLOWED_TOOLS = [
 	"bash",
 	"lsp_diagnostics",
 	"subagent",
-	"subagent_wait",
+	"bg_wait",
 	"subagent_supervisor",
 	"todo",
-	"bg_start",
-	"bg_status",
-	"bg_list",
-	"bg_kill",
 ] as const;
 
 export type ParentAllowedTool = (typeof PARENT_ALLOWED_TOOLS)[number];
@@ -541,10 +537,21 @@ export const ALLOWED_READ_ACTIONS = new Set([
 	"list",
 	"get",
 	"models",
+	"children.list",
 	"status",
 	"doctor",
-	"schedule-list",
-	"schedule-status",
+	"guide",
+	"validate",
+	"mission.list",
+	"mission.show",
+	"refine.show",
+	"inspector.status",
+	"project.status",
+	"lane.status",
+	"command.status",
+	"schedule.list",
+	"schedule.show",
+	"schedule.history",
 	"watchdog.status",
 	"watchdog.check",
 	"watchdog.recommend-model",
@@ -568,7 +575,10 @@ export const ALLOWED_CONTROL_ACTIONS = new Set([
 export const APPEND_STEP_ACTION = "append-step";
 
 /** Management actions that mutate agent definitions/models — blocked while active. */
+// Mirrors pi-subagents 0.77.0 MUTATING_MANAGEMENT_ACTIONS; re-sync on re-vendor.
 export const BLOCKED_MUTATION_ACTIONS = new Set([
+	"command.yield",
+	"command.cancel",
 	"create",
 	"update",
 	"delete",
@@ -576,10 +586,30 @@ export const BLOCKED_MUTATION_ACTIONS = new Set([
 	"disable",
 	"enable",
 	"reset",
-	"watchdog.configure",
 	"grant-spawn-budget",
-	"schedule", // schedule is execution-deferred; safer to keep session-local
-	"schedule-cancel",
+	"watchdog.configure",
+	"mission.create",
+	"mission.update",
+	"mission.resolve-decision",
+	"mission.attach-run",
+	"mission.close",
+	"inspector.open",
+	"inspector.close",
+	"project.open",
+	"project.close",
+	"worktree.discard",
+	"worktree.cleanup",
+	"lane.recordMerge",
+	"lane.recordSupersession",
+	"refine",
+	"refine.rollback",
+	"dismiss",
+	"schedule.create", // scheduling is execution-deferred; safer to keep session-local
+	"schedule.pause",
+	"schedule.resume",
+	"schedule.run",
+	"schedule.run-due",
+	"schedule.delete",
 ]);
 
 const ROLES_THAT_ALLOW_OUTPUT = new Set(["worker", "planner"]);
@@ -854,6 +884,16 @@ export function validateAndNormalizeSubagentCall(
 	const outputForcedRef = { value: false };
 	const errors: string[] = [];
 
+	// Workflow scripts pick their own agents and writes, invisible to the
+	// parent's one-writer attribution, so they never run under Fusion.
+	if (args.workflow !== undefined || args.workflowScript !== undefined) {
+		return {
+			ok: false,
+			reason:
+				"subagent: workflow scripts are blocked while Fusion is active; run them with Fusion off",
+		};
+	}
+
 	// Top-level single execution
 	if (typeof args.agent === "string") {
 		validateExecStep(args as Record<string, unknown>, "agent", errors);
@@ -1007,7 +1047,7 @@ export const FUSION_GUIDANCE_HEADER = "[FUSION MODE ACTIVE]";
 export const FUSION_GUIDANCE_BODY = [
 	"You are the parent in Fusion orchestration. The parent tool surface is",
 	"intentionally small: read, bash (restricted), lsp_diagnostics, subagent,",
-	"subagent_wait, subagent_supervisor, todo. Discovery",
+	"bg_wait, subagent_supervisor, todo. Discovery",
 	"and execution go through children.",
 	"",
 	"Role models and thinking levels are configured in `settings.json` `subagents.agentOverrides`; this extension never hardcodes them.",
@@ -1236,35 +1276,6 @@ export default function fusionExtension(pi: ExtensionAPI): void {
 			return {
 				block: true,
 				reason: `fusion bash policy: ${verdict.reason}. Add an exact-match entry to .pi/fusion.json if this is a legit project-level command.`,
-			};
-		}
-	});
-
-	// --- bg_start tool_call: reuse bash policy on the command ----------
-	// bg_start (background-terminals) accepts a single `command` string with
-	// no separate args/shell option, so validating that field is identical
-	// to validating a bash invocation. Same precedence as bash:
-	// dangerous-mode deny > metachar/redirect deny > global allowlist >
-	// project allowedCommands exact match. bg_status/bg_list/bg_kill take
-	// no command and pass through unblocked.
-
-	pi.on("tool_call", async (event, ctx) => {
-		if (!enabled) return;
-		const toolName = event && (event as { toolName?: string }).toolName;
-		if (toolName !== "bg_start") return;
-		const input = (event as { input?: unknown }).input;
-		const command =
-			input && typeof input === "object" && "command" in input
-				? String((input as Record<string, unknown>).command ?? "")
-				: "";
-		const projectAllowed = loadProjectBashOverride(ctx.cwd, {
-			trusted: !!ctx.isProjectTrusted && ctx.isProjectTrusted(),
-		});
-		const verdict = isSafeBash(command, { projectAllowed });
-		if (!verdict.ok) {
-			return {
-				block: true,
-				reason: `fusion bash policy (bg_start): ${verdict.reason}. Add an exact-match entry to .pi/fusion.json if this is a legit project-level command.`,
 			};
 		}
 	});

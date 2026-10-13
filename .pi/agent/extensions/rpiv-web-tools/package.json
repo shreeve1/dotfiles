@@ -1,21 +1,32 @@
 {
 	"name": "@juicesharp/rpiv-web-tools",
-	"version": "1.13.0",
-	"description": "Pi extension. Web search and fetch for the model with pluggable providers (Brave, Tavily, Serper, Exa, Jina, Firecrawl).",
+	"version": "2.13.8",
+	"description": "Pi extension. Web search and fetch for the model with pluggable providers (Brave, Tavily, Serper, Exa, You.com, Jina, Firecrawl, Perplexity, SearXNG, Ollama).",
 	"keywords": [
 		"pi-package",
 		"pi-extension",
 		"rpiv",
 		"web-search",
+		"web-fetch",
 		"search",
 		"fetch",
 		"scrape",
+		"web-scraping",
+		"ai",
+		"llm",
+		"agent",
+		"local",
+		"self-hosted",
 		"brave",
 		"tavily",
 		"serper",
 		"exa",
+		"youcom",
 		"jina",
-		"firecrawl"
+		"firecrawl",
+		"perplexity",
+		"searxng",
+		"ollama"
 	],
 	"type": "module",
 	"license": "MIT",
@@ -39,16 +50,22 @@
 		"index.ts",
 		"web-tools.ts",
 		"providers/",
+		"docs/",
+		"!docs/*.png",
+		"!docs/*.jpg",
+		"!docs/*.svg",
 		"README.md",
-		"LICENSE"
+		"LICENSE",
+		"!**/*.test.ts"
 	],
 	"pi": {
+		"image": "https://raw.githubusercontent.com/juicesharp/rpiv-mono/main/packages/rpiv-web-tools/docs/cover.png",
 		"extensions": [
 			"./index.ts"
 		]
 	},
 	"dependencies": {
-		"@juicesharp/rpiv-config": "^1.13.0"
+		"@juicesharp/rpiv-config": "^2.13.8"
 	},
 	"peerDependencies": {
 		"@earendil-works/pi-coding-agent": "*",

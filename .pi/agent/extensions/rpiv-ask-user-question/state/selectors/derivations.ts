@@ -1,50 +1,12 @@
 import type { QuestionAnswer, QuestionData } from "../../tool/types.js";
 import type { WrappingSelectItem } from "../../view/components/wrapping-select.js";
-import { ROW_INTENT_META } from "../row-intent.js";
-
-/**
- * Pure derivation: does the option focused by `(currentTab, optionIndex)` carry a
- * non-empty `preview` string? Mode gates (chat focus, notes mode, multiSelect) layer
- * on top via dispatch branches; this predicate is intentionally mode-agnostic.
- */
-export function computeFocusedOptionHasPreview(
-	questions: readonly QuestionData[],
-	currentTab: number,
-	optionIndex: number,
-): boolean {
-	const q = questions[currentTab];
-	if (!q) return false;
-	const opt = q.options[optionIndex];
-	return !!opt && typeof opt.preview === "string" && opt.preview.length > 0;
-}
-
-/**
- * Numbering for the chat row's WrappingSelect, computed from the active tab's items.
- *
- * The chat row lives in its own one-item WrappingSelect; the host calls this on every tab
- * switch / selection update to keep the chat row's `N. ` label continuous with the visible
- * numbered rows of the active tab. The shape `{ offset, total }` mirrors
- * `WrappingSelect.setNumbering(numberStartOffset, totalItemsForNumbering)` directly.
- */
-export function chatNumberingFor(items: readonly WrappingSelectItem[]): {
-	offset: number;
-	total: number;
-} {
-	// Count only the visible-numbered rows. The Next sentinel renders without a number
-	// (see MultiSelectView), so it must NOT advance the chat row's number — otherwise
-	// chat reads as "6." next to options labeled 1-4. Sourced from `ROW_INTENT_META[kind].numbered`
-	// so adding a new non-numbered kind is a single META edit.
-	const count = items.filter((i) => ROW_INTENT_META[i.kind].numbered).length;
-	return { offset: count, total: count + 1 };
-}
 
 /**
  * Which row in the active tab should be marked as "previously confirmed"? Drives the
  * `WrappingSelect` confirmed-row indicator (label + ` ✔`) when the user navigates back
  * to a question they already answered. Returns `undefined` when no marker should be drawn —
- * multi-select handles its own `[✔]` boxes via `multiSelectChecked`, `kind: "chat"` ends the
- * dialog so the row can never be re-entered, and a missing/non-matching answer (defensive)
- * silently skips the marker.
+ * multi-select handles its own `[✔]` boxes via `multiSelectChecked`, and a missing/non-matching
+ * answer (defensive) silently skips the marker.
  */
 export function selectConfirmedIndicator(
 	questions: readonly QuestionData[],
@@ -55,7 +17,7 @@ export function selectConfirmedIndicator(
 	const q = questions[currentTab];
 	if (!q || q.multiSelect === true) return undefined;
 	const prior = answers.get(currentTab);
-	if (!prior || prior.kind === "chat") return undefined;
+	if (!prior) return undefined;
 	if (prior.kind === "custom") {
 		const otherIndex = items.findIndex((it) => it.kind === "other");
 		if (otherIndex < 0) return undefined;
@@ -78,14 +40,16 @@ export function selectActivePreviewPaneIndex(currentTab: number, totalQuestions:
 }
 
 /**
- * Items array for the active tab, with the same Submit-tab clamp as `selectActivePreviewPaneIndex`.
- * Falls back to an empty array if the index lands outside the items array (defensive).
+ * The committed note for a question tab, or `undefined` when it has none. Same precedence as
+ * the reducer's editor seeding (`notesValueFor`): the in-flight side-band (`notesByTab`) is
+ * authoritative — a note saved before the question is answered lives only there, and a
+ * present empty string means the note was cleared — with `answer.notes` as the mirror.
  */
-export function selectActiveTabItems(
-	itemsByTab: ReadonlyArray<readonly WrappingSelectItem[]>,
-	currentTab: number,
-	totalQuestions: number,
-): readonly WrappingSelectItem[] {
-	const idx = selectActivePreviewPaneIndex(currentTab, totalQuestions);
-	return itemsByTab[idx] ?? [];
+export function selectSavedNote(
+	notesByTab: ReadonlyMap<number, string>,
+	answers: ReadonlyMap<number, QuestionAnswer>,
+	tab: number,
+): string | undefined {
+	const note = notesByTab.get(tab) ?? answers.get(tab)?.notes;
+	return note && note.length > 0 ? note : undefined;
 }

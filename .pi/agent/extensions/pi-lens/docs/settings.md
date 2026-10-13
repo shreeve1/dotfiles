@@ -9,6 +9,19 @@ flags in context, see [Usage](./usage.md).
 pi-lens ships with sensible defaults, so **zero configuration is needed** — it
 works out of the box. Everything below is optional tuning.
 
+Tool root resolution is recorded in the pi-lens extension log as one bounded
+line per session key: `cwd <kind> <tool> cwd=<path>
+reason=<dispatch-root|marker:<name>|git-root|file-dir-fallback|home-cap>`.
+Fallbacks also create one `tool-cwd-resolution` degradation record per tool and
+session, so repeated files do not create unbounded health or log rows.
+
+Complete MCP tool results use `COMPLETE_MCP_RESULT_INPUT_BUDGET_BYTES` (8 MiB) as
+their input budget. Results above this budget
+write a bounded head, an `[incomplete: N bytes omitted, budget M]` marker, and a
+tail to the session log, and record one `mcp-complete-result-budget-exceeded`
+degradation per session. Results at or below the budget keep the complete-log
+contract.
+
 ## The three ways to configure pi-lens
 
 1. **Environment variables** (`PI_LENS_*`) — read at process start; set them in
@@ -16,7 +29,8 @@ works out of the box. Everything below is optional tuning.
    CI-scoped switches and for the handful of tuning knobs that have no config key.
 2. **CLI flags** (`--no-lsp`, `--immediate-format`, …) — per-session, passed on
    the pi command line.
-3. **Config JSON** — a per-user global file (`~/.pi-lens/config.json`) and an
+3. **Config JSON** — a per-user global file selected by the
+   [global-location table](configuration.md#global-config-location) and an
    optional per-project file (`.pi-lens.json` at the repo root).
 
 Every runtime toggle is settable **both** from the CLI and from `config.json`;
@@ -30,10 +44,11 @@ For a single toggle, highest priority first:
 1. **Environment variable**, for the toggles that have one bound (only
    `PI_LENS_NO_CONTEXT_INJECTION` today).
 2. **CLI flag**.
-3. **Nearest project `.pi-lens.json`** that defines the key — for the three
-   project-scoped mutation controls only (`format.enabled`, `autofix.enabled`,
-   `actionableWarnings.autoFix.enabled`). In a monorepo the closest config to the
-   edited file wins.
+3. **Nearest project `.pi-lens.json`** that defines the key — for the
+   project-scoped keys only: the three mutation controls (`format.enabled`,
+   `autofix.enabled`, `actionableWarnings.autoFix.enabled`) and the per-tool
+   switches `tools.<name>.enabled` (`tools.lazy` itself stays global-only). In a
+   monorepo the closest config to the edited file wins.
 4. **Global `~/.pi-lens/config.json`**.
 5. **Built-in default**.
 
@@ -60,7 +75,7 @@ column is the effective behavior when nothing is set.
 | `--no-tests` | `tests.enabled` | global | test runner **on** |
 | `--no-delta` | `delta.enabled` | global | delta mode **on** (new diagnostics only) |
 | `--lens-guard` | `guard.enabled` | global | **off** |
-
+| `--lens-checkout-guard` | `guard.sharedCheckout` | global | **off** |
 | `--no-opengrep` | `opengrep.enabled` | global | Opengrep scanner **on** |
 | `--no-read-guard` | `readGuard.enabled` | global | read-before-edit monitor **on** |
 | `--no-lens-context` | `contextInjection.enabled` | global | context injection **on** |
@@ -70,12 +85,41 @@ column is the effective behavior when nothing is set.
 | `--lens-actionable-warning-autofix` | `actionableWarnings.autoFix.enabled` | project | **off** |
 | `--lens-actionable-warning-all` | `actionableWarnings.deltaOnly` (`false`) | global | `deltaOnly` **on** (report this turn only) |
 | `--lens-compact-tool-line` | `ui.compactToolLine` | global | **off** (two-row tool rendering) |
-| `--no-lazy-tools` | `tools.lazy` | global | lazy tools **on** (six situational tools start inactive) |
+| `--lens-compact-lsp-status` | `ui.compactLspStatus` | global | **off** (footer lists the active server names) |
+| `--lens-hide-lsp-status` | `ui.hideLspStatus` | global | **off** (footer publishes the `pi-lens-lsp` status; outranks `ui.compactLspStatus` when both are set) |
+| `--lens-compact-widget` | `ui.compactWidget` | global | **off** (widget stacks file rows, suppressed count and blocker details below its summary header; **on** renders only that header — languages + totals, plus the `LSP↑` chip while servers are spawning) |
+| `--no-lazy-tools` | `tools.lazy` | global | lazy tools **on** (five situational tools start inactive) |
+| `--no-tool=<name>` | `tools.<name>.enabled` | project | every lens tool **on** |
+| `--lens-turn-end-madge` | `turnEnd.madge.enabled` | global | **off** (madge runs at session start, not per turn) |
+| `--no-knip` | `knip.enabled` | project | knip analyzer **on** |
+| `--no-jscpd` | `jscpd.enabled` | project | jscpd analyzer **on** |
+| `--no-madge` | `madge.enabled` | project | madge analyzer **on** |
+| `--no-gitleaks` | `gitleaks.enabled` | project | gitleaks analyzer **on** |
+| `--no-govulncheck` | `govulncheck.enabled` | project | govulncheck analyzer **on** |
+| `--no-dead-code` | `deadCode.enabled` | project | dead-code analyzer **on** |
+| `--no-complexity` | `complexity.enabled` | project | complexity analyzer **on** |
 
 `--no-lazy-tools` keeps every pi-lens tool active for the whole session, so the
 advertised tool list never changes. The `pi_lens_activate_tools` loader stays
 registered and keeps its usual description; under this flag the tools it names
 are already active, so calling it is a no-op.
+
+The `tools.<name>.enabled` population covers every model-facing pi and MCP
+tool. The loader `pi_lens_activate_tools` and MCP lifecycle tools
+`pilens_session_start`, `pilens_turn_end`, and `pilens_session_end` are
+required by their host protocols and cannot be disabled. Unknown or
+non-disableable names emit `PILENS_CFG_0009`.
+
+When a lower-precedence supported global config file is shadowed by the
+winning file, pi-lens records the notice once with `PILENS_CFG_0010`.
+
+Valid names for `tools.<name>.enabled` include `ast_grep_search`,
+`ast_grep_replace`, `ast_grep_outline`, `lsp_navigation`,
+`lens_diagnostics`, `lens_diagnostic_mark`, `symbol_search`,
+`module_report`, `project_report`, `read_symbol`, `read_enclosing`,
+`effective_config`, `analyze`, `health`, `latency`, `project_scan`, and
+`rebuild`. The activation loader and MCP lifecycle tools `session_start`,
+`turn_end`, and `session_end` cannot be disabled.
 
 `--lens-guard` is **EXPERIMENTAL and strictly opt-in**. When enabled, actual
 `git commit`/`git push` commands are blocked only for current, structured
@@ -101,17 +145,20 @@ field docs.
 | `actionableWarnings.autoFix.maxFixes` | global | `5` | Cap on quickfixes applied per turn (`0` = report only) |
 | `rules.high-complexity.threshold` | project | `15` | Cyclomatic-complexity threshold |
 | `rules.high-fan-out.threshold` | project | `20` | Distinct-function-call threshold |
-| `rules.<id>.disable` | project | absent | Disable diagnostics for a rule (output-only filter, project-wide; same normalization as `pi-lens-ignore`) |
+| `rules.<id>.disable` | global + project | absent | Disable diagnostics for a rule (output-only filter, project-wide; same normalization as `pi-lens-ignore`) |
 | `rules.<id>.select` | project | absent | Allowlist of rule ids (output-only filter, project-wide across every key; disable wins over select) |
+| `rules.<id>.ignorePaths` | global + project | `[]` | Experimental rule-scoped globs relative to the project root; matching files skip that rule's scan and output. Entries are monotonic across tiers. |
 | `maxProjectFiles` | project | `2000` | Base scale knob; derives five subsystem size budgets |
 | `reviewGraph.maxFiles` | project | derived (clamped `100`–`20000`) | Explicit review-graph file budget |
 | `trivy.enabled` / `trivy.minSeverity` | project | off | Opt-in Trivy vulnerability scanning |
+| `helm.renderValidation.enabled` | project | off | Opt-in `helm template` rendering plus rendered-manifest validation. Rendering executes chart templates, so it **also requires host project trust** and is read from the chart's own project root — see below |
 
 ## Global vs project config
 
-### Global — `~/.pi-lens/config.json`
+### Global — winning location
 
-User-level. Applies to **every** project. Honors **all** flag keys from the
+User-level. The file is selected by the [global-location table](configuration.md#global-config-location)
+and applies to **every** project. It honors **all** flag keys from the
 table above plus the non-flag global knobs (`ignore`, `widget.visible`,
 `dispatch.runnerTimeoutFloorMs`, `format.mode`,
 `actionableWarnings.autoFix.maxFixes`). On Windows the path is
@@ -141,7 +188,23 @@ A project file honors **only**:
 
 - the three mutation controls — `format.enabled`, `autofix.enabled`,
   `actionableWarnings.autoFix.enabled`;
-- `ignore`, `rules`, `maxProjectFiles`, `reviewGraph`, and `trivy`.
+- `ignore`, `rules`, `maxProjectFiles`, `reviewGraph`, `trivy`, and `helm`.
+
+### `helm.renderValidation.enabled` needs trust as well as consent
+
+Rendering a Helm chart runs the chart's own Go templates, so this switch is not
+sufficient on its own. Two independent conditions must both hold:
+
+1. **The project consents.** `helm.renderValidation.enabled` must be `true`,
+   read from the `.pi-lens.json` that governs the **chart's own project root** —
+   not the current working directory. An opt-in in an unrelated directory does
+   not authorize rendering another project's chart.
+2. **The host trusts the project.** `.pi-lens.json` is a tracked file, so a
+   cloned repository can arrive with the switch already on and would otherwise
+   authorize execution of its own templates. In untrusted mode pi-lens refuses
+   to render and reports the refusal, naming trust as the reason, rather than
+   skipping silently. This is the same trust gate that governs LSP server spawns
+   and tool auto-installs.
 
 Most toggles are **global-only**. Putting a global-only key such as
 `"lsp": { "enabled": false }` in a `.pi-lens.json` is **not** honored at project
@@ -182,6 +245,10 @@ manager, or CI config. The handful you are most likely to reach for:
   review graph) out of the workspace.
 - `PI_LENS_HOME` — relocate the machine-global root (logs, tool binaries, install
   caches, instance registry).
+- `PI_LENS_CONFIG_PATH` — point the global config file at an explicit path.
+- `PI_CODING_AGENT_DIR` — when pi sets it, `$PI_CODING_AGENT_DIR/extensions/
+  pi-lens.json` is read when it exists and the default global config file does
+  not; pi-lens does not write the file.
 - `PI_LENS_MAX_PROJECT_FILES` — base project-size scale knob (default `2000`).
 - `PI_LENS_STARTUP_MODE` — force the startup path: `full`, `minimal`, or `quick`.
 

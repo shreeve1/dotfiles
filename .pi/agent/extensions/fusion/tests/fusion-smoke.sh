@@ -124,7 +124,7 @@ node --input-type=module -e "
 const url='$(printf '%s' "$ext" | sed "s|'|\\\\'|g")';
 const { PARENT_ALLOWED_TOOLS, parentToolAllowlist, applyParentAllowlist, isParentAllowedTool } = await import(url);
 
-const expected = ['read','bash','lsp_diagnostics','subagent','subagent_wait','subagent_supervisor','todo','bg_start','bg_status','bg_list','bg_kill'];
+const expected = ['read','bash','lsp_diagnostics','subagent','bg_wait','subagent_supervisor','todo'];
 if (PARENT_ALLOWED_TOOLS.length !== expected.length) { console.log('FAIL: allowed tool length'); process.exit(1); }
 for (const t of expected) {
   if (!PARENT_ALLOWED_TOOLS.includes(t)) { console.log('FAIL: missing tool ' + t); process.exit(1); }
@@ -1149,8 +1149,8 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
   if (!bad || !bad.block) { console.log('FAIL: (f) npm install should be blocked'); process.exit(1); }
 }
 
-// (g) tool_call: subagent handler (the THIRD tool_call registration;
-//     first is bash, second is bg_start) nests-normalizes event.input in place. Mutate=true
+// (g) tool_call: subagent handler (the SECOND tool_call registration;
+//     first is bash) nests-normalizes event.input in place. Mutate=true
 //     coerces context=fresh and output=false for roles other than worker/planner.
 {
   const h = mkHarness(['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo']);
@@ -1159,7 +1159,7 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
     { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent','subagent_wait','subagent_supervisor','lsp_diagnostics','todo'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
-  const subagentHandler = h.handlers.tool_call[2];
+  const subagentHandler = h.handlers.tool_call[1];
   if (!subagentHandler) { console.log('FAIL: (g) subagent handler not registered'); process.exit(1); }
   // build nested input with NO model/thinking overrides (those would be
   // rejected by execution). Verify nested output coercion + context: fresh.
@@ -1197,7 +1197,7 @@ const fireAll = (h, event, ctx) => h.map(fn => fn(event, ctx));
     { type: 'custom', customType: FUSION_STATE_CUSTOM, data: { enabled: true, toolsBeforeFusion: ['read','bash','subagent'] } },
   ]};
   await fire(h.handlers.session_start, {}, h.ctx);
-  const subagentHandler = h.handlers.tool_call[2];
+  const subagentHandler = h.handlers.tool_call[1];
   if (!subagentHandler) { console.log('FAIL: (g2) subagent handler not registered'); process.exit(1); }
   const event = {
     toolName: 'subagent',
