@@ -225,6 +225,82 @@ default on` writes that tracked file. State precedence on session start:
 latest `fusion-state` session entry > `--fusion` flag > `.omp/agent/fusion.json`
 > off.
 
+## Meeting assistant
+
+The vocabulary for the Omarchy plugin that listens to a live Meeting, researches questions, uncertain facts and ideas as they are spoken, and lets you ask an agent follow-ups. See `docs/adr/0014-meeting-assistant-separate-plugin.md` and `docs/adr/0015-meeting-assistant-ask-agent.md`.
+
+**Meeting**:
+One recording of a call by the Voxtype Meeting Transcriber, from start to stop.
+_Avoid_: session (the capture service's internal word for the same thing)
+
+**Utterance**:
+One speaker's stretch of speech between silences, transcribed as a single line tagged with its Source.
+_Avoid_: sentence, segment, chunk
+
+**Source**:
+Which side an Utterance came from: the microphone (you) or system audio (everyone else).
+_Avoid_: speaker, channel
+
+**Research Card**:
+One short researched answer, with sources, about something said in a Meeting. Produced automatically; never shown when there is nothing worth saying.
+_Avoid_: suggestion, hint, answer, notification
+
+**Overlay**:
+The floating surface above all other windows that shows the Timeline. Passive: it never takes keyboard focus, except while the Ask box is open.
+_Avoid_: panel, popup, window (a bar widget's popup is a different thing)
+
+**Meeting Assistant**:
+The plugin that watches a Meeting's transcript, produces Research Cards onto the Overlay, and hosts the Ask box.
+_Avoid_: copilot, Natively, bot
+
+**Ask**:
+Typing to the Ask agent in the Overlay's input box. Opened and closed by one hotkey; Esc or a click away hands focus back to the app you were in. Distinct from a Research Card, which the Meeting Assistant produces without being asked.
+_Avoid_: prompt, query (the omp session behind it is the Saved conversation)
+
+**Ask agent**:
+The long-lived omp process, run from `~/Documents/itastack`, that answers Ask messages with the project's rules, memory, skills and tools. It is not a research worker: workers have `web_search` only, the Ask agent has the same tools as the terminal agent.
+_Avoid_: assistant (that word means the whole plugin), bot, copilot
+
+**Timeline**:
+The single scrolling list in the Overlay holding your Ask messages, the Ask agent's replies and the Research Cards, in time order, with a divider at each Meeting start and end. Saved under `~/Documents/itastack/artifacts/meeting-assistant/`, so it outlives Meetings and restarts until you start a new conversation.
+_Avoid_: history, feed, log
+
+**Persona**:
+A user-edited file appended to the Ask agent's system prompt, always on. Separate from the optional per-Meeting skill, which is sent with the first Ask message of each Meeting.
+_Avoid_: role, system prompt (the Persona is only the part you edit)
+
+**Saved conversation**:
+The Ask agent's omp session plus the saved cards and Ask messages that make up the Timeline, kept under `~/Documents/itastack/artifacts/meeting-assistant/`. Deleted only by "new conversation".
+_Avoid_: chat, history, session (a session is also what the capture service calls a Meeting)
+
+## Offload (laptop to server)
+
+The vocabulary for handing a task between the laptop and an agent on a server (aidev or itan8n) and bringing the result back.
+
+**Offload**:
+Handing one task from one machine to an agent running on the other, so the first stays free. Starts from a Brief and ends when the agent's work is applied back on whichever side wants it.
+_Avoid_: delegate (that is a subagent inside one session), sync
+
+**Brief**:
+The written statement of a task's goal, where the work stands and what to do next, which the server agent starts from. The session that holds the context writes it, either after a grill or partway through a task.
+_Avoid_: prompt, spec, handoff
+
+**Mirror**:
+A project's git copy on the other machine, kept in step with the original by branches that travel in either direction.
+_Avoid_: clone, remote, deploy copy
+
+**Offload branch**:
+The branch that carries one Offload's Snapshot and Brief out and the server agent's commits back.
+_Avoid_: feature branch, worktree alone
+
+**Snapshot**:
+A commit of a machine's whole dirty working tree, built without changing its HEAD, index or files. It is the base the agent's work is measured against.
+_Avoid_: stash, backup, wip commit
+
+**Deployment**:
+One piece of software running on a server because `offload-deploy` started it. Its source is either an Offload branch or a GitHub repo.
+_Avoid_: install, service, release
+
 ## Security watch
 
 The vocabulary for the daily check that looks for malicious activity: known exploits, supply-chain attacks through installed packages, and the Footholds an attack (often a prompt injection) leaves behind. aidev, itan8n and the laptop get the full check; every other Wazuh agent gets a daily summary of its Wazuh alerts. Anything found goes to an agent to investigate.

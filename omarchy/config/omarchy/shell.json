@@ -33,9 +33,6 @@
           "id": "evindor.keystroke"
         },
         {
-          "id": "meviusisback.agent-orchestr"
-        },
-        {
           "id": "omarchy.system-update"
         }
       ],
@@ -44,7 +41,12 @@
           "id": "omarchy.tray"
         },
         {
-          "id": "io.github.boomdev.voxtype-meeting-transcriber"
+          "id": "shreeve1.meeting-assistant"
+        },
+        {
+          "id": "io.github.boomdev.voxtype-meeting-transcriber",
+          "exportDirectory": "~/Documents/itastack/Meetings/",
+          "notificationsEnabled": true
         },
         {
           "id": "io.github.omarchy.touchpad-settings"

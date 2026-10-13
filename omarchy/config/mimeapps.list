@@ -9,5 +9,8 @@ x-scheme-handler/claude=com.anthropic.Claude.desktop
 x-scheme-handler/mailto=google-chrome.desktop
 x-scheme-handler/pivot=pivot-url-handler.desktop
 x-scheme-handler/t3code=com.t3tools.T3Code.desktop
+x-scheme-handler/codex=chatgpt.desktop
+x-scheme-handler/itasession=itasession.desktop
+x-scheme-handler/agent-open=agent-open-link.desktop
 
 [Added Associations]
