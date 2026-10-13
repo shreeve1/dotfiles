@@ -82,6 +82,7 @@ bin/*
 .claude/cache/
 .claude/projects/
 .claude/tasks/
+.pi/tasks/
 .claude/Plans/
 .claude/shell-snapshots/
 .claude/file-history/
