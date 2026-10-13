@@ -130,6 +130,13 @@ here.
   resolve against the pi release runtime — pi 1.2.0 ships pi-ai/pi-agent-core
   1.2.0, so no root pin bump is needed. Do not `pi install npm:pi-subagents`;
   use the repo copy.
+  **Local patch (2026-10-13), re-apply on re-vendor:** pi 1.2.0 removed
+  `@earendil-works/chord`, but 0.77.0's `resolveHostPeerAliases`
+  (`src/runs/background/runner-aliases.js`) requires the chord aliases for
+  every host except stable 0.x < 0.85, so every `async: true` child failed with
+  "does not provide @earendil-works/chord…". The patch requires chord only
+  when the host manifest declares it (`chordDeclared`). Foreground children
+  are unaffected; Fusion is not involved. Drop the patch once upstream fixes it.
   Root Pi delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
   `.pi/agent/extensions/pi-subagents/biome.json` (`{"formatter":{"enabled":false}}`)
   is a LOCAL-only file with no upstream counterpart — keep it across re-syncs.
