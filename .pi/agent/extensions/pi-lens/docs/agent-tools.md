@@ -2,43 +2,126 @@
 
 pi-lens registers the following tools with the pi agent. Most are also exposed
 through the MCP mirror (`clients/lens-engine.ts` is the seam both adapters
-share) — current exceptions: `ast_grep_outline` and `ast_grep_dump`
+share) — current exception: `ast_grep_outline`
 (module_report supersedes them for discovery), and `lens_diagnostic_mark`
 (pi-lens-internal for now). `read_enclosing` gained MCP parity
-(`pilens_read_enclosing`) as of #536, closing #522 item 1.
+(`pilens_read_enclosing`) as of #536, closing #522 item 1. The standalone
+`lsp_diagnostics` tool was folded into `lens_diagnostics` (`source=lsp`,
+#2860). The retired MCP name remains a one-release compatibility redirect to
+`pilens_diagnostics` with `source=lsp` and `scope=paths` (`mcp/server.ts`),
+logging one `lsp-diagnostics-compatibility` degradation per session. Callers
+should move to `pilens_diagnostics`.
 
-**Dynamic tooling.** Six tools stay always-active: `lens_diagnostics`,
-`lsp_diagnostics`, `module_report`, `read_symbol`, `read_enclosing`,
-`symbol_search`. Six situational tools — `ast_grep_search`, `ast_grep_replace`,
-`ast_grep_outline`, `ast_grep_dump`, `lsp_navigation`, `lens_diagnostic_mark` —
+
+**Dynamic tooling.** Five tools stay always-active: `lens_diagnostics`,
+	`module_report`, `read_symbol`, `read_enclosing`,
+`symbol_search`. Five situational tools — `ast_grep_search`, `ast_grep_replace`,
+`ast_grep_outline`, `lsp_navigation`, `lens_diagnostic_mark` —
 are registered but
 inactive by default; the model activates the ones it needs via the always-active
 loader tool `pi_lens_activate_tools`, per pi's dynamic-tool-loading API
 (`pi.setActiveTools`/`pi.getActiveTools`). The loader explicitly reports
 "Available starting next turn"; do not retry the tool in the same turn.
-Feature-detected: on hosts without that API, the six situational tools fall back
+Feature-detected: on hosts without that API, the five situational tools fall back
 to being statically active, exactly as before (`tools/activate-tools.ts`, wired
 in `index.ts`).
 
+Tool descriptions contain the contract sentence and one example. Operational
+guidance, including cache state, scan scope, safety details, and lifecycle
+results, belongs in the returned result so it is paid only when the tool runs.
+
+**Result contract.** One post-result gate per surface — `finalizeToolResult` /
+`finalizeToolResultWithDelivery` in `tools/render-compact.ts`, wired into every
+pi tool's `execute` wrapper in `index.ts` and into the MCP `tools/call`
+dispatcher in `mcp/server.ts` — bounds every delivered result to 40 KiB
+(`MAX_RESULT_BYTES`) and stamps a trailing usage footer describing what was
+actually sent: `usage tokens=<n> elapsed-ms=<n> bytes=<n> truncated=<true|false>`.
+A rejected call (e.g. MCP's "Unknown or disabled tool") is rendered through the
+same gate rather than bypassing it.
+
+**MCP argument handling (#3749).** The MCP `tools/call` dispatcher compares the
+call's argument keys with the `inputSchema` the tool advertises in `tools/list`
+(`findIgnoredArguments`, `mcp/tool-arguments.ts`), once, for every tool. An
+undeclared top-level key is never silently dropped (keys inside a nested
+object argument such as `callHierarchyItem`, `rule` or `flags` are not checked):
+
+- the result's first line is ``Ignored unknown argument(s) for <tool>: `key`
+  (did you mean `nearest`?). They had no effect on this call.`` (the suggestion
+  appears only when a declared key is near), followed by the tool's own result;
+- the result carries `structuredContent: { ignoredArguments: [...],
+  ignoredArgumentCount: N }` (at most 8 keys, each cut at 64 characters; the
+  count is exact);
+- when an ignored key leaves the call without something it needed, the tool
+  does not run and the result is an error whose first line is the same
+  sentence, followed by `Not run: ...`. That is the case when a
+  schema-`required` input is missing (``Not run: required argument(s) `file`
+  missing.``), or when the ignored key is a declared parameter the call did not
+  send, written another way: a case or punctuation variant, a plural, or a key
+  whose last word is the parameter (`filePath`, `file_path` and `Path` for the
+  optional `path` of `pilens_diagnostics`: ``Not run: `filePath` looks like a
+  mistyped `path`, which was not sent.``). The exact predicate is named in
+  [public-api-stability.md](public-api-stability.md). Anything looser (a typo,
+  an abbreviation, `files` for `maxLspFiles`, or a count, flag or output key
+  such as `maxFiles`, `includeFiles`, `outFile` or `cwdPath` where `cwd` is
+  declared) stays a warning;
+- each such call adds one count to the `mcp-ignored-arguments` degradation
+  group (subject: the tool name), visible in `pilens_health`.
+
+Unknown keys are still not rejected outright: a caller that passes an extra key
+that is not a declared parameter written another way (or that comes with the
+parameter it resembles) keeps getting its answer, with the report above. Hard rejection is a change to the
+public MCP input contract and is owned by the stability policy
+([public-api-stability.md](public-api-stability.md)). A schema declares only
+what the tool reads, so `cwd` on a tool whose handler never reads it
+(`pilens_health`, `pilens_latency`, `pilens_session_end`, `pilens_rebuild`;
+the dispatcher uses it only to decide whether the tool is enabled) is reported
+as an ignored key, a warning, because nothing it resembles is missing. The
+retired `pilens_lsp_diagnostics` name is checked against `pilens_diagnostics`'s
+schema; the retired `pilens_ast_grep_dump` name has no schema and is not
+checked. A non-object `arguments` is a JSON-RPC `-32602` error; absent, `null`
+and `[]` mean no arguments.
+
 ## Per-edit
 
-- **`lens_diagnostics`** — Cached diagnostic state for the current session.
-  Modes: `delta` (current turn), `all` (resurfaces stale blockers dropped from
-  turn context), `full` (project-wide scan).
+- **`lens_diagnostics`** — Session-cache or LSP-probe diagnostic state, selected
+  by `source` (`session` default, or `lsp`) and `scope` (`paths` or
+  `workspace`; explicit `paths` always win over `scope`). `severity` is a
+  threshold, not an exact filter: `error` shows only errors; `warning` adds
+  warnings; `information` adds information; `hint`/`all` (default) show every
+  tier. `source=lsp` reads a file's on-disk content and will not sync it to a
+  language server past **2 MiB or 5000 lines** (`clients/runtime-config.ts`
+  `pipeline.lspMaxFileBytes`/`lspMaxFileLines`, checked in
+  `clients/lsp/content-limits.ts`) — not env-tunable today. A file over that
+  bound gets an explicit `file too large for LSP diagnostics (<N> bytes/lines
+  > <limit>)` result instead of stale or partial diagnostics. This is a
+  *different* 2 MiB from the auto-fix full-content attachment cap described in
+  [agent-guide.md](agent-guide.md), section 6 ("Auto-format / auto-fix
+  timing") — the two caps currently share one constant
+  (`RUNTIME_CONFIG.pipeline.lspMaxFileBytes`) but gate unrelated behaviors
+  (LSP sync vs. tool-result content attachment) and can diverge independently
+  in the future. Separately, every save-triggered edit now sends the server a
+  `textDocument/didSave` when it declared `textDocumentSync.save` — with the
+  file text when the server asked for it (`includeText`) and the file is
+  within the same bound, otherwise the save is still sent but without `text`
+  (never dropped outright); this is what makes save-triggered servers like
+  Expert (Elixir) re-diagnose an edit made through pi-lens (refs #3405,
+  #3408). Legacy `mode`: `delta` (current turn), `all` (resurfaces stale
+  blockers dropped from turn context), `full` (project-wide scan).
 - **`lens_diagnostic_mark`** — Triage a diagnostic: `false-positive` /
   `suppress` (writes an inline `pi-lens-ignore` comment) / `defer`
   (session-only) / `flagged` (persists, rendered `📌 flagged-to-fix`).
   Content-anchored so marks survive edits; every mark is logged and published
   on the bus. See [dispositions.md](dispositions.md).
-- **`lsp_diagnostics`** — File- or directory-scoped LSP diagnostics via the
-  active language server.
-- **`lsp_navigation`** — IDE-style navigation: `definition`, `references`,
-  `implementation`, `typeDefinition`, `declaration`, `rename`, `rename_file`,
-  `hover`, `documentSymbol`, `workspaceSymbol`, `signatureHelp`,
-  `prepareCallHierarchy`, `incomingCalls`, `outgoingCalls`, `executeCommand`,
-  and `capabilities`. Position-based operations accept a `path`/`line`/`character`
-  triple. `documentSymbol` accepts a `kinds` filter (e.g. `function`, `class`)
-  and a `maxResults` cap (default 20, max 100) to keep large files bounded.
+- **`lsp_navigation`** — IDE-style navigation, 19 operations: `definition`,
+  `typeDefinition`, `declaration`, `references`, `hover`, `signatureHelp`,
+  `documentSymbol`, `findSymbol`, `workspaceSymbol`, `codeAction`, `rename`,
+  `rename_file`, `implementation`, `prepareCallHierarchy`, `incomingCalls`,
+  `outgoingCalls`, `executeCommand`, `workspaceDiagnostics`, and `capabilities`
+  (`tools/lsp-navigation.ts` operation description). Position-based operations
+  accept a `path`/`line`/`character` triple. `documentSymbol` accepts a `kinds`
+  filter (e.g. `function`, `class`) and a `maxResults` cap (default 20, max 100)
+  to keep large files bounded. Full per-operation parameter reference:
+  [skills/pi-lens-lsp-navigation/SKILL.md](../skills/pi-lens-lsp-navigation/SKILL.md).
 - **`ast_grep_search`** — AST-aware structural search across ~40 languages via
   the `sg` CLI. Supports metavariables (`$VAR`, `$$$ARGS`), `strictness`
   modes (`smart`, `relaxed`, `ast`, `cst`, `signature`, `template`), structural
@@ -48,7 +131,7 @@ in `index.ts`).
   (per-call cap, default 50, max 200; also sets the pagination step).
   `nodeKind` is an expert grammar-specific escape hatch: it finds every node of
   the exact kind used by the target grammar. Node kinds are not universal across
-  languages; use `ast_grep_dump` to discover the kind in the target language. It is mutually exclusive with `pattern` and `rule`.
+  languages; use `dump=true` with the representative snippet in `pattern` to discover the kind in the target language. It is mutually exclusive with `rule`.
   `hasKind` retains ast-grep's immediate-child semantics; use
   `hasDescendantKind` for an explicit recursive descendant search. A future
   canonical `find`/`query` facade (call/function/import/etc.) should map to
@@ -60,11 +143,11 @@ in `index.ts`).
   searches. `pattern` is optional when a `rule` or `nodeKind` is given.
   Results include `details.matchLocations[]` — each hit carries a ready
   `readSlice` (`path`/`offset`/`limit`) for a bounded context read; zero-match
-  results include a `suggestedDump` hint pointing at `ast_grep_dump`.
+  results include a `suggestedDump` hint pointing at `ast_grep_search` with `dump=true`.
 - **`ast_grep_replace`** — AST-aware structural replace. Re-validates the pattern
   against the current file before writing and reports a clear error if the
   file changed since the preview.
-- **`ast_grep_dump`** — Dumps the raw tree-sitter AST for a source snippet. Use
+- **`ast_grep_search` with `dump=true`** — Dumps the raw tree-sitter AST for a source snippet. Use
   this when an `ast_grep_search` or `ast_grep_replace` pattern returns zero
   matches and the correct node kind or field name is unknown. `includeAnonymous`
   shows punctuation/CST nodes.

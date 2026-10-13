@@ -5,6 +5,34 @@ repo-level context file to keep auto-loaded agent context lean. `AGENTS.md` §
 "Non-obvious requirements" carries the short must-not-break rules and points
 here.
 
+- **2026-10-12 archive sweep:** every extension not in the enabled set moved
+  from `.pi/agent/extensions/` to `.pi/agent/extensions-archive/` (outside
+  Pi's discovery tree; plain move, git history intact):
+  @juicesharp/{rpiv-args,rpiv-i18n}, background-terminals, cross-agent.ts,
+  fusion, gap-review, graphify-guard, harness-gates, hub-kit, model-info,
+  ponytail, pi-retry, rtk.ts, session-log, shared, subagent-bridge,
+  summaries, ui-customization, web-fetch, workflows (fusion was restored to
+  `extensions/` the same day at user request; it boots with mode OFF — the
+  knob is `~/.config/fusion/config.json` `defaultMode`, `--fusion`, or
+  `/fusion on` in-session; patched the same day for pi-subagents 0.77.0:
+  parent surface `subagent_wait`→`bg_wait` plus the archived
+  background-terminals `bg_*` entries and its dead handler dropped, read and
+  mutation action sets re-synced to 0.77.0's `SUBAGENT_ACTIONS` /
+  `MUTATING_MANAGEMENT_ACTIONS` vocabulary (re-sync on re-vendor), and
+  workflow-script subagent calls BLOCKED under Fusion because script runs
+  bypass the parent's one-writer attribution. Smoke suite updated to the new
+  surface. CLI note: `pi -p --fusion <prompt>` silently swallows the prompt
+  (empty output, exit 0); use `--fusion=true` — measured). All `extensions`
+  exclusion refs were cleared from `settings.json{,.template}` (both arrays
+  now empty) and the dead install.sh case entries removed. Enabled set:
+  pi-subagents, pi-lens, moshi-hooks.ts, herdr-agent-state.ts, and the rpiv
+  family (advisor, ask-user-question, todo, web-tools). `shared/` and
+  `hub-kit/` moved with their consumers (subagent-bridge, ui-customization,
+  workflows, model-info). To restore one: move its folder back into
+  `extensions/` and restart Pi — no settings change needed. Pi-side
+  `gap-review`, `graphify-guard` etc. remain archived; restore the same way
+  if needed (`.pi/fusion.json` was left in place; it is only a stale
+  allowedCommands list; the ADR 0002/0003 docs describe the design).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
@@ -17,27 +45,46 @@ here.
   both Pi settings files as `extensions/pi-subagents`. It spawns each subagent as
   a fresh child `pi` process (real isolation, per-role model) and provides the
   `subagent`, `subagent_wait`, and `subagent_supervisor` tools. It ships builtin
-  agents (worker, reviewer, scout, researcher, planner, oracle, context-builder,
-  delegate) - `.pi/agent/agents/` is intentionally empty (custom agent files
-  there would shadow builtins by name). Per-role models are set in
-  `.pi/agent/settings.json` `subagents.agentOverrides` (worker →
-  `minimax/MiniMax-M3`, reviewer → `deepseek/deepseek-v4-flash`), NOT in agent
-  frontmatter — a frontmatter `model:` pin silently shadows settings overrides.
-  Vendored at version 0.35.1 (the package `CHANGELOG.md` is the only version
-  marker — the vendored `package.json` version field does NOT change on
-  re-vendor). Local deviation per ADR 0004: the
-  `executeWithSingleDispatchGuard` wrapper in
-  `src/runs/foreground/subagent-executor.ts` is removed and the
-  `subagentInProgress` state field plus its initializers are deleted, so
-  multiple concurrent foreground subagent calls are dispatched (not
-  rejected). A future upstream re-vendor MUST re-apply this guard
-  removal — delete the wrapper, `duplicateSubagentCallResult`,
-  `inferExecutionMode`, and `SubagentState.subagentInProgress` against
-  the current fork before committing the new upstream copy, otherwise
-  the single-call-per-turn rejection returns.
+  agents (0.77.0 roster: worker, reviewer, scout, researcher, oracle, delegate,
+  evidence-auditor, claude-code(-writer), codex-exec(-writer),
+  cursor-agent(-writer); plus LOCAL-only `planner.md` and `context-builder.md`
+  carried from the 0.35.x fork because 0.77.0 dropped them and `bin/pi-delegate`
+  reads `agents/planner.md` directly) - `.pi/agent/agents/` is intentionally
+  empty (custom agent files there would shadow builtins by name). Per-role
+  models are set in `.pi/agent/settings.json` `subagents.agentOverrides`
+  (scout/worker → `minimax/MiniMax-M3`, researcher →
+  `openai-codex/gpt-5.6-terra`, reviewer → `openai-codex/gpt-5.6-sol`, planner →
+  `cliproxy/claude-opus-4-8`), NOT in agent frontmatter — a frontmatter
+  `model:` pin silently shadows settings overrides.
+  Vendored at version 0.77.0 (2026-10-12 fresh swap from the 0.35.1 fork;
+  enabled the same day by removing the `-extensions/pi-subagents/index.ts`
+  exclusion from `settings.json{,.template}`). 0.77.0 ships prebuilt JS +
+  .d.ts (no TS sources) — patches are edited into the `.js`. It is a
+  near-rewrite (missions/intercom/fleet/profiles/policy subsystems, external
+  CLI adapters); the fork-only features (`expand.filter/join/sort/top`,
+  per-call `completionGuard` override, per-step salvage, researcher
+  tool-shape and reviewer-format fixes) were NOT upstreamed and were DROPPED
+  in the swap — no active consumers; recoverable from git history. Local
+  deviation per ADR 0004 (0.77.0 form): in
+  `src/runs/foreground/subagent-executor.js` the single-dispatch rejection is
+  stripped — the wrapper is renamed `executeWithUsageAggregation` (it keeps
+  action normalization, the `checkSubagentDepth` call, and
+  `withAggregatedToolUsage`), `duplicateSubagentCallResult` is deleted, and
+  `inferExecutionMode` is KEPT (still used by an error path). The
+  `subagentInProgress` state field is removed from `subagent-executor.js`
+  (state init + the `hasActiveSubagentChildren` read),
+  `src/extension/index.js`, `src/extension/fanout-child.js`, and
+  `src/shared/types.d.ts`. A future upstream re-vendor MUST re-apply this
+  strip and re-carry `biome.json` + `agents/{planner,context-builder}.md`,
+  otherwise the single-call-per-turn rejection returns and `pi-delegate
+  planner` breaks.
   Auth split: minimax uses env `MINIMAX_API_KEY` (portable); deepseek uses
-  `~/.pi/agent/auth.json` (dir-bound). Vendored deps (`jiti`, `yaml`) install via
-  `bash install.sh`. Do not `pi install npm:pi-subagents`; use the repo copy.
+  `~/.pi/agent/auth.json` (dir-bound). Runtime deps (`jiti`, `yaml`, `acorn`,
+  `undici`, `@js-temporal/polyfill`) install via `bash install.sh`; peers
+  (incl. the new `@earendil-works/pi-agent-core` and `pi-ai >= 0.86.1`)
+  resolve against the pi release runtime — pi 1.2.0 ships pi-ai/pi-agent-core
+  1.2.0, so no root pin bump is needed. Do not `pi install npm:pi-subagents`;
+  use the repo copy.
   Root Pi delegation policy lives in `.pi/agent/APPEND_SYSTEM.md`.
   `.pi/agent/extensions/pi-subagents/biome.json` (`{"formatter":{"enabled":false}}`)
   is a LOCAL-only file with no upstream counterpart — keep it across re-syncs.
@@ -51,8 +98,8 @@ here.
   keeps edits churn-free. If a re-sync drops it, edits to this extension will
   churn again — re-add it.
 - `pi-lens` (real-time code feedback: LSP/linters/formatters/ast-grep) is a
-  synced vendored extension at `.pi/agent/extensions/pi-lens/`, registered in
-  both Pi settings files as `extensions/pi-lens`. Do not `pi install npm:pi-lens`;
+  synced vendored extension at `.pi/agent/extensions/pi-lens/` (re-enabled
+  2026-10-12 at 4.4.3, via auto-discovery). Do not `pi install npm:pi-lens`;
   use the repo copy. Since **3.8.74** it is vendored in upstream's **prebuilt npm
   form** — `pi.extensions: ["./dist/index.js"]` (a single ~2.8 MB bundled
   `dist/index.js`) plus vendored `grammars/*.wasm` — NOT the pre-3.8.74
@@ -81,10 +128,16 @@ here.
   `.pi/agent/extensions/rpiv-advisor`. Install/repair it the same way:
   `bash install.sh`, or `INSTALL_PI_NPM=always bash install.sh` when deps are
   stale. Do not use `pi install npm:@juicesharp/rpiv-advisor`; use the repo copy.
-  It is currently DISABLED to reduce prompt-token load: removed from `.pi/agent/settings.json{,.template}` `packages` (the `-extensions/rpiv-advisor/index.ts` exclusion alone was insufficient because package resources resolve first) and dropped from Fusion's parent tool surface. Vendored files and the `package.json` pin remain for easy re-enable.
+  Enabled 2026-10-12 and re-vendored fresh at 2.13.8 from npm (the 1.13.0
+  local patches — advisor Fusion hardening and web-tools provider work — were
+  dropped by design; recoverable from git history). 2.x restructures
+  `advisor.ts` into an `advisor/` module dir and adds `docs/`; the whole rpiv
+  family (advisor, ask-user-question, todo, web-tools) moved 1.13.0 → 2.13.8
+  in the same swap, and root `.pi/agent/package.json` pins
+  `@juicesharp/rpiv-{advisor,config}` at 2.13.8.
 - Pi `rpiv-web-tools` is a synced vendored extension at
-  `.pi/agent/extensions/rpiv-web-tools` and registered in `.pi/agent/settings.json`
-  as `extensions/rpiv-web-tools`. Install/repair it with `bash install.sh`, or
+  `.pi/agent/extensions/rpiv-web-tools` (fresh 2.13.8, 2026-10-12).
+  Install/repair it with `bash install.sh`, or
   `INSTALL_PI_NPM=always bash install.sh` if deps are stale. Do not use
   `pi install npm:@juicesharp/rpiv-web-tools`; use the repo copy. Keep
   `.pi/agent/settings.json` excluding `-extensions/web-fetch/index.ts`, or Pi will

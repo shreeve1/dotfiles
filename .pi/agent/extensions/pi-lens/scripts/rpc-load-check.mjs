@@ -22,7 +22,8 @@ const pi = spawn(piBin, ["--mode", "rpc", "--no-session"], {
 	env: {
 		...process.env,
 		// RPC needs a provider configured to start; get_commands never calls it.
-		ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "sk-ant-dummy-rpc-load-check",
+		ANTHROPIC_API_KEY:
+			process.env.ANTHROPIC_API_KEY || "sk-ant-dummy-rpc-load-check",
 	},
 });
 
@@ -33,30 +34,50 @@ const finish = (code, msg) => {
 	if (done) return;
 	done = true;
 	if (msg) console.log(msg);
-	try { pi.kill("SIGKILL"); } catch {}
+	try {
+		pi.kill("SIGKILL");
+	} catch {}
 	process.exit(code);
 };
-const timer = setTimeout(() => finish(2, "TIMEOUT waiting for get_commands response"), 30000);
+const timer = setTimeout(
+	() => finish(2, "TIMEOUT waiting for get_commands response"),
+	30000,
+);
 
 function handle(line) {
 	let m;
-	try { m = JSON.parse(line); } catch { return; }
-	if ((m.type === "event" && m.event === "extension_error") || m.type === "extension_error") {
+	try {
+		m = JSON.parse(line);
+	} catch {
+		return;
+	}
+	if (
+		(m.type === "event" && m.event === "extension_error") ||
+		m.type === "extension_error"
+	) {
 		extErrors.push(m);
 		console.log("extension_error:", JSON.stringify(m).slice(0, 300));
 	}
 	if (m.type === "response" && m.command === "get_commands") {
 		const cmds = (m.data && m.data.commands) || [];
 		const lens = cmds.filter(
-			(c) => /^lens-/.test(c.name) || String(c.path || "").includes("pi-lens"),
+			(c) =>
+				String(c.name || "").startsWith("lens-") ||
+				String(c.path || "").includes("pi-lens"),
 		);
 		console.log(
 			`total commands: ${cmds.length}; pi-lens commands: ${lens.map((c) => c.name).join(", ") || "(none)"}`,
 		);
 		clearTimeout(timer);
-		if (extErrors.length) finish(1, `FAIL: ${extErrors.length} extension_error event(s)`);
-		else if (!lens.length) finish(1, "FAIL: pi-lens registered no commands (did it load?)");
-		else finish(0, `PASS: pi-lens loaded — ${lens.length} lens-* commands registered`);
+		if (extErrors.length)
+			finish(1, `FAIL: ${extErrors.length} extension_error event(s)`);
+		else if (!lens.length)
+			finish(1, "FAIL: pi-lens registered no commands (did it load?)");
+		else
+			finish(
+				0,
+				`PASS: pi-lens loaded — ${lens.length} lens-* commands registered`,
+			);
 	}
 }
 
@@ -76,5 +97,7 @@ pi.on("exit", (c) => {
 
 // Give extensions a moment to register, then request the command list.
 setTimeout(() => {
-	try { pi.stdin.write(`${JSON.stringify({ type: "get_commands" })}\n`); } catch {}
+	try {
+		pi.stdin.write(`${JSON.stringify({ type: "get_commands" })}\n`);
+	} catch {}
 }, 2500);

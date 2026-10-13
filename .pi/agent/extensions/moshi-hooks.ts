@@ -376,15 +376,21 @@ function recordTaskCompletion(state: SessionState, signature: string, now: numbe
   return true
 }
 
-// Pi's versioned SessionHeader writes parentSession(-Id) when a session was
+// Pi's (and OmO's senpi fork's) versioned SessionHeader writes parentSession(-Id) when a session was
 // created by fork/clone/newSession with lineage; child sessions stay out of
 // the inbox. Lineage cannot change for a live transcript, so a successful
 // read is cached per path; an unreadable or half-written header is retried
 // on the next event.
 const transcriptChildCache = new Map<string, boolean>()
 
+//
+// OMP's header is no such signal (its main-session handoffs carry a parent
+// too), but since 18.3.2 ctx.agent.kind names subagent sessions directly.
+// They never fire session_stop, so a forwarded prompt would stay in flight
+// forever.
 function sessionIsChild(state: SessionState, payload: HookPayload): boolean {
-  if (agentSource !== "pi") return false
+  if (agentSource === "omp") return payload.agent_kind === "sub"
+  if (agentSource !== "pi" && agentSource !== "omo") return false
   const path = payload.transcript_path || state.transcriptPath
   if (!path) return false
   const cached = transcriptChildCache.get(path)
@@ -425,6 +431,7 @@ interface HookPayload {
   cwd: string
   model: string
   context_remaining: number | undefined
+  agent_kind: string
   [key: string]: unknown
 }
 
@@ -555,6 +562,11 @@ function handleEvent(payload: HookPayload): void {
   }
 }
 
+function agentKind(ctx: Record<string, unknown>): string {
+  const agent = ctx.agent && typeof ctx.agent === "object" ? ctx.agent as Record<string, unknown> : {}
+  return firstString(agent.kind)
+}
+
 function send(eventName: string, event: unknown, ctx: unknown, extra: Record<string, unknown> = {}) {
   const eventObj = event && typeof event === "object" ? event as Record<string, unknown> : {}
   const ctxObj = ctx && typeof ctx === "object" ? ctx as Record<string, unknown> : {}
@@ -565,6 +577,7 @@ function send(eventName: string, event: unknown, ctx: unknown, extra: Record<str
     cwd: firstString(ctxObj.cwd as string, process.cwd()),
     model: modelLabel(ctxObj.model),
     context_remaining: contextRemaining(ctxObj),
+    agent_kind: agentKind(ctxObj),
     ...extra,
   }
 

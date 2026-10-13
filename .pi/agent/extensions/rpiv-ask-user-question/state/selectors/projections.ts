@@ -1,4 +1,3 @@
-import type { ChatRowViewProps } from "../../view/components/chat-row-view.js";
 import { MULTI_SUBMIT_LABEL, type MultiSelectViewProps } from "../../view/components/multi-select-view.js";
 import type { OptionListViewProps } from "../../view/components/option-list-view.js";
 import type { PreviewPaneProps } from "../../view/components/preview/preview-pane.js";
@@ -6,12 +5,34 @@ import type { SubmitPickerProps } from "../../view/components/submit-picker.js";
 import type { TabBarProps } from "../../view/components/tab-bar.js";
 import type { DialogProps } from "../../view/dialog-builder.js";
 import { displayLabel } from "../i18n-bridge.js";
-import type { GlobalSelector, PerTabSelector } from "./contract.js";
-import { chatNumberingFor, selectActiveTabItems, selectConfirmedIndicator } from "./derivations.js";
+import type { GlobalSelector, PerTabBindingContext, PerTabSelector } from "./contract.js";
+import { selectConfirmedIndicator, selectSavedNote } from "./derivations.js";
+
+function emptyMultiSelectProps(ctx: PerTabBindingContext): MultiSelectViewProps {
+	return {
+		rows: [],
+		other: {
+			active: false,
+			checked: false,
+			inputMode: false,
+			inputBuffer: ctx.inputBuffer,
+			inputCursorOffset: ctx.inputCursorOffset,
+		},
+		nextActive: false,
+		nextLabel: displayLabel("next"),
+	};
+}
+
+function nextLabelFor(ctx: PerTabBindingContext): string {
+	const isLastQuestion = ctx.i === ctx.questions.length - 1;
+	return isLastQuestion ? MULTI_SUBMIT_LABEL : displayLabel("next");
+}
 
 export const selectMultiSelectProps: PerTabSelector<MultiSelectViewProps> = (state, ctx) => {
 	const question = ctx.questions[ctx.i];
-	if (!question) return { rows: [], nextActive: false, nextLabel: displayLabel("next") };
+	if (!question) {
+		return emptyMultiSelectProps(ctx);
+	}
 	const focused = ctx.activeView === "options";
 	const rows: { checked: boolean; active: boolean }[] = [];
 	for (let i = 0; i < question.options.length; i++) {
@@ -20,10 +41,20 @@ export const selectMultiSelectProps: PerTabSelector<MultiSelectViewProps> = (sta
 			active: focused && i === state.optionIndex,
 		});
 	}
-	const nextActive = focused && state.optionIndex === question.options.length;
-	const isLastQuestion = ctx.i === ctx.questions.length - 1;
-	const nextLabel = isLastQuestion ? MULTI_SUBMIT_LABEL : displayLabel("next");
-	return { rows, nextActive, nextLabel };
+	const otherActive = focused && state.optionIndex === question.options.length;
+	const nextActive = focused && state.optionIndex === question.options.length + 1;
+	return {
+		rows,
+		other: {
+			active: otherActive,
+			checked: ctx.inputBuffer.trim().length > 0,
+			inputMode: state.inputMode,
+			inputBuffer: ctx.inputBuffer,
+			inputCursorOffset: ctx.inputCursorOffset,
+		},
+		nextActive,
+		nextLabel: nextLabelFor(ctx),
+	};
 };
 
 export const selectOptionListProps: PerTabSelector<OptionListViewProps> = (state, ctx) => {
@@ -51,8 +82,10 @@ export const selectSubmitPickerProps: GlobalSelector<SubmitPickerProps> = (state
 
 export const selectPreviewPaneProps: PerTabSelector<PreviewPaneProps> = (state, ctx) => ({
 	notesVisible: state.notesVisible,
+	hasNote: selectSavedNote(state.notesByTab, state.answers, ctx.i) !== undefined,
 	selectedIndex: state.optionIndex,
 	focused: ctx.activeView === "options",
+	inputMode: state.inputMode,
 });
 
 export const selectTabBarProps: GlobalSelector<TabBarProps> = (state, ctx) => {
@@ -67,14 +100,6 @@ export const selectTabBarProps: GlobalSelector<TabBarProps> = (state, ctx) => {
 			active: state.currentTab === ctx.questions.length,
 			allAnswered: state.answers.size === ctx.questions.length && ctx.questions.length > 0,
 		},
-	};
-};
-
-export const selectChatRowProps: GlobalSelector<ChatRowViewProps> = (state, ctx) => {
-	const activeItems = selectActiveTabItems(ctx.itemsByTab, state.currentTab, ctx.totalQuestions);
-	return {
-		focused: ctx.activeView === "chat",
-		numbering: chatNumberingFor(activeItems),
 	};
 };
 

@@ -1,110 +1,162 @@
 #!/usr/bin/env node
-// The CLI flushes the snapshot explicitly and verifies the write — a user
-// debounce (especially 0) races the fire-and-forget background writer and can
-// consume the pending payload before our flush sees it (#943 review). The
-// builder reads this env lazily on every persist, so forcing it here (before
-// any build runs; import hoisting is irrelevant) keeps the queued payload in
-// place for flushReviewGraphPersist to claim.
-process.env.PI_LENS_GRAPH_PERSIST_DEBOUNCE_MS = "3600000";
+import { createRequire as __pilensCreateRequire } from "node:module"; const require = __pilensCreateRequire(import.meta.url);
+import {
+  buildOrUpdateGraph,
+  flushReviewGraphPersist,
+  getGraphBuildInfoForGraph,
+  getLastGraphBuildInfo,
+  getLastReviewGraphBuildAttempt,
+  graphWasmTrapDetail,
+  reviewGraphCachePath
+} from "../chunk-YYOIQFRS.js";
+import "../chunk-3MED75HT.js";
+import "../chunk-M6HSLBWY.js";
+import "../chunk-IBGIOBEE.js";
+import "../chunk-XIMYZ3JA.js";
+import "../chunk-EU63SDCG.js";
+import "../chunk-VWCXW2E7.js";
+import "../chunk-FCSOVF55.js";
+import "../chunk-PNQDPDRC.js";
+import "../chunk-ZXYDQ3TZ.js";
+import "../chunk-5W3R6LFT.js";
+import {
+  isTreeSitterWasmAborted
+} from "../chunk-QHJ6DQ2R.js";
+import "../chunk-Z54ZSOBZ.js";
+import "../chunk-724UL2TJ.js";
+import "../chunk-QOZXJ4NA.js";
+import "../chunk-GBPP5P7X.js";
+import "../chunk-P7266HLM.js";
+import "../chunk-MQLUAEOC.js";
+import "../chunk-52FUZI6K.js";
+import "../chunk-SAEFPSB6.js";
+import "../chunk-GAEGEPOC.js";
+import "../chunk-Z3CCVDUB.js";
+import "../chunk-L3BLXZG7.js";
+import "../chunk-2BEMIWEW.js";
+import "../chunk-ACXEQZOU.js";
+import "../chunk-Q7DUK4LX.js";
+import "../chunk-AW7R2GWG.js";
+import "../chunk-RWWYJ623.js";
+import "../chunk-VRZP76YM.js";
+import "../chunk-QOBUHWHX.js";
+import "../chunk-QILIYSJF.js";
+import "../chunk-6C7JWPCP.js";
+import "../chunk-5NGR67U5.js";
+import "../chunk-C34ZXZ7O.js";
+import "../chunk-BW5KFIQC.js";
+import "../chunk-QYF5S6P6.js";
+import "../chunk-PHDMFAKM.js";
+import "../chunk-2BBLFX75.js";
+import "../chunk-XVF2VVXP.js";
+import {
+  setProjectTrustState
+} from "../chunk-ZANLILYD.js";
+import "../chunk-2EECBNC5.js";
+import "../chunk-JAU72XNY.js";
+import {
+  logExtension
+} from "../chunk-XTMJ7XDT.js";
+import "../chunk-JMYYOTQG.js";
+import "../chunk-QQNQ7SJW.js";
+import "../chunk-AOHZU2BM.js";
+import "../chunk-LJDODBBZ.js";
+import {
+  FactStore
+} from "../chunk-CHOW74WE.js";
+import "../chunk-ABBOA7UD.js";
+import "../chunk-N2H3ZPZY.js";
+import "../chunk-NXL4FFQQ.js";
+
+// dist/mcp/cli.js
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { FactStore } from "../clients/dispatch/fact-store.js";
-import { buildOrUpdateGraph, flushReviewGraphPersist, getLastGraphBuildInfo, getLastReviewGraphBuildAttempt, reviewGraphCachePath, } from "../clients/review-graph/builder.js";
+process.env.PI_LENS_GRAPH_PERSIST_DEBOUNCE_MS = "3600000";
 function cwdArg() {
-    const equals = process.argv.find((arg) => arg.startsWith("--cwd="));
-    if (equals)
-        return equals.slice("--cwd=".length);
-    const index = process.argv.indexOf("--cwd");
-    if (index >= 0) {
-        const value = process.argv[index + 1];
-        if (!value || value.startsWith("-"))
-            throw new Error("--cwd requires a directory");
-        return value;
-    }
-    return process.cwd();
+  const equals = process.argv.find((arg) => arg.startsWith("--cwd="));
+  if (equals)
+    return equals.slice("--cwd=".length);
+  const index = process.argv.indexOf("--cwd");
+  if (index >= 0) {
+    const value = process.argv[index + 1];
+    if (!value || value.startsWith("-"))
+      throw new Error("--cwd requires a directory");
+    return value;
+  }
+  return process.cwd();
 }
-/** Sentinel so main()'s catch doesn't double-print a reason fail() already wrote. */
-const FAILED = Symbol("build-graph-failed");
-// Soft-fail: write the reason, set the exit code, and let the event loop
-// drain naturally. A hard process.exit(1) here aborted with a libuv
-// assertion on Windows whenever async fs handles (log appends) were still
-// live (#943 review finding 3). Exit hooks (persist teardown, log flushSync)
-// still run on natural exit.
+var FAILED = /* @__PURE__ */ Symbol("build-graph-failed");
 function fail(reason) {
-    process.stderr.write(`pi-lens build-graph failed: ${reason}\n`);
-    process.exitCode = 1;
-    throw FAILED;
+  process.stderr.write(`pi-lens build-graph failed: ${reason}
+`);
+  process.exitCode = 1;
+  throw FAILED;
 }
 async function buildGraph() {
-    const cwd = path.resolve(cwdArg());
-    let stat;
-    try {
-        stat = fs.statSync(cwd);
+  const cwd = path.resolve(cwdArg());
+  let stat;
+  try {
+    stat = fs.statSync(cwd);
+  } catch (err) {
+    fail(`cannot access cwd ${cwd}: ${err.message}`);
+  }
+  if (!stat.isDirectory())
+    fail(`cwd is not a directory: ${cwd}`);
+  const startedAt = Date.now();
+  const graph = await buildOrUpdateGraph(cwd, [], new FactStore("mcp-cli"));
+  const attempt = getLastReviewGraphBuildAttempt(cwd);
+  if (!attempt || attempt.outcome !== "succeeded") {
+    fail(attempt?.reason ?? attempt?.outcome ?? "build produced no result");
+  }
+  const persisted = flushReviewGraphPersist(cwd);
+  if (!persisted.ok) {
+    const buildInfo = getLastGraphBuildInfo();
+    const snapshotPath = reviewGraphCachePath(cwd);
+    if (!buildInfo.graphChanged && fs.existsSync(snapshotPath)) {
+      const bytes = fs.statSync(snapshotPath).size;
+      const durationMs2 = Date.now() - startedAt;
+      process.stdout.write(`pi-lens build-graph: snapshot already current (mode=${buildInfo.mode}) files=${graph.fileNodes.size} nodes=${graph.nodes.size} edges=${graph.edges.length} jsonBytes=${bytes} durationMs=${durationMs2}
+`);
+      return;
     }
-    catch (err) {
-        fail(`cannot access cwd ${cwd}: ${err.message}`);
-    }
-    if (!stat.isDirectory())
-        fail(`cwd is not a directory: ${cwd}`);
-    const startedAt = Date.now();
-    const graph = await buildOrUpdateGraph(cwd, [], new FactStore());
-    const attempt = getLastReviewGraphBuildAttempt(cwd);
-    // "succeeded" can still carry a `reason` string — persistGraph() stamps one
-    // on to explain a partial (over-cap) persist, which is NOT a failure (#960
-    // made a capped persist honest-but-successful). Only "failed"/"skipped"
-    // (unsafe_root, source-file cap, thrown build error) are real failures; a
-    // benign reason on a succeeded build is surfaced later via coverage
-    // instead of being treated as fatal here.
-    if (!attempt || attempt.outcome !== "succeeded") {
-        fail(attempt?.reason ?? attempt?.outcome ?? "build produced no result");
-    }
-    const persisted = flushReviewGraphPersist(cwd);
-    if (!persisted.ok) {
-        // An unchanged repo queues no persist — the disk-cache hit and the
-        // pure-drift incremental path both deliberately skip rewriting the
-        // blob. That is SUCCESS for a scheduled build (#943 review finding 1:
-        // a nightly cron on a quiet repo must not fail every run), provided
-        // the snapshot actually exists on disk.
-        const buildInfo = getLastGraphBuildInfo();
-        const snapshotPath = reviewGraphCachePath(cwd);
-        if (!buildInfo.graphChanged && fs.existsSync(snapshotPath)) {
-            const bytes = fs.statSync(snapshotPath).size;
-            const durationMs = Date.now() - startedAt;
-            process.stdout.write(`pi-lens build-graph: snapshot already current (mode=${buildInfo.mode}) ` +
-                `files=${graph.fileNodes.size} nodes=${graph.nodes.size} ` +
-                `edges=${graph.edges.length} jsonBytes=${bytes} durationMs=${durationMs}\n`);
-            return;
-        }
-        fail(persisted.reason ?? "graph snapshot was not persisted");
-    }
-    const durationMs = Date.now() - startedAt;
-    const coverage = persisted.coverage;
-    if (coverage?.partial) {
-        // #533/#936 honesty: an over-cap build DID succeed and DID persist, but
-        // only a subgraph — say so plainly instead of printing the same line a
-        // full build would, which would silently misrepresent a capped repo as
-        // fully covered.
-        process.stdout.write(`pi-lens build-graph: PARTIAL persist (cap=${coverage.cap} exceeded) ` +
-            `files=${graph.fileNodes.size} nodes=${graph.nodes.size} ` +
-            `edges=${graph.edges.length} persistedNodes=${coverage.persistedNodes}/${coverage.totalNodes} ` +
-            `persistedEdges=${coverage.persistedEdges}/${coverage.totalEdges} ` +
-            `elements=${persisted.elements} jsonBytes=${persisted.bytes} durationMs=${durationMs}\n`);
-        return;
-    }
-    process.stdout.write(`pi-lens build-graph: files=${graph.fileNodes.size} nodes=${graph.nodes.size} ` +
-        `edges=${graph.edges.length} elements=${persisted.elements} ` +
-        `jsonBytes=${persisted.bytes} durationMs=${durationMs}\n`);
+    fail(persisted.reason ?? "graph snapshot was not persisted");
+  }
+  const durationMs = Date.now() - startedAt;
+  const coverage = persisted.coverage;
+  const wasmTrappedFiles = getGraphBuildInfoForGraph(graph).wasmTrappedFiles ?? 0;
+  const wasmAborted = isTreeSitterWasmAborted();
+  if (wasmAborted || wasmTrappedFiles > 0) {
+    const degraded = wasmAborted ? "review graph degraded \u2014 tree-sitter disabled for this process until restart" : graphWasmTrapDetail(wasmTrappedFiles);
+    const recovery = wasmAborted ? "" : "those files were skipped and are re-extracted on the next build; ";
+    process.stdout.write(`pi-lens build-graph: ${degraded}; ${recovery}` + (coverage?.partial ? `PARTIAL persist (cap=${coverage.cap} exceeded) persistedNodes=${coverage.persistedNodes}/${coverage.totalNodes} persistedEdges=${coverage.persistedEdges}/${coverage.totalEdges} ` : "") + `files=${graph.fileNodes.size} nodes=${graph.nodes.size} edges=${graph.edges.length} elements=${persisted.elements} jsonBytes=${persisted.bytes} durationMs=${durationMs}
+`);
+    return;
+  }
+  if (coverage?.partial) {
+    process.stdout.write(`pi-lens build-graph: PARTIAL persist (cap=${coverage.cap} exceeded) files=${graph.fileNodes.size} nodes=${graph.nodes.size} edges=${graph.edges.length} persistedNodes=${coverage.persistedNodes}/${coverage.totalNodes} persistedEdges=${coverage.persistedEdges}/${coverage.totalEdges} elements=${persisted.elements} jsonBytes=${persisted.bytes} durationMs=${durationMs}
+`);
+    return;
+  }
+  process.stdout.write(`pi-lens build-graph: files=${graph.fileNodes.size} nodes=${graph.nodes.size} edges=${graph.edges.length} elements=${persisted.elements} jsonBytes=${persisted.bytes} durationMs=${durationMs}
+`);
 }
 async function main() {
-    const command = process.argv[2];
-    if (command !== "build-graph") {
-        fail("usage: pi-lens build-graph [--cwd <dir>]");
-    }
-    await buildGraph();
+  setProjectTrustState("trusted");
+  logExtension({
+    subsystem: "project-trust",
+    level: "debug",
+    message: "build-graph: workspace trust belongs to the calling client; pi trust not consulted"
+  });
+  const command = process.argv[2];
+  if (command !== "build-graph") {
+    fail("usage: pi-lens build-graph [--cwd <dir>]");
+  }
+  await buildGraph();
 }
 main().catch((err) => {
-    if (err === FAILED)
-        return;
-    process.stderr.write(`pi-lens build-graph failed: ${err instanceof Error ? err.message : String(err)}\n`);
-    process.exitCode = 1;
+  if (err === FAILED)
+    return;
+  process.stderr.write(`pi-lens build-graph failed: ${err instanceof Error ? err.message : String(err)}
+`);
+  process.exitCode = 1;
 });

@@ -2,7 +2,7 @@
  * rpiv-web-tools — body
  *
  * Provides `web_search` and `web_fetch` tools backed by configurable search
- * providers (Brave, Tavily, Serper, Exa), plus the `/web-search-config`
+ * providers (Brave, Tavily, Serper, Exa), plus the `/web-tools`
  * slash command for provider and API key configuration.
  *
  * API key resolution precedence per provider (first wins):
@@ -23,22 +23,14 @@ import {
 	truncateHead,
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import type { GuidanceFields } from "@juicesharp/rpiv-config";
-import {
-	configPath,
-	loadJsonConfig,
-	saveJsonConfig,
-	validateGuidanceFields,
-} from "@juicesharp/rpiv-config";
+import { validateGuidanceFields } from "@juicesharp/rpiv-config";
 import { Type } from "typebox";
+import { getConfigPath, readConfig, type WebToolsConfig, writeConfig } from "./providers/config.js";
 import { createSearchProvider } from "./providers/factory.js";
-import { assertPublicHttpUrl } from "./providers/fetch-helpers.js";
+import { fetchViaGenericHtml } from "./providers/fetch-helpers.js";
 import { PROVIDERS } from "./providers/index.js";
-import type {
-	ProviderMeta,
-	SearchProvider,
-	SearchResult,
-} from "./providers/types.js";
+import { GITHUB_TOKEN_ENV_VAR, getActiveGitHubInterceptor, getInterceptors } from "./providers/interceptors/index.js";
+import type { FetchResponse, FullProvider, ProviderMeta, SearchProvider, SearchResult } from "./providers/types.js";
 
 // ---------------------------------------------------------------------------
 // Tunables and external surface
@@ -55,9 +47,11 @@ const API_KEY_MASK_VISIBLE_CHARS = 4;
 const FETCH_TEMP_DIR_PREFIX = "rpiv-fetch-";
 const FETCH_TEMP_FILE_NAME = "content.txt";
 
-const CONFIG_PATH = configPath("rpiv-web-tools");
+const CONFIG_PATH = getConfigPath();
 
-const WEB_SEARCH_CONFIG_COMMAND_NAME = "web-search-config";
+const SUPPORTED_HTTP_PROTOCOLS = new Set(["http:", "https:"]);
+
+const WEB_TOOLS_COMMAND_NAME = "web-tools";
 const SHOW_FLAG = "--show";
 const UNSET_LABEL = "(not set)";
 
@@ -66,61 +60,15 @@ const DEFAULT_PROVIDER_NAME = "brave";
 // Brave is the only provider whose key was historically stored at the top
 // level (config.apiKey) before the per-provider apiKeys map. The legacy
 // field is auto-migrated to apiKeys.brave on the next save by
-// /web-search-config (the dispatch deletes apiKey from the saved object).
+// /web-tools (the dispatch deletes apiKey from the saved object).
 const LEGACY_TOP_LEVEL_KEY_PROVIDER = "brave";
 
 // ---------------------------------------------------------------------------
-// Config file persistence
+// Config persistence — schema + reader/writer live in providers/config.ts.
 // ---------------------------------------------------------------------------
 
-// GuidanceFields is now imported from @juicesharp/rpiv-config
-
-interface WebToolsGuidance {
-	web_search?: GuidanceFields;
-	web_fetch?: GuidanceFields;
-}
-
-interface WebToolsConfig {
-	provider?: string;
-	apiKeys?: Record<string, string>;
-	baseUrls?: Record<string, string>;
-	apiKey?: string; // legacy — kept for backward compat
-	guidance?: WebToolsGuidance;
-}
-
-// In-memory config cache: reload if the file mtime changes or after a save.
-let cachedConfig: WebToolsConfig | undefined;
-let cachedConfigMtimeMs = 0;
-
-function loadConfig(): WebToolsConfig {
-	return loadJsonConfig<WebToolsConfig>(CONFIG_PATH);
-}
-
-function loadConfigCached(): WebToolsConfig {
-	try {
-		const { statSync } = require("node:fs");
-		const stats = statSync(CONFIG_PATH);
-		if (stats.mtimeMs !== cachedConfigMtimeMs || !cachedConfig) {
-			cachedConfig = loadJsonConfig<WebToolsConfig>(CONFIG_PATH);
-			cachedConfigMtimeMs = stats.mtimeMs;
-		}
-	} catch {
-		cachedConfig = {};
-		cachedConfigMtimeMs = 0;
-	}
-	return cachedConfig;
-}
-
-function invalidateConfigCache(): void {
-	cachedConfig = undefined;
-	cachedConfigMtimeMs = 0;
-}
-
-function saveConfig(config: WebToolsConfig): boolean {
-	const ok = saveJsonConfig(CONFIG_PATH, config);
-	if (ok) invalidateConfigCache();
-	return ok;
-}
+const loadConfig = readConfig;
+const saveConfig = writeConfig;
 
 // ---------------------------------------------------------------------------
 // Executor guidance — overrides + defaults
@@ -128,18 +76,16 @@ function saveConfig(config: WebToolsConfig): boolean {
 
 // validateGuidanceFields is now imported from @juicesharp/rpiv-config
 
-export const DEFAULT_WEB_SEARCH_SNIPPET =
-	"Search the web for up-to-date information";
+export const DEFAULT_WEB_SEARCH_SNIPPET = "Search the web for up-to-date information";
 export const DEFAULT_WEB_SEARCH_GUIDELINES: string[] = [
 	"Use web_search for information beyond your training data — recent events, current library versions, live API documentation.",
 	'Use the current year from "Current date:" in your context when searching for recent information or documentation.',
 	'After answering using search results, include a "Sources:" section listing relevant URLs as markdown hyperlinks: [Title](URL). Never skip this.',
 	"Domain filtering is supported to include or block specific websites.",
-	"If no API key is configured, ask the user to run /web-search-config before proceeding.",
+	"If no API key is configured, ask the user to run /web-tools before proceeding.",
 ];
 
-export const DEFAULT_WEB_FETCH_SNIPPET =
-	"Fetch and read content from a specific URL";
+export const DEFAULT_WEB_FETCH_SNIPPET = "Fetch and read content from a specific URL";
 export const DEFAULT_WEB_FETCH_GUIDELINES: string[] = [
 	"Use web_fetch to read the full content of a specific URL — documentation pages, blog posts, API references found via web_search.",
 	"web_fetch is complementary to web_search: search finds URLs, fetch reads them.",
@@ -151,10 +97,7 @@ export const DEFAULT_WEB_FETCH_GUIDELINES: string[] = [
 // API key resolution + masking
 // ---------------------------------------------------------------------------
 
-function resolveProviderApiKey(
-	providerName: string,
-	config: WebToolsConfig,
-): string | undefined {
+function resolveProviderApiKey(providerName: string, config: WebToolsConfig): string | undefined {
 	const meta = PROVIDERS.find((p) => p.name === providerName);
 	if (!meta) return undefined;
 
@@ -176,10 +119,7 @@ function resolveProviderApiKey(
 // short-circuit to "". The orchestrator only calls this for providers that
 // declare baseUrlEnvVar, so the empty-string fallback is a safety net rather
 // than a runtime path.
-function resolveProviderBaseUrl(
-	meta: ProviderMeta,
-	config: WebToolsConfig,
-): string {
+function resolveProviderBaseUrl(meta: ProviderMeta, config: WebToolsConfig): string {
 	if (!meta.baseUrlEnvVar) return "";
 	const envUrl = process.env[meta.baseUrlEnvVar]?.trim();
 	if (envUrl) return envUrl;
@@ -188,22 +128,103 @@ function resolveProviderBaseUrl(
 	return meta.defaultBaseUrl ?? "";
 }
 
-// Centralized instantiation: load active provider name + creds, build via
-// the factory. Called by both registerWebSearchTool and registerWebFetchTool.
-function instantiateActiveProvider(config: WebToolsConfig): {
-	providerName: string;
-	provider: SearchProvider;
+// Known provider names — derived once from PROVIDERS so validation and error
+// messages stay in sync when a provider is added or removed.
+const KNOWN_PROVIDER_NAMES = PROVIDERS.map((p) => p.name) as readonly string[];
+
+// "Configured" = usable without further setup: a hosted provider with a
+// resolved API key, or a self-hosted one with an explicit base URL (env or
+// config). The bare default URL doesn't count — it's just a hint that the user
+// hasn't touched the setting yet. Shared by the /web-tools picker markers and
+// the model-visible `web_search` provider enum.
+function isProviderConfigured(meta: ProviderMeta, config: WebToolsConfig): boolean {
+	if (meta.baseUrlEnvVar) {
+		return Boolean(process.env[meta.baseUrlEnvVar]?.trim() || config.baseUrls?.[meta.name]?.trim());
+	}
+	return resolveProviderApiKey(meta.name, config) !== undefined;
+}
+
+function getVisibleProviderNames(config: WebToolsConfig): {
+	active: { name: string; source: "env" | "config" | "default" };
+	names: string[];
 } {
-	const providerName = config.provider ?? DEFAULT_PROVIDER_NAME;
+	const active = resolveActiveProviderName(config);
+	const configured = PROVIDERS.filter((meta) => isProviderConfigured(meta, config)).map((meta) => meta.name);
+	const names = configured.filter((name) => name !== active.name);
+	if (KNOWN_PROVIDER_NAMES.includes(active.name)) names.unshift(active.name);
+	if (names.length === 0) names.push(DEFAULT_PROVIDER_NAME);
+	return { active, names };
+}
+
+function providerSelectionDescription(names: readonly string[], active: { name: string; source: string }): string {
+	return (
+		"Search provider to use for this call only, overriding the active provider set via /web-tools. " +
+		`Configured providers: ${names.join(", ")}. Default provider: ${active.name} (source: ${active.source}). ` +
+		"Omit to use the configured active provider. The named provider must have its API key/URL configured or the call throws."
+	);
+}
+
+// Uniform "unknown provider" error for both the per-call override path and the
+// WEB_SEARCH_PROVIDER env path so misconfiguration surfaces the same shape.
+function assertKnownProvider(name: string): void {
+	if (!KNOWN_PROVIDER_NAMES.includes(name)) {
+		throw new Error(`Unknown web_search provider: "${name}". Valid providers: ${KNOWN_PROVIDER_NAMES.join(", ")}.`);
+	}
+}
+
+// Active-provider resolution for display + selection surfaces (env over config
+// over default). Returns the raw name + its source — does NOT validate. A bogus
+// WEB_SEARCH_PROVIDER renders in --show/picker (honest display) and only throws
+// on the next web_search, via instantiateProvider's assertKnownProvider.
+function resolveActiveProviderName(config: WebToolsConfig): {
+	name: string;
+	source: "env" | "config" | "default";
+} {
+	const envProvider = process.env.WEB_SEARCH_PROVIDER?.trim();
+	if (envProvider) return { name: envProvider, source: "env" };
+	if (config.provider) return { name: config.provider, source: "config" };
+	return { name: DEFAULT_PROVIDER_NAME, source: "default" };
+}
+
+// Centralized instantiation: resolve provider name + creds, build via the
+// factory. Called by both registerWebSearchTool and registerWebFetchTool.
+//
+// `override` lets a single tool call target a different provider than the
+// active one without mutating persisted state. Resolution (4-tier, first wins):
+//   providerName = override ?? WEB_SEARCH_PROVIDER ?? config.provider ?? DEFAULT_PROVIDER_NAME
+//   1. override (per-call `provider` param) — validated against PROVIDERS;
+//      unknown names throw so callers can detect misconfiguration.
+//   2. WEB_SEARCH_PROVIDER env var — validated like the override, but ONLY
+//      when it is the resolving tier: an override wins without consulting
+//      (or validating) the env, so a bogus env var cannot defeat a valid
+//      per-call override. Lets an operator pin a backend without editing
+//      config.json.
+//   3. config.provider (the /web-tools-selected default)
+//   4. DEFAULT_PROVIDER_NAME ("brave")
+// Key/baseURL resolution always reads from env/config under the resolved
+// provider name, so an override/env pin still needs its own credentials.
+function instantiateProvider(
+	config: WebToolsConfig,
+	override?: string,
+): {
+	providerName: string;
+	provider: SearchProvider | FullProvider;
+} {
+	let providerName: string;
+	if (override !== undefined) {
+		assertKnownProvider(override);
+		providerName = override;
+	} else {
+		// Single env read via the shared resolver (one snapshot — no double
+		// read), validated only when env actually won the resolution.
+		const active = resolveActiveProviderName(config);
+		if (active.source === "env") assertKnownProvider(active.name);
+		providerName = active.name;
+	}
 	const apiKey = resolveProviderApiKey(providerName, config);
 	const meta = PROVIDERS.find((p) => p.name === providerName);
-	const baseUrl = meta?.baseUrlEnvVar
-		? resolveProviderBaseUrl(meta, config)
-		: undefined;
-	const provider = createSearchProvider(providerName, {
-		apiKey: apiKey ?? "",
-		baseUrl,
-	});
+	const baseUrl = meta?.baseUrlEnvVar ? resolveProviderBaseUrl(meta, config) : undefined;
+	const provider = createSearchProvider(providerName, { apiKey: apiKey ?? "", baseUrl });
 	return { providerName, provider };
 }
 
@@ -223,8 +244,36 @@ function clampSearchResultCount(requested: number | undefined): number {
 // URL guard
 // ---------------------------------------------------------------------------
 
-function parseAndAssertHttpUrl(rawUrl: string): URL {
-	return assertPublicHttpUrl(rawUrl);
+function isPrivateOrLoopbackHostname(hostname: string): boolean {
+	const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+	if (h === "localhost" || h.endsWith(".localhost")) return true;
+	// IPv6 loopback / unspecified / link-local / unique-local
+	if (h === "::1" || h === "::" || h.startsWith("fe80:") || h.startsWith("fc") || h.startsWith("fd")) return true;
+	// IPv4 literals
+	const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+	if (!v4) return false;
+	const [a, b] = [Number(v4[1]), Number(v4[2])];
+	if (a === 0 || a === 127 || a === 10) return true; // 0.0.0.0/8, loopback, RFC1918
+	if (a === 169 && b === 254) return true; // link-local (incl. AWS metadata 169.254.169.254)
+	if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918 172.16.0.0/12
+	if (a === 192 && b === 168) return true; // RFC1918 192.168.0.0/16
+	return false;
+}
+
+function parseAndAssertHttpUrl(raw: string): URL {
+	let parsed: URL;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		throw new Error(`Invalid URL: ${raw}`);
+	}
+	if (!SUPPORTED_HTTP_PROTOCOLS.has(parsed.protocol)) {
+		throw new Error(`Unsupported URL protocol: ${parsed.protocol}. Only http and https are supported.`);
+	}
+	if (isPrivateOrLoopbackHostname(parsed.hostname)) {
+		throw new Error(`Refusing to fetch private/loopback address: ${parsed.hostname}`);
+	}
+	return parsed;
 }
 
 // ---------------------------------------------------------------------------
@@ -247,10 +296,7 @@ async function spillFullContentToTempFile(content: string): Promise<string> {
 	return tempFile;
 }
 
-function formatTruncationFooter(
-	truncation: TruncationResult,
-	tempFile: string,
-): string {
+function formatTruncationFooter(truncation: TruncationResult, tempFile: string): string {
 	const truncatedLines = truncation.totalLines - truncation.outputLines;
 	const truncatedBytes = truncation.totalBytes - truncation.outputBytes;
 	return (
@@ -261,11 +307,7 @@ function formatTruncationFooter(
 	);
 }
 
-function formatFetchHeader(
-	url: string,
-	title: string | undefined,
-	contentType: string,
-): string {
+function formatFetchHeader(url: string, title: string | undefined, contentType: string): string {
 	const lines = [`**Fetched:** ${url}`];
 	if (title) lines.push(`**Title:** ${title}`);
 	if (contentType) lines.push(`**Content-Type:** ${contentType}`);
@@ -276,10 +318,7 @@ function formatFetchHeader(
 // web_search result rendering
 // ---------------------------------------------------------------------------
 
-function formatSearchResultsBody(response: {
-	query: string;
-	results: SearchResult[];
-}): string {
+function formatSearchResultsBody(response: { query: string; results: SearchResult[] }): string {
 	let text = `**Search results for "${response.query}":**\n\n`;
 	response.results.forEach((r, i) => {
 		text += `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.snippet}\n\n`;
@@ -289,9 +328,7 @@ function formatSearchResultsBody(response: {
 
 function buildEmptyResultsEnvelope(query: string, providerName: string) {
 	return {
-		content: [
-			{ type: "text" as const, text: `No results found for "${query}".` },
-		],
+		content: [{ type: "text" as const, text: `No results found for "${query}".` }],
 		details: { query, backend: providerName, resultCount: 0 },
 	};
 }
@@ -301,7 +338,9 @@ function buildEmptyResultsEnvelope(query: string, providerName: string) {
 // ---------------------------------------------------------------------------
 
 export function registerWebSearchTool(pi: ExtensionAPI): void {
-	const guidance = validateGuidanceFields(loadConfig().guidance?.web_search);
+	const config = loadConfig();
+	const guidance = validateGuidanceFields(config.guidance?.web_search);
+	const visibleProviders = getVisibleProviderNames(config);
 
 	pi.registerTool({
 		name: "web_search",
@@ -309,8 +348,7 @@ export function registerWebSearchTool(pi: ExtensionAPI): void {
 		description:
 			"Search the web for information. Returns a list of results with titles, URLs, and snippets. Use when you need current information not in your training data.",
 		promptSnippet: guidance.promptSnippet ?? DEFAULT_WEB_SEARCH_SNIPPET,
-		promptGuidelines:
-			guidance.promptGuidelines ?? DEFAULT_WEB_SEARCH_GUIDELINES,
+		promptGuidelines: guidance.promptGuidelines ?? DEFAULT_WEB_SEARCH_GUIDELINES,
 		parameters: Type.Object({
 			query: Type.String({
 				description: "The search query. Be specific and use natural language.",
@@ -323,20 +361,21 @@ export function registerWebSearchTool(pi: ExtensionAPI): void {
 					maximum: MAX_SEARCH_RESULTS,
 				}),
 			),
+			provider: Type.Optional(
+				Type.Union(
+					visibleProviders.names.map((name) => Type.Literal(name)),
+					{ description: providerSelectionDescription(visibleProviders.names, visibleProviders.active) },
+				),
+			),
 		}),
 
 		async execute(_toolCallId, params, signal, onUpdate, _ctx) {
 			const maxResults = clampSearchResultCount(params.max_results);
-			const config = loadConfigCached();
-			const { providerName, provider } = instantiateActiveProvider(config);
+			const config = loadConfig();
+			const { providerName, provider } = instantiateProvider(config, params.provider);
 
 			onUpdate?.({
-				content: [
-					{
-						type: "text",
-						text: `Searching ${provider.label} for: "${params.query}"...`,
-					},
-				],
+				content: [{ type: "text", text: `Searching ${provider.label} for: "${params.query}"...` }],
 				details: { query: params.query, backend: providerName, resultCount: 0 },
 			});
 
@@ -360,6 +399,9 @@ export function registerWebSearchTool(pi: ExtensionAPI): void {
 		renderCall(args, theme, _context) {
 			let text = theme.fg("toolTitle", theme.bold("WebSearch "));
 			text += theme.fg("accent", `"${args.query}"`);
+			if (args.provider) {
+				text += theme.fg("dim", ` via ${args.provider}`);
+			}
 			return new Text(text, 0, 0);
 		},
 
@@ -367,15 +409,9 @@ export function registerWebSearchTool(pi: ExtensionAPI): void {
 			if (isPartial) {
 				return new Text(theme.fg("warning", "Searching..."), 0, 0);
 			}
-			const details = result.details as {
-				resultCount?: number;
-				results?: SearchResult[];
-			};
+			const details = result.details as { resultCount?: number; results?: SearchResult[] };
 			const count = details?.resultCount ?? 0;
-			let text = theme.fg(
-				"success",
-				`✓ ${count} result${count !== 1 ? "s" : ""}`,
-			);
+			let text = theme.fg("success", `✓ ${count} result${count !== 1 ? "s" : ""}`);
 			if (expanded && details?.results) {
 				text += renderSearchResultsPreview(details.results, theme);
 			}
@@ -384,10 +420,7 @@ export function registerWebSearchTool(pi: ExtensionAPI): void {
 	});
 }
 
-function renderSearchResultsPreview(
-	results: SearchResult[],
-	theme: Theme,
-): string {
+function renderSearchResultsPreview(results: SearchResult[], theme: Theme): string {
 	let text = "";
 	for (const r of results.slice(0, SEARCH_RESULT_PREVIEW_LIMIT)) {
 		text += `\n  ${theme.fg("dim", `• ${r.title}`)}`;
@@ -414,8 +447,7 @@ export function registerWebFetchTool(pi: ExtensionAPI): void {
 			}),
 			raw: Type.Optional(
 				Type.Boolean({
-					description:
-						"If true, return the raw HTML instead of extracted text. Default: false.",
+					description: "If true, return the raw HTML instead of extracted text. Default: false.",
 					default: false,
 				}),
 			),
@@ -430,15 +462,32 @@ export function registerWebFetchTool(pi: ExtensionAPI): void {
 				details: { url } as FetchDetails,
 			});
 
-			const config = loadConfigCached();
-			const { provider } = instantiateActiveProvider(config);
+			const config = loadConfig();
+			const { provider } = instantiateProvider(config);
 
-			const {
-				text: bodyText,
-				title,
-				contentType,
-				contentLength,
-			} = await provider.fetch(url, raw, signal);
+			// Three-way capability dispatch:
+			//   1. URL interceptors (currently just GitHub) — opt-in URL specialists
+			//      that handle their own host pattern. Cheap-reject to null for
+			//      unrelated URLs; empty chain (interceptor disabled) is a no-op.
+			//   2. Provider's native fetch — full providers (Tavily, Exa, Jina,
+			//      Firecrawl, Ollama) have vendor endpoints worth using.
+			//   3. Generic HTML fallback — for search-only providers (Brave, Serper,
+			//      SearXNG) or any provider that doesn't carry a `fetch` method.
+			let fetchResponse: FetchResponse | undefined;
+			for (const interceptor of getInterceptors()) {
+				const r = await interceptor.intercept(url, { raw, signal });
+				if (r) {
+					fetchResponse = r;
+					break;
+				}
+			}
+			if (!fetchResponse && "fetch" in provider) {
+				fetchResponse = await provider.fetch(url, raw, signal);
+			}
+			if (!fetchResponse) {
+				fetchResponse = await fetchViaGenericHtml(url, raw, signal);
+			}
+			const { text: bodyText, title, contentType, contentLength } = fetchResponse;
 
 			const truncation = truncateHead(bodyText, {
 				maxLines: DEFAULT_MAX_LINES,
@@ -461,12 +510,7 @@ export function registerWebFetchTool(pi: ExtensionAPI): void {
 			}
 
 			return {
-				content: [
-					{
-						type: "text",
-						text: formatFetchHeader(url, title, contentType ?? "") + output,
-					},
-				],
+				content: [{ type: "text", text: formatFetchHeader(url, title, contentType ?? "") + output }],
 				details,
 			};
 		},
@@ -484,8 +528,7 @@ export function registerWebFetchTool(pi: ExtensionAPI): void {
 			const details = result.details as FetchDetails | undefined;
 			let text = theme.fg("success", "✓ Fetched");
 			if (details?.title) text += theme.fg("muted", `: ${details.title}`);
-			if (details?.truncation?.truncated)
-				text += theme.fg("warning", " (truncated)");
+			if (details?.truncation?.truncated) text += theme.fg("warning", " (truncated)");
 			if (expanded) {
 				const content = result.content[0];
 				if (content?.type === "text") {
@@ -511,22 +554,19 @@ function renderFetchedContentPreview(content: string, theme: Theme): string {
 }
 
 // ---------------------------------------------------------------------------
-// /web-search-config command
+// /web-tools command
 // ---------------------------------------------------------------------------
 
 function formatShowConfigMessage(current: WebToolsConfig): string {
 	const lines = ["Web search config:", `  config file: ${CONFIG_PATH}`];
 
-	const providerName = current.provider ?? DEFAULT_PROVIDER_NAME;
-	lines.push(`  active provider: ${providerName}`);
+	const { name: providerName, source: providerSource } = resolveActiveProviderName(current);
+	lines.push(`  active provider: ${providerName} (source: ${providerSource})`);
 
 	for (const meta of PROVIDERS) {
 		const envKey = meta.envVar ? process.env[meta.envVar]?.trim() : undefined;
 		const configKey = current.apiKeys?.[meta.name]?.trim();
-		const legacyKey =
-			meta.name === LEGACY_TOP_LEVEL_KEY_PROVIDER
-				? current.apiKey?.trim()
-				: undefined;
+		const legacyKey = meta.name === LEGACY_TOP_LEVEL_KEY_PROVIDER ? current.apiKey?.trim() : undefined;
 		const resolved = envKey ?? configKey ?? legacyKey;
 		lines.push(
 			`  ${meta.name}: ${maskApiKey(resolved)} (env: ${maskApiKey(envKey)}, config: ${maskApiKey(configKey ?? legacyKey)})`,
@@ -545,41 +585,54 @@ function formatShowConfigMessage(current: WebToolsConfig): string {
 		lines.push(`  ${meta.name} url: ${resolvedUrl} (source: ${urlSource})`);
 	}
 
+	lines.push("");
+	lines.push("URL interceptors:");
+	const githubInterceptor = getActiveGitHubInterceptor();
+	if (githubInterceptor) {
+		const opts = githubInterceptor.resolvedOptions;
+		const token = process.env[GITHUB_TOKEN_ENV_VAR]?.trim();
+		lines.push(
+			`  github: enabled (${GITHUB_TOKEN_ENV_VAR}: ${maskApiKey(token)}, maxRepoSizeMB: ${opts.maxRepoSizeMB}, clonePath: ${opts.clonePath})`,
+		);
+	} else {
+		lines.push("  github: disabled");
+		lines.push('  ↳ enable:  add  "interceptors": { "github": true }   to config.json');
+		lines.push('  ↳ disable: set  "interceptors": { "github": false }  to override a consumer-enabled default');
+	}
+
 	return lines.join("\n");
 }
 
+// The `web_search` provider enum is built from the config at registration, so a
+// saved /web-tools change re-registers the tool: Pi replaces a re-registered
+// tool's definition, and without the refresh the model would keep seeing the
+// pre-change providers (and default) until the next restart (#204).
+function refreshWebSearchSchema(pi: ExtensionAPI): void {
+	registerWebSearchTool(pi);
+}
+
 export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
-	pi.registerCommand(WEB_SEARCH_CONFIG_COMMAND_NAME, {
+	pi.registerCommand(WEB_TOOLS_COMMAND_NAME, {
 		description: "Configure the search provider and API key used by web_search",
 		handler: async (args, ctx) => {
-			if (!ctx.ui) {
+			if (!ctx.hasUI) {
+				ctx.ui?.notify?.(`/${WEB_TOOLS_COMMAND_NAME} requires interactive mode`, "error");
 				return;
 			}
 
-			const current = loadConfigCached();
+			const current = loadConfig();
 
 			if (typeof args === "string" && args.includes(SHOW_FLAG)) {
 				ctx.ui.notify(formatShowConfigMessage(current), "info");
 				return;
 			}
 
-			const activeProvider = current.provider ?? DEFAULT_PROVIDER_NAME;
+			const activeProvider = resolveActiveProviderName(current).name;
 			const orderedMetas = [
 				...PROVIDERS.filter((p) => p.name === activeProvider),
 				...PROVIDERS.filter((p) => p.name !== activeProvider),
 			];
-			const hasKey = (p: ProviderMeta) => {
-				// Self-hosted providers are "configured" once they have a base URL
-				// (env or config). The bare default URL doesn't count — it's just a
-				// hint that the user hasn't touched the setting yet.
-				if (p.baseUrlEnvVar) {
-					return Boolean(
-						process.env[p.baseUrlEnvVar]?.trim() ||
-							current.baseUrls?.[p.name]?.trim(),
-					);
-				}
-				return resolveProviderApiKey(p.name, current) !== undefined;
-			};
+			const hasKey = (p: ProviderMeta) => isProviderConfigured(p, current);
 			const labelOf = (p: (typeof PROVIDERS)[number]) => {
 				const markers: string[] = [];
 				if (p.name === activeProvider) markers.push("✓");
@@ -587,11 +640,7 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 				return markers.length > 0 ? `${p.label} ${markers.join(" ")}` : p.label;
 			};
 
-			const selectedLabel = await ctx.ui.select(
-				"Search provider",
-				orderedMetas.map(labelOf),
-				{},
-			);
+			const selectedLabel = await ctx.ui.select("Search provider", orderedMetas.map(labelOf), {});
 			if (selectedLabel === undefined || selectedLabel === null) {
 				ctx.ui.notify("Web search config unchanged", "info");
 				return;
@@ -600,8 +649,7 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 			// Match by prefix on the original provider label — robust to any marker
 			// suffix (✓, (configured), or any future additions to labelOf above).
 			const selectedMeta = PROVIDERS.find(
-				(p) =>
-					selectedLabel === p.label || selectedLabel.startsWith(`${p.label} `),
+				(p) => selectedLabel === p.label || selectedLabel.startsWith(`${p.label} `),
 			);
 			if (!selectedMeta) {
 				ctx.ui.notify("Web search config unchanged", "info");
@@ -625,19 +673,9 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 					...current,
 					provider: selectedProvider,
 					...(result.baseUrl !== undefined && {
-						baseUrls: {
-							...current.baseUrls,
-							[selectedProvider]: result.baseUrl,
-						},
+						baseUrls: { ...current.baseUrls, [selectedProvider]: result.baseUrl },
 					}),
-					...(result.apiKey
-						? {
-								apiKeys: {
-									...current.apiKeys,
-									[selectedProvider]: result.apiKey,
-								},
-							}
-						: {}),
+					...(result.apiKey ? { apiKeys: { ...current.apiKeys, [selectedProvider]: result.apiKey } } : {}),
 				};
 				delete (toSave as { apiKey?: string }).apiKey;
 				if (!saveConfig(toSave)) {
@@ -647,6 +685,7 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 					);
 					return;
 				}
+				refreshWebSearchSchema(pi);
 				ctx.ui.notify(
 					result.baseUrl
 						? `Saved ${selectedMeta.label} config (url: ${result.baseUrl}) to ${CONFIG_PATH}`
@@ -658,14 +697,10 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 
 			const existingKey =
 				current.apiKeys?.[selectedProvider] ??
-				(selectedProvider === LEGACY_TOP_LEVEL_KEY_PROVIDER
-					? current.apiKey
-					: undefined);
+				(selectedProvider === LEGACY_TOP_LEVEL_KEY_PROVIDER ? current.apiKey : undefined);
 			const input = await ctx.ui.input(
 				`${selectedMeta.label} API key`,
-				existingKey
-					? `Press Enter to keep current (${maskApiKey(existingKey)}), or type new key`
-					: "...",
+				existingKey ? `Press Enter to keep current (${maskApiKey(existingKey)}), or type new key` : "...",
 			);
 
 			if (input === undefined || input === null) {
@@ -696,6 +731,7 @@ export function registerWebSearchConfigCommand(pi: ExtensionAPI): void {
 				);
 				return;
 			}
+			refreshWebSearchSchema(pi);
 			ctx.ui.notify(
 				trimmed
 					? `Saved ${selectedMeta.label} API key to ${CONFIG_PATH}`

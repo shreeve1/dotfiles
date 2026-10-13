@@ -1,46 +1,117 @@
 #!/usr/bin/env node
-/**
- * pi-lens MCP `fresh`-mode worker.
- *
- * The review-loop honesty guarantee: the MCP server is long-lived, so after a
- * commit + rebuild it still holds the OLD code in memory. This worker is a
- * short-lived child the server forks per `fresh` analysis — a brand-new `node`
- * process loads the *freshly built* `analyze.js` (and its dispatch graph) from
- * disk, so the measurement reflects the latest commit, not the server's stale
- * image. stdout carries exactly one JSON `McpAnalyzeResult`; diagnostics go to
- * stderr.
- */
-import { analyzeFile } from "../clients/mcp/analyze.js";
+import { createRequire as __pilensCreateRequire } from "node:module"; const require = __pilensCreateRequire(import.meta.url);
+import {
+  analyzeFile
+} from "../chunk-H6MF6EVN.js";
+import "../chunk-OXXKQCSV.js";
+import "../chunk-EJIUXPBX.js";
+import "../chunk-2CD5RS6M.js";
+import "../chunk-FC4RP4I2.js";
+import "../chunk-UZ3TUTRV.js";
+import "../chunk-XMSXXAHW.js";
+import "../chunk-77M37OKR.js";
+import "../chunk-CSHFH5IN.js";
+import "../chunk-VCHXCQFG.js";
+import "../chunk-3EFKIGZN.js";
+import "../chunk-MRXKYPCS.js";
+import "../chunk-7DYBLXYA.js";
+import "../chunk-AB3YYG6N.js";
+import "../chunk-YSZNHOBY.js";
+import "../chunk-RPLINGVB.js";
+import "../chunk-XCJN5IJU.js";
+import "../chunk-76MWC2K6.js";
+import "../chunk-GXW6K4YJ.js";
+import "../chunk-2B73ZPOK.js";
+import "../chunk-YYOIQFRS.js";
+import "../chunk-3MED75HT.js";
+import "../chunk-M6HSLBWY.js";
+import "../chunk-IBGIOBEE.js";
+import "../chunk-XIMYZ3JA.js";
+import "../chunk-EU63SDCG.js";
+import "../chunk-VWCXW2E7.js";
+import "../chunk-FCSOVF55.js";
+import "../chunk-PNQDPDRC.js";
+import "../chunk-ZXYDQ3TZ.js";
+import "../chunk-5W3R6LFT.js";
+import "../chunk-QHJ6DQ2R.js";
+import "../chunk-Z54ZSOBZ.js";
+import "../chunk-724UL2TJ.js";
+import "../chunk-QOZXJ4NA.js";
+import "../chunk-GBPP5P7X.js";
+import "../chunk-P7266HLM.js";
+import "../chunk-MQLUAEOC.js";
+import "../chunk-52FUZI6K.js";
+import "../chunk-SAEFPSB6.js";
+import "../chunk-GAEGEPOC.js";
+import "../chunk-Z3CCVDUB.js";
+import "../chunk-L3BLXZG7.js";
+import "../chunk-2BEMIWEW.js";
+import "../chunk-ACXEQZOU.js";
+import "../chunk-Q7DUK4LX.js";
+import "../chunk-AW7R2GWG.js";
+import "../chunk-RWWYJ623.js";
+import "../chunk-VRZP76YM.js";
+import "../chunk-QOBUHWHX.js";
+import "../chunk-QILIYSJF.js";
+import "../chunk-6C7JWPCP.js";
+import "../chunk-5NGR67U5.js";
+import "../chunk-C34ZXZ7O.js";
+import "../chunk-BW5KFIQC.js";
+import "../chunk-QYF5S6P6.js";
+import "../chunk-PHDMFAKM.js";
+import "../chunk-2BBLFX75.js";
+import "../chunk-XVF2VVXP.js";
+import {
+  setProjectTrustState
+} from "../chunk-ZANLILYD.js";
+import "../chunk-2EECBNC5.js";
+import "../chunk-JAU72XNY.js";
+import {
+  logExtension
+} from "../chunk-XTMJ7XDT.js";
+import "../chunk-JMYYOTQG.js";
+import "../chunk-QQNQ7SJW.js";
+import "../chunk-AOHZU2BM.js";
+import "../chunk-LJDODBBZ.js";
+import "../chunk-CHOW74WE.js";
+import "../chunk-ABBOA7UD.js";
+import "../chunk-N2H3ZPZY.js";
+import "../chunk-NXL4FFQQ.js";
+
+// dist/mcp/worker.js
 function arg(name) {
-    const prefix = `--${name}=`;
-    const found = process.argv.find((value) => value.startsWith(prefix));
-    return found ? found.slice(prefix.length) : undefined;
+  const prefix = `--${name}=`;
+  const found = process.argv.find((value) => value.startsWith(prefix));
+  return found ? found.slice(prefix.length) : void 0;
 }
 async function main() {
-    const file = arg("file");
-    const cwd = arg("cwd") ?? process.cwd();
-    if (!file) {
-        process.stderr.write("worker: --file is required\n");
-        process.exit(2);
+  setProjectTrustState("trusted");
+  logExtension({
+    subsystem: "project-trust",
+    level: "debug",
+    message: "mcp-worker: workspace trust belongs to the MCP client; pi trust not consulted"
+  });
+  const file = arg("file");
+  const cwd = arg("cwd") ?? process.cwd();
+  if (!file) {
+    process.stderr.write("worker: --file is required\n");
+    process.exit(2);
+  }
+  let flags;
+  const flagsRaw = arg("flags");
+  if (flagsRaw) {
+    try {
+      flags = JSON.parse(flagsRaw);
+    } catch {
+      process.stderr.write("worker: --flags must be valid JSON\n");
+      process.exit(2);
     }
-    let flags;
-    const flagsRaw = arg("flags");
-    if (flagsRaw) {
-        try {
-            flags = JSON.parse(flagsRaw);
-        }
-        catch {
-            process.stderr.write("worker: --flags must be valid JSON\n");
-            process.exit(2);
-        }
-    }
-    const result = await analyzeFile(file, cwd, { flags });
-    // Flush before exiting — a bare process.exit can truncate a piped write. The
-    // explicit exit is needed because spawned LSP/runner handles would otherwise
-    // keep the event loop alive.
-    process.stdout.write(JSON.stringify(result), () => process.exit(0));
+  }
+  const result = await analyzeFile(file, cwd, { flags });
+  process.stdout.write(JSON.stringify(result), () => process.exit(0));
 }
 main().catch((err) => {
-    process.stderr.write(`worker failed: ${err.message}\n`);
-    process.exit(1);
+  process.stderr.write(`worker failed: ${err.message}
+`);
+  process.exit(1);
 });

@@ -1,5 +1,5 @@
 {
-  "npmPackage": "tree-sitter-wasms",
-  "version": "0.1.13",
-  "sha256": "sha256:807dcdb1380a59befb112ed8fbd3d3872c7fadaf5903a769282b50973b30696d"
+  "npmPackage": "tree-sitter-bash",
+  "version": "0.25.1",
+  "sha256": "sha256:8292919c88a0f7d3fb31d0cd0253ca5a9531bc1ede82b0537f2c63dd8abe6a7a"
 }

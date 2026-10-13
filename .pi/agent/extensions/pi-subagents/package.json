@@ -1,15 +1,10 @@
 {
+  "type": "module",
   "name": "pi-subagents",
-  "version": "0.35.1",
-  "description": "Pi extension for delegating tasks to subagents with chains, parallel execution, and TUI clarification",
+  "version": "0.77.0",
+  "description": "Pi extension for single-agent delegation and scripted multi-agent workflows",
   "author": "Nico Bailon",
   "license": "MIT",
-  "type": "module",
-  "exports": {
-    ".": "./index.ts",
-    "./background-work": "./src/api/background-work.ts",
-    "./delegation": "./src/api/delegation.ts"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nicobailon/pi-subagents.git"
@@ -18,49 +13,19 @@
   "bugs": {
     "url": "https://github.com/nicobailon/pi-subagents/issues"
   },
-  "keywords": [
-    "pi-package",
-    "pi",
-    "pi-coding-agent",
-    "subagents",
-    "ai",
-    "agents",
-    "cli"
-  ],
   "bin": {
     "pi-subagents": "install.mjs"
   },
-  "files": [
-    "index.ts",
-    "src/**/*.ts",
-    "*.mjs",
-    "agents/",
-    "skills/**/*",
-    "prompts/**/*",
-    "README.md",
-    "CHANGELOG.md"
-  ],
-  "scripts": {
-    "test": "npm run test:unit",
-    "test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
-    "test:integration": "node --experimental-transform-types --import ./test/support/register-loader.mjs --test test/integration/*.test.ts",
-    "test:e2e": "node --experimental-transform-types --import ./test/support/register-loader.mjs --test test/e2e/*.test.ts",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e"
-  },
-  "pi": {
-    "extensions": [
-      "./index.ts"
-    ],
-    "skills": [
-      "./skills"
-    ],
-    "prompts": [
-      "./prompts"
-    ]
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
+    "acorn": "8.18.0",
+    "jiti": "2.7.0",
+    "undici": "8.10.2",
+    "yaml": "2.8.3"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",
-    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-ai": ">=0.86.1",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
@@ -82,15 +47,92 @@
       "optional": true
     }
   },
-  "dependencies": {
-    "jiti": "2.7.0",
-    "yaml": "2.8.3"
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "extension",
+    "subagents",
+    "ai",
+    "agents",
+    "cli"
+  ],
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./background-work": {
+      "types": "./src/api/background-work.d.ts",
+      "default": "./src/api/background-work.js"
+    },
+    "./external-job-provider": {
+      "types": "./src/api/external-job-provider.d.ts",
+      "default": "./src/api/external-job-provider.js"
+    },
+    "./external-runs": {
+      "types": "./src/api/external-runs.d.ts",
+      "default": "./src/api/external-runs.js"
+    },
+    "./agents": {
+      "types": "./src/api/agents.d.ts",
+      "default": "./src/api/agents.js"
+    },
+    "./inspectors": {
+      "types": "./src/api/inspectors.d.ts",
+      "default": "./src/api/inspectors.js"
+    },
+    "./delegation": {
+      "types": "./src/api/delegation.d.ts",
+      "default": "./src/api/delegation.js"
+    },
+    "./capability-ceiling": {
+      "types": "./src/api/capability-ceiling.d.ts",
+      "default": "./src/api/capability-ceiling.js"
+    },
+    "./workflow-resources": {
+      "types": "./src/api/workflow-resources.d.ts",
+      "default": "./src/api/workflow-resources.js"
+    },
+    "./required-child-extensions": {
+      "types": "./src/api/required-child-extensions.d.ts",
+      "default": "./src/api/required-child-extensions.js"
+    },
+    "./preflight": {
+      "types": "./src/api/preflight.d.ts",
+      "default": "./src/api/preflight.js"
+    },
+    "./control-channel": {
+      "types": "./src/api/control-channel.d.ts",
+      "default": "./src/api/control-channel.js"
+    },
+    "./intercom-bridge": {
+      "types": "./src/api/intercom-bridge.d.ts",
+      "default": "./src/api/intercom-bridge.js"
+    },
+    "./child-tool-plan": {
+      "types": "./src/api/child-tool-plan.d.ts",
+      "default": "./src/api/child-tool-plan.js"
+    },
+    "./shared-types": {
+      "types": "./src/api/shared-types.d.ts",
+      "default": "./src/api/shared-types.js"
+    },
+    "./project-panes": {
+      "types": "./src/api/project-panes.d.ts",
+      "default": "./src/api/project-panes.js"
+    }
   },
-  "devDependencies": {
-    "@earendil-works/pi-agent-core": "0.80.10",
-    "@earendil-works/pi-ai": "0.80.10",
-    "@earendil-works/pi-coding-agent": "0.80.10",
-    "@earendil-works/pi-tui": "0.80.10",
-    "typebox": "1.1.38"
+  "pi": {
+    "extensions": [
+      "./index.js"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
   }
 }

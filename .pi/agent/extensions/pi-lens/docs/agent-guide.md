@@ -45,9 +45,19 @@ On every write/edit, and at session/turn boundaries, pi-lens runs — without yo
 | **Structural rules** | ast-grep (NAPI engine) + tree-sitter rules flag correctness/security smells. |
 | **Opengrep security scan** | Always-on: per-edit via an auxiliary LSP, plus a cached project-wide CLI scan for `mode=full`. |
 | **Other scanners** | Config-/presence-gated: gitleaks (secrets), trivy (CVEs/IaC/license), govulncheck (Go), knip/jscpd/madge (JS/TS dead-code/dupes/cycles), vulture (Python), zizmor (GH Actions), typos. |
-| **Test-runner-on-write** | Related/affected tests are run asynchronously for the next turn's findings (edit-scoped, not a full-suite run). |
+| **Test-runner-on-write** | Related/affected tests are run asynchronously for the next turn's findings (edit-scoped, not a full-suite run). Integration/e2e tests are never auto-fired — see below. |
 | **Read-guard** | Tracks that you read a file before editing it; blocks/warns zero-read or stale-range edits. |
 | **Context injection** | Injects session-start guidance and turn-end findings into your context (see §2). |
+
+**Test-runner-on-write scope.** A built-in exclusion list keeps integration/e2e
+suites out of the auto-fired batch — `**/integration/**`, `**/e2e/**`,
+`**/*.integration.*`, `**/*.e2e.*` — since those commonly spawn external
+processes (another CLI, a browser, a live provider) that don't belong on an
+unattended per-edit turn. This is a fixed, built-in list; there is no
+per-project config knob for it. If a runner itself fails to complete (a
+timeout, or a missing provider/binary — not a failing assertion), pi-lens
+delivers it as an advisory ("could not complete last turn"), not as a
+"fix before continuing" blocker — you didn't introduce anything to fix.
 
 You don't invoke these. They happen. Your job is to **read the results** and **respond**.
 
@@ -92,10 +102,10 @@ not clean**:
 
 | Label you may see | What it means | What you must NOT do |
 |---|---|---|
-| **`unconfirmed`** | A push-only/silent-on-clean LSP server returned empty; emptiness could not be *proven* clean. | Don't report the file as clean. |
+| **`unconfirmed`** | An LSP result that could not be *proven* clean: a push-only/silent-on-clean server returned empty; an auxiliary scanner did not answer in time; or the file has no project root for a server that needs one (rust-analyzer, csharp-ls/OmniSharp, FSAutocomplete) and the line names the missing marker. | Don't report the file as clean. |
 | **`cold` (not applicable / unavailable this run)** | A heavyweight analyzer (knip/jscpd/madge/gitleaks/govulncheck/trivy/dead-code) didn't contribute. | Don't fold its silence into "no issues." |
 | **`partial` / `truncated` / file-cap** | A walk/scan hit a file cap or coverage limit; results are a partial view. | Don't treat as whole-project coverage. |
-| **`stale`** | A cached diagnostic's file changed on disk since the scan. | Don't trust the stale value. |
+| **`stale`** | A cached diagnostic's file changed on disk since the scan. Secrets findings demote to `🔑 ACTION NEEDED` advisory with the line number withheld, never silently dropped; govulncheck keeps the CVE and drops only the cached line. | Don't trust the stale value or its line number. Re-scan to confirm. |
 | **cold-LSP `0` (e.g. MCP `fresh` mode)** | LSP cold-spawned and under-reported; a `0` carries an explicit `lsp` signal. | Don't read the `0` as "clean." |
 | **unsafe root** | cwd resolved at/above `$HOME`, so scanners were skipped. | Re-run from inside the project. |
 
@@ -113,6 +123,15 @@ is blocking when `semantic === "blocking"`, else it falls back to severity):
 
 - **🔴 Blocking** — a hard stop. Secrets, CRITICAL CVEs, unresolved errors, etc.
   **Resolve every blocker before you consider the work complete.**
+- **🔑 ACTION NEEDED** — a third tier, distinct from both: a secrets finding
+  whose cached file changed since the scan. It does not gate commit-guard like
+  a blocker does, but it is not "no action required" like an advisory either —
+  the finding is unverified, not dismissed. Re-run a secrets scan to confirm
+  or clear it.
+- **⏱️ Late runner diagnostics** — a slow (collect-later) runner's findings arrive at
+  turn end on the advisory channel, so they never gate `git commit`/`git push`;
+  when one is blocking it reads "blocking: fix before continuing" instead of
+  "no action required", and a runner that timed out or errored says so separately.
 - **Advisory** — informational (🟡 warnings, 📜 license notes, style/hygiene).
   Address when relevant; they do not gate completion.
 
@@ -132,22 +151,29 @@ Don't try to route around it — clear the blockers, then commit. The guard is s
 pi-lens monitors that you **read a file before editing it** (`clients/read-guard.ts`).
 Edits fail or warn when:
 
-1. **Zero-read** — you never read the file this conversation.
+1. **Zero-read** — you never read the file this conversation, or your write
+   record of it expired after 30 idle minutes (the block says "the earlier
+   write record ... expired"). Read it again.
 2. **Stale** — the file changed on disk since you read it (content-hash checked).
 3. **Out-of-range** — your edit target wasn't covered by any read.
 
 A blocked edit returns a retryable message, e.g.:
 
-> `🔄 RETRYABLE — Edit without read … Read the file first, then retry the edit:
-> read path="<file>"`
+```text
+🔄 RETRYABLE — Edit without read: you have not read `<file>` in this
+conversation. Read it first, then retry: `read path="<file>"`.
+```
 
 **Correct behavior:** read the file (or the relevant range/symbol) *before* editing.
 Helpful mechanics you can rely on:
 
 - **Coverage accumulates** across reads — two reads (lines 1–100 and 101–200) together
   cover a full-file write.
-- **Symbol expansion** — small reads (≤ ~60 lines) are silently widened to the
-  enclosing function/method/class, and coverage is recorded at symbol level.
+- **Symbol expansion** — small reads (≤ 100 lines) are widened to the enclosing
+  function/method/class (or Markdown section), and coverage is recorded at
+  symbol level. The result starts with a `[pi-lens: read widened ...]` note
+  naming the requested and the returned lines; ask for `limit` above 100 for
+  the exact range. It is off with the read guard (`--no-read-guard`).
 - `read_symbol` / `read_enclosing` reads count as edit coverage for that symbol range.
 - Markdown warns instead of blocking; `.txt`/`.log` are exempt.
 - Escape hatch (human): `/lens-allow-edit <path>` arms one exemption.
@@ -178,8 +204,61 @@ pi-lens writes to files **outside your own tool calls** (`docs/features.md`
 - **`write` then `edit` on the same file, same turn:** the write's autofix
   demotes to deferred too, so the file's mutation history stays coherent. This
   resets at the next turn.
+- **Any other tool that edits a file:** pi-lens recognizes it by the SHAPE of
+  its arguments rather than its name (`clients/mutating-tool.ts`), so a host or
+  extension tool called `replace` or `insert` gets the same chain `edit` gets:
+  a turn-state entry, a change-log receipt attributed to that tool, and a
+  *deferred* auto-fix. Its lines are resolved when the anchor is unambiguous
+  (roughly two-thirds of anchors in practice — `clients/hashline-anchor.ts`);
+  otherwise the mutation is recorded whole-file with lines unknown, and the
+  read-before-edit guard takes its no-line-info arm rather than guessing.
+  Deferred is the default for every edit-shaped tool pi-lens cannot place,
+  because formatting between the steps of a multi-call rewrite fights the tool
+  that is still writing.
+- **A tool whose shape is unrecognized too:** pi-lens watches instead of
+  guessing (`clients/observed-mutation.ts`). A call that names a file gets a
+  bounded pre/post snapshot of THAT PATH — the file itself, or a directory's own
+  entries — and nothing else, so a write landing on a neighbouring file is never
+  attributed to it. Anything that changed is replayed through the same chain,
+  and the tool is then remembered as mutating: for this session on the first
+  sighting, persisted under the project's data directory on the second, so a
+  later session classifies it by name with no snapshot at all. Three quiet
+  observations in a row withdraw a session attribution again, and a withdrawn
+  tool can be learned back from a later real edit. An observation pi-lens could
+  not finish — a directory with more entries than it watches — counts as
+  neither, so a wide codemod is never written off on a look it never took. A
+  call that names
+  no file is caught at `agent_settled` by an incremental content check over the
+  files pi-lens has already read, written, diagnosed or opened on a language
+  server — a rotating window per turn, reading only what actually moved; a file
+  it has never seen has no baseline, so that last-resort net does not cover it,
+  and a file it cannot verify is reported as such rather than reformatted on a
+  timestamp alone.
 - The conservative actionable-warnings autofix (LSP quickfixes, hard-capped)
   is unchanged: it always runs at `agent_end`.
+
+**Extension authors: record your own writes.** If your extension writes files
+outside pi-lens's tool events — its own registered tool, a spawned rewriter —
+tell pi-lens through the in-process mutation bridge, the write-side sibling of
+the read bridge:
+
+```js
+const bridge = globalThis[Symbol.for("pi-lens:mutation-bridge")];
+if (bridge?.version === 1) {
+  bridge.recordMutation({
+    filePath,               // absolute path
+    kind: "edit",           // "write" replaces the whole file; "edit" is partial
+    editRanges: [[12, 18]], // optional, 1-based inclusive
+    consumer: "my-extension",
+  });
+}
+```
+
+Check `version` before calling; a version you do not recognize is unsupported.
+Calling when pi-lens is absent or the guard is disabled is safe — the bridge is
+missing or drops the call. `recordMutation` returns `true` when pi-lens took the
+record and `false` when it dropped it, so you can count your own drops. pi-lens's
+own `ast_grep_replace apply:true` records through this same bridge.
 
 Consequences for you:
 
@@ -208,8 +287,7 @@ Registered as pi agent tools. Verified names:
 
 | Tool | What it does | Use it to… |
 |---|---|---|
-| `lens_diagnostics` | Query pi-lens diagnostic state. `mode=delta` (default, this turn) / `mode=all` (cache-wide) / `mode=full` (fresh whole-project scan). Optional `paths` scope. | Check what pi-lens found; confirm clean before "done" (use `mode=full`). |
-| `lsp_diagnostics` | LSP diagnostics for explicit files/dirs (per-file `clean`/`unavailable`/`unconfirmed`/… outcomes). | Targeted LSP check on specific files. |
+| `lens_diagnostics` | Session-cache or LSP-probe diagnostics with `source` and `scope` selectors. | Use `source=lsp` with `scope=paths` for targeted checks; an empty cache is not proof of clean. |
 | `lsp_navigation` | LSP navigation (definition/references/etc.). | Trace symbols semantically. |
 | `symbol_search` | Ranked identifier search over the warm word index (BM25 + priors). | Entry point of the discovery funnel. |
 | `module_report` | Navigable outline + signatures + decorators + imports + callbacks for a file; optional `blastRadius`. | Understand a module without reading the whole body. |
@@ -217,7 +295,7 @@ Registered as pi agent tools. Verified names:
 | `read_enclosing` | Smallest enclosing symbol/callback body for a file+line (records coverage). | Bridge a diagnostic location → exact body. |
 | `project_report` | Project-level structural report. | Orient in an unfamiliar project. |
 | `ast_grep_search` / `ast_grep_replace` | Structural AST search / replace. | Find or rewrite by code shape, not regex. |
-| `ast_grep_outline` / `ast_grep_dump` | Outline / AST dump. | Inspect structure. |
+| `ast_grep_outline` / `ast_grep_search` (`dump=true`) | Outline / AST dump. | Inspect structure. |
 | `lens_diagnostic_mark` | Mark a finding false-positive / suppressed / deferred / flagged-to-fix (honored across surfaces). | Triage a finding you've judged. |
 
 Funnel discipline: **`symbol_search` → `module_report` → `read_symbol`/`read_enclosing`**
@@ -245,7 +323,7 @@ pi-lens is also an MCP server. The same capabilities are mirrored under a `pilen
 prefix: `pilens_diagnostics`, `pilens_analyze`, `pilens_module_report`,
 `pilens_symbol_search`, `pilens_read_symbol`, `pilens_read_enclosing`,
 `pilens_project_report`, `pilens_project_scan`, `pilens_lsp_navigation`,
-`pilens_lsp_diagnostics`, `pilens_ast_grep_search`/`pilens_ast_grep_replace`,
+`pilens_ast_grep_search`/`pilens_ast_grep_replace`,
 `pilens_session_start`/`pilens_turn_end`, `pilens_health`, `pilens_latency`,
 `pilens_rebuild` (source checkouts only). Note MCP has **no read-guard** — mirror reads
 don't record edit coverage. Prefer the **warm** review path; MCP `fresh` mode
