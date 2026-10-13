@@ -1,5 +1,9 @@
 # Agent Notes
 
+## Browser Automation
+
+For browser automation in omp on James's laptop, load `browser-cdp` and use its agent-browser workflow by default.
+
 ## Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
