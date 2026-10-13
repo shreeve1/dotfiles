@@ -6,20 +6,20 @@ Run this read-only inventory for the project copy before prep, then for the actu
 
 Read the repo requirements before constructing a batch. Collect independent versions, available bytes, checkout identity, effective hook metadata, git identity presence and declared config presence in one target call for the project stage. Run a separate batch for the actual worker stage. Never reuse project results for that checkout or merge pre-start with post-start containment checks.
 
-The following source-side Bash snippet is the core batch. Bind `CHECKOUT` to this stage's actual absolute path and `OMP_BIN` to the intended installed executable. Populate the Bash array `CONFIG_PATHS` with repo-declared filenames or configured absolute paths. Add the repo-required version commands and read-only dependency/access checks inside the same target block before running it. Keep `INVENTORY` and `INVENTORY_ERR` as fresh mode-0600 captures outside the checkout.
+The following source-side Bash snippet is the core batch. Bind `CHECKOUT` to this stage's actual absolute path and `PI_BIN` to the intended installed executable. Populate the Bash array `CONFIG_PATHS` with repo-declared filenames or configured absolute paths. Add the repo-required version commands and read-only dependency/access checks inside the same target block before running it. Keep `INVENTORY` and `INVENTORY_ERR` as fresh mode-0600 captures outside the checkout.
 
 ```sh
 umask 077
-QUERY=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-s","--",*sys.argv[1:]]))' "$CHECKOUT" "$OMP_BIN" "${CONFIG_PATHS[@]}")
+QUERY=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-s","--",*sys.argv[1:]]))' "$CHECKOUT" "$PI_BIN" "${CONFIG_PATHS[@]}")
 ssh -T -- "$HOST" "$QUERY" > "$INVENTORY" 2> "$INVENTORY_ERR" <<'SH'
 checkout=$1
-omp_bin=$2
+pi_bin=$2
 shift 2
 export GIT_OPTIONAL_LOCKS=0 GIT_NO_REPLACE_OBJECTS=1 GIT_NO_LAZY_FETCH=1
 git --version || printf 'git_version_check=failed\n'
 python3 --version || printf 'python_version_check=failed\n'
-"$omp_bin" --version || printf 'intended_omp_version_check=failed\n'
-command -v omp || printf 'ssh_omp_path=absent\n'
+"$pi_bin" --version || printf 'intended_pi_version_check=failed\n'
+command -v pi || printf 'ssh_pi_path=absent\n'
 python3 -c 'import shutil,sys; print("available_bytes="+str(shutil.disk_usage(sys.argv[1]).free))' "$checkout"
 git --no-optional-locks -c core.fsmonitor=false -C "$checkout" rev-parse --show-toplevel
 git --no-optional-locks -c core.fsmonitor=false -C "$checkout" symbolic-ref --short HEAD
