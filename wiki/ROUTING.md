@@ -46,3 +46,8 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 
 - Pages:
 - Keywords: external references, articles, papers, transcripts
+
+## Offload
+
+- Pages: `wiki/analyses/analysis-session-offload-omp-to-pi-migration.md` (promoted)
+- Keywords: offload, omp, pi, herdr, --kind pi, worker dispatch, freeze, gap-review quarantine, pi-extension leftovers

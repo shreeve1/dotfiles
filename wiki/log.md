@@ -115,3 +115,8 @@ Append entries with this format:
 - Outputs: pruned retired-system source/candidate pages from this wiki; refreshed `wiki/README.md`, `wiki/index.md`, `wiki/ROUTING.md`, `wiki/CLAIMS.md`, and `wiki/log.md`.
 - Notes: Kept only non-retired-system OpenCode subagent and RPIV pipeline wiki knowledge.
 
+## 2026-10-13
+
+**Update** (session-update): captured the offload omp→pi migration — machine inventory, narrow rename surface, server pi 1.2.0 provisioning, untracked-extension quarantine, live itan8n smoke, and follow-up debt (pyright findings, suite hang, aidev defaultModel). Raw: `wiki/raw/sessions/2026-10-13-offload-omp-to-pi-migration.md`.
+
+**Promote**: `wiki/candidates/analysis-session-offload-omp-to-pi-migration.md` → `wiki/analyses/analysis-session-offload-omp-to-pi-migration.md` (Branch B, frontmatter verified, indexes/routing wired, 4 claims admitted via gate, eval slice `wiki/eval/offload.eval` added).

@@ -1,0 +1,4 @@
+can herdr start pi agents for offload ||| --kind pi
+why does the offload worktree have a .gap-reviews directory ||| gap-review
+which machine can host a pi offload worker ||| claude-opus-4-8
+why does the offload verify suite hang ||| ReturnLifecycleFixtures
