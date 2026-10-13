@@ -53,7 +53,7 @@ Require the full remote SHA to equal the receipt's Brief transport commit. This 
 
 Run these stages from the source after the approved, scanned Snapshot and Brief push passes its exact creation-only lease and full remote-SHA comparison. Resolve `HOST` and saved herdr `MACHINE_ID` from the verified profile. Use the receipt bindings above. Use fresh capture paths in the durable mode-0700 `STATE` directory for each attempt, with `umask 077`. Keep command output private. Stop on a failed command or stage gate.
 
-Use the installer's recorded canonical skill/helper paths and hashes for the current installed version. Verify installation once if that record is absent or the installed version changes. Newly added skills need a fresh omp catalog. The worker reads its task-required skills and Brief normally, without a per-worker URI-discovery ritual. Installation evidence does not replace fresh mutable checkout, hook, identity, configuration or runtime checks.
+Use the installer's recorded canonical skill/helper paths and hashes for the current installed version. Verify installation once if that record is absent or the installed version changes. The worker reads its task-required skills and Brief normally, without a per-worker URI-discovery ritual. Installation evidence does not replace fresh mutable checkout, hook, identity, configuration or runtime checks.
 
 ### 1. Create the actual checkout
 
@@ -102,19 +102,19 @@ INITIAL_PID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["r
 
 Read `result.process_info.foreground_process_group_id` and `foreground_processes` to require the available original shell at its prompt. Record only PID/name metadata in reports. Do not print argv or environment values. Run [the canonical enrollment block](freeze.md#contain-the-initial-shell). It combines scope properties and original-shell membership in one target call before startup. Preserve unit, initial PID, InvocationID and ControlGroup beside the receipt.
 
-Bind `OMP_DIR` to the observed intended omp directory from the installed-version record. Set `CACHE_RESET` to `rehash` for zsh or `hash -r` for bash.
+Bind `PI_DIR` to the observed intended pi directory from the installed-version record. Set `CACHE_RESET` to `rehash` for zsh or `hash -r` for bash.
 
 ```sh
-PATH_COMMAND=$(python3 -c 'import shlex,sys; print("export PATH="+shlex.quote(sys.argv[1])+":\"$PATH\"; "+sys.argv[2]+"; command -v omp; omp --version")' "$OMP_DIR" "$CACHE_RESET")
+PATH_COMMAND=$(python3 -c 'import shlex,sys; print("export PATH="+shlex.quote(sys.argv[1])+":\"$PATH\"; "+sys.argv[2]+"; command -v pi; pi --version")' "$PI_DIR" "$CACHE_RESET")
 herdr --machine "$MACHINE_ID" pane run "$PANE" "$PATH_COMMAND" > "$PATH_RUN_TEXT"
 herdr --machine "$MACHINE_ID" pane read "$PANE" --source recent --format text > "$PATH_READ_TEXT"
 ```
 
-Gate. The original shell remains available at its prompt inside the new owned scope. The pane shows the intended omp path/version after cache flush. An SSH version result alone does not pass. No nested shell or launcher replaces the original shell.
+Gate. The original shell remains available at its prompt inside the new owned scope. The pane shows the intended pi path/version after cache flush. An SSH version result alone does not pass. No nested shell or launcher replaces the original shell.
 
 ### 4. Focus only when requested
 
-Default creation remains `--no-focus`. If the user asks to watch, focus the actual workspace before starting omp.
+Default creation remains `--no-focus`. If the user asks to watch, focus the actual workspace before starting pi.
 
 ```sh
 herdr --machine "$MACHINE_ID" workspace focus "$WORKSPACE" > "$FOCUS_RESPONSE"
@@ -123,20 +123,20 @@ printf 'Target %s, label offload:%s, workspace %s, pane %s\n' "$HOST" "$SLUG" "$
 
 Gate. Requested backend focus succeeded and the host, label and pane were announced. Backend focus does not prove the user's UI selected that machine. If the UI still shows Local, point to the target machine in the sidebar. Do not substitute a guessed workspace or disturb another user pane.
 
-### 5. Start fresh omp and check membership
+### 5. Start fresh pi and check membership
 
 ```sh
-herdr --machine "$MACHINE_ID" agent start "$AGENT" --kind omp --pane "$PANE" > "$START_JSON"
+herdr --machine "$MACHINE_ID" agent start "$AGENT" --kind pi --pane "$PANE" > "$START_JSON"
 herdr --machine "$MACHINE_ID" pane process-info --pane "$PANE" > "$PROCESS_AFTER_JSON"
 ```
 
-Gate. Agent-start reports interactive readiness in the same pane. The original `shell_pid` is unchanged. Identify the actual omp PID from `result.process_info.foreground_processes` and bind `OMP_PID` to it. Run [the post-start membership block](freeze.md#check-agent-membership) in one separate target call. Require the recorded scope identity and actual shell/omp membership before prompting. A start timeout or failed gate stops dispatch. Read status and pane output before any retry.
+Gate. Agent-start reports interactive readiness in the same pane. The original `shell_pid` is unchanged. Identify the actual pi PID from `result.process_info.foreground_processes` and bind `AGENT_PID` to it. Run [the post-start membership block](freeze.md#check-agent-membership) in one separate target call. Require the recorded scope identity and actual shell/pi membership before prompting. A start timeout or failed gate stops dispatch. Read status and pane output before any retry.
 
 ### 6. Submit the Brief pointer
 
 ```sh
 herdr --machine "$MACHINE_ID" agent prompt "$AGENT" \
-  "Read skill://pstack-poteto-mode, the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
+  "Read the pstack-poteto-mode skill at ~/.agents/skills/pstack-poteto-mode/SKILL.md, the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
 ```
 
 This submits Enter. Require explicit task acceptance or observed work on that Brief. Agent readiness alone is insufficient. If submission times out or acceptance is unclear, inspect before retrying.
@@ -146,7 +146,7 @@ herdr --machine "$MACHINE_ID" agent get "$AGENT" > "$AGENT_STATUS"
 herdr --machine "$MACHINE_ID" pane read "$PANE" --source recent --format text > "$TASK_READ_TEXT"
 ```
 
-Gate. The remote branch was verified, the fresh omp remains in its owned containment and the Brief prompt was accepted or its work observed. Complete [return control publication](#publish-return-control) before reporting safe-to-close. Normal dispatch does not wait for task completion. Leave the worker pane open until user-triggered return or cleanup.
+Gate. The remote branch was verified, the fresh pi remains in its owned containment and the Brief prompt was accepted or its work observed. Complete [return control publication](#publish-return-control) before reporting safe-to-close. Normal dispatch does not wait for task completion. Leave the worker pane open until user-triggered return or cleanup.
 
 Creation, process-info and agent-start captures are JSON. `pane run` and `pane read` return text. Parse each operation's documented response instead of treating every capture as JSON. Retain all runtime IDs and private paths with the receipt.
 
@@ -164,7 +164,7 @@ Write `DISPATCH_DRAFT` privately with the source's observed receipt byte digest 
   "inventory_path": "/actual/private/inventory.json",
   "allowlist_path": null,
   "herdr": {"session": null, "workspace": "ACTUAL_ID", "pane": "ACTUAL_ID", "agent": "offload-SLUG"},
-  "scope": {"unit": "offload-SLUG.scope", "initial_pid": 123, "omp_pid": 456},
+  "scope": {"unit": "offload-SLUG.scope", "initial_pid": 123, "agent_pid": 456},
   "source": {
     "host": "OBSERVED_HOST", "user": "OBSERVED_USER", "uid": 1000,
     "repo": "/original/receiver", "common_dir": "/original/common-dir",
@@ -250,27 +250,27 @@ if [ -n "$HERDR_SESSION" ]; then HERDR+=(--session "$HERDR_SESSION"); fi
   --label "return:$SLUG:$ATTEMPT_ID" --no-focus > "$CONTROL_CREATE_JSON"
 ```
 
-Parse the actual workspace and root pane from the same response fields as ordered startup. Capture its original shell PID through `pane process-info`. Prepare that shell's intended omp PATH using startup's cache-flush recipe. Require that shell outside the worker cgroup subtree before start.
+Parse the actual workspace and root pane from the same response fields as ordered startup. Capture its original shell PID through `pane process-info`. Prepare that shell's intended pi PATH using startup's cache-flush recipe. Require that shell outside the worker cgroup subtree before start.
 
 ```sh
-"${HERDR[@]}" agent start "$CONTROL_AGENT" --kind omp --pane "$CONTROL_PANE" -- \
+"${HERDR[@]}" agent start "$CONTROL_AGENT" --kind pi --pane "$CONTROL_PANE" -- \
   --cwd "$CONTROL_CWD" --session-dir "$FRESH_SESSION_DIR" > "$CONTROL_START_JSON"
 "${HERDR[@]}" pane process-info --pane "$CONTROL_PANE" > "$CONTROL_PROCESS_JSON"
 "${HERDR[@]}" agent prompt "$CONTROL_AGENT" \
-  "Read skill://offload-return. Continue the authorized attempt $ATTEMPT_ID for $WORKTREE, slug $SLUG. Use its private dispatch and intent. Your actual workspace is $CONTROL_WORKSPACE and pane $CONTROL_PANE. Keep your session journals and summaries under your private $CONTROL_CWD, never in $WORKTREE."
+  "Read the offload-return skill at ~/.agents/skills/offload-return/SKILL.md. Continue the authorized attempt $ATTEMPT_ID for $WORKTREE, slug $SLUG. Use its private dispatch and intent. Your actual workspace is $CONTROL_WORKSPACE and pane $CONTROL_PANE. Keep your session journals and summaries under your private $CONTROL_CWD, never in $WORKTREE."
 ```
 
-Require fresh omp readiness and its actual birth identity outside the worker subtree. Different pane IDs alone do not prove separation. The controller publishes durable acceptance before stopping the worker. After that acceptance, the worker performs no more task or return work and does not wait for delivery. Creation or prompt timeout requires inspection of the allocated attempt and actual processes before any retry.
+Require fresh pi readiness and its actual birth identity outside the worker subtree. Different pane IDs alone do not prove separation. The controller publishes durable acceptance before stopping the worker. After that acceptance, the worker performs no more task or return work and does not wait for delivery. Creation or prompt timeout requires inspection of the allocated attempt and actual processes before any retry.
 
 ### Freeze from the independent controller
 
-Read the attempt's immutable intent and recorded worker control. Observe the controller's original shell and actual omp PIDs through the recorded server-local herdr session. Pass the actual workspace and pane. Include `--herdr-session "$HERDR_SESSION"` only for a recorded named session.
+Read the attempt's immutable intent and recorded worker control. Observe the controller's original shell and actual pi PIDs through the recorded server-local herdr session. Pass the actual workspace and pane. Include `--herdr-session "$HERDR_SESSION"` only for a recorded named session.
 
 ```sh
 SESSION_ARGS=()
 if [ -n "$HERDR_SESSION" ]; then SESSION_ARGS=(--herdr-session "$HERDR_SESSION"); fi
 python3 "$RETURN_STATE" freeze --worktree "$WORKTREE" --slug "$SLUG" \
-  --attempt "$ATTEMPT_ID" --controller-pid "$CONTROL_OMP_PID" \
+  --attempt "$ATTEMPT_ID" --controller-pid "$CONTROL_AGENT_PID" \
   --shell-pid "$CONTROL_SHELL_PID" --workspace "$CONTROL_WORKSPACE" \
   --pane "$CONTROL_PANE" "${SESSION_ARGS[@]}" > "$FREEZE_RESPONSE"
 ```

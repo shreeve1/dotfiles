@@ -491,11 +491,11 @@ def draft_input(value):
         text(herdr[key])
     if herdr['session'] is not None:
         text(herdr['session'])
-    scope = keys(value['scope'], ('unit', 'initial_pid', 'omp_pid'))
+    scope = keys(value['scope'], ('unit', 'initial_pid', 'agent_pid'))
     text(scope['unit'])
     positive(scope['initial_pid'])
-    positive(scope['omp_pid'])
-    require(scope['initial_pid'] != scope['omp_pid'])
+    positive(scope['agent_pid'])
+    require(scope['initial_pid'] != scope['agent_pid'])
     source = keys(value['source'], ('host', 'user', 'uid', 'repo', 'common_dir', 'receipt_path',
                                     'guard_path', 'guard_sha256'))
     for key in ('host', 'user'):
@@ -548,7 +548,7 @@ def publish_dispatch(task, args, data, system):
     scope = system.scope(draft['scope']['unit'])
     owned_scope(scope, draft['scope']['unit'], 'SCOPE_NOT_OWNED')
     processes = {}
-    for name in ('initial_pid', 'omp_pid'):
+    for name in ('initial_pid', 'agent_pid'):
         process = birth(system.process(draft['scope'][name]), system)
         require(inside(process['cgroup'], scope['control_group']), 'SCOPE_NOT_OWNED', 3)
         processes[name] = process
@@ -639,7 +639,7 @@ def request(task, args, data, system):
     session = None
     if args.mode == 'controller':
         agent = 'return-' + digest((task.binding.identity['root'] + task.state.name).encode())[:7] + '-' + nonce[:17]
-        session = private_dir(directory / 'omp-session', create=True, exclusive=True)
+        session = private_dir(directory / 'agent-session', create=True, exclusive=True)
     document = {**intent, 'attempt_id': attempt_id, 'mode': args.mode, 'agent': agent,
                 'session_dir': str(session) if session is not None else None, 'cwd': str(directory)}
     publish_record(directory / 'attempt.json', document)
@@ -749,7 +749,7 @@ def freeze(task, args, data, system):
                 owned_scope(scope, task.dispatch['scope']['unit'], 'SCOPE_CHANGED')
                 handoff = acceptance(task, args, directory, attempt, system)
                 scope_matches(task, system)
-                for name in ('initial_pid', 'omp_pid'):
+                for name in ('initial_pid', 'agent_pid'):
                     saved = task.dispatch['worker'][name]
                     current = system.process(saved['pid'])
                     require(same_birth(saved, current, system) and live(current)
@@ -757,7 +757,7 @@ def freeze(task, args, data, system):
                             and inside(current['cgroup'], scope['control_group']), 'SCOPE_CHANGED', 3)
                 members = [birth(member, system) for member in system.members(scope['control_group'])]
                 enumerated = {member['pid']: member for member in members}
-                for name in ('initial_pid', 'omp_pid'):
+                for name in ('initial_pid', 'agent_pid'):
                     saved = task.dispatch['worker'][name]
                     current = enumerated.get(saved['pid'])
                     require(current is not None and current['boot_id'] == saved['boot_id']

@@ -1374,7 +1374,7 @@ class ReturnLifecycleFixtures(OffloadFixture):
                 "session": None, "workspace": "fixture-workspace",
                 "pane": "fixture-worker-pane", "agent": "offload-" + self.SLUG,
             },
-            "scope": {"unit": self.system.unit, "initial_pid": 101, "omp_pid": 102},
+            "scope": {"unit": self.system.unit, "initial_pid": 101, "agent_pid": 102},
             "source": {
                 "host": "source.invalid", "user": "fixture", "uid": os.getuid(),
                 "repo": str(self.repo), "common_dir": str(self.common),
@@ -1445,13 +1445,13 @@ class ReturnLifecycleFixtures(OffloadFixture):
         if mode == "controller":
             self.assertLessEqual(len(response["agent"]), 32)
             self.assertTrue(response["agent"])
-            self.assertEqual(response["session_dir"], str(attempt_dir / "omp-session"))
+            self.assertEqual(response["session_dir"], str(attempt_dir / "agent-session"))
             self.assertTrue(Path(response["session_dir"]).is_dir())
             self.assertEqual(stat.S_IMODE(Path(response["session_dir"]).stat().st_mode), 0o700)
         else:
             self.assertIsNone(response["agent"])
             self.assertIsNone(response["session_dir"])
-            self.assertFalse((attempt_dir / "omp-session").exists())
+            self.assertFalse((attempt_dir / "agent-session").exists())
         return response
 
     def freeze(self, attempt, controller=True, error=None, extra=()):
@@ -1714,7 +1714,7 @@ class ReturnLifecycleFixtures(OffloadFixture):
     def test_initial_pid_birth_changed_during_member_enumeration_is_not_accepted(self):
         self.assert_enumeration_birth_change_refused(101)
 
-    def test_omp_pid_birth_changed_during_member_enumeration_is_not_accepted(self):
+    def test_agent_pid_birth_changed_during_member_enumeration_is_not_accepted(self):
         self.assert_enumeration_birth_change_refused(102)
 
     def test_fresh_control_boundary_rejects_scope_replacement_before_signal(self):

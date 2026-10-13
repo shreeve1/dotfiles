@@ -1,6 +1,6 @@
 ---
 name: offload-task
-description: Use when sending a current or cold repo task to a fresh omp agent on another machine.
+description: Use when sending a current or cold repo task to a fresh pi agent on another machine.
 ---
 
 # Offload task
@@ -23,8 +23,8 @@ Finish when the goal, hosts, paths, root identity, slug, target inventory and Br
 2. Show all transported filenames and held or omitted exclusions. State that tracked history still travels. Ask for an explicit yes before push. If permission is declined, keep the local Offload record and do not send it.
 3. Push only `refs/heads/offload/<slug>` to the verified Mirror's explicit URL. Use a creation-only ref lease so a collision cannot overwrite work. Use `--no-verify` only for this verified Mirror push. Compare the remote full SHA with the local transport commit. On timeout, read the remote ref before deciding whether to retry.
 
-## Start fresh omp
+## Start fresh pi
 
-Follow [the ordered startup recipe](../_shared/offload/commands.md#ordered-startup). It owns worktree creation, actual-checkout provisioning, original-shell containment, optional focus before startup, fresh omp readiness and observed task acceptance. Complete each stage's gate before advancing.
+Follow [the ordered startup recipe](../_shared/offload/commands.md#ordered-startup). It owns worktree creation, actual-checkout provisioning, original-shell containment, optional focus before startup, fresh pi readiness and observed task acceptance. Complete each stage's gate before advancing.
 
 Finish only after that recipe's acceptance gate and publication of the complete discoverable server dispatch/control record. Preserve the independent source receipt and source-side locator so return survives loss of this chat. Report any reverse-route gap and the available source-pull path. Include the target, slug, branch, Snapshot SHA, Brief path, actual worktree path, workspace and pane IDs, and user-triggered return command. Report backend focus separately from the machine selected in the user's UI. Leave the worker pane open until the user requests return or cleanup. Worker completion does not trigger an automatic return or close.
