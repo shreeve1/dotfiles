@@ -160,6 +160,18 @@ expect_ids "--spec alpha" "2" --spec alpha eligible
 expect_ids "--spec beta sees cross-spec done blocker, blocked by pending one" "3" --spec beta eligible
 expect_eq "--spec scopes counts" "2" "$(bs --spec beta counts | sed -n 's/^total=//p')"
 
+# --- spec: null / ~ mean "no spec" (the kanban skill documents `spec: null`) ---
+new_board nullspec
+ticket "$B/issues" 1 pending "$R" '[]' 'spec: null'
+ticket "$B/issues" 2 pending "$R" '[]' 'spec: ~'
+ticket "$B/issues" 3 pending "$R" '[]' 'spec: real'
+mkdir -p "$B/specs" && : >"$B/specs/real.md"
+if out="$(bs validate 2>&1)"; then ok; else fail "spec null/~ validates" "$out"; fi
+case "$out" in *WARN*) fail "spec: null must not warn about specs/null.md" "$out" ;; *) ok ;; esac
+expect_eq "spec: null is not the literal slug" "null" "$(bs json | jq -r '.[0].spec // "null"')"
+expect_ids "--spec real selects only the real spec, not null/~" "3" --spec real eligible
+expect_ids "--spec null selects nothing" "" --spec null eligible
+
 # --- unclosed frontmatter (older tickets end at the first blank line) -------
 new_board unclosed
 {

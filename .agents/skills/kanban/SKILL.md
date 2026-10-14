@@ -12,12 +12,17 @@ A project-local kanban board stored in `.kanban/` at the project root. Issues ar
 
 ```
 .kanban/
-  issues/
+  issues/                 # runnable tickets only (the loop scans this directory)
     001-slug.md
     002-slug.md
-  archive/              # Completed issues moved here by /kanban archive
-  progress.md           # Inter-iteration notes — continuity across context windows
+  archive/                # done / cancelled tickets moved here by /kanban archive
+  specs/                  # one spec (PRD) per file: <slug>.md — written by /to-spec
+  maps/                   # wayfinder maps: <effort>/map.md + its decision tickets
+  progress.md             # Inter-iteration notes — continuity across context windows
+  run-report.md           # written by a board-mode run (run-report-<key>.md for a spec run)
 ```
+
+`issues/` holds **only** tickets in the schema below. Anything else (specs, wayfinder decision tickets, notes) lives in its own directory so the loop and `gralph` never mistake it for work.
 
 ## Issue Format
 
@@ -28,9 +33,12 @@ Each issue file uses YAML frontmatter + markdown body:
 id: 1
 title: Short descriptive title
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 parent: null
+spec: null
 priority: 0
+files: []
 created: 2026-04-26
 updated: 2026-04-26
 actor: human
@@ -46,24 +54,35 @@ Concise description of this vertical slice.
 - [ ] Criterion 1
 - [ ] Criterion 2
 
+## Verification
+
+`one repo-correct command that proves the ticket is done`
+
 ## Notes
 
 Any additional context.
 ```
 
+The frontmatter ends at the closing `---` **or the first blank line**, whichever comes first — keep it contiguous, with no blank lines inside it.
+
+`## Verification` holds exactly **one** command in single backticks (`gralph` takes the ticket's verification from that line and rejects zero or several). Chain steps inside the one command with `&&`. Omit the section only when the ticket genuinely has no runnable check.
+
 ### Required fields
 
-Every issue MUST have: `id`, `title`, `status`, `blocked_by`, `created`
+Every issue MUST have: `id`, `title`, `status`, `blocked_by`, `created`. Every issue that is not `done` or `cancelled` MUST also have `labels` carrying exactly one triage state label (see below).
 
 ### Field reference
 
 | Field | Required | Values | Description |
 |-------|----------|--------|-------------|
-| `id` | yes | integer | Unique, sequential, no gaps within active board |
+| `id` | yes | integer | Unique across `issues/` **and** `archive/`. Never reused: a reused id would match another ticket's commits (`(#N)`). Next id = highest id in either directory + 1. |
 | `title` | yes | string | Short descriptive name |
 | `status` | yes | see below | Current lifecycle state |
+| `labels` | yes unless `done`/`cancelled` | string list | Triage roles. Exactly **one** state label: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Other labels (`bug`, `enhancement`, …) are allowed and ignored by the loop. |
 | `blocked_by` | yes | integer array | IDs that must be `done` first |
 | `parent` | no | integer or null | Parent epic issue. Children block parent completion. |
+| `spec` | no | slug or null | The spec this ticket belongs to; matches `.kanban/specs/<slug>.md`. Lets `tralph --spec <slug>` work one spec's tickets. |
+| `files` | no | path-prefix list | Advisory write set for the parallel scheduler (e.g. `[src/auth/, tests/auth/]`). Wrong scope costs parallelism, never correctness. Frontmatter only — never in the body. |
 | `priority` | no | integer (lower = higher priority) | Breaks ties among ready issues. Default 0. |
 | `created` | yes | YYYY-MM-DD | Creation date |
 | `updated` | auto | YYYY-MM-DD | Last status change date |
@@ -89,6 +108,42 @@ pending ──→ in-progress ──→ review ──→ done
 | `blocked` | Stuck. Blocker section explains why | ralph, human |
 | `cancelled` | No longer needed, not to be implemented | human only |
 
+`status: todo` and `status: open` are read as `pending` (some generators emit them); write `pending`.
+
+### status vs labels (two independent axes)
+
+- **`status`** is the **execution lifecycle**. The loop owns it: `pending → in-progress → review → done / blocked`.
+- **`labels`** carry the **triage role** from the `triage` skill. A human (or `/triage`) owns them. They answer "may an agent work this?", not "how far along is it?".
+
+**A ticket is eligible for the loop only when ALL hold:**
+
+1. `status: pending`
+2. its `labels` contain exactly one state label and it is `ready-for-agent` (override the string with `RALPH_READY_LABEL`)
+3. every `blocked_by` id is resolved (see "Resolving blockers")
+4. if it is a parent, all children are `done`
+
+So a `pending` ticket labelled `needs-triage`, `needs-info`, `ready-for-human` or `wontfix` is **never** picked up, and neither is one with no state label or with two (`[ready-for-agent, needs-info]` is a conflict: fix it, don't guess). `in-progress` and `review` tickets are resumed regardless of label — they were already started — and `--review-loop` audits finished tickets regardless of label.
+
+The label strings above are the defaults; `docs/agents/triage-labels.md` (written by `/setup-matt-pocock-skills`) records this repo's mapping for the skills.
+
+`board.sh` (this directory) is the single implementation of these rules. `ralph-loop.sh`, `gralph`, the supervisor and the shepherd all call it — do not re-derive eligibility by grepping `status:`:
+
+```bash
+board.sh [--board .kanban] [--spec SLUG] eligible   # <id><TAB><path> of each workable ticket
+board.sh next                                       # the first one, exit 1 if none
+board.sh counts                                     # eligible, waiting_triage, waiting_human, wontfix, conflict, waiting_deps, active, blocked, done, ...
+board.sh validate                                   # ERROR/WARN lines, exit 1 on any ERROR
+```
+
+### Resolving blockers
+
+A `blocked_by` id is **resolved** only when that ticket is `status: done`, wherever it lives:
+
+1. look in `issues/`;
+2. else look in `archive/` (recursively — archived work is dated subdirectories);
+3. a `cancelled` ticket does **not** resolve its dependents (a human decides whether to drop the edge or cancel the dependent);
+4. an id found nowhere is **not** resolved (the dependent stays blocked and `validate` reports the dangling reference).
+
 ### blocked_by vs blocked (critical distinction)
 
 - **`blocked_by: [1, 3]`** — dependency blockers. Computed from the DAG. Issue can't start until IDs 1 and 3 are `done`.
@@ -102,6 +157,7 @@ These are independent. An issue can have `blocked_by: []` (no dependencies) and 
 - Parent issues cannot be `done` until all children are `done`.
 - Parent CAN be `pending` while children are `blocked` — the parent just waits.
 - `next` includes parents only when all children are `done`.
+- A `cancelled` child never counts as done, so it holds its parent open: cancel or re-parent the parent, or move the child out.
 
 ### Priority and ordering
 
@@ -124,7 +180,7 @@ The user's message determines which command to run:
 Create `.kanban/` in the current project root. Idempotent.
 
 ```bash
-mkdir -p .kanban/issues .kanban/archive
+mkdir -p .kanban/issues .kanban/archive .kanban/specs .kanban/maps
 ```
 
 Create `.kanban/progress.md` if it doesn't exist:
@@ -136,20 +192,21 @@ Notes from each Ralph loop iteration. Read this at the start of a new session to
 
 ### `validate`
 
-Check all issue files for schema compliance:
-- Required fields present
+Run `board.sh --board .kanban validate` and report its output. It checks:
+- Frontmatter present; `id`, `title`, `status`, `blocked_by`, `created` present
 - Status is a valid enum value
-- `blocked_by` IDs reference existing issues
-- No self-dependencies (`blocked_by` contains own ID)
-- No dependency cycles (DAG is valid)
-- IDs are unique
-- Parent references exist (if set)
+- Non-done, non-cancelled tickets carry exactly one triage state label (none, or two, is an ERROR)
+- `blocked_by` IDs exist in `issues/` or `archive/`
+- No self-dependencies, no dependency cycles
+- IDs are unique across `issues/` and `archive/`
+- Parent references exist and are numeric
+- `spec:` has a matching `.kanban/specs/<slug>.md` (WARN only)
 
-Report errors as a list. Do not modify files.
+Do not modify files. Also check each ticket has a `## Verification` section with one backticked command (not checked by `board.sh`).
 
 ### `board` (default)
 
-Show the current board state. Scan all `.kanban/issues/*.md` files, parse frontmatter, and display grouped by status:
+Show the current board state. Scan all `.kanban/issues/*.md` files, parse frontmatter, and display grouped by status. Mark a pending ticket that is not agent-ready with why (`needs-triage`, `needs-info`, `ready-for-human`, `wontfix`, `conflict`, or `waits on #N`); `board.sh counts` gives the totals:
 
 ```
 ## Pending (3)
@@ -189,10 +246,10 @@ Display the full issue file for the given ID. Find it by matching the `id:` fiel
 
 ### `next`
 
-Find the next issue to work on. Rules:
-1. Must be `status: pending`
-2. All `blocked_by` issues must have `status: done`
-3. All children must be `done` (if this is a parent)
+Find the next issue to work on: `board.sh next` (add `--spec <slug>` to stay inside one spec). Rules (see "status vs labels"):
+1. `status: pending` and labelled `ready-for-agent`
+2. All `blocked_by` issues resolved
+3. All children `done` (if this is a parent)
 4. Sort by priority (lowest number first), then by ID (lowest first)
 
 Display the issue and suggest running `/ralph` to implement it.
@@ -210,7 +267,7 @@ Refuse invalid transitions (e.g., `done` → `in-progress`). Only `blocked` → 
 
 ### `create`
 
-Interactively create a new issue. Ask for title, description, acceptance criteria, verification command, priority, and blocked_by. Auto-assign the next available ID. Validate that blocked_by IDs exist.
+Interactively create a new issue. Ask for title, description, acceptance criteria, verification command, priority, optional spec, and blocked_by. Auto-assign the next available ID (highest id in `issues/` **and** `archive/`, plus 1). Validate that blocked_by IDs exist. Set `created` to today and `labels: [needs-triage]` — a ticket a human just typed in has not been triaged, so it is **not** runnable until `/triage` (or the user) moves it to `ready-for-agent`.
 
 ### `progress`
 
@@ -234,13 +291,19 @@ If cycles or invalid references are found, report them and refuse to proceed wit
 
 ### `archive`
 
-Move all `done` and `cancelled` issues to `.kanban/archive/`. Archived issues remain queryable for dependency resolution — `blocked_by` references to archived issues are treated as satisfied. Rewrite any `blocked_by` references in active issues to remove archived IDs (they're satisfied, so they don't need to be listed).
+Move `done` issues (and `cancelled` ones, see below) to `.kanban/archive/<YYYY-MM-DD>/`. Archived issues stay queryable: a `blocked_by` reference to an archived **done** ticket is resolved by lookup, so **do not rewrite `blocked_by`** in active issues — the edge stays as history and still resolves.
+
+- Never archive a ticket that an active ticket names as its `parent` while that parent is still open.
+- Archive a `cancelled` ticket only if no active ticket lists it in `blocked_by` or as `parent`; otherwise leave it in `issues/` and tell the user which tickets it is holding up. (A cancelled blocker does not release its dependents, and archiving it would hide that.)
+- Never reuse an archived ticket's id (see `id` above).
 
 ## Integration
 
-- `/to-issues` writes here when `.kanban/` exists
-- `/ralph` reads from here to find the next unblocked issue and appends to `progress.md`
-- Issues follow the same vertical-slice format as `/to-issues`
+- `/setup-matt-pocock-skills` scaffolds this layout and records it in `docs/agents/issue-tracker.md`
+- `/to-spec` writes `specs/<slug>.md`; `/to-tickets` writes `issues/NNN-slug.md` in the schema above (with `spec: <slug>`)
+- `/triage` moves a ticket between triage states by editing `labels:` — never `status:`
+- `/ralph`, `tralph` and `gralph` read eligible tickets through `board.sh` and append to `progress.md`; `tralph --spec <slug>` works one spec
+- Issues follow the same vertical-slice format as `/to-tickets`
 - Progress notes provide continuity across context windows
 
 ## Design Decisions
@@ -254,4 +317,6 @@ Move all `done` and `cancelled` issues to `.kanban/archive/`. Archived issues re
 - **Priority field** — explicit ordering prevents nondeterministic issue selection
 - **`validate` command** — catches schema issues before they break the loop
 - **`stale` command** — recovers from crashed sessions that left issues in `in-progress`
-- **Archive preserves dependencies** — archived issues are treated as `done` for resolution
+- **Archive preserves dependencies** — an archived `done` ticket still resolves its dependents (by lookup); `cancelled` and unknown ids never do
+- **Two axes** — `status` is execution (the loop's), `labels` is triage (a human's); eligibility needs both, computed in one place (`board.sh`)
+- **Flat board, `spec:` field** — ids stay repo-unique so commit references `(#N)` identify exactly one ticket; a spec is a filter, not a folder
