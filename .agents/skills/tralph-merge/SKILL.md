@@ -13,9 +13,9 @@ The manual landing step for the **tralph worktree loop** (legacy path) and the
 
 | Indicator | Legacy tralph worktree | Board-mode gralph |
 |-----------|------------------------|-------------------|
-| Marker file | `~/.cache/ralph-merge-needed-<SESSION>` | `~/.cache/ralph-merge-needed-board-<PARENT>` |
-| Branch to land | `ralph/run` (or configured `RALPH_BRANCH`) | `gralph/<PARENT>/batch` |
-| Source of truth | `$WORKTREE/.kanban/` (live board in worktree) | `.kanban/run-report.md` + `.gralph/runs/<PARENT>/manifest.json` |
+| Marker file | `~/.cache/ralph-merge-needed-<SESSION>` | `~/.cache/ralph-merge-needed-board-<KEY>` |
+| Branch to land | `ralph/run` (or configured `RALPH_BRANCH`) | `gralph/<KEY>/batch` |
+| Source of truth | `$WORKTREE/.kanban/` (live board in worktree) | the run report (`.kanban/run-report.md`, or `run-report-<KEY>.md` for a spec run) + `.gralph/runs/<KEY>/manifest.json` |
 | Worktree to remove after merge | `$WORKTREE` (the tralph worktree) | None — board-mode coordinator already removed landed lane worktrees |
 
 Read the marker file name to determine which path to follow. Both paths share
@@ -26,8 +26,10 @@ the same hard rules and the same Phase 4 merge procedure.
 - a path — treat it as the base repo (`RALPH_BASE_REPO`).
 
 **Board-mode path** (`$ARGUMENTS`):
-- `--board <parent>` — board-mode merge for the named parent number.
-- `--board <parent> <repo>` — override the repo root.
+- `--board <key>` — board-mode merge for the named run key: `0` for a whole-board
+  run, or the spec slug for a `tralph --spec <slug>` run. (Older runs used a parent
+  number; that is just a numeric key.)
+- `--board <key> <repo>` — override the repo root.
 
 ## Hard rules
 
@@ -80,13 +82,14 @@ there is nothing to land — say so and stop.
 ### Board-mode path
 
 ```bash
-PARENT="$2"         # required: the parent number passed after --board
+KEY="$2"            # required: run key after --board ("0" or the spec slug)
 BASE_REPO="${3:-$(git rev-parse --show-toplevel)}"
-BRANCH="gralph/$PARENT/batch"
+BRANCH="gralph/$KEY/batch"
 BASE_BRANCH="$(git -C "$BASE_REPO" rev-parse --abbrev-ref HEAD)"
-MARKER="$HOME/.cache/ralph-merge-needed-board-$PARENT"
-MANIFEST="$BASE_REPO/.gralph/runs/$PARENT/manifest.json"
+MARKER="$HOME/.cache/ralph-merge-needed-board-$KEY"
+MANIFEST="$BASE_REPO/.gralph/runs/$KEY/manifest.json"
 RUN_REPORT="$BASE_REPO/.kanban/run-report.md"
+[ "$KEY" = 0 ] || RUN_REPORT="$BASE_REPO/.kanban/run-report-$KEY.md"
 ```
 
 Confirm the marker exists (if not, the coordinator may not have deferred —
@@ -216,11 +219,26 @@ git -C "$BASE_REPO" branch -d "$BRANCH"   # safe delete; only if merged
 rm -f "$MARKER"
 # Worktrees for landed lanes were already pruned by finish_board.
 # Bounced/blocked lane worktrees are preserved — do NOT remove them.
+
+# Record the merge in the manifest. finish_board did not (it deferred), and gralph
+# decides "resume the saved run" vs "plan fresh" from boardFinish.status: left as
+# "deferred", the next `tralph` with this key would resume a run whose base SHA
+# predates this merge and could never fast-forward onto the new main.
+MERGED_SHA="$(git -C "$BASE_REPO" rev-parse HEAD)"
+tmp="$MANIFEST.tmp.$$"
+jq --arg sha "$MERGED_SHA" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg main "$BASE_BRANCH" --arg br "$BRANCH" \
+  '.orchestration.boardFinish = ((.orchestration.boardFinish // {}) + {status:"merged", mainBranch:$main, batchBranch:$br, mergeSha:$sha, mergedAt:$at, mergedBy:"tralph-merge"})' \
+  "$MANIFEST" >"$tmp" && mv "$tmp" "$MANIFEST"
 ```
+
+The merge also lands each ticket's `status: done` commit (gralph commits it on
+the batch branch as `chore(kanban): mark #N done`), so after this the board
+itself shows those tickets done — nothing else to edit by hand.
 
 No supervisor to restart in board mode: `finish_board` is a one-shot that runs
 at the end of the coordinator. After a successful manual merge, the run is
-complete. To start the next board run, invoke `gralph` again with `--board`.
+complete. To start the next board run, invoke `tralph` again (with the same
+`--spec`, if any); because the manifest now records the merge, it plans fresh.
 
 Only `git push` if the user explicitly asks.
 
