@@ -16,7 +16,10 @@ GRALPH="$ROOT/bin/gralph"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
@@ -75,6 +78,7 @@ cat >"$BOARD/issues/001-1.md" <<'EOF'
 id: 1
 title: Ticket 1
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 files:
   - src/shared/
@@ -95,6 +99,7 @@ cat >"$BOARD/issues/002-2.md" <<'EOF'
 id: 2
 title: Ticket 2
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 files:
   - src/shared/
@@ -115,6 +120,7 @@ cat >"$BOARD/issues/003-3.md" <<'EOF'
 id: 3
 title: Ticket 3
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 files:
   - src/only3/
@@ -134,6 +140,7 @@ cat >"$BOARD/issues/004-4.md" <<'EOF'
 id: 4
 title: Ticket 4
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 ---
 
@@ -148,22 +155,35 @@ EOF
 
 REPO="$TMPDIR/sched-repo"
 new_repo "$REPO"
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
-[ -f "$MANIFEST" ] || { echo "FAIL: manifest missing after plan" >&2; exit 1; }
+[ -f "$MANIFEST" ] || {
+  echo "FAIL: manifest missing after plan" >&2
+  exit 1
+}
 
 # Verify files: fields are captured.
 jq -e '
   (.children[] | select(.number == 1) | .files) == ["src/shared/", "src/only1/"]
-' "$MANIFEST" >/dev/null || { echo "FAIL: files scope not captured for ticket 1" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: files scope not captured for ticket 1" >&2
+  exit 1
+}
 jq -e '
   (.children[] | select(.number == 2) | .files) == ["src/shared/", "src/only2/"]
-' "$MANIFEST" >/dev/null || { echo "FAIL: files scope not captured for ticket 2" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: files scope not captured for ticket 2" >&2
+  exit 1
+}
 jq -e '
   (.children[] | select(.number == 4) | .files) == null
-' "$MANIFEST" >/dev/null || { echo "FAIL: ticket 4 should have null files" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 4 should have null files" >&2
+  exit 1
+}
 
 # Live run with a scoped agent: each ticket writes only within its own scope dir.
 # Agent writes src/sharedN.txt for the shared path (within src/shared/)
@@ -198,7 +218,8 @@ printf 'RALPH_RESULT: DONE #%s\n' "$ticket_num"
 EOF
 chmod +x "$FAKE_BIN/agent-scoped-sched"
 
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 if ! run_gralph_board "$REPO" --agent-cmd agent-scoped-sched --jobs 4 --verify 'true' \
   >"$TMPDIR/sched-stdout.log" 2>"$TMPDIR/sched-stderr.log"; then
   echo "FAIL: orchestration failed" >&2
@@ -257,6 +278,7 @@ cat >"$BOARD/issues/010-10.md" <<'EOF'
 id: 10
 title: Ticket 10
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 files:
   - src/ticket10/
@@ -277,6 +299,7 @@ cat >"$BOARD/issues/011-11.md" <<'EOF'
 id: 11
 title: Ticket 11
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 files:
   - src/ticket11/
@@ -293,7 +316,8 @@ EOF
 
 REPO="$TMPDIR/landing-repo"
 new_repo "$REPO"
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 # Dispatcher: ticket 10 stays in scope; ticket 11 also writes an extra OOS file.
@@ -344,19 +368,31 @@ jq -e '
 
 jq -e '
   (.children[] | select(.number == 11) | .merge.reason) == "out_of_scope"
-' "$MANIFEST" >/dev/null || { echo "FAIL: ticket 11 bounce reason should be out_of_scope" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 11 bounce reason should be out_of_scope" >&2
+  exit 1
+}
 
 jq -e '
   (.children[] | select(.number == 11) | .merge.outOfScopePaths | length > 0)
-' "$MANIFEST" >/dev/null || { echo "FAIL: ticket 11 bounce should record the offending paths" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 11 bounce should record the offending paths" >&2
+  exit 1
+}
 
 jq -e '
   (.children[] | select(.number == 11) | .merge.outOfScopePaths | any(startswith("extra-oos-")))
-' "$MANIFEST" >/dev/null || { echo "FAIL: extra-oos file not listed in outOfScopePaths" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: extra-oos file not listed in outOfScopePaths" >&2
+  exit 1
+}
 
 # A repair ticket was created.
 REPAIR_FILES="$(find "$BOARD/issues" -name '*repair*' -name '*.md' 2>/dev/null || true)"
-[ -n "$REPAIR_FILES" ] || { echo "FAIL: no repair ticket created for bounced lane" >&2; exit 1; }
+[ -n "$REPAIR_FILES" ] || {
+  echo "FAIL: no repair ticket created for bounced lane" >&2
+  exit 1
+}
 
 # Stderr mentions the bounce.
 grep -q "bounced lane\|out_of_scope\|outside declared scope" "$TMPDIR/landing-stderr.log" || {
@@ -377,6 +413,7 @@ cat >"$BOARD/issues/020-20.md" <<'EOF'
 id: 20
 title: Ticket 20
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 ---
 
@@ -394,6 +431,7 @@ cat >"$BOARD/issues/021-21.md" <<'EOF'
 id: 21
 title: Ticket 21
 status: pending
+labels: [ready-for-agent]
 blocked_by: []
 ---
 
@@ -408,7 +446,8 @@ EOF
 
 REPO="$TMPDIR/noscope-repo"
 new_repo "$REPO"
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 # Agent writes files anywhere (no scope check expected).
@@ -438,7 +477,10 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 jq -e '
   [.children[] | select(.merge.status == "landed") | .number] | sort
   | . == [20, 21]
-' "$MANIFEST" >/dev/null || { echo "FAIL: both no-scope tickets should have landed" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: both no-scope tickets should have landed" >&2
+  exit 1
+}
 
 # Both must be in the same (first) wave.
 has_20_wave1="$(jq -r '.orchestration.waveLog[0].children | map(. == 20) | any' "$MANIFEST")"

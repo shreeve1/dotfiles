@@ -845,128 +845,77 @@ fold_child_result() {
   return 0
 }
 
-# read_kanban_children reads $board_dir/*.md files (or $board_dir/issues/*.md)
-# and emits the manifest child shape for every ticket found. The state rules
-# mirror GitHub: status="done" resolves to CLOSED; any other status is OPEN.
-# The "ready-for-agent" label is implicit iff status=="pending". A blocker is
-# considered open when the referenced ticket has status != "done" or is
-# missing from the board (fail-closed: a missing reference keeps the
-# dependent blocked).
-read_kanban_children() {
-  local board_dir="$1"
-
-  local issues_dir="$board_dir"
-  [ -d "$issues_dir/issues" ] && issues_dir="$issues_dir/issues"
-  [ -d "$issues_dir" ] || { echo "error: board directory has no issues: $board_dir" >&2; return 1; }
-
-  local files
-  files="$(find "$issues_dir" -maxdepth 1 -name '*.md' -type f | sort)"
-  [ -n "$files" ] || { echo "error: board directory has no *.md files: $issues_dir" >&2; return 1; }
-
-  local tickets_file id title status blocked_by files_field front_file f
-  tickets_file="$(mktemp)"
-  for f in $files; do
-    # Parse the frontmatter slice (after the first `---`, up to the first
-    # blank line) using awk. We avoid yq because ticket bodies contain
-    # markdown prose and YAML parsers reject some real titles (e.g. one with
-    # an embedded `:`), and we don't want a real YAML library as a hard dep.
-    front_file="$(mktemp)"
-    awk '
-      BEGIN { fm = 0 }
-      fm == 0 && /^---[[:space:]]*$/ { fm = 1; next }
-      fm == 1 && /^---[[:space:]]*$/ { exit }
-      fm == 1 && /^[[:space:]]*$/ { exit }
-      fm == 1 { print }
-    ' "$f" >"$front_file"
-    if [ ! -s "$front_file" ]; then
-      rm -f "$front_file"
-      echo "error: no YAML frontmatter in $f" >&2
-      rm -f "$tickets_file"
-      return 1
+# locate_board_sh prints the path of the shared kanban eligibility script.
+locate_board_sh() {
+  local candidate
+  for candidate in "${GRALPH_BOARD_SH:-}" \
+    "$SCRIPT_ROOT/.agents/skills/kanban/board.sh" \
+    "$HOME/.agents/skills/kanban/board.sh"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      printf '%s' "$candidate"
+      return 0
     fi
-    id="$(awk -F': *' '/^id:/ {print $2; exit}' "$front_file")"
-    case "$id" in
-      ''|null) echo "error: missing id in $f" >&2
-               rm -f "$front_file" "$tickets_file"; return 1 ;;
-    esac
-    title="$(awk -F': *' '/^title:/ {sub(/^title:[ \t]*/,""); print; exit}' "$front_file")"
-    status="$(awk -F': *' '/^status:/ {print $2; exit}' "$front_file")"
-    # blocked_by value: locate the `blocked_by:` line and capture everything
-    # until the next recognised field (or end of input). Empty string when
-    # the field is absent. Output is the verbatim value (e.g. `[2]` or
-    # multi-line YAML list), which we JSON-encode in a follow-up step.
-    blocked_by="$(awk '
-      /^blocked_by:/ { capture = 1; sub(/^blocked_by:[ \t]*/, ""); print; next }
-      capture && /^[[:space:]]*-/ { print; next }
-      capture { exit }
-    ' "$front_file")"
-    [ -z "$blocked_by" ] && blocked_by=''
-    case "$blocked_by" in
-      '') blocked_by='[]' ;;
-      \[*\]) blocked_by="$(printf '%s' "$blocked_by" | tr -d '\n' | jq -c 'if type == "array" then . else [] end' 2>/dev/null || echo '[]')" ;;
-      *)
-        items="$(printf '%s\n' "$blocked_by" | awk '/^[[:space:]]*-/ {sub(/^[[:space:]]*-[[:space:]]*/,""); gsub(/^["'\'']|["'\'']$/,""); print}' | head -50)"
-        blocked_by="$(printf '%s' "$items" | jq -R -s 'split("\n") | map(select(length > 0))')"
-        ;;
-    esac
-    # files value: same capture pattern as blocked_by above.
-    files_field="$(awk '
-      /^files:/ { capture = 1; sub(/^files:[ \t]*/, ""); if ($0 == "[]" || $0 == "null") exit; print; next }
-      capture && /^[[:space:]]*-/ { print; next }
-      capture { exit }
-    ' "$front_file")"
-    # Strip leading/trailing whitespace from each line; preserve internal
-    # spaces in list items. An empty `files:` line collapses to "" which we
-    # then map to JSON null below.
-    files_field="$(printf '%s\n' "$files_field" | awk 'NF || /^$/ { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print }' | sed '/^$/d')"
-    case "$files_field" in
-      '') files_field='null' ;;
-      \[*\]) files_field="$(printf '%s' "$files_field" | tr -d '\n' | jq -c 'if type == "array" then . else [] end' 2>/dev/null || echo '[]')" ;;
-      *)
-        items="$(printf '%s\n' "$files_field" | awk '/^-/ {sub(/^-[[:space:]]*/,""); gsub(/^["'\'']|["'\'']$/,""); print}' | head -50)"
-        files_field="$(printf '%s' "$items" | jq -R -s 'split("\n") | map(select(length > 0))')"
-    esac
-    jq -n \
-      --arg file "$f" \
-      --argjson id "$id" \
-      --arg title "$title" \
-      --arg status "$status" \
-      --argjson blockedBy "$blocked_by" \
-      --argjson files "$files_field" \
-      '{file:$file,id:$id,title:$title,status:$status,blockedBy:$blockedBy,files:$files}' >>"$tickets_file"
-    rm -f "$front_file"
   done
+  return 1
+}
 
-  jq -s --argjson nullStatus '"missing"' '
-    . as $all |
-    def open_blocker($bid):
-      ([$all[] | select((.id|tostring) == ($bid|tostring)) | .status][0] // $nullStatus) != "done";
-    [ .[] |
-      . as $t |
-      (if $t.status == "done" then "CLOSED" else "OPEN" end) as $state |
-      (if $t.status == "pending" then "pending" else "missing" end) as $ready |
-      (any($t.blockedBy[]; open_blocker(.))) as $hasOpen |
-      (if $state == "CLOSED" then
-        {state:$state, classification:"excluded", reason:"child_not_open"}
-      elif $ready != "pending" then
-        {state:$state, classification:"excluded", reason:"missing_ready_for_agent_label"}
-      elif $hasOpen then
-        {state:$state, classification:"blocked", reason:"open_blockers"}
-      else
-        {state:$state, classification:"eligible", reason:null}
-      end) as $cls |
-      {
-        number: $t.id,
-        title: $t.title,
-        state: $cls.state,
-        labels: (if $cls.classification == "excluded" then [] else ["ready-for-agent"] end),
-        blockedBy: $t.blockedBy,
-        classification: $cls.classification,
-        reason: $cls.reason
-      } + (if $t.files != null then {files: $t.files} else {} end)
-        + (if $t.file != null then {file: $t.file} else {} end)
-    ] | sort_by(.number)
-  ' "$tickets_file"
+# read_kanban_children emits the manifest child shape for every ticket in a
+# local kanban board. Parsing and the label / blocker / archive rules live in
+# .agents/skills/kanban/board.sh (shared with ralph-loop.sh); this function only
+# maps its output onto the GitHub-shaped manifest the orchestrator consumes.
+#
+# Mapping (mirrors GitHub): status "done" resolves to CLOSED; any other status
+# is OPEN. A child is eligible only when status is pending AND it carries
+# exactly one triage state label, ready-for-agent. A blocker is open unless it
+# is a done ticket in issues/ or archive/ (cancelled and unknown ids fail
+# closed). Blockers satisfied only by an archived done ticket are dropped from
+# blockedBy, so refresh_frontier_kanban (which re-derives eligibility from
+# blockedBy and the live child set) never sees them as open. A parent is
+# blocked by each of its children that is not done: they are appended to its
+# blockedBy so the same refresh logic enforces "children first".
+read_kanban_children() {
+  local board_dir="$1" board_sh tickets archived
+  board_sh="$(locate_board_sh)" || {
+    echo "error: cannot find kanban board.sh (set GRALPH_BOARD_SH)" >&2
+    return 1
+  }
+  tickets="$("$board_sh" --board "$board_dir" json)" || return 1
+  [ "$(printf '%s' "$tickets" | jq 'length')" -gt 0 ] || {
+    echo "error: board directory has no *.md files: $board_dir" >&2
+    return 1
+  }
+  archived="$("$board_sh" --board "$board_dir" archive)" || return 1
+
+  jq -n -c --argjson t "$tickets" --argjson a "$archived" '
+    $t as $all
+    | def live($b): any($all[]; .id == $b);
+      def archived_done($b): any($a[]; .id == $b and .status == "done");
+      def resolved($b):
+        if live($b) then ([$all[] | select(.id == $b)][0].status == "done")
+        else archived_done($b) end;
+      def open_kids($x): [$all[] | select(.parent == $x.id and .status != "done") | .id];
+      [ $all[] | . as $x
+        | ($x.status == "done") as $closed
+        | ([$x.blockedBy[] | select(live(.) or (archived_done(.) | not))] + open_kids($x) | unique) as $deps
+        | (any($x.blockedBy[]; (resolved(.) | not)) or (open_kids($x) | length > 0)) as $hasOpen
+        | (if $closed then {classification:"excluded", reason:"child_not_open"}
+           elif ($x.status != "pending") or ($x.ready | not) then
+             {classification:"excluded", reason:"missing_ready_for_agent_label"}
+           elif $hasOpen then {classification:"blocked", reason:"open_blockers"}
+           else {classification:"eligible", reason:null} end) as $cls
+        | {
+            number: $x.id,
+            title: $x.title,
+            state: (if $closed then "CLOSED" else "OPEN" end),
+            labels: (if $cls.classification == "excluded" then [] else ["ready-for-agent"] end),
+            blockedBy: $deps,
+            classification: $cls.classification,
+            reason: $cls.reason
+          }
+          + (if $x.files != null then {files: $x.files} else {} end)
+          + {file: $x.file}
+      ] | sort_by(.number)
+  '
 }
 
 # refresh_frontier_kanban re-derives the child list from disk and merges the
