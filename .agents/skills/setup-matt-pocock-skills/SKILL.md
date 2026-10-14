@@ -51,7 +51,7 @@ Record the choice in `docs/agents/issue-tracker.md`. For **Local markdown**, als
 ```bash
 mkdir -p .kanban/issues .kanban/archive .kanban/specs .kanban/maps
 [ -f .kanban/progress.md ] || printf '# Progress Log\n\nNotes from each Ralph loop iteration. Read this at the start of a new session to understand what happened before.\n' > .kanban/progress.md
-touch .kanban/archive/.gitkeep .kanban/specs/.gitkeep .kanban/maps/.gitkeep
+touch .kanban/issues/.gitkeep .kanban/archive/.gitkeep .kanban/specs/.gitkeep .kanban/maps/.gitkeep   # git does not track empty directories
 ```
 
 Then check the repo's `.gitignore` does not exclude `.kanban/` itself (only runtime logs such as `.kanban/*.log` and `.gralph/` belong there) — `ralph-worktree.sh` and the landing flow need the board tracked. The GitHub and GitLab templates carry a "PRs as a request surface" flag, defaulted **off** — leave it off and don't raise it; a user who wants external PRs in the triage queue can flip the flag in the file later.

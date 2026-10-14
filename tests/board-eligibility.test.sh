@@ -22,7 +22,7 @@ ok() { PASS=$((PASS + 1)); }
 fail() {
   FAILN=$((FAILN + 1))
   echo "FAIL: $1" >&2
-  [ -n "${2-}" ] && echo "  $2" >&2
+  if [ -n "${2-}" ]; then echo "  $2" >&2; fi
 }
 
 new_board() {
@@ -240,6 +240,53 @@ ticket "$B/issues" 3 todo 'labels: [needs-info]' '[]'
 expect_ids "todo and open count as pending" "1 2" eligible
 expect_eq "todo/open not reported as other" "0" "$(count other)"
 expect_eq "todo with needs-info waits for triage" "1" "$(count waiting_triage)"
+
+# --- security: a ticket's spec: value must never reach a shell (review finding 1) ---
+new_board inject
+PWN="$TMP/PWNED"
+rm -f "$PWN"
+for payload in "x';touch $PWN;'" "missing' || touch $PWN || 'missing" "\$(touch $PWN)" '`touch '"$PWN"'`' "a b" "../etc/passwd" "x/y"; do
+  ticket "$B/issues" 1 pending "$R" '[]' "spec: $payload"
+  out="$(bs validate 2>&1 || true)"
+  if [ -e "$PWN" ]; then fail "spec payload executed a command: $payload"; rm -f "$PWN"; else ok; fi
+  case "$out" in *"invalid spec"*) ok ;; *) fail "validate rejects the malformed spec: $payload" "$out" ;; esac
+done
+# A well-formed slug with a spec file validates; without one it is only a WARN.
+ticket "$B/issues" 1 pending "$R" '[]' 'spec: good-slug_1'
+if bs validate >/dev/null 2>&1; then ok; else fail "well-formed spec slug with no file is not an ERROR"; fi
+case "$(bs validate 2>&1)" in *"WARN"*"good-slug_1"*) ok ;; *) fail "well-formed slug with no spec file warns" ;; esac
+: >"$B/specs/good-slug_1.md"
+case "$(bs validate 2>&1)" in *WARN*) fail "no warning once the spec file exists" ;; *) ok ;; esac
+# A spec value that is not a valid slug is never matched by --spec either.
+ticket "$B/issues" 2 pending "$R" '[]' "spec: x';touch $PWN;'"
+expect_ids "--spec with a malformed value selects nothing" "" --spec "x';touch $PWN;'" eligible
+[ -e "$PWN" ] && fail "--spec did not execute anything" || ok
+
+# --- malformed blocker entries fail closed (review finding 4) -------------------
+new_board malformed
+ticket "$B/issues" 1 done - '[]'
+ticket "$B/issues" 2 pending "$R" '[1x]'
+ticket "$B/issues" 3 pending "$R" '[1, abc]'
+ticket "$B/issues" 4 pending "$R" '[01]'      # a leading zero is a valid number: id 1
+ticket "$B/issues" 5 pending "$R" '[-1]'
+expect_ids "non-numeric blockers keep the ticket blocked; leading zero is fine" "4" eligible
+expect_eq "malformed blockers count as waiting_deps" "3" "$(count waiting_deps)"
+if bs validate >/dev/null 2>&1; then fail "validate flags malformed blockers"; else ok; fi
+j="$(bs json)"
+expect_eq "json marks a malformed blocker" "true" "$(printf '%s' "$j" | jq -r '.[] | select(.id==2) | .malformedBlockers')"
+expect_eq "json does not mark a clean ticket" "false" "$(printf '%s' "$j" | jq -r '.[] | select(.id==4) | .malformedBlockers')"
+expect_eq "json keeps the numeric part of a mixed list" "[1]" "$(printf '%s' "$j" | jq -c '.[] | select(.id==3) | .blockedBy')"
+expect_eq "json ready is false for a ticket with a malformed blocker" "false" "$(printf '%s' "$j" | jq -r '.[] | select(.id==2) | .ready')"
+
+# --- archive json keeps parent so a cancelled child still holds its parent (finding 5) ---
+new_board archparent
+ticket "$B/issues" 1 pending "$R" '[]'
+ticket "$B/archive/2026-01-01" 2 cancelled - '[]' 'parent: 1'
+ticket "$B/archive/2026-01-01" 3 done - '[]' 'parent: 1'
+expect_ids "archived cancelled child holds its parent (sequential rule)" "" eligible
+expect_eq "archive json carries parent" "1" "$(bs archive | jq -r '.[] | select(.id==2) | .parent')"
+expect_eq "archive json carries status" "cancelled" "$(bs archive | jq -r '.[] | select(.id==2) | .status')"
+expect_eq "archive json: no parent is null" "null" "$(bs archive | jq -r '[.[] | select(.id==2)][0].spec // "null"')"
 
 # --- empty / missing board --------------------------------------------------
 new_board empty
