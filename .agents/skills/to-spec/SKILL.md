@@ -20,7 +20,12 @@ Check with the user that these seams match their expectations.
 
 4. **Verify the spec before publishing.** A spec asserts a pile of things about the current codebase — what modules exist, what the seams are, what prior art the tests have, what's already wired. Those claims drift as you synthesise. Before you publish, extract every load-bearing repo claim from the draft (Implementation Decisions, Testing Decisions, the seams from step 2) and run an **independent verify (see `../_shared/verify-claims.md`)** on them in one batched call. Correct any that come back FALSE, then publish. A spec that ships a wrong assumption sends every downstream ticket the wrong way.
 
-5. Publish the verified spec to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+5. Publish the verified spec to the project issue tracker. How depends on the tracker `/setup-matt-pocock-skills` configured:
+
+   - **GitHub / GitLab / other:** create the spec as an issue and apply the `ready-for-agent` triage label — no need for additional triage.
+   - **Local `.kanban/` board:** write the spec to `.kanban/specs/<spec-slug>.md` (see `docs/agents/issue-tracker.md`). Pick a short kebab-case slug (`[a-z0-9][a-z0-9-]*`) that is not already a file in `.kanban/specs/`, and create the directory if needed. A local spec is a document, **not a ticket**: do not put it in `.kanban/issues/` (the loop reads every file there as a runnable ticket) and give it no triage label.
+
+   Then tell the user the spec's location and, for a local board, the slug — it is what ties the work together: `/to-tickets` stamps `spec: <slug>` on every ticket it makes from this spec, and `tralph --spec <slug>` runs exactly those tickets.
 
 <spec-template>
 
