@@ -244,5 +244,23 @@ expect_eq "tracked ticket (path with a space) is done on main without GNU realpa
 git -C "$REPO" log --format=%s main | grep -q 'mark #1 done' && ok || fail "done is a commit on the batch branch, not an in-place edit"
 if [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]; then ok; else fail "main working tree left clean" "$(git -C "$REPO" status --porcelain)"; fi
 
+# --- 10. numeric board keys keep the shared report; slugs get their own (review finding 10) ---
+new_repo keys
+BOARD="$REPO/.kanban"
+ticket "$BOARD/issues" 1 alpha
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g 0 --dry-run --verify true >/dev/null 2>&1
+g 0 --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+[ -f "$REPO/.kanban/run-report.md" ] && ok || fail "numeric key 0 writes the shared run-report.md"
+new_repo keys2
+BOARD="$REPO/.kanban"
+ticket "$BOARD/issues" 1 alpha
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g alpha --dry-run --verify true >/dev/null 2>&1
+g alpha --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+[ -f "$REPO/.kanban/run-report-alpha.md" ] && ok || fail "slug key writes run-report-<key>.md"
+# gralph itself refuses an all-digit slug that is not a plain number it would treat as a parent
+if (cd "$REPO" && "$GRALPH" 12ab --board "$BOARD" --dry-run --verify true >/dev/null 2>&1); then ok; else fail "alphanumeric slug starting with digits is a valid key"; fi
+
 echo "gralph-board-runkey: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]

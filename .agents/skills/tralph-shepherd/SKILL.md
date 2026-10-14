@@ -24,7 +24,16 @@ BOARD_SH="$HOME/.agents/skills/kanban/board.sh"
 # Run report: .kanban/run-report.md for KEY=0, .kanban/run-report-$KEY.md for a slug.
 REPORT=$([ "$KEY" = 0 ] && echo .kanban/run-report.md || echo ".kanban/run-report-$KEY.md")
 # Deferred-merge marker (see tralph-merge): ~/.cache/ralph-merge-needed-board-$KEY
+
+# The blocked tickets IN SCOPE (a spec shepherd must not see or touch another spec's).
+blocked_files() {
+  "$BOARD_SH" --board .kanban $SPEC_ARGS files | while IFS= read -r f; do
+    grep -q '^status: blocked$' "$f" 2>/dev/null && printf '%s\n' "$f"
+  done
+}
 ```
+
+A slug is also the gralph run key, so it must contain a non-digit: never all digits (`0` is the whole-board run). `tralph` rejects an all-digit `--spec`.
 
 Use `$RUN_DIR`, `$REPORT` and `$KEY` wherever this skill used to say `.gralph/runs/0`, `run-report.md` or `board-0`. Two shepherds on **different** specs may run at once; two on the same scope may not.
 
@@ -134,8 +143,8 @@ if [[ -n "$WORKER" ]]; then
 fi
 
 # 4. Blocked-issue scan + Blocker sections (blocked is a status; see Fixing blocked issues)
-grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null
-for f in $(grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null); do
+blocked_files
+for f in $(blocked_files); do
   echo "=== $f ==="
   awk '/^## Blocker/{p=1; print; next} /^## /{p=0} p' "$f"
 done
@@ -239,8 +248,8 @@ for sc in "$RUN_DIR"/.child-*-result.json; do
 done
 
 # 5. Blocked-issue scan + Blocker sections (same as sequential mode).
-grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null
-for f in $(grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null); do
+blocked_files
+for f in $(blocked_files); do
   echo "=== $f ==="
   awk '/^## Blocker/{p=1; print; next} /^## /{p=0} p' "$f"
 done
@@ -290,7 +299,7 @@ Each "**Sleep.**" row above means proceed to step 3 (arm the interval timer) and
 
 #### Delegate-or-raise or relaunch path (board has work, driver parked)
 
-1. **Blocked issues present?** `grep -l '^status: blocked$' .kanban/issues/*.md`. For each: see "Delegate or raise?" below. Then return to step 0 next cycle.
+1. **Blocked issues present?** `blocked_files` (scoped to this shepherd's spec). For each: see "Delegate or raise?" below. Then return to step 0 next cycle.
 2. **No blocked issues, but pending/in-progress/review exist?** First know the normal case: under the default `CONTINUE_ON_ERROR=false`, a worker's `RALPH_RESULT: FAIL` or `RALPH_RESULT: BLOCKED` sentinel makes the loop exit non-zero (`Stopping loop`) and park — even when other pending work remains on the board. That is the loop's intended handoff to the shepherd, not a defect; the ticket the worker just failed/blocked is the one to triage (it will now carry `status: blocked` — see "Delegate or raise?"). Only if the park has NO such sentinel do you diagnose a genuine code-local defect: read the last `Stopping loop`/`Ralph Loop finished at` line and the worker pane. The cause is a code-local defect (worker stall, timeout, sentinel failure) — surface it as a blocker via the loop's own failure path or by raising to the user. Then see "Relaunch".
 3. **Worker session still alive but stale** (`tmux has-session -t ralph-ralph-loop-<N>` true, pane dead): the driver has not parked yet but the worker is hung. Wait one cycle before deciding; if the next cycle still shows the same dead worker, treat as parked.
 
@@ -431,10 +440,10 @@ tmux kill-session -t ralph-loop
 # This is what gives the worker ~/.bun/bin on PATH and MINIMAX_API_KEY —
 # a bare `bash …` relaunch reproduces the startup-crash / no-API-key failure.
 proj="$PWD"
-zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh tmux ralph-loop"
+zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh $SPEC_ARGS tmux ralph-loop"
 ```
 
-If the `zsh -lic '… ralph-loop.sh tmux ralph-loop'` launch exits
+If the `zsh -lic '… ralph-loop.sh $SPEC_ARGS tmux ralph-loop'` launch exits
 with the has-session guard message (line 273-281; the source wording is
 `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`),
 
