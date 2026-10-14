@@ -20,7 +20,10 @@ GRALPH="$ROOT/bin/gralph"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
@@ -46,6 +49,7 @@ write_ticket() {
     printf 'title: Ticket %s\n' "$id"
     printf 'status: %s\n' "$status"
     printf 'labels: [ready-for-agent]\n'
+    printf 'created: 2026-10-14\n'
     printf 'blocked_by: %s\n' "$blocked_by"
     printf '%s\n' '---'
     printf '\n## What to build\n\nBuild ticket %s.\n\n## Acceptance criteria\n\n- [ ] done\n\n## Verification\n\n`%s`\n' \
@@ -135,11 +139,12 @@ git -C "$REPO" commit -qm "add integration script"
 # Ticket 2 blocked by 1: enforces topo order.
 write_ticket 1 pending '[]'
 write_ticket 2 pending '[1]'
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 if run_gralph_board "$REPO" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/serial.err"; then :; else
+  --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/serial.err"; then :; else
   echo "FAIL: serial landing exited non-zero" >&2
   cat "$TMPDIR/serial.err" >&2
   exit 1
@@ -150,11 +155,17 @@ jq -e '
   (.orchestration.landed | sort == [1, 2])
   and (.children[] | select(.number == 1) | .merge.status) == "landed"
   and (.children[] | select(.number == 2) | .merge.status) == "landed"
-' "$MANIFEST" >/dev/null || { echo "FAIL: not all tickets landed in manifest" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: not all tickets landed in manifest" >&2
+  exit 1
+}
 
 # Integration branch (gralph/42/batch) must be green after both landings.
 BATCH_TIP="$(git -C "$REPO" rev-parse gralph/42/batch 2>/dev/null)"
-[ -n "$BATCH_TIP" ] || { echo "FAIL: batch branch not created" >&2; exit 1; }
+[ -n "$BATCH_TIP" ] || {
+  echo "FAIL: batch branch not created" >&2
+  exit 1
+}
 (cd "$REPO" && git checkout -q --detach "$BATCH_TIP" 2>/dev/null && bash verify-integration.sh) || {
   echo "FAIL: integration branch not green after serial landings" >&2
   git -C "$REPO" checkout -q - 2>/dev/null || true
@@ -190,13 +201,14 @@ git -C "$REPO" commit -qm "add scripts"
 
 write_ticket 10 pending '[]' 'bash check-singleton.sh'
 write_ticket 11 pending '[]' 'bash check-singleton.sh'
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 # --jobs 1: ticket 10 lands first, then ticket 11 bounces.
 # A bounce is a soft outcome: orchestrator exits 0 (all non-bounced lanes landed).
 if ! run_gralph_board "$REPO" --agent-cmd agent-singleton --jobs 1 \
-    --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/semantic.err"; then
+  --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/semantic.err"; then
   echo "FAIL: semantic bounce run exited non-zero (bounce should be a soft outcome)" >&2
   cat "$TMPDIR/semantic.err" >&2
   exit 1
@@ -225,10 +237,24 @@ grep -l 'status: blocked' $REPAIR_FILES >/dev/null || {
   cat $REPAIR_FILES >&2
   exit 1
 }
+# The repair ticket must be a valid board ticket and must not be agent-ready.
+grep -q '^labels: \[ready-for-human\]$' $REPAIR_FILES || {
+  echo "FAIL: repair ticket should be labelled ready-for-human" >&2
+  cat $REPAIR_FILES >&2
+  exit 1
+}
+"$ROOT/.agents/skills/kanban/board.sh" --board "$BOARD" validate >"$TMPDIR/repair-validate.out" 2>&1 || {
+  echo "FAIL: board with a repair ticket does not validate" >&2
+  cat "$TMPDIR/repair-validate.out" >&2
+  exit 1
+}
 
 # Integration branch still green after bounce (only ticket 10 landed).
 BATCH_TIP="$(git -C "$REPO" rev-parse gralph/42/batch 2>/dev/null)"
-[ -n "$BATCH_TIP" ] || { echo "FAIL: batch branch not created" >&2; exit 1; }
+[ -n "$BATCH_TIP" ] || {
+  echo "FAIL: batch branch not created" >&2
+  exit 1
+}
 (cd "$REPO" && git checkout -q --detach "$BATCH_TIP" 2>/dev/null && bash verify-integration.sh) || {
   echo "FAIL: integration branch not green after bounce" >&2
   git -C "$REPO" checkout -q - 2>/dev/null || true
@@ -252,11 +278,12 @@ git -C "$REPO" commit -qm "add integration script"
 
 write_ticket 20 pending '[]'
 write_ticket 21 pending '[]'
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 
 if run_gralph_board "$REPO" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/ffonly.err"; then :; else
+  --verify 'bash verify-integration.sh' >/dev/null 2>"$TMPDIR/ffonly.err"; then :; else
   echo "FAIL: ffonly run exited non-zero" >&2
   cat "$TMPDIR/ffonly.err" >&2
   exit 1

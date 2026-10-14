@@ -242,30 +242,54 @@ mkdir -p "$LOCK_DIR"
 jq -n --arg runId "stale-run" --arg host "$(hostname)" --argjson pid 999999999 \
   '{runId:$runId,host:$host,pid:$pid}' >"$LOCK_DIR/owner.json"
 
-# Restart should detect stale lock and fail closed (lock is held by another
-# claim; recovery does not auto-reap the coordinator lock — that is the
-# orchestrate_waves logic that blocks and reports the error).
-run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
-  --verify 'true' >"$TMPDIR/stale.out" 2>"$TMPDIR/stale.err" && {
-  echo "FAIL: stale lock run should exit nonzero" >&2; exit 1
-} || true
-
-grep -qE 'Gralph claim|coordinator|lock' "$TMPDIR/stale.err" || \
-  { echo "FAIL: stale lock error not reported" >&2; exit 1; }
-
-# After clearing the lock manually (simulating operator intervention),
-# the run completes.
-rm -rf "$LOCK_DIR"
-
+# Restart reaps a stale lock (same host, owner pid not running) and resumes: the
+# run completes without operator intervention.
 if ! run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'true' >"$TMPDIR/stale2.out" 2>"$TMPDIR/stale2.err"; then
-  echo "FAIL: run after manual lock removal should succeed" >&2
-  cat "$TMPDIR/stale2.err" >&2
+    --verify 'true' >"$TMPDIR/stale.out" 2>"$TMPDIR/stale.err"; then
+  echo "FAIL: run with a dead-pid lock should reap it and succeed" >&2
+  cat "$TMPDIR/stale.err" >&2
   exit 1
 fi
+grep -q 'reaped stale coordinator lock' "$TMPDIR/stale.err" || \
+  { echo "FAIL: reap should be logged" >&2; cat "$TMPDIR/stale.err" >&2; exit 1; }
+[ ! -d "$LOCK_DIR" ] || { echo "FAIL: lock should be released after the run" >&2; exit 1; }
 
 jq -e '(.children[] | select(.number == 1) | .merge.status) == "landed"' \
-  "$MANIFEST" >/dev/null || { echo "FAIL: ticket 1 should land after lock cleared" >&2; exit 1; }
+  "$MANIFEST" >/dev/null || { echo "FAIL: ticket 1 should land after the stale lock is reaped" >&2; exit 1; }
+
+# A lock held by a LIVE pid on this host must still refuse.
+REPO="$TMPDIR/live-lock"
+BOARD="$TMPDIR/board-live-lock"
+mkdir -p "$BOARD/issues"
+new_repo "$REPO"
+write_ticket "$BOARD" 1 pending '[]'
+plan_board "$REPO" "$BOARD"
+LOCK_DIR="$REPO/.gralph/runs/42/.coordinator-lock"
+mkdir -p "$LOCK_DIR"
+sleep 60 &
+LIVE_PID=$!
+jq -n --arg runId "live-run" --arg host "$(hostname)" --argjson pid "$LIVE_PID" \
+  '{runId:$runId,host:$host,pid:$pid}' >"$LOCK_DIR/owner.json"
+if run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
+    --verify 'true' >"$TMPDIR/live.out" 2>"$TMPDIR/live.err"; then
+  kill "$LIVE_PID" 2>/dev/null || true
+  echo "FAIL: a lock held by a live pid must refuse" >&2; exit 1
+fi
+grep -q 'another live Gralph run' "$TMPDIR/live.err" || \
+  { kill "$LIVE_PID" 2>/dev/null || true; echo "FAIL: live-lock refusal not reported" >&2; cat "$TMPDIR/live.err" >&2; exit 1; }
+[ -d "$LOCK_DIR" ] || { kill "$LIVE_PID" 2>/dev/null || true; echo "FAIL: live lock must not be removed" >&2; exit 1; }
+
+# A lock from a FOREIGN host cannot be proven dead: fail closed, do not reap.
+jq -n --arg runId "foreign-run" --arg host "some-other-host" --argjson pid 999999999 \
+  '{runId:$runId,host:$host,pid:$pid}' >"$LOCK_DIR/owner.json"
+kill "$LIVE_PID" 2>/dev/null || true
+if run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
+    --verify 'true' >"$TMPDIR/foreign.out" 2>"$TMPDIR/foreign.err"; then
+  echo "FAIL: a foreign-host lock must fail closed" >&2; exit 1
+fi
+grep -q 'unresolved Gralph claim' "$TMPDIR/foreign.err" || \
+  { echo "FAIL: foreign-host refusal not reported" >&2; cat "$TMPDIR/foreign.err" >&2; exit 1; }
+[ -d "$LOCK_DIR" ] || { echo "FAIL: foreign-host lock must not be removed" >&2; exit 1; }
 
 echo "stale-lock tests passed"
 

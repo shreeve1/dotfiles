@@ -43,13 +43,10 @@ if [ "$PARENT_ARG" = "finish" ]; then
   [ "$#" -eq 1 ] || { echo "error: finish requires exactly one parent issue number" >&2; exit 1; }
 else
   shift
-
-  case "$PARENT_ARG" in
-    *[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 2 ;;
-  esac
 fi
 
 DRY_RUN=0
+REPLAN=0
 VERIFY_SET=0
 VERIFY=""
 JOBS=2
@@ -59,6 +56,7 @@ if [ "$PARENT_ARG" != "finish" ]; then
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
+    --replan) REPLAN=1 ;;
     --verify)
       [ "$#" -ge 2 ] || { echo "error: --verify requires a command" >&2; exit 2; }
       VERIFY="$2"
@@ -92,6 +90,18 @@ while [ "$#" -gt 0 ]; do
 done
 fi
 
+# GitHub mode needs a numeric parent issue. Board mode also accepts a slug as
+# its run key (state dir .gralph/runs/<key>, branches gralph/<key>/...).
+if [ "$PARENT_ARG" != "finish" ]; then
+  case "$PARENT_ARG" in
+    *[!0-9]*)
+      [ -n "$BOARD_DIR" ] || { echo "error: parent issue must be numeric" >&2; exit 2; }
+      printf '%s' "$PARENT_ARG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]*$' \
+        || { echo "error: board run key must match [A-Za-z0-9][A-Za-z0-9_-]*" >&2; exit 2; }
+      ;;
+  esac
+fi
+
 # Board mode reads the frontier from a local kanban directory and never
 # touches the GitHub CLI; finish only validates previously-recorded merge
 # state which is also offline. The gh guard is therefore skipped for both.
@@ -104,7 +114,16 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
 
 if [ "$PARENT_ARG" != "finish" ]; then
-  PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+  case "$PARENT_ARG" in
+    *[!0-9]*)
+      PARENT="$PARENT_ARG"
+      PARENT_JSON="$(jq -nc --arg v "$PARENT_ARG" '$v')"
+      ;;
+    *)
+      PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+      PARENT_JSON="$PARENT"
+      ;;
+  esac
 fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -184,6 +203,43 @@ update_board_ticket_status() {
     { print }
   ' "$ticket_path" >"$ticket_path.tmp.$$"
   mv "$ticket_path.tmp.$$" "$ticket_path"
+  return 0
+}
+
+# persist_ticket_done makes a landed board ticket's `status: done` durable, so
+# ticket-review, finish-spec, the shepherd and later runs see it without
+# consulting the run manifest. Where it is written depends on the ticket:
+#   - tracked in the repo: committed on the batch branch inside the batch
+#     worktree, so it reaches the target branch through finish_board's
+#     ff-only merge. The main working tree is never edited (that would make the
+#     ff-only merge refuse to overwrite it).
+#   - untracked or outside the repo: edited in place; there is no merge to
+#     conflict with.
+# Failure here never fails the landing; the manifest remains authoritative.
+persist_ticket_done() {
+  local child="$1" manifest="$2" batch_worktree="$3"
+  local ticket rel
+  ticket="$(jq -r --argjson n "$child" '.children[] | select(.number == $n) | .file // ""' "$manifest" 2>/dev/null || true)"
+  if [ -z "$ticket" ] || [ ! -f "$ticket" ]; then
+    echo "warn: cannot persist done for #$child: ticket file not found" >&2
+    return 0
+  fi
+  rel="$(realpath --relative-to="$REPO_ROOT" "$ticket" 2>/dev/null || true)"
+  case "$rel" in
+    '' | ../*)
+      update_board_ticket_status "$ticket" done || true
+      return 0
+      ;;
+  esac
+  if git -C "$batch_worktree" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
+    update_board_ticket_status "$batch_worktree/$rel" done || return 0
+    git -C "$batch_worktree" add -- "$rel" >/dev/null 2>&1 || return 0
+    git -C "$batch_worktree" -c user.name=gralph -c user.email=gralph@localhost \
+      commit -q -m "chore(kanban): mark #$child done" -- "$rel" >/dev/null 2>&1 \
+      || echo "warn: could not commit done status for #$child" >&2
+  else
+    update_board_ticket_status "$ticket" done || true
+  fi
   return 0
 }
 
@@ -1136,10 +1192,25 @@ orchestrate_waves() {
       else
         echo "error: another live Gralph run owns parent #$PARENT" >&2
       fi
+      return 1
+    elif [ "$owner_host" = "$host" ] && [ -n "$owner_pid" ]; then
+      # Same host, owner pid is gone: the coordinator crashed. Reap its lock.
+      # Rename before deleting so two racing restarts cannot delete a lock the
+      # other has just re-created; a lost race falls through to the mkdir check.
+      local reaped="$lock_dir.reaped.$$"
+      if mv "$lock_dir" "$reaped" 2>/dev/null; then
+        rm -rf "$reaped"
+        echo "info: reaped stale coordinator lock (owner pid $owner_pid is not running)" >&2
+      fi
+      if ! mkdir "$lock_dir" 2>/dev/null; then
+        echo "error: could not take coordinator lock at $lock_dir after reaping a stale one" >&2
+        return 1
+      fi
     else
+      # Foreign host, or no readable owner record: cannot prove it is dead.
       echo "error: an unresolved Gralph claim exists at $lock_dir" >&2
+      return 1
     fi
-    return 1
   fi
   lock_owned=1
   jq -n --arg runId "$run_id" --arg host "$host" --argjson pid "$$" \
@@ -1309,7 +1380,7 @@ write_repair_ticket() {
   while IFS= read -r f; do
     id="$(awk -F': *' '/^id:/ {print $2; exit}' "$f" 2>/dev/null || true)"
     case "$id" in [0-9]*) [ "$id" -gt "$max_id" ] 2>/dev/null && max_id="$id" ;; esac
-  done < <(find "$board_dir/issues" -name '*.md' 2>/dev/null || true)
+  done < <(find "$board_dir/issues" "$board_dir/archive" -name '*.md' 2>/dev/null || true)
   local repair_id=$(( max_id + 1 ))
   local candidate_file="$board_dir/issues/$(printf '%03d' "$repair_id")-repair-$child.md"
   {
@@ -1317,7 +1388,11 @@ write_repair_ticket() {
     printf 'id: %s\n' "$repair_id"
     printf 'title: Repair bounced lane for ticket #%s\n' "$child"
     printf '%s\n' 'status: blocked'
+    # A bounced lane needs a human or a fresh agent session to untangle; it is
+    # not agent-ready, so it must not be re-picked until someone retriages it.
+    printf '%s\n' 'labels: [ready-for-human]'
     printf '%s\n' 'blocked_by: []'
+    printf 'created: %s\n' "$(date +%F)"
     printf '%s\n' 'actor: gralph-bounce'
     printf '%s\n' '---'
     printf '\n## What to build\n\n'
@@ -1634,6 +1709,7 @@ merge_one_child() {
     fi
     local landed_sha
     landed_sha="$(git -C "$batch_worktree" rev-parse HEAD)"
+    persist_ticket_done "$child" "$manifest" "$batch_worktree"
 
     write_manifest "$manifest" --argjson child "$child" --arg landedSha "$landed_sha" \
       --arg batchBranch "$batch_branch" --arg batchWorktree "$batch_worktree" \
@@ -2220,7 +2296,7 @@ if [ "$DRY_RUN" -ne 1 ]; then
   }
   manifest="$REPO_ROOT/.gralph/runs/$PARENT/manifest.json"
   [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; exit 1; }
-  jq -e --argjson parent "$PARENT" '
+  jq -e --argjson parent "$PARENT_JSON" '
     .schemaVersion == 1 and .parent == $parent and (.baseSha | type == "string")
     and (.children | type == "array")
   ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
@@ -2372,12 +2448,29 @@ fi
 
 BASE_SHA="$(git rev-parse HEAD)"
 RUN_DIR=".gralph/runs/$PARENT"
+
+# Board mode: a saved manifest that has already been executed (and whose batch
+# has not been merged to the target branch) carries landing / review / recovery
+# state. Re-planning must not wipe it: refresh the frontier in place instead.
+# --replan discards it; a finished (merged) run starts fresh automatically.
+if [ -n "$BOARD_DIR" ] && [ "$REPLAN" -ne 1 ] && [ -f "$RUN_DIR/manifest.json" ]; then
+  if jq -e --argjson parent "$PARENT_JSON" '
+    .schemaVersion == 1 and .parent == $parent
+    and ((.orchestration.runId // null) != null)
+    and ((.orchestration.boardFinish.status // "") != "merged")
+  ' "$RUN_DIR/manifest.json" >/dev/null 2>&1; then
+    refresh_frontier_kanban "$RUN_DIR/manifest.json" "$BOARD_DIR" || exit 1
+    printf 'Resumed parent #%s: kept saved run state (use --replan to discard)\n' "$PARENT"
+    printf 'Manifest: %s\n' "$RUN_DIR/manifest.json"
+    exit 0
+  fi
+fi
 mkdir -p "$RUN_DIR"
 TMP_MANIFEST="$RUN_DIR/.manifest.json.tmp.$$"
 trap 'rm -f "$TMP_MANIFEST"' EXIT
 
 jq -n \
-  --argjson parent "$PARENT" \
+  --argjson parent "$PARENT_JSON" \
   --arg baseSha "$BASE_SHA" \
   --arg verify "$VERIFY" \
   --argjson verifySet "$VERIFY_SET" \
