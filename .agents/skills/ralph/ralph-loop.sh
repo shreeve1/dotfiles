@@ -328,7 +328,10 @@ if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [
   echo "" >&2
 fi
 
-ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
+# Startup warning only (the loop itself scopes via active_ticket_files): list the active
+# tickets this run will resume, i.e. those inside --spec when one was given.
+ACTIVE_ISSUES=$("$BOARD_SH" --board .kanban ${SPEC:+--spec "$SPEC"} files 2>/dev/null |
+  while IFS= read -r _f; do grep -lE '^status: (in-progress|review)$' "$_f" 2>/dev/null || true; done)
 if [[ -n "$ACTIVE_ISSUES" && "$FORCE_MODE" != "true" ]]; then
   echo "⚠️  Found active issue(s) in 'in-progress' or 'review' state" >&2
   echo "" >&2
@@ -482,7 +485,7 @@ count_actionable_review_targets() {
   local count=0
   local issue_file status id
 
-  for issue_file in .kanban/issues/*.md; do
+  while IFS= read -r issue_file; do
     [[ -f "$issue_file" ]] || continue
     status=$(issue_status_for_file "$issue_file")
     id=$(issue_id_for_file "$issue_file")
@@ -498,7 +501,7 @@ count_actionable_review_targets() {
         fi
         ;;
     esac
-  done
+  done < <(scoped_ticket_files)
 
   echo "$count"
 }
@@ -508,7 +511,7 @@ select_actionable_review_target() {
 
   for wanted in blocked review in-progress done; do
     candidate=$(
-      for issue_file in .kanban/issues/*.md; do
+      while IFS= read -r issue_file; do
         [[ -f "$issue_file" ]] || continue
         status=$(issue_status_for_file "$issue_file")
         [[ "$status" == "$wanted" ]] || continue
@@ -521,7 +524,7 @@ select_actionable_review_target() {
         priority=$(issue_priority_for_file "$issue_file")
         printf '%06d %012d %s
 ' "$priority" "$(normalize_issue_id "$id")" "$issue_file"
-      done | sort -k1,1n -k2,2n | head -1 | cut -d' ' -f3-
+      done < <(scoped_ticket_files) | sort -k1,1n -k2,2n | head -1 | cut -d' ' -f3-
     )
     if [[ -n "$candidate" ]]; then
       printf '%s' "$candidate"
@@ -538,6 +541,24 @@ select_actionable_review_target() {
 # supervisor and the shepherd cannot drift apart.
 board() {
   "$BOARD_SH" --board .kanban ${SPEC:+--spec "$SPEC"} --ready-label "$READY_LABEL" "$@"
+}
+
+# scoped_ticket_files prints the path of every ticket in scope (any status), where
+# scope is --spec when given, else the whole board. Every scan that picks tickets by
+# STATUS (active resume, review targets, continue-on-error reset, the unattended
+# guard) goes through this so --spec confines them exactly as it confines `next`.
+scoped_ticket_files() {
+  board files 2>/dev/null || true
+}
+# active_ticket_files prints the in-scope tickets that are in-progress or review.
+active_ticket_files() {
+  local f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    case "$(issue_status_for_file "$f")" in
+      in-progress | review) printf '%s\n' "$f" ;;
+    esac
+  done < <(scoped_ticket_files)
 }
 
 # board_count KEY prints one value from `board.sh counts`; fails the loop loudly
@@ -965,18 +986,19 @@ run_verification_gate() {
 }
 
 reset_active_issues_to_pending() {
-  local active_count failed_issue backup_dir
-  active_count=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | wc -l | tr -d ' ')
+  local active_count failed_issue backup_dir active_list
+  active_list=$(active_ticket_files)
+  active_count=$(printf '%s\n' "$active_list" | sed '/^$/d' | wc -l | tr -d ' ')
   if [[ "$active_count" -eq 0 ]]; then
     return 0
   fi
   if [[ "$active_count" -gt 1 ]]; then
     echo "⚠️  Continue-on-error found $active_count active issues; not resetting automatically." | tee -a "$LOG_FILE"
-    find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | tee -a "$LOG_FILE"
+    printf '%s\n' "$active_list" | sed '/^$/d' | tee -a "$LOG_FILE"
     return 1
   fi
 
-  failed_issue=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null | head -1)
+  failed_issue=$(printf '%s\n' "$active_list" | sed '/^$/d' | head -1)
   backup_dir=".kanban/backups/error-recovery-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$backup_dir"
   cp "$failed_issue" "$backup_dir/$(basename "$failed_issue")"
@@ -1059,7 +1081,7 @@ guard_and_block_failing_issue() {
   if [[ -z "$fid" ]]; then
     # No FAIL/BLOCKED id (e.g. a timeout with no sentinel): fall back to the
     # single in-progress issue, which the worker left mid-flight.
-    inprog=$(find .kanban/issues -name '*.md' -exec grep -l '^status: in-progress$' {} \; 2>/dev/null | sed '/^$/d')
+    inprog=$(active_ticket_files | while IFS= read -r af; do [[ "$(issue_status_for_file "$af")" == "in-progress" ]] && printf '%s\n' "$af"; done | sed '/^$/d')
     if [[ $(printf '%s\n' "$inprog" | sed '/^$/d' | wc -l | tr -d ' ') -eq 1 ]]; then
       fid=$(issue_id_for_file "$inprog")
     fi
@@ -1107,7 +1129,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   BLOCKED_ISSUES=$(board_count blocked)
   WAITING_COUNT=$(($(board_count waiting_triage) + $(board_count waiting_human) + $(board_count wontfix) + $(board_count conflict) + $(board_count waiting_deps)))
   PENDING_ISSUES=$(($(board_count eligible) + WAITING_COUNT))
-  ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
+  ACTIVE_ISSUES=$(active_ticket_files)
   ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l | tr -d ' ')
   UNBLOCKED_COUNT=$(count_unblocked_pending)
   REVIEW_READY_COUNT=$(count_actionable_review_targets)
@@ -1171,6 +1193,14 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   # untriaged ticket can never be selected just because another one is ready.
   # Active tickets (in-progress/review) are resumed by the worker as before.
   AGENT_PROMPT="$BASE_AGENT_PROMPT"
+  if [[ "$REVIEW_LOOP" != "true" && $ACTIVE_COUNT -gt 0 ]]; then
+    # Resume an in-scope active ticket, and say which one: left to itself the worker
+    # would scan the whole board and could pick up a ticket outside --spec.
+    CURRENT_TARGET=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | head -1)
+    CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
+    echo "🔁 Resuming active ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
+    AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); it was already started, so resume it. Do not pick a different ticket."
+  fi
   if [[ "$REVIEW_LOOP" != "true" && $ACTIVE_COUNT -eq 0 ]]; then
     CURRENT_TARGET=$(board next | cut -f2 || true)
     if [[ -z "$CURRENT_TARGET" ]]; then

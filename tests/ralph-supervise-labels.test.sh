@@ -155,5 +155,12 @@ expect_eq "board.sh failure never launches the driver" "0" "$(launches)"
 suplog | grep -q 'could not read' && ok || fail "board.sh failure is logged" "$(suplog | tail -3)"
 mv "$SK/kanban/board.sh.bak" "$SK/kanban/board.sh"
 
+# --- 7. legacy mode in a directory with no .kanban: quiet, no launch (review finding 9) ---
+new_board nokanban
+rm -rf "$D/.kanban"
+supervise "$D" -- tmux ralph-loop
+expect_eq "no board: no launch" "0" "$(launches)"
+if grep -qiE 'syntax error|operand expected' "$TMP/sup.out" "$HOMEDIR/.cache/ralph-supervise-sup-test.log" 2>/dev/null; then fail "no arithmetic errors without a .kanban directory" "$(grep -iE 'syntax error|operand' "$TMP/sup.out" | head -2)"; else ok; fi
+
 echo "ralph-supervise-labels: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
