@@ -15,8 +15,10 @@ is read from a local kanban directory of *.md files instead of GitHub.
 Board-mode lanes spawn full-tool Ralph workers via --agent-cmd (or
 $GRALPH_AGENT_CMD); the worker implements, runs the ticket verification,
 commits, spawns its own fresh-session reviewer, and emits the
-`RALPH_RESULT` sentinel. The coordinator never commits on the worker's
-behalf and never edits .kanban state in board mode.
+`RALPH_RESULT` sentinel. The coordinator never commits worker code on the
+worker's behalf. Its only writes to the board are narrow and its own: a landed
+ticket's `status: done`, a repair ticket for a bounced lane, and folding the
+lane's progress note into .kanban/progress.md.
 In board mode the first argument is a run key: a number, or a slug
 ([A-Za-z0-9][A-Za-z0-9_-]*) naming .gralph/runs/<key> and gralph/<key>/batch.
 --spec <slug> limits the run to tickets with `spec: <slug>` in their
@@ -217,6 +219,25 @@ update_board_ticket_status() {
   return 0
 }
 
+# repo_relative_path prints PATH relative to REPO_ROOT, or nothing if PATH is not
+# inside the repo. Pure shell + `cd`/`pwd -P`: GNU `realpath --relative-to` does
+# not exist on BSD/macOS, and a silent empty result there would send a tracked
+# ticket down the "outside the repo" branch and edit the main working tree.
+repo_relative_path() {
+  local p="$1" dir base root
+  [ -e "$p" ] || return 0
+  dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || return 0
+  base="$(basename "$p")"
+  root="$(cd "$REPO_ROOT" 2>/dev/null && pwd -P)" || return 0
+  if [ "$dir" = "$root" ]; then
+    printf '%s' "$base"
+  else
+    case "$dir" in
+      "$root"/*) printf '%s' "${dir#"$root"/}/$base" ;;
+    esac
+  fi
+}
+
 # persist_ticket_done makes a landed board ticket's `status: done` durable, so
 # ticket-review, finish-spec, the shepherd and later runs see it without
 # consulting the run manifest. Where it is written depends on the ticket:
@@ -235,7 +256,7 @@ persist_ticket_done() {
     echo "warn: cannot persist done for #$child: ticket file not found" >&2
     return 0
   fi
-  rel="$(realpath --relative-to="$REPO_ROOT" "$ticket" 2>/dev/null || true)"
+  rel="$(repo_relative_path "$ticket")"
   case "$rel" in
     '' | ../*)
       update_board_ticket_status "$ticket" done || true
@@ -927,9 +948,13 @@ locate_board_sh() {
 }
 
 # read_kanban_children emits the manifest child shape for every ticket in a
-# local kanban board. Parsing and the label / blocker / archive rules live in
-# .agents/skills/kanban/board.sh (shared with ralph-loop.sh); this function only
-# maps its output onto the GitHub-shaped manifest the orchestrator consumes.
+# local kanban board. Parsing, the label rule and the malformed-blocker rule live
+# in .agents/skills/kanban/board.sh (shared with ralph-loop.sh). The blocker /
+# archive / parent resolution below is a jq re-statement of board.sh's, because the
+# manifest needs a per-ticket classification with reasons and a resolved blockedBy
+# list that `board.sh eligible` does not emit. The two are held together by
+# tests/board-gralph-parity.test.sh, which fails if they pick different tickets;
+# change a rule in both places and run it.
 #
 # Mapping (mirrors GitHub): status "done" resolves to CLOSED; any other status
 # is OPEN. A child is eligible only when status is pending AND it carries
@@ -966,7 +991,13 @@ read_kanban_children() {
       def resolved($b):
         if live($b) then ([$all[] | select(.id == $b)][0].status == "done")
         else archived_done($b) end;
-      def open_kids($x): [$all[] | select(.parent == $x.id and .status != "done") | .id];
+      # A child holds its parent open until it is done, wherever it lives: an
+      # ARCHIVED cancelled (or otherwise unfinished) child still counts. Archived
+      # ids are not in the live child set, so refresh keeps the parent blocked on
+      # them (a blocker missing from the set is never treated as closed).
+      def open_kids($x):
+        ([$all[] | select(.parent == $x.id and .status != "done") | .id]
+         + [$a[]  | select(.parent == $x.id and .status != "done") | .id]) | unique;
       [ $all[] | . as $x
         | ($x.status == "done") as $closed
         | ([$x.blockedBy[]
@@ -1222,15 +1253,36 @@ orchestrate_waves() {
       return 1
     elif [ "$owner_host" = "$host" ] && [ -n "$owner_pid" ]; then
       # Same host, owner pid is gone: the coordinator crashed. Reap its lock.
-      # Rename before deleting so two racing restarts cannot delete a lock the
-      # other has just re-created; a lost race falls through to the mkdir check.
-      local reaped="$lock_dir.reaped.$$"
+      #
+      # Two restarts can both read the SAME dead owner. If the reaper only did
+      # `mv lock; mkdir lock`, a slow restart could move aside (and delete) the
+      # FRESH lock a faster restart had just created, and both would run. So the
+      # reap is made conditional on the lock still being the one we inspected:
+      # rename it to a name unique to us first (rename is atomic, only one
+      # process can move a given directory), THEN re-read the owner from the moved
+      # copy. If it is not the dead owner we read, we took a live lock by mistake:
+      # put it back and refuse. Only after that do we delete and re-acquire with
+      # mkdir, which is the one atomic arbiter; the loser of that race refuses.
+      local reaped="$lock_dir.reaped.$$.$RANDOM"
       if mv "$lock_dir" "$reaped" 2>/dev/null; then
-        rm -rf "$reaped"
-        echo "info: reaped stale coordinator lock (owner pid $owner_pid is not running)" >&2
+        local moved_pid moved_host
+        moved_pid="$(jq -r '.pid // empty' "$reaped/owner.json" 2>/dev/null || true)"
+        moved_host="$(jq -r '.host // empty' "$reaped/owner.json" 2>/dev/null || true)"
+        if [ "$moved_host" = "$owner_host" ] && [ "$moved_pid" = "$owner_pid" ]; then
+          rm -rf "$reaped"
+          echo "info: reaped stale coordinator lock (owner pid $owner_pid is not running)" >&2
+        else
+          # We moved a lock that is not the stale one we read: another restart
+          # replaced it in between. Give it back untouched and refuse.
+          if ! mv "$reaped" "$lock_dir" 2>/dev/null; then
+            echo "error: displaced a live coordinator lock and could not restore it: $reaped" >&2
+          fi
+          echo "error: another Gralph run took the coordinator lock while it was being reaped" >&2
+          return 1
+        fi
       fi
       if ! mkdir "$lock_dir" 2>/dev/null; then
-        echo "error: could not take coordinator lock at $lock_dir after reaping a stale one" >&2
+        echo "error: another Gralph run took the coordinator lock; refusing to run alongside it" >&2
         return 1
       fi
     else
@@ -2249,7 +2301,26 @@ recover_state() {
         resumed_merge=$((resumed_merge+1))
         jq -nc --argjson child "$child" --arg branch "$branch" --arg commitSha "$commit_sha" \
           '{child:$child, action:"resumed_merge", reason:"review_accepted_merge_pending", branch:$branch, commitSha:$commitSha}' >>"$decisions_file"
-        merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" 2>/dev/null || true
+        # Land it the way a fresh lane lands: in board mode that is the board protocol
+        # (rebase, re-run the ticket's own Verification, scope check, durable done),
+        # NOT the GitHub --no-ff merge. The ticket's verification command was
+        # recorded in the manifest when its review was accepted; fall back to the
+        # ticket file's ## Verification section if an older manifest lacks it.
+        local rc_board="" rc_verify="" rc_worktree="" rc_file="" rc_t="" rc_b=""
+        if [ -n "$board_dir" ]; then
+          rc_board="$board_dir"
+          rc_verify="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .verificationCommand // ""' "$manifest")"
+          rc_file="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .file // ""' "$manifest")"
+          if [ -z "$rc_verify" ] && [ -f "$rc_file" ]; then
+            rc_t="$(mktemp)"; rc_b="$(mktemp)"
+            read_board_ticket "$rc_file" "$rc_b" "$rc_t" "$rc_t.v" >/dev/null 2>&1 || true
+            rc_verify="$(cat "$rc_t.v" 2>/dev/null || true)"
+            rm -f "$rc_t" "$rc_b" "$rc_t.v"
+          fi
+          rc_worktree="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .execution.worktree // ""' "$manifest")"
+        fi
+        merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" \
+          "$rc_board" "$rc_verify" "$rc_worktree" 2>/dev/null || true
       else
         inconsistent=$((inconsistent+1))
         jq -nc --argjson child "$child" '{child:$child, action:"inconsistent", reason:"accepted_review_branch_missing"}' >>"$decisions_file"

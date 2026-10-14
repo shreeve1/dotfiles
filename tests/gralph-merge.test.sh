@@ -223,7 +223,14 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 stamp_accepted_child "$REPO" "$MANIFEST" 101 "branch-101" "implement 101" "worker-output.txt"
 # Forge a manifest whose recorded base SHA does not exist in the repo's object database.
 old_base="$(jq -r '.baseSha' "$MANIFEST")"
-ghost_base="$(printf '%s' "$old_base" | sed 's/^./0/')"
+# Same length as the real SHA but never equal to it: swap the first hex digit for f
+# (or e if it already is f). The old form, replacing it with 0, equalled the real SHA
+# whenever that began with 0 (about 1 run in 16); the "ghost" then resolved and the
+# test failed for no reason.
+case "$old_base" in
+  f*) ghost_base="e${old_base#?}" ;;
+  *) ghost_base="f${old_base#?}" ;;
+esac
 jq --arg base "$ghost_base" '.baseSha = $base' "$MANIFEST" >"$MANIFEST.tmp.$$" && mv "$MANIFEST.tmp.$$" "$MANIFEST"
 PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
 if (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$ghost_base" 'bash verify-integration.sh' "test-stale-101" "gralph/42/issue-101" "$(jq -r '.children[0].execution.commitSha' "$MANIFEST")") 2>"$TMPDIR/stale.err"; then

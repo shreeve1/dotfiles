@@ -291,6 +291,38 @@ grep -q 'unresolved Gralph claim' "$TMPDIR/foreign.err" || \
   { echo "FAIL: foreign-host refusal not reported" >&2; cat "$TMPDIR/foreign.err" >&2; exit 1; }
 [ -d "$LOCK_DIR" ] || { echo "FAIL: foreign-host lock must not be removed" >&2; exit 1; }
 
+# Several restarts racing for ONE stale lock: exactly one may reap it and become the
+# coordinator. Before the identity re-check, 2-4 of 8 each reported reaping it (a slow
+# reaper could displace the fresh lock a faster one had just taken).
+REPO="$TMPDIR/race-lock"
+BOARD="$TMPDIR/board-race-lock"
+mkdir -p "$BOARD/issues"
+new_repo "$REPO"
+write_ticket "$BOARD" 1 pending '[]'
+plan_board "$REPO" "$BOARD"
+LOCK_DIR="$REPO/.gralph/runs/42/.coordinator-lock"
+mkdir -p "$LOCK_DIR"
+jq -n --arg host "$(hostname)" '{runId:"dead",host:$host,pid:999999999}' >"$LOCK_DIR/owner.json"
+: >"$AGENT_LOG"
+cat >"$FAKE_BIN/agent-slow" <<EOF2
+#!/usr/bin/env bash
+set -euo pipefail
+echo launched >>"$AGENT_LOG"
+sleep 1
+n="\$(grep -oE 'Ticket: #[0-9]+' "\${!#}" | head -1 | grep -oE '[0-9]+')"
+printf x >"worker-output-\$n.txt"; git add "worker-output-\$n.txt"; git commit -qm "feat: \$n"
+printf 'RALPH_RESULT: DONE #%s\n' "\$n"
+EOF2
+chmod +x "$FAKE_BIN/agent-slow"
+for i in 1 2 3 4 5 6; do
+  ( run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-slow --jobs 1 --verify 'true' >"$TMPDIR/race$i.out" 2>"$TMPDIR/race$i.err" || true ) &
+done
+wait
+reapers="$(grep -l 'reaped stale coordinator lock' "$TMPDIR"/race*.err 2>/dev/null | wc -l | tr -d ' ')"
+launches="$(wc -l <"$AGENT_LOG" | tr -d ' ')"
+[ "$reapers" = "1" ] || { echo "FAIL: $reapers restarts claimed to reap the one stale lock (want exactly 1)" >&2; exit 1; }
+[ "$launches" = "1" ] || { echo "FAIL: ticket was launched $launches times under a raced stale lock (want 1)" >&2; exit 1; }
+
 echo "stale-lock tests passed"
 
 # =============================================================================
@@ -400,6 +432,19 @@ jq -e '(.children[] | select(.number == 2) | .merge.status) == "landed"' \
 # Recovery line appears before wave work.
 grep -E '^Recovery:' "$TMPDIR/resume.err" >/dev/null || \
   { echo "FAIL: recovery line missing from stderr" >&2; exit 1; }
+
+# Review finding 3: a child recovered AFTER its review was accepted must land through
+# the BOARD protocol (rebase + ticket verification + durable done), not the GitHub
+# merge path. Both tickets must end `status: done` and the recovered one must have
+# been re-verified. (This fixture's board is outside the repo, so done is written in
+# place; the in-repo case, where done is a commit on the batch branch, is covered in
+# gralph-board-runkey.test.sh.)
+for n in 1 2; do
+  st="$(sed -n 's/^status: //p' "$BOARD/issues/$(printf '%03d' "$n")-$n.md" | head -1)"
+  [ "$st" = "done" ] || { echo "FAIL: ticket $n status after recovery run is '$st', want done" >&2; exit 1; }
+done
+jq -e '(.children[] | select(.number == 1) | .merge.reverifyLog) != null' "$MANIFEST" >/dev/null || \
+  { echo "FAIL: recovered ticket 1 was not re-verified on the rebased lane (board landing skipped)" >&2; exit 1; }
 
 echo "resume-merge tests passed"
 
