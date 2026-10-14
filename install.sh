@@ -236,6 +236,8 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
   link_path "omarchy/config/systemd/user/hypr-deck.service" ".config/systemd/user/hypr-deck.service"
   link_path "omarchy/bin/omarchy-dock-suspend-inhibitor" ".local/bin/omarchy-dock-suspend-inhibitor"
   link_path "omarchy/config/systemd/user/omarchy-dock-suspend-inhibitor.service" ".config/systemd/user/omarchy-dock-suspend-inhibitor.service"
+  link_path "omarchy/bin/omarchy-idle-suspend" ".local/bin/omarchy-idle-suspend"
+  link_path "omarchy/config/systemd/user/omarchy-idle-suspend.service" ".config/systemd/user/omarchy-idle-suspend.service"
   link_path "omarchy/config/chromium-flags.conf" ".config/chromium-flags.conf"
   link_path "omarchy/config/mimeapps.list" ".config/mimeapps.list"
 
@@ -288,7 +290,7 @@ if [ "$(uname -s)" = "Linux" ] && command -v omarchy >/dev/null 2>&1; then
 
   if command -v systemctl >/dev/null 2>&1; then
     if systemctl --user daemon-reload &&
-      systemctl --user enable --now audio-device-restore.service omarchy-dock-suspend-inhibitor.service; then
+      systemctl --user enable --now audio-device-restore.service omarchy-dock-suspend-inhibitor.service omarchy-idle-suspend.service; then
       printf 'ok: Omarchy user services enabled and started\n'
     else
       printf 'warn: could not enable Omarchy user services; retry after login\n'

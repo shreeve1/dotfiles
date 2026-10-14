@@ -1,0 +1,68 @@
+#!/bin/bash
+# Suspend an idle, unattended laptop. Omarchy's idle service only locks, and
+# the lid switch is ignored (logind drop-in), so nothing else ever suspends.
+#
+# Suspends only after ALL hold for IDLE_SUSPEND_AFTER seconds in a row:
+#   - lid open (a closed lid means "keep working", so never suspend then)
+#   - Omarchy stay-awake indicator off
+#   - session locked (Omarchy locks after 30 min of no input)
+#   - CPU busy under IDLE_SUSPEND_CPU_MAX percent, so a running task keeps it up
+# A dock guard block inhibitor makes logind refuse the suspend; that is intended.
+
+set -u
+
+after=${IDLE_SUSPEND_AFTER:-600}
+cpu_max=${IDLE_SUSPEND_CPU_MAX:-15}
+interval=30
+needed=$((after / interval))
+stay_awake="$HOME/.local/state/omarchy/indicators/stay-awake"
+
+cpu_totals() {
+  local _ user nice system idle iowait irq softirq steal
+  read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+  echo "$((user + nice + system + idle + iowait + irq + softirq + steal)) $((idle + iowait))"
+}
+
+lid_open() {
+  local f
+  for f in /proc/acpi/button/lid/*/state; do
+    [[ -r $f ]] && grep -q closed "$f" && return 1
+  done
+  return 0
+}
+
+read -r prev_total prev_idle < <(cpu_totals)
+prev_time=$SECONDS
+streak=0
+
+while true; do
+  sleep "$interval"
+
+  now=$SECONDS
+  read -r total idle < <(cpu_totals)
+  d_total=$((total - prev_total))
+  d_idle=$((idle - prev_idle))
+  gap=$((now - prev_time))
+  prev_total=$total prev_idle=$idle prev_time=$now
+
+  # A gap far over the interval means the machine slept; start over.
+  if ((gap > interval * 3)); then
+    streak=0
+    continue
+  fi
+
+  busy=0
+  ((d_total > 0)) && busy=$((100 * (d_total - d_idle) / d_total))
+
+  if [[ ! -e $stay_awake ]] && lid_open && ((busy < cpu_max)) &&
+    [[ $(omarchy-shell lock isLocked 2>/dev/null) == "true" ]]; then
+    streak=$((streak + 1))
+  else
+    streak=0
+  fi
+
+  if ((streak >= needed)); then
+    streak=0
+    systemctl suspend || true
+  fi
+done
