@@ -854,7 +854,6 @@ fold_child_result() {
 # dependent blocked).
 read_kanban_children() {
   local board_dir="$1"
-  command -v yq >/dev/null 2>&1 || { echo "error: yq is required for --board mode" >&2; return 1; }
 
   local issues_dir="$board_dir"
   [ -d "$issues_dir/issues" ] && issues_dir="$issues_dir/issues"

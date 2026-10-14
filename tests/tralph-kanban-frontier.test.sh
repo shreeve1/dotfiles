@@ -19,8 +19,10 @@ GRALPH="$ROOT/bin/gralph"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v yq >/dev/null 2>&1 || { echo "FAIL: yq is required to run this test" >&2; exit 1; }
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required to run this test" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required to run this test" >&2
+  exit 1
+}
 
 REPO="$TMPDIR/repo"
 mkdir -p "$REPO"
@@ -78,7 +80,10 @@ run_gralph_board() {
 # --- 1. Dry-run produces the expected manifest shape and classification. ---
 run_gralph_board
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
-[ -f "$MANIFEST" ] || { echo "FAIL: manifest missing" >&2; exit 1; }
+[ -f "$MANIFEST" ] || {
+  echo "FAIL: manifest missing" >&2
+  exit 1
+}
 jq -e --arg sha "$BASE_SHA" '
   .schemaVersion == 1 and .parent == 42 and .baseSha == $sha and .dryRun == true
   and (.children | length) == 7
@@ -214,7 +219,6 @@ STRICT_PATH="$TMPDIR/strict-bin"
 mkdir -p "$STRICT_PATH"
 ln -s "$(command -v bash)" "$STRICT_PATH/bash"
 ln -s "$(command -v git)" "$STRICT_PATH/git"
-ln -s "$(command -v yq)" "$STRICT_PATH/yq"
 ln -s "$(command -v jq)" "$STRICT_PATH/jq"
 if (cd "$REPO" && PATH="$STRICT_PATH" "$GRALPH" 42 --board "$BOARD" --dry-run) >/dev/null 2>"$TMPDIR/nogh.err"; then
   echo "FAIL: board dry-run unexpectedly succeeded without gh" >&2

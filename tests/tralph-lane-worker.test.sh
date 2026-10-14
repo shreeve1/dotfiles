@@ -27,7 +27,6 @@ TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
 command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
-command -v yq >/dev/null 2>&1 || { echo "FAIL: yq is required" >&2; exit 1; }
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
