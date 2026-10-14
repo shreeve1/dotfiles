@@ -151,7 +151,7 @@ infm == 1 {
     if (key == "id") id = unq(val)
     else if (key == "title") { hastitle = (val != ""); title = raw; gsub(/\t/, " ", title) }
     else if (key == "status") { status = unq(val); if (status == "todo" || status == "open") status = "pending" }
-    else if (key == "spec") spec = unq(val)
+    else if (key == "spec") { spec = unq(val); if (spec == "null" || spec == "~") spec = "" }
     else if (key == "priority") prio = unq(val)
     else if (key == "created") created = unq(val)
     else if (key == "parent") { parent = unq(val); if (parent == "null" || parent == "~") parent = "" }
