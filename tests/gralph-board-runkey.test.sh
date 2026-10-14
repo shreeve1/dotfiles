@@ -59,14 +59,14 @@ new_repo() {
   git -C "$REPO" commit -qm init
 }
 
-# ticket <issues-dir> <id> [spec]
+# ticket <issues-dir> <id> [spec] [blocked_by] [status]
 ticket() {
-  local dir="$1" id="$2" spec="${3-}"
+  local dir="$1" id="$2" spec="${3-}" blocked="${4:-[]}" status="${5:-pending}"
   mkdir -p "$dir"
   {
     printf '%s\n' '---'
-    printf 'id: %s\ntitle: Ticket %s\nstatus: pending\nlabels: [ready-for-agent]\n' "$id" "$id"
-    printf 'blocked_by: []\ncreated: 2026-10-14\n'
+    printf 'id: %s\ntitle: Ticket %s\nstatus: %s\nlabels: [ready-for-agent]\n' "$id" "$id" "$status"
+    printf 'blocked_by: %s\ncreated: 2026-10-14\n' "$blocked"
     [ -z "$spec" ] || printf 'spec: %s\n' "$spec"
     printf '%s\n\n## What to build\n\nBuild %s.\n\n## Verification\n\n`test -f out-%s.txt`\n' '---' "$id" "$id"
   } >"$dir/$(printf '%03d' "$id")-t$id.md"
@@ -169,6 +169,37 @@ ticket "$BOARD/issues" 1
 git -C "$REPO" add -A && git -C "$REPO" commit -qm board
 g 42 --dry-run --verify true >/dev/null 2>&1 && ok || fail "numeric key plans"
 expect_eq "numeric manifest parent stays a number" "42" "$(jq -c .parent "$REPO/.gralph/runs/42/manifest.json")"
+
+# --- 7. --spec: filter the run, board-wide dependency rules ---------------------
+new_repo spec
+BOARD="$REPO/.kanban"
+ticket "$BOARD/issues" 1 alpha '[]' done      # alpha, already done
+ticket "$BOARD/issues" 2 alpha                 # alpha, ready
+ticket "$BOARD/issues" 3 beta '[1]'            # beta, blocker is DONE and outside the filter
+ticket "$BOARD/issues" 4 beta                  # beta, ready
+ticket "$BOARD/issues" 5 beta '[2]'            # beta, blocker is PENDING and outside the filter
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g beta --spec beta --dry-run --verify true >/dev/null 2>&1 && ok || fail "--spec plan succeeds"
+SM="$REPO/.gralph/runs/beta/manifest.json"
+expect_eq "--spec keeps only that spec's tickets" "[3,4,5]" "$(jq -c '[.children[].number]' "$SM")"
+expect_eq "resolved cross-spec blocker does not block" "eligible" "$(jq -r '.children[] | select(.number==3) | .classification' "$SM")"
+expect_eq "unresolved cross-spec blocker still blocks" "blocked" "$(jq -r '.children[] | select(.number==5) | .classification' "$SM")"
+expect_eq "unresolved blocker is kept in blockedBy" "[2]" "$(jq -c '.children[] | select(.number==5) | .blockedBy' "$SM")"
+expect_eq "resolved blocker is dropped from blockedBy" "[]" "$(jq -c '.children[] | select(.number==3) | .blockedBy' "$SM")"
+
+# Execute: only beta's eligible tickets run; alpha's ticket 2 is never touched.
+g beta --spec beta --agent-cmd agent --jobs 1 --verify true >"$TMP/spec.out" 2>"$TMP/spec.err" || true
+expect_eq "beta ticket 3 landed" "landed" "$(jq -r '.children[] | select(.number==3) | .merge.status' "$SM")"
+expect_eq "beta ticket 4 landed" "landed" "$(jq -r '.children[] | select(.number==4) | .merge.status' "$SM")"
+expect_eq "beta ticket 5 waits on alpha's ticket" "null" "$(jq -r '.children[] | select(.number==5) | .merge.status' "$SM")"
+[ ! -e "$REPO/out-2.txt" ] && ok || fail "alpha ticket 2 was not worked by the beta run"
+expect_eq "alpha ticket 2 untouched" "pending" "$(sed -n 's/^status: //p' "$BOARD/issues/002-t2.md" | head -1)"
+[ -f "$REPO/.kanban/run-report-beta.md" ] && ok || fail "slug run writes run-report-<key>.md"
+[ ! -f "$REPO/.kanban/run-report.md" ] && ok || fail "slug run does not write the shared run-report.md"
+
+# A refresh (re-plan of the executed run) keeps the filter.
+g beta --spec beta --dry-run --verify true >/dev/null 2>&1 || true
+expect_eq "re-plan keeps the spec filter" "[3,4,5]" "$(jq -c '[.children[].number]' "$SM")"
 
 echo "gralph-board-runkey: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]

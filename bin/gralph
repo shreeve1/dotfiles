@@ -6,7 +6,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 usage: gralph <parent> [--dry-run] [--verify <command>] [--jobs N]
-       gralph <parent> --board <dir> [--dry-run] [--verify <command>] [--jobs N] [--agent-cmd <cmd>]
+       gralph <parent|run-key> --board <dir> [--dry-run] [--replan] [--spec <slug>] [--verify <command>] [--jobs N] [--agent-cmd <cmd>]
        gralph finish <parent>
 
 Plan the direct ready-for-agent children of an open GitHub parent issue, or
@@ -17,6 +17,11 @@ $GRALPH_AGENT_CMD); the worker implements, runs the ticket verification,
 commits, spawns its own fresh-session reviewer, and emits the
 `RALPH_RESULT` sentinel. The coordinator never commits on the worker's
 behalf and never edits .kanban state in board mode.
+In board mode the first argument is a run key: a number, or a slug
+([A-Za-z0-9][A-Za-z0-9_-]*) naming .gralph/runs/<key> and gralph/<key>/batch.
+--spec <slug> limits the run to tickets with `spec: <slug>` in their
+frontmatter. Re-planning a run that already executed refreshes it in place;
+--replan discards the saved run state.
 --jobs N caps concurrent worker pipelines (default 2).
 --agent-cmd <cmd> overrides the headless default for board-mode lanes.
 
@@ -47,6 +52,7 @@ fi
 
 DRY_RUN=0
 REPLAN=0
+SPEC_FILTER=""
 VERIFY_SET=0
 VERIFY=""
 JOBS=2
@@ -57,6 +63,11 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --replan) REPLAN=1 ;;
+    --spec)
+      [ "$#" -ge 2 ] || { echo "error: --spec requires a slug" >&2; exit 2; }
+      SPEC_FILTER="$2"
+      shift
+      ;;
     --verify)
       [ "$#" -ge 2 ] || { echo "error: --verify requires a command" >&2; exit 2; }
       VERIFY="$2"
@@ -929,6 +940,12 @@ locate_board_sh() {
 # blockedBy and the live child set) never sees them as open. A parent is
 # blocked by each of its children that is not done: they are appended to its
 # blockedBy so the same refresh logic enforces "children first".
+#
+# --spec SLUG (SPEC_FILTER) narrows the returned children to tickets whose
+# frontmatter has spec: SLUG. Classification is still computed board-wide, and a
+# blocker that falls outside the filter is dropped from blockedBy when it is
+# resolved (refresh_frontier_kanban treats any blocker missing from the child
+# set as open) but kept when it is not, so cross-spec dependencies hold.
 read_kanban_children() {
   local board_dir="$1" board_sh tickets archived
   board_sh="$(locate_board_sh)" || {
@@ -942,7 +959,7 @@ read_kanban_children() {
   }
   archived="$("$board_sh" --board "$board_dir" archive)" || return 1
 
-  jq -n -c --argjson t "$tickets" --argjson a "$archived" '
+  jq -n -c --argjson t "$tickets" --argjson a "$archived" --arg spec "${SPEC_FILTER:-}" '
     $t as $all
     | def live($b): any($all[]; .id == $b);
       def archived_done($b): any($a[]; .id == $b and .status == "done");
@@ -952,8 +969,17 @@ read_kanban_children() {
       def open_kids($x): [$all[] | select(.parent == $x.id and .status != "done") | .id];
       [ $all[] | . as $x
         | ($x.status == "done") as $closed
-        | ([$x.blockedBy[] | select(live(.) or (archived_done(.) | not))] + open_kids($x) | unique) as $deps
+        | ([$x.blockedBy[]
+              | select(. as $b
+                  | (live($b) or (archived_done($b) | not))
+                  and (($spec == "") or (any($all[]; .id == $b and .spec == $spec)) or (resolved($b) | not)))]
+            + open_kids($x) | unique) as $deps
         | (any($x.blockedBy[]; (resolved(.) | not)) or (open_kids($x) | length > 0)) as $hasOpen
+        # Waiting on a LIVE ticket that the --spec filter excludes: it cannot land in
+        # this run, so it is reported but must not fail the run. Missing or
+        # cancelled blockers are not "external" and still fail closed.
+        | (($spec != "") and any($x.blockedBy[]; . as $b
+            | any($all[]; .id == $b and .spec != $spec and .status != "cancelled") and (resolved($b) | not))) as $external
         | (if $closed then {classification:"excluded", reason:"child_not_open"}
            elif ($x.status != "pending") or ($x.ready | not) then
              {classification:"excluded", reason:"missing_ready_for_agent_label"}
@@ -966,11 +992,12 @@ read_kanban_children() {
             labels: (if $cls.classification == "excluded" then [] else ["ready-for-agent"] end),
             blockedBy: $deps,
             classification: $cls.classification,
-            reason: $cls.reason
+            reason: $cls.reason,
+            externalBlocked: ($cls.classification == "blocked" and $external)
           }
           + (if $x.files != null then {files: $x.files} else {} end)
-          + {file: $x.file}
-      ] | sort_by(.number)
+          + {file: $x.file, spec: $x.spec}
+      ] | map(select($spec == "" or .spec == $spec)) | sort_by(.number)
   '
 }
 
@@ -1343,8 +1370,14 @@ orchestrate_waves() {
       | select((.labels | index("ready-for-agent")) != null)
       | select(.merge.status != "landed")
       | select(.merge.status != "bounced")
+      | select((.externalBlocked // false) | not)
     ] | length
   ' "$manifest")"
+  local external_waiting
+  external_waiting="$(jq -r '[.children[] | select((.externalBlocked // false) and .merge.status == null) | .number] | join(", ")' "$manifest")"
+  if [ -n "$external_waiting" ]; then
+    echo "info: waiting on tickets outside --spec (not part of this run): #${external_waiting//, /, #}" >&2
+  fi
 
   write_manifest "$manifest" --argjson landed "$landed" --argjson failed "$failed" --argjson rejected "$rejected" --argjson blocked "$blocked" --argjson waves "$wave" --argjson remaining "$remaining" '
     .orchestration.landed = $landed
@@ -1420,7 +1453,12 @@ write_repair_ticket() {
 # Arguments: manifest board_dir main_branch merge_status merge_sha batch_branch
 write_run_report() {
   local manifest="$1" board_dir="$2" main_branch="$3" merge_status="$4" merge_sha="${5:-}" batch_branch="${6:-}"
+  # Numeric keys keep the historical name; a slug run key gets its own report so
+  # two specs on one board do not overwrite each other.
   local report_file="$REPO_ROOT/.kanban/run-report.md"
+  case "${PARENT:-0}" in
+    *[!0-9]*) report_file="$REPO_ROOT/.kanban/run-report-$PARENT.md" ;;
+  esac
   local run_id completed_at
   run_id="$(jq -r '.orchestration.runId // "unknown"' "$manifest")"
   completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
