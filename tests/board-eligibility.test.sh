@@ -220,6 +220,15 @@ case "$out" in *"WARN"*"ghost"*) ok ;; *) fail "validate warns on spec with no s
 if bs validate >/dev/null; then ok; else fail "missing spec file is a WARN, not an ERROR"; fi
 rm "$B/issues/010-t10.md"
 
+# --- status todo/open are read as pending (matches ralph-loop normalize) -----
+new_board alias
+ticket "$B/issues" 1 todo "$R" '[]'
+ticket "$B/issues" 2 open "$R" '[]'
+ticket "$B/issues" 3 todo 'labels: [needs-info]' '[]'
+expect_ids "todo and open count as pending" "1 2" eligible
+expect_eq "todo/open not reported as other" "0" "$(count other)"
+expect_eq "todo with needs-info waits for triage" "1" "$(count waiting_triage)"
+
 # --- empty / missing board --------------------------------------------------
 new_board empty
 expect_eq "empty board counts eligible=0" "0" "$(count eligible)"
