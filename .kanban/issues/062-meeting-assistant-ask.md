@@ -2,7 +2,7 @@
 id: 062
 title: Meeting Assistant — Ask box and Ask agent in the Overlay
 status: pending
-labels: []
+labels: [ready-for-agent]
 blocked_by: []
 parent: 061
 created: 2026-10-07
