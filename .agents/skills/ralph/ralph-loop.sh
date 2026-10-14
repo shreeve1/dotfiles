@@ -45,6 +45,10 @@ LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
 AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Read skill://ralph and follow the Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
+# Which tickets this loop may pick up. Eligibility (status + triage label +
+# blockers + archive) is decided by ../kanban/board.sh; --spec narrows the set.
+SPEC="${RALPH_SPEC:-}"
+READY_LABEL="${RALPH_READY_LABEL:-ready-for-agent}"
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
 TMUX_SOCKET="${RALPH_TMUX_SOCKET:-$SOCKET_DIR/ralph.sock}"
 USE_NORMAL_TMUX="${RALPH_USE_NORMAL_TMUX:-true}"
@@ -66,6 +70,7 @@ OPTIONS:
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
+  --spec SLUG           Only pick up tickets whose frontmatter has spec: SLUG (default: RALPH_SPEC, else all)
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
   --socket PATH         Private tmux socket path (implies --private-tmux)
@@ -137,6 +142,14 @@ while [[ $# -gt 0 ]]; do
     UNATTENDED=true
     shift
     ;;
+  --spec)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --spec requires a slug" >&2
+      exit 1
+    fi
+    SPEC="$2"
+    shift 2
+    ;;
   --lsp-check-cmd)
     if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
       echo "❌ Error: --lsp-check-cmd requires a command" >&2
@@ -190,6 +203,11 @@ fi
 ADAPTER="${1:-tmux}"
 SESSION_NAME="${2:-ralph-loop}"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOARD_SH="$(dirname "$SKILL_DIR")/kanban/board.sh"
+if [[ ! -x "$BOARD_SH" ]]; then
+  echo "❌ Error: kanban eligibility script not found or not executable: $BOARD_SH" >&2
+  exit 1
+fi
 
 if [[ "$SESSION_NAME" =~ [.:] ]]; then
   echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
@@ -230,7 +248,6 @@ omp | tmux)
   exit 1
   ;;
 esac
-
 
 if ! command -v tmux >/dev/null 2>&1; then
   echo "❌ Error: tmux not found in PATH" >&2
@@ -365,6 +382,9 @@ AGENT_CMD_EXPLICIT="${21:-false}"
 SKIP_BLOCKED="${22:-false}"
 IMPLEMENT_SKILL_DIR="${23:-}"
 USE_IMPLEMENT_SKILL="${24:-false}"
+BOARD_SH="${25:?board.sh path missing}"
+SPEC="${26:-}"
+READY_LABEL="${27:-ready-for-agent}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -513,34 +533,28 @@ select_actionable_review_target() {
 }
 
 
+# Eligibility (pending + exactly one triage state label == ready label + resolved
+# blockers, archive searched) is decided by board.sh so this loop, gralph, the
+# supervisor and the shepherd cannot drift apart.
+board() {
+  "$BOARD_SH" --board .kanban ${SPEC:+--spec "$SPEC"} --ready-label "$READY_LABEL" "$@"
+}
+
+# board_count KEY prints one value from `board.sh counts`; fails the loop loudly
+# if board.sh itself errors instead of reporting a false "no work".
+BOARD_COUNTS=""
+refresh_board_counts() {
+  BOARD_COUNTS=$(board counts) || {
+    echo "❌ board.sh failed; refusing to continue on an unreadable board" | tee -a "$LOG_FILE"
+    return 1
+  }
+}
+board_count() {
+  printf '%s\n' "$BOARD_COUNTS" | sed -n "s/^$1=//p" | head -1
+}
+
 count_unblocked_pending() {
-  local count=0
-  local issue_file blocked_by is_blocked blocker_id blocker_file
-
-  for issue_file in .kanban/issues/*.md; do
-    [[ -f "$issue_file" ]] || continue
-    grep -q "^status: pending$" "$issue_file" || continue
-
-    blocked_by=$(grep "^blocked_by:" "$issue_file" | sed 's/blocked_by://;s/\[//;s/\]//;s/,/ /g' || echo "")
-    is_blocked=false
-
-    if [[ -n "$blocked_by" ]]; then
-      for blocker_id in $blocked_by; do
-        blocker_file=$(grep -l "^id: $blocker_id$" .kanban/issues/*.md 2>/dev/null || echo "")
-        [[ -n "$blocker_file" ]] || continue
-        if ! grep -q "^status: done$" "$blocker_file"; then
-          is_blocked=true
-          break
-        fi
-      done
-    fi
-
-    if [[ "$is_blocked" == "false" ]]; then
-      count=$((count + 1))
-    fi
-  done
-
-  echo "$count"
+  board_count eligible
 }
 
 extract_completed_issue() {
@@ -1009,6 +1023,7 @@ if [[ -n "$orphaned_workers" ]]; then
   done
 fi
 
+BASE_AGENT_PROMPT="$AGENT_PROMPT"
 ITERATION=0
 MAX_ITERATIONS=1000
 ISSUES_COMPLETED=0
@@ -1083,10 +1098,15 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   normalize_todo_status
 
-  TOTAL_ISSUES=$(find .kanban/issues -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
-  DONE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: done$" {} \; 2>/dev/null | wc -l | tr -d ' ')
-  PENDING_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: pending$" {} \; 2>/dev/null | wc -l | tr -d ' ')
-  BLOCKED_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: blocked$" {} \; 2>/dev/null | wc -l | tr -d ' ')
+  if ! refresh_board_counts; then
+    LOOP_EXIT_CODE=1
+    break
+  fi
+  TOTAL_ISSUES=$(board_count total)
+  DONE_ISSUES=$(board_count done)
+  BLOCKED_ISSUES=$(board_count blocked)
+  WAITING_COUNT=$(($(board_count waiting_triage) + $(board_count waiting_human) + $(board_count wontfix) + $(board_count conflict) + $(board_count waiting_deps)))
+  PENDING_ISSUES=$(($(board_count eligible) + WAITING_COUNT))
   ACTIVE_ISSUES=$(find .kanban/issues -name "*.md" -exec grep -l "^status: \(in-progress\|review\)$" {} \; 2>/dev/null || true)
   ACTIVE_COUNT=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | wc -l | tr -d ' ')
   UNBLOCKED_COUNT=$(count_unblocked_pending)
@@ -1097,6 +1117,9 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $REVIEW_READY_COUNT review targets" | tee -a "$LOG_FILE"
   else
     echo "📊 Progress: $DONE_ISSUES/$TOTAL_ISSUES done | $PENDING_ISSUES pending | $BLOCKED_ISSUES blocked | $ACTIVE_COUNT active | $UNBLOCKED_COUNT ready" | tee -a "$LOG_FILE"
+    if [[ $WAITING_COUNT -gt 0 ]]; then
+      echo "⏸  $WAITING_COUNT pending not eligible: $(board_count waiting_triage) need triage/info, $(board_count waiting_human) for a human, $(board_count wontfix) wontfix, $(board_count conflict) conflicting labels, $(board_count waiting_deps) waiting on blockers" | tee -a "$LOG_FILE"
+    fi
   fi
   echo "✅ Issues completed this session: $ISSUES_COMPLETED" | tee -a "$LOG_FILE"
   if [[ $ACTIVE_COUNT -gt 0 ]]; then
@@ -1117,7 +1140,10 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     fi
   elif [[ $UNBLOCKED_COUNT -eq 0 && $ACTIVE_COUNT -eq 0 ]]; then
     echo "" | tee -a "$LOG_FILE"
-    echo "✅ No active or unblocked pending issues found" | tee -a "$LOG_FILE"
+    echo "✅ No active or eligible pending issues found" | tee -a "$LOG_FILE"
+    if [[ $WAITING_COUNT -gt 0 ]]; then
+      echo "   ($WAITING_COUNT pending ticket(s) are not agent-ready; triage them or add the ready label)" | tee -a "$LOG_FILE"
+    fi
     echo "Ralph loop complete!" | tee -a "$LOG_FILE"
     break
   fi
@@ -1139,6 +1165,21 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   if ! checkpoint_dirty_worktree; then
     echo "Stopping loop" | tee -a "$LOG_FILE"
     break
+  fi
+
+  # Normal mode: the driver, not the worker, picks the ticket, so a human-only or
+  # untriaged ticket can never be selected just because another one is ready.
+  # Active tickets (in-progress/review) are resumed by the worker as before.
+  AGENT_PROMPT="$BASE_AGENT_PROMPT"
+  if [[ "$REVIEW_LOOP" != "true" && $ACTIVE_COUNT -eq 0 ]]; then
+    CURRENT_TARGET=$(board next | cut -f2 || true)
+    if [[ -z "$CURRENT_TARGET" ]]; then
+      echo "✅ No eligible ticket to select" | tee -a "$LOG_FILE"
+      break
+    fi
+    CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
+    echo "🎯 Selected ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
+    AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); the loop already selected it. Do not pick a different ticket."
   fi
 
   if [[ "$REVIEW_LOOP" == "true" ]]; then
@@ -1311,7 +1352,8 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
   "$AGENT_CMD" "$AGENT_PROMPT" "$SKILL_DIR" "$TMUX_SOCKET" \
   "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
   "$UNATTENDED" "$MAX_ISSUE_FAILS" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" \
-  "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL"; do
+  "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL" \
+  "$BOARD_SH" "$SPEC" "$READY_LABEL"; do
   printf -v arg_q '%q' "$arg"
   INNER_ARGS+=("$arg_q")
 done
