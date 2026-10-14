@@ -201,5 +201,48 @@ expect_eq "alpha ticket 2 untouched" "pending" "$(sed -n 's/^status: //p' "$BOAR
 g beta --spec beta --dry-run --verify true >/dev/null 2>&1 || true
 expect_eq "re-plan keeps the spec filter" "[3,4,5]" "$(jq -c '[.children[].number]' "$SM")"
 
+# --- 8. recovery of an accepted-but-unlanded child lands through the board protocol ---
+# (review finding 3). The board is tracked in the repo, so done must be a commit on the
+# batch branch that reaches main.
+new_repo recov
+BOARD="$REPO/.kanban"
+ticket "$BOARD/issues" 1
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g rk --dry-run --verify true >/dev/null 2>&1
+RM="$REPO/.gralph/runs/rk/manifest.json"
+base="$(jq -r .baseSha "$RM")"
+git -C "$REPO" worktree add -q -b gralph/rk/issue-1 "$REPO/.gralph/runs/rk/wt1" "$base" >/dev/null 2>&1
+printf 'done\n' >"$REPO/.gralph/runs/rk/wt1/out-1.txt"
+git -C "$REPO/.gralph/runs/rk/wt1" add out-1.txt && git -C "$REPO/.gralph/runs/rk/wt1" commit -qm "feat: ticket 1"
+sha="$(git -C "$REPO/.gralph/runs/rk/wt1" rev-parse HEAD)"
+jq --arg b gralph/rk/issue-1 --arg c "$sha" --arg base "$base" '
+  .orchestration = {runId:"dead", boardFinish:{status:"deferred"}}
+  | .children |= map(.execution = {status:"complete", commitSha:$c, branch:$b, startingSha:$base, worktree:"wt1", verificationExitCode:0, verificationLog:"v.log", ralphComplete:true, clean:true}
+      | .review = {status:"approved", criticalCount:0, blockerCount:0, gate:"accepted", findings:[], processExitCode:0, timedOut:false})' "$RM" >"$RM.t" && mv "$RM.t" "$RM"
+g rk --agent-cmd agent --jobs 1 --verify true >"$TMP/recov.out" 2>"$TMP/recov.err" && ok || fail "recovery run succeeds" "$(tail -4 "$TMP/recov.err")"
+expect_eq "recovered ticket landed" "landed" "$(jq -r '.children[0].merge.status' "$RM")"
+expect_eq "recovered ticket is status: done on main" "done" "$(sed -n 's/^status: //p' "$BOARD/issues/001-t1.md" | head -1)"
+git -C "$REPO" log --format=%s main | grep -q 'mark #1 done' && ok || fail "recovered ticket has a durable-done commit"
+expect_eq "recovered ticket was re-verified on the rebased lane" "true" "$(jq -r '(.children[0].merge.reverifyLog // "") != ""' "$RM")"
+
+# --- 9. durable done does not depend on GNU realpath, and handles awkward paths ---
+# (review finding 13). A BSD `realpath` has no --relative-to; the empty result used to
+# send a tracked ticket down the "outside the repo" branch (main tree edited in place).
+# Put a fake `realpath` that rejects --relative-to first on PATH and use a board dir
+# whose name contains a space: the tracked ticket must still be committed on the batch
+# branch and reach main, with the main working tree clean.
+new_repo bsd
+mkdir -p "$TMP/fakebin"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in --relative-to*) echo "realpath: illegal option -- -" >&2; exit 1;; esac; done\nexec /usr/bin/realpath "$@"\n' >"$TMP/fakebin/realpath"
+chmod +x "$TMP/fakebin/realpath"
+BOARD="$REPO/my board/.kanban"
+ticket "$BOARD/issues" 1
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+(cd "$REPO" && PATH="$TMP/fakebin:$FAKE_BIN:$PATH" "$GRALPH" 0 --board "$BOARD" --dry-run --verify true >/dev/null 2>&1)
+(cd "$REPO" && PATH="$TMP/fakebin:$FAKE_BIN:$PATH" "$GRALPH" 0 --board "$BOARD" --agent-cmd agent --jobs 1 --verify true >"$TMP/bsd.out" 2>"$TMP/bsd.err") && ok || fail "run with a BSD-style realpath succeeds" "$(tail -3 "$TMP/bsd.err")"
+expect_eq "tracked ticket (path with a space) is done on main without GNU realpath" "done" "$(sed -n 's/^status: //p' "$BOARD/issues/001-t1.md" | head -1)"
+git -C "$REPO" log --format=%s main | grep -q 'mark #1 done' && ok || fail "done is a commit on the batch branch, not an in-place edit"
+if [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]; then ok; else fail "main working tree left clean" "$(git -C "$REPO" status --porcelain)"; fi
+
 echo "gralph-board-runkey: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
