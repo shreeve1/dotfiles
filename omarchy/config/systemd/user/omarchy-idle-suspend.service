@@ -1,0 +1,14 @@
+[Unit]
+Description=Suspend when locked, lid open and the CPU is idle
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/bin/omarchy-idle-suspend
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
