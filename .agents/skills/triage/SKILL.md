@@ -42,6 +42,8 @@ Every triaged issue should carry exactly one category role and one state role. I
 
 These are canonical role names — the actual label strings used in the issue tracker may differ. The mapping should have been provided to you - run `/setup-matt-pocock-skills` if not.
 
+On a local `.kanban/` board the roles are the strings in each ticket's `labels:` frontmatter, and they are separate from `status:` (the loop's execution lifecycle). Applying or changing a role means editing `labels:` only — swap the state label, keep exactly one, leave `status:` alone. A `pending` ticket is only picked up by `tralph`/`ralph` once it carries `ready-for-agent`, so moving a ticket there **is** the act of releasing it to the loop; do it deliberately. See `docs/agents/issue-tracker.md`.
+
 State transitions: an unlabeled issue normally goes to `needs-triage` first; from there it moves to `needs-info`, `ready-for-agent`, `ready-for-human`, or `wontfix`. `needs-info` returns to `needs-triage` once the reporter replies. The maintainer can override at any time — flag transitions that look unusual and ask before proceeding.
 
 ## Invocation

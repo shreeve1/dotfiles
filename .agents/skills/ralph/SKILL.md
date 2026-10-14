@@ -6,7 +6,7 @@ description: Run the Ralph implementation loop. Picks up the next unblocked issu
 
 # Ralph Loop
 
-Pick up the next unblocked issue from `.kanban/` and implement it end-to-end in a fresh agent session. Then review it in a separate fresh agent session. Then stop. The user (or `ralph-loop.sh`) invokes Ralph again for the next issue.
+Pick up the next eligible issue (pending, labelled `ready-for-agent`, blockers done) from `.kanban/` and implement it end-to-end in a fresh agent session. Then review it in a separate fresh agent session. Then stop. The user (or `ralph-loop.sh`) invokes Ralph again for the next issue.
 
 ## Philosophy
 
@@ -172,9 +172,10 @@ If multiple active issues exist, stop and ask which one to resume. Do not reset 
 
 Run a quick validation:
 
-- All `blocked_by` IDs reference existing issues
+- All `blocked_by` IDs reference an existing ticket in `.kanban/issues/` or `.kanban/archive/`
 - No cycles in the dependency graph
-- Required fields present
+- Required fields present, and every not-done ticket carries exactly one triage state label
+- (`board.sh --board .kanban validate` checks all of the above; run it and treat any `ERROR` as a failed validation)
 - Each issue has a `## Verification` section with a concrete command
 - The verification command uses the project's canonical runner, not a bare one off `$PATH`. If a command invokes a bare known runner (`pytest`, `jest`, `go test`, `npm test`, …) while the repo ships a wrapper (e.g. `scripts/pytest`, a venv binary, a `Makefile`/`justfile` target), warn — a bare runner that hits a system interpreter missing project deps will false-fail review and block working code.
 
@@ -208,15 +209,20 @@ If no blocked, review, in-progress, or unreviewed done issue exists, print `RALP
 
 ### 1. Scan the board
 
-Read all `.kanban/issues/*.md` files. First resume any active `in-progress` or `review` issue per **Active issue resume** above. If there is no active issue, find issues where:
+First resume any active `in-progress` or `review` issue per **Active issue resume** above. If there is no active issue, ask `board.sh` — never re-derive eligibility by grepping `status:`:
 
-- `status: pending`
-- All `blocked_by` IDs have `status: done` (or are archived)
-- All children are `done` (if this is a parent)
+```bash
+~/.agents/skills/kanban/board.sh --board .kanban [--spec <slug>] next     # <id><TAB><path>, exit 1 if none
+~/.agents/skills/kanban/board.sh --board .kanban counts                   # why nothing is eligible
+```
 
-Sort by priority (lowest number first), then by ID (lowest first).
+A ticket is eligible when it is `status: pending`, labelled exactly one state label that is `ready-for-agent`, has every `blocked_by` resolved (`done` in `issues/` or `archive/`; a `cancelled` or unknown blocker does **not** resolve), and, if a parent, all children `done`. Order is priority (lowest first), then ID.
 
-If no eligible issues, report the board state and stop.
+**When `ralph-loop.sh` launched you, it has already selected the ticket** and named it in your prompt ("Operate only on ticket <path> (issue #N)") — work that ticket and do not pick another. Pending tickets labelled `needs-triage`, `needs-info`, `ready-for-human` or `wontfix` are deliberately not yours; never "helpfully" implement one, and never edit `labels:` to make one eligible (that is a triage decision).
+
+If no eligible issues, report the board state (`counts` says how many are waiting on triage, a human, or blockers) and stop with `RALPH_RESULT: NO_WORK`.
+
+Two flows intentionally bypass the label check, because the ticket was already started or already finished: resuming an `in-progress`/`review` ticket (**Active issue resume**) and the `--review-loop` audit of `blocked`/`review`/`in-progress`/`done` tickets.
 
 ### 2. Pick the next issue
 
