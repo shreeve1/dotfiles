@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Scaffold the per-repo configuration that the engineering skills assume:
 
-- **Issue tracker** — where issues live (GitHub by default; local markdown is also supported out of the box)
+- **Issue tracker** — where issues live (GitHub by default; a local `.kanban/` board is also supported out of the box and is what `tralph` / `gralph` / `ralph` run against)
 - **Triage labels** — the strings used for the five canonical triage roles
 - **Domain docs** — where `CONTEXT.md` and ADRs live, and the consumer rules for reading them
 
@@ -25,7 +25,7 @@ Look at the current repo to understand its starting state. Read whatever exists;
 - `CONTEXT.md` and `CONTEXT-MAP.md` at the repo root
 - `docs/adr/` and any `src/*/docs/adr/` directories
 - `docs/agents/` — does this skill's prior output already exist?
-- `.scratch/` — sign that a local-markdown issue tracker convention is already in use
+- `.kanban/` — sign that the local board is already in use (`issues/`, `archive/`, `specs/`, `maps/`, `progress.md`). A legacy `.scratch/` directory means an older local convention: tell the user, and do not migrate it unasked.
 - Is the `triage` skill installed? (a `triage` skill folder alongside this one, or `triage` in your available skills.) This decides whether Section B runs at all.
 - Monorepo signals — a `pnpm-workspace.yaml`, a `workspaces` field in `package.json`, or a populated `packages/*` with its own `src/`. Present only in a genuinely large multi-package repo; their absence means single-context, which is almost every repo.
 
@@ -37,20 +37,31 @@ Lead each section with the recommended answer so the user can accept it in a wor
 
 **Section A — Issue tracker.**
 
-> Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-tickets`, `triage`, and `to-spec` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.scratch/`, or follow some other workflow you describe. Pick the place you actually track work for this repo.
+> Explainer: The "issue tracker" is where issues live for this repo. Skills like `to-tickets`, `triage`, and `to-spec` read from and write to it — they need to know whether to call `gh issue create`, write a markdown file under `.kanban/`, or follow some other workflow you describe. Pick the place you actually track work for this repo.
 
-Default posture: these skills were designed for GitHub. If a `git remote` points at GitHub, propose that. If a `git remote` points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Otherwise (or if the user prefers), offer:
+Default posture: if `.kanban/` already exists, or the user runs `tralph` / `ralph` on this repo, propose **Local markdown (`.kanban/`)** — that is the board those loops execute, so it is the only tracker where tickets run unattended. Otherwise, if a `git remote` points at GitHub, propose GitHub; if it points at GitLab (`gitlab.com` or a self-hosted host), propose GitLab. Offer all of them either way:
 
 - **GitHub** — issues live in the repo's GitHub Issues (uses the `gh` CLI)
 - **GitLab** — issues live in the repo's GitLab Issues (uses the [`glab`](https://gitlab.com/gitlab-org/cli) CLI)
-- **Local markdown** — issues live as files under `.scratch/<feature>/` in this repo (good for solo projects or repos without a remote)
+- **Local markdown (`.kanban/`)** — tickets live as files under `.kanban/issues/`, specs under `.kanban/specs/` (good for solo projects, repos without a remote, and anything you want `tralph` to execute)
 - **Other** (Jira, Linear, etc.) — ask the user to describe the workflow in one paragraph; the skill will record it as freeform prose
 
-Record the choice in `docs/agents/issue-tracker.md`. The GitHub and GitLab templates carry a "PRs as a request surface" flag, defaulted **off** — leave it off and don't raise it; a user who wants external PRs in the triage queue can flip the flag in the file later.
+Record the choice in `docs/agents/issue-tracker.md`. For **Local markdown**, also scaffold the board (idempotent — safe to re-run, never overwrites):
+
+```bash
+mkdir -p .kanban/issues .kanban/archive .kanban/specs .kanban/maps
+[ -f .kanban/progress.md ] || printf '# Progress Log\n\nNotes from each Ralph loop iteration. Read this at the start of a new session to understand what happened before.\n' > .kanban/progress.md
+touch .kanban/archive/.gitkeep .kanban/specs/.gitkeep .kanban/maps/.gitkeep
+```
+
+Then check the repo's `.gitignore` does not exclude `.kanban/` itself (only runtime logs such as `.kanban/*.log` and `.gralph/` belong there) — `ralph-worktree.sh` and the landing flow need the board tracked. The GitHub and GitLab templates carry a "PRs as a request surface" flag, defaulted **off** — leave it off and don't raise it; a user who wants external PRs in the triage queue can flip the flag in the file later.
 
 **Section B — Triage label vocabulary.** Skip this section entirely if the `triage` skill isn't installed (exploration told you) — an uninstalled skill needs no labels.
 
-If it is installed, ask exactly one question:
+If it is installed:
+
+- **Local markdown (`.kanban/`) tracker:** do **not** ask. Write the five defaults as-is. `tralph` / `gralph` / `ralph` decide what an agent may pick up by these exact strings in each ticket's `labels:` field (`board.sh`), so they cannot be renamed here: a renamed label would make every ticket look untriaged and nothing would run. (The one runtime override is `RALPH_READY_LABEL` for the `ready-for-agent` string, for users who must rename just that one.) Say this in one line so the user knows why the question was skipped.
+- **GitHub / GitLab / other:** ask exactly one question:
 
 > Do you want to keep the default triage labels? (recommended: **yes**)
 
@@ -66,6 +77,7 @@ Show the user a draft of:
 
 - The `## Agent skills` block to add to whichever of `CLAUDE.md` / `AGENTS.md` is being edited (see step 4 for selection rules)
 - The contents of `docs/agents/issue-tracker.md`, `docs/agents/domain.md`, and `docs/agents/triage-labels.md` (the last only when `triage` is installed)
+- For a local board, the scaffold commands above and what they will create
 
 Let them edit before writing.
 
@@ -113,4 +125,4 @@ For "other" issue trackers, write `docs/agents/issue-tracker.md` from scratch us
 
 ### 5. Done
 
-Tell the user the setup is complete and which engineering skills will now read from these files. Mention they can edit `docs/agents/*.md` directly later — re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
+Tell the user the setup is complete and which engineering skills will now read from these files. For a local board also say how work flows: `/to-spec` → `.kanban/specs/<slug>.md`, `/to-tickets` → `.kanban/issues/NNN-*.md` (labelled `ready-for-agent`, `spec: <slug>`), then `tralph --spec <slug>` runs them. Mention they can edit `docs/agents/*.md` directly later — re-running this skill is only necessary if they want to switch issue trackers or restart from scratch.
