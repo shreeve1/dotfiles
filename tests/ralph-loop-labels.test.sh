@@ -54,15 +54,15 @@ while [ $# -gt 0 ]; do
   if [ "$1" = "-p" ]; then prompt="$2"; shift; fi
   shift
 done
-path="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on ticket \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\1/p' | head -1)"
-id="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on ticket \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\2/p' | head -1)"
+path="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on \(ticket\|review target\) \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\2/p' | head -1)"
+id="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on \(ticket\|review target\) \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\3/p' | head -1)"
 if [ -z "$path" ]; then
   echo "NONE" >>"$WORKER_LOG"
   echo "RALPH_RESULT: NO_WORK"
   exit 0
 fi
 echo "$id" >>"$WORKER_LOG"
-sed -i 's/^status: pending$/status: done/' "$path"
+sed -i 's/^status: \(pending\|in-progress\|review\|blocked\)$/status: done/' "$path"
 git add -A >/dev/null 2>&1 && git commit -qm "feat(#$id): stub worker" >/dev/null 2>&1
 echo "worked on #$id"
 echo "RALPH_RESULT: DONE #$id"
@@ -164,6 +164,56 @@ run_loop
 expect_eq "archived done releases dependent; cancelled and missing do not" "10" "$(workers)"
 expect_eq "cancelled-blocked ticket untouched" "pending" "$(status_of 11)"
 expect_eq "missing-blocked ticket untouched" "pending" "$(status_of 12)"
+
+# --- --spec scopes EVERY selection path (review finding 2) ------------------------
+# An in-progress ticket from ANOTHER spec must not be resumed, must not suppress the
+# driver's own selection, and must not be touched.
+new_repo specactive
+ticket 1 in-progress "$R" '[]' issues 'spec: alpha'
+ticket 2 pending "$R" '[]' issues 'spec: beta'
+run_loop --spec beta
+expect_eq "--spec beta ignores an in-progress alpha ticket" "2" "$(workers)"
+expect_eq "the alpha in-progress ticket is untouched" "in-progress" "$(status_of 1)"
+expect_eq "the beta ticket was worked" "done" "$(status_of 2)"
+
+# ...but an active ticket INSIDE the spec is resumed, and the worker is told which one.
+new_repo specresume
+ticket 1 in-progress "$R" '[]' issues 'spec: alpha'
+ticket 2 pending "$R" '[]' issues 'spec: alpha'
+run_loop --spec alpha
+expect_eq "--spec alpha resumes its own active ticket first, then the pending one" "1 2" "$(workers)"
+grep -q "Selected ticket\|Resuming active ticket" "$TMP/last.out" && ok || fail "driver says which active ticket it resumes" "$(grep -E 'active|Selected|Resum' "$TMP/last.out" | head -3)"
+
+# No --spec: unchanged behaviour (any active ticket is resumed).
+new_repo nospecactive
+ticket 1 in-progress "$R" '[]' issues 'spec: alpha'
+ticket 2 pending "$R" '[]' issues 'spec: beta'
+run_loop
+expect_eq "without --spec an active ticket anywhere is resumed first" "1 2" "$(workers)"
+
+# --review-loop honours --spec as well.
+new_repo specreview
+ticket 1 blocked "$R" '[]' issues 'spec: alpha'
+ticket 2 blocked "$R" '[]' issues 'spec: beta'
+run_loop --review-loop --spec beta
+expect_eq "--review-loop --spec beta targets only beta" "2" "$(workers)"
+expect_eq "the alpha blocked ticket is left alone by a beta review loop" "blocked" "$(status_of 1)"
+
+# unattended auto-block fallback and continue-on-error reset also stay in scope: a
+# failing beta run must never reset/block an alpha ticket that merely is in-progress.
+new_repo specreset
+ticket 1 in-progress "$R" '[]' issues 'spec: alpha'
+ticket 2 pending "$R" '[]' issues 'spec: beta'
+cat >"$BIN/omp-fail" <<'EOF2'
+#!/usr/bin/env bash
+echo "RALPH_RESULT: FAIL #2"
+exit 1
+EOF2
+chmod +x "$BIN/omp-fail"
+mv "$BIN/omp" "$BIN/omp.real"; cp "$BIN/omp-fail" "$BIN/omp"
+run_loop --spec beta --continue-on-error
+mv "$BIN/omp.real" "$BIN/omp"
+expect_eq "continue-on-error under --spec beta never resets alpha's ticket" "in-progress" "$(status_of 1)"
 
 echo "ralph-loop-labels: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]

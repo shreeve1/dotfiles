@@ -19,7 +19,11 @@
 #              ready = exactly one state label and it is the ready label,
 #              childrenOpen = some child is not done). Blocker resolution is
 #              left to the caller (see `archive`).
-#   archive    JSON array of {id,status} for every ticket under archive/.
+#   archive    JSON array of {id,status,parent} for every ticket under archive/.
+#   files      Paths of every ticket in issues/ (any status), ordered by id; --spec
+#              narrows it. Lets callers scope status-based scans (active resume,
+#              review targets) to the same set `eligible` uses. Unlike `json` it
+#              does not fail on a file without frontmatter: it lists what has an id.
 #
 # status `todo` and `open` are read as `pending` (ralph-loop.sh normalizes them
 # in place; generators such as Plane-derived boards emit them).
@@ -69,7 +73,7 @@ while [ $# -gt 0 ]; do
     usage
     exit 0
     ;;
-  eligible | next | counts | validate | json | archive)
+  eligible | next | counts | validate | json | archive | files)
     CMD="$1"
     shift
     ;;
@@ -365,5 +369,11 @@ json)
   ;;
 archive)
   if [ "${#FILES[@]}" -eq 0 ]; then echo '[]'; else archive_cmd; fi
+  ;;
+files)
+  if [ "${#FILES[@]}" -gt 0 ]; then
+    pass1 | awk -F'\t' -v spec="$SPEC" '$1 == "issues" && $4 ~ /^[0-9]+$/ && (spec == "" || $9 == spec) { printf "%d\t%s\n", $4 + 0, $2 }' |
+      sort -n -k1,1 | cut -f2-
+  fi
   ;;
 esac

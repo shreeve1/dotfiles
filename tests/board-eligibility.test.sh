@@ -288,6 +288,17 @@ expect_eq "archive json carries parent" "1" "$(bs archive | jq -r '.[] | select(
 expect_eq "archive json carries status" "cancelled" "$(bs archive | jq -r '.[] | select(.id==2) | .status')"
 expect_eq "archive json: no parent is null" "null" "$(bs archive | jq -r '[.[] | select(.id==2)][0].spec // "null"')"
 
+# --- `files`: every ticket path in scope, any status (ralph-loop uses it to scope active-resume and review) ---
+new_board files
+ticket "$B/issues" 1 in-progress "$R" '[]' 'spec: alpha'
+ticket "$B/issues" 2 pending "$R" '[]' 'spec: beta'
+ticket "$B/issues" 3 done - '[]' 'spec: beta'
+ticket "$B/issues" 4 blocked "$R" '[]'
+ticket "$B/archive/2026-01-01" 9 done - '[]' 'spec: beta'
+expect_eq "files: all tickets in issues/, not archive" "1 2 3 4" "$(bs files | sed 's#.*/0*\([0-9]*\)-t.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
+expect_eq "files --spec beta: only beta's tickets, any status" "2 3" "$(bs --spec beta files | sed 's#.*/0*\([0-9]*\)-t.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
+expect_eq "files --spec with no match is empty" "" "$(bs --spec nobody files)"
+
 # --- empty / missing board --------------------------------------------------
 new_board empty
 expect_eq "empty board counts eligible=0" "0" "$(count eligible)"

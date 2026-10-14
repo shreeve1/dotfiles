@@ -63,8 +63,11 @@ board_counts() {
 	[[ -d "$d/.kanban" ]] || return 1
 	"$BOARD_SH" --board "$d/.kanban" ${SPEC:+--spec "$SPEC"} --ready-label "$READY_LABEL" counts 2>>"$LOG"
 }
-count_of() { # key, counts-text
-	printf '%s\n' "$2" | sed -n "s/^$1=//p" | head -1
+count_of() { # key, counts-text -> the number, or 0 when absent/empty
+	local v
+	v=$(printf '%s\n' "$2" | sed -n "s/^$1=//p" | head -1)
+	[[ "$v" =~ ^[0-9]+$ ]] || v=0
+	printf '%s' "$v"
 }
 # waiting_summary COUNTS -> human reason a pending ticket is not being worked.
 waiting_summary() {
@@ -148,7 +151,6 @@ while true; do
 			# No worktree: create one only if the base board has fresh pending work.
 			base_counts=$(board_counts "$BASE_REPO" || true)
 			base_pend=$(count_of eligible "$base_counts")
-			base_pend=${base_pend:-0}
 			if ((base_pend > 0)); then
 				log "base has $base_pend eligible issue(s); ensuring worktree"
 				if RALPH_BASE_REPO="$BASE_REPO" RALPH_WORKTREE="$WORKTREE" RALPH_BRANCH="$BRANCH" \
@@ -167,7 +169,7 @@ while true; do
 	else
 		# Legacy cwd mode.
 		counts=$(board_counts "$PWD" || true)
-		work=$(($(count_of eligible "$counts" | sed 's/^$/0/') + $(count_of active "$counts" | sed 's/^$/0/')))
+		work=$(($(count_of eligible "$counts") + $(count_of active "$counts")))
 		if ((work > 0)) && ((now - last_launch >= RELAUNCH_COOLDOWN)); then
 			last_launch=$now
 			idle_logged=false
