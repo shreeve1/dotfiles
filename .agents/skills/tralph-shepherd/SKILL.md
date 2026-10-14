@@ -8,22 +8,51 @@ description: |
 
 Watch over an active `tralph` run in the current repo. Treat the kanban as the source of truth and the loop's own log as the source of facts. Diagnose root causes and delegate the fix (to the loop or a sub-agent), then keep the loop running.
 
+## Scope and run key
+
+The shepherd watches one **scope**: either the whole `.kanban` board, or one spec's tickets.
+
+- **Whole board (default):** `KEY=0`, no spec flag.
+- **One spec:** the user names a slug (`tralph-shepherd my-spec`). Then `KEY=my-spec` and every launch, count and path below uses it. A spec's tickets are the ones whose frontmatter has `spec: my-spec`.
+
+```bash
+SPEC="${SPEC:-}"                       # the slug the user gave, or empty
+KEY="${SPEC:-0}"                       # gralph run key: state dir + branch name
+SPEC_ARGS=${SPEC:+--spec "$SPEC"}      # forwarded to tralph / board.sh
+RUN_DIR=".gralph/runs/$KEY"            # manifest, sidecars, coordinator lock
+BOARD_SH="$HOME/.agents/skills/kanban/board.sh"
+# Run report: .kanban/run-report.md for KEY=0, .kanban/run-report-$KEY.md for a slug.
+REPORT=$([ "$KEY" = 0 ] && echo .kanban/run-report.md || echo ".kanban/run-report-$KEY.md")
+# Deferred-merge marker (see tralph-merge): ~/.cache/ralph-merge-needed-board-$KEY
+```
+
+Use `$RUN_DIR`, `$REPORT` and `$KEY` wherever this skill used to say `.gralph/runs/0`, `run-report.md` or `board-0`. Two shepherds on **different** specs may run at once; two on the same scope may not.
+
+**Eligibility is decided by `board.sh`, not by grepping `status:`.** A ticket is workable only when `status: pending` AND its `labels:` carry exactly one triage state label and it is `ready-for-agent` AND its blockers are done (the archive is searched; cancelled or unknown blockers keep it blocked). Read the board with:
+
+```bash
+"$BOARD_SH" --board .kanban $SPEC_ARGS counts     # eligible, waiting_*, active, blocked, done, ...
+"$BOARD_SH" --board .kanban $SPEC_ARGS eligible   # <id><TAB><path> of each workable ticket
+"$BOARD_SH" --board .kanban validate              # schema problems; exit 1 on ERROR
+```
+
 ## Preconditions
 
 Before doing anything:
 
 1. `pwd` shows a directory containing `.kanban/issues/`. If not, stop — the shepherd has nothing to watch.
-2. **Drive.** If `tmux has-session -t ralph-loop` fails AND no board-mode coordinator is running (`.gralph/runs/0/.coordinator-lock/owner.json` absent or its PID dead — see board-mode gather signals), check the board first:
-   - If every issue in `.kanban/issues/` is `status: done` (or there are no issues at all), do NOT start anything — the board is complete; print the summary and stop (see Termination).
-   - If the only remaining work is blocked issues (0 pending, 0 in-progress, 0 review, ≥1 blocked), do NOT start the driver yet — it would hit `UNBLOCKED_COUNT==0 && ACTIVE_COUNT==0` immediately (ralph-loop.sh:1118), print `Ralph loop complete!`, and park. Go straight to the Delegate-or-raise decision for those blocked issues; the flip→pending (or out-of-loop work) is what makes the board pickable, and then you relaunch with real work for the worker.
+2. **Drive.** If `tmux has-session -t ralph-loop` fails AND no board-mode coordinator is running (`$RUN_DIR/.coordinator-lock/owner.json` absent or its PID dead — see board-mode gather signals), check the board first:
+   - If every issue in scope is `status: done` (or there are no issues at all), do NOT start anything — the board is complete; print the summary and stop (see Termination).
+   - If `counts` shows `eligible=0` and `active=0` and `blocked=0` but one or more of `waiting_triage`, `waiting_human`, `wontfix`, `conflict`, `waiting_deps` is non-zero, the board is **waiting on people, not on the loop**. Do NOT start anything (the loop would find no eligible ticket and exit). Print the per-reason counts and the ticket ids (`validate` names label conflicts), then stop — see "Waiting on triage" under Termination. `conflict` (two state labels) and `waiting_deps` caused by a cancelled or missing blocker always need a human.
+   - If the only remaining work is blocked issues (`eligible=0`, `active=0`, `blocked≥1`), do NOT start the driver yet — it would find no eligible ticket and no active one immediately, print `Ralph loop complete!`, and park. Go straight to the Delegate-or-raise decision for those blocked issues; the flip→pending **and `ready-for-agent` label** (or out-of-loop work) is what makes the board pickable, and then you relaunch with real work for the worker.
    - Otherwise (there is already pending/in-progress/review work for a worker to pick up) the shepherd owns startup, in one of two modes. Both launch **through an interactive login zsh** so the worker inherits the human shell's environment. Capture the project root in the outer shell first, because a login zsh may open in `$HOME`:
      - **Sequential mode (default, tmux driver)** — from the project root:
-       `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh tmux ralph-loop"`.
+       `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh $SPEC_ARGS tmux ralph-loop"`.
      **Why `zsh -lic` and not a bare `bash …`:** `ralph-loop.sh` launches each worker via `tmux new-session -d … exec env $AGENT_CMD` (line 710). The worker inherits the environment of the tmux *server*, which is whatever shell first created it. `omp` is a `#!/usr/bin/env bun` script and needs both `~/.bun/bin` on PATH (to resolve `bun`) and provider credentials such as `MINIMAX_API_KEY` — **both come only from the interactive `.zshrc`/`.zprofile`, not from a bare non-interactive shell.** Launch the driver from a non-interactive shell and every worker dies at startup (`⚠️  Interactive agent session exited during startup`) or fails auth (`Error: No API key found for minimax`). The `-l` (login) + `-i` (interactive) flags make zsh source those files so the tmux server — and thus every worker window — gets the same PATH and credentials the operator's own shell has. Do NOT copy credentials into `tmux set-environment -g` yourself: a server-global secret is readable by every session on that server. Let the interactive shell propagate them.
      The script defaults `RALPH_MODEL=openrouter/deepseek/deepseek-v4.1-flash` internally (line 45), same as `tralph`; `tralph` is a zsh function and is unavailable in a skill context — this `zsh -lic` wrapper is the sanctioned substitute for it. If the script prints the has-session guard (source wording `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`, line 274), another driver just started — verify with `tmux has-session -t ralph-loop` and continue the cycle; do NOT kill anything.
      - **Board mode (`tralph --jobs N`, gralph coordinator)** — when the tickets are meant to run through the gralph coordinator (parallel lanes, worktree-per-child), start it instead of the tmux driver. From the project root:
-       `proj="$PWD"; zsh -lic "cd '$proj' && tralph --jobs N"` (N = desired lane count, default 2; read a previous run's value from `.gralph/runs/0/manifest.json` `.orchestration.jobs`).
-       The same `zsh -lic` rationale applies: workers need the interactive shell's PATH and credentials. A pre-existing `.gralph/runs/0/manifest.json` is fine — #056 `recover_state` makes the restart safe (reconstructs from manifest + sidecars, skips landed lanes, resets dead ones). Fresh run vs restart needs no special handling: absent lock + work on the board → launch; stale lock (dead PID) → same launch command reaps and resumes.
+       `proj="$PWD"; zsh -lic "cd '$proj' && tralph --jobs N $SPEC_ARGS"` (N = desired lane count, default 2; read a previous run's value from `$RUN_DIR/manifest.json` `.orchestration.jobs`).
+       The same `zsh -lic` rationale applies: workers need the interactive shell's PATH and credentials. A pre-existing `$RUN_DIR/manifest.json` is fine — `tralph` refreshes a run that has executed instead of overwriting it, and `recover_state` reconstructs from manifest + sidecars, skips landed lanes and resets dead ones (pass `--replan` only to deliberately discard a run). Fresh run vs restart needs no special handling: absent lock + work on the board → launch; a lock whose owner PID is dead **on this host** is reaped by gralph automatically and the run resumes; a lock from another host, or one with no readable owner, is refused (`an unresolved Gralph claim exists`) — raise it, do not delete it.
        After launch, use the **board-mode gather signals** block every cycle — no tmux pane captures.
 3. Only one shepherd at a time. If a previous shepherd is still running in another session, stop.
 4. This skill assumes the default tmux server (the `--normal-tmux` behavior; see `ralph-loop.sh` line 73). A `--private-tmux` loop is out of scope — different socket, different session name, different worker naming — do not try to shepherd one.
@@ -70,13 +99,10 @@ sub-agent's work must land before you sleep on the interval.
 Run these in order from the project root.
 
 ```bash
-# 0. Board state — primary triage key. The loop's UNBLOCKED_COUNT excludes
-#    blocked issues (count_unblocked_pending, line 516+), so a parked driver
-#    with blocked issues on the board can still look "complete" by banner.
-for s in pending in-progress review blocked done; do
-  printf '%-12s %s\n' "$s:" \
-    "$(grep -l "^status: $s$" .kanban/issues/*.md 2>/dev/null | wc -l | tr -d ' ')"
-done
+# 0. Board state — primary triage key. board.sh decides eligibility (status +
+#    triage label + blockers); a parked driver with blocked or not-agent-ready
+#    tickets on the board can still look "complete" by banner.
+"$BOARD_SH" --board .kanban $SPEC_ARGS counts
 
 # 1. Driver log tail — the loop writes to $HOME/.cache/ralph-loop-ralph-loop.log
 #    GUARD: the log is keyed by SESSION NAME only (ralph-loop.sh:368) and
@@ -107,7 +133,7 @@ if [[ -n "$WORKER" ]]; then
   tmux capture-pane -p -t "${WORKER}:0.0" -S -30
 fi
 
-# 4. Blocked-issue scan + Blocker sections
+# 4. Blocked-issue scan + Blocker sections (blocked is a status; see Fixing blocked issues)
 grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null
 for f in $(grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null); do
   echo "=== $f ==="
@@ -155,14 +181,11 @@ following from the project root:
 
 ```bash
 # 0. Board state — same primary triage key as sequential mode.
-for s in pending in-progress review blocked done; do
-  printf '%-12s %s\n' "$s:" \
-    "$(grep -l "^status: $s$" .kanban/issues/*.md 2>/dev/null | wc -l | tr -d ' ')"
-done
+"$BOARD_SH" --board .kanban $SPEC_ARGS counts
 
 # 1. Manifest summary — coordinator writes this atomically throughout the run.
-#    Parent ID for board-mode tralph --jobs N runs is always "0".
-MANIFEST=".gralph/runs/0/manifest.json"
+#    Run key: the spec slug, or "0" when no --spec was given.
+MANIFEST="$RUN_DIR/manifest.json"
 if [ -f "$MANIFEST" ]; then
   jq '{
     runId: .orchestration.runId,
@@ -186,7 +209,7 @@ else
 fi
 
 # 2. Coordinator lock — if the lock dir exists, read the owner.
-LOCK=".gralph/runs/0/.coordinator-lock/owner.json"
+LOCK="$RUN_DIR/.coordinator-lock/owner.json"
 if [ -f "$LOCK" ]; then
   jq '.' "$LOCK"
   # Check whether the owner PID is alive.
@@ -201,15 +224,15 @@ else
 fi
 
 # 3. Per-lane worker logs — tail the most recent log for each child.
-#    Logs live at .gralph/runs/0/worker-<child>-iteration-*.log
-for log in .gralph/runs/0/worker-*-iteration-*.log; do
+#    Logs live at $RUN_DIR/worker-<child>-iteration-*.log
+for log in "$RUN_DIR"/worker-*-iteration-*.log; do
   [ -f "$log" ] || continue
   echo "=== $log ==="
   tail -n 10 "$log"
 done
 
 # 4. Sidecars — final outcome JSON per child (written when the lane completes).
-for sc in .gralph/runs/0/.child-*-result.json; do
+for sc in "$RUN_DIR"/.child-*-result.json; do
   [ -f "$sc" ] || continue
   echo "=== $sc ==="
   jq '{child, outcome, reason, executionStatus, mergeStatus: .merge.status}' "$sc" 2>/dev/null || cat "$sc"
@@ -223,7 +246,7 @@ for f in $(grep -l '^status: blocked$' .kanban/issues/*.md 2>/dev/null); do
 done
 
 # 6. Run report (written by finish_board after completion).
-[ -f ".kanban/run-report.md" ] && cat ".kanban/run-report.md" || echo "no run-report.md yet"
+[ -f "$REPORT" ] && cat "$REPORT" || echo "no run report yet ($REPORT)"
 ```
 
 **Board-mode triage key:** "coordinator parked/crashed" means the lock
@@ -235,31 +258,34 @@ re-gather.
 
 | Board state | Coordinator state | Action |
 |---|---|---|
-| pending/in-progress tickets exist; manifest children still unfinished | PID alive | **Sleep.** Coordinator is running waves. |
-| pending/in-progress tickets exist; manifest children still unfinished | PID dead, lock stale | **Relaunch coordinator** (see "Relaunching the coordinator (board mode)"). Recovery in #056 makes a restart safe. |
-| pending/in-progress tickets exist; no manifest yet | lock absent | **Coordinator not started.** Relaunch via `tralph --jobs N`. |
-| blocked tickets; pending = 0 | any | **Delegate-or-raise** (same tree as sequential mode). |
-| all issues done; run-report.md present | PID gone, lock absent | **Termination.** |
+| `eligible`/`active` tickets exist; manifest children still unfinished | PID alive | **Sleep.** Coordinator is running waves. |
+| `eligible`/`active` tickets exist; manifest children still unfinished | PID dead, lock stale | **Relaunch coordinator** (see "Relaunching the coordinator (board mode)"). gralph reaps the dead-PID lock itself; recovery makes a restart safe. |
+| `eligible`/`active` tickets exist; no manifest yet | lock absent | **Coordinator not started.** Relaunch via `tralph --jobs N` (plus `--spec` if scoped). |
+| `eligible=0`, `active=0`, `blocked=0`; some `waiting_*`/`wontfix`/`conflict` | any | **Waiting on triage.** Report and stop (see Termination). Do not relaunch. |
+| `blocked` tickets; `eligible=0` | any | **Delegate-or-raise** (same tree as sequential mode). |
+| all issues in scope done; run report present | PID gone, lock absent | **Termination.** |
 
 ### Triage
 
-BOARD STATE IS THE PRIMARY KEY. The loop's `count_unblocked_pending`
-(line 516) only counts `status: pending` with satisfied `blocked_by`;
-`count_actionable_review_targets` (line 461) only counts blocked/review/
+BOARD STATE IS THE PRIMARY KEY. The loop only works tickets `board.sh` calls
+eligible (`status: pending` + exactly one state label, `ready-for-agent` +
+blockers done); `count_actionable_review_targets` only counts blocked/review/
 in-progress/done-without-action_reviewed. Neither counts `status: blocked`
-for the pending path, so a parked driver with blocked issues on the board
-can still print `Ralph loop complete!` (line 1118-1122). Trust the board,
-not the banner.
+for the pending path, and a pending ticket labelled `needs-info`,
+`ready-for-human`, `wontfix` or `needs-triage` is deliberately invisible to
+it, so a parked driver with such tickets on the board can still print
+`Ralph loop complete!`. Trust the board, not the banner.
 
-First read the per-status counts from step 0 of "Gather signals". Then:
+First read the counts from step 0 of "Gather signals". Then:
 
 | Board state | Driver/worker state | Action |
 |---|---|---|
-| any pending, in-progress, review, or blocked exists | driver between iterations (no worker session, no parked bash prompt) | **Sleep.** Loop is launching the next worker. |
-| any pending, in-progress, review, or blocked exists | worker session live, pane shows active spinner/▶ | **Sleep.** Worker is working. |
-| any pending, in-progress, review, or blocked exists | driver pane is bash prompt (`exec bash` parked) | **Delegate-or-raise or relaunch path** below. |
-| any pending, in-progress, review, or blocked exists | worker session live, pane dead (no spinner, no progress) | **Stall or worker-crash.** Read `⚠️  Worker still idle after`, `⚠️  Timed out waiting for Ralph sentinel after`, or `⚠️  Interactive agent session exited before printing a sentinel` in the log; root-cause from the worker pane; see "Relaunch" once parked. |
-| all issues `status: done` | any | **Termination.** Summarize and stop. |
+| any eligible, active, or blocked ticket exists | driver between iterations (no worker session, no parked bash prompt) | **Sleep.** Loop is launching the next worker. |
+| any eligible, active, or blocked ticket exists | worker session live, pane shows active spinner/▶ | **Sleep.** Worker is working. |
+| any eligible, active, or blocked ticket exists | driver pane is bash prompt (`exec bash` parked) | **Delegate-or-raise or relaunch path** below. |
+| any eligible, active, or blocked ticket exists | worker session live, pane dead (no spinner, no progress) | **Stall or worker-crash.** Read `⚠️  Worker still idle after`, `⚠️  Timed out waiting for Ralph sentinel after`, or `⚠️  Interactive agent session exited before printing a sentinel` in the log; root-cause from the worker pane; see "Relaunch" once parked. |
+| all issues in scope `status: done` | any | **Termination.** Summarize and stop. |
+| only `waiting_*` / `wontfix` / `conflict` tickets remain (`eligible=0`, `active=0`, `blocked=0`) | any | **Waiting on triage.** Report and stop; nothing for the loop to do until a human labels or unblocks them. |
 Each "**Sleep.**" row above means proceed to step 3 (arm the interval timer) and then re-gather — it is never a reason to stop the session.
 
 #### Delegate-or-raise or relaunch path (board has work, driver parked)
@@ -301,7 +327,12 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
   `[PATH#TAG]` header and rejects a guessed/placeholder tag, forcing a
   wasted round-trip otherwise. Edit the ticket:
   frontmatter `status: blocked` → `status: pending`, and `updated:`
-  to today's date. Append a one-line record to `.kanban/progress.md`:
+  to today's date. **Also make the ticket eligible:** its `labels:` must
+  carry exactly one state label and it must be `ready-for-agent` — swap an
+  existing state label for it, never add a second (two state labels is a
+  `conflict` and the loop will ignore the ticket). A ticket labelled
+  `ready-for-human` (gralph's repair tickets are) is a human's by design:
+  do NOT relabel it yourself — RAISE it. Append a one-line record to `.kanban/progress.md`:
   `#NNN unblocked <date>: <root cause>`.
   This line is the durable retry-bound record for loop-only delegation — keep it to ONE line: its only job is retry-bound detection on rerun, and the worker re-reads the ticket's `## Blocker` anyway, so do NOT restate the Blocker's fix paths here (that bloats progress.md).
   Then relaunch the driver (Relaunch section) so a fresh-context ralph
@@ -431,10 +462,10 @@ Pre-flight:
    interval and re-gather.
 2. **Confirm unfinished manifest work exists.** If `.orchestration.completed`
    is set and every child has `merge.status == "landed"` or a terminal
-   status, the run finished normally — check for `run-report.md` and
+   status, the run finished normally — check for `$REPORT` and
    treat as Termination instead.
 3. **Check the deferred-merge marker.** If
-   `~/.cache/ralph-merge-needed-board-0` exists, the previous run's
+   `~/.cache/ralph-merge-needed-board-$KEY` exists, the previous run's
    `finish_board` couldn't ff-only to main. Restarting the coordinator
    picks up from the last wave; the merge marker is separate — you may
    need to resolve it manually via the `tralph-merge` skill after the
@@ -446,15 +477,15 @@ Relaunch command:
 # From the project root. N = the --jobs value originally used (check
 # manifest .orchestration.jobs; default is 2).
 proj="$PWD"
-N="$(jq -r '.orchestration.jobs // 2' "$proj/.gralph/runs/0/manifest.json" 2>/dev/null || echo 2)"
-zsh -lic "cd '$proj' && tralph --jobs $N"
+N="$(jq -r '.orchestration.jobs // 2' "$proj/$RUN_DIR/manifest.json" 2>/dev/null || echo 2)"
+zsh -lic "cd '$proj' && tralph --jobs $N $SPEC_ARGS"
 ```
 
 `gralph`'s `recover_state` runs immediately after the coordinator acquires
-the lock. It reaped the dead PID's lock, re-classifies lanes as
+the lock. gralph reaps a lock whose owner PID is dead on this host (a foreign-host lock is refused), re-classifies lanes as
 `recovered` or `needs_review` from the manifest, and then continues the
 wave loop — no ticket is re-implemented or re-landed. If the coordinator
-exits again with a non-zero status, read `.gralph/runs/0/manifest.json`
+exits again with a non-zero status, read `$RUN_DIR/manifest.json`
 `.orchestration` for failure context and raise to the user.
 
 ## Hard rules
@@ -474,11 +505,23 @@ exit cleanly without printing `Ralph loop complete!` — the NO_WORK path
 and even the all-clear exit only sometimes emits `Ralph Loop finished at`
 in the epilogue (line 1274). Don't gate on what the log says.
 
-Terminate when the board counts from step 0 show **zero pending,
-in-progress, review, and blocked** issues — every issue in
-`.kanban/issues/` is `status: done` — AND the driver is parked or
+Terminate when the board counts from step 0 show **zero eligible, active,
+blocked and waiting** tickets — every issue in scope is `status: done` (or an
+intentionally-closed `cancelled`) — AND the driver is parked or
 finished (driver tmux session is gone, or its pane is a bash prompt after
 `exec bash`). Print a one-paragraph summary of what was delegated or
 escalated this run (issues re-handed-to-the-loop, issues raised to the
 user with their outstanding questions), then stop. Do not poll past
 completion.
+
+### Waiting on triage
+
+A distinct stop. When `eligible=0`, `active=0` and `blocked=0` but some tickets
+are `waiting_triage` (`needs-triage` / `needs-info` / unlabeled), `waiting_human`
+(`ready-for-human`), `wontfix`, `conflict` (two state labels) or `waiting_deps`,
+there is nothing the loop or the shepherd may do: those tickets belong to a
+person. Print, per reason, the count and ticket ids, plus any `validate` ERROR
+lines, name the label or blocker change that would make each workable, and stop.
+Do not relabel tickets, do not relaunch, do not delete a lock. The user resumes
+by triaging (`/triage`) or labelling tickets `ready-for-agent`, then rerunning
+the shepherd. This is a normal outcome, not a failure.
