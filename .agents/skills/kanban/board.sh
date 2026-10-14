@@ -21,6 +21,9 @@
 #              left to the caller (see `archive`).
 #   archive    JSON array of {id,status} for every ticket under archive/.
 #
+# status `todo` and `open` are read as `pending` (ralph-loop.sh normalizes them
+# in place; generators such as Plane-derived boards emit them).
+#
 # Rules (see plans/tralph-labels-kanban-design.md):
 #   eligible = status pending
 #              AND exactly one triage *state* label, and it is the ready label
@@ -147,7 +150,7 @@ infm == 1 {
     key = substr($0, 1, RLENGTH - 1); raw = trim(substr($0, RLENGTH + 1)); val = trim(strip_comment(raw))
     if (key == "id") id = unq(val)
     else if (key == "title") { hastitle = (val != ""); title = raw; gsub(/\t/, " ", title) }
-    else if (key == "status") status = unq(val)
+    else if (key == "status") { status = unq(val); if (status == "todo" || status == "open") status = "pending" }
     else if (key == "spec") spec = unq(val)
     else if (key == "priority") prio = unq(val)
     else if (key == "created") created = unq(val)

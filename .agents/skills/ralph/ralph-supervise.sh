@@ -46,15 +46,36 @@ WORKTREE_MODE=false
 mkdir -p "$HOME/.cache"
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
 
-count_status() { # dir, extended-regex of statuses
-	local d="$1" re="$2"
-	[[ -d "$d/.kanban/issues" ]] || { echo 0; return; }
-	find "$d/.kanban/issues" -name '*.md' -exec grep -lE "^status: ($re)$" {} \; 2>/dev/null | wc -l | tr -d ' '
-}
-total_issues() {
+BOARD_SH="$(dirname "$SKILL_DIR")/kanban/board.sh"
+READY_LABEL="${RALPH_READY_LABEL:-ready-for-agent}"
+SPEC="${RALPH_SPEC:-}"
+# --spec SLUG may arrive in the loop args; honour it so the supervisor and the
+# loop it launches agree on which tickets count as work.
+for ((i = 0; i < ${#RALPH_ARGS[@]}; i++)); do
+	[[ "${RALPH_ARGS[$i]}" == "--spec" ]] && SPEC="${RALPH_ARGS[$((i + 1))]:-}"
+done
+
+# board_counts DIR -> key=value lines from board.sh (empty output + rc!=0 if the
+# board is missing or unreadable). Eligibility is decided by board.sh so the
+# supervisor, the loop, gralph and the shepherd cannot disagree.
+board_counts() {
 	local d="$1"
-	[[ -d "$d/.kanban/issues" ]] || { echo 0; return; }
-	find "$d/.kanban/issues" -name '*.md' 2>/dev/null | wc -l | tr -d ' '
+	[[ -d "$d/.kanban" ]] || return 1
+	"$BOARD_SH" --board "$d/.kanban" ${SPEC:+--spec "$SPEC"} --ready-label "$READY_LABEL" counts 2>>"$LOG"
+}
+count_of() { # key, counts-text
+	printf '%s\n' "$2" | sed -n "s/^$1=//p" | head -1
+}
+# waiting_summary COUNTS -> human reason a pending ticket is not being worked.
+waiting_summary() {
+	local c="$1"
+	printf '%s need triage/info, %s for a human, %s wontfix, %s conflicting labels, %s waiting on blockers' \
+		"$(count_of waiting_triage "$c")" "$(count_of waiting_human "$c")" "$(count_of wontfix "$c")" \
+		"$(count_of conflict "$c")" "$(count_of waiting_deps "$c")"
+}
+waiting_total() {
+	local c="$1"
+	echo $(($(count_of waiting_triage "$c") + $(count_of waiting_human "$c") + $(count_of wontfix "$c") + $(count_of conflict "$c") + $(count_of waiting_deps "$c")))
 }
 branch_ahead() {
 	local n
@@ -68,6 +89,7 @@ launch_driver() {
 }
 
 [[ -x "$LOOP_SCRIPT" ]] || { log "FATAL: loop script not executable: $LOOP_SCRIPT"; exit 1; }
+[[ -x "$BOARD_SH" ]] || { log "FATAL: board.sh not executable: $BOARD_SH"; exit 1; }
 log "supervisor up: session=$SESSION_NAME worktree_mode=$WORKTREE_MODE base=$BASE_REPO wt=$WORKTREE interval=${POLL_INTERVAL}s args=[${RALPH_ARGS[*]:-}]"
 
 last_launch=0
@@ -83,12 +105,19 @@ while true; do
 
 	if [[ "$WORKTREE_MODE" == "true" ]]; then
 		if [[ -d "$WORKTREE/.kanban" ]]; then
-			pend=$(count_status "$WORKTREE" 'pending|todo')
-			act=$(count_status "$WORKTREE" 'in-progress|review')
-			blk=$(count_status "$WORKTREE" 'blocked')
-			donec=$(count_status "$WORKTREE" 'done')
-			tot=$(total_issues "$WORKTREE")
-			if ((pend + act > 0)); then
+			if ! counts=$(board_counts "$WORKTREE"); then
+				$idle_logged || log "WARN: board.sh could not read $WORKTREE/.kanban; not launching on an unreadable board"
+				idle_logged=true
+				sleep "$POLL_INTERVAL"
+				continue
+			fi
+			elig=$(count_of eligible "$counts")
+			act=$(count_of active "$counts")
+			blk=$(count_of blocked "$counts")
+			donec=$(count_of done "$counts")
+			tot=$(count_of total "$counts")
+			wait=$(waiting_total "$counts")
+			if ((elig + act > 0)); then
 				if ((now - last_launch >= RELAUNCH_COOLDOWN)); then
 					last_launch=$now
 					idle_logged=false
@@ -108,14 +137,20 @@ while true; do
 				tmux new-session -d -s "$MERGE_SESSION" "$fcmd" 2>>"$LOG" \
 					|| log "WARN: could not start finalize session"
 			else
-				$idle_logged || log "worktree not actionable (pend=$pend act=$act blocked=$blk done=$donec of $tot); leaving for manual review"
+				if ((wait > 0)); then
+					$idle_logged || log "idle: $wait pending ticket(s) are not agent-ready ($(waiting_summary "$counts")); triage them or add $READY_LABEL"
+				else
+					$idle_logged || log "worktree not actionable (eligible=$elig active=$act blocked=$blk done=$donec of $tot); leaving for manual review"
+				fi
 				idle_logged=true
 			fi
 		else
 			# No worktree: create one only if the base board has fresh pending work.
-			base_pend=$(count_status "$BASE_REPO" 'pending|todo')
+			base_counts=$(board_counts "$BASE_REPO" || true)
+			base_pend=$(count_of eligible "$base_counts")
+			base_pend=${base_pend:-0}
 			if ((base_pend > 0)); then
-				log "base has $base_pend pending issue(s); ensuring worktree"
+				log "base has $base_pend eligible issue(s); ensuring worktree"
 				if RALPH_BASE_REPO="$BASE_REPO" RALPH_WORKTREE="$WORKTREE" RALPH_BRANCH="$BRANCH" \
 					RALPH_BASE_BRANCH="$BASE_BRANCH" bash "$WT_SCRIPT" ensure >/dev/null 2>>"$LOG"; then
 					last_launch=$now
@@ -125,16 +160,21 @@ while true; do
 					log "WARN: worktree ensure failed"
 				fi
 			else
-				$idle_logged || log "no worktree and no base pending; idle"
+				$idle_logged || log "no worktree and no eligible base issue; idle"
 				idle_logged=true
 			fi
 		fi
 	else
 		# Legacy cwd mode.
-		pend=$(count_status "$PWD" 'pending|todo')
-		if ((pend > 0)) && ((now - last_launch >= RELAUNCH_COOLDOWN)); then
+		counts=$(board_counts "$PWD" || true)
+		work=$(($(count_of eligible "$counts" | sed 's/^$/0/') + $(count_of active "$counts" | sed 's/^$/0/')))
+		if ((work > 0)) && ((now - last_launch >= RELAUNCH_COOLDOWN)); then
 			last_launch=$now
+			idle_logged=false
 			launch_driver "$PWD"
+		elif ((work == 0)) && [[ -n "$counts" ]] && (($(waiting_total "$counts") > 0)); then
+			$idle_logged || log "idle: $(waiting_total "$counts") pending ticket(s) are not agent-ready ($(waiting_summary "$counts"))"
+			idle_logged=true
 		fi
 	fi
 
