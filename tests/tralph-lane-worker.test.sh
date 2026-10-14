@@ -26,7 +26,10 @@ GRALPH="$ROOT/bin/gralph"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
@@ -134,11 +137,15 @@ write_ticket 2 pending '[]'
 write_ticket 3 pending '[]'
 write_ticket 4 pending '[2]'
 
-: >"$AGENT_LOG" : >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 if run_gralph_board "$REPO" --agent-cmd agent-cmd --jobs 2 --verify 'bash verify-integration.sh' \
-    >/dev/null 2>"$TMPDIR/two.out"; then :; else
-  echo "FAIL: two-lane run exited non-zero" >&2; cat "$TMPDIR/two.out" >&2; exit 1; fi
+  >/dev/null 2>"$TMPDIR/two.out"; then :; else
+  echo "FAIL: two-lane run exited non-zero" >&2
+  cat "$TMPDIR/two.out" >&2
+  exit 1
+fi
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 
 # Both 2 and 3 landed in the same wave; ticket 4 then becomes eligible in
@@ -157,8 +164,14 @@ jq -e '
 BASE_SHA="$(jq -r .baseSha "$MANIFEST")"
 worker_sha_2="$(jq -r '.children[] | select(.number == 2) | .execution.commitSha' "$MANIFEST")"
 worker_sha_3="$(jq -r '.children[] | select(.number == 3) | .execution.commitSha' "$MANIFEST")"
-git -C "$REPO" cat-file -e "$worker_sha_2" || { echo "FAIL: execution.commitSha for ticket 2 is not a known git object" >&2; exit 1; }
-git -C "$REPO" cat-file -e "$worker_sha_3" || { echo "FAIL: execution.commitSha for ticket 3 is not a known git object" >&2; exit 1; }
+git -C "$REPO" cat-file -e "$worker_sha_2" || {
+  echo "FAIL: execution.commitSha for ticket 2 is not a known git object" >&2
+  exit 1
+}
+git -C "$REPO" cat-file -e "$worker_sha_3" || {
+  echo "FAIL: execution.commitSha for ticket 3 is not a known git object" >&2
+  exit 1
+}
 jq -e '
   ((.children[] | select(.number == 2) | .merge.childCommitSha) == (.children[] | select(.number == 2) | .execution.commitSha))
   and ((.children[] | select(.number == 3) | .merge.childCommitSha) == (.children[] | select(.number == 3) | .execution.commitSha))
@@ -178,16 +191,21 @@ new_repo "$REPO"
 BOARD="$TMPDIR/board-override"
 mkdir -p "$BOARD/issues"
 write_ticket 5 pending '[]'
-: >"$AGENT_LOG" : >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 if run_gralph_board "$REPO" --agent-cmd agent-fail --jobs 1 --verify 'true' \
-    >"$TMPDIR/override.out" 2>"$TMPDIR/override.err"; then :; fi
+  >"$TMPDIR/override.out" 2>"$TMPDIR/override.err"; then :; fi
 grep -q 'agent-fail ticket=5' "$AGENT_LOG" || {
   echo "FAIL: --agent-cmd override did not route the prompt to agent-fail" >&2
-  cat "$TMPDIR/override.err" >&2; exit 1; }
+  cat "$TMPDIR/override.err" >&2
+  exit 1
+}
 grep -q '^RALPH_RESULT: FAIL #5$' "$REPO/.gralph/runs/42"/.child-5-*-worker.log || {
   echo "FAIL: agent-fail did not emit FAIL sentinel" >&2
-  cat "$TMPDIR/override.err" >&2; exit 1; }
+  cat "$TMPDIR/override.err" >&2
+  exit 1
+}
 
 # --- 4. FAIL sentinel marks the ticket blocked, no blind retry. ---
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
@@ -207,7 +225,7 @@ BOARD="$TMPDIR/board-no-agent"
 mkdir -p "$BOARD/issues"
 write_ticket 6 pending '[]'
 if (cd "$REPO" && PATH="$FAKE_BIN:$PATH" REAL_PATH="$REAL_PATH" \
-    "$GRALPH" 42 --board "$BOARD" --verify 'true') >/dev/null 2>"$TMPDIR/no-agent.err"; then
+  "$GRALPH" 42 --board "$BOARD" --verify 'true') >/dev/null 2>"$TMPDIR/no-agent.err"; then
   echo "FAIL: --board mutating run without --agent-cmd unexpectedly succeeded" >&2
   exit 1
 fi
@@ -220,12 +238,18 @@ new_repo "$REPO"
 BOARD="$TMPDIR/board-progress"
 mkdir -p "$BOARD/issues"
 write_ticket 7 pending '[]'
-: >"$AGENT_LOG" : >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO"
 if run_gralph_board "$REPO" --agent-cmd agent-cmd --jobs 1 --verify 'bash verify-integration.sh' \
-    >/dev/null 2>"$TMPDIR/lane.out"; then :; else
-  echo "FAIL: lane-progress run exited non-zero" >&2; cat "$TMPDIR/lane.out" >&2; exit 1; fi
-grep -q '^status: pending$' "$BOARD/issues/007-7.md"
+  >/dev/null 2>"$TMPDIR/lane.out"; then :; else
+  echo "FAIL: lane-progress run exited non-zero" >&2
+  cat "$TMPDIR/lane.out" >&2
+  exit 1
+fi
+# The coordinator (not the worker) records the landing on the ticket: durable
+# `status: done`, so ticket-review / finish-spec / the shepherd can see it.
+grep -q '^status: done$' "$BOARD/issues/007-7.md"
 [ ! -f "$REPO/.kanban/progress.md" ] || ! grep -q 'Lane-local progress for #7' "$REPO/.kanban/progress.md"
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 worker_sha_7="$(jq -r '.children[] | select(.number == 7) | .execution.commitSha' "$MANIFEST")"
