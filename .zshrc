@@ -329,10 +329,22 @@ tralph() {
 	# subshell, or a future edit that moves the secrets line below this fn).
 	[[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
 
-	# Parse --jobs N before delegating to the right driver.
-	local jobs=1 args=()
+	# Parse --jobs N / --spec SLUG / --replan before delegating to the right driver.
+	local jobs=1 spec="" replan=0 args=()
 	while [[ $# -gt 0 ]]; do
 		case $1 in
+		--spec)
+			if [[ -z "${2:-}" || ! "${2}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+				echo "tralph: --spec requires a slug ([A-Za-z0-9][A-Za-z0-9_-]*)" >&2
+				return 1
+			fi
+			spec="$2"
+			shift 2
+			;;
+		--replan)
+			replan=1
+			shift
+			;;
 		--jobs)
 			if [[ -z "${2:-}" || ! "${2}" =~ ^[0-9]+$ || "${2}" -lt 1 ]]; then
 				echo "tralph: --jobs requires a positive integer" >&2
@@ -346,6 +358,19 @@ tralph() {
 tralph — Ralph loop entry point
 
 Usage: tralph [OPTIONS] [ADAPTER] [SESSION_NAME]
+
+Works from the project's .kanban board. A ticket is picked up only when its
+status is pending, its labels: carry exactly one triage state label and it is
+ready-for-agent (override: RALPH_READY_LABEL), and its blockers are done
+(archive/ is searched; cancelled or unknown blockers keep it blocked).
+
+COMMON OPTIONS:
+  --spec SLUG      Work only tickets whose frontmatter has spec: SLUG. In board
+                   mode SLUG is also the run key (.gralph/runs/SLUG, branch
+                   gralph/SLUG/batch, .kanban/run-report-SLUG.md). Without it
+                   the whole board is worked and the run key is 0.
+  --replan         Board mode: discard saved run state and plan from scratch
+                   (default: resume a run that has executed but not merged).
 
 OPTIONS (sequential mode, --jobs 1):
   All ralph-loop.sh options are accepted and forwarded:
@@ -407,17 +432,28 @@ HELP
 				return 1
 			}
 		fi
-		# Plan: build manifest from .kanban (dry-run).
-		"$gralph_bin" 0 --board .kanban --dry-run --verify "$verify" || return 1
+		# Run key: the spec slug when given, else 0 (historical). Planning refreshes a
+		# run that already executed instead of overwriting it, so re-running tralph
+		# (or a shepherd relaunch) resumes rather than starting over.
+		local run_key="${spec:-0}"
+		local spec_args=() plan_args=()
+		[[ -n "$spec" ]] && spec_args=(--spec "$spec")
+		[[ "$replan" -eq 1 ]] && plan_args=(--replan)
+		# Plan: build or refresh the manifest from .kanban (dry-run).
+		"$gralph_bin" "$run_key" --board .kanban "${spec_args[@]}" "${plan_args[@]}" \
+			--dry-run --verify "$verify" || return 1
 		# Execute: run the board-mode orchestrator.
-		"$gralph_bin" 0 --board .kanban --jobs "$jobs" --verify "$verify" \
-			--agent-cmd "$agent_cmd" "${board_args[@]}"
+		"$gralph_bin" "$run_key" --board .kanban "${spec_args[@]}" --jobs "$jobs" \
+			--verify "$verify" --agent-cmd "$agent_cmd" "${board_args[@]}"
 		return
 	fi
 
-	# Sequential mode (--jobs 1, default): delegate to ralph-loop.sh unchanged.
+	# Sequential mode (--jobs 1, default): delegate to ralph-loop.sh. --spec is
+	# forwarded; --replan only applies to board mode and is ignored here.
+	local spec_args=()
+	[[ -n "$spec" ]] && spec_args=(--spec "$spec")
 	RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}" \
-		~/.agents/skills/ralph/ralph-loop.sh "${args[@]}"
+		~/.agents/skills/ralph/ralph-loop.sh "${spec_args[@]}" "${args[@]}"
 }
 
 alias op='opencode'
