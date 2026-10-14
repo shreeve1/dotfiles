@@ -93,8 +93,14 @@ BOARD="${BOARD%/}"
 ARCHIVE_DIR="$BOARD/archive"
 if [ -d "$BOARD/issues" ]; then
   ISSUES_DIR="$BOARD/issues"
+elif [ -e "$BOARD/progress.md" ] || [ -d "$BOARD/archive" ] || [ -d "$BOARD/specs" ] || [ -d "$BOARD/maps" ]; then
+  # A scaffolded board whose empty issues/ did not survive (git does not track
+  # empty directories): it has no tickets. Reading DIR itself as the ticket
+  # directory would mistake progress.md for a ticket without frontmatter.
+  ISSUES_DIR="$BOARD/.no-issues-dir"
 else
-  # Flat layout, or an empty board: read *.md directly in DIR (none = no tickets).
+  # Flat layout (a directory of *.md tickets, no scaffold siblings), or an empty
+  # directory: read *.md directly in DIR (none = no tickets).
   ISSUES_DIR="$BOARD"
 fi
 
@@ -188,13 +194,23 @@ function slabels(i,   a, m, j) {
   SLN = 0; SL1 = ""; m = split(lab[i], a, ",")
   for (j = 1; j <= m; j++) if (a[j] != "" && (a[j] in isstate)) { SLN++; SL1 = a[j] }
 }
-function satisfied(b) { b = b + 0; return (b in idx) && st[idx[b]] == "done" }
+# A blocker is resolved only when it is a well-formed id AND that ticket is done.
+# A malformed entry (1x, abc, -1) is NEVER coerced to a number: awk would read
+# "1x" as 1 and release a ticket whose real dependency is unknown. Fail closed.
+function satisfied(b) {
+  if (b !~ /^[0-9]+$/) return 0
+  b = b + 0
+  return (b in idx) && st[idx[b]] == "done"
+}
 function depsok(i,   a, m, j) {
   m = split(blk[i], a, ",")
   for (j = 1; j <= m; j++) if (a[j] != "" && !satisfied(a[j])) return 0
   if (kidsopen[id[i] + 0] > 0) return 0
   return 1
 }
+# A spec slug is a short file-name-safe token. Anything else is never used to
+# build a path or a command; validate reports it.
+function goodslug(x) { return x ~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/ && x !~ /^[0-9]+$/ }
 function inspec(i) { return spec == "" || spc[i] == spec }
 function dfs(k,   j) {
   color[k] = 1
@@ -258,8 +274,16 @@ END {
     }
     if (par[i] != "" && par[i] !~ /^[0-9]+$/) { print "ERROR " f ": non-numeric parent '" par[i] "'"; errs++ }
     else if (par[i] != "" && !((par[i] + 0) in idx)) { print "ERROR " f ": parent " par[i] " not found"; errs++ }
-    if (spc[i] != "" && system("test -f '" board "/specs/" spc[i] ".md'") != 0)
-      print "WARN " f ": spec '" spc[i] "' has no " board "/specs/" spc[i] ".md"
+    if (spc[i] != "") {
+      if (!goodslug(spc[i])) { print "ERROR " f ": invalid spec slug (use letters, digits, - and _; not all digits)"; errs++ }
+      else {
+        # Existence probe without a shell: try to open the file. The slug was just
+        # checked, so it cannot contain a path separator or quote.
+        sp = board "/specs/" spc[i] ".md"
+        if ((getline _probe < sp) < 0) print "WARN " f ": spec '" spc[i] "' has no " sp
+        else close(sp)
+      }
+    }
     k = id[i] + 0; m = split(blk[i], a, ","); bn[k] = 0
     for (j = 1; j <= m; j++) {
       if (a[j] == "") continue
@@ -296,6 +320,7 @@ json_cmd() {
     [ split("\n")[] | select(length > 0) | split("\t") | select(.[0] == "issues" and (.[3] | test("^[0-9]+$"))) |
       { file: .[1], id: (.[3] | tonumber), title: .[14], status: .[4], labels: (.[6] | csv),
         blockedBy: (.[7] | csv | map(select(test("^[0-9]+$")) | tonumber)),
+        malformedBlockers: (.[7] | csv | any(test("^[0-9]+$") | not)),
         files: (if .[15] == "" then null else (.[15] | csv) end),
         spec: (if .[8] == "" then null else .[8] end),
         parent: (if .[9] | test("^[0-9]+$") then (.[9] | tonumber) else null end),
@@ -303,7 +328,8 @@ json_cmd() {
     ] as $rows
     | $rows
     | map(. as $t | . + {
-        ready: ([$t.labels[] | select(. as $l | $stateset | index($l) != null)] | (length == 1 and .[0] == $ready)),
+        ready: (([$t.labels[] | select(. as $l | $stateset | index($l) != null)] | (length == 1 and .[0] == $ready))
+                and ($t.malformedBlockers | not)),
         childrenOpen: any($rows[]; .parent == $t.id and .status != "done") })
     | map(select($spec == "" or .spec == $spec))
     | sort_by(.id)'
@@ -312,7 +338,8 @@ json_cmd() {
 archive_cmd() {
   pass1 | jq -R -s -c '
     [ split("\n")[] | select(length > 0) | split("\t") | select(.[0] == "archive" and (.[3] | test("^[0-9]+$"))) |
-      { id: (.[3] | tonumber), status: .[4] } ] | sort_by(.id)'
+      { id: (.[3] | tonumber), status: .[4],
+        parent: (if .[9] | test("^[0-9]+$") then (.[9] | tonumber) else null end) } ] | sort_by(.id)'
 }
 
 run() {

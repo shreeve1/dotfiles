@@ -26,7 +26,7 @@ ok() { PASS=$((PASS + 1)); }
 fail() {
   FAILN=$((FAILN + 1))
   echo "FAIL: $1" >&2
-  [ -n "${2-}" ] && echo "  $2" >&2
+  if [ -n "${2-}" ]; then echo "  $2" >&2; fi
 }
 expect_eq() { if [ "$2" = "$3" ]; then ok; else fail "$1" "want '$2' got '$3'"; fi; }
 

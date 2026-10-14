@@ -26,7 +26,7 @@ ok() { PASS=$((PASS + 1)); }
 fail() {
   FAILN=$((FAILN + 1))
   echo "FAIL: $1" >&2
-  [ -n "${2-}" ] && echo "  $2" >&2
+  if [ -n "${2-}" ]; then echo "  $2" >&2; fi
 }
 expect_eq() { if [ "$2" = "$3" ]; then ok; else fail "$1" "want '$2' got '$3'"; fi; }
 
@@ -54,6 +54,16 @@ if "$BS" --board .kanban validate >/dev/null; then ok; else fail "scaffolded boa
 expect_eq "scaffolded board has no tickets" "[]" "$("$BS" --board .kanban json)"
 git add -A
 git commit -qm scaffold
+
+# --- 1b. an empty scaffold must survive a clone (git does not track empty dirs) ---
+git clone -q "$REPO" "$TMP/clone"
+for d in issues archive specs maps; do [ -d "$TMP/clone/.kanban/$d" ] && ok || fail "clone keeps .kanban/$d"; done
+if out="$("$BS" --board "$TMP/clone/.kanban" validate 2>&1)"; then ok; else fail "a cloned empty board validates" "$out"; fi
+expect_eq "a cloned empty board has no tickets" "[]" "$("$BS" --board "$TMP/clone/.kanban" json)"
+# Even if only some directories survive (an older scaffold without issues/.gitkeep),
+# progress.md must not be read as a ticket.
+rm -rf "$TMP/old" && mkdir -p "$TMP/old/.kanban/archive" && printf '# P\n' >"$TMP/old/.kanban/progress.md"
+if out="$("$BS" --board "$TMP/old/.kanban" validate 2>&1)"; then ok; else fail "a board whose issues/ was lost in a clone still validates" "$out"; fi
 
 # --- 2. to-spec: a local spec is a document in specs/, never in issues/ ----------
 SLUG=my-spec
