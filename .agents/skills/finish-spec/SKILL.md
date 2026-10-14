@@ -11,10 +11,11 @@ This is a **verification** skill, not an implementation one. It does not build n
 ## Prerequisites
 
 - The spec's child tickets are all closed. Confirm before starting; if any child is still open, stop and report which — do not verify a half-built feature.
+  - **Local `.kanban/` board:** the spec is `.kanban/specs/<slug>.md` and its children are the tickets with `spec: <slug>` (`board.sh --board .kanban --spec <slug> json`, plus any of that spec's tickets already under `.kanban/archive/`). "Closed" means `status: done`; a child that is `cancelled` or still `pending`/`blocked` stops you.
 
 ## Process
 
-1. **Fetch the spec.** Read the spec's full body and comments from the configured issue tracker. Re-read its **Acceptance criteria** / user stories and **Testing Decisions** — those are the checklist.
+1. **Fetch the spec.** Read the spec's full body and comments from the configured issue tracker (locally: `.kanban/specs/<slug>.md`). Re-read its **Acceptance criteria** / user stories and **Testing Decisions** — those are the checklist.
 
 2. **Run the full suite once, clean.** Backend and frontend, plus typecheck. The child tickets each gated their own slice green; the value here is confirming the slices **compose** — that independently-landed slices don't collide. Fix any failure caused by slice interaction.
 
@@ -26,7 +27,7 @@ This is a **verification** skill, not an implementation one. It does not build n
 
 6. **Close the spec.** Only when the suite is green and every acceptance criterion is verified:
    - Flip any ADR authored for this spec from `status: proposed` to `status: accepted` (the feature shipped) and commit it.
-   - Close the spec on the configured issue tracker with a completion note listing the verified child tickets and confirming green suite + acceptance walk.
+   - Close the spec on the configured issue tracker with a completion note listing the verified child tickets and confirming green suite + acceptance walk. Locally, a spec has no status field: append a `## Completion` section to `.kanban/specs/<slug>.md` with the note and today's date, and commit it.
 
 ## Rules
 

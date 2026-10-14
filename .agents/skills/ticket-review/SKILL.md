@@ -10,7 +10,7 @@ Review every finished ticket that lacks a reviewer note for gaps, fix them, and 
 
 List **all** finished tickets from whatever tracker this repo uses — not just the latest one:
 
-- **Local kanban** (`.kanban/issues/*.md` exists): every `status: done` issue.
+- **Local kanban** (`.kanban/issues/*.md` exists): every `status: done` issue in `.kanban/issues/` **and** in `.kanban/archive/` (archived tickets are finished work too; skip any that already carry `action_reviewed:`). If the user names a spec, keep only tickets with `spec: <slug>` (`board.sh --board .kanban --spec <slug> json` lists them). A `cancelled` ticket is not finished work: skip it.
 - **GitHub / GitLab** (per `docs/agents/issue-tracker.md`): every closed issue.
 
 If `docs/agents/issue-tracker.md` is missing, run `/setup-matt-pocock-skills`. If no tracker is configured at all, ask the user which one to use.
@@ -33,6 +33,8 @@ Run `/code-review` with the fixed point set to the implementation base — the c
 FIRST=$(git log -F --grep="<ticket-ref>" --reverse --format=%H | head -1)
 # fixed point = ${FIRST}^
 ```
+
+On a local board `<ticket-ref>` is the exact string `(#<id>)` with the ticket's full number (e.g. `(#63)`): ids are unique across the whole board and archive, so it names one ticket. Match it as a fixed string so `(#6)` does not hit `(#63)`. If the grep finds no commit — a `chore(kanban): mark #N done` commit does not count as implementation — say so in the reviewer note instead of reviewing an arbitrary range.
 
 Gaps are: unmet acceptance criteria (across the parent and every child), a failing verification command, or Standards/Spec findings from the review.
 
