@@ -12,7 +12,7 @@ Pick up the next eligible issue (pending, labelled `ready-for-agent`, blockers d
 
 - **One issue per invocation** — bounded scope, fresh context every time. No batching.
 - **Fresh session for implement, fresh session for review** — the implementer and the reviewer must not share a context window in the normal implementation flow. `--review-loop` is an explicit repair/audit mode where one fresh worker may both review and fix a selected issue.
-- **Every issue is buildable** — `/to-issues` already guaranteed each slice is verifiable by an automated check. Ralph just executes.
+- **Every issue is buildable** — `/to-tickets` already guaranteed each slice is verifiable by an automated check. Ralph just executes.
 - **Vertical slice or nothing** — implement the whole tracer bullet; do not stop at one layer.
 - **Memento approach** — clear beats compacting. `.kanban/progress.md` carries architectural continuity between sessions.
 
@@ -412,7 +412,7 @@ Immediately stop and escalate if:
 ## Full workflow context
 
 ```
-/grill-with-docs → /to-prd → /to-issues → /kanban (board view) → Ralph (per-issue fresh-session loop)
+/grill-with-docs → /to-spec → /to-tickets → /triage (if needed) → /kanban (board view) → tralph / Ralph (per-issue fresh-session loop) → /ticket-review → /finish-spec
 ```
 
-`/to-issues` guarantees every slice is independently buildable and has an automated verification command. Ralph (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.
+`/to-tickets` guarantees every slice is independently buildable and has an automated verification command, and publishes it as a `ready-for-agent` ticket in `.kanban/issues/` with `spec: <slug>`; `tralph --spec <slug>` runs one spec's tickets. Ralph (or `ralph-loop.sh`) executes them one at a time, each in a fresh session, with a fresh-session review between implement and done.
