@@ -23,7 +23,7 @@ Check with the user that these seams match their expectations.
 5. Publish the verified spec to the project issue tracker. How depends on the tracker `/setup-matt-pocock-skills` configured:
 
    - **GitHub / GitLab / other:** create the spec as an issue and apply the `ready-for-agent` triage label — no need for additional triage.
-   - **Local `.kanban/` board:** write the spec to `.kanban/specs/<spec-slug>.md` (see `docs/agents/issue-tracker.md`). Pick a short kebab-case slug (`[a-z0-9][a-z0-9-]*`) that is not already a file in `.kanban/specs/`, and create the directory if needed. A local spec is a document, **not a ticket**: do not put it in `.kanban/issues/` (the loop reads every file there as a runnable ticket) and give it no triage label.
+   - **Local `.kanban/` board:** write the spec to `.kanban/specs/<spec-slug>.md` (see `docs/agents/issue-tracker.md`). Pick a short kebab-case slug (`[a-z0-9][a-z0-9-]*`, not all digits — it doubles as the `tralph --spec` run key, where a bare number means a different thing) that is not already a file in `.kanban/specs/`, and create the directory if needed. A local spec is a document, **not a ticket**: do not put it in `.kanban/issues/` (the loop reads every file there as a runnable ticket) and give it no triage label.
 
    Then tell the user the spec's location and, for a local board, the slug — it is what ties the work together: `/to-tickets` stamps `spec: <slug>` on every ticket it makes from this spec, and `tralph --spec <slug>` runs exactly those tickets.
 

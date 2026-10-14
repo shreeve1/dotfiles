@@ -334,8 +334,10 @@ tralph() {
 	while [[ $# -gt 0 ]]; do
 		case $1 in
 		--spec)
-			if [[ -z "${2:-}" || ! "${2}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
-				echo "tralph: --spec requires a slug ([A-Za-z0-9][A-Za-z0-9_-]*)" >&2
+			# A slug is also the gralph run key. An all-digit slug would be read as a
+			# numeric key (0 is the whole-board run), so it must contain a non-digit.
+			if [[ -z "${2:-}" || ! "${2}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ || "${2}" =~ ^[0-9]+$ ]]; then
+				echo "tralph: --spec requires a slug (letters, digits, - and _; not all digits)" >&2
 				return 1
 			fi
 			spec="$2"

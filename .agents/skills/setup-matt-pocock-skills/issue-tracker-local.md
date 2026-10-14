@@ -57,7 +57,7 @@ Keep the frontmatter contiguous (no blank line inside it) and put `## Verificati
 ## When a skill says "publish to the issue tracker"
 
 - **A ticket** (`/to-tickets`): create `.kanban/issues/NNN-<slug>.md` in the schema above, in dependency order (blockers first), with `status: pending`, `created: <today>`, `spec: <spec-slug>` when it belongs to a spec, and `labels: [ready-for-agent]` unless told otherwise. Allocate each id as the highest id across `issues/` and `archive/` plus one.
-- **A spec** (`/to-spec`): create `.kanban/specs/<spec-slug>.md`. A spec is **not** a ticket: it has no frontmatter requirements, never goes in `issues/`, and is not itself run by the loop. Choose a short kebab-case slug (`[a-z0-9][a-z0-9-]*`) that is not already a file in `specs/`; the same slug goes in each child ticket's `spec:` field and is what you pass to `tralph --spec`.
+- **A spec** (`/to-spec`): create `.kanban/specs/<spec-slug>.md`. A spec is **not** a ticket: it has no frontmatter requirements, never goes in `issues/`, and is not itself run by the loop. Choose a short kebab-case slug (`[a-z0-9][a-z0-9-]*`, not all digits: it is also the `tralph --spec` run key, where a bare number means the whole-board run) that is not already a file in `specs/`; the same slug goes in each child ticket's `spec:` field and is what you pass to `tralph --spec`.
 
 Create directories if they do not exist (`mkdir -p .kanban/issues .kanban/archive .kanban/specs .kanban/maps`).
 

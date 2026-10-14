@@ -88,7 +88,10 @@ expect_eq "--replan reaches the plan call" "GRALPH my-spec --board .kanban --spe
 case "$(line 2)" in *--replan*) fail "--replan must not reach the execute call" "$(line 2)" ;; *) ok ;; esac
 
 # --- 5. validation -----------------------------------------------------------
-for bad in 'bad slug' '-lead' 'has/slash' '.dot'; do
+# A purely numeric slug collides with gralph's numeric run keys (0 is the whole-board
+# key, same .gralph/runs/0 and gralph/0/batch) and picks the wrong run-report name
+# (review finding 10), so it is rejected along with the other bad slugs.
+for bad in 'bad slug' '-lead' 'has/slash' '.dot' '0' '123' '007'; do
   if tralph_run --jobs 2 --spec "$bad"; then fail "bad slug '$bad' rejected"; else ok; fi
   grep -q 'requires a slug' "$TMP/err" && ok || fail "bad slug '$bad' message" "$(cat "$TMP/err")"
   expect_eq "bad slug '$bad' never calls a driver" "0" "$(wc -l <"$LOG" | tr -d ' ')"
