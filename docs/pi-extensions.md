@@ -83,7 +83,7 @@ here.
   models are set in `.pi/agent/settings.json` `subagents.agentOverrides`
   (scout/worker/delegate/evidence-auditor/context-builder →
   `minimax/MiniMax-M3`, researcher → `cliproxy/claude-sonnet-5-5`, reviewer →
-  `cliproxy/gpt-6-luna`, oracle → `openai-codex/gpt-6.1-sol`, planner →
+  `cliproxy/claude-opus-5-5`, oracle → `openai-codex/gpt-6.1-sol`, planner →
   `cliproxy/claude-opus-5-5`; the CLI-adapter agents claude-code/codex-exec/
   cursor-agent stay unpinned — they use their CLI's own model ids, not Pi
   child models), NOT in agent frontmatter. In 0.77.0 a settings override
@@ -100,7 +100,10 @@ here.
   synced to aidev + itan8n the same day (aidev had THREE dead opus-4-8 pins;
   itan8n planner was on the imprecise `claude-opus-5`) — all pins probe-verified
   on all three machines; per-machine backups at
-  `settings.json.bak-subagent-models`.
+  `settings.json.bak-subagent-models`. 2026-10-13: swapped reviewer from
+  `cliproxy/gpt-6-luna` to `cliproxy/claude-opus-5-5` (user request; gpt-6-luna
+  stays in `enabledModels`) — pin probe-verified, template + all three
+  machines updated same day.
   Vendored at version 0.77.0 (2026-10-12 fresh swap from the 0.35.1 fork;
   enabled the same day by removing the `-extensions/pi-subagents/index.ts`
   exclusion from `settings.json{,.template}`). 0.77.0 ships prebuilt JS +

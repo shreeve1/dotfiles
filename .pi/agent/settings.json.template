@@ -45,7 +45,7 @@
         ]
       },
       "reviewer": {
-        "model": "cliproxy/gpt-6-luna",
+        "model": "cliproxy/claude-opus-5-5",
         "thinking": "high",
         "tools": [
           "read",
