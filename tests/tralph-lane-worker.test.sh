@@ -51,6 +51,7 @@ write_ticket() {
     printf 'id: %s\n' "$id"
     printf 'title: Ticket %s\n' "$id"
     printf 'status: %s\n' "$status"
+    printf 'labels: [ready-for-agent]\n'
     printf 'blocked_by: %s\n' "$blocked_by"
     printf '%s\n' '---'
     printf '\n## What to build\n\nBuild ticket %s.\n\n## Acceptance criteria\n\n- [ ] worker-output-%s.txt exists\n\n## Verification\n\n`test -f worker-output-%s.txt`\n' "$id" "$id" "$id"
