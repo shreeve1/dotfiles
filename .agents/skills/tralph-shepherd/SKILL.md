@@ -518,7 +518,7 @@ Terminate when the board counts from step 0 show **zero eligible, active,
 blocked and waiting** tickets — every issue in scope is `status: done` (or an
 intentionally-closed `cancelled`) — AND the driver is parked or
 finished (driver tmux session is gone, or its pane is a bash prompt after
-`exec bash`). Print a one-paragraph summary of what was delegated or
+`exec bash`). If `$REPORT` has a `## Spec complete` section (a spec-scoped run whose every ticket landed), tell the user to run `/finish-spec $SPEC`: each ticket was reviewed alone, and nothing has yet checked that they compose into the spec. Print a one-paragraph summary of what was delegated or
 escalated this run (issues re-handed-to-the-loop, issues raised to the
 user with their outstanding questions), then stop. Do not poll past
 completion.

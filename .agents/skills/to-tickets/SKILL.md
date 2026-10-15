@@ -68,7 +68,8 @@ Publish the verified, approved tickets. **How** depends on the tracker `/setup-m
 - **Local `.kanban/` board** → write one file per ticket at `.kanban/issues/<NNN>-<slug>.md`, in dependency order (blockers first), using the local ticket template below — one ticket per file, never a single combined file. Create `.kanban/issues` if it does not exist.
   - **Ids are global.** Allocate each id as the highest id found in `.kanban/issues/` **and** `.kanban/archive/` (recursively) plus one, then the next, and so on. Never restart at 01 and never reuse an archived id: commits reference tickets as `(#N)`, so an id must name exactly one ticket forever. A ticket's `blocked_by` lists the real ids of its blockers, which already exist because blockers are written first.
   - **Labels.** Tickets are agent-grabbable by construction, so each gets `labels: [ready-for-agent]` (a ticket the user wants to hold back gets `needs-triage` or `ready-for-human` instead). Keep exactly one state label per ticket.
-  - **Spec.** If the tickets came from a spec, set `spec: <slug>` on every one; otherwise omit `spec:`.
+  - **Spec.** If the tickets came from a spec, set `spec: <slug>` on every one and add the `## Spec` pointer to the body (see the template); otherwise omit both. The spec is where the problem, the decisions already made and the Out of Scope list live: the worker and its reviewer read it, so the pointer is what stops a slice drifting from it.
+  - **Session.** Set `session: <host>:<id>` from `$PI_SESSION_ID` and `hostname` when the variable is set, and omit the line when it is not. It is a breadcrumb for a human asking "where was this decided?" on another machine; workers never read it.
   - **After writing**, run `board.sh --board .kanban validate` (the `kanban` skill directory) and fix every `ERROR` before telling the user the tickets are published. Then tell them how to run the work: `tralph --spec <slug>` (or `tralph` for the whole board).
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
 
@@ -89,10 +90,15 @@ labels: [ready-for-agent]
 blocked_by: []
 parent: null
 spec: <spec-slug>
+session: <host>:<session id>
 priority: 0
 files: [<path prefix>, <path prefix>]
 created: <today, YYYY-MM-DD>
 ---
+
+## Spec
+
+`.kanban/specs/<spec-slug>.md`: read it before building. This ticket is one slice of it.
 
 ## What to build
 
@@ -108,7 +114,7 @@ The end-to-end behaviour this ticket makes work, from the user's perspective —
 `one repo-correct command that proves the ticket is done`
 ```
 
-Frontmatter rules: it ends at the closing `---` or the first blank line, so keep it contiguous. `blocked_by` is a list of ticket **ids** (`[61, 62]`, or `[]` for none). Omit `spec:` when there is no spec, and omit `files:` when the scope is unknown. Do not add `updated`, `actor` or `previous_status` — the loop sets those. The full schema is in the `kanban` skill.
+Frontmatter rules: it ends at the closing `---` or the first blank line, so keep it contiguous. `blocked_by` is a list of ticket **ids** (`[61, 62]`, or `[]` for none). Omit `spec:` (and the `## Spec` section) when there is no spec, omit `session:` when there is no session id, and omit `files:` when the scope is unknown. Do not add `updated`, `actor` or `previous_status` — the loop sets those. The full schema is in the `kanban` skill.
 
 The `## Verification` section is exactly **one** command in single backticks. `gralph` reads the ticket's verification from that one line and rejects zero or several, so chain steps inside the command with `&&` (the "chain with the word and" convention below is for the GitHub flow only). It must name a path or test that actually exists (step 5).
 
@@ -153,6 +159,6 @@ Do not duplicate this information in the ticket body prose.
 
 </issue-template>
 
-In either form, avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
+In either form, avoid specific file paths or code snippets — they go stale fast. The one exception is the `## Spec` pointer: a spec path is stable and the worker needs it. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
 Work the frontier one ticket at a time with `/implement`, clearing context between tickets — or, on a local board, hand the whole spec to the loop with `tralph --spec <slug>`.

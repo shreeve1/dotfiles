@@ -32,5 +32,40 @@ for f in "$SK/to-spec/SKILL.md" "$SK/setup-matt-pocock-skills/issue-tracker-loca
   if grep -qiE 'not all digits|not purely numeric|never all digits|must contain a letter' "$f"; then ok; else fail "slug rule (not all digits) stated in $(basename "$(dirname "$f")")/$(basename "$f")"; fi
 done
 
+# --- spec + session trail (workers and reviewers must be able to find the spec) ---
+TT="$SK/to-tickets/SKILL.md"
+KB="$SK/kanban/SKILL.md"
+RS="$SK/ralph/SKILL.md"
+TS="$SK/to-spec/SKILL.md"
+GD="$SK/grill-with-docs/SKILL.md"
+
+# to-tickets: the local template carries a Spec pointer in the body and a session breadcrumb
+# in the frontmatter, and says the pointer is allowed despite the no-file-paths rule.
+grep -qE '^## Spec' "$TT" && ok || fail "to-tickets local template has a '## Spec' section"
+grep -qE '^session: ' "$TT" && ok || fail "to-tickets local template has a session: frontmatter line"
+grep -qiE 'spec path.*(exception|allowed)|exception.*spec' "$TT" && ok || fail "to-tickets says the spec pointer is an exception to the no-file-paths rule"
+grep -q 'PI_SESSION_ID' "$TT" && ok || fail "to-tickets says where the session id comes from (PI_SESSION_ID)"
+grep -qiE 'omit.*session|session.*omit' "$TT" && ok || fail "to-tickets says to omit session when no id is available"
+
+# kanban: the schema documents session and says it is a human breadcrumb, not read by workers
+grep -qE '^\| `session`' "$KB" && ok || fail "kanban schema table documents session"
+grep -qiE 'session.*(breadcrumb|never read|not read)' "$KB" && ok || fail "kanban says session is a human breadcrumb"
+
+# ralph per-ticket reviewer contract checks the diff against the spec
+grep -qiE 'contradict.*spec|spec.*(Out of Scope|decisions)' "$RS" && ok || fail "ralph reviewer contract checks the diff against the spec"
+grep -qE '^   7\. ' "$RS" && ok || fail "ralph reviewer contract has a 7th check"
+
+# to-spec records where the grill happened and what it decided
+grep -qE '^session: ' "$TS" && ok || fail "to-spec spec template has a session: frontmatter line"
+grep -qiE '^## Decisions from the grill' "$TS" && ok || fail "to-spec spec template has a 'Decisions from the grill' section"
+grep -qiE 'no.*(grill|decisions).*(conversation|context)|fresh session' "$TS" && ok || fail "to-spec says what to do when the conversation holds no grill decisions"
+
+# grill-with-docs hands over to to-spec instead of ending in the conversation
+grep -q 'to-spec' "$GD" && ok || fail "grill-with-docs names to-spec as the next step"
+grep -qiE 'same session|decisions' "$GD" && ok || fail "grill-with-docs tells the user to run to-spec in the same session or record decisions"
+
+# shepherd tells the user to run finish-spec when the run report says the spec is complete
+grep -q 'Spec complete' "$SH" && grep -q '/finish-spec' "$SH" && ok || fail "shepherd surfaces the report's 'Spec complete' section and /finish-spec"
+
 echo "skills-text: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
