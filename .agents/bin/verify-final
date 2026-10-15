@@ -14,6 +14,20 @@ Silent (exit 0, no output) when clean, skipped, or no checkable claims.
 Skips: VERIFY_FINAL=0, answers under 200 chars, stop_hook_active (one correction
 pass per turn). Never blocks when the check itself fails.
 
+Grill ledger mode: the checker also reads the grill's ledger and holds every
+recommendation against it: FALSE when one breaks a ledger line, UNGROUNDED when
+one rests on a system capability the ledger does not establish. UNGROUNDED
+findings steer the agent (same channel as FALSE) to research and record the
+capability. The ledger is the one the answer names (a .kanban/grilling/<name>.md
+path that exists under cwd; the grilling skill ends every turn with it). With no
+named ledger, an answer in the grilling question format ("❓" or "➡️") falls back
+to the newest ledger modified within VERIFY_FINAL_LEDGER_HOURS (default 24).
+Ledger mode ignores the 200-char minimum. VERIFY_FINAL_LEDGER=0 turns it off.
+
+--check FILE (FILE or - for stdin): manual run for harnesses without the hook
+(see _shared/verify-claims.md). Checks FILE's text from the current directory
+and prints the findings as plain text, or "verify-final: no findings".
+
 Warnings (never block): VERIFY_FINAL_WARN=all (default) shows UNSURE claims and
 "check could not run"; =errors shows only "check could not run"; =none shows
 neither. Hidden UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims
@@ -40,6 +54,9 @@ TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")
 STATE = os.path.expanduser("~/.cache/verify-final")
+LEDGER_DIR = os.path.join(".kanban", "grilling")
+LEDGER_HOURS = float(os.environ.get("VERIFY_FINAL_LEDGER_HOURS", "24"))
+GRILL_MARKERS = ("❓", "➡️")
 
 PROMPT = """You are an independent grounding reviewer. Below is the FINAL ANSWER an AI agent gave about work in this directory. Extract every checkable factual claim it makes about files, code, config, or system state (paths, symbols, behaviour, versions, what was changed). Ignore opinions, plans, questions, and claims about the conversation itself. Verify each claim by reading the actual files (read-only tools only). Do not speculate.
 
@@ -50,13 +67,62 @@ VERIFIED | <file:line evidence> | <claim>
 FALSE | <file:line evidence> | <claim> -- <one-line correction>
 UNSURE | <why it could not be confirmed> | <claim>
 If there is nothing to report (no checkable claims, or every claim was skipped), reply exactly: NO_CLAIMS. Never reply with an empty message.
-
+{ledger}
 FINAL ANSWER:
 <<<
 {answer}
 >>>"""
 
-VERDICT = re.compile(r"^\W*(VERIFIED|FALSE|UNSURE)\b\W*(.*)$", re.IGNORECASE)
+LEDGER_PROMPT = """
+This answer is a turn of a grilling session. The system it is grilling inside (decisions settled, documented capabilities and limits, observed facts) is recorded in the ledger: {path}. Read the ledger in full first. Then, besides factual claims, check every recommendation, proposed option, and suggested approach in the answer (including lines starting with ➡️) against the ledger, and report each one that fails:
+FALSE | <ledger line it breaks> | <recommendation> -- <what the ledger says instead>
+  when it contradicts a ledger line and the answer does not openly put that conflict to the user as a question.
+UNGROUNDED | <the capability it depends on> | <recommendation> -- <what to research>
+  when it depends on something the system must be able to do or have (a product feature, an API behaviour, a platform or plan limit, a tool, a machine resource) that the ledger does not establish and the answer does not mark as unknown. Judge only whether the ledger establishes it, not whether it is true in the world. Flag only capabilities specific to this system that could plausibly be missing, limited, or plan-gated (a vendor feature, an endpoint's filters, a quota); skip commodity ground any such system has (a Linux server can run a scheduled job, a REST list endpoint pages, a database can store rows).
+Recommendations are not factual claims: give a recommendation a line only when it is FALSE or UNGROUNDED as defined here, never VERIFIED or UNSURE. Design choices the ledger leaves open (a schema, a name, a structure) are the grill's to make and get no line.
+"""
+
+VERDICT = re.compile(r"^\W*(VERIFIED|FALSE|UNSURE|UNGROUNDED)\b\W*(.*)$", re.IGNORECASE)
+
+
+LEDGER_REF = re.compile(r"\.kanban/grilling/([\w.-]+\.md)")
+
+
+def active_ledger(cwd, answer):
+    """(ledger, missing): this grill turn's ledger relative to cwd ("" when not in ledger
+    mode), and the named ledger path that does not exist ("" when none).
+
+    The ledger the answer names wins (last mention that exists). A named ledger that is
+    missing (a typo) never falls back to another grill's ledger. With no ledger named, a
+    grill-format answer falls back to the single newest ledger touched within LEDGER_HOURS.
+    """
+    if os.environ.get("VERIFY_FINAL_LEDGER") == "0":
+        return "", ""
+    root = cwd or os.getcwd()
+    named = LEDGER_REF.findall(answer)
+    for name in reversed(named):
+        rel = os.path.join(LEDGER_DIR, name)
+        if os.path.isfile(os.path.join(root, rel)):
+            return rel, ""
+    if named:
+        return "", os.path.join(LEDGER_DIR, named[-1])
+    if not any(m in answer for m in GRILL_MARKERS):
+        return "", ""
+    cutoff = time.time() - LEDGER_HOURS * 3600
+    try:
+        names = os.listdir(os.path.join(root, LEDGER_DIR))
+    except OSError:
+        return "", ""
+    newest = (cutoff, "")
+    for n in names:
+        rel = os.path.join(LEDGER_DIR, n)
+        try:
+            mtime = os.path.getmtime(os.path.join(root, rel))
+        except OSError:
+            continue
+        if n.endswith(".md") and mtime >= newest[0]:
+            newest = (mtime, rel)
+    return newest[1], ""
 
 
 SID = ""
@@ -73,8 +139,33 @@ def log(harness, status, secs, detail=""):
         pass
 
 
+MANUAL = False
+WARNINGS = []  # non-blocking notes merged into the single output object
+EMITTED = False
+
+
 def say(obj):
-    print(json.dumps(obj))
+    """Print the hook's one output object (or plain text for --check), merging WARNINGS."""
+    global EMITTED
+    EMITTED = True
+    if WARNINGS:
+        obj = dict(obj)
+        obj["systemMessage"] = "\n\n".join(WARNINGS + [obj["systemMessage"]] if "systemMessage" in obj else WARNINGS)
+    if not MANUAL:
+        print(json.dumps(obj))
+        return
+    print("\n\n".join(obj[k] for k in ("reason", "systemMessage") if k in obj))
+
+
+def read_event():
+    """The Stop-hook event from stdin, or a synthetic one for --check FILE."""
+    global MANUAL
+    if "--check" not in sys.argv:
+        return json.load(sys.stdin)
+    MANUAL = True
+    src = sys.argv[sys.argv.index("--check") + 1]
+    with (sys.stdin if src == "-" else open(src)) as f:
+        return {"last_assistant_message": f.read(), "cwd": os.getcwd()}
 
 
 def main():
@@ -82,9 +173,13 @@ def main():
     if os.environ.get("VERIFY_FINAL") == "0" or os.environ.get("VERIFY_FINAL_RUNNING"):
         return
     try:
-        ev = json.load(sys.stdin)
-    except ValueError:
+        ev = read_event()
+    except (ValueError, OSError, IndexError) as e:
+        if "--check" in sys.argv:
+            sys.exit(f"verify-final: cannot read --check input ({e})")
         return
+    if MANUAL:
+        harness = "manual"
     rewake = "--rewake" in sys.argv
     global SID, ANSWER_LEN
     SID = re.sub(r"[^A-Za-z0-9]", "", str(ev.get("session_id") or ""))[:8]
@@ -93,8 +188,16 @@ def main():
     if ev.get("stop_hook_active"):
         log(harness, "skip_correction_pass", 0.0)
         return
-    if len(answer) < MIN_CHARS:
+    ledger_path, missing = active_ledger(ev.get("cwd"), answer)
+    if missing:
+        log(harness, "ledger_missing", 0.0, missing)
+        if WARN != "none":
+            WARNINGS.append(f"verify-final: the turn names ledger {missing}, which does not exist under the "
+                            "working directory; it was not checked against any ledger. Fix the Ledger: line.")
+    if len(answer) < MIN_CHARS and not ledger_path:
         log(harness, "skip_short", 0.0)
+        if MANUAL and not WARNINGS:
+            print("verify-final: no findings (answer under 200 chars, no ledger)")
         return
 
     pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
@@ -106,11 +209,12 @@ def main():
         with os.fdopen(fd, "w") as f:
             f.write(answer)
         body = f"(The answer is too long to inline. Read the ENTIRE file {spill} and check every claim in it, through to the last line.)"
+    ledger = LEDGER_PROMPT.format(path=ledger_path) if ledger_path else ""
     t0 = time.time()
     cmd = [
         pi, "-p", "--no-session", "--no-skills", "--no-context-files",
         "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL,
-        PROMPT.format(answer=body),
+        PROMPT.format(answer=body, ledger=ledger),
     ]
     env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
     try:
@@ -129,7 +233,9 @@ def main():
     verdicts = [VERDICT.match(l) for l in out.splitlines()]
     verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
     if rc == 0 and not verdicts and "NO_CLAIMS" in out:
-        log(harness, "no_claims", secs)
+        log(harness, "no_claims", secs, f"ledger={ledger_path or '-'}")
+        if MANUAL and not WARNINGS:
+            print("verify-final: no findings")
         return
     if rc != 0 or not verdicts:
         why = (err.strip().splitlines() or ["no verdict lines in checker output"])[-1][:200]
@@ -140,26 +246,44 @@ def main():
 
     false = [l.strip() for v, l in verdicts if v == "FALSE"]
     unsure = [l.strip() for v, l in verdicts if v == "UNSURE"]
-    log(harness, "ok", secs, f"false={len(false)} unsure={len(unsure)} verified={len(verdicts) - len(false) - len(unsure)}")
+    ungrounded = [l.strip() for v, l in verdicts if v == "UNGROUNDED"]
+    verified = len(verdicts) - len(false) - len(unsure) - len(ungrounded)
+    log(harness, "ok", secs, f"false={len(false)} unsure={len(unsure)} ungrounded={len(ungrounded)} "
+        f"verified={verified} ledger={ledger_path or '-'}")
     out_obj = {}
     if unsure and WARN == "all":
         out_obj["systemMessage"] = "verify-final UNSURE (not blocking):\n" + "\n".join(unsure)
     elif unsure:
         log(harness, "unsure_hidden", secs, " || ".join(unsure)[:1500])
+    parts = []
     if false:
-        out_obj["decision"] = "block"
-        out_obj["reason"] = (
+        parts.append(
             "An independent fact-check of your final answer found claims that do not match the files:\n"
             + "\n".join(false)
             + "\nRe-ground on that evidence, correct these claims, then give the corrected final answer "
             "and say in one line what you changed."
         )
-    if rewake and false:
-        sys.stderr.write(out_obj["reason"] + "\n")
+    if ungrounded:
+        parts.append(
+            "Ledger steer: these recommendations rest on capabilities the grill ledger ("
+            + ledger_path + ") does not establish:\n" + "\n".join(ungrounded)
+            + "\nResearch each one (the system's docs, the files, a sub-agent), add what you find to the "
+            "ledger with its source, and restate any recommendation the research changes. If a capability "
+            "cannot be established, mark it unknown in the question."
+        )
+    if parts:
+        out_obj["decision"] = "block"
+        out_obj["reason"] = "\n\n".join(parts)
+    if rewake and parts and not MANUAL:
+        sys.stderr.write("\n\n".join(WARNINGS + [out_obj["reason"]]) + "\n")
         sys.exit(2)
     if out_obj:
         say(out_obj)
+    elif MANUAL and not WARNINGS:
+        print("verify-final: no findings")
 
 
 if __name__ == "__main__":
     main()
+    if WARNINGS and not EMITTED:
+        say({})

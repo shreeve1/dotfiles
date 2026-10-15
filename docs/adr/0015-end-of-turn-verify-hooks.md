@@ -1,6 +1,6 @@
 # 0015 — Final answers are fact-checked by end-of-turn hooks in all three harnesses
 
-**Status:** Accepted (2026-10-09)
+**Status:** Accepted (2026-10-09); grill ledger mode added 2026-10-15 (see addendum)
 
 ## Context
 
@@ -59,3 +59,39 @@ Code, Codex and omp.
 - The grill skills no longer run their own per-turn check; the hook covers
   each turn's final message. `grill-with-docs` still runs the independent
   verify once on a brainstorm intent doc.
+
+## Addendum (2026-10-15): grill ledger mode
+
+Grill sessions drifted into recommending things the target system cannot do,
+and the checker never saw it: it ignored recommendations and only knew the
+files the answer named. The `grilling` skill now keeps a ledger of the system
+(decisions, documented capabilities and limits, observed facts) at
+`.kanban/grilling/<topic>.md` under the working directory.
+
+- The skill ends every grill turn with `Ledger: .kanban/grilling/<topic>.md`,
+  and the checker reads that ledger only, so two grills in one repo never
+  check against each other's decisions. A named ledger that does not exist
+  (a typo) is never swapped for another: the turn gets a warning and no ledger
+  check. With no named ledger, a turn in the
+  grill question format (❓ / ➡️) falls back to the single newest ledger
+  modified within `VERIFY_FINAL_LEDGER_HOURS` (default 24, so a grill paused
+  overnight stays covered). Ledger turns are checked whatever their length;
+  the 200-character minimum applies only outside ledger mode.
+- FALSE: a recommendation breaks a ledger line without openly asking to
+  revisit it. UNGROUNDED: a recommendation depends on a system-specific
+  capability (vendor feature, endpoint filter, quota) that the ledger does not
+  establish. Commodity ground is not flagged.
+- UNGROUNDED goes back through the same correction channel as FALSE, worded as
+  a steer: research the capability, record it in the ledger with its source,
+  and restate the recommendation if the research changes it. It is
+  intentionally after the fact. The skill's per-turn reread of the ledger is
+  the primary grounding; the hook catches what slips through.
+- Off switch for this mode only: `VERIFY_FINAL_LEDGER=0`.
+- dsh and Pi have no hook. There the grilling skill runs
+  `verify-final --check -` on each drafted turn before sending it (see
+  `_shared/verify-claims.md`, "Grill turns"). It is the same prompt and parser,
+  with findings printed as plain text; the script holds the only copy of the
+  grill-check wording.
+- The commodity-ground sentence in `LEDGER_PROMPT` is model-sensitive: before it
+  was added, the checker flagged "aidev can run a timer" and "the list endpoint
+  pages". Re-test it with a fixture ledger when the checker model changes.
