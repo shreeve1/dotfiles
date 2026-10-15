@@ -421,11 +421,15 @@ link_path ".pi-lens/config.json" ".pi-lens/config.json"
 # The whole agent directory is linked, so the vendored subagent runtime
 # (nicobailon/pi-subagents) and delegation policy travel together. Builtin
 # agents ship inside the extension; .pi/agent/agents/ is intentionally empty.
+# pi auto-discovers extensions under .pi/agent/extensions/, so a settings entry
+# is not needed to enable pi-subagents; it would only disable it via a
+# '-extensions/pi-subagents' exclusion.
 _pi_subagents_ok=1
 [ -f "$HOME/.pi/agent/extensions/pi-subagents/package.json" ] || _pi_subagents_ok=0
 grep -Fq '## Delegation guidance is mode-aware' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
 for _pi_settings in "$HOME/.pi/agent/settings.json" "$HOME/.pi/agent/settings.json.template"; do
-  grep -Fq '"extensions/pi-subagents"' "$_pi_settings" 2>/dev/null || _pi_subagents_ok=0
+  [ -f "$_pi_settings" ] || _pi_subagents_ok=0
+  grep -Fq -- '-extensions/pi-subagents' "$_pi_settings" 2>/dev/null && _pi_subagents_ok=0 || true
 done
 if [ "$_pi_subagents_ok" = "1" ]; then
   printf 'ok: Pi subagent runtime, policy, and settings present\n'
