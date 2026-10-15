@@ -137,7 +137,7 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 export PATH="$HOME/bin:$PATH"
 export PATH="$HOME/.opencode/bin:$PATH"
 
-# secrets (same single source of truth as .zshrc) — MINIMAX_API_KEY etc. for omp/model auth
+# secrets (same single source of truth as .zshrc) — provider API keys for pi/model auth
 [[ -f "$HOME/.zshrc.secrets" ]] && . "$HOME/.zshrc.secrets"
 
 [[ -f "$HOME/.local/bin/env" ]] && . "$HOME/.local/bin/env"

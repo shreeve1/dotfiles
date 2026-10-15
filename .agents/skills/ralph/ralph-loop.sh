@@ -9,7 +9,7 @@
 #   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
 #   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
 #   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
-#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: omp with RALPH_MODEL (openrouter/deepseek/deepseek-v4.1-flash))
+#   --agent-cmd CMD       Interactive agent command for the tmux adapter (default: pi with RALPH_MODEL (openrouter/deepseek/deepseek-v4.1-flash))
 #   --agent-prompt TEXT   Prompt sent to the agent (default: $RALPH_AGENT_PROMPT or a Ralph invocation prompt)
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
@@ -19,7 +19,7 @@
 #   --normal-tmux         Use the default tmux server (default)
 #
 # ARGUMENTS:
-#   ADAPTER               tmux|omp (default: tmux)
+#   ADAPTER               tmux|pi (default: tmux)
 #   SESSION_NAME          tmux driver session name (default: ralph-loop)
 
 set -euo pipefail
@@ -43,7 +43,7 @@ UNATTENDED="${RALPH_UNATTENDED:-false}"
 MAX_ISSUE_FAILS="${RALPH_MAX_ISSUE_FAILS:-2}"
 LSP_CHECK_CMD="${RALPH_LSP_CHECK_CMD:-}"
 RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
-AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Read skill://ralph and follow the Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
+AGENT_PROMPT="${RALPH_AGENT_PROMPT:-Run Ralph for exactly one issue in this repository. Read ~/.agents/skills/ralph/SKILL.md and follow the Ralph skill/protocol. Stop after one issue. Print the required RALPH_RESULT sentinel.}"
 CHECKPOINT_DIRTY=true
 # Which tickets this loop may pick up. Eligibility (status + triage label +
 # blockers + archive) is decided by ../kanban/board.sh; --spec narrows the set.
@@ -66,7 +66,7 @@ OPTIONS:
   --ready-delay N       Initial settle delay before prompt-ready polling (default: 1)
   --ready-timeout N     Seconds to wait for an interactive agent prompt (default: 60)
   --iteration-timeout N Seconds to wait for an interactive agent sentinel (default: 7200)
-  --agent-cmd CMD       Interactive agent command for tmux adapter (default: omp with RALPH_MODEL, openrouter/deepseek/deepseek-v4.1-flash)
+  --agent-cmd CMD       Interactive agent command for tmux adapter (default: pi with RALPH_MODEL, openrouter/deepseek/deepseek-v4.1-flash)
   --agent-prompt TEXT   Prompt sent to the agent (default: RALPH_AGENT_PROMPT or a Ralph invocation prompt)
   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
   --skip-blocked        Treat a BLOCKED issue as skip-and-continue to the next eligible issue (FAIL still stops)
@@ -79,7 +79,7 @@ OPTIONS:
   --help                Show this help
 
 ARGUMENTS:
-  ADAPTER               tmux|omp (default: tmux)
+  ADAPTER               tmux|pi (default: tmux)
   SESSION_NAME          tmux driver session name (default: ralph-loop)
 
 Sentinel contract:
@@ -214,15 +214,15 @@ if [[ "$SESSION_NAME" =~ [.:] ]]; then
   exit 1
 fi
 IMPLEMENT_SKILL_DIR="$(dirname "$SKILL_DIR")/implement"
-# Invoke the implement skill only when we control the worker omp command.
-# Skills are delivered by omp's default discovery of ~/.agents/skills (both
-# ralph and implement live there); no skill-dir flag is needed. We
-# still only prefix the prompt when the driver builds the worker command
-# itself: a user-supplied command may not be omp and would not resolve
-# skill:// URLs.
+# Invoke the implement skill only when we control the worker pi command.
+# Prompts name each skill by its SKILL.md path (pi reads ~/.agents/skills
+# natively, but disable-model-invocation keeps ralph and implement out of the
+# listing, so the worker must be told which file to read). We still only
+# prefix the prompt when the driver builds the worker command itself: a
+# user-supplied command may be a different agent with its own skill wiring.
 USE_IMPLEMENT_SKILL=false
 if [[ -f "$IMPLEMENT_SKILL_DIR/SKILL.md" ]]; then
-  if [[ "$ADAPTER" == "omp" ]]; then
+  if [[ "$ADAPTER" == "pi" ]]; then
     USE_IMPLEMENT_SKILL=true
   elif [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
     USE_IMPLEMENT_SKILL=true
@@ -230,21 +230,25 @@ if [[ -f "$IMPLEMENT_SKILL_DIR/SKILL.md" ]]; then
 fi
 
 if [[ "$ADAPTER" == "tmux" && -z "${RALPH_AGENT_CMD:-}" && "$AGENT_CMD_EXPLICIT" != "true" ]]; then
-  AGENT_CMD="omp --no-extensions"
+  AGENT_CMD="pi --no-extensions"
   if [[ -n "$RALPH_MODEL" ]]; then
     printf -v model_q '%q' "$RALPH_MODEL"
     AGENT_CMD="$AGENT_CMD --model $model_q"
   fi
 fi
 
-if [[ "$USE_IMPLEMENT_SKILL" == "true" && "$REVIEW_LOOP" != "true" && "$AGENT_PROMPT" != /skill:* && "$AGENT_PROMPT" != "Read skill://implement"* ]]; then
-  AGENT_PROMPT="Read skill://implement and follow it. $AGENT_PROMPT"
+if [[ "$USE_IMPLEMENT_SKILL" == "true" && "$REVIEW_LOOP" != "true" && "$AGENT_PROMPT" != /skill:* && "$AGENT_PROMPT" != "Read $IMPLEMENT_SKILL_DIR/SKILL.md"* ]]; then
+  AGENT_PROMPT="Read $IMPLEMENT_SKILL_DIR/SKILL.md and follow it. $AGENT_PROMPT"
 fi
 case "$ADAPTER" in
-omp | tmux)
+pi | tmux)
+  ;;
+omp)
+  echo "❌ Error: the omp adapter was removed; use 'pi' (non-interactive) or 'tmux'" >&2
+  exit 1
   ;;
 *)
-  echo "❌ Error: unsupported adapter '$ADAPTER' (expected omp or tmux)" >&2
+  echo "❌ Error: unsupported adapter '$ADAPTER' (expected pi or tmux)" >&2
   exit 1
   ;;
 esac
@@ -254,8 +258,8 @@ if ! command -v tmux >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ "$ADAPTER" == "omp" ]] && ! command -v omp >/dev/null 2>&1; then
-  echo "❌ Error: omp not found in PATH" >&2
+if [[ "$ADAPTER" == "pi" || "$AGENT_CMD" == pi\ * ]] && ! command -v pi >/dev/null 2>&1; then
+  echo "❌ Error: pi not found in PATH" >&2
   exit 1
 fi
 
@@ -348,11 +352,11 @@ fi
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
 if [[ "$REVIEW_LOOP" == "true" ]]; then
-  SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Read the Ralph skill via skill://ralph and follow it. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an out…
+  SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Read the Ralph skill at ~/.agents/skills/ralph/SKILL.md and follow it. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an out…
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 else
-  SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Read the Ralph skill via skill://ralph and follow it. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify…
+  SHARED_PROMPT_REMINDER='Run Ralph for exactly one issue in this repository. Read the Ralph skill at ~/.agents/skills/ralph/SKILL.md and follow it. Stop after one issue. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an outward notification to an external channel (alert or paging webhooks, telegram, email), verify…
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optional issue id, or FAIL with an optional issue id.
 The final line must start with RALPH_RESULT followed by colon and one space.'
 fi
@@ -622,14 +626,14 @@ extract_result_issue() {
   sed -n 's/^[^A-Za-z0-9]*RALPH_RESULT: \(DONE\|BLOCKED\|FAIL\) #\{0,1\}\([0-9][0-9A-Za-z]*\)[[:space:]]*$/\2/p' "$file" | tail -1
 }
 
-run_omp_adapter() {
+run_pi_adapter() {
   local output_file="$1"
   local full_prompt="$AGENT_PROMPT"$'\n\n'"$SHARED_PROMPT_REMINDER"
   local cmd
   if [[ -n "$RALPH_MODEL" ]]; then
-    cmd=(omp --no-extensions --no-session --model "$RALPH_MODEL" -p "$full_prompt")
+    cmd=(pi --no-extensions --no-session --model "$RALPH_MODEL" -p "$full_prompt")
   else
-    cmd=(omp --no-extensions --no-session -p "$full_prompt")
+    cmd=(pi --no-extensions --no-session -p "$full_prompt")
   fi
   local rc=0
   "${cmd[@]}" </dev/null 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
@@ -639,7 +643,7 @@ run_omp_adapter() {
       return 0
     fi
     if has_failure_result "$output_file"; then
-      echo "⚠️  Omp exited 0 but RALPH_RESULT sentinel indicates failure" | tee -a "$LOG_FILE"
+      echo "⚠️  pi exited 0 but RALPH_RESULT sentinel indicates failure" | tee -a "$LOG_FILE"
       return 1
     fi
   fi
@@ -696,7 +700,7 @@ send_agent_prompt() {
   sleep 1
   tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
   sleep 1
-  tmux_cmd send-keys -t "$target" C-m
+  tmux_cmd send-keys -t "$target" Enter
   sleep 3
 
   if pane_has_prompt_activity "$target" "$prompt_probe"; then
@@ -708,7 +712,7 @@ send_agent_prompt() {
   sleep 1
   tmux_cmd send-keys -t "$target" -l -- "$prompt_line"
   sleep 1
-  tmux_cmd send-keys -t "$target" C-m
+  tmux_cmd send-keys -t "$target" Enter
 }
 
 run_tmux_adapter() {
@@ -839,7 +843,7 @@ run_tmux_adapter() {
         echo "⏯️  Worker idle ${idle_secs}s with no sentinel; sending 'continue' (nudge ${stall_nudges}/${max_nudges})" | tee -a "$LOG_FILE"
         tmux_cmd send-keys -t "$target" C-u
         tmux_cmd send-keys -t "$target" -l -- "continue"
-        tmux_cmd send-keys -t "$target" C-m
+        tmux_cmd send-keys -t "$target" Enter
         idle_secs=0
       else
         echo "⚠️  Worker still idle after ${max_nudges} continue nudges; giving up on this iteration" | tee -a "$LOG_FILE"
@@ -1237,9 +1241,9 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   RALPH_OUTPUT=$(mktemp)
   LAST_EXIT_CODE=0
   case "$ADAPTER" in
-    omp)
-      echo "▶ Starting omp non-interactive Ralph turn" | tee -a "$LOG_FILE"
-      run_omp_adapter "$RALPH_OUTPUT" || LAST_EXIT_CODE=$?
+    pi)
+      echo "▶ Starting pi non-interactive Ralph turn" | tee -a "$LOG_FILE"
+      run_pi_adapter "$RALPH_OUTPUT" || LAST_EXIT_CODE=$?
       ;;
     tmux)
       run_tmux_adapter "$RALPH_OUTPUT" "$ITERATION" || LAST_EXIT_CODE=$?

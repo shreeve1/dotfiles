@@ -323,7 +323,7 @@ alias tmk='tmux kill-session -t'
 
 # Ralph loop - background tmux session running /ralph until all issues done
 tralph() {
-	# Source machine-local secrets (e.g. MINIMAX_API_KEY for omp) defensively
+	# Source machine-local secrets (provider API keys for pi) defensively
 	# here so the loop's tmux-launched workers inherit the provider creds
 	# even if .zshrc.secrets hasn't been sourced yet (e.g. re-source, fresh
 	# subshell, or a future edit that moves the secrets line below this fn).
@@ -385,7 +385,7 @@ OPTIONS (sequential mode, --jobs 1):
 OPTIONS (board mode, --jobs N where N >= 2):
   --jobs N         Run N concurrent worker lanes against .kanban (board mode)
   --verify CMD     Integration command for gralph (default: true)
-  --agent-cmd CMD  Agent command for lane workers (default: omp with RALPH_MODEL)
+  --agent-cmd CMD  Agent command for lane workers (default: pi with RALPH_MODEL)
 
 HELP
 			return 0
@@ -421,7 +421,7 @@ HELP
 		done
 		if [[ -z "$agent_cmd" ]]; then
 			local model="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
-			agent_cmd="omp --model ${model} --no-session -p"
+			agent_cmd="pi --no-extensions --model ${model} --no-session -p"
 		fi
 		if [[ ! -d .kanban ]]; then
 			echo "tralph: no .kanban directory in current directory" >&2

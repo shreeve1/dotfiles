@@ -1,6 +1,6 @@
 # 0008 — Ralph: omp workers
 
-**Status:** Accepted (2026-08-22)
+**Status:** Superseded by 0018 (2026-10-15). Accepted 2026-08-22.
 
 ## Context
 

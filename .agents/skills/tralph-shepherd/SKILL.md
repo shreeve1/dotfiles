@@ -57,7 +57,7 @@ Before doing anything:
    - Otherwise (there is already pending/in-progress/review work for a worker to pick up) the shepherd owns startup, in one of two modes. Both launch **through an interactive login zsh** so the worker inherits the human shell's environment. Capture the project root in the outer shell first, because a login zsh may open in `$HOME`:
      - **Sequential mode (default, tmux driver)** — from the project root:
        `proj="$PWD"; zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh $SPEC_ARGS tmux ralph-loop"`.
-     **Why `zsh -lic` and not a bare `bash …`:** `ralph-loop.sh` launches each worker via `tmux new-session -d … exec env $AGENT_CMD` (line 710). The worker inherits the environment of the tmux *server*, which is whatever shell first created it. `omp` is a `#!/usr/bin/env bun` script and needs both `~/.bun/bin` on PATH (to resolve `bun`) and provider credentials such as `MINIMAX_API_KEY` — **both come only from the interactive `.zshrc`/`.zprofile`, not from a bare non-interactive shell.** Launch the driver from a non-interactive shell and every worker dies at startup (`⚠️  Interactive agent session exited during startup`) or fails auth (`Error: No API key found for minimax`). The `-l` (login) + `-i` (interactive) flags make zsh source those files so the tmux server — and thus every worker window — gets the same PATH and credentials the operator's own shell has. Do NOT copy credentials into `tmux set-environment -g` yourself: a server-global secret is readable by every session on that server. Let the interactive shell propagate them.
+     **Why `zsh -lic` and not a bare `bash …`:** `ralph-loop.sh` launches each worker via `tmux new-session -d … exec env $AGENT_CMD` (line 710). The worker inherits the environment of the tmux *server*, which is whatever shell first created it. The `pi` worker must resolve on PATH (`~/.pi/agent/bin`, `~/bin`, `~/.npm-global/bin` or `~/.local/bin` depending on the machine) and may need provider credentials exported from `~/.zshrc.secrets` — **both come only from the interactive `.zshrc`/`.zprofile`, not from a bare non-interactive shell.** Launch the driver from a non-interactive shell and every worker dies at startup (`⚠️  Interactive agent session exited during startup`) or fails auth (a `No API key` error from pi). The `-l` (login) + `-i` (interactive) flags make zsh source those files so the tmux server — and thus every worker window — gets the same PATH and credentials the operator's own shell has. Do NOT copy credentials into `tmux set-environment -g` yourself: a server-global secret is readable by every session on that server. Let the interactive shell propagate them.
      The script defaults `RALPH_MODEL=openrouter/deepseek/deepseek-v4.1-flash` internally (line 45), same as `tralph`; `tralph` is a zsh function and is unavailable in a skill context — this `zsh -lic` wrapper is the sanctioned substitute for it. If the script prints the has-session guard (source wording `⚠️  Tmux session '$SESSION_NAME' already exists on $TMUX_DISPLAY`, line 274), another driver just started — verify with `tmux has-session -t ralph-loop` and continue the cycle; do NOT kill anything.
      - **Board mode (`tralph --jobs N`, gralph coordinator)** — when the tickets are meant to run through the gralph coordinator (parallel lanes, worktree-per-child), start it instead of the tmux driver. From the project root:
        `proj="$PWD"; zsh -lic "cd '$proj' && tralph --jobs N $SPEC_ARGS"` (N = desired lane count, default 2; read a previous run's value from `$RUN_DIR/manifest.json` `.orchestration.jobs`).
@@ -97,9 +97,10 @@ triage row — you fall through to step 3 (sleep) and then step 1
 (re-gather). Never treat "delegated a ticket" or "nothing to do this
 pass" as a reason to end; arm the timer and continue.
 
-**Exception — out-of-loop `task` sub-agent this pass.** If you spawned an
-out-of-loop `task` sub-agent this pass (DELEGATE OUT-OF-LOOP WORK path),
-wait on that sub-agent's completion via the hub instead of a blind sleep,
+**Exception — out-of-loop sub-agent this pass.** If you spawned an
+out-of-loop sub-agent this pass (DELEGATE OUT-OF-LOOP WORK path),
+wait for that sub-agent's completion (its completion notification, or the
+foreground `pi -p` call returning) instead of a blind sleep,
 then go to step 3 (sleep the interval) and step 1 (re-gather). The
 sub-agent's work must land before you sleep on the interval.
 
@@ -318,8 +319,8 @@ anything that needs shepherd action.
 ### Delegate or raise? (decision step, applies to every blocked issue in normal mode)
 
 The shepherd TRIAGES and DELEGATES — it does not implement. A live
-ralph worker (fresh context) reads the ticket via `skill://implement`,
-runs `## Verification`, and owns DONE. A `task`-spawned sub-agent (also
+ralph worker (fresh context) reads the ticket via the implement skill,
+runs `## Verification`, and owns DONE. A spawned sub-agent (also
 a fresh context) handles work the loop cannot do in a single-ticket
 pass. The shepherd itself only writes the kanban ticket (status/body)
 and `.kanban/progress.md`. **The shepherd never edits source/test
@@ -333,10 +334,9 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
   worker can execute (a ralph-review FAIL block is the canonical
   example: the reviewer wrote fix paths meant for the next Ralph pass),
   the shepherd's job is just to hand it back. Read the ticket
-  immediately before editing its frontmatter so you obtain the file's
-  current content-hash tag — the edit tool requires a live
-  `[PATH#TAG]` header and rejects a guessed/placeholder tag, forcing a
-  wasted round-trip otherwise. Edit the ticket:
+  immediately before editing its frontmatter so the edit's old text
+  matches the file's current content exactly (a live worker or the
+  driver may have rewritten it since your last read). Edit the ticket:
   frontmatter `status: blocked` → `status: pending`, and `updated:`
   to today's date. **Also make the ticket eligible:** its `labels:` must
   carry exactly one state label and it must be `ready-for-agent` — swap an
@@ -348,16 +348,18 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
   This line is the durable retry-bound record for loop-only delegation — keep it to ONE line: its only job is retry-bound detection on rerun, and the worker re-reads the ticket's `## Blocker` anyway, so do NOT restate the Blocker's fix paths here (that bloats progress.md).
   Then relaunch the driver (Relaunch section) so a fresh-context ralph
   worker picks the ticket up, reads the Blocker, implements via
-  `skill://implement`, and the worker's DONE verification gate runs the
+  the implement skill, and the worker's DONE verification gate runs the
   ticket's `## Verification`. The shepherd does NOT run it.
 
 - **DELEGATE OUT-OF-LOOP WORK.** When unblocking the ticket requires
   work a fresh single-ticket loop worker cannot do by itself — a broken
   shared test harness/fixture, a cross-cutting prerequisite in other
   modules, finishing or repairing a FAILED ticket's partial/uncommitted
-  edits, or an environment/dependency fix — spawn ONE sub-agent via
-  the `task` tool whose prompt is
-  `"Read skill://implement and follow it."` plus a tight objective:
+  edits, or an environment/dependency fix — spawn ONE sub-agent (in pi,
+  the `subagent` tool with the `worker` agent; with no subagent tool, a
+  foreground `pi --no-session -p "<prompt>"` from the project root) whose
+  prompt is `"Read ~/.agents/skills/implement/SKILL.md and follow it."`
+  plus a tight objective:
   the specific out-of-loop fix, the ticket id for context, the exact
   verification expectation, and
   `"commit your work to the current branch, then report what you changed."`
@@ -427,7 +429,7 @@ and stop.
 Pre-flight, in order:
 
 1. **Confirm the worker is actually idle/stuck.** A worker pane that shows an active spinner/▶ is mid-progress; killing the driver under it loses that work. Read `tmux capture-pane -p -t ralph-ralph-loop-<N>:0.0 -S -10`. If the worker is mid-progress, sleep one cycle — the driver is between iterations and you do not need to relaunch.
-2. **Check the supervisor.** `ralph-loop.service` may be enabled with `Restart=on-failure`; killing the driver triggers `ralph-supervise.sh`'s own relaunch within ~10s. Run step 8 of "Gather signals". If it returns `active`, **do not relaunch manually** — the supervisor owns it. Sleep one cycle and re-check; the supervisor will have either brought the loop back or reported failure. (A `supervisor-unreachable` result is fine — most omp/agent contexts have no session bus; proceed with the manual relaunch.)
+2. **Check the supervisor.** `ralph-loop.service` may be enabled with `Restart=on-failure`; killing the driver triggers `ralph-supervise.sh`'s own relaunch within ~10s. Run step 8 of "Gather signals". If it returns `active`, **do not relaunch manually** — the supervisor owns it. Sleep one cycle and re-check; the supervisor will have either brought the loop back or reported failure. (A `supervisor-unreachable` result is fine — most agent contexts have no session bus; proceed with the manual relaunch.)
 
 Relaunch commands, in order:
 
@@ -439,8 +441,9 @@ tmux kill-session -t ralph-loop
 #
 # Launch through an interactive LOGIN zsh (-l -i), exactly as at startup:
 # a login zsh may open in $HOME, so pin the project root explicitly.
-# This is what gives the worker ~/.bun/bin on PATH and MINIMAX_API_KEY —
-# a bare `bash …` relaunch reproduces the startup-crash / no-API-key failure.
+# This is what puts `pi` on the worker's PATH and exports the provider keys
+# from ~/.zshrc.secrets — a bare `bash …` relaunch reproduces the
+# startup-crash / no-API-key failure.
 proj="$PWD"
 zsh -lic "cd '$proj' && bash ~/.agents/skills/ralph/ralph-loop.sh $SPEC_ARGS tmux ralph-loop"
 ```
@@ -501,7 +504,7 @@ exits again with a non-zero status, read `$RUN_DIR/manifest.json`
 
 ## Hard rules
 
-- **The shepherd triages and delegates; it does not implement.** Never edit files under the project source/test tree, never run the project build or test suite, never commit code. Implementation happens in a ralph worker (DEFAULT — flip→relaunch; the worker reads `skill://implement`), in a single sub-agent that itself follows `skill://implement` (DELEGATE OUT-OF-LOOP WORK — out-of-loop fixes a single-ticket worker can't do), or in a scout sub-agent that returns a fix-plan only. The shepherd's only writes are kanban ticket status/body and `.kanban/progress.md`.
+- **The shepherd triages and delegates; it does not implement.** Never edit files under the project source/test tree, never run the project build or test suite, never commit code. Implementation happens in a ralph worker (DEFAULT — flip→relaunch; the worker reads the implement skill), in a single sub-agent that itself follows `~/.agents/skills/implement/SKILL.md` (DELEGATE OUT-OF-LOOP WORK — out-of-loop fixes a single-ticket worker can't do), or in a scout sub-agent that returns a fix-plan only. The shepherd's only writes are kanban ticket status/body and `.kanban/progress.md`.
 - **Never flip `status: blocked` → `status: pending` without a fix path a worker can act on.** Either the `## Blocker` already names a concrete code-local fix, or you have pasted a sub-agent's fix-plan into a `## Shepherd guidance` section. Never flip on a guess, and never run `## Verification` yourself — the worker's DONE gate handles that.
 - **Never touch an issue a live worker holds.** If `status: in-progress` or `status: review` exists, that worker owns the file; the shepherd does not edit its frontmatter, body, or progress.md entry. (Progress.md entries for blocked→pending flips are fine — those issues are not held.)
 - **Never edit `~/.agents/skills/ralph/ralph-loop.sh`, the ralph skill, or any other ralph script.** Diagnose bugs in the loop and report them; do not patch them from the shepherd.

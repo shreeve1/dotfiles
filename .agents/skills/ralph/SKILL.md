@@ -23,17 +23,17 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 `ralph-loop.sh` can drive Ralph repeatedly with either:
 
 - `tmux` — generic interactive agent controlled with `tmux send-keys` (default, normal tmux server)
-- `omp` — fresh non-interactive omp turn per issue
+- `pi` — fresh non-interactive `pi -p` turn per issue
 
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default omp agent (uses openrouter/deepseek/deepseek-v4.1-flash)
+tralph                                      # normal tmux, default pi agent (uses openrouter/deepseek/deepseek-v4.1-flash)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'omp --model openrouter/deepseek/deepseek-v4.1-flash' tmux  # explicit model override
-tralph omp                                  # omp non-interactive adapter
+tralph --agent-cmd 'pi --no-extensions --model openrouter/deepseek/deepseek-v4.1-flash' tmux  # explicit model override
+tralph pi                                   # pi non-interactive adapter
 ```
 
 ### Driver verification gate (on DONE)
@@ -308,11 +308,11 @@ For the selected issue:
    Concrete spawn examples:
 
    ```bash
-   # omp non-interactive reviewer
-   omp --no-extensions --no-session -p "$(cat reviewer-prompt.txt)"
+   # pi non-interactive reviewer
+   pi --no-extensions --no-session -p "$(cat reviewer-prompt.txt)"
 
    # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec omp"
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions"
    tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
    tmux send-keys -t ralph-review-<ID>:0.0 Enter
    ```
