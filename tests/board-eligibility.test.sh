@@ -299,6 +299,48 @@ expect_eq "files: all tickets in issues/, not archive" "1 2 3 4" "$(bs files | s
 expect_eq "files --spec beta: only beta's tickets, any status" "2 3" "$(bs --spec beta files | sed 's#.*/0*\([0-9]*\)-t.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
 expect_eq "files --spec with no match is empty" "" "$(bs --spec nobody files)"
 
+# --- `spec-done`: is every ticket of a spec finished, live AND archived (review: Spec complete lied) ---
+# finish-spec counts a spec's archived tickets and stops on a cancelled one, so the completion
+# check must too. Exit 0 = complete; 1 = not; 2 = bad usage.
+sd() { bs --spec "$1" spec-done >/dev/null 2>&1; echo $?; }
+
+new_board sd-live
+ticket "$B/issues" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 2 done - '[]' 'spec: alpha'
+expect_eq "spec-done: all live tickets done" "0" "$(sd alpha)"
+
+new_board sd-open
+ticket "$B/issues" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
+expect_eq "spec-done: a pending ticket means not complete" "1" "$(sd alpha)"
+
+new_board sd-cancel
+ticket "$B/issues" 2 done - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 1 cancelled - '[]' 'spec: alpha'
+expect_eq "spec-done: an ARCHIVED cancelled ticket means not complete" "1" "$(sd alpha)"
+expect_eq "archive JSON carries each ticket's spec" '"alpha"' "$(bs archive | jq -c '.[0].spec')"
+
+new_board sd-archived-done
+ticket "$B/archive/2026-01-01" 1 done - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 2 done - '[]' 'spec: alpha'
+expect_eq "spec-done: every ticket archived as done is complete" "0" "$(sd alpha)"
+
+new_board sd-mixed
+ticket "$B/issues" 3 done - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 4 pending "$R" '[]' 'spec: beta'
+expect_eq "spec-done: live done + archived done, another spec's open ticket ignored" "0" "$(sd alpha)"
+expect_eq "spec-done: the other spec is not complete" "1" "$(sd beta)"
+
+new_board sd-none
+expect_eq "spec-done: a spec with no tickets is not complete" "1" "$(sd ghost)"
+expect_eq "spec-done: no --spec is a usage error" "2" "$(bs spec-done >/dev/null 2>&1; echo $?)"
+
+new_board sd-quoted
+ticket "$B/issues" 1 done - '[]' 'spec: "alpha"'
+ticket "$B/issues" 2 done - '[]' 'spec: alpha # note'
+expect_eq "spec-done: quoted and commented spec values count as the spec" "0" "$(sd alpha)"
+
 # --- empty / missing board --------------------------------------------------
 new_board empty
 expect_eq "empty board counts eligible=0" "0" "$(count eligible)"

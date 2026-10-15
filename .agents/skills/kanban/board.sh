@@ -19,7 +19,10 @@
 #              ready = exactly one state label and it is the ready label,
 #              childrenOpen = some child is not done). Blocker resolution is
 #              left to the caller (see `archive`).
-#   archive    JSON array of {id,status,parent} for every ticket under archive/.
+#   archive    JSON array of {id,status,parent,spec} for every ticket under archive/.
+#   spec-done  Needs --spec. Exit 0 when that spec has at least one ticket and EVERY one,
+#              in issues/ and in archive/, is status done; exit 1 otherwise. An archived
+#              cancelled ticket counts as not done, matching finish-spec, which stops on it.
 #   files      Paths of every ticket in issues/ (any status), ordered by id; --spec
 #              narrows it. Lets callers scope status-based scans (active resume,
 #              review targets) to the same set `eligible` uses. Unlike `json` it
@@ -73,7 +76,7 @@ while [ $# -gt 0 ]; do
     usage
     exit 0
     ;;
-  eligible | next | counts | validate | json | archive | files)
+  eligible | next | counts | validate | json | archive | files | spec-done)
     CMD="$1"
     shift
     ;;
@@ -343,7 +346,8 @@ archive_cmd() {
   pass1 | jq -R -s -c '
     [ split("\n")[] | select(length > 0) | split("\t") | select(.[0] == "archive" and (.[3] | test("^[0-9]+$"))) |
       { id: (.[3] | tonumber), status: .[4],
-        parent: (if .[9] | test("^[0-9]+$") then (.[9] | tonumber) else null end) } ] | sort_by(.id)'
+        parent: (if .[9] | test("^[0-9]+$") then (.[9] | tonumber) else null end),
+        spec: (if .[8] == "" then null else .[8] end) } ] | sort_by(.id)'
 }
 
 run() {
@@ -369,6 +373,16 @@ json)
   ;;
 archive)
   if [ "${#FILES[@]}" -eq 0 ]; then echo '[]'; else archive_cmd; fi
+  ;;
+spec-done)
+  [ -n "$SPEC" ] || {
+    echo "board.sh: spec-done needs --spec SLUG" >&2
+    exit 2
+  }
+  [ "${#FILES[@]}" -gt 0 ] || exit 1
+  pass1 | awk -F'\t' -v spec="$SPEC" '
+    ($1 == "issues" || $1 == "archive") && $4 ~ /^[0-9]+$/ && $9 == spec { total++; if ($5 != "done") open++ }
+    END { exit !(total > 0 && open == 0) }'
   ;;
 files)
   if [ "${#FILES[@]}" -gt 0 ]; then

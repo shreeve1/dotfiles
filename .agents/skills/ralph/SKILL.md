@@ -247,6 +247,7 @@ For the selected issue:
 3. **Check progress notes** — read `.kanban/progress.md` for context from prior iterations. This is how architectural continuity survives the Memento approach. Cross-cutting decisions and conventions from earlier issues are recorded here.
 4. **Explore** the relevant code — understand current state.
 5. **Read the plan** — if the issue file has a `## Plan` section, follow it. It is the implementation approach; you do not need to re-plan.
+   **Read the spec** — if the issue has a `spec:` field, read `.kanban/specs/<spec>.md` before building: the problem, the decisions already made, the testing decisions and what is Out of Scope. Do not build what it rules out or contradict a decision recorded there. If the ticket and the spec disagree, stop and report `RALPH_RESULT: BLOCKED` instead of guessing; the reviewer checks the diff against it too (step 4).
 6. **Build** — implement the slice end-to-end. ONLY THIS ISSUE. Shared refactors needed by this slice go IN this slice. If a shared refactor is needed but not part of this slice, add it to progress.md as a note and handle it in the appropriate issue.
 7. **Verify** — run the exact command from the issue's `## Verification` section. Also run lint and typecheck if the project has them. Check critical LSP diagnostics for touched files and fix real type/call/signature/import errors before proceeding; only environment-only missing-import noise may be documented instead of fixed.
 8. **COMMIT NOW (MANDATORY GATE).** Before moving to review, all issue-created changes MUST be committed. Run:

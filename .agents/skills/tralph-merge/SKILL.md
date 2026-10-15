@@ -242,6 +242,16 @@ complete. To start the next board run, invoke `tralph` again (with the same
 
 Only `git push` if the user explicitly asks.
 
+**Spec runs: check for completion.** A deferred merge never got the `## Spec complete` section that `gralph` writes into the run report on a clean finish, so check it here once the batch has landed (skip for a whole-board run, `KEY=0`):
+
+```bash
+if [ "$KEY" != 0 ] && ~/.agents/skills/kanban/board.sh --board "$BASE_REPO/.kanban" --spec "$KEY" spec-done; then
+  echo "Spec $KEY is complete: every ticket is done. Each was reviewed alone; run /finish-spec $KEY to check they compose into the spec."
+fi
+```
+
+If it prints, include that line in your report.
+
 ## Report
 
 Summarize: commits landed, files changed, any conflicts resolved, cleanup done,
