@@ -341,6 +341,30 @@ ticket "$B/issues" 1 done - '[]' 'spec: "alpha"'
 ticket "$B/issues" 2 done - '[]' 'spec: alpha # note'
 expect_eq "spec-done: quoted and commented spec values count as the spec" "0" "$(sd alpha)"
 
+# --- `spec-check ID`: can the spec this ticket names be used? (ralph-loop refuses the ticket if not) ---
+# Prints one word: none (no spec:), ok (valid slug, file on disk), missing (valid slug, no file),
+# invalid (slug breaks the rule, so it is never turned into a path). Exit 0 for none/ok, 1 otherwise.
+sc() { bs spec-check "$1" 2>/dev/null; }
+new_board speccheck
+mkdir -p "$B/specs"; printf '# s\n' >"$B/specs/alpha.md"
+ticket "$B/issues" 1 pending "$R" '[]'
+ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
+ticket "$B/issues" 3 pending "$R" '[]' 'spec: ghost'
+ticket "$B/issues" 4 pending "$R" '[]' 'spec: ../../x'
+ticket "$B/issues" 5 pending "$R" '[]' 'spec: null'
+ticket "$B/issues" 6 pending "$R" '[]' 'spec: "alpha"'
+ticket "$B/issues" 7 pending "$R" '[]' 'spec: 123'
+expect_eq "spec-check: no spec is none" "none" "$(sc 1)"
+expect_eq "spec-check: existing spec is ok" "ok" "$(sc 2)"
+expect_eq "spec-check: absent file is missing" "missing" "$(sc 3)"
+expect_eq "spec-check: unsafe slug is invalid" "invalid" "$(sc 4)"
+expect_eq "spec-check: spec: null is none" "none" "$(sc 5)"
+expect_eq "spec-check: quoted slug resolves like board.sh does" "ok" "$(sc 6)"
+expect_eq "spec-check: all-digit slug is invalid" "invalid" "$(sc 7)"
+expect_eq "spec-check: exit 0 for ok" "0" "$(bs spec-check 2 >/dev/null 2>&1; echo $?)"
+expect_eq "spec-check: exit 1 for missing" "1" "$(bs spec-check 3 >/dev/null 2>&1; echo $?)"
+expect_eq "spec-check: unknown id is a usage error" "2" "$(bs spec-check 99 >/dev/null 2>&1; echo $?)"
+
 # --- empty / missing board --------------------------------------------------
 new_board empty
 expect_eq "empty board counts eligible=0" "0" "$(count eligible)"

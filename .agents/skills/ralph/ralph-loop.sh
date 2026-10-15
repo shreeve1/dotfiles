@@ -1208,6 +1208,24 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       break
     fi
     CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
+    # A ticket that names a spec we cannot read (missing file, unsafe slug) is blocked, not
+    # worked: the worker would get no spec, which is the drift this guards against. This is
+    # the --jobs 1 twin of gralph refusing the lane (spec_missing / spec_invalid).
+    SPEC_VERDICT=$(board spec-check "$CURRENT_TARGET_ID" 2>/dev/null || true)
+    if [[ "$SPEC_VERDICT" == "missing" || "$SPEC_VERDICT" == "invalid" ]]; then
+      spec_named=$(sed -n 's/^spec:[[:space:]]*//p' "$CURRENT_TARGET" | head -1 | tr -d '\r')
+      perl -0pi -e 's/^status: (pending|in-progress|review)$/status: blocked/m' "$CURRENT_TARGET"
+      printf '\n## Blocker\n\nThe loop refused this ticket: its spec (%s) is %s. Running it would give the worker no spec. Fix `spec:` in the ticket or create `.kanban/specs/<slug>.md`, then set `status: pending` again.\n' "$spec_named" "$SPEC_VERDICT" >>"$CURRENT_TARGET"
+      echo "⛔ Ticket #$CURRENT_TARGET_ID blocked: its spec ($spec_named) is $SPEC_VERDICT" | tee -a "$LOG_FILE"
+      # If the status did not change (unwritable file, unexpected frontmatter) the same ticket
+      # would be selected again on the next pass and the loop would spin to MAX_ITERATIONS.
+      if [[ "$(issue_status_for_file "$CURRENT_TARGET")" != "blocked" ]]; then
+        echo "❌ Could not block ticket #$CURRENT_TARGET_ID; stopping instead of reselecting it" | tee -a "$LOG_FILE"
+        LOOP_EXIT_CODE=1
+        break
+      fi
+      continue
+    fi
     echo "🎯 Selected ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
     AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); the loop already selected it. Do not pick a different ticket."
   fi

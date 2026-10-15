@@ -20,6 +20,11 @@
 #              childrenOpen = some child is not done). Blocker resolution is
 #              left to the caller (see `archive`).
 #   archive    JSON array of {id,status,parent,spec} for every ticket under archive/.
+#   spec-check ID  Whether the spec ticket ID names can be used. Prints one word: none (no
+#              spec:), ok (valid slug and the file is on disk), missing (valid slug, no
+#              file) or invalid (slug breaks the rule, so it is never made into a path).
+#              Exit 0 for none/ok, 1 for missing/invalid, 2 for an unknown ticket id.
+#              The loop refuses to work a ticket that names a spec it cannot read.
 #   spec-done  Needs --spec. Exit 0 when that spec has at least one ticket and EVERY one,
 #              in issues/ and in archive/, is status done; exit 1 otherwise. An archived
 #              cancelled ticket counts as not done, matching finish-spec, which stops on it.
@@ -79,6 +84,11 @@ while [ $# -gt 0 ]; do
   eligible | next | counts | validate | json | archive | files | spec-done)
     CMD="$1"
     shift
+    ;;
+  spec-check)
+    CMD="$1"
+    CHECK_ID="${2:?spec-check needs a ticket id}"
+    shift 2
     ;;
   *)
     echo "board.sh: unknown argument: $1" >&2
@@ -373,6 +383,26 @@ json)
   ;;
 archive)
   if [ "${#FILES[@]}" -eq 0 ]; then echo '[]'; else archive_cmd; fi
+  ;;
+spec-check)
+  [ "${#FILES[@]}" -gt 0 ] || exit 2
+  verdict=$(pass1 | awk -F'\t' -v id="$CHECK_ID" -v board="$BOARD" '
+    $1 == "issues" && $4 == id { found = 1; slug = $9 }
+    END {
+      if (!found) { print "unknown"; exit }
+      if (slug == "") { print "none"; exit }
+      if (slug !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/ || slug ~ /^[0-9]+$/) { print "invalid"; exit }
+      if ((getline _probe < (board "/specs/" slug ".md")) < 0) { print "missing"; exit }
+      print "ok"
+    }')
+  case "$verdict" in
+  unknown) exit 2 ;;
+  none | ok) printf '%s\n' "$verdict" ;;
+  *)
+    printf '%s\n' "$verdict"
+    exit 1
+    ;;
+  esac
   ;;
 spec-done)
   [ -n "$SPEC" ] || {

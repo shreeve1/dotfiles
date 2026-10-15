@@ -17,7 +17,10 @@ LOOP="$ROOT/.agents/skills/ralph/ralph-loop.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 PASS=0
 FAILN=0
@@ -90,6 +93,21 @@ ticket() {
   local id="$1" status="$2" labels="$3" blocked="$4" dir="${5:-issues}"
   shift 5 || shift $#
   local f="$REPO/.kanban/$dir/$(printf '%03d' "$id")-t$id.md"
+  # to-spec writes the spec before to-tickets stamps spec:, and the loop blocks a ticket whose
+  # spec file is missing, so a fixture that names a spec has the file (the spec-less-file cases
+  # below create their ticket without it on purpose).
+  local l slug
+  for l in "$@"; do
+    case "$l" in
+    'spec: '*)
+      slug="${l#spec: }"
+      if [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ && "$slug" != ghost && "$slug" != "${NO_SPEC_FILE:-}" ]]; then
+        mkdir -p "$REPO/.kanban/specs"
+        [ -f "$REPO/.kanban/specs/$slug.md" ] || printf '# Spec %s\n' "$slug" >"$REPO/.kanban/specs/$slug.md"
+      fi
+      ;;
+    esac
+  done
   {
     printf '%s\n' '---'
     printf 'id: %s\ntitle: Ticket %s\nstatus: %s\n' "$id" "$id" "$status"
@@ -204,13 +222,21 @@ expect_eq "the alpha blocked ticket is left alone by a beta review loop" "blocke
 new_repo specreset
 ticket 1 in-progress "$R" '[]' issues 'spec: alpha'
 ticket 2 pending "$R" '[]' issues 'spec: beta'
+# Fails ticket 2 ONCE, then behaves like the normal stub. An always-failing worker under
+# --continue-on-error retries until MAX_ITERATIONS (1000), which made this scenario take about
+# 4.5 minutes; one failure is all the reset path needs.
 cat >"$BIN/omp-fail" <<'EOF2'
 #!/usr/bin/env bash
-echo "RALPH_RESULT: FAIL #2"
-exit 1
+if [ ! -f "$WORKER_LOG.failed-once" ]; then
+  : >"$WORKER_LOG.failed-once"
+  echo "RALPH_RESULT: FAIL #2"
+  exit 1
+fi
+exec "$(dirname "$0")/omp.real" "$@"
 EOF2
 chmod +x "$BIN/omp-fail"
-mv "$BIN/omp" "$BIN/omp.real"; cp "$BIN/omp-fail" "$BIN/omp"
+mv "$BIN/omp" "$BIN/omp.real"
+cp "$BIN/omp-fail" "$BIN/omp"
 run_loop --spec beta --continue-on-error
 mv "$BIN/omp.real" "$BIN/omp"
 expect_eq "continue-on-error under --spec beta never resets alpha's ticket" "in-progress" "$(status_of 1)"
@@ -240,6 +266,38 @@ new_repo specnone
 ticket 1 pending "$R" '[]' issues 'spec: alpha'
 run_loop
 if grep -q 'is complete' "$TMP/last.out"; then fail "no --spec: no spec completion message" "$(grep 'is complete' "$TMP/last.out")"; else ok; fi
+
+# --- a ticket that names an unusable spec is blocked, not worked (the --jobs 1 twin of gralph's
+# spec_missing refusal): running it would hand the worker no spec, i.e. the drift this prevents.
+new_repo badspec
+ticket 1 pending "$R" '[]' issues 'spec: ghost'
+ticket 2 pending "$R" '[]' issues
+ticket 3 pending "$R" '[]' issues 'spec: ../../x'
+run_loop
+expect_eq "the loop works only the ticket with no bad spec" "2" "$(workers)"
+expect_eq "missing-spec ticket is blocked, not worked" "blocked" "$(status_of 1)"
+expect_eq "unsafe-spec ticket is blocked, not worked" "blocked" "$(status_of 3)"
+if grep -q '^## Blocker' "$REPO/.kanban/issues/001-t1.md" && grep -qi 'spec' "$REPO/.kanban/issues/001-t1.md"; then ok; else fail "blocked ticket explains the spec problem in a ## Blocker section" "$(tail -5 "$REPO/.kanban/issues/001-t1.md")"; fi
+if grep -q 'ghost' "$REPO/.kanban/issues/001-t1.md"; then ok; else fail "the Blocker names the spec that is missing"; fi
+
+# If the ticket cannot be blocked the loop must stop, not reselect it until MAX_ITERATIONS.
+new_repo unblockable
+ticket 1 pending "$R" '[]' issues 'spec: ghost'
+printf '%s\n' '#!/bin/sh' 'exit 0' >"$BIN/perl"
+chmod +x "$BIN/perl"
+start=$SECONDS
+run_loop
+rm -f "$BIN/perl"
+if [ $((SECONDS - start)) -lt 60 ]; then ok; else fail "a ticket that cannot be blocked must stop the loop, not spin"; fi
+if grep -q 'Could not block ticket' "$TMP/last.out"; then ok; else fail "the loop says it could not block the ticket" "$(tail -4 "$TMP/last.out")"; fi
+
+# once the spec exists and the ticket is put back to pending, it runs with the rest
+new_repo goodspec
+mkdir -p "$REPO/.kanban/specs"
+printf '# Spec\n' >"$REPO/.kanban/specs/real.md"
+ticket 1 pending "$R" '[]' issues 'spec: real'
+run_loop
+expect_eq "a ticket whose spec exists is worked" "1" "$(workers)"
 
 echo "ralph-loop-labels: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
