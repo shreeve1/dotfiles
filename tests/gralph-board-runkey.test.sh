@@ -262,5 +262,48 @@ g alpha --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
 # gralph itself refuses an all-digit slug that is not a plain number it would treat as a parent
 if (cd "$REPO" && "$GRALPH" 12ab --board "$BOARD" --dry-run --verify true >/dev/null 2>&1); then ok; else fail "alphanumeric slug starting with digits is a valid key"; fi
 
+# --- 11. a fully landed spec says so in the run report (drift B: composition) -------------
+# Each ticket is reviewed alone, so nothing else notices when slices that each pass do not add up
+# to the spec. finish-spec does that check; board mode never launched it, so the report is where
+# the shepherd and the user are told it is due.
+new_repo specdone
+BOARD="$REPO/.kanban"
+mkdir -p "$BOARD/specs"
+printf '# Spec\n' >"$BOARD/specs/gamma.md"
+ticket "$BOARD/issues" 1 gamma
+ticket "$BOARD/issues" 2 gamma
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g gamma --spec gamma --dry-run --verify true >/dev/null 2>&1
+g gamma --spec gamma --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+R="$REPO/.kanban/run-report-gamma.md"
+[ -f "$R" ] && ok || fail "gamma run wrote its report"
+if grep -q '^## Spec complete' "$R"; then ok; else fail "report says the spec is fully landed" "$(tail -5 "$R")"; fi
+if grep -qF '/finish-spec gamma' "$R"; then ok; else fail "report gives the exact finish-spec command"; fi
+if grep -qF '.kanban/specs/gamma.md' "$R"; then ok; else fail "report names the spec file"; fi
+
+# A spec with a ticket still waiting does NOT claim completion.
+new_repo specpart
+BOARD="$REPO/.kanban"
+mkdir -p "$BOARD/specs"
+printf '# Spec\n' >"$BOARD/specs/delta.md"
+ticket "$BOARD/issues" 1 delta
+ticket "$BOARD/issues" 2 delta '[9]'
+ticket "$BOARD/issues" 9 other '[]' blocked
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g delta --spec delta --dry-run --verify true >/dev/null 2>&1
+g delta --spec delta --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+R="$REPO/.kanban/run-report-delta.md"
+[ -f "$R" ] && ok || fail "delta run wrote its report"
+if grep -q '^## Spec complete' "$R"; then fail "a spec with an unfinished ticket must not claim completion"; else ok; fi
+
+# A whole-board run (no --spec) never prints the spec section.
+new_repo nospec
+BOARD="$REPO/.kanban"
+ticket "$BOARD/issues" 1 gamma
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g 0 --dry-run --verify true >/dev/null 2>&1
+g 0 --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+if grep -q '^## Spec complete' "$REPO/.kanban/run-report.md"; then fail "whole-board run has no spec section"; else ok; fi
+
 echo "gralph-board-runkey: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
