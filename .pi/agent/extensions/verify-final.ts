@@ -11,11 +11,11 @@
 //   exits. The boundary continuation is awaited inside that same prompt call.
 //
 // Cleanup nudge (post-work-cleanup):
-//   In every mode, when the working tree changed during the turn, the boundary
-//   appends a directive to clean up before committing: the workspace skill when
-//   it is loadable here, otherwise a self-contained checklist. Cheap and local:
-//   no model call. Harness paths such as .pi/ are ignored so tooling files do
-//   not trigger it.
+//   In every mode, when the turn changed a CODE file, the boundary appends a
+//   directive to clean up before committing: the workspace skill when it is
+//   loadable here, otherwise a self-contained checklist. Docs, notes, ledgers,
+//   data files and harness paths (.pi/) never trigger it, so a turn that only
+//   writes a note is left alone. Cheap and local: no model call.
 //
 // Both boundary handlers fire at most once per user prompt (guarded by
 // userPromptSeq) so a continuation cannot re-trigger itself: the run loop
@@ -48,6 +48,11 @@ const CLEANUP_SKILL_NAME = "post-work-cleanup"
 // Porcelain paths the nudge ignores: harness and dependency output, not work.
 // pi-lens also drops a .pi-lens-probe-home/ directory into the cwd.
 const HARNESS_PATH_RE = /(^|\/)(?:\.pi|\.pi-lens[^/]*|node_modules)\//
+// Code surfaces only. The nudge exists for code cleanup, so a turn that changed
+// only docs, notes, ledgers, JSON or YAML is left alone. Extensionless scripts
+// (identified by shebang) are not matched and so do not trigger it.
+const CODE_EXT_RE =
+  /\.(?:py|pyi|ps1|psm1|psd1|sh|bash|zsh|ksh|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rb|rs|c|h|cc|cpp|hpp|cxx|hxx|java|kt|kts|cs|php|sql|lua|swift|scala|pl|pm|r|ex|exs|erl|hs|clj|dart|vue|svelte)$/i
 const CLEANUP_SKILL_DIRECTIVE = [
   "Workspace files changed during this turn and are not yet committed.",
   "Before committing, run the `post-work-cleanup` skill over this session's diff,",
@@ -119,6 +124,20 @@ function gitStatus(cwd: string): Promise<string> {
       },
     )
   })
+}
+
+/** Porcelain lines present now that were not present at prompt start. */
+function newPorcelainLines(now: string, before: string): string[] {
+  const previous = new Set(before.split("\n").filter((line) => line.trim().length > 0))
+  return now.split("\n").filter((line) => line.trim().length > 0 && !previous.has(line))
+}
+
+/** True when a porcelain line names a changed path on a code surface. */
+function isCodeLine(line: string): boolean {
+  // Strip the XY status prefix, then the quoting git adds for odd paths.
+  let path = line.slice(3).trim().replace(/^"|"$/g, "")
+  if (path.includes(" -> ")) path = path.split(" -> ").pop() ?? path
+  return CODE_EXT_RE.test(path.replace(/^"|"$/g, ""))
 }
 
 /** True when pi can load the cleanup skill from cwd or a user skill root. */
@@ -268,7 +287,9 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return
     const cwd = resolveCwd(ctx)
     const now = await gitStatus(cwd)
-    if (!now || now === treeAtPrompt) return
+    // Only a newly changed code file triggers this, never a pre-existing dirty
+    // one, and never a docs/notes/ledger-only turn.
+    if (!newPorcelainLines(now, treeAtPrompt).some(isCodeLine)) return
     cleanupDoneSeq = userPromptSeq
     continuationsThisPrompt += 1
     const directive = cleanupSkillAvailable(cwd) ? CLEANUP_SKILL_DIRECTIVE : CLEANUP_FALLBACK_DIRECTIVE
