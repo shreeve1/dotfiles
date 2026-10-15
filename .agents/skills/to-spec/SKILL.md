@@ -8,7 +8,7 @@ This skill takes the current conversation context and codebase understanding and
 
 The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
 
-**Run it in the same session as the grill.** The decisions a grill settles (scope cuts, behaviour, edge cases, the "we are not doing X" calls) live only in that conversation: `CONTEXT.md` holds the glossary and `docs/adr/` only the rare hard-to-reverse choice. If this is a fresh session and the conversation holds no grill or design decisions, do not invent them: say so, and ask the user to either run `/grill-with-docs` first, or paste the decisions, or name the grill session so you can recover them (see `session:` below).
+**Run it in the same session as the grill.** The decisions a grill settles (scope cuts, behaviour, edge cases, the "we are not doing X" calls) live only in that conversation: `CONTEXT.md` holds the glossary and `docs/adr/` only the rare hard-to-reverse choice. If this is a fresh session and the conversation holds no grill or design decisions, do not invent them: say so, and ask the user to either run `/grill-with-docs` first, or paste the decisions, or tell you which grill session it was (the `kanban` skill's "Session breadcrumb" says how to search one for a specific decision; a pasted list is better).
 
 ## Process
 
@@ -39,7 +39,7 @@ created: <today, YYYY-MM-DD>
 ---
 ```
 
-Set `session:` from `$PI_SESSION_ID` and `hostname` when the variable is set; omit the line when it is not. It names the machine and session where this spec was written, which is normally the grill itself. It is a breadcrumb for a human (or a later session) who needs to recover why something was decided: transcripts are not synced between machines, so look with `ssh <host>`, and search the transcript for the specific decision. Never load a whole transcript into context.
+Set `session:` from `$PI_SESSION_ID` and the machine's ssh alias when the variable is set; omit the line when it is not. The `kanban` skill's "Session breadcrumb" maps `hostname` to the alias (`n8n` is `itan8n`) and says where transcripts live and how to search one. It names the machine and session where this spec was written, which is normally the grill itself. It is a breadcrumb for a human (or a later session) who needs to recover why something was decided: transcripts are not synced between machines, so look with `ssh <host>`, and search the transcript for the specific decision. Never load a whole transcript into context.
 
 ## Problem Statement
 
