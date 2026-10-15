@@ -6,3 +6,4 @@ how do I add a pi provider to T3 Code ||| hand-edit ~/.t3/userdata/settings.json
 which T3 Code version ships the pi provider ||| packages/provider-pi
 does T3 Code's pi integration need the pi-acp adapter ||| T3 Code talks pi's own RPC mode directly
 how do I enable a hidden provider in T3 Code settings ||| providerSettingsForm: hidden: true
+why does T3 Add environment SSH hang with a NetBird-bound server ||| NetBird-only listener

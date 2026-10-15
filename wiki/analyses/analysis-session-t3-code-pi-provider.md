@@ -7,6 +7,7 @@ created: 2026-10-14
 updated: 2026-10-14
 sources:
   - wiki/raw/sessions/2026-10-14-t3-code-pi-provider.md
+  - wiki/raw/sessions/2026-10-14-t3-ssh-load-balancing.md
   - packages/provider-pi/src/settings.ts
   - packages/provider-pi/src/server.ts
   - apps/server/src/provider/builtInDrivers.ts
@@ -60,7 +61,24 @@ T3 Code installs in two parallel ways on this machine:
 
 The user-managed launcher wins in PATH, so `t3 update --channel nightly` switches the effective version while leaving the pacman package one version behind (and 360 MB of stale shadow install). When Omarchy republishes 0.0.46, `pacman -Syu t3code-bin` will reconcile them.
 
+## Account-free SSH environments: avoid the loopback collision
+
+In `0.0.46-nightly.20261014.3132`, the SSH launcher adopts a running default-home server only when its persisted HTTP origin is loopback. A service bound only to its NetBird address is not adopted: **Add environment** waits on `127.0.0.1`, tries to launch another server against the same userdata, and fails with `ServerAlreadyRunningError`. Use a loopback listener for SSH-managed access; do not run a second server against the same home. This removes direct NetBird HTTP access unless a separate, deliberately configured route preserves it.
+
+Verification: run `t3 __ssh-helper runtime-port ~/.t3/userdata/server-runtime.json` and `t3 __ssh-helper wait-ready 3773 3000 1000`, then request `/.well-known/t3/environment` through an SSH forward. SSH environments need no T3 account; the online T3 Connect hub is separate.
+
+## Load-balancing prerequisites
+
+- Check **the running T3 server's PATH**, not just the SSH login shell: pi can be installed under `~/.npm-global/bin` or `~/.local/bin` yet invisible to a systemd service. Provider enablement and authentication must also work on each eligible machine.
+- Shared projects are grouped by repository identity, not matching titles or matching filesystem paths. Arbitrary SSH aliases remain literal hosts in this build's URL normalizer: `github-personal/owner/repo` differs from `github.com/owner/repo`. Preserve multi-account SSH authentication when aligning identity.
+- Preferences are scoring weights, not percentages: Prefer=100, Normal=50, Less often=25, Manual only=0. The score is weight × CPU count × idle CPU fraction × available RAM fraction. CPU usage at least 95%, RAM availability at most 5%, and stale/invalid samples exclude a candidate.
+- Placement selects a machine for a new eligible draft. It does not migrate running threads or synchronize dirty checkouts. Each selected checkout still needs its own dependencies and local configuration; manually test the provider and project commands on each machine first.
+
+Source and runtime evidence: [SSH and load-balancing session capture](/raw/sessions/2026-10-14-t3-ssh-load-balancing.md). Per-project repairs and provider-login readiness are intentionally not claimed complete.
+
 ## Citations
+
+- `wiki/raw/sessions/2026-10-14-t3-ssh-load-balancing.md`
 
 - `wiki/raw/sessions/2026-10-14-t3-code-pi-provider.md`
 - `packages/provider-pi/src/settings.ts:25-49`
