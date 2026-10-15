@@ -67,5 +67,32 @@ grep -qiE 'same session|decisions' "$GD" && ok || fail "grill-with-docs tells th
 # shepherd tells the user to run finish-spec when the run report says the spec is complete
 grep -q 'Spec complete' "$SH" && grep -q '/finish-spec' "$SH" && ok || fail "shepherd surfaces the report's 'Spec complete' section and /finish-spec"
 
+# tralph-merge lands a deferred batch by hand, which is exactly when the run report skips
+# its 'Spec complete' section (it is written only for a merged finish); the merge skill must
+# do the same completeness check and name /finish-spec itself.
+TM="$SK/tralph-merge/SKILL.md"
+grep -q 'spec-done' "$TM" && ok || fail "tralph-merge checks board.sh spec-done after a manual landing"
+grep -q '/finish-spec' "$TM" && ok || fail "tralph-merge tells the user to run /finish-spec"
+
+# ralph's Implement step (the --jobs 1 worker) tells the worker to read the ticket's spec
+# BEFORE building, like gralph's prompt does; before this only the reviewer ever saw it.
+impl_step="$(sed -n '/^### 3\. Implement/,/^### 4\./p' "$RS")"
+if printf '%s' "$impl_step" | grep -qiE 'spec:.*(\.kanban/specs|read)|read.*\.kanban/specs'; then ok; else fail "ralph Implement step tells the worker to read the ticket's spec first"; fi
+if printf '%s' "$impl_step" | grep -qiE 'BLOCKED'; then ok; else fail "ralph Implement step says to report BLOCKED when ticket and spec disagree"; fi
+
+# session: must name a host you can actually ssh to. `hostname` prints n8n on the machine
+# reached as itan8n, so the skills must map it; recovery (where transcripts live, how to
+# search by id) is documented once, in the kanban skill, and the other two skills point there.
+grep -qE 'n8n.*itan8n|itan8n.*n8n' "$KB" && ok || fail "kanban maps hostname n8n to the itan8n ssh alias"
+grep -qE 'sessions/' "$KB" && ok || fail "kanban says where session transcripts live"
+# match the id in the FILE NAME: grep -rl on the id also returns any other transcript that merely
+# mentions it (found while checking this: head -1 picked the wrong session)
+grep -qE "find .*-name .*<session id>" "$KB" && ok || fail "kanban finds a transcript by file name (find -name), not by grepping every transcript for the id"
+if grep -qE 'grep -rl "<session id>"' "$KB"; then fail "kanban must not locate a transcript with grep -rl on the id (matches transcripts that only mention it)"; else ok; fi
+for f in "$TS" "$TT"; do
+  grep -qiE 'kanban.*(session|ssh alias)|ssh alias' "$f" && ok || fail "$(basename "$(dirname "$f")") points at the kanban skill for the session host and recovery"
+done
+if grep -qiE 'name the grill session so you can recover' "$TS"; then fail "to-spec no longer promises recovery that the breadcrumb does not enable"; else ok; fi
+
 echo "skills-text: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]

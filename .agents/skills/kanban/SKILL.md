@@ -83,13 +83,21 @@ Every issue MUST have: `id`, `title`, `status`, `blocked_by`, `created`. Every i
 | `blocked_by` | yes | integer array | IDs that must be `done` first |
 | `parent` | no | integer or null | Parent epic issue. Children block parent completion. |
 | `spec` | no | slug or null | The spec this ticket belongs to; matches `.kanban/specs/<slug>.md`. Lets `tralph --spec <slug>` work one spec's tickets. |
-| `session` | no | `<host>:<session id>` | Where the ticket (and its spec) was planned, written by `/to-tickets`. A human breadcrumb: workers and the loop never read it, and a transcript lives only on the machine named, so look there with `ssh <host>`. |
+| `session` | no | `<host>:<session id>` | Where the ticket (and its spec) was planned, written by `/to-tickets` and `/to-spec`. A human breadcrumb: workers and the loop never read it. See "Session breadcrumb" below. |
 | `files` | no | path-prefix list | Advisory write set for the parallel scheduler (e.g. `[src/auth/, tests/auth/]`). Wrong scope costs parallelism, never correctness. Frontmatter only — never in the body. |
 | `priority` | no | integer (lower = higher priority) | Breaks ties among ready issues. Default 0. |
 | `created` | yes | YYYY-MM-DD | Creation date |
 | `updated` | auto | YYYY-MM-DD | Last status change date |
 | `actor` | auto | `human`, `ralph`, `script` | Who last changed the status |
 | `previous_status` | auto | status or null | Previous status for rollback |
+
+### Session breadcrumb
+
+`session: <host>:<session id>` says where a ticket or spec was planned, so a human can ask "why was this decided?" later. Transcripts are gitignored and live only on the machine that ran the session, so the breadcrumb is a pointer, not a copy.
+
+- **`<host>` is the ssh alias, not `hostname`.** Take `$PI_SESSION_ID` and map `hostname`: `omarchy` → `omarchy`, `aidev` → `aidev`, `n8n` → `itan8n` (the box reached as `itan8n` reports `n8n`, and as `itadmin`, not `james`). Anything else: omit `session:`. From any of the three machines `ssh <alias>` reaches the other two.
+- **Transcripts** are under `~/.pi/agent/sessions/<cwd-slug>/` (older ones under `~/dotfiles/.omp/agent/sessions/`), one `.jsonl` per session, the id in the file name.
+- **Recover one decision, never the whole file** (a grill is 180 KB to 2.5 MB of mostly tool output): `ssh <alias> "find ~/.pi/agent/sessions ~/dotfiles/.omp/agent/sessions -name '*<session id>*.jsonl'"` (match the file **name**: grepping every transcript for the id also returns any other session that merely mentions it), then `grep -i "<the term you are after>"` on that file. If the host is the current machine, run it locally.
 
 ### Status values and transitions
 
