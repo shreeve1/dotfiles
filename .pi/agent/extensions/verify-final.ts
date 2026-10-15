@@ -1,13 +1,31 @@
 // Pi extension that mirrors the Claude Code / Codex Stop hook
-// (.agents/bin/verify-final) for interactive Pi sessions. After an
-// agent run settles, the last assistant message is checked by the
-// same script in the background; findings are either delivered back
-// as one corrective follow-up turn or surfaced as a non-triggering
-// notice. The check is skipped on turns started by the extension's
-// own correction message (no loops) and on turns where a new user
-// prompt arrived while the check was running (stale results).
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
+// (.agents/bin/verify-final) and adds a post-work cleanup nudge.
+//
+// Grounding check (verify-final):
+//   TUI: runs after the agent settles, in the background, and delivers a FALSE
+//   finding as one corrective follow-up turn (pi.sendUserMessage) or a
+//   non-triggering notice.
+//   Headless (print/JSON/RPC): runs inside agent_before_settle and returns the
+//   finding as a custom-message continuation, because a post-settle
+//   sendUserMessage cannot run there — print mode awaits one session.prompt and
+//   exits. The boundary continuation is awaited inside that same prompt call.
+//
+// Cleanup nudge (post-work-cleanup):
+//   In every mode, when the working tree changed during the turn, the boundary
+//   appends a directive to run the workspace post-work-cleanup skill before
+//   committing. Cheap and local: no model call.
+//
+// Both boundary handlers fire at most once per user prompt (guarded by
+// userPromptSeq) so a continuation cannot re-trigger itself: the run loop
+// re-enters agent_before_settle after every `continue: true`.
+import type {
+  AgentBeforeSettleEvent,
+  AgentBeforeSettleEventResult,
+  CustomMessageEntryDraft,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent"
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import { homedir } from "node:os"
 import { join as pathJoin } from "node:path"
 
@@ -20,6 +38,15 @@ const GRILL_MARKER_RE = /[\u2753\u27a1\ufe0f]/u
 // verdict name and a pipe — match those, not bare "FALSE" / "UNGROUNDED"
 // substrings, so the notice path can never be triggered by prose.
 const FINDING_RE = /(^|\n)\s*(?:FALSE|UNGROUNDED)\s*\|/
+// Hard cap on boundary-forced continuations per user prompt, in case a guard
+// regresses and a handler re-fires.
+const MAX_CONTINUATIONS_PER_PROMPT = 2
+const CLEANUP_DIRECTIVE = [
+  "Workspace files changed during this turn and are not yet committed.",
+  "Before committing, run the `post-work-cleanup` skill over this session's diff,",
+  "apply its findings, then make the commit.",
+  "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
+].join(" ")
 
 interface RunResult {
   stdout: string
@@ -34,12 +61,37 @@ let activeChild: ChildProcessWithoutNullStreams | null = null
 let lastAssistantText = ""
 let userPromptSeq = 0
 let lastFollowupSeq = -1
+// Boundary guards, keyed to the user prompt they fired for.
+let groundingDoneSeq = -1
+let cleanupDoneSeq = -1
+let continuationsThisPrompt = 0
+// Working-tree snapshot captured when the prompt started, compared at the
+// boundary to decide whether this turn changed anything.
+let treeAtPrompt = ""
 
 function shouldSkipText(text: string): boolean {
   const trimmed = text.trim()
   if (!trimmed) return true
   if (trimmed.length < MIN_CHARS && !GRILL_MARKER_RE.test(trimmed)) return true
   return false
+}
+
+function resolveCwd(ctx: ExtensionContext | undefined): string {
+  return ctx?.cwd && ctx.cwd.length > 0 ? ctx.cwd : process.cwd()
+}
+
+/** `git status --porcelain` for the repo at cwd, or "" when there is none. */
+function gitStatus(cwd: string): Promise<string> {
+  return new Promise((resolve) => {
+    execFile(
+      "git",
+      ["status", "--porcelain", "--untracked-files=all"],
+      { cwd, timeout: 10_000, maxBuffer: 1 << 20 },
+      (err, stdout) => {
+        resolve(err ? "" : stdout.replace(/\r/g, "").trim())
+      },
+    )
+  })
 }
 
 function runCheck(cwd: string, text: string): Promise<RunResult> {
@@ -120,11 +172,24 @@ function noticeText(result: RunResult): string {
     : "verify-final: see findings"
 }
 
+function customMessage(customType: string, content: string): CustomMessageEntryDraft {
+  return { type: "custom_message", customType, content, display: true }
+}
+
+/** One continuation is allowed per boundary; compose rather than clobber. */
+function withContinuation(event: AgentBeforeSettleEvent, entry: CustomMessageEntryDraft): AgentBeforeSettleEventResult {
+  return { entries: [...event.entries, entry], continue: true }
+}
+
 export default function verifyFinalHook(pi: ExtensionAPI): void {
   let aborted = false
 
-  pi.on("before_agent_start", () => {
+  pi.on("before_agent_start", async (_event, ctx) => {
     userPromptSeq += 1
+    groundingDoneSeq = -1
+    cleanupDoneSeq = -1
+    continuationsThisPrompt = 0
+    treeAtPrompt = await gitStatus(resolveCwd(ctx))
   })
 
   pi.on("agent_end", (event) => {
@@ -143,20 +208,56 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     lastAssistantText = text
   })
 
+  // Cleanup nudge: any working-tree change during the turn, in every mode.
+  pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
+    if (aborted) return
+    if (process.env.POST_WORK_CLEANUP === "0") return
+    if (cleanupDoneSeq === userPromptSeq) return
+    if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return
+    const now = await gitStatus(resolveCwd(ctx))
+    if (!now || now === treeAtPrompt) return
+    cleanupDoneSeq = userPromptSeq
+    continuationsThisPrompt += 1
+    return withContinuation(event, customMessage("post-work-cleanup", CLEANUP_DIRECTIVE))
+  })
+
+  // Grounding check for headless modes, where a post-settle follow-up cannot run.
+  pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
+    if (aborted) return
+    if (ctx.mode === "tui") return
+    if (process.env.VERIFY_FINAL === "0") return
+    if (groundingDoneSeq === userPromptSeq) return
+    if (userPromptSeq === lastFollowupSeq) return
+    if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return
+    const text = lastAssistantText
+    if (shouldSkipText(text)) return
+    groundingDoneSeq = userPromptSeq
+    const result = await runCheck(resolveCwd(ctx), text)
+    if (aborted) return
+    const out = result.stdout
+    if (!out.trim()) return
+    if (out.includes("verify-final: no findings")) return
+    if (!FINDING_RE.test(out)) return
+    continuationsThisPrompt += 1
+    return withContinuation(event, customMessage("verify-final", out))
+  })
+
   pi.on("agent_settled", (_event, ctx) => {
     if (aborted) return
     if (typeof ctx.isIdle === "function" && ctx.isIdle() !== true) return
-    // Skip in print, RPC, and JSON modes: only interactive TUI has the UI
-    // surface and follow-up prompt flow the hook copy is designed for.
+    // Headless modes are handled at the boundary above; this path is the
+    // interactive one, where a background check plus a follow-up turn is right.
     if (ctx.mode !== "tui") return
     // Skip the turn that our own correction follow-up started.
     if (userPromptSeq === lastFollowupSeq) return
+    if (groundingDoneSeq === userPromptSeq) return
     if (process.env.VERIFY_FINAL === "0") return
     const text = lastAssistantText
     lastAssistantText = ""
     if (shouldSkipText(text)) return
-    const cwd = ctx.cwd && ctx.cwd.length > 0 ? ctx.cwd : process.cwd()
+    const cwd = resolveCwd(ctx)
     const checkSeq = userPromptSeq
+    groundingDoneSeq = userPromptSeq
     void runCheck(cwd, text)
       .then((result) => {
         if (aborted) return
