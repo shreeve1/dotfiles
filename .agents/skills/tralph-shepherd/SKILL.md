@@ -258,6 +258,8 @@ done
 [ -f "$REPORT" ] && cat "$REPORT" || echo "no run report yet ($REPORT)"
 ```
 
+**A lane that failed with `reason: spec_missing` or `spec_invalid`** (sidecar, step 4) is a ticket/spec problem, not a code defect: the ticket's `spec:` names a file that is not in `.kanban/specs/` or a slug that breaks the rule, and `gralph` refused to run it without the spec. Do not relaunch it. Fix `spec:` (or create the spec file), commit, then rerun with `--replan`: a failed lane stays failed on a plain rerun, as any failed lane does. In sequential mode the equivalent is a ticket the loop set to `status: blocked` with a `## Blocker` naming the spec; fix it and set it back to `pending`.
+
 **Board-mode triage key:** "coordinator parked/crashed" means the lock
 `owner.json` exists AND `kill -0 <pid>` fails (the PID is dead). If the
 lock is absent, the coordinator either finished cleanly (check the run

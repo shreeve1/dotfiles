@@ -94,5 +94,10 @@ for f in "$TS" "$TT"; do
 done
 if grep -qiE 'name the grill session so you can recover' "$TS"; then fail "to-spec no longer promises recovery that the breadcrumb does not enable"; else ok; fi
 
+# shepherd: a lane refused for its spec is a ticket/spec problem, not a code defect, and a failed
+# lane only retries after --replan (checked: an ordinary failed lane behaves the same way)
+grep -q 'spec_missing' "$SH" && ok || fail "shepherd explains reason spec_missing / spec_invalid"
+grep -qE 'spec_missing.*--replan|--replan.*spec_missing|spec_missing[^\n]*\n[^\n]*--replan' "$SH" && ok || fail "shepherd says to fix the spec and rerun with --replan"
+
 echo "skills-text: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
