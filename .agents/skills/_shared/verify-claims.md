@@ -55,7 +55,7 @@ Run from the repo root:
 ```bash
 timeout 120 pi -p --no-session --no-skills --no-context-files \
   --no-extensions --tools read,grep,find,ls \
-  --model openrouter/deepseek/deepseek-v4.1-flash \
+  --model cliproxy/deepseek-v4.1-flash \
   "You are fact-checking claims against ground truth. For each claim, read the
    relevant files/sources and reply on one line: VERIFIED | FALSE | UNSURE,
    then file:line (or source) evidence, then a one-line correction if FALSE. Do
@@ -112,7 +112,7 @@ Notes:
 - `--no-session --no-context-files` keep the direct checker grounded only in
   the files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
   bias. The Fusion reviewer has no parent session either.
-- `openrouter/deepseek/deepseek-v4.1-flash` is the fixed checker model on the direct route,
+- `cliproxy/deepseek-v4.1-flash` is the fixed checker model on the direct route,
   independent of whatever model drives the main session. On the Fusion route
   the reviewer's model and thinking come from `settings.json` — pick the
   `reviewer` role precisely so you do not have to pin them here.

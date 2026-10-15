@@ -19,12 +19,12 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "model": "cliproxy/deepseek-v4.1-flash",
       "thinking": "low",
       "cardLifetimeSec": 45,
       "concurrency": 2,
       "overlayMonitor": "",
-      "askModel": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "askModel": "cliproxy/deepseek-v4.1-flash",
       "askThinking": "low",
       "askSkill": "",
       "personaPath": "~/.config/omarchy/plugins/shreeve1.meeting-assistant/persona.md"
@@ -34,7 +34,7 @@
         "key": "model",
         "type": "string",
         "label": "Research model",
-        "defaultValue": "openrouter/deepseek/deepseek-v4-flash-0731"
+        "defaultValue": "cliproxy/deepseek-v4.1-flash"
       },
       {
         "key": "thinking",
@@ -72,7 +72,7 @@
         "type": "string",
         "label": "Ask model",
         "description": "Model for the Ask agent. Separate from the research model.",
-        "defaultValue": "openrouter/deepseek/deepseek-v4-flash-0731"
+        "defaultValue": "cliproxy/deepseek-v4.1-flash"
       },
       {
         "key": "askThinking",

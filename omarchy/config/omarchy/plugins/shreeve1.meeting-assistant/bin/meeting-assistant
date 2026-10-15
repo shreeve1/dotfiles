@@ -58,7 +58,7 @@ ASKED_MAX = 20
 SOURCES = ("mic", "system")
 SKILL_ACCEPT_WAIT_S = 5.0
 ASK_COMMANDS = ("ask_open", "ask", "stop", "retry", "new")
-DEFAULT_ASK_MODEL = "openrouter/deepseek/deepseek-v4-flash-0731"
+DEFAULT_ASK_MODEL = "cliproxy/deepseek-v4.1-flash"
 
 Key = tuple[str, int]
 
@@ -1092,7 +1092,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--socket", default=os.path.join(runtime, "voxtype-meeting-service", "voxtype-meeting-service.sock"))
     p.add_argument("--sessions-dir", default=os.path.join(data_home, "voxtype-meeting-service", "sessions"))
     p.add_argument("--omp", default=default_omp())
-    p.add_argument("--model", default="openrouter/deepseek/deepseek-v4-flash-0731")
+    p.add_argument("--model", default="cliproxy/deepseek-v4.1-flash")
     p.add_argument("--thinking", default="low")
     p.add_argument("--concurrency", type=positive(int), default=2)
     p.add_argument("--timeout", type=positive(float), default=90.0, help="seconds per research run")

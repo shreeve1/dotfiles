@@ -420,7 +420,7 @@ HELP
 			(( i++ ))
 		done
 		if [[ -z "$agent_cmd" ]]; then
-			local model="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}"
+			local model="${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}"
 			agent_cmd="pi --no-extensions --model ${model} --no-session -p"
 		fi
 		if [[ ! -d .kanban ]]; then
@@ -454,7 +454,7 @@ HELP
 	# forwarded; --replan only applies to board mode and is ignored here.
 	local spec_args=()
 	[[ -n "$spec" ]] && spec_args=(--spec "$spec")
-	RALPH_MODEL="${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}" \
+	RALPH_MODEL="${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}" \
 		~/.agents/skills/ralph/ralph-loop.sh "${spec_args[@]}" "${args[@]}"
 }
 

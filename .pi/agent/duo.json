@@ -1,10 +1,10 @@
 {
   "actor": {
-    "provider": "openrouter",
-    "model": "deepseek/deepseek-v4.1-flash"
+    "provider": "cliproxy",
+    "model": "deepseek-v4.1-flash"
   },
   "verifier": {
-    "provider": "deepseek",
+    "provider": "cliproxy",
     "model": "deepseek-v4-flash"
   },
   "actorTemperature": 0.1,

@@ -28,11 +28,11 @@ Run Ralph interactively by invoking this skill in an agent session. This skill p
 Useful runner examples:
 
 ```bash
-tralph                                      # normal tmux, default pi agent (uses openrouter/deepseek/deepseek-v4.1-flash)
+tralph                                      # normal tmux, default pi agent (uses cliproxy/deepseek-v4.1-flash)
 tralph --review-loop                        # actionable audit/unblock pass over existing issues
 tralph --lsp-check-cmd 'pyright changed.py' # optional post-worker critical LSP gate
 tralph --private-tmux                       # isolated Ralph tmux socket
-tralph --agent-cmd 'pi --no-extensions --model openrouter/deepseek/deepseek-v4.1-flash' tmux  # explicit model override
+tralph --agent-cmd 'pi --no-extensions --model cliproxy/deepseek-v4.1-flash' tmux  # explicit model override
 tralph pi                                   # pi non-interactive adapter
 ```
 
@@ -331,10 +331,10 @@ For the selected issue:
 
    ```bash
    # pi non-interactive reviewer (always pin the model; pi's default is not DeepSeek)
-   pi --no-extensions --no-session --model "${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}" -p "$(cat reviewer-prompt.txt)"
+   pi --no-extensions --no-session --model "${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}" -p "$(cat reviewer-prompt.txt)"
 
    # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions --model '${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}'"
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions --model '${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}'"
    tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
    tmux send-keys -t ralph-review-<ID>:0.0 Enter
    ```

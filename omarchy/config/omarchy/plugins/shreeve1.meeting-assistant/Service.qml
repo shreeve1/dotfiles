@@ -83,7 +83,7 @@ Scope {
   // The Ask flags are passed only when the setting has a value; the helper owns their defaults.
   readonly property var helperArgs: {
     var args = [
-      "--model", String(setting("model", "openrouter/deepseek/deepseek-v4-flash-0731")),
+      "--model", String(setting("model", "cliproxy/deepseek-v4.1-flash")),
       "--thinking", String(setting("thinking", "low")),
       "--concurrency", String(setting("concurrency", 2))
     ]
