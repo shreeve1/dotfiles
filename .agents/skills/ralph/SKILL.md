@@ -293,6 +293,7 @@ For the selected issue:
    4. Critical LSP diagnostics in touched files are fixed, especially type/call/signature/import errors. Environment-only missing-import noise must be explicitly identified, not silently ignored.
    5. No unrelated changes leaked into the implementation diff (the pre-worker checkpoint should have made the starting tree clean).
    6. Scope matches the issue — no scope creep.
+   7. If the issue has a `spec:` field, read `.kanban/specs/<spec>.md` and check the diff does not contradict a decision recorded there or build anything under its Out of Scope. Report a contradiction as a finding even when every acceptance criterion is met: a ticket can pass its own criteria and still drift from the spec.
 
    Output reasoning per criterion, then exactly one final line:
    RALPH_REVIEW: PASS

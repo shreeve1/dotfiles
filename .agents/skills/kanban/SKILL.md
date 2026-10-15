@@ -37,6 +37,7 @@ labels: [ready-for-agent]
 blocked_by: []
 parent: null
 spec: null
+session: null
 priority: 0
 files: []
 created: 2026-04-26
@@ -82,6 +83,7 @@ Every issue MUST have: `id`, `title`, `status`, `blocked_by`, `created`. Every i
 | `blocked_by` | yes | integer array | IDs that must be `done` first |
 | `parent` | no | integer or null | Parent epic issue. Children block parent completion. |
 | `spec` | no | slug or null | The spec this ticket belongs to; matches `.kanban/specs/<slug>.md`. Lets `tralph --spec <slug>` work one spec's tickets. |
+| `session` | no | `<host>:<session id>` | Where the ticket (and its spec) was planned, written by `/to-tickets`. A human breadcrumb: workers and the loop never read it, and a transcript lives only on the machine named, so look there with `ssh <host>`. |
 | `files` | no | path-prefix list | Advisory write set for the parallel scheduler (e.g. `[src/auth/, tests/auth/]`). Wrong scope costs parallelism, never correctness. Frontmatter only — never in the body. |
 | `priority` | no | integer (lower = higher priority) | Breaks ties among ready issues. Default 0. |
 | `created` | yes | YYYY-MM-DD | Creation date |

@@ -5,6 +5,10 @@ disable-model-invocation: true
 ---
 Run a `/grilling` session, using the `/domain-modeling` skill.
 
+## Handing over
+
+The glossary lands in `CONTEXT.md` and the rare ADR in `docs/adr/`, but everything else the grill settles (scope cuts, behaviour, edge cases, what is deliberately not being done) lives only in this conversation. When the grill is done, say so and offer to run `/to-spec` **now, in this session**, so those decisions are written into the spec's "Decisions from the grill" section while they are still in context. If the user ends the session first, tell them the decisions are lost to any later session unless they name this one: `/to-spec` records the session id for that reason.
+
 ## Brainstorm intake
 
 Before the first question, glob `docs/brainstorming/*/brainstorm-intent.md`. If any exist, name the most recent and ask whether to grill it.

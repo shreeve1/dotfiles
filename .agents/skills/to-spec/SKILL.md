@@ -8,6 +8,8 @@ This skill takes the current conversation context and codebase understanding and
 
 The issue tracker and triage label vocabulary should have been provided to you — run `/setup-matt-pocock-skills` if not.
 
+**Run it in the same session as the grill.** The decisions a grill settles (scope cuts, behaviour, edge cases, the "we are not doing X" calls) live only in that conversation: `CONTEXT.md` holds the glossary and `docs/adr/` only the rare hard-to-reverse choice. If this is a fresh session and the conversation holds no grill or design decisions, do not invent them: say so, and ask the user to either run `/grill-with-docs` first, or paste the decisions, or name the grill session so you can recover them (see `session:` below).
+
 ## Process
 
 1. Explore the repo to understand the current state of the codebase, if you haven't already. Use the project's domain glossary vocabulary throughout the spec, and respect any ADRs in the area you're touching.
@@ -28,6 +30,16 @@ Check with the user that these seams match their expectations.
    Then tell the user the spec's location and, for a local board, the slug — it is what ties the work together: `/to-tickets` stamps `spec: <slug>` on every ticket it makes from this spec, and `tralph --spec <slug>` runs exactly those tickets.
 
 <spec-template>
+
+```markdown
+---
+slug: <spec-slug>
+session: <host>:<session id>
+created: <today, YYYY-MM-DD>
+---
+```
+
+Set `session:` from `$PI_SESSION_ID` and `hostname` when the variable is set; omit the line when it is not. It names the machine and session where this spec was written, which is normally the grill itself. It is a breadcrumb for a human (or a later session) who needs to recover why something was decided: transcripts are not synced between machines, so look with `ssh <host>`, and search the transcript for the specific decision. Never load a whole transcript into context.
 
 ## Problem Statement
 
@@ -72,6 +84,10 @@ A list of testing decisions that were made. Include:
 - A description of what makes a good test (only test external behavior, not implementation details)
 - Which modules will be tested
 - Prior art for the tests (i.e. similar types of tests in the codebase)
+
+## Decisions from the grill
+
+Every decision the grill settled that a ticket could contradict, one line each, with the reason: scope cuts, behaviour choices, edge cases resolved, and the things deliberately **not** done. The workers and their reviewers read this file, so a decision that is not written here is a decision they cannot honour. Omit the section only when there was no grill.
 
 ## Out of Scope
 
