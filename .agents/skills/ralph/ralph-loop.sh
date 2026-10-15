@@ -70,6 +70,7 @@ CHECKPOINT_SCOPE=""
 RALPH_HELPERS=(
   git_status_ignoring_pi_lens
   git_status_short_ignoring_pi_lens
+  git_status_snap_recursive
   cleanup_ephemeral_artifacts
   normalize_issue_id
   issue_id_for_file
@@ -350,7 +351,9 @@ pick_next_target_for_warning() {
   : "${PICKW_SPEC:=${SPEC:-}}"
   : "${PICKW_ACTIVE_ISSUES:=${ACTIVE_ISSUES:-}}"
   if [[ "$PICKW_REVIEW_LOOP" == "true" ]]; then
-    select_actionable_review_target 2>/dev/null || true
+    # The review selector lives only in the generated child script, so the
+    # startup warning has no target here and prints an out-of-scope count only.
+    declare -F select_actionable_review_target >/dev/null && select_actionable_review_target 2>/dev/null
     return 0
   fi
   if [[ -n "$PICKW_ACTIVE_ISSUES" ]]; then
