@@ -56,9 +56,25 @@ grep -qiE 'omit.*session|session.*omit' "$TT" && ok || fail "to-tickets says to 
 grep -qE '^\| `session`' "$KB" && ok || fail "kanban schema table documents session"
 grep -qiE 'session.*(breadcrumb|never read|not read)' "$KB" && ok || fail "kanban says session is a human breadcrumb"
 
-# ralph per-ticket reviewer contract checks the diff against the spec
-grep -qiE 'contradict.*spec|spec.*(Out of Scope|decisions)' "$RS" && ok || fail "ralph reviewer contract checks the diff against the spec"
-grep -qE '^   7\. ' "$RS" && ok || fail "ralph reviewer contract has a 7th check"
+# ralph per-ticket reviewer contract (references/review.md, linked from SKILL.md §4) checks
+# the diff against the spec
+RR="$SK/ralph/references/review.md"
+grep -q 'references/review.md' "$RS" && ok || fail "ralph SKILL.md links the review procedure"
+grep -qiE 'contradict.*spec|spec.*(Out of Scope|decisions)' "$RR" && ok || fail "ralph reviewer contract checks the diff against the spec"
+grep -qE '^7\. If the ticket has a spec:' "$RR" && ok || fail "ralph reviewer contract has a 7th check, the spec check"
+# blocking is the exception: only a re-review that upholds a high finding blocks
+grep -qiE 'medium and low findings never block' "$RR" && ok || fail "review procedure says medium/low findings never block"
+grep -qiE 'upheld.*blocked|blocked.*upheld' "$RR" && ok || fail "review procedure blocks only on an upheld high finding"
+grep -q 'cliproxy/claude-opus-5-5' "$RR" && ok || fail "review procedure runs the Gaps lens on a different model family"
+grep -q 'post-work-cleanup/SKILL.md' "$RR" && ok || fail "review procedure runs post-work-cleanup"
+# finish-spec ends with the architecture step, skipped when no user is present
+FS="$SK/finish-spec/SKILL.md"
+grep -q 'improve-codebase-architecture/SKILL.md' "$FS" && ok || fail "finish-spec runs improve-codebase-architecture"
+grep -qiE 'skip this step when no user is present' "$FS" && ok || fail "finish-spec skips the architecture step when headless"
+# the skills those two steps load must exist in the synced tree
+for s in post-work-cleanup improve-codebase-architecture codebase-design independent-review; do
+  [ -f "$SK/$s/SKILL.md" ] && ok || fail "skill $s exists"
+done
 
 # to-spec records where the grill happened and what it decided
 grep -qE '^session: ' "$TS" && ok || fail "to-spec spec template has a session: frontmatter line"

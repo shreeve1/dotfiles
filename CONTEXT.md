@@ -38,6 +38,14 @@ The ralph-loop driver re-runs an issue's `## Verification` command after the
 DONE sentinel and overrides done→blocked on failure; deterministic, complements
 (not replaces) the fresh-session review.
 
+**Fix round (Ralph)**:
+The single pass in which a worker acts on its ticket review: it rules on each
+finding (accept or reject, with a reason) and fixes the accepted ones. A
+high-severity finding, accepted or rejected, earns exactly one re-review; the
+ticket blocks only when that re-review upholds a high finding. Medium and low
+findings never block.
+_Avoid_: retry loop, review loop (that name belongs to `--review-loop`).
+
 ## Context axis
 
 **In-band verifier**:

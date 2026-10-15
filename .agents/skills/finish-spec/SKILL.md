@@ -29,8 +29,11 @@ This is a **verification** skill, not an implementation one. It does not build n
    - Flip any ADR authored for this spec from `status: proposed` to `status: accepted` (the feature shipped) and commit it.
    - Close the spec on the configured issue tracker with a completion note listing the verified child tickets and confirming green suite + acceptance walk. Locally, a spec has no status field: append a `## Completion` section to `.kanban/specs/<slug>.md` with the note and today's date, and commit it.
 
+7. **Look for architecture friction across the slices.** Run after the spec is closed; it proposes, it does not change code. Read `~/.agents/skills/improve-codebase-architecture/SKILL.md` and follow it, taking the files the spec's tickets changed (the combined diff from step 3) as the direction the user named, so the scan starts there instead of from the commit history. The user picks a candidate from its report, or none. Any refactor that comes out of the grilling becomes a new ticket, not an edit in this run.
+   - Skip this step when no user is present (for example when `gralph finish` launched you): the skill stops to ask which candidate to explore.
+
 ## Rules
 
 - Verify, don't build. New feature work becomes a new ticket, never inline scope growth.
-- Close the spec **last**, after green + acceptance walk — closing is the signal the *whole feature* is verified, not that tickets are individually done.
+- Close the spec **last** of the verification steps (step 7 only proposes), after green + acceptance walk — closing is the signal the *whole feature* is verified, not that tickets are individually done.
 - Do not reopen or modify child tickets; they are done.
