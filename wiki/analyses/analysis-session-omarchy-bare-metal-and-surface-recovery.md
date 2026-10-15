@@ -31,7 +31,7 @@ This dotfiles repository separates portable user-owned Omarchy configuration fro
 
 [`install.sh`](/install.sh) installs the Omarchy layer only on Linux when the `omarchy` command exists. The managed sources live below [`omarchy/config/`](/omarchy/config/) and are linked to the user's Hyprland, Omarchy shell, Chromium, MIME, and user-systemd locations. The Hypr Deck executable is linked into `~/.local/bin`.
 
-Packaged runtime content under `~/.local/share/omarchy/`, native runtime trees, VM-only services, and ARM-specific package restoration are intentionally excluded. Omarchy should be reinstalled normally; only user-owned configuration is synchronized. The complete restore sequence and exclusions are maintained in [`omarchy/README.md`](/omarchy/README.md).
+Packaged runtime content under `~/.local/share/omarchy/`, native runtime trees, VM-only services, and ARM-specific package restoration are intentionally excluded. Omarchy should be reinstalled normally; only user-owned configuration is synchronized. The complete restore sequence and exclusions are maintained in `omarchy/README.md`.
 
 ## Hypr Deck and display policy
 
@@ -54,7 +54,7 @@ This prevents Hyprland's global workspaces from changing monitor ownership durin
 
 ## Surface Laptop 7 Intel host repairs
 
-The host repair layer is intentionally not linked by `install.sh`. It contains four explicit recovery areas documented in [`HARDWARE-surface-laptop-7.md`](/omarchy/HARDWARE-surface-laptop-7.md):
+The host repair layer is intentionally not linked by `install.sh`. It contains four explicit recovery areas documented in `omarchy/HARDWARE-surface-laptop-7.md`:
 
 1. **SAM keyboard, battery, and AC adapter.** One out-of-tree `surface_aggregator_registry` module maps ACPI hub `MSHW0551` to the SL7 SAM node group and adds battery/AC nodes. It restores the internal keyboard, `BAT1`, and `ADP1`.
 2. **Touchpad.** A reviewed `iptsd` userspace build converts raw QuickSPI HID reports into a real touchpad and applies measured lift/debounce/contact thresholds. This repair is not tied to the kernel ABI.
@@ -83,8 +83,8 @@ The full verifier checks SAM devices, power supplies and UPower, touchpad, audio
 # Citations
 
 - [`wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`](/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md) — curated session evidence and accepted decisions.
-- [`omarchy/README.md`](/omarchy/README.md) — portable ownership boundary, install procedure, Deck operation, and hardware overview.
-- [`omarchy/HARDWARE-surface-laptop-7.md`](/omarchy/HARDWARE-surface-laptop-7.md) — detailed diagnosis, repair, rollback, kernel-update, and verification runbook.
+- `omarchy/README.md` — portable ownership boundary, install procedure, Deck operation, and hardware overview.
+- `omarchy/HARDWARE-surface-laptop-7.md` — detailed diagnosis, repair, rollback, kernel-update, and verification runbook.
 - [`omarchy/config/hypr/monitors.lua`](/omarchy/config/hypr/monitors.lua) — persistent workspace-to-monitor rules.
 - [`omarchy/config/hypr/bindings.lua`](/omarchy/config/hypr/bindings.lua) — Deck-aware focus, swap, expand, and pop bindings.
 - [`install.sh`](/install.sh) — conditional Omarchy links and user-service installation.

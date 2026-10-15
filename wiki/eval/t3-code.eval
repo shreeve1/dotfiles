@@ -1,0 +1,8 @@
+# Eval slice for T3 Code provider / pi integration claims (C-0150..C-0153).
+# Format: <query that should surface the claim> ||| <token that must stay retrievable in CLAIMS.md>
+
+does T3 Code support custom providers at runtime ||| no UI or runtime mechanism to add a custom provider
+how do I add a pi provider to T3 Code ||| hand-edit ~/.t3/userdata/settings.json
+which T3 Code version ships the pi provider ||| packages/provider-pi
+does T3 Code's pi integration need the pi-acp adapter ||| T3 Code talks pi's own RPC mode directly
+how do I enable a hidden provider in T3 Code settings ||| providerSettingsForm: hidden: true
