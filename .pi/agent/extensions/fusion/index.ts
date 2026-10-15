@@ -639,12 +639,11 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 	return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
-/** Deep clone via JSON round-trip. The subagent input is a plain JSON
- * object that already has to pass through the runtime serializer, so
- * `JSON.parse(JSON.stringify(x))` is the correct tool here. Tests rely
- * on this to assert that `mutate=false` never touches nested fields. */
+/** Deep clone. The subagent input is a plain JSON object, so
+ * `structuredClone` is an exact copy. Tests rely on this to assert that
+ * `mutate=false` never touches nested fields. */
 function deepClone<T>(value: T): T {
-	return JSON.parse(JSON.stringify(value)) as T;
+	return structuredClone(value);
 }
 
 function disallowedModelOrThinkingKeys(
@@ -890,7 +889,7 @@ export function validateAndNormalizeSubagentCall(
 		return {
 			ok: false,
 			reason:
-				"subagent: workflow scripts are blocked while Fusion is active; run them with Fusion off",
+				"subagent: workflow scripts are blocked while Fusion is active; use chain/parallel/tasks with scout/planner/worker/reviewer instead, or ask the user to run `/fusion off` (the agent cannot toggle it) to run the script",
 		};
 	}
 
@@ -1077,6 +1076,7 @@ export const FUSION_GUIDANCE_BODY = [
 	"- stop after first Bash-policy block or known role-config failure: a deny is a deny; parent does not retry around it.",
 	"- bounded child budgets: every delegation carries a verifiable scope/budget up front.",
 	"- return control for long async: parent returns with status, never blocks on long children.",
+	"- no workflow scripts: subagent `workflow`/`workflowScript` calls are blocked while Fusion is active. Express multi-step work as `chain`, `parallel`, or `tasks` (planner → worker → reviewer, disjoint file sets); only the user can run `/fusion off` to allow scripts.",
 	"",
 	"Worker delegation contract: every worker delegation MUST carry all five:",
 	"1. Objective — one sentence; what success looks like.",
@@ -1233,7 +1233,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
 
 	// --- before_agent_start: ensure allowlist is current every turn -----
 
-	pi.on("before_agent_start", async (_event, ctx) => {
+	pi.on("before_agent_start", async (_event, _ctx) => {
 		if (!enabled) return;
 		// Reapply so any tool registered LATER cannot leak into the
 		// Fusion parent surface (defensive — pi.setActiveTools is
