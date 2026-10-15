@@ -76,33 +76,30 @@ Each pass, in order:
 
 1. **Gather signals** (the read-only block below).
 2. **Triage + act** (Triage table → Delegate-or-raise / Relaunch as applicable).
-3. **Arm the next check.** Run exactly one foreground bash call and wait for it to return:
-   ```bash
-   sleep "${RALPH_SHEPHERD_INTERVAL:-600}"
-   ```
-   10 min default; override via the env var. If your environment caps a
-   single command's duration, loop several shorter sleeps totalling the
-   interval instead — but you MUST wait the full interval before
-   re-checking, so you don't hammer the board or the log. Raising
-   `RALPH_SHEPHERD_INTERVAL` is appropriate when the last pass showed a
-   healthy, progressing worker (spinner/▶ advancing, cost counter
-   climbing) — a wider interval cuts shepherd cost and context growth; the
-   tight default only earns its keep near park/stall boundaries.
+3. **Arm the next check.** Branch on harness:
+   - **pi with pi-loop (LoopCreate available).** Call
+     `LoopCreate trigger="<INTERVAL>" recurring=true maxFires=1000 prompt="Run one tralph-shepherd pass — re-gather signals and triage."`
+     once, then **end the turn.** Pi-loop fires the prompt on schedule; each fire runs steps 1–2 and ends, so a 10-minute tool call is never held open. `<INTERVAL>` is `RALPH_SHEPHERD_INTERVAL` (seconds, default 600) converted to minutes, e.g. `10m`. On Termination or any Raise, stop the loop with `LoopDelete id="<id>"` before reporting — that is what actually stops the shepherd. A long run is bounded by `maxFires` (default 1000 ≈ 7 days at 10m); operators raising it should also raise `PI_LOOP_EXPIRES_IN` if the run must outlast the default.
+   - **Other harnesses (no LoopCreate).** Run exactly one foreground bash call and wait for it to return:
+     ```bash
+     sleep "${RALPH_SHEPHERD_INTERVAL:-600}"
+     ```
+     Default 600 s (10 min); override via the env var in seconds. If a single-command cap bites, loop several shorter sleeps totalling the interval — you MUST wait the full interval before re-checking, so you don't hammer the board or the log. Raising `RALPH_SHEPHERD_INTERVAL` is appropriate when the last pass showed a healthy, progressing worker (spinner/▶ advancing, cost counter climbing) — a wider interval cuts shepherd cost and context growth; the tight default only earns its keep near park/stall boundaries.
 4. **Go back to step 1.**
 
 Exit the loop ONLY by: Termination (board done), Raise (judgment call →
 report + stop), or a Precondition stop. In every other state — including
 right after delegating a ticket, relaunching the driver, or a "Sleep"
-triage row — you fall through to step 3 (sleep) and then step 1
-(re-gather). Never treat "delegated a ticket" or "nothing to do this
+triage row — you fall through to step 3 (arm the next check) and then
+step 1 (re-gather). Never treat "delegated a ticket" or "nothing to do this
 pass" as a reason to end; arm the timer and continue.
 
 **Exception — out-of-loop sub-agent this pass.** If you spawned an
 out-of-loop sub-agent this pass (DELEGATE OUT-OF-LOOP WORK path),
 wait for that sub-agent's completion (its completion notification, or the
-foreground `pi -p` call returning) instead of a blind sleep,
-then go to step 3 (sleep the interval) and step 1 (re-gather). The
-sub-agent's work must land before you sleep on the interval.
+foreground `pi -p` call returning) instead of running step 3 blind,
+then go to step 3 (arm the next check) and step 1 (re-gather). The
+sub-agent's work must land before you arm the next pass.
 
 ### Gather signals — sequential mode (`--jobs 1`, tmux driver) (read-only)
 
@@ -164,7 +161,7 @@ grep -cE 'Ralph review loop complete!|No actionable review targets found|Review 
 #    to 7200s while the driver is between iterations. Corroborate with
 #    one of the unambiguous park/finish log markers (or with the driver
 #    session being gone) — only then is "parked" real; otherwise assume
-#    between-iterations and sleep.
+#    between-iterations and arm the next check (step 3).
 tmux capture-pane -p -t ralph-loop:0.0 -S -5 2>/dev/null | tail -3
 grep -E 'Ralph loop complete!|Stopping loop|Ralph Loop finished at|Press Ctrl\+D' "$LOG" | tail -3
 
@@ -265,8 +262,8 @@ done
 `owner.json` exists AND `kill -0 <pid>` fails (the PID is dead). If the
 lock is absent, the coordinator either finished cleanly (check the run
 report and manifest `.orchestration.completed`) or never started. A live
-coordinator PID means the run is in progress — sleep the interval and
-re-gather.
+coordinator PID means the run is in progress — go to step 3 (arm the
+next check) and re-gather.
 
 | Board state | Coordinator state | Action |
 |---|---|---|
@@ -428,8 +425,8 @@ and stop.
 
 Pre-flight, in order:
 
-1. **Confirm the worker is actually idle/stuck.** A worker pane that shows an active spinner/▶ is mid-progress; killing the driver under it loses that work. Read `tmux capture-pane -p -t ralph-ralph-loop-<N>:0.0 -S -10`. If the worker is mid-progress, sleep one cycle — the driver is between iterations and you do not need to relaunch.
-2. **Check the supervisor.** `ralph-loop.service` may be enabled with `Restart=on-failure`; killing the driver triggers `ralph-supervise.sh`'s own relaunch within ~10s. Run step 8 of "Gather signals". If it returns `active`, **do not relaunch manually** — the supervisor owns it. Sleep one cycle and re-check; the supervisor will have either brought the loop back or reported failure. (A `supervisor-unreachable` result is fine — most agent contexts have no session bus; proceed with the manual relaunch.)
+1. **Confirm the worker is actually idle/stuck.** A worker pane that shows an active spinner/▶ is mid-progress; killing the driver under it loses that work. Read `tmux capture-pane -p -t ralph-ralph-loop-<N>:0.0 -S -10`. If the worker is mid-progress, arm the next check (step 3) — the driver is between iterations and you do not need to relaunch.
+2. **Check the supervisor.** `ralph-loop.service` may be enabled with `Restart=on-failure`; killing the driver triggers `ralph-supervise.sh`'s own relaunch within ~10s. Run step 8 of "Gather signals". If it returns `active`, **do not relaunch manually** — the supervisor owns it. Go to step 3 (arm the next check) and re-check next pass; the supervisor will have either brought the loop back or reported failure. (A `supervisor-unreachable` result is fine — most agent contexts have no session bus; proceed with the manual relaunch.)
 
 Relaunch commands, in order:
 
@@ -472,8 +469,8 @@ Pre-flight:
 
 1. **Confirm the coordinator PID is dead.** From the board-mode gather
    signals above: `kill -0 <pid>` returned non-zero and the lock dir
-   exists. A live PID means the coordinator is still running; sleep the
-   interval and re-gather.
+   exists. A live PID means the coordinator is still running; go to step
+   3 (arm the next check) and re-gather.
 2. **Confirm unfinished manifest work exists.** If `.orchestration.completed`
    is set and every child has `merge.status == "landed"` or a terminal
    status, the run finished normally — check for `$REPORT` and

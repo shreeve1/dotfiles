@@ -35,7 +35,9 @@ Check your own model (`PI_MODEL`) and give each lens a model from a different fa
 | GPT | `cliproxy/claude-opus-5-5`, `zai/glm-5.3` |
 | Anything else | `cliproxy/claude-opus-5-5`, `cliproxy/gpt-6.1-sol` |
 
-If a model fails to resolve, run `subagent({ action: "models" })`, pick the closest id from another family, and say so in the verdict. Never fall back to your own family silently; if no other family works, tell the user the review is degraded.
+Each row is an ordered fallback list. If a reviewer fails with a **quota, rate-limit (429), or provider error**, re-run that same lens on the next model in the row automatically — do not ask the user. If the row is exhausted, mark the lens **not reviewed** in the verdict, naming each model tried and its error, and base the verdict on the remaining lenses.
+
+If a model id is unknown to the harness (an "unknown model" or not-listed error at launch, before any request is sent), run `subagent({ action: "models" })`, pick the closest id from another family, and say so in the verdict. Never fall back to your own family silently; if no other family works, tell the user the review is degraded.
 
 ## Step 3: Spawn reviewers
 
