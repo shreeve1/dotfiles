@@ -359,7 +359,7 @@ run_board_child_pipeline() {
     printf '%s\n' 'You are a Ralph worker executing ONE local kanban ticket in an isolated worktree.'
     printf '%s\n' 'Implement only this ticket. Do NOT touch .kanban/, the ticket file itself, or any other kanban state - the coordinator owns board writes.'
     printf '%s\n' 'You have full tool access.'
-    if worker_rules=$(locate_worker_rules); then
+    if worker_rules=$(locate_skill_file GRALPH_WORKER_RULES implement/references/worker-rules.md); then
       printf '%s\n' "Before implementing, read $worker_rules and follow it while you write the change."
     fi
     if [ -n "$spec_file" ]; then
@@ -369,10 +369,10 @@ run_board_child_pipeline() {
     printf '%s\n' '  1. Implementing every acceptance criterion in the ticket body.'
     printf '%s\n' '  2. Running the unique ## Verification command yourself (do not delegate it to a coordinator).'
     printf '%s\n' '  3. Writing a lane-local progress note to .ralph-progress-<N>.md in the worktree, then `git add` and `git commit` the full diff yourself.'
-    if review_rules=$(locate_review_rules); then
+    if review_rules=$(locate_skill_file GRALPH_REVIEW_RULES ralph/references/review.md); then
       printf '%s\n' "  4. Reviewing your committed work by following $review_rules: independent fresh pi -p reviewers, one fix round, a re-review only for a high-severity finding, then cleanup. Your review record is .ralph-progress-$child.md. Declare BLOCKED only when the re-review upheld a high-severity finding; medium and low findings never block."
     else
-      printf '%s\n' '  4. Spawning your own fresh-session reviewer (separate process from your own), fixing what it finds, and declaring BLOCKED only if a high-severity finding remains after one fix round.'
+      printf '%s\n' "  4. Spawning your own fresh-session reviewer (separate process from your own) and ruling accept or reject, with a reason, on each finding; fix the accepted ones in one round. If any finding was high, accepted or rejected, run one fresh re-review of the fixes and your rejection reasons. Declare BLOCKED only when that re-review upheld a high-severity finding; medium and low findings never block. Record every finding and ruling in .ralph-progress-$child.md."
     fi
     printf '%s\n' 'End with exactly one of these sentinels on its own line:'
     printf '%s\n' "  RALPH_RESULT: DONE #$child"
@@ -984,30 +984,17 @@ ticket_spec_file() {
   printf '%s' "$abs"
 }
 
-# locate_worker_rules prints the path of the implementation rules a lane worker should
-# read. Board workers get this inline prompt, not the ralph or implement skill, so
-# without it they would have no implementation guidance. Same search order as
-# locate_board_sh; prints nothing (and the prompt omits the sentence) if absent.
-locate_worker_rules() {
+# locate_skill_file ENV_VAR REL_PATH prints the path of a skills-tree file a lane worker
+# should read: the ENV_VAR override, else .agents/skills/REL_PATH in this checkout, else
+# under $HOME. Board workers get gralph's inline prompt, not the ralph or implement skill,
+# so without these files (implement/references/worker-rules.md,
+# ralph/references/review.md) they would have no implementation or review guidance. Same
+# search order as locate_board_sh; prints nothing (the prompt falls back) if absent.
+locate_skill_file() {
   local candidate
-  for candidate in "${GRALPH_WORKER_RULES:-}" \
-    "$SCRIPT_ROOT/.agents/skills/implement/references/worker-rules.md" \
-    "$HOME/.agents/skills/implement/references/worker-rules.md"; do
-    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
-      printf '%s' "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
-
-# locate_review_rules prints the path of the ticket-review procedure lane workers
-# follow before DONE (same search order as locate_worker_rules).
-locate_review_rules() {
-  local candidate
-  for candidate in "${GRALPH_REVIEW_RULES:-}" \
-    "$SCRIPT_ROOT/.agents/skills/ralph/references/review.md" \
-    "$HOME/.agents/skills/ralph/references/review.md"; do
+  for candidate in "${!1:-}" \
+    "$SCRIPT_ROOT/.agents/skills/$2" \
+    "$HOME/.agents/skills/$2"; do
     if [ -n "$candidate" ] && [ -f "$candidate" ]; then
       printf '%s' "$candidate"
       return 0
