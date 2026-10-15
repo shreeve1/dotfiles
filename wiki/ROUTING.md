@@ -52,12 +52,12 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Pages: `wiki/analyses/analysis-session-offload-omp-to-pi-migration.md` (promoted)
 - Keywords: offload, omp, pi, herdr, --kind pi, worker dispatch, freeze, gap-review quarantine, pi-extension leftovers
 
-## T3 Code + Custom Agent Providers
+## T3 Code Providers, SSH Environments And Load Balancing
 
 - Pages: `wiki/analyses/analysis-session-t3-code-pi-provider.md` (promoted)
-- Claims: C-0150, C-0151, C-0152, C-0153
-- Raw: `wiki/raw/sessions/2026-10-14-t3-code-pi-provider.md`
-- Keywords: t3 code, t3code, T3 Tools, provider, custom provider, pi, PiDriver, builtInDrivers, packages/provider-pi, --mode rpc, settings.json, userdata, v0.0.46, nightly, AcpRegistry
+- Claims: C-0150, C-0151, C-0152, C-0153, C-0160
+- Raw: `wiki/raw/sessions/2026-10-14-t3-code-pi-provider.md`, `wiki/raw/sessions/2026-10-14-t3-ssh-load-balancing.md`
+- Keywords: t3 code, t3code, T3 Tools, provider, custom provider, pi, PiDriver, builtInDrivers, packages/provider-pi, --mode rpc, settings.json, userdata, v0.0.46, nightly, AcpRegistry, SSH, Add environment, loopback, ServerAlreadyRunningError, service PATH, load balancing, repository identity, github-personal
 
 ## tralph, gralph And The .kanban Board
 
