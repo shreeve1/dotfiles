@@ -4,7 +4,11 @@
 # it to read the spec (Problem Statement, decisions, Out of Scope). This pins that the prompt:
 #   - points at .kanban/specs/<slug>.md when the ticket has spec: <slug> and the file exists,
 #   - tells the worker's own reviewer to check the diff against the spec,
-#   - says nothing about a spec when there is none, or the file is missing, or the slug is unsafe.
+#   - finds the spec however the ticket spells the value (quoted, trailing comment), because
+#     board.sh selects such tickets for --spec and the worker must get the same spec,
+#   - says nothing about a spec when the ticket has none (absent, null, ~),
+#   - REFUSES to start a lane when spec: names a file that is missing or a slug that breaks the
+#     rule: failing open would run the very drift this exists to prevent.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -63,6 +67,12 @@ ticket() {
   } >"$REPO/.kanban/issues/$(printf '%03d' "$1")-t$1.md"
 }
 
+# lane_reason N prints why the coordinator recorded lane N as failed (empty if it ran)
+lane_reason() {
+  jq -r --argjson n "$1" '.children[] | select(.number == $n) | .execution.reason // ""' \
+    "$REPO/.gralph/runs/7/manifest.json" 2>/dev/null || true
+}
+
 run_worker() {
   git -C "$REPO" add -A
   git -C "$REPO" commit -qm board
@@ -96,13 +106,12 @@ P="$CAPTURE_DIR/prompt-2.md"
 [ -f "$P" ] && ok || fail "worker prompt was captured for the no-spec ticket"
 if grep -qi 'specs/' "$P"; then fail "no spec: nothing about a spec file" "$(grep -n -i 'specs/' "$P" | head -2)"; else ok; fi
 
-# --- 3. spec field but no file on disk: omitted, not a dangling pointer ---
+# --- 3. spec field but no file on disk: the lane is refused, no worker runs (fail closed) ---
 new_repo missing
 ticket 3 'spec: ghost'
 run_worker
-P="$CAPTURE_DIR/prompt-3.md"
-[ -f "$P" ] && ok || fail "worker prompt was captured for the missing-spec ticket"
-if grep -qi 'ghost' "$P"; then fail "a missing spec file is not pointed at" "$(grep -n -i ghost "$P" | head -2)"; else ok; fi
+[ ! -f "$CAPTURE_DIR/prompt-3.md" ] && ok || fail "a ticket whose spec file is missing must not reach a worker"
+expect_eq "missing spec file: lane fails with spec_missing" "spec_missing" "$(lane_reason 3)"
 
 # --- 4. spec: null / ~ mean no spec ---
 new_repo nullspec
@@ -112,16 +121,41 @@ P="$CAPTURE_DIR/prompt-4.md"
 [ -f "$P" ] && ok || fail "worker prompt was captured for the spec: null ticket"
 if grep -qi 'specs/' "$P"; then fail "spec: null means no spec" "$(grep -n -i 'specs/' "$P" | head -2)"; else ok; fi
 
-# --- 5. a spec: value outside the slug rule is never turned into a path ---
+# --- 5. a spec: value outside the slug rule never becomes a path, and refuses the lane ---
 new_repo unsafe
 # .kanban/specs/../../../escape.md is $TMP/escape.md: the decoy exists, so only the slug rule
 # (not the existence check) can keep it out of the prompt.
 printf 'secret\n' >"$TMP/escape.md"
 ticket 5 'spec: ../../../escape'
 run_worker
-P="$CAPTURE_DIR/prompt-5.md"
-[ -f "$P" ] && ok || fail "worker prompt was captured for the unsafe-spec ticket"
-if grep -qiE 'escape|\.\./' "$P"; then fail "an unsafe spec value must not reach the prompt" "$(grep -n -iE 'escape|\.\./' "$P" | head -2)"; else ok; fi
+[ ! -f "$CAPTURE_DIR/prompt-5.md" ] && ok || fail "an unsafe spec value must not reach a worker"
+expect_eq "unsafe spec value: lane fails with spec_invalid" "spec_invalid" "$(lane_reason 5)"
+
+# --- 6. quoted and commented values resolve to the same spec board.sh selected ---
+for n in 6 7 8; do :; done
+new_repo quoted
+printf '# Spec\n' >"$REPO/.kanban/specs/alpha.md"
+ticket 6 'spec: "alpha"'
+ticket 7 "spec: 'alpha'"
+ticket 8 'spec: alpha # the grilled spec'
+run_worker
+spec_abs="$(cd "$REPO" && pwd)/.kanban/specs/alpha.md"
+for n in 6 7 8; do
+  if [ -f "$CAPTURE_DIR/prompt-$n.md" ] && grep -qF "$spec_abs" "$CAPTURE_DIR/prompt-$n.md"; then ok; else fail "ticket $n (quoted/commented spec) gets the spec in its prompt"; fi
+done
+
+# --- 7. a refused lane leaves nothing behind: fix the spec, rerun, and the lane runs ---
+new_repo retry
+ticket 9 'spec: later'
+run_worker
+[ ! -f "$CAPTURE_DIR/prompt-9.md" ] && ok || fail "retry setup: first run refused the lane"
+if git -C "$REPO" show-ref --verify --quiet "refs/heads/gralph/7/issue-9"; then fail "a refused lane leaves no lane branch behind"; else ok; fi
+if git -C "$REPO" worktree list | grep -q 'issue-9'; then fail "a refused lane leaves no worktree behind"; else ok; fi
+printf '# Spec\n' >"$REPO/.kanban/specs/later.md"
+git -C "$REPO" add -A && git -C "$REPO" commit -qm "add spec"
+(cd "$REPO" && PATH="$BIN:$PATH" "$GRALPH" 7 --board .kanban --replan --dry-run --verify true >/dev/null 2>&1)
+(cd "$REPO" && PATH="$BIN:$PATH" "$GRALPH" 7 --board .kanban --jobs 1 --verify true --agent-cmd "$BIN/agent" >/dev/null 2>&1) || true
+[ -f "$CAPTURE_DIR/prompt-9.md" ] && ok || fail "after the spec exists the same ticket runs"
 
 echo "gralph-worker-spec: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
