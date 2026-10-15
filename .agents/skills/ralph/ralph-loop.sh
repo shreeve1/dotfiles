@@ -1339,11 +1339,21 @@ if [[ $ITERATION -ge $MAX_ITERATIONS ]]; then
   echo "Stopping for safety" | tee -a "$LOG_FILE"
 fi
 
+# Each ticket was reviewed on its own, and nothing else checks that the slices compose into
+# the spec. A --spec run has no gralph run report (that is board mode), so say it here.
+SPEC_DONE_NOTE=""
+if [[ -n "$SPEC" ]] && "$BOARD_SH" --board .kanban --spec "$SPEC" spec-done >/dev/null 2>&1; then
+  SPEC_DONE_NOTE="Spec $SPEC is complete: every ticket is done. Each was reviewed alone; run /finish-spec $SPEC to check they compose into the spec."
+fi
+
 {
   echo ""
   echo "═══════════════════════════════════════════════════════════"
   echo "Ralph Loop finished at $(date)"
   echo "Total iterations: $ITERATION"
+  if [[ -n "$SPEC_DONE_NOTE" ]]; then
+    echo "$SPEC_DONE_NOTE"
+  fi
   echo "Issues completed this session: $ISSUES_COMPLETED"
   if [[ "$REVIEW_LOOP" == "true" ]]; then
     echo "Review targets processed this session: $REVIEW_TARGETS_PROCESSED"

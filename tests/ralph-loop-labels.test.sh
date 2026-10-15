@@ -215,5 +215,31 @@ run_loop --spec beta --continue-on-error
 mv "$BIN/omp.real" "$BIN/omp"
 expect_eq "continue-on-error under --spec beta never resets alpha's ticket" "in-progress" "$(status_of 1)"
 
+# --- the sequential driver calls for finish-spec when a --spec run finishes the spec ------
+# --jobs 1 is tralph's default and never writes a gralph run report, so the reminder has to
+# come from this driver (review: the finish-spec handoff was unreachable on the default path).
+new_repo specfinish
+mkdir -p "$REPO/.kanban/specs"
+printf '# Spec\n' >"$REPO/.kanban/specs/alpha.md"
+ticket 1 pending "$R" '[]' issues 'spec: alpha'
+ticket 2 pending "$R" '[]' issues 'spec: alpha'
+run_loop --spec alpha
+expect_eq "both tickets of the spec were worked" "1 2" "$(workers)"
+if grep -q 'Spec alpha is complete' "$TMP/last.out"; then ok; else fail "driver says the spec is complete" "$(tail -8 "$TMP/last.out")"; fi
+if grep -qF '/finish-spec alpha' "$TMP/last.out"; then ok; else fail "driver names the exact /finish-spec command"; fi
+
+# A spec with a ticket the loop cannot run (waiting on a human) is NOT complete.
+new_repo specwaiting
+ticket 1 pending "$R" '[]' issues 'spec: alpha'
+ticket 2 pending 'labels: [ready-for-human]' '[]' issues 'spec: alpha'
+run_loop --spec alpha
+if grep -q 'Spec alpha is complete' "$TMP/last.out"; then fail "a spec with a waiting ticket must not be called complete"; else ok; fi
+
+# Without --spec the driver never talks about specs.
+new_repo specnone
+ticket 1 pending "$R" '[]' issues 'spec: alpha'
+run_loop
+if grep -q 'is complete' "$TMP/last.out"; then fail "no --spec: no spec completion message" "$(grep 'is complete' "$TMP/last.out")"; else ok; fi
+
 echo "ralph-loop-labels: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
