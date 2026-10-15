@@ -63,6 +63,15 @@ new_repo() {
 ticket() {
   local dir="$1" id="$2" spec="${3-}" blocked="${4:-[]}" status="${5:-pending}"
   mkdir -p "$dir"
+  # A ticket that names a spec has that spec on disk: to-spec writes it before to-tickets
+  # stamps spec:. gralph refuses a lane whose spec file is missing (fail closed), so a fixture
+  # without the file would test a state the pipeline never produces.
+  if [ -n "$spec" ]; then
+    local board_root
+    board_root="$(printf '%s' "$dir" | sed -E 's#/(issues|archive)(/.*)?$##')"
+    mkdir -p "$board_root/specs"
+    [ -f "$board_root/specs/$spec.md" ] || printf '# Spec %s\n' "$spec" >"$board_root/specs/$spec.md"
+  fi
   {
     printf '%s\n' '---'
     printf 'id: %s\ntitle: Ticket %s\nstatus: %s\nlabels: [ready-for-agent]\n' "$id" "$id" "$status"
@@ -295,6 +304,33 @@ g delta --spec delta --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 ||
 R="$REPO/.kanban/run-report-delta.md"
 [ -f "$R" ] && ok || fail "delta run wrote its report"
 if grep -q '^## Spec complete' "$R"; then fail "a spec with an unfinished ticket must not claim completion"; else ok; fi
+
+# An ARCHIVED cancelled ticket of the spec means finish-spec must stop, so the report must not
+# send the user there (review: spec_fully_landed read issues/ only).
+new_repo speccancel
+BOARD="$REPO/.kanban"
+mkdir -p "$BOARD/specs" "$BOARD/archive/2026-01-01"
+printf '# Spec\n' >"$BOARD/specs/eps.md"
+ticket "$BOARD/archive/2026-01-01" 1 eps '[]' cancelled
+ticket "$BOARD/issues" 2 eps
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g eps --spec eps --dry-run --verify true >/dev/null 2>&1
+g eps --spec eps --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+R="$REPO/.kanban/run-report-eps.md"
+[ -f "$R" ] && ok || fail "eps run wrote its report"
+if grep -q '^## Spec complete' "$R"; then fail "an archived cancelled ticket must keep the spec from being called complete"; else ok; fi
+
+# Tickets all archived as done plus the last live one landing: complete.
+new_repo specarch
+BOARD="$REPO/.kanban"
+mkdir -p "$BOARD/specs" "$BOARD/archive/2026-01-01"
+printf '# Spec\n' >"$BOARD/specs/zeta.md"
+ticket "$BOARD/archive/2026-01-01" 1 zeta '[]' done
+ticket "$BOARD/issues" 2 zeta
+git -C "$REPO" add -A && git -C "$REPO" commit -qm board
+g zeta --spec zeta --dry-run --verify true >/dev/null 2>&1
+g zeta --spec zeta --agent-cmd agent --jobs 1 --verify true >/dev/null 2>&1 || true
+if grep -q '^## Spec complete' "$REPO/.kanban/run-report-zeta.md"; then ok; else fail "archived-done plus the landed live ticket is a complete spec"; fi
 
 # A whole-board run (no --spec) never prints the spec section.
 new_repo nospec

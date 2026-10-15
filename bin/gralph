@@ -342,8 +342,19 @@ run_board_child_pipeline() {
 
   local prompt_file="$run_dir/.child-$child-$run_id-prompt.md"
   local output_file="$run_dir/.child-$child-$run_id-worker.log"
-  local worker_rules spec_file
-  spec_file=$(ticket_spec_file "$ticket_path" "$board_dir" || true)
+  local worker_rules spec_file spec_rc=0
+  spec_file=$(ticket_spec_file "$manifest" "$child" "$board_dir") || spec_rc=$?
+  if [ "$spec_rc" -eq 2 ]; then
+    # Fail closed: the ticket names a spec we cannot use. Remove the worktree made above so a
+    # retry (after the spec is fixed) is not blocked by a leftover branch.
+    git -C "$REPO_ROOT" worktree remove --force "$worktree" >/dev/null 2>&1 || true
+    git -C "$REPO_ROOT" branch -D "$branch" >/dev/null 2>&1 || true
+    jq -n --argjson child "$child" --arg reason "spec_$spec_file" \
+      '{child:$child, outcome:"failed", reason:$reason}' >"$sidecar"
+    echo "error: lane #$child refused: its spec is $spec_file (check spec: in the ticket and .kanban/specs/)" >&2
+    return 0
+  fi
+  [ "$spec_rc" -eq 0 ] || spec_file=""
   {
     printf '%s\n' 'You are a Ralph worker executing ONE local kanban ticket in an isolated worktree.'
     printf '%s\n' 'Implement only this ticket. Do NOT touch .kanban/, the ticket file itself, or any other kanban state - the coordinator owns board writes.'
@@ -942,25 +953,30 @@ fold_child_result() {
   return 0
 }
 
-# ticket_spec_file prints the absolute path of the spec a board ticket was made from:
-# .kanban/specs/<slug>.md for the ticket's `spec: <slug>` frontmatter. Prints nothing when
-# the ticket has no spec (absent, null, ~), the slug breaks the slug rule (so a hand-edited
-# value can never become a path), or the file is not on disk (no dangling pointer).
-# read_board_ticket only hands the worker the ticket body, so without this the spec never
-# reaches a lane worker.
+# ticket_spec_file resolves the spec a board ticket was made from to its absolute path,
+# .kanban/specs/<slug>.md. The slug is the one board.sh parsed into the manifest (quotes and
+# trailing comments already stripped), so a ticket that --spec selected always resolves to the
+# same spec. Returns:
+#   0  and prints the path        the spec exists
+#   1  prints nothing             the ticket has no spec (absent, null, ~)
+#   2  prints "invalid" / "missing"   the ticket NAMES a spec we must not or cannot use:
+#                                  the slug breaks the rule (never turned into a path), or
+#                                  the file is not on disk. The caller refuses the lane:
+#                                  running without the spec would be the drift this prevents.
 ticket_spec_file() {
-  local ticket_path="$1" board_dir="$2" slug abs
-  slug=$(awk '
-    /^---[[:space:]]*$/ { fm++; next }
-    fm == 1 && /^spec:[[:space:]]*/ { sub(/^spec:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }
-    fm >= 2 { exit }
-  ' "$ticket_path")
+  local manifest="$1" child="$2" board_dir="$3" slug abs
+  slug=$(jq -r --argjson n "$child" '.children[] | select(.number == $n) | .spec // ""' "$manifest" 2>/dev/null || true)
+  [ -n "$slug" ] || return 1
   # Same rule as board.sh and tralph --spec: [A-Za-z0-9][A-Za-z0-9_-]*, not all digits.
-  [ -n "$slug" ] && [ "$slug" != null ] || return 1
-  [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || return 1
-  [[ "$slug" =~ ^[0-9]+$ ]] && return 1
-  abs="$(cd "$board_dir" 2>/dev/null && pwd)/specs/$slug.md" || return 1
-  [ -f "$abs" ] || return 1
+  if ! [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || [[ "$slug" =~ ^[0-9]+$ ]]; then
+    printf invalid
+    return 2
+  fi
+  abs="$(cd "$board_dir" 2>/dev/null && pwd)/specs/$slug.md"
+  if [ ! -f "$abs" ]; then
+    printf missing
+    return 2
+  fi
   printf '%s' "$abs"
 }
 
@@ -1549,17 +1565,16 @@ write_repair_ticket() {
   printf 'Created repair ticket %s for bounced lane #%s\n' "$candidate_file" "$child"
 }
 
-# spec_fully_landed succeeds when SPEC_FILTER names a spec that has tickets and every one of
-# them is status: done on the board (read after the batch merged, so landed means done).
+# spec_fully_landed succeeds when SPEC_FILTER names a spec whose tickets, live AND archived,
+# are all done. board.sh owns that rule (spec-done) so gralph, ralph-loop.sh and the merge
+# skill cannot disagree; finish-spec counts archived tickets and stops on a cancelled one.
 # Each ticket is reviewed on its own, so nothing else notices when slices that each pass do
-# not add up to the spec: that is finish-spec's job, and the report is where it is called for.
+# not add up to the spec: finish-spec does, and the report is where it is called for.
 spec_fully_landed() {
-  local board_dir="$1" board_sh counts
+  local board_dir="$1" board_sh
   [ -n "${SPEC_FILTER:-}" ] || return 1
   board_sh="$(locate_board_sh)" || return 1
-  counts=$("$board_sh" --board "$board_dir" --spec "$SPEC_FILTER" json 2>/dev/null |
-    jq -r '"\(length) \([.[] | select(.status != "done")] | length)"' 2>/dev/null) || return 1
-  [ "${counts%% *}" -gt 0 ] && [ "${counts##* }" -eq 0 ]
+  "$board_sh" --board "$board_dir" --spec "$SPEC_FILTER" spec-done >/dev/null 2>&1
 }
 
 # write_run_report writes .kanban/run-report.md summarising the board-mode run.
