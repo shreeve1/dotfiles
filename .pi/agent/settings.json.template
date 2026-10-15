@@ -18,7 +18,7 @@
   "subagents": {
     "agentOverrides": {
       "scout": {
-        "model": "minimax/MiniMax-M3",
+        "model": "cliproxy/minimax-m3",
         "thinking": "low",
         "tools": [
           "read",
@@ -37,7 +37,7 @@
         ]
       },
       "worker": {
-        "model": "minimax/MiniMax-M3",
+        "model": "cliproxy/minimax-m3",
         "thinking": "high",
         "tools": [
           "read",
@@ -65,16 +65,16 @@
         "thinking": "high"
       },
       "oracle": {
-        "model": "openai-codex/gpt-6.1-sol"
+        "model": "cliproxy/gpt-6.1-sol"
       },
       "delegate": {
-        "model": "minimax/MiniMax-M3"
+        "model": "cliproxy/minimax-m3"
       },
       "evidence-auditor": {
-        "model": "minimax/MiniMax-M3"
+        "model": "cliproxy/minimax-m3"
       },
       "context-builder": {
-        "model": "minimax/MiniMax-M3"
+        "model": "cliproxy/minimax-m3"
       },
       "startday-light": {
         "model": "cliproxy/deepseek-v4.1-flash",
@@ -92,13 +92,13 @@
   "doubleEscapeAction": "tree",
   "extensions": [],
   "enabledModels": [
-    "minimax/MiniMax-M3",
+    "cliproxy/minimax-m3",
     "cliproxy/claude-opus-5-5",
     "cliproxy/claude-sonnet-5-5",
     "cliproxy/gpt-6.1-sol",
     "cliproxy/gpt-6-luna",
-    "zai/glm-5.3",
-    "zai/glm-5.3-flash",
+    "cliproxy/glm-5.3",
+    "cliproxy/glm-5.3-flash",
     "cliproxy/deepseek-v4.1-flash"
   ],
   "terminal": {

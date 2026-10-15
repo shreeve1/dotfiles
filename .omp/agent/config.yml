@@ -1,22 +1,20 @@
 setupVersion: 2
 modelRoles:
   vision: cliproxy/claude-opus-5-5
-  advisor: openrouter/deepseek/deepseek-v4.1-flash:high
-  slow: openai-codex/gpt-6.1-sol:high
+  advisor: cliproxy/deepseek-v4.1-flash:high
+  slow: cliproxy/gpt-6.1-sol:high
   designer: cliproxy/claude-opus-5-5
-  commit: openrouter/deepseek/deepseek-v4.1-flash:low
-  tiny: openrouter/deepseek/deepseek-v4-flash:high
+  commit: cliproxy/deepseek-v4.1-flash:low
+  tiny: cliproxy/deepseek-v4.1-flash:high
   plan: cliproxy/claude-opus-5-5
-  smol: zai/glm-5.3:high
-  memory: openrouter/deepseek/deepseek-v4.1-flash:low
-  judge: openrouter/deepseek/deepseek-v4-flash:high
-  image: openai-codex/gpt-image-1
+  smol: cliproxy/glm-5.3:high
+  memory: cliproxy/deepseek-v4.1-flash:low
+  judge: cliproxy/deepseek-v4.1-flash:high
   default: cliproxy/claude-sonnet-5-5:high
-  task: openrouter/deepseek/deepseek-v4-flash:high
+  task: cliproxy/deepseek-v4.1-flash:high
 retry:
   fallbackChains:
     task:
-      - openrouter/deepseek/deepseek-v4-flash-0731
       - cliproxy/claude-opus-5-5
 cycleOrder:
   - smol

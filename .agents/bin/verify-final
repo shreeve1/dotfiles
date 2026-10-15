@@ -49,7 +49,7 @@ import time
 
 MIN_CHARS = 200
 INLINE_MAX_BYTES = 100_000  # one argv entry is capped near 128 KB; longer answers go via a file
-MODEL = os.environ.get("VERIFY_FINAL_MODEL", "openrouter/deepseek/deepseek-v4.1-flash")
+MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/deepseek-v4.1-flash")
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")

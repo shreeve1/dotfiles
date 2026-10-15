@@ -1067,7 +1067,7 @@ class PermissionBoundaryTests(HelperCase):
             self.assertIn("NONE", prompt)
             self.assertEqual(argv[:-2], [
                 "--mode", "rpc", "--no-session", "--no-extensions", "--no-skills", "--no-rules", "--no-lsp",
-                "--tools", "web_search", "--thinking", "low", "--model", "openrouter/deepseek/deepseek-v4-flash-0731",
+                "--tools", "web_search", "--thinking", "low", "--model", "cliproxy/deepseek-v4.1-flash",
                 "--config", os.path.join(self.state, "worker.yml"),
             ])
             self.assertEqual(set(argv[:-2]) & known_tools, set())

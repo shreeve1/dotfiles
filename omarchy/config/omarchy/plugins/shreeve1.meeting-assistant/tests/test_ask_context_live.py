@@ -16,7 +16,7 @@ import unittest
 
 PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OMP = os.path.expanduser("~/.local/bin/omp")
-MODEL = "openrouter/deepseek/deepseek-v4-flash-0731"
+MODEL = "cliproxy/deepseek-v4.1-flash"
 LONG_PROMPT = "Write the numbers 1 to 40, one per line, each followed by a short fruit name. Nothing else."
 SETTLE_TIMEOUT_S = 240
 
