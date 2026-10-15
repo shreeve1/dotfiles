@@ -1,6 +1,6 @@
 # 0012 — pstack runs as an omp port, `pstack-` prefixed
 
-**Status:** Accepted (2026-10-03)
+**Status:** Superseded (2026-10-15) by ADR 0019 — all pstack skills removed.
 
 ## Context
 

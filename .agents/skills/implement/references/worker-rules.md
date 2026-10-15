@@ -1,6 +1,6 @@
 # Implementation rules
 
-Five rules for writing the change. Adapted from the pstack principles `prove-it-works`, `test-behavior-not-implementation`, `fix-root-causes` and `laziness-protocol`.
+Five rules for writing the change.
 
 1. **Prove it works.** Build, then run the real feature path and check the actual output. "It compiles" and "the tests pass" are not proof on their own. When checking delegated work, read the diff and the artifacts, not the delegate's summary.
 
