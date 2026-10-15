@@ -254,4 +254,22 @@ grep -q '^status: done$' "$BOARD/issues/007-7.md"
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 worker_sha_7="$(jq -r '.children[] | select(.number == 7) | .execution.commitSha' "$MANIFEST")"
 git -C "$REPO" show "$worker_sha_7:.ralph-progress-7.md" >/dev/null
+# The worker prompt tells the lane worker to read the implementation rules, and the path it
+# names exists. gralph's inline prompt loads neither the ralph nor the implement skill,
+# so without this sentence --jobs >=2 workers get no implementation guidance at all.
+rules_path="$(grep -oE '[^ ]*implement/references/worker-rules\.md' "$PROMPT_LOG" | head -1 || true)"
+if [ -z "$rules_path" ]; then
+  echo "FAIL: worker prompt does not point at implement/references/worker-rules.md" >&2
+  exit 1
+fi
+if [ ! -f "$rules_path" ]; then
+  echo "FAIL: worker prompt names a rules file that does not exist: $rules_path" >&2
+  exit 1
+fi
+# The sentence comes before the sentinel instructions so a worker reads it before it
+# starts, and appears once (not once per ticket field).
+[ "$(grep -c 'worker-rules\.md' "$PROMPT_LOG")" -eq 1 ] || {
+  echo "FAIL: rules sentence should appear exactly once in the prompt" >&2
+  exit 1
+}
 printf '%s\n' 'tralph-lane-worker tests passed'
