@@ -8,6 +8,9 @@ archive/
 *-sessions.json
 *-sessions-registry.json
 
+# Runtime mission store (pi-subagents; auto-created on every subagent launch)
+missions/
+
 # Dependencies
 node_modules/
 package-lock.json
