@@ -12,8 +12,10 @@
 //
 // Cleanup nudge (post-work-cleanup):
 //   In every mode, when the working tree changed during the turn, the boundary
-//   appends a directive to run the workspace post-work-cleanup skill before
-//   committing. Cheap and local: no model call.
+//   appends a directive to clean up before committing: the workspace skill when
+//   it is loadable here, otherwise a self-contained checklist. Cheap and local:
+//   no model call. Harness paths such as .pi/ are ignored so tooling files do
+//   not trigger it.
 //
 // Both boundary handlers fire at most once per user prompt (guarded by
 // userPromptSeq) so a continuation cannot re-trigger itself: the run loop
@@ -26,8 +28,9 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent"
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
+import { existsSync } from "node:fs"
 import { homedir } from "node:os"
-import { join as pathJoin } from "node:path"
+import { dirname, join as pathJoin, resolve as pathResolve } from "node:path"
 
 const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final")
 const CHECK_TIMEOUT_MS = 180_000
@@ -41,10 +44,22 @@ const FINDING_RE = /(^|\n)\s*(?:FALSE|UNGROUNDED)\s*\|/
 // Hard cap on boundary-forced continuations per user prompt, in case a guard
 // regresses and a handler re-fires.
 const MAX_CONTINUATIONS_PER_PROMPT = 2
-const CLEANUP_DIRECTIVE = [
+const CLEANUP_SKILL_NAME = "post-work-cleanup"
+// Porcelain paths the nudge ignores: harness and dependency output, not work.
+// pi-lens also drops a .pi-lens-probe-home/ directory into the cwd.
+const HARNESS_PATH_RE = /(^|\/)(?:\.pi|\.pi-lens[^/]*|node_modules)\//
+const CLEANUP_SKILL_DIRECTIVE = [
   "Workspace files changed during this turn and are not yet committed.",
   "Before committing, run the `post-work-cleanup` skill over this session's diff,",
   "apply its findings, then make the commit.",
+  "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
+].join(" ")
+// Used when the workspace skill is not loadable from this repository.
+const CLEANUP_FALLBACK_DIRECTIVE = [
+  "Workspace files changed during this turn and are not yet committed.",
+  "Before committing, review this session's diff for stray files, leftover debug",
+  "output, dead code and unused imports, run the project's linter or formatter if",
+  "one is configured, then make the commit.",
   "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
 ].join(" ")
 
@@ -80,7 +95,11 @@ function resolveCwd(ctx: ExtensionContext | undefined): string {
   return ctx?.cwd && ctx.cwd.length > 0 ? ctx.cwd : process.cwd()
 }
 
-/** `git status --porcelain` for the repo at cwd, or "" when there is none. */
+/**
+ * `git status --porcelain` for the repo at cwd, or "" when there is none.
+ * Harness and dependency paths are dropped so tooling files cannot make the
+ * tree look changed.
+ */
 function gitStatus(cwd: string): Promise<string> {
   return new Promise((resolve) => {
     execFile(
@@ -88,10 +107,36 @@ function gitStatus(cwd: string): Promise<string> {
       ["status", "--porcelain", "--untracked-files=all"],
       { cwd, timeout: 10_000, maxBuffer: 1 << 20 },
       (err, stdout) => {
-        resolve(err ? "" : stdout.replace(/\r/g, "").trim())
+        if (err) {
+          resolve("")
+          return
+        }
+        const kept = stdout
+          .replace(/\r/g, "")
+          .split("\n")
+          .filter((line) => line.trim().length > 0 && !HARNESS_PATH_RE.test(line.slice(3)))
+        resolve(kept.join("\n"))
       },
     )
   })
+}
+
+/** True when pi can load the cleanup skill from cwd or a user skill root. */
+function cleanupSkillAvailable(cwd: string): boolean {
+  const tail = ["skills", CLEANUP_SKILL_NAME, "SKILL.md"]
+  const candidates = [
+    pathJoin(homedir(), ".agents", ...tail),
+    pathJoin(homedir(), ".pi", "agent", ...tail),
+  ]
+  let dir = pathResolve(cwd)
+  for (;;) {
+    candidates.push(pathJoin(dir, ".agents", ...tail))
+    candidates.push(pathJoin(dir, ".pi", ...tail))
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return candidates.some((candidate) => existsSync(candidate))
 }
 
 function runCheck(cwd: string, text: string): Promise<RunResult> {
@@ -184,7 +229,12 @@ function withContinuation(event: AgentBeforeSettleEvent, entry: CustomMessageEnt
 export default function verifyFinalHook(pi: ExtensionAPI): void {
   let aborted = false
 
-  pi.on("before_agent_start", async (_event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
+    // Only a user prompt begins a logical turn. A custom-triggered run
+    // (pi.sendMessage with triggerTurn) belongs to the turn already in flight,
+    // so counting it would reset the once-per-prompt guards and could make the
+    // TUI follow-up prediction skip the wrong run.
+    if (event.messageType !== "user") return
     userPromptSeq += 1
     groundingDoneSeq = -1
     cleanupDoneSeq = -1
@@ -211,19 +261,24 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
   // Cleanup nudge: any working-tree change during the turn, in every mode.
   pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
     if (aborted) return
+    // Never extend a failed or interrupted run.
+    if (event.outcome !== "completed") return
     if (process.env.POST_WORK_CLEANUP === "0") return
     if (cleanupDoneSeq === userPromptSeq) return
     if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return
-    const now = await gitStatus(resolveCwd(ctx))
+    const cwd = resolveCwd(ctx)
+    const now = await gitStatus(cwd)
     if (!now || now === treeAtPrompt) return
     cleanupDoneSeq = userPromptSeq
     continuationsThisPrompt += 1
-    return withContinuation(event, customMessage("post-work-cleanup", CLEANUP_DIRECTIVE))
+    const directive = cleanupSkillAvailable(cwd) ? CLEANUP_SKILL_DIRECTIVE : CLEANUP_FALLBACK_DIRECTIVE
+    return withContinuation(event, customMessage(CLEANUP_SKILL_NAME, directive))
   })
 
   // Grounding check for headless modes, where a post-settle follow-up cannot run.
   pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
     if (aborted) return
+    if (event.outcome !== "completed") return
     if (ctx.mode === "tui") return
     if (process.env.VERIFY_FINAL === "0") return
     if (groundingDoneSeq === userPromptSeq) return
@@ -242,8 +297,10 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     return withContinuation(event, customMessage("verify-final", out))
   })
 
-  pi.on("agent_settled", (_event, ctx) => {
+  pi.on("agent_settled", (event, ctx) => {
     if (aborted) return
+    // An interrupted run must not start a corrective follow-up.
+    if (event.aborted) return
     if (typeof ctx.isIdle === "function" && ctx.isIdle() !== true) return
     // Headless modes are handled at the boundary above; this path is the
     // interactive one, where a background check plus a follow-up turn is right.
