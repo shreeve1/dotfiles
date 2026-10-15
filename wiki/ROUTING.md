@@ -19,14 +19,14 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 
 ## ponytail & Wiki Maintenance Gates
 
-- Claims: C-0116, C-0117, C-0118 (no promoted page yet)
+- Claims: C-0118 (hot); C-0116, C-0117 moved to `CLAIMS-cold.md` 2026-10-14 (cited the retired Claude Code lane; ponytail itself is now an `.agents/AGENTS.md` bias plus the `ponytail-debt`/`ponytail-gain` skills). (no promoted page yet)
 - Raw: `wiki/raw/sessions/2026-06-23-ponytail-and-wiki-gates.md`
 - Keywords: ponytail, YAGNI enforcer, vendored, plugin marketplace, pi install, switch-provider, settings provider file, gate.py, CLAIMS.md, eval slice, consolidation
 
 ## dsh-board Build Pipeline
 
 - Pages: `wiki/analyses/dsh-board-pipeline.md` (promoted)
-- Claims: C-0123, C-0124, C-0125, C-0126, C-0127, C-0128, C-0129
+- Claims: C-0123..C-0129, all in `CLAIMS-cold.md` since 2026-10-14 (dsh-board archived 2026-09-23; sources now under `archive/dsh-board/`)
 - Raw: `wiki/raw/sessions/2026-09-04-dsh-board-loop-fixes.md`
 - Keywords: dsh-board, build board, HANDLERS.md, preamble.md, render-jobs.sh, cron tick, stagger, MiniMax 429, agent_teams, captain, captainSessionId, scheduler, composite task, dependent task chain, Build Decompose loop, spec-committed gate, worktree, auto/<card-id>, git merge --ff-only, git-merge-ff, cron_disable override, smart_restart canary
 
@@ -51,3 +51,17 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 
 - Pages: `wiki/analyses/analysis-session-offload-omp-to-pi-migration.md` (promoted)
 - Keywords: offload, omp, pi, herdr, --kind pi, worker dispatch, freeze, gap-review quarantine, pi-extension leftovers
+
+## T3 Code + Custom Agent Providers
+
+- Pages: `wiki/analyses/analysis-session-t3-code-pi-provider.md` (promoted)
+- Claims: C-0150, C-0151, C-0152, C-0153
+- Raw: `wiki/raw/sessions/2026-10-14-t3-code-pi-provider.md`
+- Keywords: t3 code, t3code, T3 Tools, provider, custom provider, pi, PiDriver, builtInDrivers, packages/provider-pi, --mode rpc, settings.json, userdata, v0.0.46, nightly, AcpRegistry
+
+## tralph, gralph And The .kanban Board
+
+- Pages: `wiki/analyses/analysis-session-tralph-labels-spec-trail.md` (promoted)
+- Claims: C-0154, C-0155, C-0156, C-0157, C-0158, C-0159
+- Raw: `wiki/raw/sessions/2026-10-14-tralph-labels-spec-trail.md`
+- Keywords: tralph, gralph, ralph-loop, board.sh, kanban, triage labels, ready-for-agent, spec, spec-done, spec-check, finish-spec, --replan, failed lane, git add -f, tests gitignored, session breadcrumb, run report
