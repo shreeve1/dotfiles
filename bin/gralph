@@ -342,13 +342,17 @@ run_board_child_pipeline() {
 
   local prompt_file="$run_dir/.child-$child-$run_id-prompt.md"
   local output_file="$run_dir/.child-$child-$run_id-worker.log"
-  local worker_rules
+  local worker_rules spec_file
+  spec_file=$(ticket_spec_file "$ticket_path" "$board_dir" || true)
   {
     printf '%s\n' 'You are a Ralph worker executing ONE local kanban ticket in an isolated worktree.'
     printf '%s\n' 'Implement only this ticket. Do NOT touch .kanban/, the ticket file itself, or any other kanban state - the coordinator owns board writes.'
     printf '%s\n' 'You have full tool access.'
     if worker_rules=$(locate_worker_rules); then
       printf '%s\n' "Before implementing, read $worker_rules and follow it while you write the change."
+    fi
+    if [ -n "$spec_file" ]; then
+      printf '%s\n' "This ticket is one slice of a larger spec. Before implementing, read $spec_file for the problem, the decisions already made, the testing decisions and what is Out of Scope. Do not build anything the spec rules out, and do not contradict a decision recorded there. If the ticket and the spec disagree, stop and report BLOCKED instead of guessing. Tell your reviewer to check the diff against that spec too."
     fi
     printf '%s\n' 'You are responsible for:'
     printf '%s\n' '  1. Implementing every acceptance criterion in the ticket body.'
@@ -938,6 +942,28 @@ fold_child_result() {
   return 0
 }
 
+# ticket_spec_file prints the absolute path of the spec a board ticket was made from:
+# .kanban/specs/<slug>.md for the ticket's `spec: <slug>` frontmatter. Prints nothing when
+# the ticket has no spec (absent, null, ~), the slug breaks the slug rule (so a hand-edited
+# value can never become a path), or the file is not on disk (no dangling pointer).
+# read_board_ticket only hands the worker the ticket body, so without this the spec never
+# reaches a lane worker.
+ticket_spec_file() {
+  local ticket_path="$1" board_dir="$2" slug abs
+  slug=$(awk '
+    /^---[[:space:]]*$/ { fm++; next }
+    fm == 1 && /^spec:[[:space:]]*/ { sub(/^spec:[[:space:]]*/, ""); gsub(/[[:space:]\r]+$/, ""); print; exit }
+    fm >= 2 { exit }
+  ' "$ticket_path")
+  # Same rule as board.sh and tralph --spec: [A-Za-z0-9][A-Za-z0-9_-]*, not all digits.
+  [ -n "$slug" ] && [ "$slug" != null ] || return 1
+  [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || return 1
+  [[ "$slug" =~ ^[0-9]+$ ]] && return 1
+  abs="$(cd "$board_dir" 2>/dev/null && pwd)/specs/$slug.md" || return 1
+  [ -f "$abs" ] || return 1
+  printf '%s' "$abs"
+}
+
 # locate_worker_rules prints the path of the implementation rules a lane worker should
 # read. Board workers get this inline prompt, not the ralph or implement skill, so
 # without it they would have no implementation guidance. Same search order as
@@ -1523,6 +1549,19 @@ write_repair_ticket() {
   printf 'Created repair ticket %s for bounced lane #%s\n' "$candidate_file" "$child"
 }
 
+# spec_fully_landed succeeds when SPEC_FILTER names a spec that has tickets and every one of
+# them is status: done on the board (read after the batch merged, so landed means done).
+# Each ticket is reviewed on its own, so nothing else notices when slices that each pass do
+# not add up to the spec: that is finish-spec's job, and the report is where it is called for.
+spec_fully_landed() {
+  local board_dir="$1" board_sh counts
+  [ -n "${SPEC_FILTER:-}" ] || return 1
+  board_sh="$(locate_board_sh)" || return 1
+  counts=$("$board_sh" --board "$board_dir" --spec "$SPEC_FILTER" json 2>/dev/null |
+    jq -r '"\(length) \([.[] | select(.status != "done")] | length)"' 2>/dev/null) || return 1
+  [ "${counts%% *}" -gt 0 ] && [ "${counts##* }" -eq 0 ]
+}
+
 # write_run_report writes .kanban/run-report.md summarising the board-mode run.
 # Arguments: manifest board_dir main_branch merge_status merge_sha batch_branch
 write_run_report() {
@@ -1571,6 +1610,12 @@ write_run_report() {
         ]
       | "| " + .[0] + " | " + .[1] + " | " + .[2] + " | " + .[3] + " |"
     ' "$manifest"
+
+    if [ "$merge_status" = "merged" ] && spec_fully_landed "$board_dir"; then
+      printf '\n## Spec complete\n\n'
+      printf 'Every ticket of spec `%s` is done and merged. Each was reviewed on its own; nothing has yet checked that they compose into the spec (`.kanban/specs/%s.md`).\n\n' "$SPEC_FILTER" "$SPEC_FILTER"
+      printf 'Run `/finish-spec %s` next: it runs the full suite and walks the spec against the merged code.\n' "$SPEC_FILTER"
+    fi
   } >"$report_file"
 
   printf 'Run report written to %s\n' "$report_file"
