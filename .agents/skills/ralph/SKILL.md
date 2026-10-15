@@ -308,16 +308,16 @@ For the selected issue:
    Concrete spawn examples:
 
    ```bash
-   # pi non-interactive reviewer
-   pi --no-extensions --no-session -p "$(cat reviewer-prompt.txt)"
+   # pi non-interactive reviewer (always pin the model; pi's default is not DeepSeek)
+   pi --no-extensions --no-session --model "${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}" -p "$(cat reviewer-prompt.txt)"
 
    # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions"
+   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions --model '${RALPH_MODEL:-openrouter/deepseek/deepseek-v4.1-flash}'"
    tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
    tmux send-keys -t ralph-review-<ID>:0.0 Enter
    ```
 
-   Use whichever local agent CLI is available. The required invariant is fresh context plus the `RALPH_REVIEW` sentinel.
+   Use whichever local agent CLI is available. The required invariant is fresh context plus the `RALPH_REVIEW` sentinel. With pi, always pass `--model` as above: without it the reviewer runs on pi's configured default model instead of the loop's DeepSeek model.
 
 **Review outcomes:**
 

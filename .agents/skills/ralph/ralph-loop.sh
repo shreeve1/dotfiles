@@ -636,7 +636,7 @@ run_pi_adapter() {
     cmd=(pi --no-extensions --no-session -p "$full_prompt")
   fi
   local rc=0
-  "${cmd[@]}" </dev/null 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
+  RALPH_MODEL="$RALPH_MODEL" "${cmd[@]}" </dev/null 2>&1 | tee -a "$LOG_FILE" | tee "$output_file" || rc=$?
 
   if [[ $rc -eq 0 ]]; then
     if blocked_is_skippable "$output_file"; then
@@ -746,7 +746,11 @@ run_tmux_adapter() {
   else
     echo "ℹ️  Worker memory cap unavailable (no working systemd --user scope); launching uncapped" | tee -a "$LOG_FILE"
   fi
-  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec ${mem_prefix}env $AGENT_CMD"
+  # Export RALPH_MODEL into the worker so the reviewer it spawns can pin the
+  # same model (ralph SKILL.md reviewer examples read it).
+  local model_env=""
+  [[ -n "$RALPH_MODEL" ]] && printf -v model_env 'RALPH_MODEL=%q ' "$RALPH_MODEL"
+  tmux_cmd new-session -d -s "$agent_session" "cd $project_q && exec ${mem_prefix}env ${model_env}$AGENT_CMD"
   tmux_cmd set-option -t "$agent_session" history-limit 50000 2>/dev/null || true
   sleep "$READY_DELAY"
   if ! tmux_cmd has-session -t "$agent_session" 2>/dev/null; then
