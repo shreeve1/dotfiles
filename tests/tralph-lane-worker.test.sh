@@ -288,4 +288,36 @@ grep -qiE 'BLOCKED.*upheld|upheld.*BLOCKED' "$PROMPT_LOG" || {
   echo "FAIL: worker prompt does not say an upheld high finding means BLOCKED" >&2
   exit 1
 }
+
+# --- Without review.md (a checkout or HOME that lacks it) the inline fallback keeps the
+# same blocking rule: a rejected high finding is re-reviewed too, and only an upheld one
+# blocks. Run a copy of gralph whose SCRIPT_ROOT and HOME have no skills tree.
+ISO="$TMPDIR/iso"
+mkdir -p "$ISO/bin" "$ISO/.agents/skills/kanban" "$ISO/home"
+cp "$GRALPH" "$ISO/bin/gralph"
+cp "$ROOT/.agents/skills/kanban/board.sh" "$ISO/.agents/skills/kanban/board.sh"
+REPO="$TMPDIR/no-review-rules"
+new_repo "$REPO"
+BOARD="$TMPDIR/board-no-review"
+mkdir -p "$BOARD/issues"
+write_ticket 8 pending '[]'
+: >"$PROMPT_LOG"
+(cd "$REPO" && HOME="$ISO/home" PATH="$FAKE_BIN:$PATH" REAL_PATH="$REAL_PATH" AGENT_LOG="$AGENT_LOG" \
+  PROMPT_LOG="$PROMPT_LOG" "$ISO/bin/gralph" 42 --board "$BOARD" --dry-run --verify true >/dev/null 2>&1 &&
+  HOME="$ISO/home" PATH="$FAKE_BIN:$PATH" REAL_PATH="$REAL_PATH" AGENT_LOG="$AGENT_LOG" \
+    PROMPT_LOG="$PROMPT_LOG" "$ISO/bin/gralph" 42 --board "$BOARD" --agent-cmd agent-cmd --jobs 1 \
+    --verify true >/dev/null 2>&1) || true
+if grep -q 'review\.md' "$PROMPT_LOG"; then
+  echo "FAIL: isolated gralph still found review.md; the fallback branch was not exercised" >&2
+  exit 1
+fi
+grep -qiE 'accepted or rejected.*re-review' "$PROMPT_LOG" || {
+  echo "FAIL: fallback prompt does not re-review rejected high findings" >&2
+  head -c 2000 "$PROMPT_LOG" >&2
+  exit 1
+}
+grep -qiE 'BLOCKED only when that re-review upheld' "$PROMPT_LOG" || {
+  echo "FAIL: fallback prompt does not block only on an upheld high finding" >&2
+  exit 1
+}
 printf '%s\n' 'tralph-lane-worker tests passed'

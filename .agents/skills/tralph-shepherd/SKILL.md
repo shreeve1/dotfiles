@@ -328,8 +328,9 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
 
 - **DEFAULT — hand back to the loop.** When the ticket's `## Blocker`
   already names concrete, code-local fix paths a single-ticket loop
-  worker can execute (a ralph-review FAIL block is the canonical
-  example: the reviewer wrote fix paths meant for the next Ralph pass),
+  worker can execute (a review block is the canonical example: a
+  re-review upheld a high-severity finding and its evidence names the
+  fix paths meant for the next Ralph pass; see ralph/references/review.md),
   the shepherd's job is just to hand it back. Read the ticket
   immediately before editing its frontmatter so the edit's old text
   matches the file's current content exactly (a live worker or the
