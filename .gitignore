@@ -236,9 +236,6 @@ graphify-out/
 .pi/agent/skills/*--*
 .pi/agent/skills/paperclip-converting-plans-to-tasks
 
-# Old DSH-era pstack import (superseded by .agents/skills/pstack-*; ADR 0012)
-archive/pstack/
-
 # Hermes work-in-progress not owned by the dotfiles sync (2026-10-03)
 .hermes/bin/
 .hermes/docs/carried-commits/

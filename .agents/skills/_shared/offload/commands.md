@@ -136,7 +136,7 @@ Gate. Agent-start reports interactive readiness in the same pane. The original `
 
 ```sh
 herdr --machine "$MACHINE_ID" agent prompt "$AGENT" \
-  "Read the pstack-poteto-mode skill at ~/.agents/skills/pstack-poteto-mode/SKILL.md, the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
+  "Read the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
 ```
 
 This submits Enter. Require explicit task acceptance or observed work on that Brief. Agent readiness alone is insufficient. If submission times out or acceptance is unclear, inspect before retrying.
