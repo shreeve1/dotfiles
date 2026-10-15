@@ -14,6 +14,7 @@
 #   --review-loop         Run actionable review/unblock loop instead of pending-issue implementation
 #   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
 #   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
+#   --checkpoint-scope M  Override git config ralph.checkpointScope: "all" (default everywhere) stages everything outside .pi-lens; "files" stages only the active ticket's files: frontmatter prefixes plus .kanban/ (the mode a shared working tree needs)
 #   --socket PATH         Private tmux socket path (implies --private-tmux)
 #   --private-tmux        Use Ralph's private tmux socket instead of default tmux
 #   --normal-tmux         Use the default tmux server (default)
@@ -52,6 +53,553 @@ READY_LABEL="${RALPH_READY_LABEL:-ready-for-agent}"
 SOCKET_DIR="${RALPH_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/ralph-tmux-sockets}"
 TMUX_SOCKET="${RALPH_TMUX_SOCKET:-$SOCKET_DIR/ralph.sock}"
 USE_NORMAL_TMUX="${RALPH_USE_NORMAL_TMUX:-true}"
+# Checkpoint scope controls how the pre/post-worker auto-commit scopes its
+# `git add`. Default "all" preserves the original behavior: everything outside
+# .pi-lens/ is staged. Set to "files" (per repo: `git config ralph.checkpointScope
+# files`, or one-shot via env RALPH_CHECKPOINT_SCOPE=files) to stage only the
+# active ticket's `files:` frontmatter prefixes plus .kanban/ — the mode a
+# shared working tree (e.g. ~/Documents/itastack) needs to avoid sweeping
+# unrelated agents' work into "chore(ralph): checkpoint ..." commits.
+CHECKPOINT_SCOPE_OVERRIDE=""
+CHECKPOINT_SCOPE=""
+
+# Functions in this block are the testable seam for tests/test-checkpoint-scope.sh.
+# When this file is sourced, definitions below are sourced too and no cli side
+# effects run; when invoked directly, the cli body at the bottom embeds them
+# into the generated LOOP_SCRIPT via declare -f so the child tmux bash has them.
+RALPH_HELPERS=(
+  git_status_ignoring_pi_lens
+  git_status_short_ignoring_pi_lens
+  cleanup_ephemeral_artifacts
+  normalize_issue_id
+  issue_id_for_file
+  issue_status_for_file
+  issue_priority_for_file
+  has_valid_action_reviewed
+  resolve_checkpoint_scope
+  effective_checkpoint_scope
+  list_ticket_file_prefixes
+  git_path_under_prefix
+  git_status_in_scope
+  build_files_mode_pathspec
+  checkpoint_out_of_scope_warning
+  checkpoint_dirty_worktree
+  files_mode_worker_note
+  pick_next_target_for_warning
+  emit_pre_existing_dirty_warning
+)
+
+git_status_ignoring_pi_lens() {
+  git status --porcelain -- . ':(exclude).pi-lens' ':(exclude).sessions' | LC_ALL=C sort || true
+}
+
+git_status_short_ignoring_pi_lens() {
+  git status --short -- . ':(exclude).pi-lens' ':(exclude).sessions' || true
+}
+
+# Like git_status_ignoring_pi_lens but recurses into untracked directories
+# (`-uall`) so the out-of-scope warning names the individual file the worker
+# touched, not the bare directory name that `git status` collapses to by
+# default. Used only for the before/after snapshot diff in files mode.
+git_status_snap_recursive() {
+  git status --porcelain -uall -- . ':(exclude).pi-lens' ':(exclude).sessions' | LC_ALL=C sort || true
+}
+
+cleanup_ephemeral_artifacts() {
+  local removed=false
+  local paths=(
+    ".playwright-sessions"
+    "test-results"
+    "playwright-report"
+    ".pytest_cache"
+    ".ruff_cache"
+    ".mypy_cache"
+    "htmlcov"
+  )
+
+  for path in "${paths[@]}"; do
+    [[ -e "$path" ]] || continue
+    if git rev-parse --git-dir >/dev/null 2>&1 && [[ -z "$(git ls-files -- "$path")" ]]; then
+      rm -rf -- "$path"
+      echo "🧹 Removed untracked ephemeral artifact: $path" | tee -a "${LOG_FILE:-/dev/null}"
+      removed=true
+    fi
+  done
+
+  [[ "$removed" == "true" ]]
+}
+
+normalize_issue_id() {
+  local id="${1#\#}"
+  # Keep IDs verbatim (e.g. zero-padded "022", alphanumeric "023a"); only map
+  # empty to "0". Stripping leading zeros previously broke file-id lookups like
+  # grep "^id: <id>$" against zero-padded kanban issue files.
+  id=$(printf '%s' "$id" | sed 's/^$/0/')
+  printf '%s' "$id"
+}
+
+issue_id_for_file() {
+  sed -n 's/^id:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
+}
+
+issue_status_for_file() {
+  sed -n 's/^status:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
+}
+
+issue_priority_for_file() {
+  local priority
+  priority=$(sed -n 's/^priority:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs)
+  [[ "$priority" =~ ^[0-9]+$ ]] || priority=999
+  printf '%s' "$priority"
+}
+
+has_valid_action_reviewed() {
+  grep -Eq '^action_reviewed:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$' "$1"
+}
+
+# Resolve the configured checkpoint scope for the current repo. Order:
+# 1. env RALPH_CHECKPOINT_SCOPE (also set by --checkpoint-scope on the cli)
+# 2. git config ralph.checkpointScope (per repo)
+# 3. "all" (default — preserves pre-files-mode behavior everywhere)
+resolve_checkpoint_scope() {
+  local scope=""
+  if [[ -n "${RALPH_CHECKPOINT_SCOPE:-}" ]]; then
+    scope="$RALPH_CHECKPOINT_SCOPE"
+  elif git rev-parse --git-dir >/dev/null 2>&1; then
+    scope=$(git config --get ralph.checkpointScope 2>/dev/null || true)
+  fi
+  case "${scope:-all}" in
+  all | files) printf '%s' "${scope:-all}" ;;
+  *) printf 'all' ;;
+  esac
+}
+
+# Returns the scope to apply right now: explicit cli override if set, else the
+# resolved value (env/git config/default). Cached in CHECKPOINT_SCOPE.
+effective_checkpoint_scope() {
+  if [[ -n "${CHECKPOINT_SCOPE_OVERRIDE:-}" ]]; then
+    printf '%s' "$CHECKPOINT_SCOPE_OVERRIDE"
+    return 0
+  fi
+  resolve_checkpoint_scope
+}
+
+# Read the `files:` frontmatter entry from a kanban ticket, returning one path
+# prefix per line. Supports both the `[a, b]` inline list and a YAML list under
+# `files:` (with one path per `- ...` entry, up to the next non-list key).
+# Empty output means the ticket has no files: scope — caller decides what to do.
+list_ticket_file_prefixes() {
+  local ticket="${1:-}"
+  [[ -n "$ticket" && -f "$ticket" ]] || {
+    printf ''
+    return 0
+  }
+  awk '
+    function trim(s) { gsub(/^[ \t\r]+|[ \t\r]+$/, "", s); return s }
+    function emit(s,   v) {
+      v = trim(s)
+      sub(/^[[:space:]]*-[[:space:]]*/, "", v)
+      gsub(/^["\x27]|["\x27]$/, "", v)
+      v = trim(v)
+      if (v != "") print v
+    }
+    BEGIN { in_fm = 0; in_list = 0; seen_open = 0 }
+    /^---[[:space:]]*$/ {
+      if (seen_open) { in_fm = 0; in_list = 0 }
+      else { in_fm = 1; seen_open = 1 }
+      next
+    }
+    !in_fm { next }
+    /^[[:space:]]*$/ { next }
+    /^files:[[:space:]]*/ {
+      line = $0
+      sub(/^files:[[:space:]]*/, "", line)
+      # Empty / null marker / tilde still starts a list — continuation `- ...`
+      # lines that follow are the body of the entry.
+      in_list = 1
+      if (line == "" || line == "~" || line == "null") { next }
+      # Inline list form `files: [a, b]`
+      gsub(/[\[\]]/, "", line)
+      n = split(line, parts, ",")
+      for (i = 1; i <= n; i++) emit(parts[i])
+      next
+    }
+    in_list && /^[[:space:]]+-[[:space:]]*/ { emit($0); next }
+    in_list && /^[[:space:]]+[A-Za-z_]/ { in_list = 0 }
+    /^[A-Za-z_]/ { in_list = 0 }
+  ' "$ticket"
+}
+
+# True iff a relative `git status`-style path equals or sits under any of the
+# given prefixes (with a `/` boundary so `src` does not match `src2`).`.kanban/`
+# is always in scope in files mode regardless of prefix content.
+git_path_under_prefix() {
+  local path="$1"
+  shift
+  local p canon
+  case "$path" in
+  .kanban | .kanban/*) return 0 ;;
+  esac
+  for p in "$@"; do
+    # Strip any trailing slash before building the case pattern. The earlier
+    # `"$p"/*` form produced `"src/"/"*` (a double slash) for prefix `src/`,
+    # which never matched real paths like `src/foo.py` — only a literal
+    # `src//foo.py` would. `${p%/}` collapses trailing duplicates and yields
+    # the canonical form so the case pattern matches `src/foo.py` cleanly.
+    canon="${p%/}"
+    case "$path" in
+    "$canon" | "$canon"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# is_in_scope <path> — uses the scope prefixes stashed in files-mode $PREFIXES_FILE.
+git_status_in_scope() {
+  local path="$1"
+  local prefixes_file="${PREFIXES_FILE:-}"
+  local -a prefixes=()
+  if [[ -n "$prefixes_file" && -s "$prefixes_file" ]]; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && prefixes+=("$p")
+    done <"$prefixes_file"
+  fi
+  git_path_under_prefix "$path" "${prefixes[@]}"
+}
+
+# Populate $1 with newline-separated pathspec tokens for `git add` in files
+# mode: every prefix from the ticket, plus `.kanban/`. Fails (rc=1) when no
+# prefixes are available, signalling "ticket has no files: scope — caller
+# decides whether to skip or stop".
+build_files_mode_pathspec() {
+  local ticket="$1" out_file="$2"
+  : >"$out_file"
+  local prefixes
+  prefixes=$(list_ticket_file_prefixes "$ticket" 2>/dev/null || true)
+  if [[ -z "$prefixes" ]]; then
+    return 1
+  fi
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && printf '%s\n' "$p" >>"$out_file"
+  done <<<"$prefixes"
+  printf '%s\n' '.kanban/' >>"$out_file"
+  LC_ALL=C sort -u "$out_file" -o "$out_file"
+  # Strip any accidental blank lines that `sort -u` would have collapsed.
+  awk 'NF' "$out_file" >"$out_file.tmp" && mv "$out_file.tmp" "$out_file"
+  return 0
+}
+
+# Diff before/after snapshots of `git status`-style line lists and warn about
+# any path that became dirty during the worker but does NOT fall inside the
+# in-scope prefixes. Logs to ${LOG_FILE:-/dev/null} and stdout. Names each path.
+# Args: $1 before snapshot, $2 after snapshot, $3 prefixes file, $4 ticket label.
+checkpoint_out_of_scope_warning() {
+  local before_file="$1" after_file="$2" prefixes_file="$3" label="${4:-worker}"
+  [[ -s "$after_file" ]] || return 0
+  [[ -s "$prefixes_file" ]] || return 0
+  local -a prefixes=()
+  while IFS= read -r p; do [[ -n "$p" ]] && prefixes+=("$p"); done <"$prefixes_file"
+  [[ ${#prefixes[@]} -gt 0 ]] || return 0
+  local tmp
+  tmp=$(mktemp)
+  # Differences after ∖ before — paths the worker made dirty.
+  LC_ALL=C sort -u "$after_file" 2>/dev/null >"$tmp.after"
+  LC_ALL=C sort -u "$before_file" 2>/dev/null >"$tmp.before"
+  : >"$tmp.new"
+  if [[ -s "$tmp.after" ]]; then
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      if ! grep -Fxq -- "$path" "$tmp.before" 2>/dev/null; then
+        printf '%s\n' "$path"
+      fi
+    done <"$tmp.after" >"$tmp.after2"
+    while IFS= read -r path; do
+      [[ -n "$path" ]] || continue
+      if ! git_path_under_prefix "$path" "${prefixes[@]}"; then
+        printf '%s\n' "$path" >>"$tmp.new"
+      fi
+    done <"$tmp.after2"
+  fi
+  if [[ -s "$tmp.new" ]]; then
+    {
+      echo ""
+      echo "⚠️  $label: worker touched out-of-scope paths (NOT in this ticket's files: frontmatter, NOT staged):"
+      sed 's/^/    /' "$tmp.new"
+      echo "    Commit or ignore them by hand — they belong to a different scope."
+    } | tee -a "${LOG_FILE:-/dev/null}" >&2
+  fi
+  rm -f "$tmp" "$tmp.before" "$tmp.after" "$tmp.after2" "$tmp.new"
+}
+
+# files_mode_worker_note — sentence the driver appends to its worker prompt in
+# files mode so the worker scopes its own git-status cleanliness checks to the
+# ticket (avoiding the trap that previously made ralph sweep 31+ files from
+# other parallel sessions in ~/Documents/itastack).
+files_mode_worker_note() {
+  printf '%s' "Scope every git status cleanliness check, stage operation, and commit to this ticket's files: frontmatter prefixes (plus .kanban/). Out-of-scope changes belong to a different session — NEVER stage or commit them, even with git add -A."
+}
+
+# pick_next_target_for_warning — lightweight variant of the iteration's
+# target selection, used only to filter the startup pre-existing-changes
+# warning. Mirrors the iteration order: review-loop target via
+# select_actionable_review_target; active resume (head -1 of ACTIVE_ISSUES);
+# pending via `board next`. Echoes the chosen ticket path (or empty).
+pick_next_target_for_warning() {
+  : "${PICKW_REVIEW_LOOP:=${REVIEW_LOOP:-false}}"
+  : "${PICKW_BOARD_SH:=${BOARD_SH:-}}"
+  : "${PICKW_SPEC:=${SPEC:-}}"
+  : "${PICKW_ACTIVE_ISSUES:=${ACTIVE_ISSUES:-}}"
+  if [[ "$PICKW_REVIEW_LOOP" == "true" ]]; then
+    select_actionable_review_target 2>/dev/null || true
+    return 0
+  fi
+  if [[ -n "$PICKW_ACTIVE_ISSUES" ]]; then
+    printf '%s\n' "$PICKW_ACTIVE_ISSUES" | sed '/^$/d' | head -1
+    return 0
+  fi
+  if [[ -z "$PICKW_BOARD_SH" ]]; then
+    return 0
+  fi
+  "$PICKW_BOARD_SH" --board .kanban ${PICKW_SPEC:+--spec "$PICKW_SPEC"} next 2>/dev/null |
+    cut -f2 || true
+}
+
+# emit_pre_existing_dirty_warning — build the textual warning that the loop
+# prints at startup when the working tree has uncommitted changes outside
+# .pi-lens. Resolves scope via effective_checkpoint_scope (env > --flag > git
+# config > "all"), so a repo with `git config ralph.checkpointScope files`
+# triggers files-mode filtering even without RALPH_CHECKPOINT_SCOPE set.
+# In files mode with a known next target the in-scope paths are listed
+# individually (matching the ticket's files: prefixes plus .kanban/) and a
+# count of out-of-scope paths is reported; without a target only a count is
+# printed. In default ("all") scope the warning is unchanged.
+emit_pre_existing_dirty_warning() {
+  local status_text="$1" next_target="${2:-}"
+  local scope
+  scope=$(effective_checkpoint_scope)
+
+  if [[ "$scope" != "files" ]]; then
+    printf '%s\n' "⚠️  Working directory has pre-existing uncommitted changes"
+    printf '%s\n' "   Ralph will auto-commit all non-ignored changes except .pi-lens before launching each worker."
+    printf '\n'
+    if [[ -n "$status_text" ]]; then
+      printf '%s\n' "$status_text"
+    fi
+    return 0
+  fi
+
+  # Files mode header.
+  printf '%s\n' "⚠️  Working directory has pre-existing uncommitted changes"
+  printf '%s\n' "   In files mode Ralph will stage only the active ticket's files: frontmatter"
+  printf '%s\n' "   prefixes (plus .kanban/) before launching each worker. Out-of-scope paths"
+  printf '%s\n' "   belong to other sessions and are intentionally left alone."
+  printf '\n'
+
+  local total_count
+  total_count=$(printf '%s\n' "$status_text" | awk 'NF{c++} END{print c+0}')
+  if [[ -z "$next_target" || ! -f "$next_target" ]]; then
+    printf '%s\n' "   Out-of-scope path count: $total_count (no next-ticket target known yet — the loop will stop if files: frontmatter is also missing)"
+    return 0
+  fi
+
+  local prefixes_file
+  prefixes_file=$(mktemp)
+  if ! build_files_mode_pathspec "$next_target" "$prefixes_file" 2>/dev/null || [[ ! -s "$prefixes_file" ]]; then
+    rm -f "$prefixes_file"
+    printf '%s\n' "   Total dirty paths: $total_count (next ticket has no files: frontmatter; the loop will refuse to fall back to add -A)"
+    return 0
+  fi
+
+  # Read prefixes into an array, then walk status lines splitting per prefix.
+  local -a prefixes=()
+  local p
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && prefixes+=("$p")
+  done <"$prefixes_file"
+
+  local in_lines=() out_count_v=0 line path
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    path="${line:3}"
+    path="${path%% -> *}"
+    [[ -n "$path" ]] || continue
+    if git_path_under_prefix "$path" "${prefixes[@]}"; then
+      in_lines+=("$line")
+    else
+      out_count_v=$((out_count_v + 1))
+    fi
+  done <<<"$status_text"
+
+  if [[ ${#in_lines[@]} -gt 0 ]]; then
+    printf '%s\n' "   In-scope paths (will be checkpointed):"
+    printf '     %s\n' "${in_lines[@]}"
+  else
+    printf '%s\n' "   In-scope paths (will be checkpointed): (none)"
+  fi
+  printf '\n'
+  printf '%s\n' "   Out-of-scope path count (left for other sessions): $out_count_v"
+  rm -f "$prefixes_file"
+}
+
+# checkpoint_dirty_worktree <message> [target_ticket] [phase]
+#
+# Behavior:
+#   • Default scope "all": stages and commits everything outside .pi-lens
+#     (pre-files-mode behavior, unchanged).
+#   • Files scope "files": stages only the ticket's files: prefixes plus
+#     .kanban/. Stale-dirtiness check considers only in-scope paths so the
+#     loop does not stall on out-of-scope edits owned by other sessions.
+#   • If a target ticket cannot be identified OR has no files: frontmatter in
+#     files mode, the function REFUSES to fall back to `git add -A`:
+#        - phase=pre-worker: log and skip (return 0; do not halt the loop)
+#        - phase=post-issue : log and stop (return 1; caller breaks the loop)
+#     so a human can stage the boundary case deliberately.
+#
+# Globals consumed: CHECKPOINT_DIRTY (default true — bail if false),
+# CHECKPOINT_SCOPE_OVERRIDE / RALPH_CHECKPOINT_SCOPE / git config
+# ralph.checkpointScope (resolved via effective_checkpoint_scope),
+# LOG_FILE (logs append here; falls back to /dev/null).
+checkpoint_dirty_worktree() {
+  local message="${1:-chore(ralph): checkpoint worktree before worker}"
+  local target="${2:-}"
+  local phase="${3:-pre-worker}"
+
+  [[ "${CHECKPOINT_DIRTY:-true}" == "true" ]] || return 0
+  git rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  # Cache the resolved scope on the LOOP_SCRIPT-side helper too (the parent
+  # resolves it once at start; the child bash has its own CHECKPOINT_SCOPE var
+  # populated from INNER_ARGS).
+  local scope="${CHECKPOINT_SCOPE:-}"
+  if [[ -z "$scope" ]]; then
+    scope=$(resolve_checkpoint_scope)
+    CHECKPOINT_SCOPE="$scope"
+  fi
+
+  cleanup_ephemeral_artifacts || true
+  local status
+  status=$(git_status_ignoring_pi_lens)
+  [[ -n "$status" ]] || return 0
+
+  echo "" | tee -a "${LOG_FILE:-/dev/null}"
+  echo "💾 Checkpointing dirty worktree ($scope scope): $message" | tee -a "${LOG_FILE:-/dev/null}"
+  git_status_short_ignoring_pi_lens | tee -a "${LOG_FILE:-/dev/null}"
+
+  if [[ "$scope" == "files" ]]; then
+    if [[ -z "$target" || ! -f "$target" ]]; then
+      if [[ "$phase" == "post-issue" ]]; then
+        echo "❌ Files-scope checkpoint: cannot determine target ticket; refusing to fall back to add -A. Stopping the loop so a human can stage deliberately." | tee -a "${LOG_FILE:-/dev/null}" >&2
+        return 1
+      fi
+      echo "⚠️  Files-scope pre-worker checkpoint: no target ticket identified; skipping (worktree left as-is for the worker to see)." | tee -a "${LOG_FILE:-/dev/null}"
+      return 0
+    fi
+    local prefixes_file
+    prefixes_file=$(mktemp)
+    if ! build_files_mode_pathspec "$target" "$prefixes_file" || [[ ! -s "$prefixes_file" ]]; then
+      rm -f "$prefixes_file"
+      if [[ "$phase" == "post-issue" ]]; then
+        echo "❌ Files-scope checkpoint: ticket $(basename "$target") has no files: frontmatter; refusing to fall back to add -A. Stopping the loop so a human can stage deliberately." | tee -a "${LOG_FILE:-/dev/null}" >&2
+        return 1
+      fi
+      echo "⚠️  Files-scope pre-worker checkpoint: ticket $(basename "$target") has no files: frontmatter; skipping." | tee -a "${LOG_FILE:-/dev/null}"
+      return 0
+    fi
+    # Stage only the in-scope paths. Bash array expansion with `"${arr[@]}"`
+    # handles whitespace/globs/literal `-`/`+` correctly without `%q` — using
+    # %q would embed literal quote characters into the path, so a prefix with
+    # a space or `[...]` would be added as a malformed literal path.
+    local -a pathspec=()
+    local line
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      pathspec+=("$line")
+    done <"$prefixes_file"
+    git add -- "${pathspec[@]}" 2>>"${LOG_FILE:-/dev/null}"
+    if git diff --cached --quiet; then
+      echo "⚠️  Files-scope checkpoint: in-scope paths had nothing stageable" | tee -a "${LOG_FILE:-/dev/null}"
+      git_status_short_ignoring_pi_lens | tee -a "${LOG_FILE:-/dev/null}"
+      rm -f "$prefixes_file"
+      return 1
+    fi
+    if ! git commit -m "$message" 2>&1 | tee -a "${LOG_FILE:-/dev/null}"; then
+      echo "⚠️  Files-scope checkpoint: failed to commit" | tee -a "${LOG_FILE:-/dev/null}"
+      rm -f "$prefixes_file"
+      return 1
+    fi
+    rm -f "$prefixes_file"
+  else
+    git add -A -- . ':(exclude).pi-lens' ':(exclude).sessions'
+    if git diff --cached --quiet; then
+      echo "⚠️  Dirty worktree had nothing stageable" | tee -a "${LOG_FILE:-/dev/null}"
+      git_status_short_ignoring_pi_lens | tee -a "${LOG_FILE:-/dev/null}"
+      return 1
+    fi
+    if ! git commit -m "$message" 2>&1 | tee -a "${LOG_FILE:-/dev/null}"; then
+      echo "⚠️  Failed to create pre-worker checkpoint commit" | tee -a "${LOG_FILE:-/dev/null}"
+      return 1
+    fi
+  fi
+
+  cleanup_ephemeral_artifacts || true
+  status=$(git_status_ignoring_pi_lens)
+  # In files mode, only in-scope dirt fails the loop; out-of-scope dirt is
+  # logged as a reminder but does not block (a shared working tree is the
+  # whole point of the mode).
+  if [[ "$scope" == "files" && -n "$target" && -f "$target" ]]; then
+    local prefixes_file2
+    prefixes_file2=$(mktemp)
+    if build_files_mode_pathspec "$target" "$prefixes_file2" && [[ -s "$prefixes_file2" ]]; then
+      local -a prefixes=()
+      while IFS= read -r p; do [[ -n "$p" ]] && prefixes+=("$p"); done <"$prefixes_file2"
+      local line path in_scope_dirt=""
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        path="${line:3}"
+        path="${path%% -> *}"
+        [[ -n "$path" ]] || continue
+        if git_path_under_prefix "$path" "${prefixes[@]}"; then
+          in_scope_dirt+="$line"$'\n'
+        fi
+      done <<<"$status"
+      if [[ -n "$in_scope_dirt" ]]; then
+        echo "⚠️  Worktree still dirty after checkpoint commit (in-scope)" | tee -a "${LOG_FILE:-/dev/null}"
+        printf '%s\n' "$in_scope_dirt" | tee -a "${LOG_FILE:-/dev/null}"
+        rm -f "$prefixes_file2"
+        return 1
+      fi
+      local out_of_scope_dirt=""
+      while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        path="${line:3}"
+        path="${path%% -> *}"
+        [[ -n "$path" ]] || continue
+        if ! git_path_under_prefix "$path" "${prefixes[@]}"; then
+          out_of_scope_dirt+="$line"$'\n'
+        fi
+      done <<<"$status"
+      if [[ -n "$out_of_scope_dirt" ]]; then
+        echo "ℹ️  Worktree still has out-of-scope paths after commit (shared tree)" | tee -a "${LOG_FILE:-/dev/null}"
+        printf '%s\n' "$out_of_scope_dirt" | tee -a "${LOG_FILE:-/dev/null}"
+      fi
+      rm -f "$prefixes_file2"
+    fi
+  elif [[ -n "$status" ]]; then
+    echo "⚠️  Worktree still dirty after checkpoint commit" | tee -a "${LOG_FILE:-/dev/null}"
+    git_status_short_ignoring_pi_lens | tee -a "${LOG_FILE:-/dev/null}"
+    return 1
+  fi
+
+  echo "✅ Worktree clean after checkpoint commit" | tee -a "${LOG_FILE:-/dev/null}"
+  return 0
+}
+
+# When sourced (e.g. by tests/test-checkpoint-scope.sh) the helper definitions
+# above are the only thing wanted; skip the cli side effects below. When
+# invoked directly we fall through into the cli body.
+if [[ "${BASH_SOURCE[0]:-}" != "${0}" ]]; then
+  return 0
+fi
 
 usage() {
   cat <<EOF
@@ -73,6 +621,7 @@ OPTIONS:
   --spec SLUG           Only pick up tickets whose frontmatter has spec: SLUG (default: RALPH_SPEC, else all)
   --lsp-check-cmd CMD   Optional command that must pass after each worker before DONE/PASS is accepted
   --no-checkpoint-dirty Do not auto-commit dirty worktree before each worker or after each issue
+  --checkpoint-scope M  Override git config ralph.checkpointScope (all|files). Default 'all'; 'files' scopes commits to the ticket's files: prefixes (+ .kanban/) — needed for shared working trees
   --socket PATH         Private tmux socket path (implies --private-tmux)
   --private-tmux        Use Ralph's private tmux socket instead of default tmux
   --normal-tmux         Use the default tmux server (default)
@@ -161,6 +710,21 @@ while [[ $# -gt 0 ]]; do
   --no-checkpoint-dirty)
     CHECKPOINT_DIRTY=false
     shift
+    ;;
+  --checkpoint-scope)
+    if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+      echo "❌ Error: --checkpoint-scope requires a value (all|files)" >&2
+      exit 1
+    fi
+    case "$2" in
+    all | files) ;;
+    *)
+      echo "❌ Error: --checkpoint-scope value must be 'all' or 'files', got '$2'" >&2
+      exit 1
+      ;;
+    esac
+    CHECKPOINT_SCOPE_OVERRIDE="$2"
+    shift 2
     ;;
   --socket)
     if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
@@ -325,10 +889,21 @@ if [[ ! -f .kanban/progress.md ]]; then
 fi
 
 if [[ "$FORCE_MODE" != "true" ]] && git rev-parse --git-dir >/dev/null 2>&1 && [[ -n "$(git status --porcelain -- . ':(exclude).pi-lens' ':(exclude).sessions')" ]]; then
-  echo "⚠️  Working directory has pre-existing uncommitted changes" >&2
-  echo "   Ralph will auto-commit all non-ignored changes except .pi-lens before launching each worker." >&2
-  echo "" >&2
-  git status --short -- . ':(exclude).pi-lens' ':(exclude).sessions' >&2
+  # In files mode the pre-existing-changes warning must consider only in-scope
+  # paths of the soon-to-be-picked ticket; otherwise a shared working tree
+  # (e.g. ~/Documents/itastack) emits the warning for every out-of-scope edit
+  # even though those will not be touched by the checkpoint or the worker.
+  # The helper reads RALPH_CHECKPOINT_SCOPE / --checkpoint-scope / git config
+  # ralph.checkpointScope via effective_checkpoint_scope and filters the
+  # printed paths to in-scope (showing out-of-scope as a count); with no
+  # known target it prints only a count so the user still sees how many
+  # out-of-scope items exist. We capture with `-uall` so the individual file
+  # entries appear (plain `--porcelain` would collapse each untracked dir to a
+  # single `?? dir/` line, masking the real files the worker touched).
+  status_text=$(git status --porcelain -uall -- . ':(exclude).pi-lens' ':(exclude).sessions')
+  next_target=""
+  next_target=$(ACTIVE_ISSUES="" SPEC="$SPEC" BOARD_SH="$BOARD_SH" REVIEW_LOOP="$REVIEW_LOOP" pick_next_target_for_warning 2>/dev/null || true)
+  emit_pre_existing_dirty_warning "$status_text" "$next_target" >&2
   echo "" >&2
 fi
 
@@ -351,6 +926,11 @@ fi
 
 LOOP_SCRIPT="$HOME/.cache/ralph-loop-$SESSION_NAME.sh"
 
+# Resolve checkpoint scope once for the parent (this process) so the startup
+# banner can print it and the warning above can reference it. The same value
+# is forwarded to LOOP_SCRIPT via $28 below.
+CHECKPOINT_SCOPE=$(effective_checkpoint_scope)
+
 if [[ "$REVIEW_LOOP" == "true" ]]; then
   SHARED_PROMPT_REMINDER='Run Ralph actionable review loop for exactly one issue in this repository. Read the Ralph skill at ~/.agents/skills/ralph/SKILL.md and follow it. Operate only on the explicit review target path provided by the loop. Selection order has already been applied by the loop. This is an UNATTENDED background loop with no operator present: never call ask_user_question or any interactive approval prompt, because nothing can answer it and the loop stalls until timeout. Operator approval for service-affecting actions (installing, enabling, or restarting systemd units, building, running migrations, restarting daemons) is granted in advance, so proceed without asking. Reserve BLOCKED for work that is genuinely impossible, never for actions that merely need confirmation. For verification steps that would emit an out…
 Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an issue id, or FAIL with an optional issue id. In review-loop mode, BLOCKED is a valid terminal outcome when the target remains blocked after an attempted fix.
@@ -361,10 +941,23 @@ Valid final statuses are DONE with an issue id, NO_WORK, BLOCKED with an optiona
 The final line must start with RALPH_RESULT followed by colon and one space.'
 fi
 
-cat >"$LOOP_SCRIPT" <<'LOOP_EOF'
-#!/bin/bash
-set -euo pipefail
+# Write the LOOP_SCRIPT that the tmux session executes. Two pieces:
+#   1. Header (unquoted heredoc) — `#!/bin/bash`, `set -euo pipefail`, then a
+#      $(declare -f ...) dump of the testable helpers defined at the top of this
+#      file. That makes the same implementations available to this child bash
+#      without copy-pasting them into the heredoc body.
+#   2. Body (quoted heredoc) — the inner script unchanged in spirit; it calls
+#      the helpers from the header.
+{
+  echo '#!/bin/bash'
+  echo 'set -euo pipefail'
+  echo "# --- helpers sourced via declare -f (see top of $(basename "$0")) ---"
+  declare -f "${RALPH_HELPERS[@]}"
+  echo "# --- end helpers ---"
+  echo ""
+} >"$LOOP_SCRIPT"
 
+cat >>"$LOOP_SCRIPT" <<'LOOP_EOF'
 ADAPTER="$1"
 PROJECT_DIR="$2"
 SESSION_NAME="$3"
@@ -392,6 +985,10 @@ USE_IMPLEMENT_SKILL="${24:-false}"
 BOARD_SH="${25:?board.sh path missing}"
 SPEC="${26:-}"
 READY_LABEL="${27:-ready-for-agent}"
+# Files-scope = per-repo opt-in (git config ralph.checkpointScope files) or
+# RALPH_CHECKPOINT_SCOPE env (also --checkpoint-scope on the cli). Default "all"
+# keeps the pre-files-mode behavior everywhere a repo hasn't opted in.
+CHECKPOINT_SCOPE="${28:-all}"
 LOG_FILE="$HOME/.cache/ralph-loop-$SESSION_NAME.log"
 FAIL_STATE="$HOME/.cache/ralph-fails-$SESSION_NAME"
 LOOP_EXIT_CODE=0
@@ -419,65 +1016,14 @@ tmux_display() {
 
 TMUX_DISPLAY="$(tmux_display)"
 
-cleanup_ephemeral_artifacts() {
-  local removed=false
-  local paths=(
-    ".playwright-sessions"
-    "test-results"
-    "playwright-report"
-    ".pytest_cache"
-    ".ruff_cache"
-    ".mypy_cache"
-    "htmlcov"
-  )
-
-  for path in "${paths[@]}"; do
-    [[ -e "$path" ]] || continue
-    if git rev-parse --git-dir >/dev/null 2>&1 && [[ -z "$(git ls-files -- "$path")" ]]; then
-      rm -rf -- "$path"
-      echo "🧹 Removed untracked ephemeral artifact: $path" | tee -a "$LOG_FILE"
-      removed=true
-    fi
-  done
-
-  [[ "$removed" == "true" ]]
-}
-
-git_status_ignoring_pi_lens() {
-  git status --porcelain -- . ':(exclude).pi-lens' ':(exclude).sessions' | LC_ALL=C sort || true
-}
-
-git_status_short_ignoring_pi_lens() {
-  git status --short -- . ':(exclude).pi-lens' ':(exclude).sessions' || true
-}
-
-normalize_issue_id() {
-  local id="${1#\#}"
-  # Keep IDs verbatim (e.g. zero-padded "022", alphanumeric "023a"); only map
-  # empty to "0". Stripping leading zeros previously broke file-id lookups like
-  # grep "^id: <id>$" against zero-padded kanban issue files.
-  id=$(printf '%s' "$id" | sed 's/^$/0/')
-  printf '%s' "$id"
-}
-
-issue_id_for_file() {
-  sed -n 's/^id:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
-}
-
-issue_status_for_file() {
-  sed -n 's/^status:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs
-}
-
-issue_priority_for_file() {
-  local priority
-  priority=$(sed -n 's/^priority:[[:space:]]*//p' "$1" | head -1 | tr -d '\r' | xargs)
-  [[ "$priority" =~ ^[0-9]+$ ]] || priority=999
-  printf '%s' "$priority"
-}
-
-has_valid_action_reviewed() {
-  grep -Eq '^action_reviewed:[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$' "$1"
-}
+# The functions git_status_ignoring_pi_lens, git_status_short_ignoring_pi_lens,
+# cleanup_ephemeral_artifacts, normalize_issue_id, issue_id_for_file,
+# issue_status_for_file, issue_priority_for_file, has_valid_action_reviewed,
+# and the files-mode helpers (build_files_mode_pathspec, etc.) plus
+# checkpoint_dirty_worktree are defined at the top of this script so tests can
+# source them. They are made available inside this LOOP_SCRIPT body via the
+# (declare -f ...) dump that the parent writes into the file's header — see
+# LOOP_SCRIPT construction in the cli body below. Do not redefine them here.
 
 review_issue_attempted() {
   local id
@@ -871,43 +1417,9 @@ run_lsp_check_gate() {
   fi
 }
 
-checkpoint_dirty_worktree() {
-  local status message
-  message="${1:-chore(ralph): checkpoint worktree before worker}"
-
-  [[ "$CHECKPOINT_DIRTY" == "true" ]] || return 0
-  git rev-parse --git-dir >/dev/null 2>&1 || return 0
-
-  cleanup_ephemeral_artifacts || true
-  status=$(git_status_ignoring_pi_lens)
-  [[ -n "$status" ]] || return 0
-
-  echo "" | tee -a "$LOG_FILE"
-  echo "💾 Checkpointing dirty worktree: $message" | tee -a "$LOG_FILE"
-  git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
-
-  git add -A -- . ':(exclude).pi-lens' ':(exclude).sessions'
-  if git diff --cached --quiet; then
-    echo "⚠️  Dirty worktree had nothing stageable" | tee -a "$LOG_FILE"
-    git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
-    return 1
-  fi
-
-  if ! git commit -m "$message" 2>&1 | tee -a "$LOG_FILE"; then
-    echo "⚠️  Failed to create pre-worker checkpoint commit" | tee -a "$LOG_FILE"
-    return 1
-  fi
-
-  cleanup_ephemeral_artifacts || true
-  status=$(git_status_ignoring_pi_lens)
-  if [[ -n "$status" ]]; then
-    echo "⚠️  Worktree still dirty after checkpoint commit" | tee -a "$LOG_FILE"
-    git_status_short_ignoring_pi_lens | tee -a "$LOG_FILE"
-    return 1
-  fi
-
-  echo "✅ Worktree clean after checkpoint commit" | tee -a "$LOG_FILE"
-}
+# checkpoint_dirty_worktree is defined at the top of this script (testable
+# seam). Inside this LOOP_SCRIPT it is made available via declare -f dump in the
+# file's header (see cli body construction).
 
 # Extract a cleanly-runnable shell command from an issue's `## Verification`
 # section, or print nothing. "Cleanly runnable" means the section is composed
@@ -1030,6 +1542,7 @@ reset_active_issues_to_pending() {
   echo "Tmux: $TMUX_DISPLAY"
   echo "Model: $RALPH_MODEL"
   echo "Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
+  echo "Checkpoint scope: $CHECKPOINT_SCOPE${CHECKPOINT_SCOPE_OVERRIDE:+ (cli override; resolved: $CHECKPOINT_SCOPE)}"
   if [[ -n "$LSP_CHECK_CMD" ]]; then
     echo "LSP check command: $LSP_CHECK_CMD"
   fi
@@ -1180,45 +1693,48 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
 
   CURRENT_REVIEW_TARGET=""
   CURRENT_REVIEW_TARGET_ID=""
-  if [[ "$REVIEW_LOOP" == "true" ]]; then
-    CURRENT_REVIEW_TARGET=$(select_actionable_review_target || true)
-    if [[ -z "$CURRENT_REVIEW_TARGET" ]]; then
+  CURRENT_TARGET=""
+  CURRENT_TARGET_ID=""
+  CURRENT_TARGET_FILE=""
+  # Pick the next target ticket BEFORE the snapshot+checkpoint so files mode
+  # can scope its git-add to the ticket's `files:` frontmatter (the previous
+  # ordering picked AFTER the checkpoint, which meant the pre-worker step
+  # always skipped in files mode when there was no active resume).
+  selected_target=$(
+    PICKW_REVIEW_LOOP="$REVIEW_LOOP" \
+    PICKW_BOARD_SH="$BOARD_SH" \
+    PICKW_SPEC="$SPEC" \
+    PICKW_ACTIVE_ISSUES="$ACTIVE_ISSUES" \
+    pick_next_target_for_warning
+  )
+  if [[ -z "$selected_target" ]]; then
+    if [[ "$REVIEW_LOOP" == "true" ]]; then
       echo "" | tee -a "$LOG_FILE"
       echo "✅ No actionable review targets found" | tee -a "$LOG_FILE"
       echo "Ralph review loop complete!" | tee -a "$LOG_FILE"
       break
     fi
-    CURRENT_REVIEW_TARGET_ID=$(issue_id_for_file "$CURRENT_REVIEW_TARGET")
-    echo "🎯 Review target: $CURRENT_REVIEW_TARGET" | tee -a "$LOG_FILE"
-  fi
-
-  if ! checkpoint_dirty_worktree; then
-    echo "Stopping loop" | tee -a "$LOG_FILE"
+    echo "✅ No eligible ticket to select" | tee -a "$LOG_FILE"
     break
   fi
 
-  # Normal mode: the driver, not the worker, picks the ticket, so a human-only or
-  # untriaged ticket can never be selected just because another one is ready.
-  # Active tickets (in-progress/review) are resumed by the worker as before.
-  AGENT_PROMPT="$BASE_AGENT_PROMPT"
-  if [[ "$REVIEW_LOOP" != "true" && $ACTIVE_COUNT -gt 0 ]]; then
+  CURRENT_TARGET="$selected_target"
+  CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
+  CURRENT_TARGET_FILE="$CURRENT_TARGET"
+
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    CURRENT_REVIEW_TARGET="$CURRENT_TARGET"
+    CURRENT_REVIEW_TARGET_ID="$CURRENT_TARGET_ID"
+    echo "🎯 Review target: $CURRENT_TARGET" | tee -a "$LOG_FILE"
+  elif [[ $ACTIVE_COUNT -gt 0 ]]; then
     # Resume an in-scope active ticket, and say which one: left to itself the worker
     # would scan the whole board and could pick up a ticket outside --spec.
-    CURRENT_TARGET=$(printf '%s\n' "$ACTIVE_ISSUES" | sed '/^$/d' | head -1)
-    CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
     echo "🔁 Resuming active ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
-    AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); it was already started, so resume it. Do not pick a different ticket."
-  fi
-  if [[ "$REVIEW_LOOP" != "true" && $ACTIVE_COUNT -eq 0 ]]; then
-    CURRENT_TARGET=$(board next | cut -f2 || true)
-    if [[ -z "$CURRENT_TARGET" ]]; then
-      echo "✅ No eligible ticket to select" | tee -a "$LOG_FILE"
-      break
-    fi
-    CURRENT_TARGET_ID=$(issue_id_for_file "$CURRENT_TARGET")
-    # A ticket that names a spec we cannot read (missing file, unsafe slug) is blocked, not
-    # worked: the worker would get no spec, which is the drift this guards against. This is
-    # the --jobs 1 twin of gralph refusing the lane (spec_missing / spec_invalid).
+  else
+    # Pending via board next. A ticket that names a spec we cannot read (missing
+    # file, unsafe slug) is blocked, not worked: the worker would get no spec,
+    # which is the drift this guards against. This is the --jobs 1 twin of
+    # gralph refusing the lane (spec_missing / spec_invalid).
     SPEC_VERDICT=$(board spec-check "$CURRENT_TARGET_ID" 2>/dev/null || true)
     if [[ "$SPEC_VERDICT" == "missing" || "$SPEC_VERDICT" == "invalid" ]]; then
       spec_named=$(sed -n 's/^spec:[[:space:]]*//p' "$CURRENT_TARGET" | head -1 | tr -d '\r')
@@ -1235,11 +1751,42 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
       continue
     fi
     echo "🎯 Selected ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
+  fi
+
+  # Snapshot dirty paths BEFORE the checkpoint commits any of them so the
+  # post-worker warning can tell which paths the worker itself made dirty
+  # (versus pre-existing work owned by other sessions in a shared tree).
+  # Use the recursing variant so a worker that wrote one file under an
+  # untracked directory is reported as that file, not the bare dir entry.
+  PRE_WORKER_STATUS_FILE=$(mktemp)
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    git_status_snap_recursive >"$PRE_WORKER_STATUS_FILE" 2>/dev/null || true
+  else
+    : >"$PRE_WORKER_STATUS_FILE"
+  fi
+
+  if ! checkpoint_dirty_worktree "chore(ralph): checkpoint worktree before worker" "$CURRENT_TARGET_FILE" pre-worker; then
+    echo "Stopping loop" | tee -a "$LOG_FILE"
+    rm -f "$PRE_WORKER_STATUS_FILE"
+    break
+  fi
+
+  AGENT_PROMPT="$BASE_AGENT_PROMPT"
+  if [[ "$REVIEW_LOOP" == "true" ]]; then
+    AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $CURRENT_TARGET (issue #$CURRENT_TARGET_ID). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
+  elif [[ $ACTIVE_COUNT -gt 0 ]]; then
+    echo "🔁 Resuming active ticket: $CURRENT_TARGET (#$CURRENT_TARGET_ID)" | tee -a "$LOG_FILE"
+    AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); it was already started, so resume it. Do not pick a different ticket."
+  else
     AGENT_PROMPT="$BASE_AGENT_PROMPT Operate only on ticket $CURRENT_TARGET (issue #$CURRENT_TARGET_ID); the loop already selected it. Do not pick a different ticket."
   fi
 
-  if [[ "$REVIEW_LOOP" == "true" ]]; then
-    AGENT_PROMPT="Run Ralph actionable review loop for exactly one issue in this repository. Operate only on review target $CURRENT_REVIEW_TARGET (issue #$CURRENT_REVIEW_TARGET_ID). Follow the Ralph Actionable Review Loop protocol. You may edit, test, and commit fixes when review finds gaps or blockers. Stop after this one target. Print the required RALPH_RESULT sentinel."
+  # In files mode the worker must scope its own git-status cleanliness checks
+  # and stage operations to the ticket (otherwise the very commit we just
+  # avoided comes back through the worker). Driver appends a sentence so the
+  # worker DOES NOT `git add -A` later in the same shared tree.
+  if [[ "${CHECKPOINT_SCOPE:-all}" == "files" && -n "${CURRENT_TARGET_FILE:-}" && -f "${CURRENT_TARGET_FILE:-}" ]]; then
+    AGENT_PROMPT="$AGENT_PROMPT $(files_mode_worker_note)"
   fi
 
   RALPH_OUTPUT=$(mktemp)
@@ -1271,6 +1818,21 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   if git rev-parse --git-dir >/dev/null 2>&1; then
     cleanup_ephemeral_artifacts || true
     POST_RALPH_STATUS=$(git_status_ignoring_pi_lens)
+    POST_RALPH_STATUS_FILE=$(mktemp)
+    # Use the recursing variant for the warning snapshot (same rationale as
+    # PRE_WORKER_STATUS_FILE above) so the warning names the file the worker
+    # touched, not the bare directory entry that plain `git status` collapses to.
+    git_status_snap_recursive >"$POST_RALPH_STATUS_FILE" 2>/dev/null || true
+    # Files-mode diagnostics: surface paths the worker dirtied that are
+    # outside the ticket's in-scope prefixes. Naming them keeps a writer that
+    # ignored its prompt visible — a silent miss is the failure mode.
+    if [[ "${CHECKPOINT_SCOPE:-all}" == "files" && -n "${CURRENT_TARGET_FILE:-}" && -f "${CURRENT_TARGET_FILE:-}" ]]; then
+      PREFIXES_FILE=$(mktemp)
+      if build_files_mode_pathspec "$CURRENT_TARGET_FILE" "$PREFIXES_FILE" 2>/dev/null && [[ -s "$PREFIXES_FILE" ]]; then
+        checkpoint_out_of_scope_warning "$PRE_WORKER_STATUS_FILE" "$POST_RALPH_STATUS_FILE" "$PREFIXES_FILE" "iteration #$ITERATION" || true
+      fi
+      rm -f "$PREFIXES_FILE"
+    fi
     if [[ $LAST_EXIT_CODE -eq 0 && -n "$POST_RALPH_STATUS" ]]; then
       if [[ "$CHECKPOINT_DIRTY" == "true" ]]; then
         echo "" | tee -a "$LOG_FILE"
@@ -1281,7 +1843,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
         else
           POST_ISSUE_MSG="chore(ralph): post-issue commit"
         fi
-        if ! checkpoint_dirty_worktree "$POST_ISSUE_MSG"; then
+        if ! checkpoint_dirty_worktree "$POST_ISSUE_MSG" "${CURRENT_TARGET_FILE:-}" "post-issue"; then
           echo "Stopping loop" | tee -a "$LOG_FILE"
           LAST_EXIT_CODE=1
         fi
@@ -1293,7 +1855,9 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
         LAST_EXIT_CODE=1
       fi
     fi
+    rm -f "$POST_RALPH_STATUS_FILE"
   fi
+  rm -f "$PRE_WORKER_STATUS_FILE" 2>/dev/null || true
 
   # Driver verification gate: a DONE sentinel is not trusted on faith. Re-run the
   # issue's cleanly-runnable ## Verification command; pass → ensure done, fail →
@@ -1419,7 +1983,7 @@ for arg in "$ADAPTER" "$PROJECT_DIR" "$SESSION_NAME" "$CONTINUE_ON_ERROR" \
   "$USE_NORMAL_TMUX" "$SHARED_PROMPT_REMINDER" "$RALPH_MODEL" "$CHECKPOINT_DIRTY" "$REVIEW_LOOP" "$LSP_CHECK_CMD" \
   "$UNATTENDED" "$MAX_ISSUE_FAILS" "$AGENT_CMD_EXPLICIT" "$SKIP_BLOCKED" \
   "$IMPLEMENT_SKILL_DIR" "$USE_IMPLEMENT_SKILL" \
-  "$BOARD_SH" "$SPEC" "$READY_LABEL"; do
+  "$BOARD_SH" "$SPEC" "$READY_LABEL" "$CHECKPOINT_SCOPE"; do
   printf -v arg_q '%q' "$arg"
   INNER_ARGS+=("$arg_q")
 done
@@ -1439,6 +2003,7 @@ echo "  Iteration timeout: ${ITERATION_TIMEOUT}s"
 echo "  Tmux: $TMUX_DISPLAY"
 echo "  Model: $RALPH_MODEL"
 echo "  Checkpoint dirty worktree: $CHECKPOINT_DIRTY"
+echo "  Checkpoint scope: $CHECKPOINT_SCOPE${CHECKPOINT_SCOPE_OVERRIDE:+ (cli override)}"
 if [[ -n "$LSP_CHECK_CMD" ]]; then
   echo "  LSP check command: $LSP_CHECK_CMD"
 fi

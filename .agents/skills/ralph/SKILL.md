@@ -120,6 +120,9 @@ Worker-level behavior after launch:
 - Do **not** create another pre-worker checkpoint commit. The loop already did that before launching the worker.
 - Ignore `.pi-lens/` entirely. Use `git status --porcelain -- . ':(exclude).pi-lens'` for cleanliness checks.
 - If filtered `git status` is dirty before implementation, clean known ephemeral artifacts and stop with `RALPH_RESULT: FAIL #<id>` if anything remains.
+- In files mode the worker receives a scope reminder from the driver in its prompt (see **1b**); limit your own `git status` cleanliness checks, `git add` operations, and the post-issue commit to the ticket's `files:` frontmatter prefixes plus `.kanban/`. Never run `git add -A` in a shared tree — it will sweep another session's work into your checkpoint.
+
+In a shared working tree where many parallel agents work in one checkout (for example `~/Documents/itastack`), see **1b. Scoped checkpoint mode (shared working trees)** below — that mode overrides the default "commit everything" with a per-ticket scope, so a ralph run never sweeps another agent's work into a `chore(ralph): ...` commit.
 
 ### 1a. Ephemeral artifact cleanup
 
@@ -141,6 +144,24 @@ Rules:
 - If one of these artifacts appears before a checkpoint or after a worker, clean it and continue.
 - Ignore `.pi-lens/` entirely, whether tracked, untracked, or dirty.
 - If unknown untracked non-ignored files outside `.pi-lens/` appear before a worker, include them in the checkpoint commit.
+
+### 1b. Scoped checkpoint mode (shared working trees)
+
+Default scope is `all` (every non-`.pi-lens` change gets swept into the pre/post-worker checkpoint). For repos whose working tree is shared across multiple agents or runs — the 2026-10-15 `itastack` incident committed 31+ files from sibling sessions in one `chore(ralph): checkpoint worktree before worker` — opt into a per-ticket scope:
+
+```bash
+git config ralph.checkpointScope files            # per repo
+RALPH_CHECKPOINT_SCOPE=files tralph ...           # one-shot override
+tralph --checkpoint-scope files ...               # one-shot via cli
+```
+
+In files mode the pre-worker and post-issue checkpoints:
+
+- Stage only paths inside the active ticket's `files:` frontmatter prefixes plus `.kanban/`. A ticket with no `files:` frontmatter makes the pre-worker checkpoint SKIP (do not fall back to `git add -A`) and makes the post-issue checkpoint STOP the loop so a human can stage deliberately. Names are listed in the section **1. Process → 3. Implement** of every ticket that names its scope.
+- Treat out-of-scope dirt as owned by another session: leave it unstaged, log a `Worktree still has out-of-scope paths after commit (shared tree)` note, and continue. The "worktree clean after commit" check no longer fails on it.
+- Diff a `git status --porcelain -uall` snapshot before and after the worker; any path that became dirty in that window and is NOT under the in-scope prefixes gets named in an out-of-scope warning so a worker that touched the wrong path is visible instead of silently lost.
+
+How the worker learns its scope: in files mode the driver appends a sentence to every worker prompt telling it to limit git-status cleanliness checks, `git add` operations, and post-worker commits to the ticket's `files:` prefixes plus `.kanban/`. Workers never run `git add -A` in shared trees.
 
 ### 2. Stale lock recovery
 
@@ -199,6 +220,7 @@ Actionable review rules:
 - Ignore `.pi-lens/` entirely for cleanliness gates.
 - Use `git status --porcelain -- . ':(exclude).pi-lens'` for before/after status checks.
 - Stage only files related to the issue/review fix, except loop-level checkpoint commits.
+- In files mode (see **1b**) the worker is told to limit git operations to the review target's `files:` frontmatter prefixes plus `.kanban/`; never run `git add -A` in a shared tree.
 - Run the issue verification command after fixes. If auditing `done`, rerun verification before adding `action_reviewed: YYYY-MM-DD`.
 - Check critical LSP diagnostics for files touched by the issue. Fix real type/call/signature/import errors before DONE/PASS; document environment-only missing-import noise if it is outside the issue's control. If `--lsp-check-cmd` / `RALPH_LSP_CHECK_CMD` is configured, that command must pass after the worker.
 - Record what was checked/fixed in `.kanban/progress.md`.
