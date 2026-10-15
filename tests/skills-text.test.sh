@@ -5,19 +5,24 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SK="$ROOT/.agents/skills"
-PASS=0; FAILN=0
+PASS=0
+FAILN=0
 ok() { PASS=$((PASS + 1)); }
-fail() { FAILN=$((FAILN + 1)); echo "FAIL: $1" >&2; if [ -n "${2-}" ]; then echo "  $2" >&2; fi; }
+fail() {
+  FAILN=$((FAILN + 1))
+  echo "FAIL: $1" >&2
+  if [ -n "${2-}" ]; then echo "  $2" >&2; fi
+}
 
 SH="$SK/tralph-shepherd/SKILL.md"
 
 # Every command that (re)launches the loop or tralph must carry $SPEC_ARGS.
 while IFS= read -r line; do
   case "$line" in
-    *'$SPEC_ARGS'*) ok ;;
-    *) fail "shepherd launch command is unscoped" "$line" ;;
+  *'$SPEC_ARGS'*) ok ;;
+  *) fail "shepherd launch command is unscoped" "$line" ;;
   esac
-done < <(grep -nE 'ralph-loop\.sh [^$]*tmux|tralph --jobs' "$SH" | grep -E 'zsh -lic|proj=' )
+done < <(grep -nE 'ralph-loop\.sh [^$]*tmux|tralph --jobs' "$SH" | grep -E 'zsh -lic|proj=')
 n="$(grep -cE 'zsh -lic .*(ralph-loop\.sh|tralph)' "$SH")"
 [ "$n" -ge 3 ] && ok || fail "expected >=3 shepherd launch commands, found $n"
 
