@@ -341,6 +341,8 @@ grep -q 'Integration.*command.*bash.*tests/integration.sh' "$PI_LOG"
 grep -q 'Run.*manifest.*.gralph/runs/42/manifest.json' "$PI_LOG"
 grep -q 'run.*integration.*suite' "$PI_LOG"
 grep -q 'Immediately.*before.*closing.*parent' "$PI_LOG"
+# finish-spec's architecture step asks the user to pick a candidate; headless finish skips it
+grep -q 'skip.*architecture.*step' "$PI_LOG"
 grep -q 'freshly.*fetch.*origin/.*default_branch' "$PI_LOG"
 grep -q 'exact.*HEAD.*origin/.*default_branch' "$PI_LOG"
 jq -e '.orchestration.finish.status == "completed" and .orchestration.finish.prNumber == 7 and .orchestration.finish.piExitCode == 0' "$REPO/.gralph/runs/42/manifest.json" >/dev/null

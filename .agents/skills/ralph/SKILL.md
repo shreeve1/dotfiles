@@ -44,12 +44,13 @@ driver itself re-runs the issue's cleanly-runnable `## Verification` command
 fail → override `done→blocked` and append a `## Blocker` note naming the failing
 command; prose verification → the worker's DONE stands (no script to run).
 
-This is **one worker per issue**. The review layer is the fresh-session reviewer
-the worker itself spawns per Ralph protocol §4 (this SKILL, below) — a separate
-process that re-derives from the repo and emits `RALPH_REVIEW: PASS|PASS_WITH_NOTES|FAIL`.
+This is **one worker per issue**. The review layer is the independent review
+the worker itself runs per Ralph protocol §4 (this SKILL, below): fresh `pi -p`
+reviewers that re-derive from the repo, one fix round, and a re-review only for a
+high-severity finding.
 The driver verification gate is a deterministic backstop on top of that review
-for cleanly-runnable verifications: the worker's `DONE` already passed the
-fresh-session reviewer, and now it also has to pass a script the driver runs.
+for cleanly-runnable verifications: the worker's `DONE` already passed its
+review, and now it also has to pass a script the driver runs.
 The driver commits any status flip immediately so the worktree-merge finalizer
 sees it.
 
@@ -85,7 +86,7 @@ RALPH_RESULT: BLOCKED #<id>
 RALPH_RESULT: FAIL #<id>
 ```
 
-Reviewer sessions print exactly one review sentinel line:
+Reviewer sessions (see [references/review.md](references/review.md)) print exactly one review sentinel line:
 
 ```text
 RALPH_REVIEW: PASS
@@ -293,15 +294,9 @@ For the selected issue:
 
 1. **Set status to review** — update the issue file to `status: review`.
 2. **Commit that status change** — stage only the current issue file (and `.kanban/progress.md` if touched), then `git commit -m "review(#ID): brief description"`. The worktree should already be clean except for current issue changes.
-3. **Spawn a fresh review agent session** — the reviewer must NOT inherit the implementer's context. Give the reviewer this contract:
+3. **Review, fix, clean up** — follow [references/review.md](references/review.md). The review record is the issue file.
 
-   ```text
-   You are a read-only issue reviewer. Do not modify files.
-
-   Review issue #<ID> in .kanban/issues/.
-   Read the issue file, then diff the IMPLEMENTATION against the base commit and read every changed file.
-
-   Determine the diff base (do NOT use `git diff HEAD~1` — the status:review commit sits on top of the implementation, so HEAD~1 shows only the status flip):
+   The diff base is the implementation base, never `HEAD~1`: the status:review commit sits on top of the implementation, so `HEAD~1` shows only the status flip.
    - If the loop provided an "Implementation base commit" SHA, use it: `git diff <BASE_SHA> HEAD`.
    - Otherwise compute it from the issue's own commits:
      ```bash
@@ -309,43 +304,12 @@ For the selected issue:
      git diff "${FIRST}^" HEAD
      ```
 
-   Verify:
-   1. Every acceptance criterion checkbox is objectively satisfied.
-   2. The verification command from the issue's ## Verification section passes (exit code 0). If it fails only because a bare runner resolved the wrong interpreter (e.g. `ModuleNotFoundError` from a system Python that lacks project deps), that is an environment/command defect, not a code defect: report it as a verification-command fix, do not FAIL the implementation on it.
-   3. Lint and typecheck pass.
-   4. Critical LSP diagnostics in touched files are fixed, especially type/call/signature/import errors. Environment-only missing-import noise must be explicitly identified, not silently ignored.
-   5. No unrelated changes leaked into the implementation diff (the pre-worker checkpoint should have made the starting tree clean).
-   6. Scope matches the issue — no scope creep.
-   7. If the issue has a `spec:` field, read `.kanban/specs/<spec>.md` and check the diff does not contradict a decision recorded there or build anything under its Out of Scope. Report a contradiction as a finding even when every acceptance criterion is met: a ticket can pass its own criteria and still drift from the spec.
-
-   Output reasoning per criterion, then exactly one final line:
-   RALPH_REVIEW: PASS
-   RALPH_REVIEW: PASS_WITH_NOTES
-   RALPH_REVIEW: FAIL
-
-   ```
-
-   The reviewer reads `.kanban/issues/<file>`, diffs the implementation against the base commit (per the diff-base rules above, not `HEAD~1`), re-reads every changed file, and runs the verification command. It does not see anything from the implementer's session. If the adapter cannot enforce read-only mode, check `git status --porcelain -- . ':(exclude).pi-lens'` before and after review and fail if the reviewer changed files outside `.pi-lens/`.
-
-   Concrete spawn examples:
-
-   ```bash
-   # pi non-interactive reviewer (always pin the model; pi's default is not DeepSeek)
-   pi --no-extensions --no-session --model "${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}" -p "$(cat reviewer-prompt.txt)"
-
-   # Generic interactive reviewer
-   tmux new-session -d -s ralph-review-<ID> "cd '$PWD' && exec pi --no-extensions --model '${RALPH_MODEL:-cliproxy/deepseek-v4.1-flash}'"
-   tmux send-keys -t ralph-review-<ID>:0.0 -l "$(tr '\n' ' ' < reviewer-prompt.txt)"
-   tmux send-keys -t ralph-review-<ID>:0.0 Enter
-   ```
-
-   Use whichever local agent CLI is available. The required invariant is fresh context plus the `RALPH_REVIEW` sentinel. With pi, always pass `--model` as above: without it the reviewer runs on pi's configured default model instead of the loop's DeepSeek model.
+   Reviewers are independent: each is a fresh `pi -p` process that re-derives from the repo and does not inherit your context, and the Gaps reviewer runs on a different model family from yours. The reviewer contract in `review.md` checks each acceptance criterion, the `## Verification` command, lint/typecheck, critical LSP diagnostics, scope, unrelated changes, and that the diff does not contradict the ticket's spec.
 
 **Review outcomes:**
 
-- PASS → `status: done`, check all boxes, write progress
-- PASS WITH NOTES → `status: done`, but log notes for future reference
-- FAIL → `status: blocked`, add `## Blocker` section explaining what failed. Do NOT retry in this session; the user invokes Ralph again after addressing the blocker.
+- No re-review needed, or the re-review upheld nothing → `status: done`, check all boxes, write progress. Medium and low findings, fixed or rejected, are logged in the `## Review` section and never block.
+- The re-review upheld a high-severity finding → `status: blocked`, add a `## Blocker` section with the upheld findings and the re-reviewer's evidence, and print `RALPH_RESULT: BLOCKED #<id>`. Do NOT retry in this session; the next Ralph pass or the shepherd picks it up from the `## Blocker`.
 
 ### 5. Mark done + write progress
 

@@ -272,4 +272,20 @@ fi
   echo "FAIL: rules sentence should appear exactly once in the prompt" >&2
   exit 1
 }
+# The worker prompt points the lane worker at the ticket-review procedure (independent
+# reviewers, one fix round, cleanup), the path exists, and it names the lane progress note
+# as the review record, since lane workers may not write .kanban/.
+review_path="$(grep -oE '[^ ]*ralph/references/review\.md' "$PROMPT_LOG" | head -1 || true)"
+if [ -z "$review_path" ] || [ ! -f "$review_path" ]; then
+  echo "FAIL: worker prompt does not point at an existing ralph/references/review.md (got: ${review_path:-none})" >&2
+  exit 1
+fi
+grep -q 'ralph/references/review\.md.*\.ralph-progress-' "$PROMPT_LOG" || {
+  echo "FAIL: worker prompt does not name the lane progress note as the review record" >&2
+  exit 1
+}
+grep -qiE 'BLOCKED.*upheld|upheld.*BLOCKED' "$PROMPT_LOG" || {
+  echo "FAIL: worker prompt does not say an upheld high finding means BLOCKED" >&2
+  exit 1
+}
 printf '%s\n' 'tralph-lane-worker tests passed'
