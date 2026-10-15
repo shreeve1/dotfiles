@@ -72,6 +72,26 @@ Generated Mermaid code should:
 5. Include styling when needed to improve visual appearance
 6. Always be accompanied by a self-contained HTML version (see below)
 
+## Rendering in the pi terminal
+
+Pi and other terminal agents draw ```mermaid blocks as Unicode box art from the source — no browser, no image. The art is shown only when it fits the message pane; wider or unsupported diagrams fall back to showing the raw mermaid source, which reads as "the diagram did not render."
+
+Two hard limits govern every block you emit:
+
+- **Type**: only `graph`/`flowchart`, `sequenceDiagram`, `stateDiagram(-v2)`, `classDiagram` and `erDiagram` draw in the terminal. Every other kind (mindmap, gantt, timeline, pie, gitgraph, quadrant, C4, sankey, xy,kanban, block, packet, architecture, radar, treemap, user journey, zenuml) shows raw source.
+- **Width**: the widest row of the drawing must be under the message-pane width. Target at most ~70 columns, which means at most 2-3 labeled boxes side by side, and short action labels on sequence messages.
+
+Fit rules:
+
+- Prefer `flowchart TD` (top-down) for processes; LR chains of more than ~4 nodes overflow the pane.
+- Keep labels to a few short words. Every extra word widens the box and the whole row.
+- Never use `<br/>` inside labels — terminal rendering does not break the line, it just makes the label enormously wide.
+- Keep syntax clean: a stray `]` or unterminated quote in a label drops the whole render.
+- Split any diagram that would be wider than ~70 columns into several small ```mermaid blocks, one per branch or stage.
+- Put prose in bullets and paragraphs under the diagram, never inside nodes.
+
+The HTML file still renders the full-fidelity, multi-color diagram in a browser for shared use; the rules above govern only the chat copy.
+
 ## HTML Output
 
 In addition to the ```mermaid code block, always produce a self-contained, styled HTML file that renders the same diagram. Wrap it in an ```html code block. Use the Mermaid CDN with strict security (no `securityLevel: loose`). The template centers each diagram in a card, uses a clean system font, and adapts to light/dark mode (switching the Mermaid theme accordingly). Replace the diagram body inside the mermaid `<pre>` block with the generated Mermaid code, and update the `<title>`, `<h1>`, and caption text to match the diagram:
