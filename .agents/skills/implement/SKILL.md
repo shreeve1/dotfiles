@@ -10,6 +10,8 @@ Before you build, ground your reading of the spec/tickets in the actual code: th
 
 Use /tdd where possible, at pre-agreed seams.
 
+While writing the change, follow [references/worker-rules.md](references/worker-rules.md): prove it works, tests that can fail, root causes, smallest diff, no speculative code.
+
 Run typechecking regularly, single test files regularly, and the full test suite once at the end.
 
 Once done, use /code-review to review the work.
