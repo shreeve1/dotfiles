@@ -37,22 +37,22 @@
 set -euo pipefail
 
 # --- config (override via env or flags) ---
-ENGINE="${RPIV_ENGINE:-pi}"                   # claude | pi
-MODEL="${RPIV_MODEL:-}"                        # engine-specific; empty = default
-                                               #   claude: opus, sonnet
-                                               #   pi: provider/id pattern, e.g. anthropic/claude-opus-4
-PROVIDER="${RPIV_PROVIDER:-}"                  # pi only; empty = pi default provider
+ENGINE="${RPIV_ENGINE:-pi}" # claude | pi
+MODEL="${RPIV_MODEL:-}"     # engine-specific; empty = default
+#   claude: opus, sonnet
+#   pi: provider/id pattern, e.g. anthropic/claude-opus-4
+PROVIDER="${RPIV_PROVIDER:-}" # pi only; empty = pi default provider
 BRANCH_PREFIX="${RPIV_BRANCH_PREFIX:-rpiv}"
-STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-5400}"          # seconds per step (90m)
+STEP_TIMEOUT="${RPIV_STEP_TIMEOUT:-5400}"            # seconds per step (90m)
 IMPLEMENT_TIMEOUT="${RPIV_IMPLEMENT_TIMEOUT:-10800}" # seconds for implement (3h)
-READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"          # seconds to wait for engine TUI
+READY_TIMEOUT="${RPIV_READY_TIMEOUT:-60}"            # seconds to wait for engine TUI
 # Idle-UI marker; engine-specific default is set after flag parsing (see below).
 # claude: bypassPermissions always shows "bypass permissions on".
 # pi: the footer context meter "<n>%/<n>k" only renders once the TUI is live.
 # Override via RPIV_READY_PATTERN if a TUI footer changes.
 READY_PATTERN="${RPIV_READY_PATTERN:-}"
-FROM_STEP="${RPIV_FROM_STEP:-}"               # resume from this step (research|design|plan|implement|validate|code-review|commit)
-UNGATED="${RPIV_UNGATED:-0}"                  # 1 = commit even when validation/review gate fails
+FROM_STEP="${RPIV_FROM_STEP:-}" # resume from this step (research|design|plan|implement|validate|code-review|commit)
+UNGATED="${RPIV_UNGATED:-0}"    # 1 = commit even when validation/review gate fails
 
 usage() {
   cat <<'EOF'
@@ -89,26 +89,51 @@ EOF
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    -y|--yes)   ;;  # accepted for backward compat; no-op (runs are always unattended)
-    --engine)   ENGINE="$2"; shift ;;
-    --model)    MODEL="$2"; shift ;;
-    --provider) PROVIDER="$2"; shift ;;
-    --from)     FROM_STEP="$2"; shift ;;
-    --ungated|--commit-on-review-fail) UNGATED=1 ;;
-    -h|--help)  usage; exit 0 ;;
-    *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
+  -y | --yes) ;; # accepted for backward compat; no-op (runs are always unattended)
+  --engine)
+    ENGINE="$2"
+    shift
+    ;;
+  --model)
+    MODEL="$2"
+    shift
+    ;;
+  --provider)
+    PROVIDER="$2"
+    shift
+    ;;
+  --from)
+    FROM_STEP="$2"
+    shift
+    ;;
+  --ungated | --commit-on-review-fail) UNGATED=1 ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "unknown arg: $1" >&2
+    usage >&2
+    exit 2
+    ;;
   esac
   shift
 done
 
 case "$ENGINE" in
-  claude|pi) ;;
-  *) echo "error: --engine must be 'claude' or 'pi' (got: $ENGINE)" >&2; exit 2 ;;
+claude | pi) ;;
+*)
+  echo "error: --engine must be 'claude' or 'pi' (got: $ENGINE)" >&2
+  exit 2
+  ;;
 esac
 
 case "$FROM_STEP" in
-  ""|research|design|plan|implement|validate|code-review|commit) ;;
-  *) echo "error: --from must be one of: research design plan implement validate code-review commit (got: $FROM_STEP)" >&2; exit 2 ;;
+"" | research | design | plan | implement | validate | code-review | commit) ;;
+*)
+  echo "error: --from must be one of: research design plan implement validate code-review commit (got: $FROM_STEP)" >&2
+  exit 2
+  ;;
 esac
 
 frontmatter_value() {
@@ -161,8 +186,8 @@ review_critical_count() {
   n="$(printf '%s\n' "$sev" | sed -nE 's/.*critical:[[:space:]]*([0-9]+).*/\1/p' | head -1)"
   [ -n "$n" ] || n="$(frontmatter_number critical "$rv" || true)"
   case "$n" in
-    ''|*[!0-9]*) return 1 ;;
-    *) printf '%s\n' "$n" ;;
+  '' | *[!0-9]*) return 1 ;;
+  *) printf '%s\n' "$n" ;;
   esac
 }
 
@@ -170,8 +195,8 @@ review_blockers_count() {
   local rv="$1" n
   n="$(frontmatter_number blockers_count "$rv" || true)"
   case "$n" in
-    ''|*[!0-9]*) return 1 ;;
-    *) printf '%s\n' "$n" ;;
+  '' | *[!0-9]*) return 1 ;;
+  *) printf '%s\n' "$n" ;;
   esac
 }
 
@@ -241,14 +266,23 @@ fi
 # Engine-specific idle-UI readiness marker (unless overridden via RPIV_READY_PATTERN).
 if [ -z "$READY_PATTERN" ]; then
   case "$ENGINE" in
-    claude) READY_PATTERN='bypass permissions on|shift\+tab to cycle' ;;
-    pi)     READY_PATTERN='[0-9.]+%/[0-9.]+[kMG]' ;;
+  claude) READY_PATTERN='bypass permissions on|shift\+tab to cycle' ;;
+  pi) READY_PATTERN='[0-9.]+%/[0-9.]+[kMG]' ;;
   esac
 fi
 
-command -v "$ENGINE" >/dev/null 2>&1 || { echo "error: $ENGINE CLI not on PATH" >&2; exit 1; }
-command -v tmux   >/dev/null 2>&1 || { echo "error: tmux not on PATH" >&2; exit 1; }
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repo" >&2; exit 1; }
+command -v "$ENGINE" >/dev/null 2>&1 || {
+  echo "error: $ENGINE CLI not on PATH" >&2
+  exit 1
+}
+command -v tmux >/dev/null 2>&1 || {
+  echo "error: tmux not on PATH" >&2
+  exit 1
+}
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "error: not in a git repo" >&2
+  exit 1
+}
 
 # Newest *.md in a dir (used for the pre-existing FRD).
 newest() { ls -t "$1"/*.md 2>/dev/null | head -1; }
@@ -269,9 +303,15 @@ newest_since() {
 resolve_default_branch() {
   local d
   d="$(git symbolic-ref --short -q refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
-  if [ -n "$d" ]; then printf '%s' "$d"; return; fi
+  if [ -n "$d" ]; then
+    printf '%s' "$d"
+    return
+  fi
   for d in main master; do
-    if git rev-parse --verify --quiet "$d" >/dev/null; then printf '%s' "$d"; return; fi
+    if git rev-parse --verify --quiet "$d" >/dev/null; then
+      printf '%s' "$d"
+      return
+    fi
   done
   git rev-parse --short HEAD
 }
@@ -286,7 +326,8 @@ resolve_base() {
     ts="${ref#"$BRANCH_PREFIX"/}"
     pb="$(cat ".rpiv/run/$ts/.base" 2>/dev/null || true)"
     [ -n "$pb" ] || break
-    ref="$pb"; guard=$((guard + 1))
+    ref="$pb"
+    guard=$((guard + 1))
   done
   case "$ref" in "$BRANCH_PREFIX"/*) ref="$(resolve_default_branch)" ;; esac
   git rev-parse --verify --quiet "$ref" >/dev/null || ref="$(resolve_default_branch)"
@@ -294,7 +335,10 @@ resolve_base() {
 }
 
 FRD="$(newest .rpiv/artifacts/discover || true)"
-[ -n "${FRD:-}" ] || { echo "error: no FRD in .rpiv/artifacts/discover/ — run /discover first" >&2; exit 1; }
+[ -n "${FRD:-}" ] || {
+  echo "error: no FRD in .rpiv/artifacts/discover/ — run /discover first" >&2
+  exit 1
+}
 
 TS="${RPIV_TS:-$(date +%Y%m%d-%H%M%S)}"
 BRANCH="${BRANCH_PREFIX}/${TS}"
@@ -319,17 +363,22 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
   if [ -n "$FROM_STEP" ]; then
     # Resume mode: reuse the CURRENT branch, no fresh checkout.
     BRANCH="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
-    [ -n "$BRANCH" ] || { echo "error: --from requires being on a branch (HEAD is detached)" >&2; exit 1; }
+    [ -n "$BRANCH" ] || {
+      echo "error: --from requires being on a branch (HEAD is detached)" >&2
+      exit 1
+    }
   else
     if git rev-parse --verify --quiet "refs/heads/$BRANCH" >/dev/null; then
-      echo "error: branch $BRANCH already exists" >&2; exit 1
+      echo "error: branch $BRANCH already exists" >&2
+      exit 1
     fi
   fi
   # The branch is not created until the detached pass, so a second launch in the
   # same wall-clock second would share TS/BRANCH/run dir. Reject it here:
   # the run dir is the earliest per-run artifact the foreground pass writes.
   if [ -e "$LOGDIR" ]; then
-    echo "error: run dir $LOGDIR already exists (concurrent launch in the same second?)" >&2; exit 1
+    echo "error: run dir $LOGDIR already exists (concurrent launch in the same second?)" >&2
+    exit 1
   fi
 
   mkdir -p "$LOGDIR"
@@ -338,8 +387,8 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
   # Keep run logs out of the autonomous /commit sweep (local, per-repo, untracked).
   GITDIR="$(git rev-parse --git-dir)"
   mkdir -p "$GITDIR/info"
-  grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null \
-    || printf '%s\n' '.rpiv/run/' >> "$GITDIR/info/exclude"
+  grep -qxF '.rpiv/run/' "$GITDIR/info/exclude" 2>/dev/null ||
+    printf '%s\n' '.rpiv/run/' >>"$GITDIR/info/exclude"
 
   if [ -n "$FROM_STEP" ]; then
     # Resume mode: inherit the prior run's fork point so .base keeps naming the
@@ -350,16 +399,16 @@ if [ -z "${RPIV_DETACHED:-}" ]; then
     ORIG_TS="${BRANCH#${BRANCH_PREFIX}/}"
     BASE_REF="$(cat ".rpiv/run/$ORIG_TS/.base" 2>/dev/null || true)"
     [ -n "$BASE_REF" ] || BASE_REF="$(resolve_base "$BRANCH")"
-    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"
+    printf '%s\n' "$BASE_REF" >"$LOGDIR/.base"
   else
     # Fork point. If HEAD is a prior rralph branch, resolve back to its real base
     # (default branch) so runs don't stack. Recorded in .base for rpiv-merge and
     # used as the explicit start point of `git checkout -b` in the detached pass.
     CUR_REF="$(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
     BASE_REF="$(resolve_base "$CUR_REF")"
-    [ "$BASE_REF" != "$CUR_REF" ] && \
+    [ "$BASE_REF" != "$CUR_REF" ] &&
       echo "note: HEAD ($CUR_REF) is a prior rralph branch — forking this run from '$BASE_REF' so runs don't stack." >&2
-    printf '%s\n' "$BASE_REF" > "$LOGDIR/.base"   # base ref, for rpiv-merge + detached checkout
+    printf '%s\n' "$BASE_REF" >"$LOGDIR/.base" # base ref, for rpiv-merge + detached checkout
   fi
 
   PROVIDER_NOTE=""
@@ -479,7 +528,8 @@ REACHED=1
 
 gate() {
   # gate <step-name> <message> [timeout] — runs the step or skips it.
-  local name="$1"; shift
+  local name="$1"
+  shift
   if [ -z "$REACHED" ]; then
     if [ "$name" = "$FROM_STEP" ]; then
       REACHED=1
@@ -507,7 +557,8 @@ run_skill() {
   local nonce="$(date +%s)$RANDOM"
   local marker="RPIV_DONE_${nonce}"
   local log="$LOGDIR/${name}.log"
-  local msgfile; msgfile="$(mktemp "${TMPDIR:-/tmp}/rpiv-msg-XXXXXX")"
+  local msgfile
+  msgfile="$(mktemp "${TMPDIR:-/tmp}/rpiv-msg-XXXXXX")"
 
   # Split-token instruction: the concatenated marker NEVER appears in this
   # string (only "RPIV_DONE_" and the digits, separated), so the send-keys
@@ -520,17 +571,19 @@ run_skill() {
   # cannot break the command line sent via send-keys.
   local sys_q=${sys//\'/\'\\\'\'}
 
-  echo; echo "===== $name ====="
+  echo
+  echo "===== $name ====="
   CUR_SESSION="$session"
 
   # Step panes need deep scrollback (we capture full pane history into the log).
   # history-limit only applies to panes created while it is set, so bump the
   # global, create the session, then restore the prior global in the same tmux
   # invocation — the new pane keeps 100k, the user's other sessions are untouched.
-  local prev_hist; prev_hist="$(tmux show-options -gv history-limit 2>/dev/null || echo 2000)"
+  local prev_hist
+  prev_hist="$(tmux show-options -gv history-limit 2>/dev/null || echo 2000)"
   tmux set-option -g history-limit 100000 \; \
-       new-session -d -s "$session" -c "$PWD" -n "$name" \; \
-       set-option -g history-limit "$prev_hist"
+    new-session -d -s "$session" -c "$PWD" -n "$name" \; \
+    set-option -g history-limit "$prev_hist"
 
   # Build the engine launch command. claude uses bypassPermissions to suppress
   # per-tool prompts; pi has no permission system (omit). The autonomy +
@@ -539,10 +592,10 @@ run_skill() {
   if [ "$ENGINE" = pi ]; then
     cmd="pi"
     [ -n "$PROVIDER" ] && cmd="$cmd --provider $PROVIDER"
-    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+    [ -n "$MODEL" ] && cmd="$cmd --model $MODEL"
   else
     cmd="claude --permission-mode bypassPermissions"
-    [ -n "$MODEL" ]    && cmd="$cmd --model $MODEL"
+    [ -n "$MODEL" ] && cmd="$cmd --model $MODEL"
   fi
   cmd="$cmd --append-system-prompt '$sys_q'"
   tmux send-keys -t "$session":0.0 -- "$cmd" Enter
@@ -556,27 +609,31 @@ run_skill() {
   # before pasting. The old 2-frame stability check was too fragile
   # against async messages (agent notices, LSP status, update prompts).
   local i ready= prev= pane=
-  for ((i=0; i<READY_TIMEOUT; i++)); do
+  for ((i = 0; i < READY_TIMEOUT; i++)); do
     pane="$(tmux capture-pane -p -t "$session":0.0 2>/dev/null || true)"
     if printf '%s' "$pane" | grep -qiE "$READY_PATTERN"; then
       if [ "$ENGINE" = pi ]; then
         sleep 2
-        ready=1; break
+        ready=1
+        break
       else
-        ready=1; break
+        ready=1
+        break
       fi
     fi
-    prev="$pane"; sleep 1
+    prev="$pane"
+    sleep 1
   done
   if [ -z "$ready" ]; then
-    tmux capture-pane -p -t "$session":0.0 > "$log" 2>/dev/null || true
+    tmux capture-pane -p -t "$session":0.0 >"$log" 2>/dev/null || true
     echo "error: $ENGINE TUI not ready after ${READY_TIMEOUT}s (step $name). Pane saved to $log." >&2
-    rm -f "$msgfile"; return 1
+    rm -f "$msgfile"
+    return 1
   fi
 
   # Paste the bare slash command (no quoting risk). Settle briefly so any
   # slash/path autocomplete popup closes before Enter submits the line.
-  printf '%s' "$message" > "$msgfile"
+  printf '%s' "$message" >"$msgfile"
   tmux load-buffer -b rpiv "$msgfile"
   tmux paste-buffer -b rpiv -t "$session":0.0
   sleep 1
@@ -592,11 +649,12 @@ run_skill() {
   # `tail -f "$log"`), not only at completion — this removes the "no log =
   # stuck" ambiguity. capture-pane is read-only and cannot corrupt the pane.
   local done= snap= prev_snap= stable_cnt=0 echo_sent= widget_answered=
-  for ((i=0; i<timeout; i++)); do
+  for ((i = 0; i < timeout; i++)); do
     snap="$(tmux capture-pane -p -J -S - -t "$session":0.0 2>/dev/null || true)"
     # Path 1: direct marker match
     if printf '%s\n' "$snap" | grep -qE "^[[:space:]]*${marker}([[:space:]]|$)"; then
-      done=1; break
+      done=1
+      break
     fi
     # Path 2: fallback — pane stable at prompt -> send marker via shell echo
     if [ -z "$echo_sent" ] && [ -n "$prev_snap" ] && [ "$snap" = "$prev_snap" ]; then
@@ -615,11 +673,11 @@ run_skill() {
           n=0
           while IFS= read -r wline; do
             n=$((n + 1))
-          done <<< "$(printf '%s\n' "$snap" | grep -E '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]')"
+          done <<<"$(printf '%s\n' "$snap" | grep -E '^[[:space:]]*❯?[[:space:]]*[0-9]+\.[[:space:]]+\[[[:space:]]*\]')"
           if [ "$n" -gt 0 ]; then
-            for ((j=0; j<n; j++)); do
+            for ((j = 0; j < n; j++)); do
               tmux send-keys -t "$session":0.0 Space
-              [ "$j" -lt "$((n-1))" ] && tmux send-keys -t "$session":0.0 Down
+              [ "$j" -lt "$((n - 1))" ] && tmux send-keys -t "$session":0.0 Down
             done
             tmux send-keys -t "$session":0.0 Down Enter
           fi
@@ -633,11 +691,11 @@ run_skill() {
       widget_answered=
     fi
     prev_snap="$snap"
-    (( i % 5 == 0 )) && printf '%s\n' "$snap" > "$log"
+    ((i % 5 == 0)) && printf '%s\n' "$snap" >"$log"
     sleep 1
   done
 
-  tmux capture-pane -p -J -S - -t "$session":0.0 > "$log" 2>/dev/null || true
+  tmux capture-pane -p -J -S - -t "$session":0.0 >"$log" 2>/dev/null || true
   tmux kill-session -t "$session" 2>/dev/null || true
   CUR_SESSION=""
   rm -f "$msgfile"
@@ -651,7 +709,10 @@ run_skill() {
 
 require_artifact() {
   local path="$1" type="$2"
-  [ -n "$path" ] || { echo "error: $type produced no artifact this run; halting." >&2; exit 1; }
+  [ -n "$path" ] || {
+    echo "error: $type produced no artifact this run; halting." >&2
+    exit 1
+  }
 }
 
 # Final verdict block (lands in driver.log via the tee above). Surface the
@@ -705,15 +766,18 @@ run_summary() {
 gate sweep-frd "/gap-sweep $FRD frd" || exit 1
 
 gate research "/research $FRD" || exit 1
-RESEARCH="$(artifact_of .rpiv/artifacts/research)"; require_artifact "$RESEARCH" research
+RESEARCH="$(artifact_of .rpiv/artifacts/research)"
+require_artifact "$RESEARCH" research
 gate sweep-research "/gap-sweep $RESEARCH research" || exit 1
 
 gate design "/design $RESEARCH" || exit 1
-DESIGN="$(artifact_of .rpiv/artifacts/designs)"; require_artifact "$DESIGN" design
+DESIGN="$(artifact_of .rpiv/artifacts/designs)"
+require_artifact "$DESIGN" design
 gate sweep-design "/gap-sweep $DESIGN design" || exit 1
 
 gate plan "/plan $DESIGN" || exit 1
-PLAN="$(artifact_of .rpiv/artifacts/plans)"; require_artifact "$PLAN" plan
+PLAN="$(artifact_of .rpiv/artifacts/plans)"
+require_artifact "$PLAN" plan
 gate sweep-plan "/gap-sweep $PLAN plan" || exit 1
 
 gate implement "/implement $PLAN" "$IMPLEMENT_TIMEOUT" || exit 1

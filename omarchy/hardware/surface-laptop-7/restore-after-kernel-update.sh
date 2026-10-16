@@ -14,7 +14,10 @@ HEADER_PKGVER=$(pacman -Q linux-omarchy-headers 2>/dev/null | awk '{print $2}')
 EXPECTED_KREL="${PKGVER}-omarchy"
 
 say() { printf '\n==> %s\n' "$*"; }
-die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '\nERROR: %s\n' "$*" >&2
+  exit 1
+}
 
 [[ $EUID -eq 0 ]] || die "run with sudo: sudo $0"
 [[ $KREL == "$EXPECTED_KREL" ]] ||

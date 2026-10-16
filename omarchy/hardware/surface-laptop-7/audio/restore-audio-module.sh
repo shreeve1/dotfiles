@@ -17,7 +17,10 @@
 set -euo pipefail
 
 say() { printf '==> %s\n' "$*"; }
-die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
 
 [[ $EUID -eq 0 ]] || die "run as root: sudo bash $0"
 
@@ -65,7 +68,7 @@ for page in 1 2 3; do
   [[ $(jq 'length' "$commits_json") -gt 0 ]] || break
 
   while IFS=$'\t' read -r sha commit_date; do
-    (( commit_date <= BUILD_DATE )) || continue
+    ((commit_date <= BUILD_DATE)) || continue
     candidate="$BUILD/recipe/PKGBUILD.$sha"
     curl -4 -fsSL --retry 3 --max-time 60 \
       "$OMARCHY_RAW/$sha/pkgbuilds/linux-omarchy/PKGBUILD" -o "$candidate" || continue
@@ -89,14 +92,14 @@ curl -4 -fsSL --retry 3 --max-time 60 \
   -o "$BUILD/files.json" || die "stable tag v$KVER is unavailable"
 
 jq -r '.[] | select(.type == "file") | [.download_url, .name] | @tsv' "$BUILD/files.json" |
-while IFS=$'\t' read -r url name; do
-  curl -4 -fsSL --retry 3 --max-time 60 "$url" -o "$BUILD/sound/soc/sdw_utils/$name"
-done
+  while IFS=$'\t' read -r url name; do
+    curl -4 -fsSL --retry 3 --max-time 60 "$url" -o "$BUILD/sound/soc/sdw_utils/$name"
+  done
 
 cd "$BUILD"
 git init -q
 git add sound
- git -c user.name=sl7-build -c user.email=sl7-build@localhost commit -qm stable-base
+git -c user.name=sl7-build -c user.email=sl7-build@localhost commit -qm stable-base
 
 # Apply all 05xx audio/media patches from the exact package recipe that touch
 # sdw_utils. This tracks Omarchy's backports without hard-coding patch names.

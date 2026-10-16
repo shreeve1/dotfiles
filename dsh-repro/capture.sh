@@ -67,8 +67,8 @@ fi
 # Re-template cordis.patch.yml.tmpl from the new cordis.patch.yml.
 if [ -f "$PROFILE_DST/cordis.patch.yml" ]; then
   sed -e 's|100\.95\.230\.15|__LISTEN_IP__|g' \
-      -e 's|/home/james|__HOME__|g' \
-      "$PROFILE_DST/cordis.patch.yml" > "$PROFILE_DST/cordis.patch.yml.tmpl"
+    -e 's|/home/james|__HOME__|g' \
+    "$PROFILE_DST/cordis.patch.yml" >"$PROFILE_DST/cordis.patch.yml.tmpl"
   echo "[capture] regenerated cordis.patch.yml.tmpl"
 fi
 

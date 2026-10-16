@@ -16,17 +16,35 @@ DRY_RUN=0
 REMOVE_PILOT=0
 
 case "${1:-}" in
-  "") ;;
-  --dry-run) DRY_RUN=1 ;;
-  --remove-pilot) REMOVE_PILOT=1 ;;
-  *) echo "usage: $0 [--dry-run|--remove-pilot]" >&2; exit 2 ;;
+"") ;;
+--dry-run) DRY_RUN=1 ;;
+--remove-pilot) REMOVE_PILOT=1 ;;
+*)
+  echo "usage: $0 [--dry-run|--remove-pilot]" >&2
+  exit 2
+  ;;
 esac
-[ "$#" -le 1 ] || { echo "usage: $0 [--dry-run|--remove-pilot]" >&2; exit 2; }
+[ "$#" -le 1 ] || {
+  echo "usage: $0 [--dry-run|--remove-pilot]" >&2
+  exit 2
+}
 
-command -v dsh >/dev/null 2>&1 || { echo "dsh is not installed" >&2; exit 1; }
-command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
-[ -f "$PROFILE_DIR/package.json" ] || { echo "missing dsh profile: $PROFILE_DIR" >&2; exit 1; }
-[ -x "$ENGLISH_PATCH" ] || { echo "missing English patch helper: $ENGLISH_PATCH" >&2; exit 1; }
+command -v dsh >/dev/null 2>&1 || {
+  echo "dsh is not installed" >&2
+  exit 1
+}
+command -v python3 >/dev/null 2>&1 || {
+  echo "python3 is required" >&2
+  exit 1
+}
+[ -f "$PROFILE_DIR/package.json" ] || {
+  echo "missing dsh profile: $PROFILE_DIR" >&2
+  exit 1
+}
+[ -x "$ENGLISH_PATCH" ] || {
+  echo "missing English patch helper: $ENGLISH_PATCH" >&2
+  exit 1
+}
 
 if [ "$DRY_RUN" -eq 1 ]; then
   echo "Would install @caob23/dsh-browser-control@$VERSION into profile $PROFILE"

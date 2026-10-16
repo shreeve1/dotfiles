@@ -36,7 +36,7 @@ score="0.0"
 
 # --- 3. Emit the score ------------------------------------------------------
 mkdir -p "$(dirname "$SCORE_FILE")"
-printf '%s\n' "$score" > "$SCORE_FILE"
+printf '%s\n' "$score" >"$SCORE_FILE"
 
 # --- 4. (Optional) Emit cost ------------------------------------------------
 # When the adapter sets verifier.emits_cost: true, write a single decimal

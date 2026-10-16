@@ -15,11 +15,11 @@ set -eu
 #    overrides .git/hooks, so we invoke it explicitly. Guard against self-call.
 _git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
 if [ -n "$_git_dir" ]; then
-	_local_hook="$_git_dir/hooks/post-commit"
-	_self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-	if [ -x "$_local_hook" ] && [ "$(cd "$(dirname "$_local_hook")" && pwd)/$(basename "$_local_hook")" != "$_self" ]; then
-		"$_local_hook" "$@" || true
-	fi
+  _local_hook="$_git_dir/hooks/post-commit"
+  _self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  if [ -x "$_local_hook" ] && [ "$(cd "$(dirname "$_local_hook")" && pwd)/$(basename "$_local_hook")" != "$_self" ]; then
+    "$_local_hook" "$@" || true
+  fi
 fi
 
 # 2. Skip during rebase/merge/cherry-pick. Without this, replaying N commits
@@ -27,10 +27,10 @@ fi
 #    guards in graphify's own `graphify hook install` post-commit.
 _gd="${_git_dir:-$(git rev-parse --git-dir 2>/dev/null)}"
 if [ -n "$_gd" ]; then
-	[ -d "$_gd/rebase-merge" ] && exit 0
-	[ -d "$_gd/rebase-apply" ] && exit 0
-	[ -f "$_gd/MERGE_HEAD" ] && exit 0
-	[ -f "$_gd/CHERRY_PICK_HEAD" ] && exit 0
+  [ -d "$_gd/rebase-merge" ] && exit 0
+  [ -d "$_gd/rebase-apply" ] && exit 0
+  [ -f "$_gd/MERGE_HEAD" ] && exit 0
+  [ -f "$_gd/CHERRY_PICK_HEAD" ] && exit 0
 fi
 
 # 3. Guard: only act when this repo was set up with graphify. No graph dir →
@@ -47,6 +47,6 @@ command -v graphify >/dev/null 2>&1 || exit 0
 #    reproducible run-to-run (matches graphify's own hook).
 _log="${HOME}/.cache/graphify-rebuild.log"
 mkdir -p "$(dirname "$_log")"
-( PYTHONHASHSEED=0 graphify update . >>"$_log" 2>&1 & ) >/dev/null 2>&1 || true
+(PYTHONHASHSEED=0 graphify update . >>"$_log" 2>&1 &) >/dev/null 2>&1 || true
 
 exit 0

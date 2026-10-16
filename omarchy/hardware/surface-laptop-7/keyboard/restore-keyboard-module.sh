@@ -33,11 +33,14 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCHF="$HERE/sl7-sam-node-group.patch"
 KREL="$(uname -r)"
-VERSION="${KREL%%-*}"          # 7.2.5-3-omarchy -> 7.2.5
+VERSION="${KREL%%-*}" # 7.2.5-3-omarchy -> 7.2.5
 UPD="/lib/modules/$KREL/updates"
 MODS="8250_dw surface_aggregator surface_aggregator_hub surface_aggregator_registry surface_hid surface_hid_core surface_kbd"
 
-die() { printf '\n!! %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '\n!! %s\n' "$*" >&2
+  exit 1
+}
 say() { printf '\n==> %s\n' "$*"; }
 
 [[ $EUID -eq 0 ]] || die "run me with sudo:  sudo bash $0"
@@ -51,36 +54,36 @@ trap 'rm -rf "$WORK"' EXIT
 # --- 1. get the exact upstream source file for this kernel -----------------
 SRCURL="https://raw.githubusercontent.com/gregkh/linux/v$VERSION/drivers/platform/surface/surface_aggregator_registry.c"
 say "fetching $SRCURL"
-curl -4 -sfL --max-time 60 -o "$WORK/src.c" "$SRCURL" \
-    || die "could not fetch source for v$VERSION (kernel too new, or no network) - nothing changed"
+curl -4 -sfL --max-time 60 -o "$WORK/src.c" "$SRCURL" ||
+  die "could not fetch source for v$VERSION (kernel too new, or no network) - nothing changed"
 
 # The override is only redundant once upstream does BOTH jobs: map the Intel hub id and
 # carry the battery nodes. Checking just MSHW0551 would silently drop the battery fix.
 upstream_sl7="$(awk '/ssam_node_group_sl7\[\]/,/\};/' "$WORK/src.c")"
 if grep -q 'MSHW0551' "$WORK/src.c" && grep -q 'ssam_node_bat_main' <<<"$upstream_sl7"; then
-    say "upstream already maps MSHW0551 and its SL7 group carries the battery nodes"
-    say "the override module is no longer needed"
-    rm -f "$UPD/surface_aggregator_registry.ko"
-    depmod -a "$KREL"
-    echo "   removed the override; rebuild the initramfs next:  sudo limine-mkinitcpio"
-    exit 0
+  say "upstream already maps MSHW0551 and its SL7 group carries the battery nodes"
+  say "the override module is no longer needed"
+  rm -f "$UPD/surface_aggregator_registry.ko"
+  depmod -a "$KREL"
+  echo "   removed the override; rebuild the initramfs next:  sudo limine-mkinitcpio"
+  exit 0
 fi
 if grep -q 'MSHW0551' "$WORK/src.c"; then
-    say "upstream now maps MSHW0551 but still has no battery nodes in the SL7 group"
+  say "upstream now maps MSHW0551 but still has no battery nodes in the SL7 group"
 fi
 
 # --- 2. patch --------------------------------------------------------------
 mkdir -p "$WORK/stage/drivers/platform/surface"
 cp "$WORK/src.c" "$WORK/stage/drivers/platform/surface/surface_aggregator_registry.c"
-( cd "$WORK/stage" && patch -p1 --forward <"$PATCHF" )
+(cd "$WORK/stage" && patch -p1 --forward <"$PATCHF")
 PATCHED_SRC="$WORK/stage/drivers/platform/surface/surface_aggregator_registry.c"
-grep -q 'MSHW0551' "$PATCHED_SRC" \
-    || die "patch did not apply (upstream context changed) - nothing changed"
+grep -q 'MSHW0551' "$PATCHED_SRC" ||
+  die "patch did not apply (upstream context changed) - nothing changed"
 # Assert at source level: the battery node names are also present in other models' groups,
 # so grepping the built .ko for them would pass either way and prove nothing.
 patched_sl7="$(awk '/ssam_node_group_sl7\[\]/,/\};/' "$PATCHED_SRC")"
-grep -q 'ssam_node_bat_main' <<<"$patched_sl7" \
-    || die "patched SL7 group is missing the battery nodes - nothing changed"
+grep -q 'ssam_node_bat_main' <<<"$patched_sl7" ||
+  die "patched SL7 group is missing the battery nodes - nothing changed"
 say "patch applied"
 
 # --- 3. build --------------------------------------------------------------
@@ -105,7 +108,7 @@ echo "   resolves to: $RESOLVED"
 
 # --- 5. load early (module-load race at the greeter) -----------------------
 say "writing /etc/modules-load.d/surface-sam.conf"
-cat > /etc/modules-load.d/surface-sam.conf <<'EOF'
+cat >/etc/modules-load.d/surface-sam.conf <<'EOF'
 # Load the SAM keyboard early. Without this the internal keyboard can come up
 # dead at the display-manager greeter (a USB keyboard hotplug revives it).
 surface_aggregator_registry
@@ -115,23 +118,23 @@ EOF
 # --- 6. get the keyboard into the initramfs (LUKS passphrase prompt) -------
 say "ensuring the SAM stack is in the initramfs"
 if [[ ! -f /etc/mkinitcpio.conf.bak ]]; then
-    cp -a /etc/mkinitcpio.conf /etc/mkinitcpio.conf.bak
-    echo "   backed up /etc/mkinitcpio.conf -> /etc/mkinitcpio.conf.bak"
+  cp -a /etc/mkinitcpio.conf /etc/mkinitcpio.conf.bak
+  echo "   backed up /etc/mkinitcpio.conf -> /etc/mkinitcpio.conf.bak"
 fi
 if ! grep -q 'surface_aggregator_registry' /etc/mkinitcpio.conf; then
-    if grep -qE '^MODULES=\(\)' /etc/mkinitcpio.conf; then
-        sed -i "s|^MODULES=()|MODULES=($MODS)|" /etc/mkinitcpio.conf
-    else
-        sed -i -E "s|^(MODULES=\([^)]*)\)|\1 $MODS)|" /etc/mkinitcpio.conf
-    fi
+  if grep -qE '^MODULES=\(\)' /etc/mkinitcpio.conf; then
+    sed -i "s|^MODULES=()|MODULES=($MODS)|" /etc/mkinitcpio.conf
+  else
+    sed -i -E "s|^(MODULES=\([^)]*)\)|\1 $MODS)|" /etc/mkinitcpio.conf
+  fi
 fi
 grep -E '^MODULES' /etc/mkinitcpio.conf
 
 say "regenerating initramfs / unified kernel image"
 if command -v limine-mkinitcpio >/dev/null 2>&1; then
-    limine-mkinitcpio
+  limine-mkinitcpio
 else
-    mkinitcpio -P
+  mkinitcpio -P
 fi
 
 say "DONE - reboot to confirm the keyboard works at the LUKS prompt"

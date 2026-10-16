@@ -36,19 +36,31 @@ NO_SERVICE=0
 LISTEN_IP=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --dry-run) DRY_RUN=1; shift ;;
-    --no-service) NO_SERVICE=1; shift ;;
-    --help|-h)
-      sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
-      exit 0
-      ;;
-    -*)
-      echo "unknown flag: $1" >&2; exit 2 ;;
-    *)
-      if [ -z "$LISTEN_IP" ]; then LISTEN_IP="$1"; shift
-      else echo "unexpected extra arg: $1" >&2; exit 2
-      fi
-      ;;
+  --dry-run)
+    DRY_RUN=1
+    shift
+    ;;
+  --no-service)
+    NO_SERVICE=1
+    shift
+    ;;
+  --help | -h)
+    sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  -*)
+    echo "unknown flag: $1" >&2
+    exit 2
+    ;;
+  *)
+    if [ -z "$LISTEN_IP" ]; then
+      LISTEN_IP="$1"
+      shift
+    else
+      echo "unexpected extra arg: $1" >&2
+      exit 2
+    fi
+    ;;
   esac
 done
 
@@ -84,7 +96,10 @@ fi
 # LIVE profile if DSH_HOME is unset. This is the failure mode that severs
 # live agent sessions via the chain documented in docs/deepseek-harness.md.
 if [ "$DRY_RUN" -eq 1 ]; then
-  export DSH_HOME=$(mktemp -d) || { echo "mktemp failed" >&2; exit 1; }
+  export DSH_HOME=$(mktemp -d) || {
+    echo "mktemp failed" >&2
+    exit 1
+  }
   echo "[dry-run] DSH_HOME=$DSH_HOME"
   # shellcheck disable=SC2064
   trap "rm -rf '$DSH_HOME'" EXIT
@@ -102,7 +117,10 @@ elif [ "$DRY_RUN" -eq 1 ]; then
   echo "[step 1] dry-run: skipping global dsh install (already on PATH)"
 else
   echo "[step 1] installing @deepseek-ai/dsh globally"
-  npm install -g @deepseek-ai/dsh || { echo "npm install -g failed" >&2; exit 1; }
+  npm install -g @deepseek-ai/dsh || {
+    echo "npm install -g failed" >&2
+    exit 1
+  }
 fi
 
 # ─── 2. materialise profile ──────────────────────────────
@@ -119,13 +137,16 @@ echo "[step 3] pnpm install --frozen-lockfile --ignore-scripts"
 (
   cd "$DSH_HOME/profiles/web" || exit 1
   pnpm install --frozen-lockfile --ignore-scripts
-) || { echo "pnpm install failed" >&2; exit 1; }
+) || {
+  echo "pnpm install failed" >&2
+  exit 1
+}
 
 # ─── 4. render cordis.patch.yml ──────────────────────────
 echo "[step 4] rendering cordis.patch.yml (HOME=$HOME_DIR, LISTEN_IP=$LISTEN_IP)"
 sed -e "s|__HOME__|$HOME_DIR|g" \
-    -e "s|__LISTEN_IP__|$LISTEN_IP|g" \
-    "$PATCH_TMPL" > "$DSH_HOME/profiles/web/cordis.patch.yml"
+  -e "s|__LISTEN_IP__|$LISTEN_IP|g" \
+  "$PATCH_TMPL" >"$DSH_HOME/profiles/web/cordis.patch.yml"
 
 # ─── 5. dry-run asserts config composes and exits ────────
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -160,7 +181,11 @@ EOF
   openssl req -x509 -nodes -newkey rsa:2048 \
     -keyout "$TMP_KEY" -out "$TMP_CRT" -days 3650 \
     -config "$TMP_CNF" -extensions v3_req \
-    >/dev/null 2>&1 || { echo "openssl failed" >&2; rm -f "$TMP_CNF" "$TMP_CRT" "$TMP_KEY"; exit 1; }
+    >/dev/null 2>&1 || {
+    echo "openssl failed" >&2
+    rm -f "$TMP_CNF" "$TMP_CRT" "$TMP_KEY"
+    exit 1
+  }
   mv "$TMP_CRT" "$HOME_DIR/.dsh/dsh-tls.crt"
   mv "$TMP_KEY" "$HOME_DIR/.dsh/dsh-tls.key"
   chmod 600 "$HOME_DIR/.dsh/dsh-tls.key"
@@ -171,7 +196,7 @@ fi
 
 # ─── 7. secrets gate ─────────────────────────────────────
 MISSING=()
-[ -f "$HOME_DIR/.dsh/dsh-web.env" ]     || MISSING+=("$HOME_DIR/.dsh/dsh-web.env (EnvironmentFile: CLIPROXY_API_KEY, DEEPSEEK_API_KEY)")
+[ -f "$HOME_DIR/.dsh/dsh-web.env" ] || MISSING+=("$HOME_DIR/.dsh/dsh-web.env (EnvironmentFile: CLIPROXY_API_KEY, DEEPSEEK_API_KEY)")
 [ -f "$HOME_DIR/.dsh/.credentials.yaml" ] || MISSING+=("$HOME_DIR/.dsh/.credentials.yaml (provider API keys; wins over dsh-web.env)")
 if [ "${#MISSING[@]}" -gt 0 ]; then
   echo "[step 7] STOP: required secrets are missing (NOT in git):" >&2
@@ -187,15 +212,21 @@ SERVICE_DIR="$HOME_DIR/.config/systemd/user"
 mkdir -p "$SERVICE_DIR"
 # Resolve real interpreter + dsh binary at render time (paths differ per machine:
 # npm -g installs under ~/.npm-global on some boxes, ~/.local on others).
-DSH_BIN=$(command -v dsh) || { echo "dsh not on PATH; cannot render unit" >&2; exit 1; }
+DSH_BIN=$(command -v dsh) || {
+  echo "dsh not on PATH; cannot render unit" >&2
+  exit 1
+}
 DSH_BIN=$(readlink -f "$DSH_BIN")
-NODE_BIN=$(command -v node) || { echo "node not on PATH; cannot render unit" >&2; exit 1; }
+NODE_BIN=$(command -v node) || {
+  echo "node not on PATH; cannot render unit" >&2
+  exit 1
+}
 NODE_BIN=$(readlink -f "$NODE_BIN")
 echo "[step 8] ExecStart=$NODE_BIN $DSH_BIN web ..."
 sed -e "s|__HOME__|$HOME_DIR|g" \
-    -e "s|__NODE_BIN__|$NODE_BIN|g" \
-    -e "s|__DSH_BIN__|$DSH_BIN|g" \
-    "$SERVICE_TMPL" > "$SERVICE_DIR/dsh-web.service"
+  -e "s|__NODE_BIN__|$NODE_BIN|g" \
+  -e "s|__DSH_BIN__|$DSH_BIN|g" \
+  "$SERVICE_TMPL" >"$SERVICE_DIR/dsh-web.service"
 chmod 644 "$SERVICE_DIR/dsh-web.service"
 
 if [ "$NO_SERVICE" -eq 1 ]; then
