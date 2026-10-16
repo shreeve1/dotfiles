@@ -27,12 +27,7 @@ function readEntries(path: string): Entry[] {
   for (const item of data.entries as unknown[]) {
     if (typeof item !== "object" || item === null) continue;
     const { id, text, header, cards } = item as Record<string, unknown>;
-    if (
-      typeof id !== "string" ||
-      typeof text !== "string" ||
-      typeof header !== "string"
-    )
-      continue;
+    if (typeof id !== "string" || typeof text !== "string" || typeof header !== "string") continue;
     if (
       !Array.isArray(cards) ||
       cards.length === 0 ||
@@ -64,9 +59,7 @@ function readSent(path: string): string[] {
 function pick(unsent: Entry[], prompt: string): Entry | undefined {
   const exact = unsent.find((e) => e.text === prompt);
   if (exact) return exact;
-  const part = unsent.find((e) =>
-    `\n\n${prompt}\n\n`.includes(`\n\n${e.text}\n\n`),
-  );
+  const part = unsent.find((e) => `\n\n${prompt}\n\n`.includes(`\n\n${e.text}\n\n`));
   if (part) return part;
   if (prompt.startsWith("/") && unsent.length === 1) return unsent[0];
   return undefined;
@@ -77,8 +70,7 @@ export default function askContext(pi: ExtensionAPI) {
   const published = new Set<string>();
 
   pi.registerCommand("meeting-assistant-ask-context", {
-    description:
-      "Marker: the Meeting Assistant ask-context extension is loaded",
+    description: "Marker: the Meeting Assistant ask-context extension is loaded",
     handler: async () => {},
   });
 
@@ -88,9 +80,7 @@ export default function askContext(pi: ExtensionAPI) {
     let entry: Entry | undefined;
     try {
       const sent = new Set(readSent(`${path}.sent`));
-      const unsent = readEntries(path).filter(
-        (e) => !sent.has(e.id) && !published.has(e.id),
-      );
+      const unsent = readEntries(path).filter((e) => !sent.has(e.id) && !published.has(e.id));
       entry = pick(unsent, event.prompt);
     } catch (err) {
       pi.logger.warn("meeting-assistant ask-context: cards file unreadable", {
@@ -112,11 +102,7 @@ export default function askContext(pi: ExtensionAPI) {
   // A follow-up batch dequeued inside the same run fires before_agent_start before agent_end, so in-run dedupe needs the published set.
   pi.on("message_end", async (event) => {
     const message = event.message;
-    if (
-      message.role === "custom" &&
-      message.customType === MESSAGE_TYPE &&
-      offered !== undefined
-    ) {
+    if (message.role === "custom" && message.customType === MESSAGE_TYPE && offered !== undefined) {
       published.add(offered);
       offered = undefined;
     }
@@ -134,10 +120,9 @@ export default function askContext(pi: ExtensionAPI) {
       writeFileSync(`${file}.tmp`, JSON.stringify([...ids]), { mode: 0o600 });
       renameSync(`${file}.tmp`, file);
     } catch (err) {
-      pi.logger.warn(
-        "meeting-assistant ask-context: cannot write sent marker",
-        { err: String(err) },
-      );
+      pi.logger.warn("meeting-assistant ask-context: cannot write sent marker", {
+        err: String(err),
+      });
     }
   });
 }

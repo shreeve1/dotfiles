@@ -1,8 +1,4 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  SessionEntry,
-} from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, SessionEntry } from "@oh-my-pi/pi-coding-agent";
 import { completeSimple } from "@oh-my-pi/pi-ai";
 import { appendFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -58,9 +54,7 @@ const VERIFICATION_RE =
 
 function verificationOutcome(content: unknown): string {
   const text = messageText(content);
-  const testSummary = text.match(
-    /\b\d+ passed(?:,\s*\d+ skipped)?(?:\s+in\s+[\d.]+s)?\b/,
-  );
+  const testSummary = text.match(/\b\d+ passed(?:,\s*\d+ skipped)?(?:\s+in\s+[\d.]+s)?\b/);
   if (testSummary) return testSummary[0];
   return (
     text
@@ -72,10 +66,7 @@ function verificationOutcome(content: unknown): string {
   );
 }
 
-function buildWorkRecord(
-  entries: readonly SessionEntry[],
-  sessionsDir: string,
-): string {
+function buildWorkRecord(entries: readonly SessionEntry[], sessionsDir: string): string {
   const calls = new Map<string, LedgerCall>();
   const modified: string[] = [];
   const verified: string[] = [];
@@ -85,14 +76,9 @@ function buildWorkRecord(
   for (const entry of entries) {
     if (entry.type !== "message") continue;
     const message: unknown = entry.message;
-    if (!message || typeof message !== "object" || !("role" in message))
-      continue;
+    if (!message || typeof message !== "object" || !("role" in message)) continue;
 
-    if (
-      message.role === "assistant" &&
-      "content" in message &&
-      Array.isArray(message.content)
-    ) {
+    if (message.role === "assistant" && "content" in message && Array.isArray(message.content)) {
       for (const block of message.content) {
         if (!block || typeof block !== "object" || !("type" in block)) continue;
         if (
@@ -106,11 +92,7 @@ function buildWorkRecord(
           typeof block.arguments === "object"
         ) {
           calls.set(block.id, { name: block.name, args: block.arguments });
-        } else if (
-          block.type === "text" &&
-          "text" in block &&
-          typeof block.text === "string"
-        ) {
+        } else if (block.type === "text" && "text" in block && typeof block.text === "string") {
           const text = block.text.trim().replace(/\s+/g, " ");
           if (text) progress.push(text.slice(0, 140));
         }
@@ -132,43 +114,25 @@ function buildWorkRecord(
     const call = calls.get(message.toolCallId);
     const content = "content" in message ? message.content : undefined;
     if (message.toolName === "todo") {
-      const match = messageText(content).match(
-        /Overall:\s*(\d+)\/(\d+)\s+done,\s*(\d+)\s+open/i,
-      );
+      const match = messageText(content).match(/Overall:\s*(\d+)\/(\d+)\s+done,\s*(\d+)\s+open/i);
       if (match) todo = `${match[1]} done, ${match[3]} open`;
     }
     if (!call) continue;
 
-    if (
-      call.name === "bash" &&
-      "command" in call.args &&
-      typeof call.args.command === "string"
-    ) {
+    if (call.name === "bash" && "command" in call.args && typeof call.args.command === "string") {
       if (VERIFICATION_RE.test(call.args.command) && verified.length < 5) {
-        verified.push(
-          `\`${call.args.command}\` — ${verificationOutcome(content)}`,
-        );
+        verified.push(`\`${call.args.command}\` — ${verificationOutcome(content)}`);
       }
       continue;
     }
 
     const paths =
-      call.name === "edit" &&
-      "input" in call.args &&
-      typeof call.args.input === "string"
-        ? [...call.args.input.matchAll(/^\[([^#\]]+)#[0-9A-F]{4}\]$/gm)].map(
-            (match) => match[1],
-          )
-        : call.name === "write" &&
-            "path" in call.args &&
-            typeof call.args.path === "string"
+      call.name === "edit" && "input" in call.args && typeof call.args.input === "string"
+        ? [...call.args.input.matchAll(/^\[([^#\]]+)#[0-9A-F]{4}\]$/gm)].map((match) => match[1])
+        : call.name === "write" && "path" in call.args && typeof call.args.path === "string"
           ? [call.args.path]
-          : call.name === "ast_edit" &&
-              "paths" in call.args &&
-              Array.isArray(call.args.paths)
-            ? call.args.paths.filter(
-                (path): path is string => typeof path === "string",
-              )
+          : call.name === "ast_edit" && "paths" in call.args && Array.isArray(call.args.paths)
+            ? call.args.paths.filter((path): path is string => typeof path === "string")
             : call.name === "lsp" &&
                 "action" in call.args &&
                 "file" in call.args &&
@@ -204,8 +168,7 @@ function buildWorkRecord(
   }
   if (verified.length) sections.push(`**Verified**: ${verified.join("; ")}`);
   if (todo) sections.push(`**Todo state**: ${todo}`);
-  if (progress.length)
-    sections.push(`**Reported progress**: ${progress.slice(-3).join(" | ")}`);
+  if (progress.length) sections.push(`**Reported progress**: ${progress.slice(-3).join(" | ")}`);
   return sections.length ? `\n## Work record\n\n${sections.join("\n")}\n` : "";
 }
 
@@ -241,8 +204,7 @@ async function makeSlug(
         temperature: 0,
       },
     );
-    if (resp.stopReason === "error" || resp.stopReason === "aborted")
-      return null;
+    if (resp.stopReason === "error" || resp.stopReason === "aborted") return null;
     const text = resp.content
       .filter((b) => b.type === "text")
       .map((b) => b.text)
@@ -343,9 +305,7 @@ export default function (pi: ExtensionAPI) {
             .replace(/^-+|-+$/g, "")
             .slice(0, 40)
             .replace(/-+$/, "");
-          const fileName = slug
-            ? `${startTime}_${slug}.md`
-            : `${startTime}_${sessionId}.md`;
+          const fileName = slug ? `${startTime}_${slug}.md` : `${startTime}_${sessionId}.md`;
           outFile = join(dir, fileName);
           n = 1;
         }
@@ -358,10 +318,7 @@ export default function (pi: ExtensionAPI) {
       if (n === 1 && !existsSync(outFile)) {
         out += `# Session ${sessionId}\n\n- cwd: ${ctx.cwd}\n- started: ${new Date().toISOString()}\n`;
       }
-      out +=
-        `**Prompt:**\n\n${prompt}\n` +
-        workRecord +
-        `\n**Response:**\n\n${answer}\n\n---\n`;
+      out += `**Prompt:**\n\n${prompt}\n` + workRecord + `\n**Response:**\n\n${answer}\n\n---\n`;
 
       appendFileSync(outFile, out);
       turnCounts.set(sessionId, { file: outFile, n });

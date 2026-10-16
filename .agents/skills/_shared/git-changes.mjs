@@ -40,9 +40,7 @@ const emitCapped = (raw, emptyLabel) => {
     process.stdout.write(`${emptyLabel}\n`);
   } else if (real.length > LINE_CAP) {
     process.stdout.write(real.slice(0, LINE_CAP).join("\n"));
-    process.stdout.write(
-      `\n(... ${real.length - LINE_CAP} more files truncated ...)\n`,
-    );
+    process.stdout.write(`\n(... ${real.length - LINE_CAP} more files truncated ...)\n`);
   } else {
     process.stdout.write(`${real.join("\n")}\n`);
   }

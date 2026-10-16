@@ -37,8 +37,7 @@ function textOf(content: unknown): string {
   const parts: string[] = [];
   for (const block of content) {
     const text = field(block, "text");
-    if (field(block, "type") === "text" && typeof text === "string")
-      parts.push(text);
+    if (field(block, "type") === "text" && typeof text === "string") parts.push(text);
   }
   return parts.join("\n");
 }
@@ -110,10 +109,7 @@ export default function (pi: ExtensionAPI) {
       .then((out) => {
         if (!out.trim()) return;
         if (started !== generation) {
-          note(
-            "dropped_new_run",
-            `sid=${sid.slice(0, 8)} len=${answer.length}`,
-          );
+          note("dropped_new_run", `sid=${sid.slice(0, 8)} len=${answer.length}`);
           return;
         }
         const res: unknown = JSON.parse(out);
