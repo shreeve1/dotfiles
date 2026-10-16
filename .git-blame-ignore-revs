@@ -5,3 +5,4 @@ f1c974716e74f888d0d8b15f5bfa2454b643d608
 013b7ea07a6fde1a6d56881c4f97c3742c99dad1 # style: baseline reformat (shell)
 06d61598c513cae156cc5dd6cd084421a3bd6b38 # style: baseline reformat (python)
 9a1aa13b9576281151bf82e8b962807c9758e849 # style: baseline reformat (ts)
+c24391029ea76f1caecd925f1c91cd45c7f00cb7 # style: reformat TS/JS at line width 100
