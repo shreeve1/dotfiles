@@ -21,6 +21,7 @@ The contract: **a tool runs only from the repo's own config file, and every call
 ## Consequences
 
 - Bumping a tool is a one-line edit to `tools.env` followed by `install.sh` on aidev, omarchy and itan8n. `style-check --doctor` and the push hook report a machine whose tools are not at the pins.
+- A non-interactive login does not always put `~/.local/bin` first: `ssh omarchy cmd` gets `/usr/bin` first, ahead of pacman's biome and markdownlint-cli2 at other versions, and `ssh aidev cmd` leaves `~/.local/bin` out. `style-check` therefore puts `~/.local/bin` first on its own PATH, so the hook, cron and remote callers run the pins. pi-lens still uses the agent session's PATH; run `style-check --doctor` from inside an agent session to check that one.
 - pi-lens keeps a second, managed copy of some tools under `~/.pi-lens/bin` for its checkers, and updates those itself. They can differ from the pins; formatting stays aligned because pi-lens's formatter takes the PATH copy.
 - A repo with uncommitted work or unpushed commits on another machine cannot adopt until that work lands: a baseline reformat would conflict with it on nearly every line.
 - Vendored code is excluded per repo (`.styleignore`, and the matching `ruff.toml` `extend-exclude` / `biome.json` `files.includes`, which pi-lens also honours) instead of being reformatted.

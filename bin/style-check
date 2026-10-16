@@ -18,6 +18,12 @@
 # Exit 0 when clean, 1 on findings, 2 on a usage or tooling error.
 set -euo pipefail
 
+# style-tools-install pins the tools into ~/.local/bin. A non-interactive shell
+# (ssh host cmd, a hook, cron) may not have it on PATH, or may have it after
+# /usr/bin, where omarchy's pacman biome and markdownlint-cli2 sit at other
+# versions. Put it first so every caller runs the pinned copy.
+export PATH="$HOME/.local/bin:$PATH"
+
 STYLE_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.config/style" && pwd)"
 # shellcheck source=../.config/style/tools.env
 . "$STYLE_DIR/tools.env"
