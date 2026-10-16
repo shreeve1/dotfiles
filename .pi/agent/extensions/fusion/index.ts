@@ -50,10 +50,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 // --- child-env detection --------------------------------------------------
 
@@ -108,9 +105,7 @@ export function globalConfigPath(): string {
  * in one place. Reading is permissive: extra keys are ignored, missing
  * file is undefined (treated as off).
  */
-export function readGlobalDefaultMode(
-  path: string = globalConfigPath(),
-): FusionMode | undefined {
+export function readGlobalDefaultMode(path: string = globalConfigPath()): FusionMode | undefined {
   if (!existsSync(path)) return undefined;
   let raw: string;
   try {
@@ -255,8 +250,7 @@ const REDIRECT_TOKENS = /(>>|>[^>&]|<<)/;
 const DANGEROUS_FRAGMENTS: { label: string; pattern: RegExp }[] = [
   {
     label: "package install/update/publish",
-    pattern:
-      /\b(npm|pnpm|yarn)\s+(install|i|add|update|upgrade|global|publish|uninstall|remove)\b/,
+    pattern: /\b(npm|pnpm|yarn)\s+(install|i|add|update|upgrade|global|publish|uninstall|remove)\b/,
   },
   {
     label: "pip / uv install",
@@ -265,8 +259,7 @@ const DANGEROUS_FRAGMENTS: { label: string; pattern: RegExp }[] = [
   { label: "cargo install", pattern: /\bcargo\s+install\b/ },
   {
     label: "formatter fix mode",
-    pattern:
-      /\b(prettier|biome|black|autopep8|gofmt|gofmt-s|standardjs|standard)\s+.*--write\b/,
+    pattern: /\b(prettier|biome|black|autopep8|gofmt|gofmt-s|standardjs|standard)\s+.*--write\b/,
   },
   {
     label: "formatter fix flag",
@@ -339,8 +332,7 @@ const OK_TRAILING_FLAGS: RegExp[] = [
   /^--patch$/,
 ];
 
-const ARG_REV =
-  /^[A-Fa-f0-9]{4,}$|^HEAD(~[0-9]+|\^[0-9]*)?$|^refs\/[\w./-]+$|^[\w.-]+\/[\w./-]+$/;
+const ARG_REV = /^[A-Fa-f0-9]{4,}$|^HEAD(~[0-9]+|\^[0-9]*)?$|^refs\/[\w./-]+$|^[\w.-]+\/[\w./-]+$/;
 const ARG_PATH_REV = /^(?:\.{1,2}\/|\/)?[\w.][\w./-]*\/?$/;
 
 function isSafeTailToken(token: string): boolean {
@@ -461,8 +453,7 @@ export function isSafeBash(
   if (SHELL_METACHARACTERS.test(normalized)) {
     return {
       ok: false,
-      reason:
-        "shell metacharacter (chaining / pipes / redirects / substitution / newline)",
+      reason: "shell metacharacter (chaining / pipes / redirects / substitution / newline)",
     };
   }
   if (REDIRECT_TOKENS.test(normalized)) {
@@ -477,8 +468,7 @@ export function isSafeBash(
   }
   return {
     ok: false,
-    reason:
-      "not in global allowlist; trusted .pi/fusion.json override required",
+    reason: "not in global allowlist; trusted .pi/fusion.json override required",
   };
 }
 
@@ -502,9 +492,7 @@ export function loadProjectBashOverride(
   const path = join(cwd, PROJECT_CONFIG_DIR, PROJECT_CONFIG_FILENAME);
   let raw: string | undefined;
   try {
-    raw = options.readFile
-      ? options.readFile(path)
-      : readFileSync(path, "utf8");
+    raw = options.readFile ? options.readFile(path) : readFileSync(path, "utf8");
   } catch {
     return [];
   }
@@ -561,12 +549,7 @@ export const ALLOWED_READ_ACTIONS = new Set([
  * (or runId) and never spawn new execution. They are NOT management; they
  * are control operations and Fusion allows them so the parent can steer
  * / pause / stop / revive children it already started. */
-export const ALLOWED_CONTROL_ACTIONS = new Set([
-  "interrupt",
-  "stop",
-  "resume",
-  "steer",
-]);
+export const ALLOWED_CONTROL_ACTIONS = new Set(["interrupt", "stop", "resume", "steer"]);
 
 /** append-step is execution-shaped: it appends a chain step to a running
  * run. Special-cased before the generic management rejection so its
@@ -646,9 +629,7 @@ function deepClone<T>(value: T): T {
   return structuredClone(value);
 }
 
-function disallowedModelOrThinkingKeys(
-  value: Record<string, unknown>,
-): string[] {
+function disallowedModelOrThinkingKeys(value: Record<string, unknown>): string[] {
   const out: string[] = [];
   for (const key of ["model", "thinking"]) {
     if (value[key] !== undefined) out.push(key);
@@ -875,9 +856,7 @@ export function validateAndNormalizeSubagentCall(
   // Use a deep copy when mutate=false so the caller's nested
   // tasks[] / chain[] / parallel[] are never mutated by normalization
   // (output coercion, context forcing, model/thinking stripping).
-  const working = mutate
-    ? (argsIn as Record<string, unknown>)
-    : deepClone(argsIn);
+  const working = mutate ? (argsIn as Record<string, unknown>) : deepClone(argsIn);
   const args: SubagentCallArgs = working as SubagentCallArgs;
   let contextForced = false;
   const outputForcedRef = { value: false };
@@ -928,12 +907,7 @@ export function validateAndNormalizeSubagentCall(
 
   // append-step (legacy top-level field, not under action)
   if (Array.isArray(args.appendStep)) {
-    walkChain(
-      args.appendStep as unknown[],
-      "appendStep",
-      errors,
-      outputForcedRef,
-    );
+    walkChain(args.appendStep as unknown[], "appendStep", errors, outputForcedRef);
   }
 
   if (errors.length > 0) {
@@ -991,21 +965,14 @@ function walkChain(
     }
     // parallel can be an ARRAY (static) or ONE object (dynamic template).
     if (step.parallel !== undefined) {
-      normalizeParallel(
-        step.parallel,
-        `${stepPath}.parallel`,
-        errors,
-        outputForcedRef,
-      );
+      normalizeParallel(step.parallel, `${stepPath}.parallel`, errors, outputForcedRef);
     }
   });
 }
 
 // --- session-state restore ------------------------------------------------
 
-export function readLatestFusionState(
-  entries: unknown[],
-): FusionState | undefined {
+export function readLatestFusionState(entries: unknown[]): FusionState | undefined {
   if (!Array.isArray(entries)) return undefined;
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i] as {
@@ -1013,8 +980,7 @@ export function readLatestFusionState(
       customType?: string;
       data?: unknown;
     };
-    if (!e || e.type !== "custom" || e.customType !== FUSION_STATE_CUSTOM)
-      continue;
+    if (!e || e.type !== "custom" || e.customType !== FUSION_STATE_CUSTOM) continue;
     const data = e.data;
     if (!data || typeof data !== "object") continue;
     const enabled = (data as Record<string, unknown>).enabled;
@@ -1029,9 +995,7 @@ export function readLatestFusionState(
       if (Array.isArray(tools)) {
         const allValid =
           tools.length > 0 &&
-          (tools as unknown[]).every(
-            (v) => typeof v === "string" && v.length > 0,
-          );
+          (tools as unknown[]).every((v) => typeof v === "string" && v.length > 0);
         cleanTools = allValid ? (tools as string[]) : undefined;
       }
       return { enabled, toolsBeforeFusion: cleanTools };
@@ -1121,8 +1085,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
   // --- commands --------------------------------------------------------
 
   pi.registerCommand("fusion", {
-    description:
-      "Fusion mode controls: /fusion on | off | status | default on|off",
+    description: "Fusion mode controls: /fusion on | off | status | default on|off",
     handler: async (args, ctx) => {
       const trimmed = String(args ?? "")
         .trim()
@@ -1154,8 +1117,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
           }
           return;
         }
-        if (ctx.hasUI)
-          ctx.ui.notify("fusion default: use `on` or `off`", "error");
+        if (ctx.hasUI) ctx.ui.notify("fusion default: use `on` or `off`", "error");
         return;
       }
       if (ctx.hasUI)
@@ -1187,9 +1149,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     persistState();
     if (ctx.hasUI) {
       ctx.ui.notify(
-        enabled
-          ? "Fusion on (parent tool surface shrunk)"
-          : "Fusion off (tools restored)",
+        enabled ? "Fusion on (parent tool surface shrunk)" : "Fusion off (tools restored)",
         "info",
       );
     }
@@ -1204,9 +1164,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     }
     ctx.ui.setStatus(
       "fusion",
-      enabled && ctx.ui.theme
-        ? ctx.ui.theme.fg("warning", "fusion")
-        : undefined,
+      enabled && ctx.ui.theme ? ctx.ui.theme.fg("warning", "fusion") : undefined,
     );
   }
 
@@ -1241,10 +1199,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     const active = pi.getActiveTools();
     const wanted = parentToolAllowlist();
     const filtered = active.filter((t) => wanted.includes(t));
-    if (
-      filtered.length !== active.length ||
-      filtered.length !== wanted.length
-    ) {
+    if (filtered.length !== active.length || filtered.length !== wanted.length) {
       pi.setActiveTools(wanted);
     }
     // Inject guidance every turn so /resume doesn't lose it.

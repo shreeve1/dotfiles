@@ -22,16 +22,8 @@ function settings(changes = {}) {
 
 test("builds schema-2 commands with the exact settings shape", () => {
   const value = settings();
-  assert.deepEqual(Model.statusCommand(controller), [
-    controller,
-    "status",
-    "--json",
-  ]);
-  assert.deepEqual(Model.restoreCommand(controller), [
-    controller,
-    "restore",
-    "--json",
-  ]);
+  assert.deepEqual(Model.statusCommand(controller), [controller, "status", "--json"]);
+  assert.deepEqual(Model.restoreCommand(controller), [controller, "restore", "--json"]);
   assert.deepEqual(Model.applyCommand(controller, value), {
     ok: true,
     command: [controller, "apply", "--json", JSON.stringify(value)],
@@ -59,24 +51,12 @@ test("validates all numeric ranges, steps, and primitive types", () => {
     ),
     true,
   );
-  assert.equal(
-    Model.validSettings(settings({ touchpad_sensitivity: 1.01 })),
-    false,
-  );
-  assert.equal(
-    Model.validSettings(settings({ trackpoint_sensitivity: -1.01 })),
-    false,
-  );
+  assert.equal(Model.validSettings(settings({ touchpad_sensitivity: 1.01 })), false);
+  assert.equal(Model.validSettings(settings({ trackpoint_sensitivity: -1.01 })), false);
   assert.equal(Model.validSettings(settings({ scroll_factor: 0.15 })), false);
-  assert.equal(
-    Model.validSettings(settings({ touchpad_sensitivity: "0.15" })),
-    false,
-  );
+  assert.equal(Model.validSettings(settings({ touchpad_sensitivity: "0.15" })), false);
   assert.equal(Model.validSettings(settings({ tap_to_click: 1 })), false);
-  assert.equal(
-    Model.validSettings(settings({ trackpoint_middle_scroll: 1 })),
-    false,
-  );
+  assert.equal(Model.validSettings(settings({ trackpoint_middle_scroll: 1 })), false);
 });
 
 test("rejects missing and additional schema fields", () => {

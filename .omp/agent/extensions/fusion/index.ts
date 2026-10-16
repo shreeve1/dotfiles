@@ -45,12 +45,7 @@ import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
 
 // --- orchestrator tool allowlist -----------------------------------------
 
-export const ORCHESTRATOR_ALLOWED_TOOLS = [
-  "read",
-  "task",
-  "todo",
-  "hub",
-] as const;
+export const ORCHESTRATOR_ALLOWED_TOOLS = ["read", "task", "todo", "hub"] as const;
 
 // --- child detection (in-process) ----------------------------------------
 
@@ -89,13 +84,10 @@ export function normalizeMode(value: unknown): FusionMode | undefined {
 export function repoFusionJsonPath(): string {
   const meta: { dir?: unknown; url?: unknown } =
     (import.meta as { dir?: unknown; url?: unknown }) ?? {};
-  const fromDir =
-    typeof meta.dir === "string" && meta.dir.length > 0 ? meta.dir : undefined;
+  const fromDir = typeof meta.dir === "string" && meta.dir.length > 0 ? meta.dir : undefined;
   const dir =
     fromDir ??
-    (typeof meta.url === "string"
-      ? dirname(dirname(new URL(".", meta.url).pathname))
-      : undefined);
+    (typeof meta.url === "string" ? dirname(dirname(new URL(".", meta.url).pathname)) : undefined);
   if (!dir) {
     throw new Error("omp fusion: cannot resolve extension directory");
   }
@@ -112,9 +104,7 @@ export function repoFusionJsonPath(): string {
  * Reading is permissive: extra keys are ignored, missing file is
  * undefined (treated as off).
  */
-export function readDefaultMode(
-  path: string = repoFusionJsonPath(),
-): FusionMode | undefined {
+export function readDefaultMode(path: string = repoFusionJsonPath()): FusionMode | undefined {
   if (!existsSync(path)) return undefined;
   let raw: string;
   try {
@@ -140,10 +130,7 @@ export function readDefaultMode(
  *
  * This file is a tracked, non-secret repo file — no mode:0o600.
  */
-export function writeDefaultMode(
-  mode: FusionMode,
-  path: string = repoFusionJsonPath(),
-): boolean {
+export function writeDefaultMode(mode: FusionMode, path: string = repoFusionJsonPath()): boolean {
   const current = readDefaultMode(path);
   if (current === mode) return true;
   const dir = dirname(path);
@@ -162,9 +149,7 @@ export function writeDefaultMode(
 
 // --- session-state restore ------------------------------------------------
 
-export function readLatestFusionState(
-  entries: unknown[],
-): FusionState | undefined {
+export function readLatestFusionState(entries: unknown[]): FusionState | undefined {
   if (!Array.isArray(entries)) return undefined;
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i] as {
@@ -172,8 +157,7 @@ export function readLatestFusionState(
       customType?: string;
       data?: unknown;
     };
-    if (!e || e.type !== "custom" || e.customType !== FUSION_STATE_CUSTOM)
-      continue;
+    if (!e || e.type !== "custom" || e.customType !== FUSION_STATE_CUSTOM) continue;
     const data = e.data;
     if (!data || typeof data !== "object") continue;
     const enabled = (data as Record<string, unknown>).enabled;
@@ -188,9 +172,7 @@ export function readLatestFusionState(
       if (Array.isArray(tools)) {
         const allValid =
           tools.length > 0 &&
-          (tools as unknown[]).every(
-            (v) => typeof v === "string" && v.length > 0,
-          );
+          (tools as unknown[]).every((v) => typeof v === "string" && v.length > 0);
         cleanTools = allValid ? (tools as string[]) : undefined;
       }
       return { enabled, toolsBeforeFusion: cleanTools };
@@ -305,12 +287,10 @@ export default function fusionExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("fusion", {
-    description:
-      "Fusion mode controls: /fusion on | off | status | default on|off",
+    description: "Fusion mode controls: /fusion on | off | status | default on|off",
     handler: async (args, ctx) => {
       if (!isOrchestrator) {
-        if (ctx.hasUI)
-          ctx.ui.notify("fusion: not active in this session", "info");
+        if (ctx.hasUI) ctx.ui.notify("fusion: not active in this session", "info");
         return;
       }
       const trimmed = String(args ?? "")
@@ -343,8 +323,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
           }
           return;
         }
-        if (ctx.hasUI)
-          ctx.ui.notify("fusion default: use `on` or `off`", "error");
+        if (ctx.hasUI) ctx.ui.notify("fusion default: use `on` or `off`", "error");
         return;
       }
       if (ctx.hasUI)
@@ -362,10 +341,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     });
   }
 
-  async function setEnabled(
-    next: boolean,
-    ctx: ExtensionContext,
-  ): Promise<void> {
+  async function setEnabled(next: boolean, ctx: ExtensionContext): Promise<void> {
     if (next === enabled) return;
     if (pristineTools === undefined) {
       pristineTools = pi.getActiveTools();
@@ -375,9 +351,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     persistState();
     if (ctx.hasUI) {
       ctx.ui.notify(
-        enabled
-          ? "Fusion on (orchestrator tool surface shrunk)"
-          : "Fusion off (tools restored)",
+        enabled ? "Fusion on (orchestrator tool surface shrunk)" : "Fusion off (tools restored)",
         "info",
       );
     }
@@ -401,9 +375,7 @@ export default function fusionExtension(pi: ExtensionAPI): void {
     if (!isOrchestrator || !enabled) return;
     const wanted = [...ORCHESTRATOR_ALLOWED_TOOLS];
     const active = pi.getActiveTools();
-    const sameSet =
-      active.length === wanted.length &&
-      wanted.every((t) => active.includes(t));
+    const sameSet = active.length === wanted.length && wanted.every((t) => active.includes(t));
     if (!sameSet) {
       await pi.setActiveTools(wanted);
     }

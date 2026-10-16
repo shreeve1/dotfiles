@@ -45,8 +45,7 @@ function validNumber(value, minimum, maximum, step) {
 }
 
 function validSettings(settings) {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings))
-    return false;
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
   var keys = Object.keys(settings).sort();
   var expected = settingNames.slice().sort();
   if (
@@ -96,8 +95,7 @@ function restoreCommand(controller) {
 }
 
 function applyCommand(controller, settings) {
-  if (!validSettings(settings))
-    return { ok: false, error: "Invalid touchpad settings" };
+  if (!validSettings(settings)) return { ok: false, error: "Invalid touchpad settings" };
   return {
     ok: true,
     command: [controller, "apply", "--json", JSON.stringify(settings)],

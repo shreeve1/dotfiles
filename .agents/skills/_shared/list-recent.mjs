@@ -22,9 +22,7 @@ const gitRoot = (() => {
   }
 })();
 
-const dir = isAbsolute(rawDir)
-  ? rawDir
-  : resolve(gitRoot || process.cwd(), rawDir);
+const dir = isAbsolute(rawDir) ? rawDir : resolve(gitRoot || process.cwd(), rawDir);
 
 if (!existsSync(dir)) process.exit(0);
 

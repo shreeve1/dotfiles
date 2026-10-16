@@ -38,11 +38,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import {
-  execFile,
-  spawn,
-  type ChildProcessWithoutNullStreams,
-} from "node:child_process";
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -110,8 +106,7 @@ const MAX_FILES_SHOWN = 10;
 // (identified by shebang) are not matched.
 const CODE_EXT_RE =
   /\.(?:py|pyi|ps1|psm1|psd1|sh|bash|zsh|ksh|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rb|rs|c|h|cc|cpp|hpp|cxx|hxx|java|kt|kts|cs|php|sql|lua|swift|scala|pl|pm|r|ex|exs|erl|hs|clj|dart|vue|svelte)$/i;
-const CLEANUP_DISABLE_HINT =
-  "(Set POST_WORK_CLEANUP=0 to disable this reminder.)";
+const CLEANUP_DISABLE_HINT = "(Set POST_WORK_CLEANUP=0 to disable this reminder.)";
 const NOT_A_COMMIT_REQUEST =
   "This is not a request to commit: commit only if the task or the repo's rules call for it.";
 
@@ -186,14 +181,9 @@ function resolveCwd(ctx: ExtensionContext | undefined): string {
 
 function git(cwd: string, args: string[]): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile(
-      "git",
-      args,
-      { cwd, timeout: 10_000, maxBuffer: 1 << 20 },
-      (err, stdout) => {
-        resolve(err ? null : stdout.replace(/\r/g, ""));
-      },
-    );
+    execFile("git", args, { cwd, timeout: 10_000, maxBuffer: 1 << 20 }, (err, stdout) => {
+      resolve(err ? null : stdout.replace(/\r/g, ""));
+    });
   });
 }
 
@@ -276,9 +266,7 @@ function displayPath(file: string, cwd: string): string {
   const rel = pathRelative(realToolPath(cwd, cwd), file);
   if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
   const home = homedir();
-  return file.startsWith(`${home}/`)
-    ? `~/${file.slice(home.length + 1)}`
-    : file;
+  return file.startsWith(`${home}/`) ? `~/${file.slice(home.length + 1)}` : file;
 }
 
 /** Mark a word that holds an expansion the parser cannot evaluate. */
@@ -295,12 +283,7 @@ const SUBSHELL_CLOSE = "\u0001)";
  * returned as commands too; the word holding them is marked UNKNOWN. Child
  * shells are bracketed by SUBSHELL_OPEN / SUBSHELL_CLOSE pseudo-commands.
  */
-function scanShell(
-  s: string,
-  start: number,
-  out: string[][],
-  closer: string | null,
-): number {
+function scanShell(s: string, start: number, out: string[][], closer: string | null): number {
   let depth = 0;
   // Scan a child shell's body: a recursive scan bracketed by scope markers.
   const child = (body: string, from: number, end: string | null): number => {
@@ -398,8 +381,7 @@ function scanShell(
       i = eol === -1 ? s.length : eol;
     } else if (c === "\n") {
       endCommand();
-      i =
-        heredocs.length > 0 || heredocStrip !== null ? skipHeredocs(i) : i + 1;
+      i = heredocs.length > 0 || heredocStrip !== null ? skipHeredocs(i) : i + 1;
     } else if (c === "(") {
       endCommand();
       out.push([SUBSHELL_OPEN]);
@@ -442,10 +424,7 @@ function scanShell(
 }
 
 /** A path word resolved against base, or null when it holds an expansion. */
-function shellPath(
-  word: string | undefined,
-  base: string | null,
-): string | null {
+function shellPath(word: string | undefined, base: string | null): string | null {
   if (base === null || word === undefined) return null;
   if (word.includes(UNKNOWN) || /[*?[]/.test(word)) return null;
   return realToolPath(word, base);
@@ -524,11 +503,7 @@ function targetRoot(target: CommitTarget): Promise<string | null> {
     return Promise.resolve(null);
   if (target.workTree) return repoRootOf(target.workTree);
   if (target.gitDir)
-    return repoRootOf(
-      basename(target.gitDir) === ".git"
-        ? dirname(target.gitDir)
-        : target.gitDir,
-    );
+    return repoRootOf(basename(target.gitDir) === ".git" ? dirname(target.gitDir) : target.gitDir);
   return repoRootOf(target.dir);
 }
 
@@ -646,10 +621,7 @@ function noticeText(result: RunResult): string {
   if (head) return head.length > 240 ? head.slice(0, 239) + "\u2026" : head;
   const errHead = result.stderr.trim().split("\n", 1)[0] ?? "";
   if (errHead)
-    return (
-      "verify-final: " +
-      (errHead.length > 220 ? errHead.slice(0, 219) + "\u2026" : errHead)
-    );
+    return "verify-final: " + (errHead.length > 220 ? errHead.slice(0, 219) + "\u2026" : errHead);
   return result.timedOut
     ? "verify-final: check timed out"
     : result.errored
@@ -657,10 +629,7 @@ function noticeText(result: RunResult): string {
       : "verify-final: see findings";
 }
 
-function customMessage(
-  customType: string,
-  content: string,
-): CustomMessageEntryDraft {
+function customMessage(customType: string, content: string): CustomMessageEntryDraft {
   return { type: "custom_message", customType, content, display: true };
 }
 
@@ -749,9 +718,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       const message = messages[i];
       text = extractText(message);
       const role =
-        message && typeof message === "object"
-          ? (message as { role?: unknown }).role
-          : undefined;
+        message && typeof message === "object" ? (message as { role?: unknown }).role : undefined;
       if (text && role === "assistant") break;
       text = "";
     }
@@ -759,65 +726,55 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
   });
 
   // Settle nudge: this session's tracked code files are still uncommitted.
-  pi.on(
-    "agent_before_settle",
-    async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
-      if (aborted) return;
-      // Never extend a failed or interrupted run.
-      if (event.outcome !== "completed") return;
-      if (process.env.POST_WORK_CLEANUP === "0") return;
-      if (cleanupDoneSeq === userPromptSeq) return;
-      // Already running this prompt, or the gate already asked and was declined.
-      if (cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq)
-        return;
-      if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
-      if (tracked.size === 0) return;
-      await pruneTracked();
-      if (tracked.size === 0) return;
-      if (
-        cleanupDoneSeq === userPromptSeq ||
-        cleanupRanSeq === userPromptSeq ||
-        gateHeldSeq === userPromptSeq
-      )
-        return;
-      const cwd = resolveCwd(ctx);
-      cleanupDoneSeq = userPromptSeq;
-      continuationsThisPrompt += 1;
-      const shown = [...tracked.keys()].map((f) => displayPath(f, cwd));
-      return withContinuation(
-        event,
-        customMessage(
-          CLEANUP_SKILL_NAME,
-          settleDirective(shown, cleanupSkillAvailable(cwd)),
-        ),
-      );
-    },
-  );
+  pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
+    if (aborted) return;
+    // Never extend a failed or interrupted run.
+    if (event.outcome !== "completed") return;
+    if (process.env.POST_WORK_CLEANUP === "0") return;
+    if (cleanupDoneSeq === userPromptSeq) return;
+    // Already running this prompt, or the gate already asked and was declined.
+    if (cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq) return;
+    if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
+    if (tracked.size === 0) return;
+    await pruneTracked();
+    if (tracked.size === 0) return;
+    if (
+      cleanupDoneSeq === userPromptSeq ||
+      cleanupRanSeq === userPromptSeq ||
+      gateHeldSeq === userPromptSeq
+    )
+      return;
+    const cwd = resolveCwd(ctx);
+    cleanupDoneSeq = userPromptSeq;
+    continuationsThisPrompt += 1;
+    const shown = [...tracked.keys()].map((f) => displayPath(f, cwd));
+    return withContinuation(
+      event,
+      customMessage(CLEANUP_SKILL_NAME, settleDirective(shown, cleanupSkillAvailable(cwd))),
+    );
+  });
 
   // Grounding check for headless modes, where a post-settle follow-up cannot run.
-  pi.on(
-    "agent_before_settle",
-    async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
-      if (aborted) return;
-      if (event.outcome !== "completed") return;
-      if (ctx.mode === "tui") return;
-      if (process.env.VERIFY_FINAL === "0") return;
-      if (groundingDoneSeq === userPromptSeq) return;
-      if (userPromptSeq === lastFollowupSeq) return;
-      if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
-      const text = lastAssistantText;
-      if (shouldSkipText(text)) return;
-      groundingDoneSeq = userPromptSeq;
-      const result = await runCheck(resolveCwd(ctx), text);
-      if (aborted) return;
-      const out = result.stdout;
-      if (!out.trim()) return;
-      if (out.includes("verify-final: no findings")) return;
-      if (!FINDING_RE.test(out)) return;
-      continuationsThisPrompt += 1;
-      return withContinuation(event, customMessage("verify-final", out));
-    },
-  );
+  pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
+    if (aborted) return;
+    if (event.outcome !== "completed") return;
+    if (ctx.mode === "tui") return;
+    if (process.env.VERIFY_FINAL === "0") return;
+    if (groundingDoneSeq === userPromptSeq) return;
+    if (userPromptSeq === lastFollowupSeq) return;
+    if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
+    const text = lastAssistantText;
+    if (shouldSkipText(text)) return;
+    groundingDoneSeq = userPromptSeq;
+    const result = await runCheck(resolveCwd(ctx), text);
+    if (aborted) return;
+    const out = result.stdout;
+    if (!out.trim()) return;
+    if (out.includes("verify-final: no findings")) return;
+    if (!FINDING_RE.test(out)) return;
+    continuationsThisPrompt += 1;
+    return withContinuation(event, customMessage("verify-final", out));
+  });
 
   pi.on("agent_settled", (event, ctx) => {
     if (aborted) return;
