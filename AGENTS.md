@@ -32,8 +32,9 @@ commands).
 - **AGENTS standard lane (canonical):** `.agents/AGENTS.md` (global agent
   guidance) and `.agents/skills/<name>/SKILL.md`. pi discovers
   `~/.agents/skills` (→ `dotfiles/.agents/skills`) natively. pi does **not**
-  read `.agents/AGENTS.md`: its user context file would be
-  `~/.pi/agent/AGENTS.md`, and none exists; codex reads it via
+  read `.agents/AGENTS.md`: its user context file is one of
+  `~/.pi/agent/{AGENTS.override.md,AGENTS.md,AGENTS.MD,CLAUDE.md,CLAUDE.MD}`, and
+  none exists on any machine; codex reads it via
   `~/.codex/AGENTS.md`. This is the only lane that applies without the model choosing
   to load anything: a skill contributes just its one-line description to
   context until something calls the `skill` tool, which on plain coding tasks
