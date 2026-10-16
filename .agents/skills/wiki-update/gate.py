@@ -21,6 +21,7 @@ Scheduled:
 
 stdlib only. CLAIMS.md is the source of truth; this never invents a DB.
 """
+
 import argparse
 import json
 import os
@@ -33,28 +34,52 @@ from pathlib import Path
 
 KINDS = {"gotcha", "decision", "config-fact", "runbook-step"}
 CONFIDENCES = {"high", "medium", "low"}
-COLS = ["ID", "Kind", "Claim", "Source", "Page", "Confidence", "Status",
-        "Created", "Hits", "Superseded", "Impact", "Notes"]
+COLS = [
+    "ID",
+    "Kind",
+    "Claim",
+    "Source",
+    "Page",
+    "Confidence",
+    "Status",
+    "Created",
+    "Hits",
+    "Superseded",
+    "Impact",
+    "Notes",
+]
 
 # Tunables. Budget is resolved per-wiki at runtime (resolve_budget): the
 # WIKI_CLAIM_BUDGET env var wins, else a "budget" persisted in .gate-state.json,
 # else this default. A large curated wiki records its real scale once via
 # `gate.py set-budget N` instead of re-exporting the env var every invocation.
 DEFAULT_BUDGET = 40  # max active hot claims before eviction
-DEDUP_RATIO = 0.82   # claim-text similarity at/above this = near-duplicate
-RESTATE_RATIO = 0.70 # impact this similar to the claim = not a real justification
-COLD_HITS = 1        # demote active claims with hits <= this ...
+DEDUP_RATIO = 0.82  # claim-text similarity at/above this = near-duplicate
+RESTATE_RATIO = 0.70  # impact this similar to the claim = not a real justification
+COLD_HITS = 1  # demote active claims with hits <= this ...
 COLD_AGE_DAYS = 120  # ... that are also older than this
-MAINT_EVERY = 20     # writes between scheduled-maintenance prompts
+MAINT_EVERY = 20  # writes between scheduled-maintenance prompts
 
 BOILERPLATE = {
-    "", "n/a", "na", "none", "fyi", "background", "for reference", "good to know",
-    "general context", "context", "useful", "general knowledge", "misc",
+    "",
+    "n/a",
+    "na",
+    "none",
+    "fyi",
+    "background",
+    "for reference",
+    "good to know",
+    "general context",
+    "context",
+    "useful",
+    "general knowledge",
+    "misc",
 }
 TODAY = date.today().isoformat()
 
 
 # ---------- CLAIMS.md parsing / serialising ----------
+
 
 def parse(path: Path):
     """Return (preamble_lines, rows, footer_lines). Rows are dicts keyed by COLS.
@@ -65,8 +90,7 @@ def parse(path: Path):
     if not path.exists():
         return ["# Claims Registry", ""], [], []
     lines = path.read_text().splitlines()
-    header_idx = next((i for i, ln in enumerate(lines)
-                       if ln.strip().startswith("| ID")), None)
+    header_idx = next((i for i, ln in enumerate(lines) if ln.strip().startswith("| ID")), None)
     if header_idx is None:
         return lines, [], []
     header = [c.strip() for c in lines[header_idx].strip().strip("|").split("|")]
@@ -86,7 +110,7 @@ def parse(path: Path):
             last_row = i
         elif re.match(r"^\|\s*-+", ln):  # markdown separator row, skip
             continue
-    return lines[:header_idx], rows, lines[last_row + 1:]
+    return lines[:header_idx], rows, lines[last_row + 1 :]
 
 
 def serialize(preamble, rows, footer):
@@ -94,15 +118,16 @@ def serialize(preamble, rows, footer):
     out.append("| " + " | ".join(COLS) + " |")
     out.append("|" + "|".join(["---"] * len(COLS)) + "|")
     for r in rows:
-        out.append("| " + " | ".join((r.get(c, "") or "").replace("\n", " ")
-                                      for c in COLS) + " |")
+        out.append("| " + " | ".join((r.get(c, "") or "").replace("\n", " ") for c in COLS) + " |")
     out.extend(footer if footer else ["", _footer_note()])
     return "\n".join(out).rstrip() + "\n"
 
 
 def _footer_note():
-    return ("Claim IDs use the next available zero-padded integer in `C-0001` "
-            "format. Schema and bounding gates enforced by `gate.py`.")
+    return (
+        "Claim IDs use the next available zero-padded integer in `C-0001` "
+        "format. Schema and bounding gates enforced by `gate.py`."
+    )
 
 
 def next_id(wiki, *extra_rows):
@@ -148,6 +173,7 @@ def ratio(a, b):
 
 # ---------- state (write counter for scheduled cadence) ----------
 
+
 def state_path(wiki):
     return wiki / ".gate-state.json"
 
@@ -188,6 +214,7 @@ def resolve_budget(wiki):
 
 # ---------- per-write gates ----------
 
+
 def gate_check(wiki, entry):
     """Run all per-write gates against one candidate. Returns a verdict dict."""
     path = wiki / "CLAIMS.md"
@@ -204,11 +231,14 @@ def gate_check(wiki, entry):
     for f in ("claim", "source", "impact"):
         if not (entry.get(f) or "").strip():
             fails.append(f"required field '{f}' is empty")
-    piped = [f for f in ("claim", "source", "page", "impact", "notes")
-             if "|" in (entry.get(f) or "")]
+    piped = [
+        f for f in ("claim", "source", "page", "impact", "notes") if "|" in (entry.get(f) or "")
+    ]
     if piped:
-        fails.append(f"fields {piped} contain '|', which breaks the markdown "
-                     "table row; reword to drop the pipe")
+        fails.append(
+            f"fields {piped} contain '|', which breaks the markdown "
+            "table row; reword to drop the pipe"
+        )
     if fails:
         return {"verdict": "REJECT", "gate": "validate", "reasons": fails}
 
@@ -216,75 +246,123 @@ def gate_check(wiki, entry):
 
     # 2. admission filter — earn your place
     if impact.lower().strip(".") in BOILERPLATE or len(impact) < 15:
-        return {"verdict": "REJECT", "gate": "admit",
-                "reasons": [f"impact {impact!r} states no counterfactual value "
-                            "(would knowing this have changed the run's outcome?)"]}
+        return {
+            "verdict": "REJECT",
+            "gate": "admit",
+            "reasons": [
+                f"impact {impact!r} states no counterfactual value "
+                "(would knowing this have changed the run's outcome?)"
+            ],
+        }
     if ratio(impact, claim) > RESTATE_RATIO:
-        return {"verdict": "REJECT", "gate": "admit",
-                "reasons": ["impact merely restates the claim; give the "
-                            "failure it would have prevented or speedup it gives"]}
+        return {
+            "verdict": "REJECT",
+            "gate": "admit",
+            "reasons": [
+                "impact merely restates the claim; give the "
+                "failure it would have prevented or speedup it gives"
+            ],
+        }
 
     # 4. supersede (declared) — checked before dedup so a conflict replaces
     sup = entry.get("supersedes")
     if sup:
         target = next((r for r in rows if r["ID"] == sup), None)
         if not target:
-            return {"verdict": "REJECT", "gate": "supersede",
-                    "reasons": [f"supersedes {sup} but no such claim exists"]}
+            return {
+                "verdict": "REJECT",
+                "gate": "supersede",
+                "reasons": [f"supersedes {sup} but no such claim exists"],
+            }
         if target["Status"] not in ("active", ""):
-            return {"verdict": "REJECT", "gate": "supersede",
-                    "reasons": [f"{sup} is already {target['Status']}; supersede its "
-                                "current active replacement instead"]}
+            return {
+                "verdict": "REJECT",
+                "gate": "supersede",
+                "reasons": [
+                    f"{sup} is already {target['Status']}; supersede its "
+                    "current active replacement instead"
+                ],
+            }
         nid = next_id(wiki, *rows)
         notes = "; ".join(x for x in (f"supersedes {sup}", entry.get("notes", "").strip()) if x)
-        return {"verdict": "SUPERSEDE", "gate": "supersede", "target": sup,
-                "new_id": nid, "row": _row_from_entry(nid, {**entry, "notes": notes}),
-                "instruction": (f"re-run with --apply: marks {sup} status=superseded, "
-                                f"Superseded={TODAY}, and writes {nid} noting 'supersedes {sup}'")}
+        return {
+            "verdict": "SUPERSEDE",
+            "gate": "supersede",
+            "target": sup,
+            "new_id": nid,
+            "row": _row_from_entry(nid, {**entry, "notes": notes}),
+            "instruction": (
+                f"re-run with --apply: marks {sup} status=superseded, "
+                f"Superseded={TODAY}, and writes {nid} noting 'supersedes {sup}'"
+            ),
+        }
 
     # 3. dedup on write
-    dups = sorted(((ratio(claim, r["Claim"]), r) for r in acts),
-                  key=lambda t: -t[0])
+    dups = sorted(((ratio(claim, r["Claim"]), r) for r in acts), key=lambda t: -t[0])
     if dups and dups[0][0] >= DEDUP_RATIO:
         r = dups[0][1]
-        return {"verdict": "MERGE", "gate": "dedup", "target": r["ID"],
-                "similarity": round(dups[0][0], 3),
-                "instruction": (f"near-duplicate of {r['ID']} ({round(dups[0][0],3)}); "
-                                f"merge into {r['ID']} (refine claim/source/impact, "
-                                "bump Hits), do NOT add a variant row")}
+        return {
+            "verdict": "MERGE",
+            "gate": "dedup",
+            "target": r["ID"],
+            "similarity": round(dups[0][0], 3),
+            "instruction": (
+                f"near-duplicate of {r['ID']} ({round(dups[0][0], 3)}); "
+                f"merge into {r['ID']} (refine claim/source/impact, "
+                "bump Hits), do NOT add a variant row"
+            ),
+        }
 
     # 5. hard budget cap — eviction is a precondition of the add
     nid = next_id(wiki, *rows)
     if len(acts) >= budget:
         victim = min(acts, key=score)
-        return {"verdict": "EVICT_FIRST", "gate": "budget",
-                "active": len(acts), "budget": budget, "new_id": nid,
-                "evict": victim["ID"], "evict_score": round(score(victim), 2),
-                "instruction": (f"budget {budget} reached ({len(acts)} active). "
-                                f"Demote lowest-value claim {victim['ID']} "
-                                f"(score {round(score(victim),2)}) to CLAIMS-cold.md "
-                                f"via `gate.py demote --force {victim['ID']}` "
-                                f"BEFORE adding {nid}")}
+        return {
+            "verdict": "EVICT_FIRST",
+            "gate": "budget",
+            "active": len(acts),
+            "budget": budget,
+            "new_id": nid,
+            "evict": victim["ID"],
+            "evict_score": round(score(victim), 2),
+            "instruction": (
+                f"budget {budget} reached ({len(acts)} active). "
+                f"Demote lowest-value claim {victim['ID']} "
+                f"(score {round(score(victim), 2)}) to CLAIMS-cold.md "
+                f"via `gate.py demote --force {victim['ID']}` "
+                f"BEFORE adding {nid}"
+            ),
+        }
 
-    return {"verdict": "ADMIT", "gate": "all", "new_id": nid,
-            "row": _row_from_entry(nid, entry),
-            "instruction": f"all gates pass; write {nid}"}
+    return {
+        "verdict": "ADMIT",
+        "gate": "all",
+        "new_id": nid,
+        "row": _row_from_entry(nid, entry),
+        "instruction": f"all gates pass; write {nid}",
+    }
 
 
 def _row_from_entry(nid, entry):
     return {
-        "ID": nid, "Kind": entry["kind"], "Claim": entry["claim"].strip(),
-        "Source": entry["source"].strip(), "Page": entry.get("page", "").strip(),
-        "Confidence": entry["confidence"], "Status": "active",
-        "Created": TODAY, "Hits": "0", "Superseded": "",
-        "Impact": entry["impact"].strip(), "Notes": entry.get("notes", "").strip(),
+        "ID": nid,
+        "Kind": entry["kind"],
+        "Claim": entry["claim"].strip(),
+        "Source": entry["source"].strip(),
+        "Page": entry.get("page", "").strip(),
+        "Confidence": entry["confidence"],
+        "Status": "active",
+        "Created": TODAY,
+        "Hits": "0",
+        "Superseded": "",
+        "Impact": entry["impact"].strip(),
+        "Notes": entry.get("notes", "").strip(),
     }
 
 
 def cmd_check(args):
     wiki = Path(args.wiki)
-    entry = json.loads(Path(args.entry).read_text() if args.entry != "-"
-                       else sys.stdin.read())
+    entry = json.loads(Path(args.entry).read_text() if args.entry != "-" else sys.stdin.read())
     v = gate_check(wiki, entry)
     print(json.dumps(v, indent=2))
     if v["verdict"] in ("ADMIT", "SUPERSEDE"):
@@ -294,46 +372,75 @@ def cmd_check(args):
             if v["verdict"] == "SUPERSEDE":
                 old = next(r for r in rows if r["ID"] == v["target"])
                 old["Status"], old["Superseded"] = "superseded", TODAY
-                old["Notes"] = "; ".join(x for x in (old["Notes"], f"superseded by {v['new_id']}") if x)
+                old["Notes"] = "; ".join(
+                    x for x in (old["Notes"], f"superseded by {v['new_id']}") if x
+                )
             rows.append(v["row"])
             path.write_text(serialize(pre, rows, foot))
             n = bump_writes(wiki)
-            print(f"# applied {v['new_id']}"
-                  + (f" (superseded {v['target']})" if v["verdict"] == "SUPERSEDE" else "")
-                  + f"; writes_since_maint={n}"
-                  + ("  >>> maintenance due (demote/consolidate)" if n >= MAINT_EVERY else ""))
+            print(
+                f"# applied {v['new_id']}"
+                + (f" (superseded {v['target']})" if v["verdict"] == "SUPERSEDE" else "")
+                + f"; writes_since_maint={n}"
+                + ("  >>> maintenance due (demote/consolidate)" if n >= MAINT_EVERY else "")
+            )
         return 0
     return 3  # any other verdict blocks the write
 
 
 # ---------- scheduled gates ----------
 
+
 def cmd_demote(args):
     wiki = Path(args.wiki)
     path, cold = wiki / "CLAIMS.md", wiki / "CLAIMS-cold.md"
     pre, rows, foot = parse(path)
     # A claim an eval case depends on is by definition hot; never auto-demote it.
-    protected = {r["ID"] for r in rows
-                 for _, exp in load_eval(wiki)
-                 if r["ID"] in exp or (exp and exp in r["Claim"])}
+    protected = {
+        r["ID"]
+        for r in rows
+        for _, exp in load_eval(wiki)
+        if r["ID"] in exp or (exp and exp in r["Claim"])
+    }
     if args.force:
         picked = [r for r in rows if r["ID"] in set(args.force) and r["Status"] != "cold"]
         clash = protected & {r["ID"] for r in picked}
         if clash:
-            print(f"# WARNING: force-demoting eval-referenced claim(s) {sorted(clash)} "
-                  "will break the eval slice", file=sys.stderr)
+            print(
+                f"# WARNING: force-demoting eval-referenced claim(s) {sorted(clash)} "
+                "will break the eval slice",
+                file=sys.stderr,
+            )
     else:
-        picked = [r for r in active(rows)
-                  if r["ID"] not in protected
-                  and int(r["Hits"] or 0) <= COLD_HITS and age_days(r) > COLD_AGE_DAYS]
+        picked = [
+            r
+            for r in active(rows)
+            if r["ID"] not in protected
+            and int(r["Hits"] or 0) <= COLD_HITS
+            and age_days(r) > COLD_AGE_DAYS
+        ]
     if not picked:
         print(json.dumps({"demoted": [], "note": "nothing met cold criteria"}))
         return 0
     ids = {r["ID"] for r in picked}
-    cpre, crows, cfoot = parse(cold) if cold.exists() else (
-        ["---", "type: claims-registry-cold", "title: Claims Registry — Cold Archive", "---", "",
-         "# Claims Registry — Cold Archive", "",
-         "Demoted low-traffic claims. NOT loaded by default; search explicitly."], [], [])
+    cpre, crows, cfoot = (
+        parse(cold)
+        if cold.exists()
+        else (
+            [
+                "---",
+                "type: claims-registry-cold",
+                "title: Claims Registry — Cold Archive",
+                "---",
+                "",
+                "# Claims Registry — Cold Archive",
+                "",
+                "Demoted low-traffic claims. NOT loaded by default; search explicitly.",
+            ],
+            [],
+            [],
+        )
+    )
     for r in picked:
         r["Status"] = "cold"
     crows.extend(picked)
@@ -377,8 +484,7 @@ def cmd_eval(args):
     p, total, results = run_eval(wiki)
     for q, exp, ok in results:
         print(f"  [{'PASS' if ok else 'FAIL'}] {q}  (expect: {exp})")
-    print(json.dumps({"passed": p, "total": total,
-                      "rate": round(p / total, 3) if total else None}))
+    print(json.dumps({"passed": p, "total": total, "rate": round(p / total, 3) if total else None}))
     return 0 if total and p == total else (0 if total == 0 else 1)
 
 
@@ -390,10 +496,16 @@ def cmd_consolidate(args):
     path = wiki / "CLAIMS.md"
     plan = json.loads(Path(args.plan).read_text())
     if not load_eval(wiki):
-        print(json.dumps({"result": "REFUSED", "reason":
-                          "no eval slice (wiki/eval/*.eval) — consolidation cannot "
-                          "verify it kept load-bearing claims; add eval cases first"},
-                         indent=2))
+        print(
+            json.dumps(
+                {
+                    "result": "REFUSED",
+                    "reason": "no eval slice (wiki/eval/*.eval) — consolidation cannot "
+                    "verify it kept load-bearing claims; add eval cases first",
+                },
+                indent=2,
+            )
+        )
         return 6
     bak = path.with_suffix(".md.snapshot")
     shutil.copy2(path, bak)  # snapshot (file copy: safe even on a dirty tree)
@@ -423,9 +535,12 @@ def cmd_consolidate(args):
 
     kept = (after_pass >= base_pass) and (after_size < before_size)
     verdict = {
-        "base_pass": f"{base_pass}/{base_total}", "after_pass": f"{after_pass}/{after_total}",
-        "size_before": before_size, "size_after": after_size,
-        "pass_held": after_pass >= base_pass, "size_dropped": after_size < before_size,
+        "base_pass": f"{base_pass}/{base_total}",
+        "after_pass": f"{after_pass}/{after_total}",
+        "size_before": before_size,
+        "size_after": after_size,
+        "pass_held": after_pass >= base_pass,
+        "size_dropped": after_size < before_size,
     }
     if kept:
         path.write_text(candidate)
@@ -436,8 +551,9 @@ def cmd_consolidate(args):
         shutil.copy2(bak, path)  # revert
         bak.unlink()
         verdict["result"] = "REVERTED"
-        verdict["reason"] = ("eval pass rate dropped" if after_pass < base_pass
-                             else "size did not drop")
+        verdict["reason"] = (
+            "eval pass rate dropped" if after_pass < base_pass else "size did not drop"
+        )
     print(json.dumps(verdict, indent=2))
     return 0 if kept else 4
 
@@ -459,8 +575,12 @@ def cmd_audit(args):
             problems.append(f"{r['ID']} bad confidence {r['Confidence']!r}")
     st = json.loads(state_path(wiki).read_text()) if state_path(wiki).exists() else {}
     due = st.get("writes_since_maint", 0) >= MAINT_EVERY
-    print(json.dumps({"active": len(acts), "budget": budget, "problems": problems,
-                      "maintenance_due": due}, indent=2))
+    print(
+        json.dumps(
+            {"active": len(acts), "budget": budget, "problems": problems, "maintenance_due": due},
+            indent=2,
+        )
+    )
     return 0 if not problems else 5
 
 
@@ -485,9 +605,17 @@ def cmd_migrate(args):
         if after != before:
             p.write_text(after)
             changed.append(name)
-    print(json.dumps({"migrated": changed,
-                      "note": "already canonical; nothing to do" if not changed
-                      else "rewrote to 12-column schema"}, indent=2))
+    print(
+        json.dumps(
+            {
+                "migrated": changed,
+                "note": "already canonical; nothing to do"
+                if not changed
+                else "rewrote to 12-column schema",
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -508,6 +636,7 @@ def cmd_selftest(args):
     """Build a throwaway wiki and assert every gate fires. No framework; the one
     runnable check that proves the gates still bite after edits."""
     import tempfile
+
     tmp = Path(tempfile.mkdtemp(prefix="gate-selftest-"))
     try:
         (tmp / "eval").mkdir()
@@ -516,20 +645,33 @@ def cmd_selftest(args):
             "| " + " | ".join(COLS) + " |\n"
             "|" + "|".join(["---"] * len(COLS)) + "|\n"
             "| C-0001 | config-fact | Default engine is pi. | bin/rralph |  | high | active | 2024-01-01 | 5 |  | Wrong engine wastes a full run. | s |\n"
-            "| C-0002 | gotcha | Do not attach to the live pane. | mon |  | high | active | 2024-01-01 | 3 |  | Attaching derails the run. | s |\n")
+            "| C-0002 | gotcha | Do not attach to the live pane. | mon |  | high | active | 2024-01-01 | 3 |  | Attaching derails the run. | s |\n"
+        )
         (tmp / "eval" / "c.eval").write_text("q1 ||| Default engine is pi\n")
         ns = lambda **k: argparse.Namespace(wiki=str(tmp), **k)
 
-        good = {"kind": "decision", "claim": "Adopt a cold archive tier.",
-                "source": "gate.py", "confidence": "high",
-                "impact": "Without it the hot file grows unbounded and dilutes queries."}
+        good = {
+            "kind": "decision",
+            "claim": "Adopt a cold archive tier.",
+            "source": "gate.py",
+            "confidence": "high",
+            "impact": "Without it the hot file grows unbounded and dilutes queries.",
+        }
         assert gate_check(tmp, good)["verdict"] == "ADMIT", "good claim should ADMIT"
         assert gate_check(tmp, {**good, "kind": "musing"})["gate"] == "validate", "bad kind"
-        assert gate_check(tmp, {**good, "impact": "good to know"})["gate"] == "admit", "boilerplate impact"
+        assert gate_check(tmp, {**good, "impact": "good to know"})["gate"] == "admit", (
+            "boilerplate impact"
+        )
         assert gate_check(tmp, {**good, "claim": "a | b"})["gate"] == "validate", "pipe in field"
-        assert gate_check(tmp, {**good, "claim": "Default engine is pi.",
-                                "kind": "config-fact"})["verdict"] == "MERGE", "near-dup -> MERGE"
-        assert gate_check(tmp, {**good, "supersedes": "C-9999"})["gate"] == "supersede", "bad supersede"
+        assert (
+            gate_check(tmp, {**good, "claim": "Default engine is pi.", "kind": "config-fact"})[
+                "verdict"
+            ]
+            == "MERGE"
+        ), "near-dup -> MERGE"
+        assert gate_check(tmp, {**good, "supersedes": "C-9999"})["gate"] == "supersede", (
+            "bad supersede"
+        )
 
         os.environ["WIKI_CLAIM_BUDGET"] = "2"
         try:
@@ -557,10 +699,12 @@ def cmd_selftest(args):
             "# Claims Registry\n\n"
             "| ID | Claim | Source | Page | Confidence | Status | Notes |\n"
             "|----|-------|--------|------|------------|--------|-------|\n"
-            "| C-0001 | Legacy claim. | src |  | medium | active | n |\n")
+            "| C-0001 | Legacy claim. | src |  | medium | active | n |\n"
+        )
         cmd_migrate(argparse.Namespace(wiki=str(leg)))
-        head = next(l for l in (leg / "CLAIMS.md").read_text().splitlines()
-                    if l.strip().startswith("| ID"))
+        head = next(
+            l for l in (leg / "CLAIMS.md").read_text().splitlines() if l.strip().startswith("| ID")
+        )
         assert head.count("|") == 13, "migrated header should have 12 columns"
         assert "Legacy claim." in (leg / "CLAIMS.md").read_text(), "legacy row preserved"
         assert gate_check(leg, good)["verdict"] == "ADMIT", "migrated file accepts gated writes"
@@ -573,8 +717,9 @@ def cmd_selftest(args):
         noeval.mkdir()
         shutil.copy2(tmp / "CLAIMS.md", noeval / "CLAIMS.md")
         (noeval / "p.json").write_text(json.dumps({"prune": ["C-0001"]}))
-        assert cmd_consolidate(argparse.Namespace(
-            wiki=str(noeval), plan=str(noeval / "p.json"))) == 6, "no-eval consolidation refused"
+        assert (
+            cmd_consolidate(argparse.Namespace(wiki=str(noeval), plan=str(noeval / "p.json"))) == 6
+        ), "no-eval consolidation refused"
 
         print("selftest OK — all gates fired")
         return 0
@@ -583,8 +728,9 @@ def cmd_selftest(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--wiki", default="wiki", help="wiki root (default: wiki)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 

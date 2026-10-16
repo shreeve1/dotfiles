@@ -61,7 +61,8 @@ def scratch_worktree():
         scratch = Path(tmp) / "repo"
         subprocess.run(
             ["git", "worktree", "add", "--detach", "--quiet", str(scratch), "HEAD"],
-            cwd=REPO, check=True,
+            cwd=REPO,
+            check=True,
         )
         try:
             shutil.copyfile(REPO / "check.sh", scratch / "check.sh")
@@ -70,7 +71,8 @@ def scratch_worktree():
         finally:
             subprocess.run(
                 ["git", "worktree", "remove", "--force", str(scratch)],
-                cwd=REPO, check=False,
+                cwd=REPO,
+                check=False,
             )
 
 
@@ -86,8 +88,10 @@ def check_broken_syntax():
 
         code, out = run_gate(scratch)
         if code == 0:
-            return ("gate returned 0 on a broken bin/prune-dead-links -- "
-                    "the python syntax check is not load-bearing\n%s" % out)
+            return (
+                "gate returned 0 on a broken bin/prune-dead-links -- "
+                "the python syntax check is not load-bearing\n%s" % out
+            )
         if "bin/prune-dead-links" not in out:
             return "gate failed but never named bin/prune-dead-links\n%s" % out
     return None
@@ -102,15 +106,16 @@ def check_guard_survives_rename(guarded, selector_old, selector_new):
     Every guarded name is tracked, so absence always means renamed or deleted.
     """
     with scratch_worktree() as scratch:
-        subprocess.run(["git", "mv", guarded, guarded + "-renamed"],
-                       cwd=scratch, check=True)
+        subprocess.run(["git", "mv", guarded, guarded + "-renamed"], cwd=scratch, check=True)
         gate = scratch / "check.sh"
         gate.write_text(gate.read_text().replace(selector_old, selector_new))
 
         code, out = run_gate(scratch)
         if code == 0:
-            return ("gate returned 0 after %s was renamed and its selector broken -- "
-                    "the coverage guard is bypassable\n%s" % (guarded, out))
+            return (
+                "gate returned 0 after %s was renamed and its selector broken -- "
+                "the coverage guard is bypassable\n%s" % (guarded, out)
+            )
         if guarded not in out:
             return "gate failed but never named the missing %s\n%s" % (guarded, out)
     return None
@@ -119,12 +124,18 @@ def check_guard_survives_rename(guarded, selector_old, selector_new):
 def main():
     checks = [
         ("broken python syntax is caught", check_broken_syntax),
-        ("python guard survives a rename",
-         lambda: check_guard_survives_rename(
-             "bin/prune-dead-links", "git ls-files '*.py'", "git ls-files '*.NOPE'")),
-        ("shell guard survives a rename",
-         lambda: check_guard_survives_rename(
-             "bin/pi-delegate", "git ls-files '*.sh'", "git ls-files '*.NOPE'")),
+        (
+            "python guard survives a rename",
+            lambda: check_guard_survives_rename(
+                "bin/prune-dead-links", "git ls-files '*.py'", "git ls-files '*.NOPE'"
+            ),
+        ),
+        (
+            "shell guard survives a rename",
+            lambda: check_guard_survives_rename(
+                "bin/pi-delegate", "git ls-files '*.sh'", "git ls-files '*.NOPE'"
+            ),
+        ),
     ]
     failed = 0
     for name, fn in checks:

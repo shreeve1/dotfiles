@@ -138,7 +138,9 @@ def prompt_frames(text):
         if role == "user":
             if text.startswith("/"):
                 continue
-            frame["message"]["content"] = text if scenario.get("string_content") else [{"type": "text", "text": text}]
+            frame["message"]["content"] = (
+                text if scenario.get("string_content") else [{"type": "text", "text": text}]
+            )
         elif scenario.get("thin") and not (kind in THIN_TYPES or sub == "text_delta"):
             continue
         if sub == "text_delta" and pieces:
@@ -166,7 +168,11 @@ def play(frames, first, gen):
     delta_delay = float(scenario.get("delta_delay", 0))
     count = 0
     for frame in frames:
-        counted = first and frame.get("type") != "turn_start" and (frame.get("message") or {}).get("role") != "user"
+        counted = (
+            first
+            and frame.get("type") != "turn_start"
+            and (frame.get("message") or {}).get("role") != "user"
+        )
         if counted:
             gate(count, gen)
         if delay:
@@ -206,7 +212,9 @@ def run(first_id, first_text, first, gen):
                         "type": "prompt_result",
                         "id": prompt_id,
                         "agentInvoked": True,
-                        "status": scenario.get("result_status", {}).get(texts[prompt_id], "completed"),
+                        "status": scenario.get("result_status", {}).get(
+                            texts[prompt_id], "completed"
+                        ),
                         "sessionSettled": True,
                     }
                     for prompt_id in delivered + [first_id]
@@ -234,13 +242,27 @@ def handle_abort(msg):
         if scenario.get("restore_reject"):
             reply.update(success=False, error="Unknown command")
         else:
-            reply.update(success=True, data={"steering": [], "followUp": [{"text": text} for _, text in followups]})
+            reply.update(
+                success=True,
+                data={"steering": [], "followUp": [{"text": text} for _, text in followups]},
+            )
         if not state["running"]:
             write_raw(json.dumps(reply))
             return
         state["gen"] += 1
         if scenario.get("leak_after_abort"):
-            write_raw(json.dumps({"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "contentIndex": 0, "delta": "LEAK"}}))
+            write_raw(
+                json.dumps(
+                    {
+                        "type": "message_update",
+                        "assistantMessageEvent": {
+                            "type": "text_delta",
+                            "contentIndex": 0,
+                            "delta": "LEAK",
+                        },
+                    }
+                )
+            )
         if followups:
             write_raw(json.dumps(queue_update([])))
         if not scenario.get("thin"):
@@ -250,7 +272,17 @@ def handle_abort(msg):
         write_raw(json.dumps(reply))
         queued_ids = [prompt_id for prompt_id, _ in followups]
         for prompt_id in queued_ids + state["delivered"] + [state["first_id"]]:
-            write_raw(json.dumps({"type": "prompt_result", "id": prompt_id, "agentInvoked": True, "status": "aborted", "sessionSettled": True}))
+            write_raw(
+                json.dumps(
+                    {
+                        "type": "prompt_result",
+                        "id": prompt_id,
+                        "agentInvoked": True,
+                        "status": "aborted",
+                        "sessionSettled": True,
+                    }
+                )
+            )
         write_raw(json.dumps({"type": "session_settled"}))
         followups.clear()
         state["running"] = False
@@ -275,14 +307,28 @@ def handle_local(msg, text):
             write_raw(json.dumps({"type": "command_output", "text": piece}))
         write_raw(
             json.dumps(
-                {"id": msg.get("id"), "type": "response", "command": "prompt", "success": True, "data": {"agentInvoked": False}}
+                {
+                    "id": msg.get("id"),
+                    "type": "response",
+                    "command": "prompt",
+                    "success": True,
+                    "data": {"agentInvoked": False},
+                }
             )
         )
 
 
 def handle_prompt(msg):
     if scenario.get("prompt_fail"):
-        emit({"id": msg.get("id"), "type": "response", "command": "prompt", "success": False, "error": "rejected"})
+        emit(
+            {
+                "id": msg.get("id"),
+                "type": "response",
+                "command": "prompt",
+                "success": False,
+                "error": "rejected",
+            }
+        )
         return
     text = msg.get("message", "")
     if is_local(text):
@@ -297,7 +343,9 @@ def handle_prompt(msg):
         write_raw(json.dumps(ack(msg)))
         state["running"] = True
         state["turns"] += 1
-        threading.Thread(target=run, args=(msg.get("id"), text, state["turns"] == 1, state["gen"]), daemon=True).start()
+        threading.Thread(
+            target=run, args=(msg.get("id"), text, state["turns"] == 1, state["gen"]), daemon=True
+        ).start()
 
 
 def handle(msg):

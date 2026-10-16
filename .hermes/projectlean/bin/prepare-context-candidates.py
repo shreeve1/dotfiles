@@ -27,6 +27,7 @@ then inside the project root itself:
 4. ``CLAUDE.md``
 5. ``.cursorrules``
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,10 +46,8 @@ TEMPLATES = ROOT / "templates"
 ROUTER_TEMPLATE = TEMPLATES / "project-hermes-router.md.template"
 SOUL_TEMPLATE = TEMPLATES / "projectlean-soul.md.template"
 
-CONTEXT_FILENAMES = (".hermes.md", "HERMES.md", "AGENTS.md",
-                     "CLAUDE.md", ".cursorrules")
-PRECEDENCE = (".hermes.md", "HERMES.md", "AGENTS.md",
-              "CLAUDE.md", ".cursorrules")
+CONTEXT_FILENAMES = (".hermes.md", "HERMES.md", "AGENTS.md", "CLAUDE.md", ".cursorrules")
+PRECEDENCE = (".hermes.md", "HERMES.md", "AGENTS.md", "CLAUDE.md", ".cursorrules")
 HERMES_PRECEDENCE = (".hermes.md", "HERMES.md")
 
 ROUTER_MARKER_BEGIN = "<!-- projectlean:router:begin -->"
@@ -83,8 +82,11 @@ def _overlaps(path: Path, other: Path) -> bool:
 
 def _staging_root(value: Optional[Path], project: Path) -> Path:
     state_home = Path(os.environ.get("XDG_STATE_HOME", "~/.local/state"))
-    stage = (value or state_home.expanduser() / "hermes" / "projectlean" /
-             "context-candidates").expanduser().resolve()
+    stage = (
+        (value or state_home.expanduser() / "hermes" / "projectlean" / "context-candidates")
+        .expanduser()
+        .resolve()
+    )
     if _overlaps(stage, ROOT):
         _die("staging directories must not overlap the package or target repo")
     if _overlaps(stage, project):
@@ -94,10 +96,18 @@ def _staging_root(value: Optional[Path], project: Path) -> Path:
 
 def _staging_name(value: str) -> str:
     """Accept a conservative, portable single-component staging name."""
-    if (not value or value in (".", "..") or Path(value).is_absolute() or
-            "/" in value or "\\" in value or not STAGING_NAME_RE.fullmatch(value)):
-        _die("--staging-name must be a single identifier: letters, digits, "
-             "hyphens, or underscores (1-64 characters, starting with a letter or digit)")
+    if (
+        not value
+        or value in (".", "..")
+        or Path(value).is_absolute()
+        or "/" in value
+        or "\\" in value
+        or not STAGING_NAME_RE.fullmatch(value)
+    ):
+        _die(
+            "--staging-name must be a single identifier: letters, digits, "
+            "hyphens, or underscores (1-64 characters, starting with a letter or digit)"
+        )
     return value
 
 
@@ -106,8 +116,7 @@ def _staging_dir(stage_root: Path, name: str, project: Path) -> Path:
     candidate = stage_root / _staging_name(name)
     resolved_root = stage_root.resolve()
     resolved_candidate = candidate.resolve()
-    if resolved_candidate == resolved_root or not _is_beneath(
-            resolved_candidate, resolved_root):
+    if resolved_candidate == resolved_root or not _is_beneath(resolved_candidate, resolved_root):
         _die("--staging-name resolves outside the staging root")
     if _overlaps(resolved_candidate, ROOT):
         _die("staging directories must not overlap the package or target repo")
@@ -140,11 +149,7 @@ def _find_active_context(project: Path) -> tuple:
 
 def _render_router_patch(router_body: str) -> str:
     bounded = router_body.strip()
-    return (
-        f"{ROUTER_MARKER_BEGIN}\n"
-        f"{bounded}\n"
-        f"{ROUTER_MARKER_END}\n"
-    )
+    return f"{ROUTER_MARKER_BEGIN}\n{bounded}\n{ROUTER_MARKER_END}\n"
 
 
 def _build_router_candidate(active: Path, router_body: str) -> dict:
@@ -249,17 +254,24 @@ def _list_stage_artifacts(stage_dir: Path) -> list:
 
 
 def main(argv: list = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--repo", default=".", type=Path,
-                        help="project repo to inspect (default: cwd)")
-    parser.add_argument("--staging-name", default=None,
-                        help="override staging subdir name (default: UTC timestamp)")
-    parser.add_argument("--output-dir", type=Path, default=None,
-                        help="private candidate directory outside package and repo "
-                             "(default: XDG state directory)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print the would-be staging summary and exit")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--repo", default=".", type=Path, help="project repo to inspect (default: cwd)"
+    )
+    parser.add_argument(
+        "--staging-name", default=None, help="override staging subdir name (default: UTC timestamp)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="private candidate directory outside package and repo (default: XDG state directory)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="print the would-be staging summary and exit"
+    )
     args = parser.parse_args(argv)
 
     project = _project_root_arg(args.repo)
@@ -270,10 +282,12 @@ def main(argv: list = None) -> int:
     soul_bytes = SOUL_TEMPLATE.read_bytes()
 
     active, source = _find_active_context(project)
-    run_id = (args.staging_name if args.staging_name is not None else
-              _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
-    stage_root = _staging_dir(_staging_root(args.output_dir, project), run_id,
-                              project)
+    run_id = (
+        args.staging_name
+        if args.staging_name is not None
+        else _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    )
+    stage_root = _staging_dir(_staging_root(args.output_dir, project), run_id, project)
 
     candidates = []
     if active is not None:
@@ -309,16 +323,17 @@ def main(argv: list = None) -> int:
     else:
         context_preview = (
             "# Project Hermes Router\n\nUse this project context only as a router. "
-            "Keep project-specific instructions thin.\n\n" +
-            _render_router_patch(router_body))
-    paths = _write_stage(stage_root, [
-        ("context-candidate.json", json.dumps(candidates[0], indent=2,
-                                             sort_keys=True)),
-        ("soul-candidate.json", json.dumps(candidates[1], indent=2,
-                                           sort_keys=True)),
-        ("context-preview.md", context_preview),
-        ("soul-preview.md", soul_bytes.decode("utf-8")),
-    ])
+            "Keep project-specific instructions thin.\n\n" + _render_router_patch(router_body)
+        )
+    paths = _write_stage(
+        stage_root,
+        [
+            ("context-candidate.json", json.dumps(candidates[0], indent=2, sort_keys=True)),
+            ("soul-candidate.json", json.dumps(candidates[1], indent=2, sort_keys=True)),
+            ("context-preview.md", context_preview),
+            ("soul-preview.md", soul_bytes.decode("utf-8")),
+        ],
+    )
     summary["written"] = paths
     summary["artifacts"] = _list_stage_artifacts(stage_root)
     print(json.dumps(summary, indent=2, sort_keys=True))

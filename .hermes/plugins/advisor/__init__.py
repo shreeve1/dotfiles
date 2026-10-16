@@ -96,7 +96,7 @@ REVIEW_INSTRUCTIONS = "\n".join(
         "You are watching the latest slice of a coding-agent transcript below.",
         "Your job is to keep the primary agent on track toward its objective "
         "until it is genuinely done.",
-        'When something matters — a bug, a security hole, a wrong turn, or a '
+        "When something matters — a bug, a security hole, a wrong turn, or a "
         'premature "done" — set should_advise=true and give ONE concrete note '
         "(one or two sentences) plus a severity (nit | concern | blocker).",
         "Pick the single most important thing and say only that; do not bundle "
@@ -140,6 +140,7 @@ ADVISORY_TEMPLATE = (
 # ---------------------------------------------------------------------------
 # Transcript rendering
 # ---------------------------------------------------------------------------
+
 
 def _render_message(msg: Dict[str, Any]) -> str:
     """Flatten one OpenAI-shape message into reviewable plain text."""
@@ -230,6 +231,7 @@ def render_delta(
 # Config
 # ---------------------------------------------------------------------------
 
+
 def _get_setting(ctx, key: str, default: Any) -> Any:
     """Read one ``plugins.entries.advisor.settings.<key>`` value.
 
@@ -264,6 +266,7 @@ def _as_int(value: Any, default: int) -> int:
 # ---------------------------------------------------------------------------
 # Plugin entrypoint
 # ---------------------------------------------------------------------------
+
 
 def register(ctx) -> None:
     # Register an auxiliary task so operators MAY pin a cheaper advisor model in
@@ -417,9 +420,7 @@ def register(ctx) -> None:
                 last_notes[session_id] = note
 
             advisory = ADVISORY_TEMPLATE.format(severity=severity, note=note)
-            logger.info(
-                "advisor: injected %s advisory into session %s", severity, session_id
-            )
+            logger.info("advisor: injected %s advisory into session %s", severity, session_id)
             return {"context": advisory}
         finally:
             with lock:

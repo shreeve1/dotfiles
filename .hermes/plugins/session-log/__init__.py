@@ -1,4 +1,5 @@
 """Hermes port of the Pi session-log extension."""
+
 from __future__ import annotations
 
 import atexit
@@ -45,24 +46,37 @@ def _text(value: Any) -> str:
     if isinstance(value, list):
         parts = []
         for block in value:
-            if isinstance(block, dict) and block.get("type") == "text" and isinstance(block.get("text"), str):
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
                 parts.append(block["text"])
         return "\n".join(parts).strip()
     return ""
 
 
 def _slug(value: str) -> str:
-    return re.sub(r"-+$", "", re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9]+", "-", value.lower())))[:40].rstrip("-")
+    return re.sub(r"-+$", "", re.sub(r"^-+|-+$", "", re.sub(r"[^a-z0-9]+", "-", value.lower())))[
+        :40
+    ].rstrip("-")
 
 
 def _make_slug(prompt: str, answer: str) -> str | None:
     try:
         from agent.auxiliary_client import call_llm
+
         response = call_llm(
             task="title_generation",
             messages=[
-                {"role": "system", "content": "Respond with only a concise 3 to 6 word lowercase title. No punctuation or explanation."},
-                {"role": "user", "content": f"PROMPT:\n{prompt[:600]}\n\nRESPONSE:\n{answer[:600]}"},
+                {
+                    "role": "system",
+                    "content": "Respond with only a concise 3 to 6 word lowercase title. No punctuation or explanation.",
+                },
+                {
+                    "role": "user",
+                    "content": f"PROMPT:\n{prompt[:600]}\n\nRESPONSE:\n{answer[:600]}",
+                },
             ],
             max_tokens=32,
             timeout=15,
@@ -116,25 +130,39 @@ def _record(**kwargs: Any) -> None:
             else:
                 path = None
                 for candidate in directory.iterdir() if directory.exists() else []:
-                    if candidate.is_file() and (candidate.name.endswith(f"-{hash6}.md") or candidate.name.endswith(f"_{session_id}.md")):
+                    if candidate.is_file() and (
+                        candidate.name.endswith(f"-{hash6}.md")
+                        or candidate.name.endswith(f"_{session_id}.md")
+                    ):
                         path = candidate
                         break
                 number = 1
                 if path is None:
                     path = directory / f"{date}_{session_id}.md"
                 if path.exists():
-                    number = sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.startswith("## Turn ")) + 1
+                    number = (
+                        sum(
+                            1
+                            for line in path.read_text(encoding="utf-8").splitlines()
+                            if line.startswith("## Turn ")
+                        )
+                        + 1
+                    )
             directory.mkdir(parents=True, exist_ok=True)
             content = ""
             if number == 1 and not path.exists():
-                content += f"# Session {session_id}\n\n- cwd: {cwd}\n- started: {iso}\n- harness: hermes\n"
+                content += (
+                    f"# Session {session_id}\n\n- cwd: {cwd}\n- started: {iso}\n- harness: hermes\n"
+                )
             content += f"\n## Turn {number} — {iso}\n\n**Prompt:**\n\n{prompt}\n\n**Response:**\n\n{answer}\n\n---\n"
             with path.open("a", encoding="utf-8") as handle:
                 handle.write(content)
             _SESSIONS[session_id] = (path, number, date, prompt, answer)
             first = number == 1
         if first:
-            thread = threading.Thread(target=_rename_after_title, args=(path, date, hash6, prompt, answer), daemon=True)
+            thread = threading.Thread(
+                target=_rename_after_title, args=(path, date, hash6, prompt, answer), daemon=True
+            )
             _TITLE_THREADS.append(thread)
             thread.start()
     except Exception:

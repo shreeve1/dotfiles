@@ -87,12 +87,16 @@ def _message_text(content) -> str:
     return "".join(
         part["text"]
         for part in content
-        if isinstance(part, dict) and part.get("type") == "text" and isinstance(part.get("text"), str)
+        if isinstance(part, dict)
+        and part.get("type") == "text"
+        and isinstance(part.get("text"), str)
     )
 
 
 class AskAgent:
-    def __init__(self, *, emit: Callable[[dict], None], argv: list, env: dict, cwd: str, timeout: float):
+    def __init__(
+        self, *, emit: Callable[[dict], None], argv: list, env: dict, cwd: str, timeout: float
+    ):
         self._emit = emit
         self._argv = list(argv)
         self._env = env
@@ -249,7 +253,9 @@ class AskAgent:
             return str(response.get("error") or "get_available_commands failed")
         data = response.get("data")
         commands = data.get("commands") if isinstance(data, dict) else None
-        self.commands = [c for c in commands if isinstance(c, dict)] if isinstance(commands, list) else []
+        self.commands = (
+            [c for c in commands if isinstance(c, dict)] if isinstance(commands, list) else []
+        )
         if MARKER_COMMAND not in {c.get("name") for c in self.commands}:
             return EXTENSION_MISSING
         return None
@@ -319,7 +325,9 @@ class AskAgent:
                 pending.future.set_result(frame)
             return
         if pending.kind == "abort":
-            self._restore(pending.dropped, frame.get("data") if frame.get("success") is True else None)
+            self._restore(
+                pending.dropped, frame.get("data") if frame.get("success") is True else None
+            )
             return
         if frame.get("success") is True:
             data = frame.get("data")
@@ -329,7 +337,9 @@ class AskAgent:
             if pending.on_accepted is not None:
                 pending.on_accepted()
             return
-        self._reject(pending.turn, str(frame.get("error") or "Prompt rejected"))  # [inferred] error field
+        self._reject(
+            pending.turn, str(frame.get("error") or "Prompt rejected")
+        )  # [inferred] error field
 
     def _on_command_output(self, frame: dict) -> None:
         text = frame.get("text")
@@ -441,7 +451,10 @@ class AskAgent:
         for turn in stranded:
             self._event("ask_queued", turn=turn.n, text=turn.text, queued=False)
             self._event(
-                "ask_error", message="Ask prompt was never delivered", retry=True, retry_preview=_preview(turn.text)
+                "ask_error",
+                message="Ask prompt was never delivered",
+                retry=True,
+                retry_preview=_preview(turn.text),
             )
         self._advance()
 
@@ -453,7 +466,9 @@ class AskAgent:
         dropped = self._queue
         self._queue = []
         gone = {t.n for t in dropped}
-        self._pending = {k: p for k, p in self._pending.items() if p.turn is None or p.turn.n not in gone}
+        self._pending = {
+            k: p for k, p in self._pending.items() if p.turn is None or p.turn.n not in gone
+        }
         self._sent = {k: t for k, t in self._sent.items() if t.n not in gone}
         for turn in dropped:
             self._event("ask_queued", turn=turn.n, text=turn.text, queued=False)
@@ -519,7 +534,9 @@ class AskAgent:
         failed = self._fail_open_turns()
         if failed is not None:
             self.interrupted = True
-            self._event("ask_error", message=EXITED_MESSAGE, retry=True, retry_preview=_preview(failed.text))
+            self._event(
+                "ask_error", message=EXITED_MESSAGE, retry=True, retry_preview=_preview(failed.text)
+            )
         self._transition(AskState.STOPPED)
         await self._reap(proc, 0)
 
@@ -565,13 +582,17 @@ class AskAgent:
                 return
             queued = self.state is AskState.BUSY
             if queued and _is_local_command(text):
-                self._event("ask_error", message=BUSY_SLASH_MESSAGE, retry=False, retry_preview=None)
+                self._event(
+                    "ask_error", message=BUSY_SLASH_MESSAGE, retry=False, retry_preview=None
+                )
                 return
             self._turn_seq += 1
             turn = Turn(self._turn_seq, text, queued)
             rid, _ = self._next_rpc("prompt", turn, on_accepted)
             self._sent[rid] = turn
-            self._event("ask_user", id=str(uuid.uuid4()), at=_now(), turn=turn.n, text=text, queued=queued)
+            self._event(
+                "ask_user", id=str(uuid.uuid4()), at=_now(), turn=turn.n, text=text, queued=queued
+            )
             frame = {"id": rid, "type": "prompt", "message": text}
             if queued:
                 self._queue.append(turn)

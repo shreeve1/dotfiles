@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Resolve wiki-update's deterministic gate without silently bypassing it."""
+
 from __future__ import annotations
 
 import argparse
@@ -33,7 +34,10 @@ def main() -> int:
         if candidate.is_file():
             print(candidate.resolve())
             return 0
-    print("wiki-update gate.py not found; install the companion skill or vendor it in the project", file=sys.stderr)
+    print(
+        "wiki-update gate.py not found; install the companion skill or vendor it in the project",
+        file=sys.stderr,
+    )
     return 1
 
 
