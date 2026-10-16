@@ -81,14 +81,11 @@ require("default.hypr.toggles")
 -- o.window("qemu", { workspace = "5" })
 
 -- Zoom creates a normal tiled XWayland window by default. Float every Zoom
--- window so hypr-deck never adopts its share toolbar, video strip, or
--- annotation bar as deck slots. Size and center only the main and meeting
--- windows; a class-wide size rule also resizes those share overlays.
+-- window so hypr-deck never adopts its popups, share toolbar, or video strip
+-- as deck slots. Do not size or center them: Zoom maps its notification popups
+-- with the title "Zoom Workplace", the same as the main window, so a title-based
+-- size rule turned a small banner into a mostly empty 1056x700 window.
 o.window("^zoom$", { float = true })
-o.window(
-  { class = "^zoom$", title = "^(Zoom Workplace.*|Zoom Meeting|Meeting)$" },
-  { center = true, size = { 1056, 700 } }
-)
 
 -- Meeting Assistant Overlay: ask Hyprland to hide it from screen sharing.
 -- Unverified for layer surfaces; see docs/adr/0014-meeting-assistant-separate-plugin.md.
