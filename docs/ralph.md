@@ -49,7 +49,9 @@ The review procedure reaches both drivers: `ralph/SKILL.md` §4 points at
 ## Tests
 
 `bash tests/run-all.sh` is the repo's check command — every test file plus the
-shell-formatting and untracked-test-file guards. A pre-push hook runs it.
+shell-formatting and untracked-test-file guards. `--fast` runs the guards plus
+only the test files this branch changed (seconds); the pre-push hook runs that
+subset so a push stays cheap, which means the full suite is yours to run.
 
 - `tests/ralph-loop-labels.test.sh` — sequential driver against board labels
   (stubs `tmux` and `pi`); `tests/ralph-supervise-labels.test.sh` — the supervisor.
