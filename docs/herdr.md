@@ -77,16 +77,33 @@ herdr machine add --label "aidev · default" --remote-session default aidev
 herdr machine add --label "n8n" --remote-session default itan8n
 ```
 
-Machine list as recorded on 2026-09-25:
+## How the three machines connect (recorded 2026-10-16)
 
-| Label | Target (SSH alias) | Session | Enabled |
-| --- | --- | --- | --- |
-| `aidev · default` | `aidev` | `default` | yes |
-| `n8n` | `itan8n` | `default` | yes |
+Every machine runs its own `herdr server` (aidev's since 2026-09-21, itan8n's
+since 2026-09-22, both herdr-managed, not systemd), holding that machine's
+workspaces and pi agents. A herdr client on any machine reaches the other two
+through its saved machines: herdr runs `ssh -T <alias> … herdr
+remote-client-bridge` with its own ControlMaster socket, `BatchMode=yes` and
+`StrictHostKeyChecking=yes`, so each alias needs working key auth and a known
+host key. The user usually reaches a machine's herdr over mosh
+(`exec herdr --session default`).
+
+The live machine lists differ per machine; the repo seed is only omarchy's:
+
+| Machine | herdr | Saved machines (label → alias) |
+| --- | --- | --- |
+| omarchy | 0.9.1 | `aidev` → `aidev`, `n8n` → `itan8n` |
+| aidev | 0.9.3 | `omarchy laptop` → `omarchy`, `n8n` → `itan8n` |
+| itan8n | 0.9.1 | `aidev · default` → `aidev`, `n8n` → `itan8n` (itself), `omarchy laptop` → `omarchy` |
+
+All sessions are `default`. Agents are pi panes; pi reports state and session to
+herdr through `~/.pi/agent/extensions/herdr-agent-state.ts` (synced, so present
+on all three).
 
 `~/.config/herdr/config.toml` leaves `[remote] manage_ssh_config` at its default
 (true), which lets herdr add `ServerAliveInterval` fallbacks to `~/.ssh/config`;
 this machine currently has no herdr-managed entries there.
+
 ## herdr web ui on aidev (browser/phone client)
 
 Installed 2026-10-16: the [herdr-web-ui](https://github.com/devswha/herdr-web-ui)
@@ -94,8 +111,11 @@ plugin on **aidev only**, which serves aidev's own herdr plus the machines in
 aidev's `herdr machine list` (omarchy, itan8n) as Remote PCs over SSH. Nothing
 for it lives in this repo; all of it is machine-local on aidev.
 
-- **URL:** `https://100.95.230.15:7443` (NetBird). The self-signed cert is the one
-  dsh uses (`~/.dsh/dsh-tls.{crt,key}`, SAN `IP:100.95.230.15`).
+- **URL:** `https://100.95.230.15:7443` (NetBird). Type the `https://`: a bare
+  `100.95.230.15:7443` makes the browser try plain HTTP, which the TLS port drops.
+  The self-signed cert was made for dsh (retired) and still lives at
+  `~/.dsh/dsh-tls.{crt,key}` (SAN `IP:100.95.230.15`, `CA:TRUE`). Keep those files
+  or repoint the Caddyfile before removing `~/.dsh`.
 - **TLS front:** user unit `~/.config/systemd/user/herdr-web-tls.service` runs
   Caddy (`~/.local/bin/caddy`, config `~/.config/herdr-web-tls/Caddyfile`) from
   `100.95.230.15:7443` to the app on `127.0.0.1:7317`. The app itself stays bound to

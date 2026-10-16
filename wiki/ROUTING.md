@@ -47,6 +47,13 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Pages:
 - Keywords: external references, articles, papers, transcripts
 
+## Primary Agent Surface: pi in herdr (dsh retired)
+
+- Pages: none; authoritative docs are `AGENTS.md` § Primary agent surface and `docs/herdr.md`
+- Claims: C-0164 (dsh retired, herdr+pi primary), C-0165 (pi ignores `.agents/AGENTS.md`), C-0166 (herdr web ui needs a real HTTP proxy), C-0167 (supersedes C-0139)
+- Raw: `wiki/raw/sessions/2026-10-16-herdr-primary-dsh-retired.md`
+- Keywords: herdr, herdr server, remote-client-bridge, herdr machine list, endpoints.json, herdr web ui, herdr-web-ui, 7443, Caddy, socat, X-Forwarded-Proto, Use controls from this app, dsh retired, dsh-web.service, deepseek harness, primary agent, ~/.pi/agent/AGENTS.md, context files
+
 ## Offload
 
 - Pages: `wiki/analyses/analysis-session-offload-omp-to-pi-migration.md` (promoted)

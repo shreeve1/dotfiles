@@ -2,3 +2,6 @@ can herdr start pi agents for offload ||| --kind pi
 why does the offload worktree have a .gap-reviews directory ||| gap-review
 which machine can host a pi offload worker ||| claude-opus-4-8
 why does the offload verify suite hang ||| ReturnLifecycleFixtures
+what is the primary agent surface now that dsh is retired ||| dsh-web.service is stopped and disabled
+does pi read the global .agents/AGENTS.md ||| ~/.pi/agent/AGENTS.md
+herdr web ui sign-in fails 403 Use controls from this app ||| X-Forwarded-Proto
