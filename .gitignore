@@ -26,6 +26,8 @@ bin/*
 !bin/prune-dead-links
 !bin/dsh-browser-control-english
 !bin/chrome-cdp
+!bin/ab
+!bin/ab-input
 
 # Machine-local secrets (not synced)
 .env

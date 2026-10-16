@@ -1,0 +1,8 @@
+#!/bin/sh
+# agent-browser input route: same as `ab`, under the shared chrome-cdp input lock.
+# Use for click, fill, press, open, tab, batch, screenshots and page-changing eval.
+# Never call while holding a sign-in reservation on the same lock: it would wait on itself.
+if [ "$1" = "-s" ]; then AB_SESSION=$2; shift 2; fi
+[ -n "$AB_SESSION" ] || { echo "ab-input: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2; exit 2; }
+exec flock /run/user/1000/agent-browser-chrome-9222-input.lock \
+  agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"
