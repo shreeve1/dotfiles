@@ -70,16 +70,18 @@ UNIT="$AGENT.scope"
 
 Gate. Creation succeeded. The returned absolute worktree path, pane and workspace are nonempty and belong to this attempt. If both `result.worktree.path` and `result.root_pane.cwd` are present, they agree. There is no worktree-ID field. Preserve the actual path and workspace/pane IDs beside the source receipt. On timeout, inspect the existing creation before retrying.
 
+Tell the user now, before startup: herdr opened two workspaces, the Mirror's base checkout and the worker labelled `offload:$SLUG` (`$WORKSPACE`). The worker runs in the labelled one. Closing the tab group closed both at once and hung up the worker, so ask the user to leave both open.
+
 ### 2. Inventory and provision this checkout
 
 Run [the batched worker inventory](inventory.md#batch-each-stage) with `CHECKOUT="$WORKTREE"`. Require the exact branch, `HEAD="$BRIEF_COMMIT"` and single full root `ROOT`. Project readiness is not worker readiness.
 
 Apply only the Brief's approved provisioning plan to this checkout. Use [ignored-copy.md](ignored-copy.md) for each approved ignored `.mcp.json` or `.env` transfer. Record the recipe's post-transfer verification in the worker inventory. If provisioning changes hook, identity or runtime facts, refresh those changed facts together in one target call before advancing. A new gap outside the plan stops dispatch. Retain this attempt's records and resolve the gap in a new source Brief, not by changing the transported Brief.
 
-Use the fresh absolute `TARGET_META` and `WORKER_RECEIPT`, `WORKER_ALLOWLIST` when used, and `WORKER_INVENTORY` paths named by Finish. The directory is beneath the approved private metadata parent, outside the checkout. Require source metadata files to be mode 0600 before copying. Create only this attempt's new directory.
+Use the fresh absolute `TARGET_META` and `WORKER_RECEIPT`, `WORKER_ALLOWLIST` when used, and `WORKER_INVENTORY` paths named by Finish. The directory is beneath the approved private metadata parent, outside the checkout. Require source metadata files to be mode 0600 before copying. Create only this attempt's new directory. On a new Mirror its parent `offload-receipts/` is absent too. This block creates that parent at mode 0700 and refuses a looser existing one, which `publish-dispatch` would later reject with `UNSAFE_STATE_PATH`.
 
 ```sh
-META_CREATE=$(python3 -c 'import shlex,sys; print(shlex.join(["mkdir","-m","0700","--",sys.argv[1]]))' "$TARGET_META")
+META_CREATE=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-c","umask 077 && p=$(dirname -- \"$1\") && mkdir -p -m 0700 -- \"$p\" && test \"$(stat -c %a -- \"$p\")\" = 700 && mkdir -m 0700 -- \"$1\"","sh",sys.argv[1]]))' "$TARGET_META")
 ssh -T -- "$HOST" "$META_CREATE" &&
 scp -p -- "$RECEIPT" "$HOST:$WORKER_RECEIPT" &&
 scp -p -- "$INVENTORY" "$HOST:$WORKER_INVENTORY"
@@ -91,7 +93,7 @@ After those commands succeed, if the Snapshot used reviewed allowances, transfer
 scp -p -- "$ALLOWLIST" "$HOST:$WORKER_ALLOWLIST"
 ```
 
-Gate. Actual-checkout dependencies and approved config have observed status. Private metadata is present outside the checkout with directory mode 0700 and file mode 0600. Finish names these actual target paths and includes `--allowlist` when used. Source-local authority blobs need not exist in this clone. For `policy_N` allowances, the effective target pre-commit bytes must hash to the receipt's exact `policy_blob`. Provision that same trusted hook under the approved plan or stop for review. A different policy cannot reuse positional allowances.
+Gate. Actual-checkout dependencies and approved config have observed status. Private metadata is present outside the checkout with parent and attempt directories at mode 0700 and files at mode 0600. Finish names these actual target paths and includes `--allowlist` when used. Source-local authority blobs need not exist in this clone. For `policy_N` allowances, the effective target pre-commit bytes must hash to the receipt's exact `policy_blob`. Provision that same trusted hook under the approved plan or stop for review. A different policy cannot reuse positional allowances.
 
 ### 3. Enroll and prepare the original shell
 
@@ -134,24 +136,56 @@ Gate. Agent-start reports interactive readiness in the same pane. The original `
 
 ### 6. Submit the Brief pointer
 
-Bind `START_SKILL` to the start skill chosen for this dispatch in offload-task, or leave it empty when the user chose none. The prompt names that skill first so the worker loads it before the Brief.
+Bind `START_SKILL` to the start skill chosen for this dispatch in offload-task, or leave it empty when the user chose none. A leading `/skill:$START_SKILL` makes pi load that skill's full instructions, including a `disable-model-invocation` skill absent from the model's catalog, and appends the rest of the prompt as the user request.
 
 ```sh
-SKILL_LINE=${START_SKILL:+"Load and follow the $START_SKILL skill first. "}
-herdr --machine "$MACHINE_ID" agent prompt "$AGENT" \
-  "${SKILL_LINE}Read the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
+TASK_TEXT="Read the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged."
+herdr --machine "$MACHINE_ID" agent prompt "$AGENT" "${START_SKILL:+/skill:$START_SKILL }$TASK_TEXT" > "$PROMPT_RESPONSE"
 ```
 
-This submits Enter. Require explicit task acceptance or observed work on that Brief. With a start skill, also require the pane to show that skill loaded. Agent readiness alone is insufficient. If submission times out or acceptance is unclear, inspect before retrying.
+This submits Enter. Require explicit task acceptance or observed work on that Brief. Agent readiness alone is insufficient. If submission times out, reports `agent_prompt_stalled` or acceptance is unclear, read the session record below before retrying; a stalled prompt may never have arrived.
 
 ```sh
 herdr --machine "$MACHINE_ID" agent get "$AGENT" > "$AGENT_STATUS"
 herdr --machine "$MACHINE_ID" pane read "$PANE" --source recent --format text > "$TASK_READ_TEXT"
 ```
 
-Gate. The remote branch was verified, the fresh pi remains in its owned containment and the Brief prompt was accepted or its work observed. Complete [return control publication](#publish-return-control) before reporting safe-to-close. Normal dispatch does not wait for task completion. Leave the worker pane open until user-triggered return or cleanup.
+With a start skill, prove it loaded from the worker's session record. An unknown `/skill:` name reaches the model as plain text with no error, so pane output is not proof.
+
+```sh
+SESSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["result"]["agent"]["agent_session"]["value"])' "$AGENT_STATUS")
+SKILL_QUERY=$(python3 -c 'import shlex,sys; print(shlex.join(["python3","-",*sys.argv[1:]]))' "$SESSION" "$START_SKILL")
+ssh -T -- "$HOST" "$SKILL_QUERY" > "$SKILL_CHECK_TEXT" <<'PY'
+import json, sys
+session, skill = sys.argv[1], sys.argv[2]
+state = "no_user_message"
+with open(session, encoding="utf-8") as stream:
+    for line in stream:
+        entry = json.loads(line)
+        message = entry.get("message") or {}
+        if entry.get("type") == "message" and message.get("role") == "user":
+            content = message["content"]
+            text = content if isinstance(content, str) else "".join(part.get("text", "") for part in content)
+            state = "yes" if text.startswith(f'<skill name="{skill}"') else "no"
+            break
+print("start_skill_loaded=" + state)
+PY
+```
+
+Gate. The remote branch was verified, the fresh pi remains in its owned containment and the Brief prompt was accepted or its work observed. With a start skill, `$SKILL_CHECK_TEXT` reads `start_skill_loaded=yes`. Complete [return control publication](#publish-return-control) before reporting safe-to-close. Normal dispatch does not wait for task completion. Leave the worker pane open until user-triggered return or cleanup.
 
 Creation, process-info and agent-start captures are JSON. `pane run` and `pane read` return text. Parse each operation's documented response instead of treating every capture as JSON. Retain all runtime IDs and private paths with the receipt.
+
+### Reopen a lost worker pane
+
+Use this only when the worker pane closed before return control was published. Require the worktree clean at exactly `BRIEF_COMMIT` and `systemctl --user show "$UNIT" --property=LoadState` reading `not-found` on the target. Otherwise stop and report: the worker made progress or still runs.
+
+```sh
+herdr --machine "$MACHINE_ID" worktree open --cwd "$MIRROR" --path "$WORKTREE" \
+  --label "offload:$SLUG" --no-focus > "$OPEN_JSON"
+```
+
+Rebind `PANE` and `WORKSPACE` from `result.root_pane.pane_id` and `result.root_pane.workspace_id`, and tell the user the new workspace as in stage 1. Repeat stages 3, 5 and 6 with fresh captures. Stage 2's private metadata and provisioned config remain in place. Return control is published once, afterwards, with the rebound IDs.
 
 ### Publish return control
 
