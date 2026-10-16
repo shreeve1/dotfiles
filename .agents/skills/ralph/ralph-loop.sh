@@ -808,8 +808,7 @@ if [[ "$USE_IMPLEMENT_SKILL" == "true" && "$REVIEW_LOOP" != "true" && "$AGENT_PR
   AGENT_PROMPT="Read $IMPLEMENT_SKILL_DIR/SKILL.md and follow it. $AGENT_PROMPT"
 fi
 case "$ADAPTER" in
-pi | tmux)
-  ;;
+pi | tmux) ;;
 omp)
   echo "❌ Error: the omp adapter was removed; use 'pi' (non-interactive) or 'tmux'" >&2
   exit 1
