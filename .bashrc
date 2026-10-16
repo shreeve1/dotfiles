@@ -6,7 +6,12 @@
 #    below, so agent/tool bash sessions get these too) ──────────────────────
 # npm global binaries (dsh, codex, pi, etc.) — mirrors .zshrc
 export PATH="$HOME/.npm-global/bin:$PATH"
-# user-local bin (dsh-plugin-dev launcher, etc.) — mirrors .zshrc
+# user-local bin (dsh-plugin-dev launcher, T3 Code CLI symlink, etc.) —
+# T3 Code's installer keeps `~/.local/bin/t3` as a symlink to
+# `~/.t3/bin/t3`; that symlink is what `isOurLink` accepts. Putting the
+# smart wrapper directly on PATH (e.g. `~/.t3/bin`) breaks the installer's
+# shadow check with "Another t3 at .../local/bin/t3 runs first", so do
+# not add `~/.t3/bin` to PATH — mirrors .zshrc
 export PATH="$HOME/.local/bin:$PATH"
 # systemd --user bus: so `systemctl --user` works in non-login shells
 # (user lingers, no seat session). Guarded: only set when unset.

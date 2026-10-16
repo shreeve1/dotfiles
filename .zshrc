@@ -149,7 +149,12 @@ export VISUAL='nvim'
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
-# Ensure user-local binaries are on PATH before initializing tools below
+# Ensure user-local binaries are on PATH before initializing tools below.
+# T3 Code's installer keeps `~/.local/bin/t3` as a symlink to
+# `~/.t3/bin/t3`; that symlink is what `isOurLink` accepts. Putting the
+# smart wrapper directly on PATH (e.g. `~/.t3/bin`) breaks the installer's
+# shadow check with "Another t3 at .../local/bin/t3 runs first", so do
+# not add `~/.t3/bin` to PATH.
 export PATH="$HOME/.local/bin:$HOME/.atuin/bin:$PATH"
 
 # Fall back to a known TERM when the server lacks the client's terminfo entry.
