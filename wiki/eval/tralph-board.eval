@@ -3,6 +3,7 @@
 
 new test file missing from commit git add -A ||| no longer gitignored
 what is the repo check command and does a push run it ||| tests/run-all.sh
+does the pre-push hook run the whole suite ||| --fast
 why did a six second test report 602 seconds ||| orphan
 rerun does not retry failed gralph lane ||| --replan
 why does tralph default path not show the finish-spec reminder ||| ralph-loop.sh writes no manifest
