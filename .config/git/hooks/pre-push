@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Global pre-push hook (synced via dotfiles; wired with
+# `git config --global core.hooksPath ~/.config/git/hooks`).
+#
+# Purpose: run a repository's own check command before its commits leave the
+# machine, for repos that declare one. A repo opts in by committing an
+# executable `tests/run-all.sh`; every other repo is a silent no-op, so this
+# stays safe to install globally.
+#
+# Skip one push with `git push --no-verify`, or every repo for one command with
+# SKIP_REPO_CHECKS=1. A global core.hooksPath makes git ignore each repo's own
+# .git/hooks, so this first delegates to the repo-local pre-push (if any),
+# mirroring the global post-commit hook.
+set -eu
+
+if [ "${SKIP_REPO_CHECKS:-}" = "1" ]; then
+  exit 0
+fi
+
+root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[ -n "$root" ] || exit 0
+
+# 1. Preserve the repo's own pre-push hook, if it has one.
+_git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
+if [ -n "$_git_dir" ]; then
+  _local="$_git_dir/hooks/pre-push"
+  _self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  if [ -x "$_local" ] && [ "$(cd "$(dirname "$_local")" && pwd)/$(basename "$_local")" != "$_self" ]; then
+    "$_local" "$@" || exit $?
+  fi
+fi
+
+# 2. Run the repo's check command, if it declares one.
+check="$root/tests/run-all.sh"
+[ -x "$check" ] || exit 0
+
+echo "pre-push: running $check" >&2
+if ! (cd "$root" && bash "$check"); then
+  echo "pre-push: check failed. Fix it, or push with --no-verify to skip." >&2
+  exit 1
+fi
+exit 0
