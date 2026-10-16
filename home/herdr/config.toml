@@ -48,6 +48,7 @@ delay_seconds = 2
 # manage_ssh_config = true  # default; herdr --remote adds ServerAliveInterval fallbacks
 
 [experimental]
+kitty_graphics = true
 # Reveal focused-pane cursor to outer terminal so macOS CJK IME tracks
 # the candidate window for pi, claude, codex. Trade-off: extra cursor
 # visible for apps that hide without painting a replacement (vim normal mode).
