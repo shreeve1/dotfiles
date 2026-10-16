@@ -18,6 +18,12 @@
 # Third-party omarchy plugins (shreeve1.* and surface-battery are ours)
 omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber/**
 omarchy/config/omarchy/plugins/meviusisback.agent-orchestr/**
+# Files other tools generate and overwrite on reinstall (moshi-hook, herdr,
+# tokenjuice); formatting them only turns each regenerate into a full diff.
+.config/opencode/plugins/**
+.omp/agent/extensions/moshi-hooks.ts
+.pi/agent/extensions/moshi-hooks.ts
+.pi/agent/extensions/herdr-agent-state.ts
 # Frozen or generated content
 archive/**
 graphify-out/**
