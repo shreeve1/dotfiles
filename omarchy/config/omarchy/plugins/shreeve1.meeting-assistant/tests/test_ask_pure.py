@@ -9,7 +9,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bin"))
 
 import ask_pure  # noqa: E402
 from ask_pure import (  # noqa: E402
-    ALLOWLIST, BLOCKLIST, HEADER, Store, build_cards_payload, card_entry,
+    ALLOWLIST,
+    BLOCKLIST,
+    HEADER,
+    Store,
+    build_cards_payload,
+    card_entry,
     classify_slash,
 )
 
@@ -37,69 +42,76 @@ class SlashTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(
                     classify_slash("/" + name, self.commands),
-                    ("refuse", "/%s is not available in Ask" % name))
+                    ("refuse", "/%s is not available in Ask" % name),
+                )
 
     def test_blocklisted_refused_with_args_and_empty_commands(self):
-        self.assertEqual(classify_slash("/model gpt x", []),
-                         ("refuse", "/model is not available in Ask"))
+        self.assertEqual(
+            classify_slash("/model gpt x", []), ("refuse", "/model is not available in Ask")
+        )
 
     def test_aliases_init_fusion_refused(self):
         for name in ("models", "worktree", "plugin", "init", "fusion"):
             with self.subTest(name=name):
                 self.assertEqual(
                     classify_slash("/" + name, self.commands),
-                    ("refuse", "/%s is not available in Ask" % name))
+                    ("refuse", "/%s is not available in Ask" % name),
+                )
 
     def test_force_colon_refused(self):
         self.assertEqual(classify_slash("/force:read-only do it", self.commands)[0], "refuse")
-        self.assertEqual(classify_slash("/force: x", self.commands),
-                         ("refuse", "/force is not available in Ask"))
+        self.assertEqual(
+            classify_slash("/force: x", self.commands), ("refuse", "/force is not available in Ask")
+        )
 
     def test_allowlisted_pass(self):
         for name in sorted(ALLOWLIST):
             with self.subTest(name=name):
-                self.assertEqual(classify_slash("/" + name, self.commands),
-                                 ("pass", None))
+                self.assertEqual(classify_slash("/" + name, self.commands), ("pass", None))
 
     def test_allowlist_literal(self):
-        self.assertEqual(set(ALLOWLIST),
-                         {"jobs", "changelog", "tools", "context", "dirs"})
+        self.assertEqual(set(ALLOWLIST), {"jobs", "changelog", "tools", "context", "dirs"})
 
     def test_skill_passes_only_when_present(self):
-        self.assertEqual(classify_slash("/skill:example", self.commands),
-                         ("pass", None))
+        self.assertEqual(classify_slash("/skill:example", self.commands), ("pass", None))
         verdict, reason = classify_slash("/skill:missing", self.commands)
         self.assertEqual(verdict, "refuse")
         self.assertIn("missing", reason)
 
     def test_unknown_builtin_refused(self):
-        commands = self.commands + [
-            {"name": "newthing", "source": "builtin", "description": "x"}]
-        self.assertEqual(classify_slash("/newthing", commands),
-                         ("refuse", "/newthing is not available in Ask"))
+        commands = self.commands + [{"name": "newthing", "source": "builtin", "description": "x"}]
+        self.assertEqual(
+            classify_slash("/newthing", commands), ("refuse", "/newthing is not available in Ask")
+        )
 
     def test_bang_refused(self):
-        self.assertEqual(classify_slash("!ls", self.commands),
-                         ("refuse", "! is not supported in Ask"))
+        self.assertEqual(
+            classify_slash("!ls", self.commands), ("refuse", "! is not supported in Ask")
+        )
 
     def test_plain_text_and_unknown_extension_pass(self):
-        self.assertEqual(classify_slash("what is the plan", self.commands),
-                         ("pass", None))
-        self.assertEqual(classify_slash("/meeting-assistant-ask-context", self.commands),
-                         ("pass", None))
-        self.assertEqual(classify_slash("/totally-unknown", self.commands),
-                         ("pass", None))
+        self.assertEqual(classify_slash("what is the plan", self.commands), ("pass", None))
+        self.assertEqual(
+            classify_slash("/meeting-assistant-ask-context", self.commands), ("pass", None)
+        )
+        self.assertEqual(classify_slash("/totally-unknown", self.commands), ("pass", None))
 
     def test_case_insensitive(self):
-        self.assertEqual(classify_slash("/MODEL", self.commands),
-                         ("refuse", "/model is not available in Ask"))
+        self.assertEqual(
+            classify_slash("/MODEL", self.commands), ("refuse", "/model is not available in Ask")
+        )
         self.assertEqual(classify_slash("/Jobs", self.commands), ("pass", None))
         self.assertEqual(classify_slash("/Force:x", self.commands)[0], "refuse")
 
 
 def card(i, at, answer="a", meeting=None, **extra):
-    c = {"id": "c%d" % i, "at": at, "question": "q%d" % i, "answer": answer,
-         "sources": [{"url": "https://example.test/%d" % i, "title": "T%d" % i}]}
+    c = {
+        "id": "c%d" % i,
+        "at": at,
+        "question": "q%d" % i,
+        "answer": answer,
+        "sources": [{"url": "https://example.test/%d" % i, "title": "T%d" % i}],
+    }
     if meeting is not None:
         c["meeting"] = meeting
     c.update(extra)
@@ -112,8 +124,7 @@ def stamp(i):
 
 class CardsPayloadTests(unittest.TestCase):
     def build(self, cards, last=None, paused=False, meeting=None):
-        return build_cards_payload(cards, last_sent_at=last, paused=paused,
-                                   meeting=meeting)
+        return build_cards_payload(cards, last_sent_at=last, paused=paused, meeting=meeting)
 
     def test_paused_none(self):
         self.assertIsNone(self.build([card(1, stamp(1))], paused=True))
@@ -133,13 +144,17 @@ class CardsPayloadTests(unittest.TestCase):
     def test_header_and_shape(self):
         out = self.build([card(1, stamp(1))])
         self.assertEqual(out["header"], HEADER)
-        self.assertEqual(json.loads(out["cards"][0]), {
-            "question": "q1", "answer": "a",
-            "sources": ["https://example.test/1"]})
+        self.assertEqual(
+            json.loads(out["cards"][0]),
+            {"question": "q1", "answer": "a", "sources": ["https://example.test/1"]},
+        )
 
     def test_meeting_filter(self):
-        cards = [card(1, stamp(1), meeting="m1"), card(2, stamp(2), meeting="m2"),
-                 card(3, stamp(3))]
+        cards = [
+            card(1, stamp(1), meeting="m1"),
+            card(2, stamp(2), meeting="m2"),
+            card(3, stamp(3)),
+        ]
         out = self.build(cards, meeting="m2")
         self.assertEqual([json.loads(s)["question"] for s in out["cards"]], ["q2"])
         self.assertEqual(len(self.build(cards, meeting=None)["cards"]), 3)
@@ -189,8 +204,14 @@ class StoreTests(unittest.TestCase):
     def test_round_trip_and_missing_dir(self):
         self.assertEqual(Store(os.path.join(self.tmp.name, "none")).load(), [])
         a = {"kind": "user", "id": "u1", "at": stamp(1), "turn": 1, "text": "hi"}
-        b = {"kind": "reply", "id": "r1", "at": stamp(2), "turn": 1,
-             "text": "yo", "status": "completed"}
+        b = {
+            "kind": "reply",
+            "id": "r1",
+            "at": stamp(2),
+            "turn": 1,
+            "text": "yo",
+            "status": "completed",
+        }
         self.store.append("timeline.jsonl", a)
         self.store.append("timeline.jsonl", b)
         self.assertEqual(self.store.load(), [a, b])
@@ -204,8 +225,7 @@ class StoreTests(unittest.TestCase):
         self.store.append("cards.jsonl", tie_card)
         self.store.append("cards.jsonl", d_early)
         self.store.append("timeline.jsonl", tie_user)
-        self.assertEqual([e["id"] for e in self.store.load()],
-                         ["d1", "c2", "u1", "c1"])
+        self.assertEqual([e["id"] for e in self.store.load()], ["d1", "c2", "u1", "c1"])
 
     def test_corrupt_lines_skipped(self):
         self.store.append("cards.jsonl", {"kind": "card", "id": "ok", "at": stamp(1)})
@@ -215,16 +235,30 @@ class StoreTests(unittest.TestCase):
         self.assertEqual([e["id"] for e in self.store.load()], ["ok", "ok2"])
 
     def test_card_entry_strips_extras(self):
-        event = {"id": "c1", "question": "q", "answer": "a",
-                 "sources": [{"url": "u", "title": "t"}],
-                 "created_at": "2026-01-01T00:00:00Z", "lag_ms": 900,
-                 "utterance": "SECRET", "at": stamp(4)}
-        entry = card_entry(event, "m1")
-        self.assertEqual(entry, {
-            "kind": "card", "id": "c1", "at": stamp(4), "meeting": "m1",
-            "question": "q", "answer": "a",
+        event = {
+            "id": "c1",
+            "question": "q",
+            "answer": "a",
             "sources": [{"url": "u", "title": "t"}],
-            "created_at": "2026-01-01T00:00:00Z"})
+            "created_at": "2026-01-01T00:00:00Z",
+            "lag_ms": 900,
+            "utterance": "SECRET",
+            "at": stamp(4),
+        }
+        entry = card_entry(event, "m1")
+        self.assertEqual(
+            entry,
+            {
+                "kind": "card",
+                "id": "c1",
+                "at": stamp(4),
+                "meeting": "m1",
+                "question": "q",
+                "answer": "a",
+                "sources": [{"url": "u", "title": "t"}],
+                "created_at": "2026-01-01T00:00:00Z",
+            },
+        )
         self.assertNotIn("utterance", entry)
         self.assertNotIn("lag_ms", entry)
 
@@ -251,8 +285,8 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(os.stat(self.dir).st_mode), 0o700 & ~old)
         for name in ("cards.jsonl", "timeline.jsonl"):
             self.assertEqual(
-                stat.S_IMODE(os.stat(os.path.join(self.dir, name)).st_mode),
-                0o600 & ~old)
+                stat.S_IMODE(os.stat(os.path.join(self.dir, name)).st_mode), 0o600 & ~old
+            )
 
     def test_remove_entries_drops_only_the_named_ids_and_keeps_mode(self):
         for n in (1, 2, 3):
@@ -263,7 +297,9 @@ class StoreTests(unittest.TestCase):
             f.write("{not json\n")
         self.store.remove_entries(["u2", "u3", "absent"])
         with open(path) as f:
-            self.assertEqual(f.read(), json.dumps({"kind": "user", "id": "u1", "at": stamp(1)}) + "\n{not json\n")
+            self.assertEqual(
+                f.read(), json.dumps({"kind": "user", "id": "u1", "at": stamp(1)}) + "\n{not json\n"
+            )
         self.assertEqual([e["id"] for e in self.store.load()], ["u1", "u2"])
         old = os.umask(0)
         os.umask(old)

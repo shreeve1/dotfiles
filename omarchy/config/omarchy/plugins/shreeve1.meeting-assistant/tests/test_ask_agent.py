@@ -107,8 +107,12 @@ class StreamTests(AskAgentCase):
         self.assertEqual(end["turn"], 1)
         tools = [(e["name"], e["phase"]) for e in self.of("ask_tool")]
         self.assertEqual(tools, [("read", "start"), ("read", "end")])
-        order = [e["type"] for e in self.events if e["type"] in ("ask_tool", "ask_delta", "ask_end")]
-        self.assertEqual(order, ["ask_tool", "ask_tool", "ask_delta", "ask_delta", "ask_delta", "ask_end"])
+        order = [
+            e["type"] for e in self.events if e["type"] in ("ask_tool", "ask_delta", "ask_end")
+        ]
+        self.assertEqual(
+            order, ["ask_tool", "ask_tool", "ask_delta", "ask_delta", "ask_delta", "ask_end"]
+        )
         users = self.of("ask_user")
         self.assertEqual([(u["turn"], u["text"], u["queued"]) for u in users], [(1, "hi", False)])
         self.assertTrue(users[0]["id"] and users[0]["at"].endswith("Z"))
@@ -171,9 +175,19 @@ class FakeAnchorTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, True)
         scenario = os.path.join(tmp, "scenario.json")
         with open(scenario, "w", encoding="utf-8") as fh:
-            json.dump({"no_tools": True, "delta_delay": 0.03, "replies": {"A": ["a"] * 12, "B": ["b"], "C": ["c"]}}, fh)
+            json.dump(
+                {
+                    "no_tools": True,
+                    "delta_delay": 0.03,
+                    "replies": {"A": ["a"] * 12, "B": ["b"], "C": ["c"]},
+                },
+                fh,
+            )
         proc = subprocess.Popen(
-            [sys.executable, FAKE, scenario], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+            [sys.executable, FAKE, scenario],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
         )
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
@@ -196,7 +210,12 @@ class FakeAnchorTests(unittest.TestCase):
             proc.stdin.flush()
 
         send("A", "A", False)
-        read_until(lambda f: f.get("type") == "message_update" and f["assistantMessageEvent"]["type"] == "text_delta")
+        read_until(
+            lambda f: (
+                f.get("type") == "message_update"
+                and f["assistantMessageEvent"]["type"] == "text_delta"
+            )
+        )
         send("B", "B", True)
         send("C", "C", True)
         read_until(lambda f: f.get("type") == "session_settled")
@@ -206,10 +225,16 @@ class FakeAnchorTests(unittest.TestCase):
             recorded = [json.loads(line) for line in fh if line.strip()]
         self.assertEqual(collapsed_frames(frames), collapsed_frames(recorded))
         self.assertEqual(
-            [(f["id"], f["success"]) for f in frames if f.get("type") == "response" and f.get("command") == "prompt"],
+            [
+                (f["id"], f["success"])
+                for f in frames
+                if f.get("type") == "response" and f.get("command") == "prompt"
+            ],
             [("A", True), ("B", True), ("C", True)],
         )
-        self.assertEqual([f["id"] for f in frames if f.get("type") == "prompt_result"], ["B", "C", "A"])
+        self.assertEqual(
+            [f["id"] for f in frames if f.get("type") == "prompt_result"], ["B", "C", "A"]
+        )
 
 
 class LocalAnchorTests(unittest.TestCase):
@@ -220,7 +245,10 @@ class LocalAnchorTests(unittest.TestCase):
         with open(scenario, "w", encoding="utf-8") as fh:
             json.dump({}, fh)
         proc = subprocess.Popen(
-            [sys.executable, FAKE, scenario], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+            [sys.executable, FAKE, scenario],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
         )
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
@@ -236,9 +264,13 @@ class LocalAnchorTests(unittest.TestCase):
                 break
         proc.stdin.close()
         proc.stdout.close()
-        with open(os.path.join(HERE, "fixtures", "ask_local_builtins.jsonl"), encoding="utf-8") as fh:
+        with open(
+            os.path.join(HERE, "fixtures", "ask_local_builtins.jsonl"), encoding="utf-8"
+        ) as fh:
             recorded = [json.loads(line) for line in fh if line.strip()]
-        end = next(i for i, f in enumerate(recorded) if f.get("type") == "response" and f.get("id") == "L0")
+        end = next(
+            i for i, f in enumerate(recorded) if f.get("type") == "response" and f.get("id") == "L0"
+        )
         self.assertEqual(collapsed_frames(frames), collapsed_frames(recorded[: end + 1]))
         self.assertEqual(collapsed_frames(frames), [("command_output", None)])
         self.assertEqual(frames[-1]["data"], recorded[end]["data"])
@@ -257,7 +289,10 @@ class AbortAnchorTests(unittest.TestCase):
         with open(scenario, "w", encoding="utf-8") as fh:
             json.dump({"no_tools": True, "replies": {"A": ["a", "b"]}, "hang_after": 4}, fh)
         proc = subprocess.Popen(
-            [sys.executable, FAKE, scenario], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+            [sys.executable, FAKE, scenario],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
         )
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
@@ -283,7 +318,12 @@ class AbortAnchorTests(unittest.TestCase):
             write(message)
 
         prompt("A", False)
-        read_until(lambda f: f.get("type") == "message_update" and f["assistantMessageEvent"]["type"] == "text_delta")
+        read_until(
+            lambda f: (
+                f.get("type") == "message_update"
+                and f["assistantMessageEvent"]["type"] == "text_delta"
+            )
+        )
         prompt("B", True)
         prompt("C", True)
         write({"id": "X", "type": "abort_and_restore_queue"})
@@ -292,7 +332,9 @@ class AbortAnchorTests(unittest.TestCase):
         read_until(lambda f: f.get("type") == "session_settled")
         proc.stdin.close()
         proc.stdout.close()
-        with open(os.path.join(HERE, "fixtures", "ask_abort_restore.jsonl"), encoding="utf-8") as fh:
+        with open(
+            os.path.join(HERE, "fixtures", "ask_abort_restore.jsonl"), encoding="utf-8"
+        ) as fh:
             recorded = [json.loads(line) for line in fh if line.strip()]
         self.assertEqual(
             without_thinking(collapsed_frames(frames)), without_thinking(collapsed_frames(recorded))
@@ -301,12 +343,16 @@ class AbortAnchorTests(unittest.TestCase):
             [response] = [f for f in run if f.get("command") == "abort_and_restore_queue"]
             self.assertEqual((response["id"], response["success"]), ("X", True))
             self.assertEqual(response["data"]["steering"], [])
-            queued = [f["followUp"] for f in run if f.get("type") == "queue_update" and f["followUp"]][-1]
+            queued = [
+                f["followUp"] for f in run if f.get("type") == "queue_update" and f["followUp"]
+            ][-1]
             self.assertEqual([item["text"] for item in response["data"]["followUp"]], queued)
             kinds = [f.get("type") for f in run]
             self.assertLess(kinds.index("agent_end"), run.index(response))
             self.assertLess(run.index(response), kinds.index("prompt_result"))
-            self.assertEqual([f["id"] for f in run if f.get("type") == "prompt_result"], ["B", "C", "A", "D"])
+            self.assertEqual(
+                [f["id"] for f in run if f.get("type") == "prompt_result"], ["B", "C", "A", "D"]
+            )
 
 
 class StopTests(AskAgentCase):
@@ -332,8 +378,11 @@ class StopTests(AskAgentCase):
         self.assertEqual(self.of("ask_end"), [])
 
 
-
-BUSY_REPLIES = {"A": ["a1 ", "a2 ", "a3 ", "a4 ", "a5 ", "a6 ", "a7 ", "a8"], "B": ["bee"], "C": ["sea"]}
+BUSY_REPLIES = {
+    "A": ["a1 ", "a2 ", "a3 ", "a4 ", "a5 ", "a6 ", "a7 ", "a8"],
+    "B": ["bee"],
+    "C": ["sea"],
+}
 BUSY_SCENARIO = {"no_tools": True, "delta_delay": 0.04, "replies": BUSY_REPLIES}
 A_TEXT = "a1 a2 a3 a4 a5 a6 a7 a8"
 
@@ -357,7 +406,9 @@ class BusySendTests(AskAgentCase):
     async def test_each_turn_ends_once_with_only_its_own_text(self):
         await self.send_three()
         ends = [(e["turn"], e["status"], e["text"]) for e in self.of("ask_end")]
-        self.assertEqual(ends, [(1, "completed", A_TEXT), (2, "completed", "bee"), (3, "completed", "sea")])
+        self.assertEqual(
+            ends, [(1, "completed", A_TEXT), (2, "completed", "bee"), (3, "completed", "sea")]
+        )
         deltas = {}
         for event in self.of("ask_delta"):
             deltas.setdefault(event["turn"], []).append(event["text"])
@@ -372,7 +423,9 @@ class BusySendTests(AskAgentCase):
     async def test_queued_false_lands_between_previous_end_and_own_first_delta(self):
         await self.send_three()
         for turn, previous in ((2, 1), (3, 2)):
-            released = self.index_of(lambda e: e["type"] == "ask_queued" and e["turn"] == turn and e["queued"] is False)
+            released = self.index_of(
+                lambda e: e["type"] == "ask_queued" and e["turn"] == turn and e["queued"] is False
+            )
             previous_end = self.index_of(lambda e: e["type"] == "ask_end" and e["turn"] == previous)
             first_delta = self.index_of(lambda e: e["type"] == "ask_delta" and e["turn"] == turn)
             self.assertLess(previous_end, released)
@@ -385,34 +438,56 @@ class BusySendTests(AskAgentCase):
         statuses = self.of("ask_status")
         self.assertEqual(
             [(e["state"], e["turn"]) for e in statuses],
-            [("starting", None), ("idle", None), ("busy", 1), ("busy", 2), ("busy", 3), ("idle", None)],
+            [
+                ("starting", None),
+                ("idle", None),
+                ("busy", 1),
+                ("busy", 2),
+                ("busy", 3),
+                ("idle", None),
+            ],
         )
         idle = self.index_of(lambda e: e is statuses[-1])
         last_end = self.index_of(lambda e: e["type"] == "ask_end" and e["turn"] == 3)
         self.assertLess(last_end, idle)
 
     async def test_slash_prompt_without_user_message_still_splits_at_queued_text(self):
-        await self.send_three({**BUSY_SCENARIO, "replies": {**BUSY_REPLIES, "/skill:x": BUSY_REPLIES["A"]}}, first="/skill:x")
+        await self.send_three(
+            {**BUSY_SCENARIO, "replies": {**BUSY_REPLIES, "/skill:x": BUSY_REPLIES["A"]}},
+            first="/skill:x",
+        )
         ends = [(e["turn"], e["text"]) for e in self.of("ask_end")]
         self.assertEqual(ends, [(1, A_TEXT), (2, "bee"), (3, "sea")])
 
     async def test_duplicate_text_is_not_split_at_the_first_prompts_own_message(self):
         agent = await self.started(
-            {"no_tools": True, "delta_delay": 0.04, "replies": {"same": ["x1 ", "x2 ", "x3 ", "x4"]}}
+            {
+                "no_tools": True,
+                "delta_delay": 0.04,
+                "replies": {"same": ["x1 ", "x2 ", "x3 ", "x4"]},
+            }
         )
         await agent.send("same")
         await self.until(lambda: len(self.of("ask_delta")) >= 1, "first delta")
         await agent.send("same")
         await self.until_state(AskState.IDLE)
         self.assertEqual(
-            [(e["turn"], e["text"]) for e in self.of("ask_end")], [(1, "x1 x2 x3 x4"), (2, "x1 x2 x3 x4")]
+            [(e["turn"], e["text"]) for e in self.of("ask_end")],
+            [(1, "x1 x2 x3 x4"), (2, "x1 x2 x3 x4")],
         )
 
     async def test_error_result_for_boundary_ended_turn_emits_one_ask_error(self):
         await self.send_three({**BUSY_SCENARIO, "result_status": {"B": "error"}})
         self.assertEqual(
             self.of("ask_error"),
-            [{"type": "ask_error", "message": "Ask prompt failed", "retry": True, "retry_preview": "B ..."}],
+            [
+                {
+                    "type": "ask_error",
+                    "message": "Ask prompt failed",
+                    "retry": True,
+                    "retry_preview": "B ...",
+                }
+            ],
         )
         self.assertEqual(
             [(e["turn"], e["status"]) for e in self.of("ask_end")],
@@ -422,13 +497,20 @@ class BusySendTests(AskAgentCase):
     async def test_aborted_result_for_boundary_ended_turn_emits_one_ask_error(self):
         await self.send_three({**BUSY_SCENARIO, "result_status": {"A": "aborted"}})
         errors = self.of("ask_error")
-        self.assertEqual([(e["message"], e["retry_preview"]) for e in errors], [("Ask prompt was aborted", "A ...")])
+        self.assertEqual(
+            [(e["message"], e["retry_preview"]) for e in errors],
+            [("Ask prompt was aborted", "A ...")],
+        )
 
     async def test_error_result_for_open_turn_ends_it_with_that_status(self):
-        agent = await self.started({"thin": True, "deltas": ["p"], "result_status": {"solo": "error"}})
+        agent = await self.started(
+            {"thin": True, "deltas": ["p"], "result_status": {"solo": "error"}}
+        )
         await agent.send("solo")
         await self.until_state(AskState.IDLE)
-        self.assertEqual([(e["turn"], e["status"], e["text"]) for e in self.of("ask_end")], [(1, "error", "p")])
+        self.assertEqual(
+            [(e["turn"], e["status"], e["text"]) for e in self.of("ask_end")], [(1, "error", "p")]
+        )
         self.assertEqual(self.of("ask_error"), [])
 
     async def test_stop_mid_stream_drops_queue_and_ends_aborted(self):
@@ -440,7 +522,9 @@ class BusySendTests(AskAgentCase):
         await self.until_state(AskState.IDLE)
         await asyncio.sleep(0.3)
         self.assertEqual([(e["turn"], e["status"]) for e in self.of("ask_end")], [(1, "aborted")])
-        self.assertEqual([(q["turn"], q["queued"]) for q in self.of("ask_queued")], [(2, True), (2, False)])
+        self.assertEqual(
+            [(q["turn"], q["queued"]) for q in self.of("ask_queued")], [(2, True), (2, False)]
+        )
         self.assertEqual({e["turn"] for e in self.of("ask_delta")}, {1})
         self.assertEqual(self.of("ask_error"), [])
 
@@ -474,7 +558,10 @@ class RestoreTests(AskAgentCase):
         self.assertRegex(abort["id"], r"^ask-\d+$")
         await agent.send("D")
         await self.until_end(4)
-        self.assertEqual([(e["turn"], e["status"]) for e in self.of("ask_end")], [(1, "aborted"), (4, "completed")])
+        self.assertEqual(
+            [(e["turn"], e["status"]) for e in self.of("ask_end")],
+            [(1, "aborted"), (4, "completed")],
+        )
         self.assertEqual([p["message"] for p in self.prompts()], ["A", "B", "C", "D"])
         self.assertEqual(len(self.of("ask_restored")), 1)
 
@@ -548,7 +635,9 @@ class TimeoutTests(AskAgentCase):
         os.kill(self.fake_pid(), 0)
 
     async def test_does_not_fire_while_frames_keep_arriving(self):
-        agent = await self.started({"thin": True, "deltas": ["a", "b"], "frame_delay": 0.2}, timeout=0.4)
+        agent = await self.started(
+            {"thin": True, "deltas": ["a", "b"], "frame_delay": 0.2}, timeout=0.4
+        )
         await agent.send("hi")
         await self.until_end(1)
         ends = self.of("ask_end")
@@ -566,7 +655,9 @@ class TimeoutTests(AskAgentCase):
 
 class ProcessTests(AskAgentCase):
     async def test_exit_mid_turn_reports_error_and_next_send_relaunches(self):
-        agent = await self.started({"thin": True, "deltas": ["z"], "first_launch": {"exit_after": 3}})
+        agent = await self.started(
+            {"thin": True, "deltas": ["z"], "first_launch": {"exit_after": 3}}
+        )
         await agent.send("hello")
         await self.until_state(AskState.STOPPED)
         ends = self.of("ask_end")
@@ -574,10 +665,19 @@ class ProcessTests(AskAgentCase):
         errors = self.of("ask_error")
         self.assertEqual(
             errors,
-            [{"type": "ask_error", "message": "Ask agent exited", "retry": True, "retry_preview": "hello ..."}],
+            [
+                {
+                    "type": "ask_error",
+                    "message": "Ask agent exited",
+                    "retry": True,
+                    "retry_preview": "hello ...",
+                }
+            ],
         )
         self.assertTrue(agent.interrupted)
-        types = [e["type"] for e in self.events if e["type"] in ("ask_end", "ask_error", "ask_status")]
+        types = [
+            e["type"] for e in self.events if e["type"] in ("ask_end", "ask_error", "ask_status")
+        ]
         self.assertEqual(types[-3:], ["ask_end", "ask_error", "ask_status"])
         self.assertEqual(self.of("ask_status")[-1]["state"], "stopped")
         await agent.send("again")
@@ -593,7 +693,9 @@ class ProcessTests(AskAgentCase):
         self.assertIs(agent.state, AskState.ERROR)
         self.assertEqual(agent.detail, "ask-context extension did not load")
         status = self.of("ask_status")[-1]
-        self.assertEqual((status["state"], status["detail"]), ("error", "ask-context extension did not load"))
+        self.assertEqual(
+            (status["state"], status["detail"]), ("error", "ask-context extension did not load")
+        )
         with self.assertRaises(ProcessLookupError):
             os.kill(self.fake_pid(), 0)
 
@@ -729,7 +831,9 @@ class LocalBuiltinTests(AskAgentCase):
 
     async def test_five_local_commands_in_a_row_each_complete(self):
         commands = ["/dirs", "/context", "/tools", "/jobs", "/changelog last 1"]
-        agent = await self.started({"local_output": {"/changelog last 1": ["line one", "line two"]}})
+        agent = await self.started(
+            {"local_output": {"/changelog last 1": ["line one", "line two"]}}
+        )
         for number, command in enumerate(commands, 1):
             await agent.send(command)
             await self.until_end(number)
@@ -746,7 +850,9 @@ class LocalBuiltinTests(AskAgentCase):
             ],
         )
         for turn, _, text in ends:
-            self.assertEqual("".join(e["text"] for e in self.of("ask_delta") if e["turn"] == turn), text)
+            self.assertEqual(
+                "".join(e["text"] for e in self.of("ask_delta") if e["turn"] == turn), text
+            )
         idles = [e for e in self.of("ask_status") if e["state"] == "idle"]
         self.assertEqual(len(idles), 1 + len(commands))
 
@@ -756,7 +862,12 @@ class LocalBuiltinTests(AskAgentCase):
         await self.until_end(1)
         await self.until_state(AskState.IDLE)
         prompt_id = self.prompts()[0]["id"]
-        late = {"type": "prompt_result", "id": prompt_id, "agentInvoked": False, "status": "completed"}
+        late = {
+            "type": "prompt_result",
+            "id": prompt_id,
+            "agentInvoked": False,
+            "status": "completed",
+        }
         agent._on_line((json.dumps(late) + "\n").encode())
         agent._on_line(b'{"type":"session_settled"}\n')
         self.assertEqual(len(self.of("ask_end")), 1)
@@ -805,7 +916,9 @@ class ModuleTests(unittest.TestCase):
 
     def test_turn_shape(self):
         turn = ask_agent.Turn(1, "t")
-        self.assertEqual((turn.n, turn.text, turn.queued, turn.status, turn.reply), (1, "t", False, None, []))
+        self.assertEqual(
+            (turn.n, turn.text, turn.queued, turn.status, turn.reply), (1, "t", False, None, [])
+        )
 
 
 if __name__ == "__main__":

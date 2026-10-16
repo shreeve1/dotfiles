@@ -92,14 +92,10 @@ class ControllerTests(unittest.TestCase):
         hyprctl = executable_directory / "hyprctl"
         hyprctl.write_text(HYPRCTL)
         hyprctl.chmod(hyprctl.stat().st_mode | stat.S_IEXEC)
-        self.state_path = (
-            directory / "config" / "omarchy" / "touchpad-settings.json"
-        )
+        self.state_path = directory / "config" / "omarchy" / "touchpad-settings.json"
         self.env = {
             **os.environ,
-            "PATH": str(executable_directory)
-            + os.pathsep
-            + os.environ.get("PATH", ""),
+            "PATH": str(executable_directory) + os.pathsep + os.environ.get("PATH", ""),
             "HYPR_LOG": str(self.log),
             "HYPR_OPTIONS": json.dumps(LIVE_OPTIONS),
             "HYPR_DEVICES": json.dumps(
@@ -134,17 +130,11 @@ class ControllerTests(unittest.TestCase):
         self.log.write_text("")
 
     def mutations(self):
-        return [
-            call
-            for call in self.calls()
-            if call and call[0] in ("eval", "keyword")
-        ]
+        return [call for call in self.calls() if call and call[0] in ("eval", "keyword")]
 
     def write_saved(self, settings=SETTINGS, schema=2):
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(
-            json.dumps({"schemaVersion": schema, "settings": settings})
-        )
+        self.state_path.write_text(json.dumps({"schemaVersion": schema, "settings": settings}))
 
     def test_first_status_uses_schema_2_defaults_and_live_global_values(self):
         result = self.invoke("status", "--json")
@@ -203,8 +193,7 @@ class ControllerTests(unittest.TestCase):
                 ["devices", "-j"],
                 [
                     "eval",
-                    'hl.device({ name = "elan0676:00-04f3:3195-touchpad", '
-                    "sensitivity = 0.15 })",
+                    'hl.device({ name = "elan0676:00-04f3:3195-touchpad", sensitivity = 0.15 })',
                 ],
                 [
                     "eval",
@@ -222,12 +211,7 @@ class ControllerTests(unittest.TestCase):
         )
         eval_calls = [call for call in calls if call[0] == "eval"]
         self.assertFalse(any(COMPANION_MOUSE in call[1] for call in eval_calls))
-        self.assertFalse(
-            any(
-                call[0] == "keyword" and "scroll_method" in call[1]
-                for call in calls
-            )
-        )
+        self.assertFalse(any(call[0] == "keyword" and "scroll_method" in call[1] for call in calls))
         self.assertFalse(any("scroll_button" in part for call in calls for part in call))
         self.assertEqual(
             json.loads(self.state_path.read_text()),
@@ -246,9 +230,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(len(trackpoint_call), 1)
         self.assertIn('scroll_method = "no_scroll"', trackpoint_call[0][1])
         self.assertNotIn("on_button_down", trackpoint_call[0][1])
-        self.assertFalse(
-            any("scroll_button" in part for call in self.calls() for part in call)
-        )
+        self.assertFalse(any("scroll_button" in part for call in self.calls() for part in call))
 
     def test_missing_required_device_fails_before_any_mutation(self):
         cases = (

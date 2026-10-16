@@ -16,6 +16,7 @@ The installer never writes ``SOUL.md`` or any project instruction file
 (``.hermes.md`` / ``HERMES.md`` / ``AGENTS.md`` / ``CLAUDE.md`` /
 ``.cursorrules``). Those copies are a separate human-approved action.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -60,10 +61,27 @@ RECOVERED_TOOLSETS = ("kanban", "messaging")
 # Full explicit disabled list. Kept conservative: a single unrecognised
 # toolset here is fine; missing one means a leaked toolset in the prompt.
 DISABLED_TOOLSETS = (
-    "web", "browser", "code_execution", "video", "image_gen", "video_gen",
-    "x_search", "tts", "stt", "memory", "todo", "session_search",
-    "connections", "clarify", "delegation", "cronjob", "homeassistant",
-    "spotify", "yuanbao", "computer_use", "a2a",
+    "web",
+    "browser",
+    "code_execution",
+    "video",
+    "image_gen",
+    "video_gen",
+    "x_search",
+    "tts",
+    "stt",
+    "memory",
+    "todo",
+    "session_search",
+    "connections",
+    "clarify",
+    "delegation",
+    "cronjob",
+    "homeassistant",
+    "spotify",
+    "yuanbao",
+    "computer_use",
+    "a2a",
     *RECOVERED_TOOLSETS,
 )
 
@@ -78,20 +96,26 @@ def _die(msg: str, code: int = 1) -> "None":
     raise SystemExit(code)
 
 
-def _run(command: Iterable[str], *, env: Optional[dict] = None,
-         check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(list(command), text=True,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          env=env, check=check)
+def _run(
+    command: Iterable[str], *, env: Optional[dict] = None, check: bool = True
+) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        list(command),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        check=check,
+    )
 
 
 def _python_tree_hash(directory: Path) -> str:
     digest = hashlib.sha256()
-    for path in sorted(p for p in directory.rglob("*")
-                       if p.is_file()
-                       and "__pycache__" not in p.parts
-                       and p.suffix != ".pyc"):
+    for path in sorted(
+        p
+        for p in directory.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    ):
         digest.update(path.relative_to(directory).as_posix().encode() + b"\0")
         digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -133,8 +157,7 @@ def _private_dir(path: Path) -> Path:
 
 def _default_backups_root(profile: str) -> Path:
     state_home = Path(os.environ.get("XDG_STATE_HOME", "~/.local/state"))
-    return (state_home.expanduser() / "hermes" / "projectlean" /
-            profile / "backups")
+    return state_home.expanduser() / "hermes" / "projectlean" / profile / "backups"
 
 
 def _backup_root(value: Optional[Path], profile: str, repo: Path) -> Path:
@@ -150,15 +173,13 @@ def _backup_root(value: Optional[Path], profile: str, repo: Path) -> Path:
 
 
 def build_manifest() -> dict:
-    missing = [s for s in REQUIRED_SKILLS
-               if not (SKILLS / s / "SKILL.md").is_file()]
+    missing = [s for s in REQUIRED_SKILLS if not (SKILLS / s / "SKILL.md").is_file()]
     if missing:
         _die(f"missing skill assets: {', '.join(missing)}")
     if not SOUL_TEMPLATE.is_file() or not CONFIG_TEMPLATE.is_file():
         _die("missing SOUL/config template assets")
 
-    skill_hashes = {name: _python_tree_hash(SKILLS / name)
-                    for name in REQUIRED_SKILLS}
+    skill_hashes = {name: _python_tree_hash(SKILLS / name) for name in REQUIRED_SKILLS}
     soul_bytes = SOUL_TEMPLATE.read_bytes()
     config = _portable_config()
 
@@ -175,8 +196,9 @@ def build_manifest() -> dict:
         "disabled_toolsets": sorted(DISABLED_TOOLSETS),
     }
     manifest["manifest_sha256"] = hashlib.sha256(
-        json.dumps({k: v for k, v in manifest.items() if k != "manifest_sha256"},
-                   sort_keys=True).encode()
+        json.dumps(
+            {k: v for k, v in manifest.items() if k != "manifest_sha256"}, sort_keys=True
+        ).encode()
     ).hexdigest()
     return manifest
 
@@ -192,7 +214,8 @@ def check_manifest(manifest: dict) -> None:
     tracked = json.loads(MANIFEST_FILE.read_text())
     derived = {k: v for k, v in tracked.items() if k != "manifest_sha256"}
     derived["manifest_sha256"] = hashlib.sha256(
-        json.dumps(derived, sort_keys=True).encode()).hexdigest()
+        json.dumps(derived, sort_keys=True).encode()
+    ).hexdigest()
     if derived != manifest:
         _die("on-disk assets diverge from tracked manifest.json")
 
@@ -203,8 +226,7 @@ def check_manifest(manifest: dict) -> None:
 
 
 def profile_dir(hermes: str, profile: str) -> Optional[Path]:
-    proc = _run([hermes, "--profile", profile, "config", "path"],
-                check=False)
+    proc = _run([hermes, "--profile", profile, "config", "path"], check=False)
     if proc.returncode != 0:
         return None
     candidate = Path(proc.stdout.strip()).parent
@@ -268,11 +290,21 @@ def backup_profile(pdir: Path, label: str, backups_root: Path) -> Path:
     if (pdir / "SOUL.md").exists():
         _backup_one(pdir / "SOUL.md", target / "SOUL.md")
 
-    (target / "BACKUP_MANIFEST.json").write_text(json.dumps({
-        "label": label, "stamped_at": stamp, "source_profile": str(pdir),
-        "paths": sorted(p.name for p in target.iterdir()
-                        if p.name != "BACKUP_MANIFEST.json"),
-    }, indent=2, sort_keys=True) + "\n")
+    (target / "BACKUP_MANIFEST.json").write_text(
+        json.dumps(
+            {
+                "label": label,
+                "stamped_at": stamp,
+                "source_profile": str(pdir),
+                "paths": sorted(
+                    p.name for p in target.iterdir() if p.name != "BACKUP_MANIFEST.json"
+                ),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
     _restrict_backup_tree(target)
     return target
 
@@ -303,10 +335,19 @@ def restore_profile(pdir: Path, backup: Path) -> None:
 
 
 def _create_profile(hermes: str, profile: str, clone_from: str) -> Path:
-    proc = _run([hermes, "profile", "create", profile,
-                 "--clone-from", clone_from, "--no-alias",
-                 "--no-skills"],
-                check=False)
+    proc = _run(
+        [
+            hermes,
+            "profile",
+            "create",
+            profile,
+            "--clone-from",
+            clone_from,
+            "--no-alias",
+            "--no-skills",
+        ],
+        check=False,
+    )
     if proc.returncode != 0:
         _die(f"hermes profile create failed: {proc.stderr.strip() or proc.stdout.strip()}")
     pdir = profile_dir(hermes, profile)
@@ -315,10 +356,15 @@ def _create_profile(hermes: str, profile: str, clone_from: str) -> Path:
     return pdir
 
 
-def _apply_to_profile(pdir: Path, manifest: dict, hermes: str,
-                      profile: str, failure_hook: Optional[Callable[[], None]],
-                      backups_root: Path,
-                      label: str) -> Path:
+def _apply_to_profile(
+    pdir: Path,
+    manifest: dict,
+    hermes: str,
+    profile: str,
+    failure_hook: Optional[Callable[[], None]],
+    backups_root: Path,
+    label: str,
+) -> Path:
     """Install the manifest into ``pdir``.
 
     Every mutation is staged in a temp dir, copied into place as a final
@@ -339,8 +385,7 @@ def _apply_to_profile(pdir: Path, manifest: dict, hermes: str,
     for name in REQUIRED_SKILLS:
         shutil.copytree(SKILLS / name, skills_target / name)
 
-    staged_hashes = {n: _python_tree_hash(skills_target / n)
-                     for n in REQUIRED_SKILLS}
+    staged_hashes = {n: _python_tree_hash(skills_target / n) for n in REQUIRED_SKILLS}
     if staged_hashes != manifest["skills"]:
         shutil.rmtree(staged, ignore_errors=True)
         _die("staged skill parity check failed")
@@ -362,16 +407,14 @@ def _apply_to_profile(pdir: Path, manifest: dict, hermes: str,
         **manifest["portable_config"],
     }
     for key, value in config_keys.items():
-        proc = _run([hermes, "--profile", profile, "config", "set",
-                     "--force", key, value],
-                    check=False)
+        proc = _run(
+            [hermes, "--profile", profile, "config", "set", "--force", key, value], check=False
+        )
         if proc.returncode != 0:
             restore_profile(pdir, snapshot)
-            _die(f"hermes config set {key} failed: "
-                 f"{proc.stderr.strip() or proc.stdout.strip()}")
+            _die(f"hermes config set {key} failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
-    installed_hashes = {n: _python_tree_hash(pdir / "skills" / n)
-                        for n in REQUIRED_SKILLS}
+    installed_hashes = {n: _python_tree_hash(pdir / "skills" / n) for n in REQUIRED_SKILLS}
     if installed_hashes != manifest["skills"]:
         restore_profile(pdir, snapshot)
         _die("post-install skill parity mismatch")
@@ -380,8 +423,7 @@ def _apply_to_profile(pdir: Path, manifest: dict, hermes: str,
 
     marker = {
         "managed_by": "projectlean",
-        "installed_at": _dt.datetime.now(_dt.timezone.utc)
-        .isoformat(timespec="seconds"),
+        "installed_at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
         "source_manifest_sha256": manifest["manifest_sha256"],
         "source_root": str(ROOT),
         "profile": profile,
@@ -396,43 +438,70 @@ def _apply_to_profile(pdir: Path, manifest: dict, hermes: str,
 
 
 def main(argv: Optional[list] = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--profile", default=DEFAULT_PROFILE,
-                        help=f"target Hermes profile (default: {DEFAULT_PROFILE})")
-    parser.add_argument("--clone-from", default=DEFAULT_CLONE_FROM,
-                        help="source profile to clone from when creating (default: default)")
-    parser.add_argument("--repo", default=".", type=Path,
-                        help="project repo path (used in human guidance only; "
-                             "no protected file is written)")
-    parser.add_argument("--adopt-unmanaged", action="store_true",
-                        help="permit adoption of an existing unmanaged profile "
-                             "(creates a complete timestamped backup first)")
-    parser.add_argument("--backup-dir", type=Path, default=None,
-                        help="private backup directory; must be outside package "
-                             "and target repo (default: XDG state directory)")
-    parser.add_argument("--check-manifest", action="store_true",
-                        help="verify on-disk assets match the tracked manifest "
-                             "and exit (no hermes calls)")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="print the manifest that would be installed and exit")
-    parser.add_argument("--failure-hook-step", default=None,
-                        choices=("after-stage",),
-                        help="INTERNAL: trigger a synthetic failure inside the "
-                             "install pipeline (used by tests).")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--profile",
+        default=DEFAULT_PROFILE,
+        help=f"target Hermes profile (default: {DEFAULT_PROFILE})",
+    )
+    parser.add_argument(
+        "--clone-from",
+        default=DEFAULT_CLONE_FROM,
+        help="source profile to clone from when creating (default: default)",
+    )
+    parser.add_argument(
+        "--repo",
+        default=".",
+        type=Path,
+        help="project repo path (used in human guidance only; no protected file is written)",
+    )
+    parser.add_argument(
+        "--adopt-unmanaged",
+        action="store_true",
+        help="permit adoption of an existing unmanaged profile "
+        "(creates a complete timestamped backup first)",
+    )
+    parser.add_argument(
+        "--backup-dir",
+        type=Path,
+        default=None,
+        help="private backup directory; must be outside package "
+        "and target repo (default: XDG state directory)",
+    )
+    parser.add_argument(
+        "--check-manifest",
+        action="store_true",
+        help="verify on-disk assets match the tracked manifest and exit (no hermes calls)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="print the manifest that would be installed and exit"
+    )
+    parser.add_argument(
+        "--failure-hook-step",
+        default=None,
+        choices=("after-stage",),
+        help="INTERNAL: trigger a synthetic failure inside the install pipeline (used by tests).",
+    )
     args = parser.parse_args(argv)
 
     manifest = build_manifest()
     if args.dry_run:
-        print(json.dumps({"profile": args.profile,
-                          "manifest": manifest,
-                          "mode": "dry-run"}, sort_keys=True))
+        print(
+            json.dumps(
+                {"profile": args.profile, "manifest": manifest, "mode": "dry-run"}, sort_keys=True
+            )
+        )
         return 0
     if args.check_manifest:
         check_manifest(manifest)
-        print(json.dumps({"manifest_check": "ok",
-                          "manifest_sha256": manifest["manifest_sha256"]},
-                         sort_keys=True))
+        print(
+            json.dumps(
+                {"manifest_check": "ok", "manifest_sha256": manifest["manifest_sha256"]},
+                sort_keys=True,
+            )
+        )
         return 0
 
     hermes_bin = shutil.which("hermes")
@@ -453,38 +522,44 @@ def main(argv: Optional[list] = None) -> int:
 
     def _hook():
         if args.failure_hook_step == "after-stage":
-            raise RuntimeError(
-                "projectlean: injected failure after staging (test hook)")
+            raise RuntimeError("projectlean: injected failure after staging (test hook)")
 
     if existing is None:
         try:
             existing = _create_profile(hermes, args.profile, args.clone_from)
         except SystemExit:
             raise
-        snapshot = _apply_to_profile(existing, manifest, hermes,
-                                     args.profile, _hook,
-                                     backups_root, label="fresh")
+        snapshot = _apply_to_profile(
+            existing, manifest, hermes, args.profile, _hook, backups_root, label="fresh"
+        )
     elif not is_managed(existing):
         if not args.adopt_unmanaged:
-            _die(f"profile {args.profile!r} exists but is not managed by "
-                 f"projectlean; rerun with --adopt-unmanaged to take it over")
-        snapshot = _apply_to_profile(existing, manifest, hermes,
-                                     args.profile, _hook,
-                                     backups_root, label="adopt")
+            _die(
+                f"profile {args.profile!r} exists but is not managed by "
+                f"projectlean; rerun with --adopt-unmanaged to take it over"
+            )
+        snapshot = _apply_to_profile(
+            existing, manifest, hermes, args.profile, _hook, backups_root, label="adopt"
+        )
     else:
-        snapshot = _apply_to_profile(existing, manifest, hermes,
-                                     args.profile, _hook,
-                                     backups_root, label="update")
+        snapshot = _apply_to_profile(
+            existing, manifest, hermes, args.profile, _hook, backups_root, label="update"
+        )
 
-    print(json.dumps({
-        "profile": args.profile,
-        "mode": label if label != "fresh" else "created",
-        "managed": True,
-        "manifest_sha256": manifest["manifest_sha256"],
-        "backup": str(snapshot),
-        "toolsets": sorted(CLI_TOOLSETS),
-        "repo": str(repo),
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "profile": args.profile,
+                "mode": label if label != "fresh" else "created",
+                "managed": True,
+                "manifest_sha256": manifest["manifest_sha256"],
+                "backup": str(snapshot),
+                "toolsets": sorted(CLI_TOOLSETS),
+                "repo": str(repo),
+            },
+            sort_keys=True,
+        )
+    )
     print(
         f"Manual protected steps (not automated): after human approval, "
         f"copy {TEMPLATES / 'project-hermes-router.md.template'} to "

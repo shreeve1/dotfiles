@@ -17,18 +17,30 @@ import unittest
 PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OMP = os.path.expanduser("~/.local/bin/omp")
 MODEL = "cliproxy/deepseek-v4.1-flash"
-LONG_PROMPT = "Write the numbers 1 to 40, one per line, each followed by a short fruit name. Nothing else."
+LONG_PROMPT = (
+    "Write the numbers 1 to 40, one per line, each followed by a short fruit name. Nothing else."
+)
 SETTLE_TIMEOUT_S = 240
 
 ENABLED = os.environ.get("MEETING_ASSISTANT_LIVE_OMP") == "1" and os.path.exists(OMP)
 
 
 def entry(entry_id, text, marker):
-    card = json.dumps({"question": f"question {marker}", "answer": f"answer {marker}", "sources": []})
-    return {"id": entry_id, "text": text, "header": "Cards since your last message:", "cards": [card]}
+    card = json.dumps(
+        {"question": f"question {marker}", "answer": f"answer {marker}", "sources": []}
+    )
+    return {
+        "id": entry_id,
+        "text": text,
+        "header": "Cards since your last message:",
+        "cards": [card],
+    }
 
 
-@unittest.skipUnless(ENABLED, "set MEETING_ASSISTANT_LIVE_OMP=1 with ~/.local/bin/omp present to run against real omp")
+@unittest.skipUnless(
+    ENABLED,
+    "set MEETING_ASSISTANT_LIVE_OMP=1 with ~/.local/bin/omp present to run against real omp",
+)
 class LiveCardsQueueTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="ma-live-")
@@ -41,11 +53,30 @@ class LiveCardsQueueTests(unittest.TestCase):
         self.frames = queue.Queue()
         env = dict(os.environ, MEETING_ASSISTANT_CARDS_FILE=self.cards_file)
         self.proc = subprocess.Popen(
-            [OMP, "--mode", "rpc", "--cwd", self.cwd, "--session-dir", self.session_dir, "--continue",
-             "--model", MODEL, "--thinking", "low",
-             "--config", os.path.join(PLUGIN_DIR, "ask-overlay.yml"),
-             "-e", os.path.join(PLUGIN_DIR, "ask-context.ts")],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env, text=True)
+            [
+                OMP,
+                "--mode",
+                "rpc",
+                "--cwd",
+                self.cwd,
+                "--session-dir",
+                self.session_dir,
+                "--continue",
+                "--model",
+                MODEL,
+                "--thinking",
+                "low",
+                "--config",
+                os.path.join(PLUGIN_DIR, "ask-overlay.yml"),
+                "-e",
+                os.path.join(PLUGIN_DIR, "ask-context.ts"),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            text=True,
+        )
         self.addCleanup(self.shutdown)
         threading.Thread(target=self.pump, daemon=True).start()
 
@@ -89,8 +120,12 @@ class LiveCardsQueueTests(unittest.TestCase):
         os.replace(tmp, self.cards_file)
 
     def session_sequence(self):
-        paths = [os.path.join(root, n) for root, _, names in os.walk(self.session_dir) for n in names
-                 if n.endswith(".jsonl")]
+        paths = [
+            os.path.join(root, n)
+            for root, _, names in os.walk(self.session_dir)
+            for n in names
+            if n.endswith(".jsonl")
+        ]
         self.assertEqual(len(paths), 1, paths)
         sequence = []
         with open(paths[0]) as f:
@@ -99,14 +134,20 @@ class LiveCardsQueueTests(unittest.TestCase):
                     item = json.loads(line)
                 except ValueError:
                     continue
-                if item.get("type") == "custom_message" and item.get("customType") == "meeting-assistant-cards":
+                if (
+                    item.get("type") == "custom_message"
+                    and item.get("customType") == "meeting-assistant-cards"
+                ):
                     sequence.append(("cards", item["content"]))
                     continue
                 message = item.get("message")
                 if isinstance(message, dict) and message.get("role") == "user":
                     content = message.get("content")
-                    text = content if isinstance(content, str) else "".join(
-                        p.get("text", "") for p in content if isinstance(p, dict))
+                    text = (
+                        content
+                        if isinstance(content, str)
+                        else "".join(p.get("text", "") for p in content if isinstance(p, dict))
+                    )
                     sequence.append(("user", text))
         return sequence
 
@@ -114,19 +155,33 @@ class LiveCardsQueueTests(unittest.TestCase):
         self.send({"id": "A", "type": "prompt", "message": LONG_PROMPT})
         self.wait_frame(lambda f: f.get("type") == "message_update", "A streaming")
         write_for_b()
-        self.send({"id": "B", "type": "prompt", "message": "Reply with only the word two.",
-                   "streamingBehavior": "followUp"})
+        self.send(
+            {
+                "id": "B",
+                "type": "prompt",
+                "message": "Reply with only the word two.",
+                "streamingBehavior": "followUp",
+            }
+        )
         self.wait_frame(lambda f: f.get("type") == "response" and f.get("id") == "B", "B accepted")
         write_for_c()
-        self.send({"id": "C", "type": "prompt", "message": "Reply with only the word three.",
-                   "streamingBehavior": "followUp"})
+        self.send(
+            {
+                "id": "C",
+                "type": "prompt",
+                "message": "Reply with only the word three.",
+                "streamingBehavior": "followUp",
+            }
+        )
         self.wait_frame(lambda f: f.get("type") == "response" and f.get("id") == "C", "C accepted")
         self.wait_frame(lambda f: f.get("type") == "session_settled", "session_settled")
         return self.session_sequence()
 
     def assert_users_unchanged(self, sequence):
         users = [text for kind, text in sequence if kind == "user"]
-        self.assertEqual(users, [LONG_PROMPT, "Reply with only the word two.", "Reply with only the word three."])
+        self.assertEqual(
+            users, [LONG_PROMPT, "Reply with only the word two.", "Reply with only the word three."]
+        )
 
     def test_c_without_cards_does_not_cost_b_its_cards(self):
         b = entry("id-b", "Reply with only the word two.", "BBB")
@@ -139,7 +194,9 @@ class LiveCardsQueueTests(unittest.TestCase):
     def test_c_with_newer_cards_keeps_each_entry_for_its_own_message(self):
         b = entry("id-b", "Reply with only the word two.", "BBB")
         c = entry("id-c", "Reply with only the word three.", "CCC")
-        sequence = self.run_scenario(lambda: self.write_entries([b]), lambda: self.write_entries([b, c]))
+        sequence = self.run_scenario(
+            lambda: self.write_entries([b]), lambda: self.write_entries([b, c])
+        )
         cards = [text for kind, text in sequence if kind == "cards"]
         self.assertEqual(len(cards), 2)
         self.assertIn("answer BBB", cards[0])

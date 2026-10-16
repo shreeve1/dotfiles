@@ -77,7 +77,9 @@ def load_agents(project_root: Path):
     of tables (depending on how the layers merged); normalize both to a dict.
     """
     script = Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_config.py"
-    data = _run_json([sys.executable, str(script), "--project-root", str(project_root), "--key", "agents"])
+    data = _run_json(
+        [sys.executable, str(script), "--project-root", str(project_root), "--key", "agents"]
+    )
     if data is None:
         return {}, False
     agents = data.get("agents", {}) or {}
@@ -107,8 +109,12 @@ def find_party_skill(project_root: Path, skill_root: Path):
 
 def load_party_workflow(project_root: Path, party_skill: Path):
     """Merged [workflow] table for party-mode (base + user overrides)."""
-    resolver = Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_customization.py"
-    data = _run_json([sys.executable, str(resolver), "--skill", str(party_skill), "--key", "workflow"])
+    resolver = (
+        Path(__file__).resolve().parents[2] / "_shared" / "scripts" / "resolve_customization.py"
+    )
+    data = _run_json(
+        [sys.executable, str(resolver), "--skill", str(party_skill), "--key", "workflow"]
+    )
     if data is not None and isinstance(data.get("workflow"), dict):
         return data["workflow"]
     # Fallback: base customize.toml directly, no override merge.
@@ -123,6 +129,7 @@ def load_party_overrides(project_root: Path):
     project dir ({project-root}/_bmad/custom), team then personal, project over
     global. No base roster exists in this path, so a shallow merge is enough.
     """
+
     def _wf(path):
         wf = _load_toml(path).get("workflow", {})
         return wf if isinstance(wf, dict) else {}
@@ -135,12 +142,18 @@ def load_party_overrides(project_root: Path):
         _wf(project_custom / f"{PARTY_SKILL}.toml"),
         _wf(project_custom / f"{PARTY_SKILL}.user.toml"),
     ]
+
     def _merge_list(base, override):
         # Merge keyed tables (party_members by code, party_groups by id) so a
         # later layer replaces a matching entry instead of duplicating it.
-        key = next((k for k in ("code", "id")
-                    if all(isinstance(i, dict) and i.get(k) is not None
-                           for i in base + override)), None)
+        key = next(
+            (
+                k
+                for k in ("code", "id")
+                if all(isinstance(i, dict) and i.get(k) is not None for i in base + override)
+            ),
+            None,
+        )
         if key is None:
             return base + override
         out, idx = [], {}
@@ -167,7 +180,7 @@ def _alias(code: str) -> str:
     """Short alias for an installed agent code: bmad-agent-analyst -> analyst."""
     for prefix in ("bmad-agent-", "bmad-"):
         if code.startswith(prefix):
-            return code[len(prefix):]
+            return code[len(prefix) :]
     return code
 
 
@@ -195,17 +208,20 @@ def build_pool(agents: dict, party_members: list):
                 index[key] = code
 
     for code, info in (agents or {}).items():
-        register(code, {
-            "code": code,
-            "name": info.get("name", code),
-            "icon": info.get("icon", ""),
-            "title": info.get("title", ""),
-            "description": info.get("description", ""),
-            "source": "installed",
-        })
+        register(
+            code,
+            {
+                "code": code,
+                "name": info.get("name", code),
+                "icon": info.get("icon", ""),
+                "title": info.get("title", ""),
+                "description": info.get("description", ""),
+                "source": "installed",
+            },
+        )
         installed_codes.append(code)
 
-    for m in (party_members if isinstance(party_members, list) else []):
+    for m in party_members if isinstance(party_members, list) else []:
         if not isinstance(m, dict):
             continue
         code = m.get("code")
@@ -273,17 +289,20 @@ def main():
         workflow = load_party_overrides(project_root)
 
     pool, index, installed_codes, custom_codes = build_pool(
-        agents, workflow.get("party_members", []))
+        agents, workflow.get("party_members", [])
+    )
     parties = resolve_parties(workflow.get("party_groups", []), pool, index)
 
-    _emit({
-        "agents": [_brief(pool[c]) for c in installed_codes],
-        "members": [_brief(pool[c]) for c in custom_codes],
-        "parties": parties,
-        "default_party": workflow.get("default_party", "") or "",
-        "party_mode_found": party_skill is not None,
-        "agents_resolved": agents_ok,
-    })
+    _emit(
+        {
+            "agents": [_brief(pool[c]) for c in installed_codes],
+            "members": [_brief(pool[c]) for c in custom_codes],
+            "parties": parties,
+            "default_party": workflow.get("default_party", "") or "",
+            "party_mode_found": party_skill is not None,
+            "agents_resolved": agents_ok,
+        }
+    )
 
 
 def _emit(obj):

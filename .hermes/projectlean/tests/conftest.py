@@ -7,6 +7,7 @@ harness resets fake-hermes state per test.
 The fake hermes intentionally implements ONLY the verbs the package
 calls. Any other invocation is a fail-closed error.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -31,12 +32,9 @@ def _load(module_name: str, script_path: Path):
     return module
 
 
-INSTALL = _load("_projectlean_install",
-                PACKAGE_ROOT / "bin" / "install-projectlean.py")
-VERIFY = _load("_projectlean_verify",
-               PACKAGE_ROOT / "bin" / "verify-projectlean.py")
-PREPARE = _load("_projectlean_prepare",
-                PACKAGE_ROOT / "bin" / "prepare-context-candidates.py")
+INSTALL = _load("_projectlean_install", PACKAGE_ROOT / "bin" / "install-projectlean.py")
+VERIFY = _load("_projectlean_verify", PACKAGE_ROOT / "bin" / "verify-projectlean.py")
+PREPARE = _load("_projectlean_prepare", PACKAGE_ROOT / "bin" / "prepare-context-candidates.py")
 
 
 FAKE_HERMES_SHIM = r'''#!/usr/bin/env python3
@@ -268,16 +266,24 @@ class HermesFake:
     def profile_dir(self, profile: str) -> Path:
         return self.profiles_dir / profile
 
-    def seed_profile(self, profile: str, *, with_skills: bool = False,
-                     with_soul: bool = False,
-                     config_yaml: Optional[str] = None) -> Path:
+    def seed_profile(
+        self,
+        profile: str,
+        *,
+        with_skills: bool = False,
+        with_soul: bool = False,
+        config_yaml: Optional[str] = None,
+    ) -> Path:
         pdir = self.profile_dir(profile)
         pdir.mkdir(parents=True, exist_ok=True)
-        (pdir / "config.yaml").write_text(config_yaml or textwrap.dedent("""\
+        (pdir / "config.yaml").write_text(
+            config_yaml
+            or textwrap.dedent("""\
             model:
               provider: fake
               name: fake-model
-            """))
+            """)
+        )
         if with_skills:
             (pdir / "skills").mkdir(exist_ok=True)
         if with_soul:
@@ -287,64 +293,60 @@ class HermesFake:
 
 def _run_capture(env: dict, script: Path, *args: str):
     import subprocess
-    return subprocess.run([sys.executable, str(script), *args],
-                          env=env, text=True,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    return subprocess.run(
+        [sys.executable, str(script), *args],
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
 
 def run_installer(env: dict, *args: str) -> dict:
-    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "install-projectlean.py",
-                        *args)
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "install-projectlean.py", *args)
     if proc.returncode != 0:
         raise AssertionError(
             f"installer failed (rc={proc.returncode}): "
-            f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}")
+            f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+        )
     return json.loads(proc.stdout)
 
 
 def run_installer_expect_failure(env: dict, *args: str) -> str:
-    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "install-projectlean.py",
-                        *args)
-    assert proc.returncode != 0, (
-        f"installer unexpectedly succeeded: {proc.stdout!r}")
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "install-projectlean.py", *args)
+    assert proc.returncode != 0, f"installer unexpectedly succeeded: {proc.stdout!r}"
     return proc.stderr + proc.stdout
 
 
 def run_verifier(env: dict, *args: str) -> dict:
-    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "verify-projectlean.py",
-                        *args)
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "verify-projectlean.py", *args)
     if proc.returncode != 0:
         raise AssertionError(
             f"verifier failed (rc={proc.returncode}): "
-            f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}")
+            f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+        )
     return json.loads(proc.stdout)
 
 
 def run_verifier_expect_failure(env: dict, *args: str) -> str:
-    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "verify-projectlean.py",
-                        *args)
-    assert proc.returncode != 0, (
-        f"verifier unexpectedly succeeded: {proc.stdout!r}")
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "verify-projectlean.py", *args)
+    assert proc.returncode != 0, f"verifier unexpectedly succeeded: {proc.stdout!r}"
     return proc.stderr + proc.stdout
 
 
 def run_prepare(env: dict, *args: str) -> dict:
-    proc = _run_capture(env,
-                        PACKAGE_ROOT / "bin" / "prepare-context-candidates.py",
-                        *args)
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "prepare-context-candidates.py", *args)
     if proc.returncode != 0:
         raise AssertionError(
-            f"prepare failed (rc={proc.returncode}): "
-            f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}")
+            f"prepare failed (rc={proc.returncode}): stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+        )
     return json.loads(proc.stdout)
 
 
 def run_prepare_expect_failure(env: dict, *args: str) -> str:
-    proc = _run_capture(env,
-                        PACKAGE_ROOT / "bin" / "prepare-context-candidates.py",
-                        *args)
-    assert proc.returncode != 0, (
-        f"prepare unexpectedly succeeded: {proc.stdout!r}")
+    proc = _run_capture(env, PACKAGE_ROOT / "bin" / "prepare-context-candidates.py", *args)
+    assert proc.returncode != 0, f"prepare unexpectedly succeeded: {proc.stdout!r}"
     return proc.stderr + proc.stdout
 
 
@@ -353,6 +355,7 @@ class ProjectleanTestBase(unittest.TestCase):
 
     def setUp(self) -> None:
         import tempfile
+
         self.tmp = Path(tempfile.mkdtemp(prefix="projectlean-test-"))
         self.state = Path(tempfile.mkdtemp(prefix="projectlean-state-"))
         self.env_root = self.tmp / "fake-root"

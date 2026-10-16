@@ -32,4 +32,6 @@ with tempfile.TemporaryDirectory(prefix="keystroke-hermes-acp-") as temp:
     )
     output = result.stdout + result.stderr
 assert "PASS Hermes ACP session" in output and "FAIL" not in output, output
-print("PASS Hermes ACP session: streaming, tool updates, permission response and recent-session listing")
+print(
+    "PASS Hermes ACP session: streaming, tool updates, permission response and recent-session listing"
+)

@@ -20,6 +20,7 @@ Two modes:
 All hashing and search uses Python stdlib; no ``rg``/``sha256sum``/
 external CLIs.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,8 +41,12 @@ MANIFEST_FILE = ROOT / "manifest.json"
 DEFAULT_PROFILE = "projectlean"
 
 REQUIRED_SKILLS = (
-    "independent-reviewer", "grill-me", "handoff",
-    "hermes-agent", "llm-wiki-setup", "wiki-update",
+    "independent-reviewer",
+    "grill-me",
+    "handoff",
+    "hermes-agent",
+    "llm-wiki-setup",
+    "wiki-update",
 )
 
 APPROVED_CLI_TOOLSETS = {"file", "terminal", "vision", "skills"}
@@ -49,8 +54,16 @@ APPROVED_CLI_TOOLSETS = {"file", "terminal", "vision", "skills"}
 # Forbidden toolset names that must NOT be present in the live profile's
 # CLI toolset listing or in prompt-size output. ``memory`` is forbidden
 # because projectlean disables it as part of the portable config.
-FORBIDDEN_TOOLSETS = {"kanban", "messaging", "memory", "todo", "delegation",
-                      "cronjob", "web", "browser"}
+FORBIDDEN_TOOLSETS = {
+    "kanban",
+    "messaging",
+    "memory",
+    "todo",
+    "delegation",
+    "cronjob",
+    "web",
+    "browser",
+}
 
 EXPECTED_PORTABLE_CONFIG = {
     "agent.coding_context": "off",
@@ -63,10 +76,29 @@ EXPECTED_PORTABLE_CONFIG = {
 }
 
 DISABLED_TOOLSETS = (
-    "web", "browser", "code_execution", "video", "image_gen", "video_gen",
-    "x_search", "tts", "stt", "memory", "todo", "session_search",
-    "connections", "clarify", "delegation", "cronjob", "homeassistant",
-    "spotify", "yuanbao", "computer_use", "a2a", "kanban", "messaging",
+    "web",
+    "browser",
+    "code_execution",
+    "video",
+    "image_gen",
+    "video_gen",
+    "x_search",
+    "tts",
+    "stt",
+    "memory",
+    "todo",
+    "session_search",
+    "connections",
+    "clarify",
+    "delegation",
+    "cronjob",
+    "homeassistant",
+    "spotify",
+    "yuanbao",
+    "computer_use",
+    "a2a",
+    "kanban",
+    "messaging",
 )
 EXPECTED_DISABLED_TOOLSETS = set(DISABLED_TOOLSETS)
 
@@ -83,10 +115,11 @@ def _die(msg: str, code: int = 1) -> "None":
 
 def _python_tree_hash(directory: Path) -> str:
     digest = hashlib.sha256()
-    for path in sorted(p for p in directory.rglob("*")
-                       if p.is_file()
-                       and "__pycache__" not in p.parts
-                       and p.suffix != ".pyc"):
+    for path in sorted(
+        p
+        for p in directory.rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    ):
         digest.update(path.relative_to(directory).as_posix().encode() + b"\0")
         digest.update(path.read_bytes())
     return digest.hexdigest()
@@ -111,16 +144,19 @@ def _python_search(pattern: str, root: Path) -> list:
 
 
 def _command(*args: str, check: bool = True) -> str:
-    proc = subprocess.run(list(args), text=True,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT, check=check)
+    proc = subprocess.run(
+        list(args), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=check
+    )
     return proc.stdout
 
 
 def _profile_dir(hermes: str, profile: str) -> Path:
-    proc = subprocess.run([hermes, "--profile", profile, "config", "path"],
-                          text=True, stdout=subprocess.PIPE,
-                          stderr=subprocess.STDOUT)
+    proc = subprocess.run(
+        [hermes, "--profile", profile, "config", "path"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
     if proc.returncode != 0:
         _die(f"profile {profile!r} not found: {proc.stdout.strip()}")
     return Path(proc.stdout.strip()).parent
@@ -157,7 +193,8 @@ def _validate_soul_template() -> tuple:
         b"wiki/index.md",
         b"never load the whole wiki",
         b"Live state, code, config, and primary docs outrank",
-        b"llm-wiki-setup", b"wiki-update",
+        b"llm-wiki-setup",
+        b"wiki-update",
         b"project's documented/native issue system",
         b"Never invent a backend or silently create an external issue",
         b"Before completion",
@@ -168,12 +205,19 @@ def _validate_soul_template() -> tuple:
         b"Universal Hermes safety",
     )
     forbidden = (
-        b"/home/", b"OpsLead", b"default profile", b"kanban_",
-        b"### Layout", b"1. Decide",
+        b"/home/",
+        b"OpsLead",
+        b"default profile",
+        b"kanban_",
+        b"### Layout",
+        b"1. Decide",
     )
-    if (len(content) > 2100 or len(content.splitlines()) > 14
-            or any(tok not in content for tok in required)
-            or any(tok in content for tok in forbidden)):
+    if (
+        len(content) > 2100
+        or len(content.splitlines()) > 14
+        or any(tok not in content for tok in required)
+        or any(tok in content for tok in forbidden)
+    ):
         _die("SOUL template violates portable wiki-first static contract")
     return content, hashlib.sha256(content).hexdigest()
 
@@ -189,19 +233,15 @@ def _probe_cli_tools(hermes: str, profile: str) -> set:
     No exact total or version is assumed; we collect toolset names and
     apply approvals/forbidden rules on the parsed set.
     """
-    raw = _command(hermes, "--profile", profile, "tools", "list",
-                   "--platform", "cli")
+    raw = _command(hermes, "--profile", profile, "tools", "list", "--platform", "cli")
     tools: set = set()
     for line in raw.splitlines():
         # Lines look like: ``  ✓ enabled  terminal  ...`` or
         # ``  ✗ disabled  browser  ...``. Only enabled sets count.
-        match = re.match(r"^\s*(?:[\u2713\u2717])\s+(enabled|disabled)\s+(\S+)",
-                          line)
+        match = re.match(r"^\s*(?:[\u2713\u2717])\s+(enabled|disabled)\s+(\S+)", line)
         if match and match.group(1) == "enabled":
             tools.add(match.group(2))
     return tools
-
-
 
 
 def _probe_prompt_size(hermes: str, profile: str) -> dict:
@@ -213,8 +253,7 @@ def _probe_prompt_size(hermes: str, profile: str) -> dict:
     must be present. Unknown/core schema fields are reported.
     """
     try:
-        report = json.loads(_command(hermes, "--profile", profile,
-                                     "prompt-size", "--json"))
+        report = json.loads(_command(hermes, "--profile", profile, "prompt-size", "--json"))
     except (json.JSONDecodeError, subprocess.CalledProcessError) as exc:
         _die(f"prompt-size probe failed: {exc}")
     if not isinstance(report, dict):
@@ -254,8 +293,7 @@ def run_preflight(hermes: str) -> dict:
     soul_bytes, soul_sha = _validate_soul_template()
     portable = _validate_portable_config()
 
-    missing = [n for n in REQUIRED_SKILLS
-               if not (SKILLS / n / "SKILL.md").is_file()]
+    missing = [n for n in REQUIRED_SKILLS if not (SKILLS / n / "SKILL.md").is_file()]
     if missing:
         _die(f"missing skill assets: {', '.join(missing)}")
 
@@ -264,8 +302,10 @@ def run_preflight(hermes: str) -> dict:
     legacy = _python_search(r"~/.claude/skills/wiki-update/gate\.py", SKILLS)
     resolver = SKILLS / "wiki-update" / "resolve-gate.py"
     if legacy or not resolver.is_file():
-        _die(f"wiki asset preflight failed: "
-             f"legacy_refs={bool(legacy)}, resolver_present={resolver.is_file()}")
+        _die(
+            f"wiki asset preflight failed: "
+            f"legacy_refs={bool(legacy)}, resolver_present={resolver.is_file()}"
+        )
 
     # Package preflight must be self-contained: a consuming repository's
     # .agents tree is optional and may legitimately be at a different
@@ -279,9 +319,11 @@ def run_preflight(hermes: str) -> dict:
         tracked = json.loads(MANIFEST_FILE.read_text())
         derived = {k: v for k, v in tracked.items() if k != "manifest_sha256"}
         derived["manifest_sha256"] = hashlib.sha256(
-            json.dumps(derived, sort_keys=True).encode()).hexdigest()
+            json.dumps(derived, sort_keys=True).encode()
+        ).hexdigest()
         rebuilt = {
-            "schema_version": 1, "name": "projectlean",
+            "schema_version": 1,
+            "name": "projectlean",
             "skills": source_hashes,
             "soul_template": {"bytes": len(soul_bytes), "sha256": soul_sha},
             "portable_config": portable,
@@ -290,8 +332,10 @@ def run_preflight(hermes: str) -> dict:
             "manifest_sha256": "x",
         }
         rebuilt["manifest_sha256"] = hashlib.sha256(
-            json.dumps({k: v for k, v in rebuilt.items() if k != "manifest_sha256"},
-                       sort_keys=True).encode()).hexdigest()
+            json.dumps(
+                {k: v for k, v in rebuilt.items() if k != "manifest_sha256"}, sort_keys=True
+            ).encode()
+        ).hexdigest()
         if derived != rebuilt:
             _die("tracked manifest.json diverges from assets")
 
@@ -332,12 +376,10 @@ def run_postapply(hermes: str, profile: str) -> dict:
     pdir = _profile_dir(hermes, profile)
     marker = pdir / "projectlean.managed.json"
     if not marker.is_file():
-        _die(f"profile {profile!r} is not projectlean-managed "
-             f"(missing {marker})")
+        _die(f"profile {profile!r} is not projectlean-managed (missing {marker})")
 
     source_hashes = {n: _python_tree_hash(SKILLS / n) for n in REQUIRED_SKILLS}
-    installed_hashes = {n: _python_tree_hash(pdir / "skills" / n)
-                        for n in REQUIRED_SKILLS}
+    installed_hashes = {n: _python_tree_hash(pdir / "skills" / n) for n in REQUIRED_SKILLS}
     if installed_hashes != source_hashes:
         _die("installed skill hashes differ from vendored sources")
 
@@ -345,25 +387,23 @@ def run_postapply(hermes: str, profile: str) -> dict:
     # the forbidden set.
     cli_tools = _probe_cli_tools(hermes, profile)
     if not APPROVED_CLI_TOOLSETS.issubset(cli_tools):
-        _die(f"approved CLI toolsets missing: "
-             f"{sorted(APPROVED_CLI_TOOLSETS - cli_tools)}")
+        _die(f"approved CLI toolsets missing: {sorted(APPROVED_CLI_TOOLSETS - cli_tools)}")
     if cli_tools & FORBIDDEN_TOOLSETS:
-        _die(f"forbidden CLI toolsets present: "
-             f"{sorted(cli_tools & FORBIDDEN_TOOLSETS)}")
+        _die(f"forbidden CLI toolsets present: {sorted(cli_tools & FORBIDDEN_TOOLSETS)}")
 
     # Disabled list.
     disabled_raw = _config_value(hermes, profile, "agent.disabled_toolsets")
 
-
     if not disabled_raw:
         disabled = set()
     elif disabled_raw.lstrip().startswith("-"):
-        disabled = {line.strip()[2:].strip()
-                    for line in disabled_raw.splitlines()
-                    if line.strip().startswith("-")}
+        disabled = {
+            line.strip()[2:].strip()
+            for line in disabled_raw.splitlines()
+            if line.strip().startswith("-")
+        }
     else:
-        disabled = {item.strip() for item in disabled_raw.split(",")
-                    if item.strip()}
+        disabled = {item.strip() for item in disabled_raw.split(",") if item.strip()}
     # Live memory + portable config.
     portable = _validate_portable_config()
     expected_config = {
@@ -380,23 +420,19 @@ def run_postapply(hermes: str, profile: str) -> dict:
     soul_bytes, _ = _validate_soul_template()
     soul = pdir / "SOUL.md"
     if not soul.is_file() or soul.read_bytes() != soul_bytes:
-        _die("projectlean SOUL.md must exactly match the human-installed "
-             "portable template")
+        _die("projectlean SOUL.md must exactly match the human-installed portable template")
 
     # Profile skill dirs must be exactly the six.
-    skill_dirs = {p.name for p in (pdir / "skills").iterdir()
-                  if p.is_dir()}
+    skill_dirs = {p.name for p in (pdir / "skills").iterdir() if p.is_dir()}
     if skill_dirs != set(REQUIRED_SKILLS):
         _die(f"unexpected profile skill directories: {sorted(skill_dirs)}")
 
     # Prompt-size structural check.
     prompt_probe = _probe_prompt_size(hermes, profile)
     if prompt_probe["missing_approved"]:
-        _die(f"approved toolsets missing from prompt-size: "
-             f"{prompt_probe['missing_approved']}")
+        _die(f"approved toolsets missing from prompt-size: {prompt_probe['missing_approved']}")
     if prompt_probe["forbidden_present"]:
-        _die(f"forbidden toolsets present in prompt-size: "
-             f"{prompt_probe['forbidden_present']}")
+        _die(f"forbidden toolsets present in prompt-size: {prompt_probe['forbidden_present']}")
 
     return {
         "mode": "postapply",
@@ -423,8 +459,7 @@ def run_backup_check(hermes: str, profile: str, backup: str) -> dict:
     expected_paths = {"config.yaml"}  # minimum contract
     actual_paths = set(info.get("paths", []))
     if not expected_paths.issubset(actual_paths):
-        _die(f"backup manifest missing required paths: "
-             f"{expected_paths - actual_paths}")
+        _die(f"backup manifest missing required paths: {expected_paths - actual_paths}")
     if not (bp / "config.yaml").is_file():
         _die("backup missing config.yaml")
     return {
@@ -440,16 +475,15 @@ def run_backup_check(hermes: str, profile: str, backup: str) -> dict:
 
 
 def main(argv: list = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--profile", default=DEFAULT_PROFILE)
-    parser.add_argument("--mode",
-                        choices=("preflight", "postapply", "backup-check"),
-                        required=True)
-    parser.add_argument("--backup", default=None,
-                        help="path to a rollback backup (backup-check only)")
-    parser.add_argument("--hermes-bin", default=None,
-                        help="override the hermes executable path")
+    parser.add_argument("--mode", choices=("preflight", "postapply", "backup-check"), required=True)
+    parser.add_argument(
+        "--backup", default=None, help="path to a rollback backup (backup-check only)"
+    )
+    parser.add_argument("--hermes-bin", default=None, help="override the hermes executable path")
     args = parser.parse_args(argv)
 
     hermes = args.hermes_bin or "hermes"

@@ -4,12 +4,14 @@ import os
 import shutil
 from datetime import datetime, timezone
 
-BLOCKLIST = frozenset("""
+BLOCKLIST = frozenset(
+    """
 security model switch fast slow skillful extended-context computer ratchet
 prewalk modelpreset effort advisor export trace dump share browser todo
 session usage stats mcp ssh fresh compact shake handoff pin retry memory
 rename move wt add-dir remove-dir marketplace plugins reload-plugins force
-""".split())
+""".split()
+)
 ALIASES = frozenset(("models", "worktree", "plugin"))
 EXTRA_BLOCKED = frozenset(("init", "fusion"))
 ALLOWLIST = frozenset(("jobs", "changelog", "tools", "context", "dirs"))
@@ -40,7 +42,9 @@ def classify_slash(text, commands):
         if present:
             return "pass", None
         return "refuse", "/%s is not available in Ask: skill %s not found" % (
-            name, name[len("skill:"):])
+            name,
+            name[len("skill:") :],
+        )
     if name in BLOCKLIST or name in ALIASES or name in EXTRA_BLOCKED:
         return refusal
     if name not in ALLOWLIST:
@@ -73,11 +77,13 @@ def _card_string(card):
         url = s.get("url") if isinstance(s, dict) else s
         if url:
             urls.append(_safe(url))
-    return json.dumps({
-        "question": _safe(card.get("question", "")),
-        "answer": _safe(card.get("answer", "")),
-        "sources": urls,
-    })
+    return json.dumps(
+        {
+            "question": _safe(card.get("question", "")),
+            "answer": _safe(card.get("answer", "")),
+            "sources": urls,
+        }
+    )
 
 
 def build_cards_payload(cards, *, last_sent_at, paused, meeting):
@@ -130,8 +136,9 @@ class Store:
             raise ValueError("unknown store file: %s" % kind_file)
         os.makedirs(self.dir, mode=0o700, exist_ok=True)
         line = (json.dumps(entry) + "\n").encode("utf-8")
-        fd = os.open(os.path.join(self.dir, kind_file),
-                     os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        fd = os.open(
+            os.path.join(self.dir, kind_file), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600
+        )
         try:
             os.write(fd, line)
         finally:
