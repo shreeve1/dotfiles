@@ -1192,9 +1192,9 @@ class GitGuardFixtures(OffloadFixture):
 
 
 class SkillStructureFixtures(unittest.TestCase):
-    def test_four_skill_frontmatter_and_local_references(self):
+    def test_offload_skill_frontmatter_and_local_references(self):
         documents = []
-        for name in ("offload-task", "offload-prep", "offload-return", "offload-deploy"):
+        for name in ("offload-task", "offload-prep", "offload-return", "offload-deploy", "offload-merge"):
             path = SKILLS / name / "SKILL.md"
             with self.subTest(skill=name):
                 self.assertTrue(path.is_file(), str(path))
