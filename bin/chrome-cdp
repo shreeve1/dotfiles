@@ -10,7 +10,11 @@ PORT=9222
 DIR="$HOME/.config/chrome-cdp"
 LOG="${XDG_STATE_HOME:-$HOME/.local/state}/chrome-cdp.log"
 WAIT=${CDP_WAIT:-15}
-case "$WAIT" in ''|*[!0-9]*|0) echo "chrome-cdp: CDP_WAIT must be a positive whole number of seconds" >&2; exit 2 ;; esac
+case "$WAIT" in '' | *[!0-9]* | 0)
+  echo "chrome-cdp: CDP_WAIT must be a positive whole number of seconds" >&2
+  exit 2
+  ;;
+esac
 
 cdp_up() { curl -s --max-time 1 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; }
 
@@ -26,9 +30,15 @@ export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNT
 if [ -z "${WAYLAND_DISPLAY:-}" ]; then
   for sock in "$XDG_RUNTIME_DIR"/wayland-[0-9]*; do
     case "$sock" in *.lock) continue ;; esac
-    [ -S "$sock" ] && { WAYLAND_DISPLAY=$(basename "$sock"); break; }
+    [ -S "$sock" ] && {
+      WAYLAND_DISPLAY=$(basename "$sock")
+      break
+    }
   done
-  [ -n "${WAYLAND_DISPLAY:-}" ] || { echo "chrome-cdp: no Wayland socket in $XDG_RUNTIME_DIR; is the desktop session running?" >&2; exit 1; }
+  [ -n "${WAYLAND_DISPLAY:-}" ] || {
+    echo "chrome-cdp: no Wayland socket in $XDG_RUNTIME_DIR; is the desktop session running?" >&2
+    exit 1
+  }
   export WAYLAND_DISPLAY
 fi
 
@@ -45,7 +55,7 @@ setsid -f /opt/google/chrome/chrome \
   --ozone-platform-hint=wayland \
   --password-store=gnome-libsecret \
   --load-extension=/usr/share/omarchy/default/chromium/extensions/copy-url,/usr/share/omarchy/default/chromium/extensions/yt-dlp,/usr/share/omarchy/default/chromium/extensions/whatsapp-slim \
-  >>"$LOG" 2>&1 < /dev/null
+  >>"$LOG" 2>&1 </dev/null
 
 deadline=$((SECONDS + WAIT))
 while [ "$SECONDS" -lt "$deadline" ]; do
@@ -55,7 +65,10 @@ while [ "$SECONDS" -lt "$deadline" ]; do
   fi
   sleep 0.5
 done
-cdp_up && { echo "ready on port $PORT"; exit 0; }
+cdp_up && {
+  echo "ready on port $PORT"
+  exit 0
+}
 echo "chrome-cdp: port $PORT not answering after ${WAIT}s; last log lines:" >&2
 tail -n 5 "$LOG" >&2
 exit 1
