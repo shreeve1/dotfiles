@@ -1,0 +1,8 @@
+#!/bin/sh
+# agent-browser bound to this session's pinned tab on chrome-cdp (port 9222).
+# Read route: snapshots, read, get, eval that does not change the page.
+# Session: $AB_SESSION, else the first argument when it is `-s NAME`.
+# Input route (click, fill, open, tab, batch): use `ab-input` instead; it takes the shared input lock.
+if [ "$1" = "-s" ]; then AB_SESSION=$2; shift 2; fi
+[ -n "$AB_SESSION" ] || { echo "ab: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2; exit 2; }
+exec agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"
