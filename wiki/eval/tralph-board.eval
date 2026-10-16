@@ -1,7 +1,9 @@
 # Eval slice for tralph / gralph / kanban board claims.
 # Format: <query that should surface the claim> ||| <token that must stay retrievable in CLAIMS.md>
 
-new test file missing from commit git add -A ||| git add -f
+new test file missing from commit git add -A ||| no longer gitignored
+what is the repo check command and does a push run it ||| tests/run-all.sh
+why did a six second test report 602 seconds ||| orphan
 rerun does not retry failed gralph lane ||| --replan
 why does tralph default path not show the finish-spec reminder ||| ralph-loop.sh writes no manifest
 does gralph board mode actually review a lane ||| never spawns or reads a reviewer
