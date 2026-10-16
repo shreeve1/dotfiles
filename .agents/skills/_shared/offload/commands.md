@@ -134,12 +134,15 @@ Gate. Agent-start reports interactive readiness in the same pane. The original `
 
 ### 6. Submit the Brief pointer
 
+Bind `START_SKILL` to the start skill chosen for this dispatch in offload-task, or leave it empty when the user chose none. The prompt names that skill first so the worker loads it before the Brief.
+
 ```sh
+SKILL_LINE=${START_SKILL:+"Load and follow the $START_SKILL skill first. "}
 herdr --machine "$MACHINE_ID" agent prompt "$AGENT" \
-  "Read the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
+  "${SKILL_LINE}Read the trusted repo AGENTS, $BRIEF_PATH and $WORKER_INVENTORY. Follow that Brief and begin. Keep your session journals and temporary summaries in $TARGET_META with mode 0600, not the checkout. After terminal Result, leave the checkout unchanged." > "$PROMPT_RESPONSE"
 ```
 
-This submits Enter. Require explicit task acceptance or observed work on that Brief. Agent readiness alone is insufficient. If submission times out or acceptance is unclear, inspect before retrying.
+This submits Enter. Require explicit task acceptance or observed work on that Brief. With a start skill, also require the pane to show that skill loaded. Agent readiness alone is insufficient. If submission times out or acceptance is unclear, inspect before retrying.
 
 ```sh
 herdr --machine "$MACHINE_ID" agent get "$AGENT" > "$AGENT_STATUS"
