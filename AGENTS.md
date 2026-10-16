@@ -100,8 +100,9 @@ Environment facts that aren't in that doc:
 
 - **Working on the ralph / tralph / gralph loop?** [`docs/ralph.md`](docs/ralph.md)
   maps the two drivers, where the worker prompt and the per-ticket review
-  procedure live, and the tests. Run `bash tests/run-all.sh` (the repo's check
-  command; a pre-push hook runs it) before you push.
+  procedure live, and the tests. `bash tests/run-all.sh` is the repo's check
+  command; the pre-push hook runs only its `--fast` subset (guards plus the test
+  files this branch changed), so run the full suite yourself before you push.
 
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.

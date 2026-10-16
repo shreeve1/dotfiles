@@ -33,11 +33,19 @@ fi
 # 2. Run the repo's check command, if it declares one. Match on presence, not
 # the executable bit: git does not track that bit, and a repo can opt in with a
 # plain file. Run it with bash so the bit cannot silently disable the guard.
+# Use --fast when the check supports it (seconds, guards + changed test files):
+# a push hook that runs a full suite gets skipped with --no-verify, which is how
+# the suite this guards went red for 22 commits.
 check="$root/tests/run-all.sh"
 [ -f "$check" ] || exit 0
 
-echo "pre-push: running $check" >&2
-if ! (cd "$root" && bash "$check"); then
+check_args=()
+if grep -q -- '--fast' "$check" 2>/dev/null; then
+  check_args+=(--fast)
+fi
+
+echo "pre-push: running $check ${check_args[*]}" >&2
+if ! (cd "$root" && bash "$check" ${check_args[@]+"${check_args[@]}"}); then
   echo "pre-push: check failed. Fix it, or push with --no-verify to skip." >&2
   exit 1
 fi
