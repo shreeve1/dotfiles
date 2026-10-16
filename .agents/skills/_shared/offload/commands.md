@@ -185,7 +185,7 @@ herdr --machine "$MACHINE_ID" worktree open --cwd "$MIRROR" --path "$WORKTREE" \
   --label "offload:$SLUG" --no-focus > "$OPEN_JSON"
 ```
 
-Rebind `PANE` and `WORKSPACE` from `result.root_pane.pane_id` and `result.root_pane.workspace_id`, and tell the user the new workspace as in stage 1. Repeat stages 3, 5 and 6 with fresh captures. Stage 2's private metadata and provisioned config remain in place. Return control is published once, afterwards, with the rebound IDs.
+Rebind `PANE` and `WORKSPACE` from `result.root_pane.pane_id` and `result.root_pane.workspace_id`, and tell the user the new workspace as in stage 1. If stage 2's gate passed for this attempt, repeat stages 3, 5 and 6 with fresh captures; its private metadata and provisioned config remain in place. Otherwise resume at stage 2. Inspect a partly created `TARGET_META` first, since its exclusive `mkdir` refuses an existing directory. Return control is published once, afterwards, with the rebound IDs.
 
 ### Publish return control
 
