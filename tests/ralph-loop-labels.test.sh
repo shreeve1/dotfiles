@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the REAL .agents/skills/ralph/ralph-loop.sh against fixture boards with a
-# stub `tmux` (runs the driver synchronously) and a stub `omp` worker, to prove
+# stub `tmux` (runs the driver synchronously) and a stub `pi` worker, to prove
 # the sequential loop honours triage labels via board.sh:
 #   1. a lower-id ticket that is not agent-ready is never handed to a worker
 #   2. the DRIVER selects the ticket and names it in the worker prompt
@@ -47,10 +47,10 @@ has-session) exit 1 ;;
 esac
 exit 0
 EOF
-# omp worker: finds "Operate only on ticket <path> (issue #<id>)" in the prompt,
+# pi worker: finds "Operate only on ticket <path> (issue #<id>)" in the prompt,
 # records it, flips that ticket to done, prints the sentinel. If the prompt names
 # no ticket it records NONE and reports NO_WORK.
-cat >"$BIN/omp" <<'EOF'
+cat >"$BIN/pi" <<'EOF'
 #!/usr/bin/env bash
 prompt=""
 while [ $# -gt 0 ]; do
@@ -70,7 +70,7 @@ git add -A >/dev/null 2>&1 && git commit -qm "feat(#$id): stub worker" >/dev/nul
 echo "worked on #$id"
 echo "RALPH_RESULT: DONE #$id"
 EOF
-chmod +x "$BIN/tmux" "$BIN/omp"
+chmod +x "$BIN/tmux" "$BIN/pi"
 
 # --- fixture helpers --------------------------------------------------------
 new_repo() {
@@ -121,7 +121,7 @@ ticket() {
 run_loop() { # extra args...
   (cd "$REPO" && git add -A && git commit -qm fixture --allow-empty &&
     env HOME="$FAKEHOME" PATH="$BIN:$PATH" WORKER_LOG="$WORKER_LOG" RALPH_MODEL=stub \
-      bash "$LOOP" --force --unattended --sleep-interval 0 --no-checkpoint-dirty "$@" omp t1) \
+      bash "$LOOP" --force --unattended --sleep-interval 0 --no-checkpoint-dirty "$@" pi t1) \
     >"$TMP/last.out" 2>&1 || true
 }
 workers() { tr '\n' ' ' <"$WORKER_LOG" | sed 's/ $//'; }
@@ -225,20 +225,20 @@ ticket 2 pending "$R" '[]' issues 'spec: beta'
 # Fails ticket 2 ONCE, then behaves like the normal stub. An always-failing worker under
 # --continue-on-error retries until MAX_ITERATIONS (1000), which made this scenario take about
 # 4.5 minutes; one failure is all the reset path needs.
-cat >"$BIN/omp-fail" <<'EOF2'
+cat >"$BIN/pi-fail" <<'EOF2'
 #!/usr/bin/env bash
 if [ ! -f "$WORKER_LOG.failed-once" ]; then
   : >"$WORKER_LOG.failed-once"
   echo "RALPH_RESULT: FAIL #2"
   exit 1
 fi
-exec "$(dirname "$0")/omp.real" "$@"
+exec "$(dirname "$0")/pi.real" "$@"
 EOF2
-chmod +x "$BIN/omp-fail"
-mv "$BIN/omp" "$BIN/omp.real"
-cp "$BIN/omp-fail" "$BIN/omp"
+chmod +x "$BIN/pi-fail"
+mv "$BIN/pi" "$BIN/pi.real"
+cp "$BIN/pi-fail" "$BIN/pi"
 run_loop --spec beta --continue-on-error
-mv "$BIN/omp.real" "$BIN/omp"
+mv "$BIN/pi.real" "$BIN/pi"
 expect_eq "continue-on-error under --spec beta never resets alpha's ticket" "in-progress" "$(status_of 1)"
 
 # --- the sequential driver calls for finish-spec when a --spec run finishes the spec ------

@@ -129,7 +129,7 @@ cat >"$BIN/tmux" <<'EOF'
 case "${1-}" in new-session) eval "${*: -1}" </dev/null ;; has-session) exit 1 ;; esac
 exit 0
 EOF
-cat >"$BIN/omp" <<'EOF'
+cat >"$BIN/pi" <<'EOF'
 #!/usr/bin/env bash
 prompt=""; while [ $# -gt 0 ]; do [ "$1" = "-p" ] && { prompt="$2"; shift; }; shift; done
 path="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on ticket \([^ ]*\) (issue #\([0-9]*\)).*/\1/p' | head -1)"
@@ -141,10 +141,10 @@ sed -i 's/^status: pending$/status: done/' "$path"
 git add -A >/dev/null 2>&1; git commit -qm "feat(#$id): stub" >/dev/null 2>&1
 echo "RALPH_RESULT: DONE #$id"
 EOF
-chmod +x "$BIN/tmux" "$BIN/omp"
+chmod +x "$BIN/tmux" "$BIN/pi"
 : >"$TMP/workers"
 env HOME="$TMP/home" PATH="$BIN:$PATH" WORKER_LOG="$TMP/workers" RALPH_MODEL=stub \
-  bash "$SK/ralph/ralph-loop.sh" --force --unattended --sleep-interval 0 --no-checkpoint-dirty --spec "$SLUG" omp pipe >"$TMP/loop.out" 2>&1 || true
+  bash "$SK/ralph/ralph-loop.sh" --force --unattended --sleep-interval 0 --no-checkpoint-dirty --spec "$SLUG" pi pipe >"$TMP/loop.out" 2>&1 || true
 expect_eq "ralph-loop worked the spec's tickets in dependency order" "41 42 43" "$(tr '\n' ' ' <"$TMP/workers" | sed 's/ $//')"
 expect_eq "board.sh agrees everything is now done" "3" "$("$BS" --board .kanban counts | sed -n 's/^done=//p')"
 expect_eq "nothing left eligible" "0" "$("$BS" --board .kanban counts | sed -n 's/^eligible=//p')"
