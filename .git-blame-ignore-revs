@@ -1,0 +1,4 @@
+# Mechanical reformats; git blame skips these.
+# Enable locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# style: ruff format the offload helper and its tests
+f1c974716e74f888d0d8b15f5bfa2454b643d608
