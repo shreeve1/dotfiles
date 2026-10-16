@@ -32,6 +32,18 @@
         ],
         "matcher": "^Bash$"
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$HOME/.agents/bin/verify-final\" --harness codex",
+            "timeout": 150,
+            "statusMessage": "Verifying final answer"
+          }
+        ]
+      }
     ]
   }
 }
