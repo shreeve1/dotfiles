@@ -2,19 +2,39 @@
 # Reusable Chrome instance with CDP remote debugging on a dedicated profile
 # (Chrome M136+ forbids --remote-debugging-port on the default profile).
 # Sessions/cookies persist in ~/.config/chrome-cdp, so logins survive reboots.
+# Returns once the CDP port answers (exit 0) or after CDP_WAIT seconds (exit 1),
+# never blocking on Chrome itself, so agents and SSH shells can call it directly.
 set -u
 
 PORT=9222
 DIR="$HOME/.config/chrome-cdp"
 LOG="${XDG_STATE_HOME:-$HOME/.local/state}/chrome-cdp.log"
+WAIT=${CDP_WAIT:-15}
+case "$WAIT" in ''|*[!0-9]*|0) echo "chrome-cdp: CDP_WAIT must be a positive whole number of seconds" >&2; exit 2 ;; esac
 
-if curl -s --max-time 2 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; then
+cdp_up() { curl -s --max-time 1 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; }
+
+if cdp_up; then
   echo "already running on port $PORT"
   exit 0
 fi
 
+# Agent and SSH shells lack the desktop session environment: fill in only what is unset.
+uid=$(id -u)
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$uid}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  for sock in "$XDG_RUNTIME_DIR"/wayland-[0-9]*; do
+    case "$sock" in *.lock) continue ;; esac
+    [ -S "$sock" ] && { WAYLAND_DISPLAY=$(basename "$sock"); break; }
+  done
+  [ -n "${WAYLAND_DISPLAY:-}" ] || { echo "chrome-cdp: no Wayland socket in $XDG_RUNTIME_DIR; is the desktop session running?" >&2; exit 1; }
+  export WAYLAND_DISPLAY
+fi
+
 mkdir -p "$DIR" "$(dirname "$LOG")"
-exec setsid /opt/google/chrome/chrome \
+# setsid -f forks Chrome into its own session; without -f the script would become Chrome and never return.
+setsid -f /opt/google/chrome/chrome \
   --user-data-dir="$DIR" \
   --remote-debugging-port=$PORT \
   --class=chrome-cdp \
@@ -26,3 +46,16 @@ exec setsid /opt/google/chrome/chrome \
   --password-store=gnome-libsecret \
   --load-extension=/usr/share/omarchy/default/chromium/extensions/copy-url,/usr/share/omarchy/default/chromium/extensions/yt-dlp,/usr/share/omarchy/default/chromium/extensions/whatsapp-slim \
   >>"$LOG" 2>&1 < /dev/null
+
+deadline=$((SECONDS + WAIT))
+while [ "$SECONDS" -lt "$deadline" ]; do
+  if cdp_up; then
+    echo "ready on port $PORT"
+    exit 0
+  fi
+  sleep 0.5
+done
+cdp_up && { echo "ready on port $PORT"; exit 0; }
+echo "chrome-cdp: port $PORT not answering after ${WAIT}s; last log lines:" >&2
+tail -n 5 "$LOG" >&2
+exit 1

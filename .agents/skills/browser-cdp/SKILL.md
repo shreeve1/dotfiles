@@ -18,9 +18,7 @@ The browser is the last route. For a Microsoft 365, Entra or Intune change or bu
 
 ## Workflow
 
-1. Check `http://127.0.0.1:9222/json/version`. If unavailable, launch `chrome-cdp`; from SSH use:
-   `XDG_RUNTIME_DIR=/run/user/1000 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus WAYLAND_DISPLAY=wayland-1 ~/dotfiles/bin/chrome-cdp`.
-   Proceed only when the endpoint answers. Keep the window on workspace 5 without switching desktop focus.
+1. Check `http://127.0.0.1:9222/json/version`. If unavailable, run `chrome-cdp` as is, from any shell including SSH and agent shells. It fills in the desktop session variables when unset, starts Chrome in the background and returns once the port answers: `ready on port 9222` (exit 0), or after 15 seconds (`CDP_WAIT`) with the last log lines (exit 1). Do not wrap it in a short `timeout`: killing the script before Chrome is up killed the launch on 2026-10-16. Proceed only when it reports ready. Keep the window on workspace 5 without switching desktop focus.
 2. Choose one `SESSION` per actual omp session and site. Use that omp session's identifier; if unavailable, generate a UUID once with `uuidgen` and retain it throughout the task. Never use the unnamed default or a worktree-derived owner. Confirm `agent-browser --version` works; load unfamiliar command syntax with `agent-browser skills get core`.
 3. Use the read and input routes on PATH, `ab` and `ab-input` (`~/dotfiles/bin`). Each bash call is a fresh shell, so start every command with `export AB_SESSION=<SESSION>;` or pass `-s <SESSION>` as the first argument:
 
