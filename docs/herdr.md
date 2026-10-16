@@ -87,3 +87,23 @@ Machine list as recorded on 2026-09-25:
 `~/.config/herdr/config.toml` leaves `[remote] manage_ssh_config` at its default
 (true), which lets herdr add `ServerAliveInterval` fallbacks to `~/.ssh/config`;
 this machine currently has no herdr-managed entries there.
+## herdr web ui on aidev (browser/phone client)
+
+Installed 2026-10-16: the [herdr-web-ui](https://github.com/devswha/herdr-web-ui)
+plugin on **aidev only**, which serves aidev's own herdr plus the machines in
+aidev's `herdr machine list` (omarchy, itan8n) as Remote PCs over SSH. Nothing
+for it lives in this repo; all of it is machine-local on aidev.
+
+- **URL:** `https://100.95.230.15:7443` (NetBird). The self-signed cert is the one
+  dsh uses (`~/.dsh/dsh-tls.{crt,key}`, SAN `IP:100.95.230.15`).
+- **TLS front:** user unit `~/.config/systemd/user/herdr-web-tls.service` runs
+  `socat` from `100.95.230.15:7443` to the app on `127.0.0.1:7317`. The app itself
+  stays bound to loopback.
+- **Auth:** `HERDR_WEB_TOKEN` is required for every client (loopback included), or
+  pair a device in Settings → Phone & devices. The token lives in the plugin `env` file
+  (`herdr plugin config-dir devswha.herdr-web-ui`, mode 600) along with
+  `HERDR_WEB_TELEMETRY=0` and `HERDR_WEB_APP_NAME=aidev`.
+- **Prerequisite:** Bun 1.4+ (`~/.bun/bin/bun upgrade`; `/usr/local/bin/bun` links to it).
+- **Remote PCs:** omarchy and itan8n each need **Connect** in the UI once, which
+  installs a loopback bridge there under `~/.config/herdr-web-ui`.
+- Collie (the earlier phone UI) was unlinked and its `collie.service` removed.
