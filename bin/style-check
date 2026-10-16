@@ -244,7 +244,14 @@ if [ ${#JS[@]} -gt 0 ]; then
     sub=check
     [ "$FORMAT_ONLY" = 1 ] && sub=format
     if [ "$MODE" = fix ]; then
+      # biome is not always idempotent: a long chain can need a second pass to
+      # settle (seen on pi-durable). Repeat until a check finds nothing, so the
+      # tree is stable under pi-lens's single pass and under the next check.
       run "biome $sub --write" biome "$sub" --write --no-errors-on-unmatched --diagnostic-level=error "${JS[@]}"
+      for _ in 1 2; do
+        biome format --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 && break
+        biome format --write --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 || true
+      done
     else
       run "biome $sub" biome "$sub" --no-errors-on-unmatched --diagnostic-level=error --reporter=concise "${JS[@]}"
     fi
