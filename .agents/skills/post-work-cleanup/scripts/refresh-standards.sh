@@ -14,7 +14,7 @@ COMMIT="4bb499408a18f87f0efc5bf89325dec61432b54f"
 # Upstream-managed language categories. Intentionally bounded: when vendoring a new category, add it here
 # and to SOURCES.md and references/standards/_INDEX.md.
 CATEGORIES=(python typescript javascript)
-COMMON_SUBSET=(common-best-practices common-error-handling common-performance-engineering \
+COMMON_SUBSET=(common-best-practices common-error-handling common-performance-engineering
   common-security-standards common-code-review common-documentation common-debugging common-git-collaboration)
 
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,7 +57,7 @@ for cat in "${CATEGORIES[@]}"; do
     fi
   done
   # Upstream _INDEX.md points at SKILL.md; rewrite to RULES.md (portable, no `sed -i`).
-  sed 's|/SKILL\.md|/RULES.md|g' "$STAGE/$cat/_INDEX.md" > "$STAGE/$cat/_INDEX.md.tmp"
+  sed 's|/SKILL\.md|/RULES.md|g' "$STAGE/$cat/_INDEX.md" >"$STAGE/$cat/_INDEX.md.tmp"
   mv "$STAGE/$cat/_INDEX.md.tmp" "$STAGE/$cat/_INDEX.md"
 done
 

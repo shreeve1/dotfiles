@@ -14,7 +14,10 @@
 # background runs), it opens nothing and prints the target instead.
 set -eu
 
-usage() { sed -n '7,11s/^#   //p' "$0" >&2; exit 2; }
+usage() {
+  sed -n '7,11s/^#   //p' "$0" >&2
+  exit 2
+}
 (($#)) || usage
 
 # 1. Focus guard: only the herdr pane James has in front may move his focus.
@@ -47,7 +50,8 @@ focus() {
     fi
     sleep 0.25
   done
-  echo "agent-open: could not focus a $1 window within 15s" >&2; exit 1
+  echo "agent-open: could not focus a $1 window within 15s" >&2
+  exit 1
 }
 
 obsidian_open() {
@@ -62,7 +66,8 @@ chrome_up() {
     curl -s --max-time 1 http://127.0.0.1:9222/json/version >/dev/null && return
     sleep 0.25
   done
-  echo "agent-open: chrome-cdp did not answer on 9222" >&2; exit 1
+  echo "agent-open: chrome-cdp did not answer on 9222" >&2
+  exit 1
 }
 
 uri() { jq -rn --arg p "$1" '$p | split("/") | map(@uri) | join("/")'; }
@@ -113,13 +118,17 @@ html_url() {
 
 # 5. lazygit in a split to the right of the calling herdr pane (reused if open).
 changes_open() {
-  [[ -n ${HERDR_PANE_ID:-} ]] || { echo "agent-open: changes needs a herdr pane" >&2; exit 1; }
+  [[ -n ${HERDR_PANE_ID:-} ]] || {
+    echo "agent-open: changes needs a herdr pane" >&2
+    exit 1
+  }
   local repo pane
   repo=$(git -C "${1:-$PWD}" rev-parse --show-toplevel)
   for pane in $(herdr pane list --workspace "$HERDR_WORKSPACE_ID" |
     jq -r --arg t "$HERDR_TAB_ID" '.result.panes[] | select(.tab_id == $t) | .pane_id'); do
     if herdr pane process-info --pane "$pane" | jq -e '.result.process_info.foreground_processes[] | select(.name == "lazygit")' >/dev/null; then
-      echo "agent-open: lazygit already open in pane $pane"; return
+      echo "agent-open: lazygit already open in pane $pane"
+      return
     fi
   done
   pane=$(herdr pane split "$HERDR_PANE_ID" --direction right --ratio 0.45 --cwd "$repo" | jq -r '.result.pane.pane_id // .result.pane_id')
@@ -128,17 +137,21 @@ changes_open() {
 }
 
 case $1 in
-  obsidian) obsidian_open ;;
-  browser) chrome_up; echo "agent-open: chrome-cdp running on workspace 5" ;;
-  changes) changes_open "${2:-}" ;;
-  http://* | https://* | file://*) browser_open "$1" ;;
-  *)
-    path=$(realpath -e -- "$1")
-    case ${path,,} in
-      *.html | *.htm) browser_open "$(html_url "$path")" ;;
-      *.pdf | *.svg | *.png | *.jpg | *.jpeg | *.gif | *.webp | *.mp4 | *.webm)
-        browser_open "file://$(uri "$path")" ;;
-      *) obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')" ;;
-    esac
+obsidian) obsidian_open ;;
+browser)
+  chrome_up
+  echo "agent-open: chrome-cdp running on workspace 5"
+  ;;
+changes) changes_open "${2:-}" ;;
+http://* | https://* | file://*) browser_open "$1" ;;
+*)
+  path=$(realpath -e -- "$1")
+  case ${path,,} in
+  *.html | *.htm) browser_open "$(html_url "$path")" ;;
+  *.pdf | *.svg | *.png | *.jpg | *.jpeg | *.gif | *.webp | *.mp4 | *.webm)
+    browser_open "file://$(uri "$path")"
     ;;
+  *) obsidian_open "obsidian://open?path=$(jq -rn --arg p "$path" '$p|@uri')" ;;
+  esac
+  ;;
 esac

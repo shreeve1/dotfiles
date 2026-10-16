@@ -18,23 +18,37 @@ PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 SETTINGS="$PI_DIR/settings.json"
 TIMEOUT="${PI_DELEGATE_TIMEOUT:-900}"
 
-die() { echo "pi-delegate: $1" >&2; exit 1; }
+die() {
+  echo "pi-delegate: $1" >&2
+  exit 1
+}
 
 [ $# -ge 1 ] || die "usage: pi-delegate <worker|reviewer|planner|researcher> [--async] [--dry-run] <task...>"
-role="$1"; shift
+role="$1"
+shift
 
 case "$role" in
-  worker|reviewer|planner|researcher) ;;
-  *) die "unknown role '$role' (expected worker|reviewer|planner|researcher)" ;;
+worker | reviewer | planner | researcher) ;;
+*) die "unknown role '$role' (expected worker|reviewer|planner|researcher)" ;;
 esac
 
-async=0; dry=0
+async=0
+dry=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --async)   async=1; shift ;;
-    --dry-run) dry=1;   shift ;;
-    --)        shift; break ;;
-    *)         break ;;
+  --async)
+    async=1
+    shift
+    ;;
+  --dry-run)
+    dry=1
+    shift
+    ;;
+  --)
+    shift
+    break
+    ;;
+  *) break ;;
   esac
 done
 task="$*"
@@ -56,13 +70,13 @@ persona="$PI_DIR/extensions/pi-subagents/agents/$role.md"
 # Strip YAML frontmatter: print only lines after the 2nd `---`. (systemPromptMode
 # is `replace`, so the body IS the whole system prompt.)
 persona_tmp=$(mktemp /tmp/pi-delegate-persona-XXXXXX.md)
-awk 'seen>=2{print} /^---[[:space:]]*$/{seen++}' "$persona" > "$persona_tmp"
+awk 'seen>=2{print} /^---[[:space:]]*$/{seen++}' "$persona" >"$persona_tmp"
 
 # Base args (system prompt appended only at real launch so --dry-run stays terse).
-launch_args=( -p --no-session --no-skills --model "$model" )
-[ -n "$tools" ] && launch_args+=( --tools "$tools" )
-launch_args+=( --no-extensions )
-[ "$role" = researcher ] && launch_args+=( --extension "$PI_DIR/extensions/rpiv-web-tools" )
+launch_args=(-p --no-session --no-skills --model "$model")
+[ -n "$tools" ] && launch_args+=(--tools "$tools")
+launch_args+=(--no-extensions)
+[ "$role" = researcher ] && launch_args+=(--extension "$PI_DIR/extensions/rpiv-web-tools")
 
 if [ "$dry" = 1 ]; then
   echo "role: $role"
@@ -74,7 +88,7 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
-launch_args+=( --system-prompt "$(cat "$persona_tmp")" )
+launch_args+=(--system-prompt "$(cat "$persona_tmp")")
 
 # Reuse the reviewer-engine mechanics (_shared/pi-reviewer-engine.md): setsid so a
 # launcher exit / parent-pgid signal can't SIGKILL pi mid-thought; </dev/null to
@@ -83,9 +97,9 @@ OUT=$(mktemp /tmp/pi-delegate-out-XXXXXX.txt)
 PIDF=$(mktemp /tmp/pi-delegate-pid-XXXXXX)
 runId=$(basename "$OUT" .txt)
 
-setsid pi "${launch_args[@]}" "$task" > "$OUT" 2>&1 < /dev/null &
+setsid pi "${launch_args[@]}" "$task" >"$OUT" 2>&1 </dev/null &
 pid=$!
-echo "$pid" > "$PIDF"
+echo "$pid" >"$PIDF"
 rm -f "$persona_tmp"
 
 # 1s launch-failure sanity check (bad args / missing key die instantly).
@@ -108,7 +122,8 @@ fi
 # Synchronous: poll until pi exits (generous cap), then print its output.
 elapsed=0
 while kill -0 "$pid" 2>/dev/null; do
-  sleep 3; elapsed=$((elapsed + 3))
+  sleep 3
+  elapsed=$((elapsed + 3))
   if [ "$elapsed" -ge "$TIMEOUT" ]; then
     echo "pi-delegate: timeout after ${TIMEOUT}s; killing pid $pid" >&2
     kill "$pid" 2>/dev/null || true

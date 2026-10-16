@@ -45,9 +45,15 @@ if [ "$PARENT_ARG" = "finish" ]; then
   shift
   FINISH_PARENT_ARG="${1-}"
   case "$FINISH_PARENT_ARG" in
-    ''|*[!0-9]*) echo "error: parent issue must be numeric" >&2; exit 1 ;;
+  '' | *[!0-9]*)
+    echo "error: parent issue must be numeric" >&2
+    exit 1
+    ;;
   esac
-  [ "$#" -eq 1 ] || { echo "error: finish requires exactly one parent issue number" >&2; exit 1; }
+  [ "$#" -eq 1 ] || {
+    echo "error: finish requires exactly one parent issue number" >&2
+    exit 1
+  }
 else
   shift
 fi
@@ -61,57 +67,94 @@ JOBS=2
 BOARD_DIR=""
 AGENT_CMD="${GRALPH_AGENT_CMD:-}"
 if [ "$PARENT_ARG" != "finish" ]; then
-while [ "$#" -gt 0 ]; do
-  case "$1" in
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
     --dry-run) DRY_RUN=1 ;;
     --replan) REPLAN=1 ;;
     --spec)
-      [ "$#" -ge 2 ] || { echo "error: --spec requires a slug" >&2; exit 2; }
+      [ "$#" -ge 2 ] || {
+        echo "error: --spec requires a slug" >&2
+        exit 2
+      }
       SPEC_FILTER="$2"
       shift
       ;;
     --verify)
-      [ "$#" -ge 2 ] || { echo "error: --verify requires a command" >&2; exit 2; }
+      [ "$#" -ge 2 ] || {
+        echo "error: --verify requires a command" >&2
+        exit 2
+      }
       VERIFY="$2"
       VERIFY_SET=1
       shift
       ;;
     --jobs)
-      [ "$#" -ge 2 ] || { echo "error: --jobs requires a positive integer" >&2; exit 2; }
+      [ "$#" -ge 2 ] || {
+        echo "error: --jobs requires a positive integer" >&2
+        exit 2
+      }
       case "$2" in
-        ''|*[!0-9]*) echo "error: --jobs must be a positive integer" >&2; exit 2 ;;
+      '' | *[!0-9]*)
+        echo "error: --jobs must be a positive integer" >&2
+        exit 2
+        ;;
       esac
       JOBS="$2"
-      [ "$JOBS" -ge 1 ] || { echo "error: --jobs must be a positive integer" >&2; exit 2; }
+      [ "$JOBS" -ge 1 ] || {
+        echo "error: --jobs must be a positive integer" >&2
+        exit 2
+      }
       shift
       ;;
     --board)
-      [ "$#" -ge 2 ] || { echo "error: --board requires a directory" >&2; exit 2; }
+      [ "$#" -ge 2 ] || {
+        echo "error: --board requires a directory" >&2
+        exit 2
+      }
       BOARD_DIR="$2"
-      [ -d "$BOARD_DIR" ] || { echo "error: --board directory does not exist: $BOARD_DIR" >&2; exit 1; }
+      [ -d "$BOARD_DIR" ] || {
+        echo "error: --board directory does not exist: $BOARD_DIR" >&2
+        exit 1
+      }
       shift
       ;;
     --agent-cmd)
-      [ "$#" -ge 2 ] || { echo "error: --agent-cmd requires a command" >&2; exit 2; }
+      [ "$#" -ge 2 ] || {
+        echo "error: --agent-cmd requires a command" >&2
+        exit 2
+      }
       AGENT_CMD="$2"
       shift
       ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "error: unknown argument: $1" >&2; usage >&2; exit 2 ;;
-  esac
-  shift
-done
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "error: unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    esac
+    shift
+  done
 fi
 
 # GitHub mode needs a numeric parent issue. Board mode also accepts a slug as
 # its run key (state dir .gralph/runs/<key>, branches gralph/<key>/...).
 if [ "$PARENT_ARG" != "finish" ]; then
   case "$PARENT_ARG" in
-    *[!0-9]*)
-      [ -n "$BOARD_DIR" ] || { echo "error: parent issue must be numeric" >&2; exit 2; }
-      printf '%s' "$PARENT_ARG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]*$' \
-        || { echo "error: board run key must match [A-Za-z0-9][A-Za-z0-9_-]*" >&2; exit 2; }
-      ;;
+  *[!0-9]*)
+    [ -n "$BOARD_DIR" ] || {
+      echo "error: parent issue must be numeric" >&2
+      exit 2
+    }
+    printf '%s' "$PARENT_ARG" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9_-]*$' ||
+      {
+        echo "error: board run key must match [A-Za-z0-9][A-Za-z0-9_-]*" >&2
+        exit 2
+      }
+    ;;
   esac
 fi
 
@@ -121,21 +164,30 @@ fi
 if [ -n "$BOARD_DIR" ] || [ "$PARENT_ARG" = "finish" ]; then
   : # gh not required
 else
-  command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; exit 1; }
+  command -v gh >/dev/null 2>&1 || {
+    echo "error: gh CLI not found" >&2
+    exit 1
+  }
 fi
-command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; exit 1; }
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "error: jq not found" >&2
+  exit 1
+}
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "error: not in a git repository" >&2
+  exit 1
+}
 
 if [ "$PARENT_ARG" != "finish" ]; then
   case "$PARENT_ARG" in
-    *[!0-9]*)
-      PARENT="$PARENT_ARG"
-      PARENT_JSON="$(jq -nc --arg v "$PARENT_ARG" '$v')"
-      ;;
-    *)
-      PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
-      PARENT_JSON="$PARENT"
-      ;;
+  *[!0-9]*)
+    PARENT="$PARENT_ARG"
+    PARENT_JSON="$(jq -nc --arg v "$PARENT_ARG" '$v')"
+    ;;
+  *)
+    PARENT="$(jq -nr --arg value "$PARENT_ARG" '$value | tonumber')"
+    PARENT_JSON="$PARENT"
+    ;;
   esac
 fi
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -178,7 +230,10 @@ read_board_ticket() {
   fi
   local title body verify
   title=$(awk -F': *' '/^title:/ {sub(/^title:[ \t]*/,""); print; exit}' "$ticket_path")
-  [ -n "$title" ] || { echo "error: ticket $ticket_path has no title" >&2; return 1; }
+  [ -n "$title" ] || {
+    echo "error: ticket $ticket_path has no title" >&2
+    return 1
+  }
 
   body=$(awk '
     /^---[[:space:]]*$/ { fm++; next }
@@ -207,7 +262,10 @@ read_board_ticket() {
 # cannot be located.
 update_board_ticket_status() {
   local ticket_path="$1" new_status="$2"
-  [ -f "$ticket_path" ] || { echo "error: ticket file missing: $ticket_path" >&2; return 1; }
+  [ -f "$ticket_path" ] || {
+    echo "error: ticket file missing: $ticket_path" >&2
+    return 1
+  }
   awk -v target="$new_status" '
     BEGIN { fm=0; done=0 }
     fm == 0 && $0 ~ /^---[[:space:]]*$/ { fm=1; print; next }
@@ -233,7 +291,7 @@ repo_relative_path() {
     printf '%s' "$base"
   else
     case "$dir" in
-      "$root"/*) printf '%s' "${dir#"$root"/}/$base" ;;
+    "$root"/*) printf '%s' "${dir#"$root"/}/$base" ;;
     esac
   fi
 }
@@ -258,17 +316,17 @@ persist_ticket_done() {
   fi
   rel="$(repo_relative_path "$ticket")"
   case "$rel" in
-    '' | ../*)
-      update_board_ticket_status "$ticket" "done" || true
-      return 0
-      ;;
+  '' | ../*)
+    update_board_ticket_status "$ticket" "done" || true
+    return 0
+    ;;
   esac
   if git -C "$batch_worktree" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
     update_board_ticket_status "$batch_worktree/$rel" "done" || return 0
     git -C "$batch_worktree" add -- "$rel" >/dev/null 2>&1 || return 0
     git -C "$batch_worktree" -c user.name=gralph -c user.email=gralph@localhost \
-      commit -q -m "chore(kanban): mark #$child done" -- "$rel" >/dev/null 2>&1 \
-      || echo "warn: could not commit done status for #$child" >&2
+      commit -q -m "chore(kanban): mark #$child done" -- "$rel" >/dev/null 2>&1 ||
+      echo "warn: could not commit done status for #$child" >&2
   else
     update_board_ticket_status "$ticket" "done" || true
   fi
@@ -383,10 +441,10 @@ run_board_child_pipeline() {
   } >"$prompt_file"
 
   set +e
-  (cd "$worktree" && \
+  (cd "$worktree" &&
     GRALPH_BOARD_CHILD="$child" GRALPH_BOARD_BRANCH="$branch" \
-    GRALPH_BOARD_VERIFY="$issue_verify" GRALPH_BOARD_TICKET_PATH="$ticket_path" \
-    /bin/sh -c "$agent_cmd $prompt_file") >"$output_file" 2>&1
+      GRALPH_BOARD_VERIFY="$issue_verify" GRALPH_BOARD_TICKET_PATH="$ticket_path" \
+      /bin/sh -c "$agent_cmd $prompt_file") >"$output_file" 2>&1
   local worker_rc=$?
   set -e
 
@@ -398,10 +456,10 @@ run_board_child_pipeline() {
   commit_sha=$(git -C "$worktree" rev-parse HEAD 2>/dev/null || true)
   worktree_clean=$([ -z "$(git -C "$worktree" status --porcelain 2>/dev/null)" ] && printf true || printf false)
 
-  if [ "$status_count" -ne 1 ] || \
-     ! { [ "$final_line" = "RALPH_RESULT: DONE #$child" ] || \
-          [ "$final_line" = "RALPH_RESULT: BLOCKED #$child" ] || \
-          [ "$final_line" = "RALPH_RESULT: FAIL #$child" ]; }; then
+  if [ "$status_count" -ne 1 ] ||
+    ! { [ "$final_line" = "RALPH_RESULT: DONE #$child" ] ||
+      [ "$final_line" = "RALPH_RESULT: BLOCKED #$child" ] ||
+      [ "$final_line" = "RALPH_RESULT: FAIL #$child" ]; }; then
     jq -n --argjson child "$child" --arg reason "sentinel_missing" \
       --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" \
       --arg commitSha "$commit_sha" --arg workerLog "$output_file" --argjson workerExitCode "$worker_rc" \
@@ -527,18 +585,19 @@ run_child_pipeline() {
   guard="$(realpath "$guard")"
 
   local max_iterations="${GRALPH_MAX_ITERATIONS:-3}"
-  case "$max_iterations" in ''|*[!0-9]*|0)
+  case "$max_iterations" in '' | *[!0-9]* | 0)
     jq -n --argjson child "$child" --arg reason "max_iterations_invalid" \
       '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha}' >"$sidecar"
     return 0
-  ;; esac
+    ;;
+  esac
   local temp_home="$run_dir/home-$child-$run_id"
   local pi_agent_dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
   local prompt_file="$run_dir/worker-$child-prompt.md"
   local output_file previous_status='none' iteration done=0 rc
   mkdir -p "$temp_home"
 
-  for ((iteration=1; iteration<=max_iterations; iteration++)); do
+  for ((iteration = 1; iteration <= max_iterations; iteration++)); do
     output_file="$run_dir/worker-$child-iteration-$iteration.log"
     {
       printf '%s\n' 'You are an isolated Gralph worker executing one GitHub child issue under the Ralph protocol.'
@@ -551,10 +610,10 @@ run_child_pipeline() {
     } >"$prompt_file"
 
     set +e
-    (cd "$worktree" && \
+    (cd "$worktree" &&
       HOME="$temp_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
-      GRALPH_WORKTREE="$worktree" GRALPH_VERIFY_COMMAND="$issue_verify" \
-      pi -p --no-session --no-extensions -e "$guard" \
+        GRALPH_WORKTREE="$worktree" GRALPH_VERIFY_COMMAND="$issue_verify" \
+        pi -p --no-session --no-extensions -e "$guard" \
         --no-skills --skill "$ralph_skill" --no-context-files --no-prompt-templates --no-themes \
         --tools read,write,edit,grep,find,ls,gralph_check \
         "$(cat "$prompt_file")") >"$output_file" 2>&1
@@ -580,7 +639,7 @@ run_child_pipeline() {
   local -a scrubbed_env=(env)
   local env_name
   while IFS= read -r env_name; do
-    if [ "$env_name" = PI_CODING_AGENT_DIR ] || \
+    if [ "$env_name" = PI_CODING_AGENT_DIR ] ||
       [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
       scrubbed_env+=(-u "$env_name")
     fi
@@ -637,12 +696,13 @@ run_child_pipeline() {
   local review_artifact="$run_dir/reviewer-$child.json"
   local review_home="$run_dir/reviewer-home-$child-$run_id"
   local review_timeout="${GRALPH_REVIEW_TIMEOUT:-600}"
-  case "$review_timeout" in ''|*[!0-9]*|0)
+  case "$review_timeout" in '' | *[!0-9]* | 0)
     jq -n --argjson child "$child" --arg reason "review_timeout_invalid" \
       --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
       '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha}' >"$sidecar"
     return 0
-  ;; esac
+    ;;
+  esac
   mkdir -p "$review_home"
   {
     printf '%s\n' 'You are an independent, read-only reviewer. Do not modify files or make network-changing commands.'
@@ -666,8 +726,8 @@ run_child_pipeline() {
   set +e
   (cd "$worktree" && exec env HOME="$review_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
     timeout -k 5 "$review_timeout" pi -p --no-session --no-extensions --no-skills --no-context-files \
-      --no-prompt-templates --no-themes --tools read,grep,find,ls \
-      "$(cat "$review_prompt")") >"$review_artifact" 2>&1
+    --no-prompt-templates --no-themes --tools read,grep,find,ls \
+    "$(cat "$review_prompt")") >"$review_artifact" 2>&1
   rc=$?
   set -e
   # 124 is `timeout`'s own deadline status. It stays 124 even when the reviewer
@@ -780,7 +840,10 @@ fold_child_result() {
       .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:"no_sidecar", child:$child})
       | (.children[] | select(.number == $child) | .execution) |=
           ((. // {}) + {status:"failed", reason:"no_sidecar", runId:$runId})
-    ' || { echo "error: fold_child_result failed to record no-sidecar failure for child #$child" >&2; return 1; }
+    ' || {
+      echo "error: fold_child_result failed to record no-sidecar failure for child #$child" >&2
+      return 1
+    }
     return 1
   fi
 
@@ -788,25 +851,25 @@ fold_child_result() {
   outcome="$(jq -r '.outcome' "$sidecar")"
 
   case "$outcome" in
-    accepted)
-      local commit_sha branch
-      commit_sha="$(jq -r '.commitSha' "$sidecar")"
-      branch="$(jq -r '.branch' "$sidecar")"
-      write_manifest "$manifest" \
-        --argjson child "$child" \
-        --arg body "$(jq -r '.issueBody' "$sidecar")" \
-        --arg verify "$(jq -r '.issueVerify' "$sidecar")" \
-        --arg integration "$verify_cmd" \
-        --arg runId "$run_id" \
-        --arg host "$(jq -r '.host' "$sidecar")" \
-        --argjson pid "$(jq -r '.pid' "$sidecar")" \
-        --arg branch "$branch" \
-        --arg worktree "$(jq -r '.worktree' "$sidecar")" \
-        --arg start "$(jq -r '.startingSha' "$sidecar")" \
-        --arg commit "$commit_sha" \
-        --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
-        --argjson review "$(jq -c '.reviewStatus as $s | .reviewCriticalCount as $c | .reviewBlockerCount as $b | .reviewFindings as $f | .reviewProcessExitCode as $pc | .reviewTimedOut as $t | .reviewArtifact as $a | .reviewPrompt as $p | {status:$s,criticalCount:$c,blockerCount:$b,findings:$f,processExitCode:$pc,timedOut:$t,artifact:$a,prompt:$p,gate:"accepted"}' "$sidecar")" \
-        '
+  accepted)
+    local commit_sha branch
+    commit_sha="$(jq -r '.commitSha' "$sidecar")"
+    branch="$(jq -r '.branch' "$sidecar")"
+    write_manifest "$manifest" \
+      --argjson child "$child" \
+      --arg body "$(jq -r '.issueBody' "$sidecar")" \
+      --arg verify "$(jq -r '.issueVerify' "$sidecar")" \
+      --arg integration "$verify_cmd" \
+      --arg runId "$run_id" \
+      --arg host "$(jq -r '.host' "$sidecar")" \
+      --argjson pid "$(jq -r '.pid' "$sidecar")" \
+      --arg branch "$branch" \
+      --arg worktree "$(jq -r '.worktree' "$sidecar")" \
+      --arg start "$(jq -r '.startingSha' "$sidecar")" \
+      --arg commit "$commit_sha" \
+      --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
+      --argjson review "$(jq -c '.reviewStatus as $s | .reviewCriticalCount as $c | .reviewBlockerCount as $b | .reviewFindings as $f | .reviewProcessExitCode as $pc | .reviewTimedOut as $t | .reviewArtifact as $a | .reviewPrompt as $p | {status:$s,criticalCount:$c,blockerCount:$b,findings:$f,processExitCode:$pc,timedOut:$t,artifact:$a,prompt:$p,gate:"accepted"}' "$sidecar")" \
+      '
           .dryRun = false
           | .integrationCommand = $integration
           | .execution = {runId:$runId, status:"reviewed", child:$child}
@@ -816,54 +879,57 @@ fold_child_result() {
               execution:{status:"complete", branch:$branch, worktree:$worktree, startingSha:$start, commitSha:$commit, verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true},
               review:($review)
             }
-        ' || { echo "error: fold_child_result failed to record accepted review for child #$child" >&2; return 1; }
-      # Prune any previous batch worktree from this run so the next queued
-      # merge in the wave can attach cleanly to the accumulated batch branch.
-      git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
-      local child_worktree
-      child_worktree="$(jq -r '.worktree // ""' "$sidecar")"
-      local issue_verify
-      issue_verify="$(jq -r '.issueVerify // ""' "$sidecar")"
-      local merge_rc=0
-      merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" \
-        "$BOARD_DIR" "$issue_verify" "$child_worktree" || merge_rc=$?
-      git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
-      if [ "$merge_rc" -eq 2 ]; then
-        # Bounce: verification failed after rebase. The lane is preserved;
-        # a repair ticket was created. Do not set fold_failed: the
-        # orchestrator continues landing other eligible lanes.
-        : # noop - bounce is a soft outcome, not a coordinator failure
-      elif [ "$merge_rc" -ne 0 ]; then
-        return 1
-      fi
-      # Board-mode: do NOT touch the ticket frontmatter here; the
-      # coordinator owns board writes and refresh_frontier_kanban resolves
-      # landed children from the manifest, not from disk status.
-      ;;
-    rejected)
-      local commit_sha branch
-      commit_sha="$(jq -r '.commitSha' "$sidecar")"
-      branch="$(jq -r '.branch' "$sidecar")"
-      local review_obj
-      review_obj="$(jq -c '{
+        ' || {
+      echo "error: fold_child_result failed to record accepted review for child #$child" >&2
+      return 1
+    }
+    # Prune any previous batch worktree from this run so the next queued
+    # merge in the wave can attach cleanly to the accumulated batch branch.
+    git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+    local child_worktree
+    child_worktree="$(jq -r '.worktree // ""' "$sidecar")"
+    local issue_verify
+    issue_verify="$(jq -r '.issueVerify // ""' "$sidecar")"
+    local merge_rc=0
+    merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" \
+      "$BOARD_DIR" "$issue_verify" "$child_worktree" || merge_rc=$?
+    git -C "$repo_root" worktree remove --force "$run_dir/worktrees/batch-$run_id" 2>/dev/null || true
+    if [ "$merge_rc" -eq 2 ]; then
+      # Bounce: verification failed after rebase. The lane is preserved;
+      # a repair ticket was created. Do not set fold_failed: the
+      # orchestrator continues landing other eligible lanes.
+      : # noop - bounce is a soft outcome, not a coordinator failure
+    elif [ "$merge_rc" -ne 0 ]; then
+      return 1
+    fi
+    # Board-mode: do NOT touch the ticket frontmatter here; the
+    # coordinator owns board writes and refresh_frontier_kanban resolves
+    # landed children from the manifest, not from disk status.
+    ;;
+  rejected)
+    local commit_sha branch
+    commit_sha="$(jq -r '.commitSha' "$sidecar")"
+    branch="$(jq -r '.branch' "$sidecar")"
+    local review_obj
+    review_obj="$(jq -c '{
         status:.reviewStatus, criticalCount:.reviewCriticalCount, blockerCount:.reviewBlockerCount,
         findings:.reviewFindings, processExitCode:.reviewProcessExitCode, timedOut:.reviewTimedOut,
         artifact:.reviewArtifact, prompt:.reviewPrompt, gate:"rejected"
       }' "$sidecar")"
-      write_manifest "$manifest" \
-        --argjson child "$child" \
-        --arg integration "$verify_cmd" \
-        --arg runId "$run_id" \
-        --arg host "$(jq -r '.host' "$sidecar")" \
-        --argjson pid "$(jq -r '.pid' "$sidecar")" \
-        --arg branch "$branch" \
-        --arg worktree "$(jq -r '.worktree' "$sidecar")" \
-        --arg start "$(jq -r '.startingSha' "$sidecar")" \
-        --arg commit "$commit_sha" \
-        --arg reason "$(jq -r '.reason' "$sidecar")" \
-        --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
-        --argjson review "$review_obj" \
-        '
+    write_manifest "$manifest" \
+      --argjson child "$child" \
+      --arg integration "$verify_cmd" \
+      --arg runId "$run_id" \
+      --arg host "$(jq -r '.host' "$sidecar")" \
+      --argjson pid "$(jq -r '.pid' "$sidecar")" \
+      --arg branch "$branch" \
+      --arg worktree "$(jq -r '.worktree' "$sidecar")" \
+      --arg start "$(jq -r '.startingSha' "$sidecar")" \
+      --arg commit "$commit_sha" \
+      --arg reason "$(jq -r '.reason' "$sidecar")" \
+      --arg verificationLog "$(jq -r '.verificationLog' "$sidecar")" \
+      --argjson review "$review_obj" \
+      '
           .dryRun = false
           | .integrationCommand = $integration
           | .execution = {runId:$runId, status:"failed", reason:$reason, child:$child}
@@ -872,35 +938,38 @@ fold_child_result() {
               execution:{status:"complete", branch:$branch, worktree:$worktree, startingSha:$start, commitSha:$commit, verificationExitCode:0, verificationLog:$verificationLog, ralphComplete:true, clean:true},
               review:($review)
             }
-        ' || { echo "error: fold_child_result failed to record rejected review for child #$child" >&2; return 1; }
-      ;;
-    failed)
-      local reason branch worktree starting_sha commit_sha review_artifact review_prompt review_proc review_timed sentinel
-      reason="$(jq -r '.reason' "$sidecar")"
-      sentinel="$(jq -r '.sentinel // ""' "$sidecar")"
-      branch="$(jq -r '.branch // ""' "$sidecar")"
-      worktree="$(jq -r '.worktree // ""' "$sidecar")"
-      starting_sha="$(jq -r '.startingSha // ""' "$sidecar")"
-      commit_sha="$(jq -r '.commitSha // ""' "$sidecar")"
-      review_artifact="$(jq -r '.reviewArtifact // ""' "$sidecar")"
-      if [ -n "$review_artifact" ]; then
-        review_prompt="$(jq -r '.reviewPrompt // ""' "$sidecar")"
-        review_proc="$(jq -r '.reviewProcessExitCode // 0' "$sidecar")"
-        review_timed="$(jq -r '.reviewTimedOut // false' "$sidecar")"
-        write_manifest "$manifest" \
-          --argjson child "$child" \
-          --arg reason "$reason" \
-          --arg sentinel "$sentinel" \
-          --arg branch "$branch" \
-          --arg worktree "$worktree" \
-          --arg startingSha "$starting_sha" \
-          --arg commit "$commit_sha" \
-          --arg runId "$run_id" \
-          --arg artifact "$review_artifact" \
-          --arg prompt "$review_prompt" \
-          --argjson processExitCode "$review_proc" \
-          --argjson timedOut "$review_timed" \
-          '
+        ' || {
+      echo "error: fold_child_result failed to record rejected review for child #$child" >&2
+      return 1
+    }
+    ;;
+  failed)
+    local reason branch worktree starting_sha commit_sha review_artifact review_prompt review_proc review_timed sentinel
+    reason="$(jq -r '.reason' "$sidecar")"
+    sentinel="$(jq -r '.sentinel // ""' "$sidecar")"
+    branch="$(jq -r '.branch // ""' "$sidecar")"
+    worktree="$(jq -r '.worktree // ""' "$sidecar")"
+    starting_sha="$(jq -r '.startingSha // ""' "$sidecar")"
+    commit_sha="$(jq -r '.commitSha // ""' "$sidecar")"
+    review_artifact="$(jq -r '.reviewArtifact // ""' "$sidecar")"
+    if [ -n "$review_artifact" ]; then
+      review_prompt="$(jq -r '.reviewPrompt // ""' "$sidecar")"
+      review_proc="$(jq -r '.reviewProcessExitCode // 0' "$sidecar")"
+      review_timed="$(jq -r '.reviewTimedOut // false' "$sidecar")"
+      write_manifest "$manifest" \
+        --argjson child "$child" \
+        --arg reason "$reason" \
+        --arg sentinel "$sentinel" \
+        --arg branch "$branch" \
+        --arg worktree "$worktree" \
+        --arg startingSha "$starting_sha" \
+        --arg commit "$commit_sha" \
+        --arg runId "$run_id" \
+        --arg artifact "$review_artifact" \
+        --arg prompt "$review_prompt" \
+        --argjson processExitCode "$review_proc" \
+        --argjson timedOut "$review_timed" \
+        '
             .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason, child:$child})
             | (.children[] | select(.number == $child)) |= (. + {
                 execution:((.execution // {}) + {status:"failed", reason:$reason} +
@@ -912,18 +981,21 @@ fold_child_result() {
                 review:{artifact:$artifact, prompt:$prompt, processExitCode:$processExitCode, timedOut:$timedOut, gate:"rejected"}
               } +
               (if $sentinel != "" then {sentinel:$sentinel} else {} end))
-          ' || { echo "error: fold_child_result failed to record failed-with-review for child #$child" >&2; return 1; }
-      else
-        write_manifest "$manifest" \
-          --argjson child "$child" \
-          --arg reason "$reason" \
-          --arg sentinel "$sentinel" \
-          --arg branch "$branch" \
-          --arg worktree "$worktree" \
-          --arg startingSha "$starting_sha" \
-          --arg commit "$commit_sha" \
-          --arg runId "$run_id" \
-          '
+          ' || {
+        echo "error: fold_child_result failed to record failed-with-review for child #$child" >&2
+        return 1
+      }
+    else
+      write_manifest "$manifest" \
+        --argjson child "$child" \
+        --arg reason "$reason" \
+        --arg sentinel "$sentinel" \
+        --arg branch "$branch" \
+        --arg worktree "$worktree" \
+        --arg startingSha "$starting_sha" \
+        --arg commit "$commit_sha" \
+        --arg runId "$run_id" \
+        '
             .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:$reason, child:$child})
             | (.children[] | select(.number == $child)) |= (. +
                 {execution:((.execution // {}) + {status:"failed", reason:$reason} +
@@ -933,17 +1005,23 @@ fold_child_result() {
                   (if $commit != "" then {commitSha:$commit} else {} end) +
                   {runId:$runId})} +
                 (if $sentinel != "" then {sentinel:$sentinel} else {} end))
-          ' || { echo "error: fold_child_result failed to record failed execution for child #$child" >&2; return 1; }
-      fi
-      ;;
-    *)
-      write_manifest "$manifest" --argjson child "$child" --arg runId "$run_id" \
-        --arg outcome "$outcome" '
+          ' || {
+        echo "error: fold_child_result failed to record failed execution for child #$child" >&2
+        return 1
+      }
+    fi
+    ;;
+  *)
+    write_manifest "$manifest" --argjson child "$child" --arg runId "$run_id" \
+      --arg outcome "$outcome" '
         .execution = ((.execution // {}) + {runId:$runId, status:"failed", reason:"unknown_sidecar_outcome", child:$child})
         | (.children[] | select(.number == $child) | .execution) |=
             ((. // {}) + {status:"failed", reason:"unknown_sidecar_outcome", runId:$runId})
-      ' || { echo "error: fold_child_result failed to record unknown-sidecar-outcome for child #$child" >&2; return 1; }
-      ;;
+      ' || {
+      echo "error: fold_child_result failed to record unknown-sidecar-outcome for child #$child" >&2
+      return 1
+    }
+    ;;
   esac
   return 0
 }
@@ -1403,7 +1481,7 @@ orchestrate_waves() {
             any($wscopes[]; . as $ws | any($cscope[]; . as $cf | any($ws[]; . == $cf)))
           ')"
           if [ "$overlaps" = "true" ]; then
-            continue  # Defer to next wave.
+            continue # Defer to next wave.
           fi
           wave_children+=("$c")
           wave_scopes_json="$(jq -n --argjson ws "$wave_scopes_json" --argjson cs "$cscope" '$ws + [$cs]')"
@@ -1527,7 +1605,7 @@ write_repair_ticket() {
     id="$(awk -F': *' '/^id:/ {print $2; exit}' "$f" 2>/dev/null || true)"
     case "$id" in [0-9]*) [ "$id" -gt "$max_id" ] 2>/dev/null && max_id="$id" ;; esac
   done < <(find "$board_dir/issues" "$board_dir/archive" -name '*.md' 2>/dev/null || true)
-  local repair_id=$(( max_id + 1 ))
+  local repair_id=$((max_id + 1))
   local candidate_file
   candidate_file="$board_dir/issues/$(printf '%03d' "$repair_id")-repair-$child.md"
   {
@@ -1583,7 +1661,7 @@ write_run_report() {
   # two specs on one board do not overwrite each other.
   local report_file="$REPO_ROOT/.kanban/run-report.md"
   case "${PARENT:-0}" in
-    *[!0-9]*) report_file="$REPO_ROOT/.kanban/run-report-$PARENT.md" ;;
+  *[!0-9]*) report_file="$REPO_ROOT/.kanban/run-report-$PARENT.md" ;;
   esac
   local run_id completed_at
   run_id="$(jq -r '.orchestration.runId // "unknown"' "$manifest")"
@@ -1757,16 +1835,25 @@ merge_one_child() {
   fi
   mkdir -p "$(dirname "$batch_worktree")"
   if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$batch_branch"; then
-    git -C "$REPO_ROOT" worktree add "$batch_worktree" "$batch_branch" >/dev/null \
-      || { echo "error: could not attach to batch branch $batch_branch" >&2; return 1; }
+    git -C "$REPO_ROOT" worktree add "$batch_worktree" "$batch_branch" >/dev/null ||
+      {
+        echo "error: could not attach to batch branch $batch_branch" >&2
+        return 1
+      }
   else
-    git -C "$REPO_ROOT" worktree add -b "$batch_branch" "$batch_worktree" "$base_sha" >/dev/null \
-      || { echo "error: could not create batch branch $batch_branch from $base_sha" >&2; return 1; }
+    git -C "$REPO_ROOT" worktree add -b "$batch_branch" "$batch_worktree" "$base_sha" >/dev/null ||
+      {
+        echo "error: could not create batch branch $batch_branch from $base_sha" >&2
+        return 1
+      }
   fi
   write_manifest "$manifest" --argjson child "$child" --arg batchBranch "$batch_branch" --arg batchWorktree "$batch_worktree" '
     .execution.status = "landing"
     | (.children[] | select(.number == $child)).merge = {batchBranch:$batchBranch, batchWorktree:$batchWorktree, status:"creating"}
-  ' || { echo "error: could not record landing intent" >&2; return 1; }
+  ' || {
+    echo "error: could not record landing intent" >&2
+    return 1
+  }
 
   if [ -n "$board_dir" ]; then
     # Board mode (ADR 0009): rebase → re-verify → ff-only → fold progress note.
@@ -1778,8 +1865,11 @@ merge_one_child() {
     local rebase_branch="gralph/$PARENT/rebase-$child-$run_id"
     local rebase_wt="$run_dir/worktrees/rebase-$child-$run_id"
     mkdir -p "$(dirname "$rebase_wt")"
-    git -C "$REPO_ROOT" worktree add -b "$rebase_branch" "$rebase_wt" "$child_branch" >/dev/null 2>&1 \
-      || { echo "error: could not create rebase worktree for child #$child" >&2; return 1; }
+    git -C "$REPO_ROOT" worktree add -b "$rebase_branch" "$rebase_wt" "$child_branch" >/dev/null 2>&1 ||
+      {
+        echo "error: could not create rebase worktree for child #$child" >&2
+        return 1
+      }
 
     local rebase_rc=0
     git -C "$rebase_wt" rebase "$batch_tip" >/dev/null 2>&1 || rebase_rc=$?
@@ -1889,7 +1979,10 @@ merge_one_child() {
           status:"landed", landedSha:$landedSha, childCommitSha:$childCommit,
           reverifyLog:$reverifyLog
         }
-    ' || { echo "error: could not record landed child" >&2; return 1; }
+    ' || {
+      echo "error: could not record landed child" >&2
+      return 1
+    }
 
     # Fold the lane-local progress note into .kanban/progress.md.
     local progress_note
@@ -1919,13 +2012,16 @@ merge_one_child() {
   merged_sha="$(git -C "$batch_worktree" rev-parse HEAD)"
   write_manifest "$manifest" --argjson child "$child" --arg mergedSha "$merged_sha" --arg batchBranch "$batch_branch" --arg batchWorktree "$batch_worktree" '
     (.children[] | select(.number == $child)).merge = {batchBranch:$batchBranch, batchWorktree:$batchWorktree, status:"merged", mergedSha:$mergedSha}
-  ' || { echo "error: could not record merge result" >&2; return 1; }
+  ' || {
+    echo "error: could not record merge result" >&2
+    return 1
+  }
 
   local integration_log="$run_dir/worker-$child-integration.log"
   local -a integration_env=(env)
   local env_name
   while IFS= read -r env_name; do
-    if [ "$env_name" = PI_CODING_AGENT_DIR ] || \
+    if [ "$env_name" = PI_CODING_AGENT_DIR ] ||
       [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
       integration_env+=(-u "$env_name")
     fi
@@ -1949,7 +2045,10 @@ merge_one_child() {
   write_manifest "$manifest" --argjson child "$child" --argjson exitCode "$integration_rc" --arg integrationLog "$integration_log" --arg landedSha "$merged_sha" --arg childCommit "$child_commit" '
     .execution.status = "landed"
     | (.children[] | select(.number == $child)).merge += {status:"landed", integrationExitCode:$exitCode, integrationLog:$integrationLog, landedSha:$landedSha, childCommitSha:$childCommit}
-  ' || { echo "error: could not record landed child" >&2; return 1; }
+  ' || {
+    echo "error: could not record landed child" >&2
+    return 1
+  }
 
   printf 'Landed child #%s onto %s as %s\n' "$child" "$batch_branch" "$merged_sha"
   return 0
@@ -1993,7 +2092,10 @@ publish_pr() {
     echo "error: could not resolve default branch for parent #${parent}" >&2
     return 1
   fi
-  [ -n "$base_branch" ] || { echo "error: gh returned an empty default branch" >&2; return 1; }
+  [ -n "$base_branch" ] || {
+    echo "error: gh returned an empty default branch" >&2
+    return 1
+  }
 
   # Re-run integration on the batch tip in a temporary worktree (same
   # credential-scrubbing envelope as merge_one_child).
@@ -2009,7 +2111,7 @@ publish_pr() {
   local -a integration_env=(env)
   local env_name
   while IFS= read -r env_name; do
-    if [ "$env_name" = PI_CODING_AGENT_DIR ] || \
+    if [ "$env_name" = PI_CODING_AGENT_DIR ] ||
       [[ "${env_name^^}" =~ TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_?KEY|AUTH|SSH_AUTH_SOCK|GIT_ASKPASS ]]; then
       integration_env+=(-u "$env_name")
     fi
@@ -2074,7 +2176,10 @@ Closes #$n"
     fi
     pr_number="${pr_url##*/}"
     case "$pr_number" in
-      ''|*[!0-9]*) echo "error: gh returned an unparseable PR URL: $pr_url" >&2; return 1 ;;
+    '' | *[!0-9]*)
+      echo "error: gh returned an unparseable PR URL: $pr_url" >&2
+      return 1
+      ;;
     esac
   fi
 
@@ -2082,7 +2187,10 @@ Closes #$n"
     --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg batchBranch "$batch_branch" '
     .orchestration.publication = {prNumber:$prNumber, publishedAt:$publishedAt, batchBranch:$batchBranch}
-  ' || { echo "error: could not record publication" >&2; return 1; }
+  ' || {
+    echo "error: could not record publication" >&2
+    return 1
+  }
 
   printf 'Published batch PR #%s for parent #%s on %s\n' "$pr_number" "$parent" "$batch_branch"
   return 0
@@ -2130,20 +2238,38 @@ reopen_parent_with_comment() {
 # finish-spec skill and bounded file tools. Pi owns integration, acceptance
 # review, any permitted small fixes, and parent closure.
 finish_parent() {
-  [ "$#" -eq 1 ] || { echo "error: finish requires exactly one parent issue number" >&2; return 1; }
+  [ "$#" -eq 1 ] || {
+    echo "error: finish requires exactly one parent issue number" >&2
+    return 1
+  }
   local parent="$1"
   case "$parent" in
-    ''|*[!0-9]*) echo "error: parent issue must be numeric" >&2; return 1 ;;
+  '' | *[!0-9]*)
+    echo "error: parent issue must be numeric" >&2
+    return 1
+    ;;
   esac
 
-  command -v gh >/dev/null 2>&1 || { echo "error: gh CLI not found" >&2; return 1; }
-  command -v jq >/dev/null 2>&1 || { echo "error: jq not found" >&2; return 1; }
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not in a git repository" >&2; return 1; }
+  command -v gh >/dev/null 2>&1 || {
+    echo "error: gh CLI not found" >&2
+    return 1
+  }
+  command -v jq >/dev/null 2>&1 || {
+    echo "error: jq not found" >&2
+    return 1
+  }
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+    echo "error: not in a git repository" >&2
+    return 1
+  }
 
   local repo_root manifest
   repo_root="$(git rev-parse --show-toplevel)"
   manifest="$repo_root/.gralph/runs/$parent/manifest.json"
-  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; return 1; }
+  [ -f "$manifest" ] || {
+    echo "error: saved frontier missing: $manifest" >&2
+    return 1
+  }
 
   if ! jq -e --argjson parent "$parent" '
     .schemaVersion == 1 and .parent == $parent
@@ -2167,8 +2293,8 @@ finish_parent() {
     echo "error: could not resolve default branch" >&2
     return 1
   fi
-  if ! pr_view_json="$(gh pr view "$pr_number" --json state,baseRefName,mergeCommit 2>&1)" || \
-     ! printf '%s\n' "$pr_view_json" | jq -e . >/dev/null 2>&1; then
+  if ! pr_view_json="$(gh pr view "$pr_number" --json state,baseRefName,mergeCommit 2>&1)" ||
+    ! printf '%s\n' "$pr_view_json" | jq -e . >/dev/null 2>&1; then
     echo "error: could not read batch PR #$pr_number metadata" >&2
     return 1
   fi
@@ -2184,12 +2310,12 @@ finish_parent() {
     return 1
   fi
   case "$pr_oid" in
-    [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
-      ;;
-    *)
-      echo "error: batch PR #$pr_number mergeCommit.oid is missing or malformed: '${pr_oid:-MISSING}'" >&2
-      return 1
-      ;;
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f])
+    ;;
+  *)
+    echo "error: batch PR #$pr_number mergeCommit.oid is missing or malformed: '${pr_oid:-MISSING}'" >&2
+    return 1
+    ;;
   esac
 
   local children child child_state
@@ -2228,8 +2354,14 @@ finish_parent() {
   fi
 
   local skill source_skill="$HOME/.claude/skills/finish-spec/SKILL.md"
-  [ -f "$source_skill" ] || { echo "error: finish-spec skill missing: $source_skill" >&2; return 1; }
-  command -v pi >/dev/null 2>&1 || { echo "error: pi not found" >&2; return 1; }
+  [ -f "$source_skill" ] || {
+    echo "error: finish-spec skill missing: $source_skill" >&2
+    return 1
+  }
+  command -v pi >/dev/null 2>&1 || {
+    echo "error: pi not found" >&2
+    return 1
+  }
   if ! skill="$(realpath "$source_skill")" || [ ! -f "$skill" ]; then
     echo "error: could not resolve finish-spec skill: $source_skill" >&2
     return 1
@@ -2370,16 +2502,16 @@ recover_state() {
     commit_sha="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .execution.commitSha // ""' "$manifest")"
 
     if [ "$merge_status" = "landed" ] || [ "$merge_status" = "merged" ]; then
-      adopted=$((adopted+1))
+      adopted=$((adopted + 1))
       jq -nc --argjson child "$child" --arg mergeStatus "$merge_status" \
         '{child:$child, action:"adopted", reason:"merge_complete", mergeStatus:$mergeStatus}' >>"$decisions_file"
     elif [ "$exec_status" = "failed" ]; then
-      failed_left=$((failed_left+1))
+      failed_left=$((failed_left + 1))
       jq -nc --argjson child "$child" '{child:$child, action:"failed_left", reason:"execution_failed"}' >>"$decisions_file"
     elif [ "$review_gate" = "accepted" ]; then
-      if [ -n "$branch" ] && [ -n "$commit_sha" ] && \
-         git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
-        resumed_merge=$((resumed_merge+1))
+      if [ -n "$branch" ] && [ -n "$commit_sha" ] &&
+        git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$branch" 2>/dev/null; then
+        resumed_merge=$((resumed_merge + 1))
         jq -nc --argjson child "$child" --arg branch "$branch" --arg commitSha "$commit_sha" \
           '{child:$child, action:"resumed_merge", reason:"review_accepted_merge_pending", branch:$branch, commitSha:$commitSha}' >>"$decisions_file"
         # Land it the way a fresh lane lands: in board mode that is the board protocol
@@ -2393,7 +2525,8 @@ recover_state() {
           rc_verify="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .verificationCommand // ""' "$manifest")"
           rc_file="$(jq -r --argjson child "$child" '.children[] | select(.number == $child) | .file // ""' "$manifest")"
           if [ -z "$rc_verify" ] && [ -f "$rc_file" ]; then
-            rc_t="$(mktemp)"; rc_b="$(mktemp)"
+            rc_t="$(mktemp)"
+            rc_b="$(mktemp)"
             read_board_ticket "$rc_file" "$rc_b" "$rc_t" "$rc_t.v" >/dev/null 2>&1 || true
             rc_verify="$(cat "$rc_t.v" 2>/dev/null || true)"
             rm -f "$rc_t" "$rc_b" "$rc_t.v"
@@ -2403,11 +2536,11 @@ recover_state() {
         merge_one_child "$child" "$manifest" "$run_dir" "$base_sha" "$verify_cmd" "$run_id" "$branch" "$commit_sha" \
           "$rc_board" "$rc_verify" "$rc_worktree" 2>/dev/null || true
       else
-        inconsistent=$((inconsistent+1))
+        inconsistent=$((inconsistent + 1))
         jq -nc --argjson child "$child" '{child:$child, action:"inconsistent", reason:"accepted_review_branch_missing"}' >>"$decisions_file"
       fi
     elif [ "$exec_status" = "complete" ]; then
-      needs_review=$((needs_review+1))
+      needs_review=$((needs_review + 1))
       jq -nc --argjson child "$child" '{child:$child, action:"needs_review", reason:"worker_complete_review_missing"}' >>"$decisions_file"
     elif [ "$claim_status" = "claimed" ]; then
       local claim_pid claim_host claim_runid
@@ -2417,30 +2550,30 @@ recover_state() {
 
       if [ "$claim_host" != "$host" ]; then
         # Foreign host — we cannot verify liveness across machines, leave alone.
-        foreign_left=$((foreign_left+1))
+        foreign_left=$((foreign_left + 1))
         jq -nc --argjson child "$child" --arg ownerHost "$claim_host" --arg ownerRunId "$claim_runid" \
           '{child:$child, action:"live_owner_left", reason:"foreign_host_claim_untouched", ownerHost:$ownerHost, ownerRunId:$ownerRunId}' >>"$decisions_file"
       elif [ -n "$claim_pid" ] && kill -0 "$claim_pid" 2>/dev/null; then
-        foreign_left=$((foreign_left+1))
+        foreign_left=$((foreign_left + 1))
         jq -nc --argjson child "$child" --argjson ownerPid "$claim_pid" --arg ownerHost "$claim_host" --arg ownerRunId "$claim_runid" \
           '{child:$child, action:"live_owner_left", reason:"owner_pid_alive", ownerPid:$ownerPid, ownerHost:$ownerHost, ownerRunId:$ownerRunId}' >>"$decisions_file"
       elif [ -n "$board_dir" ]; then
         # Board mode: no gh label; just mark the stale claim recovered by PID-dead.
-        stale_cleared=$((stale_cleared+1))
+        stale_cleared=$((stale_cleared + 1))
         write_manifest "$manifest" --argjson child "$child" --arg claimRunId "$claim_runid" --arg reason "stale_claim_recovered" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
           (.children[] | select(.number == $child)).claim = ((.children[] | select(.number == $child)).claim // {}) + {status:"recovered", reason:$reason, recoveredAt:$recoveredAt}
         ' >/dev/null 2>&1 || true
         jq -nc --argjson child "$child" --arg previousRunId "$claim_runid" \
           '{child:$child, action:"stale_cleared", reason:"owner_pid_dead", previousRunId:$previousRunId}' >>"$decisions_file"
       elif gh issue edit "$child" --remove-label 'gralph:claimed' >/dev/null 2>&1; then
-        stale_cleared=$((stale_cleared+1))
+        stale_cleared=$((stale_cleared + 1))
         write_manifest "$manifest" --argjson child "$child" --arg claimRunId "$claim_runid" --arg reason "stale_claim_recovered" --arg recoveredAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
           (.children[] | select(.number == $child)).claim = ((.children[] | select(.number == $child)).claim // {}) + {status:"recovered", reason:$reason, recoveredAt:$recoveredAt}
         ' >/dev/null 2>&1 || true
         jq -nc --argjson child "$child" --arg previousRunId "$claim_runid" \
           '{child:$child, action:"stale_cleared", reason:"owner_pid_dead", previousRunId:$previousRunId}' >>"$decisions_file"
       else
-        inconsistent=$((inconsistent+1))
+        inconsistent=$((inconsistent + 1))
         jq -nc --argjson child "$child" '{child:$child, action:"stale_clear_failed", reason:"gh_remove_label_failed"}' >>"$decisions_file"
       fi
     fi
@@ -2485,11 +2618,17 @@ if [ "$DRY_RUN" -ne 1 ]; then
     exit 2
   }
   manifest="$REPO_ROOT/.gralph/runs/$PARENT/manifest.json"
-  [ -f "$manifest" ] || { echo "error: saved frontier missing: $manifest" >&2; exit 1; }
+  [ -f "$manifest" ] || {
+    echo "error: saved frontier missing: $manifest" >&2
+    exit 1
+  }
   jq -e --argjson parent "$PARENT_JSON" '
     .schemaVersion == 1 and .parent == $parent and (.baseSha | type == "string")
     and (.children | type == "array")
-  ' "$manifest" >/dev/null || { echo "error: saved frontier is malformed" >&2; exit 1; }
+  ' "$manifest" >/dev/null || {
+    echo "error: saved frontier is malformed" >&2
+    exit 1
+  }
   orchestrate_waves "$manifest" "$VERIFY" "$JOBS" || exit 1
   # Board mode is offline - no remote PR. GitHub mode still publishes the
   # batch PR after the integration command passes on the merged tree.

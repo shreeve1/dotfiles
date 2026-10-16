@@ -33,12 +33,12 @@ for path in "${PLUGINS[@]}"; do
   fi
   origin_url=$(git -C "$path" remote get-url origin 2>/dev/null || true)
   case "$origin_url" in
-    *shreeve1/$name*) ;;
-    *)
-      echo "REMOTE MISMATCH for $name: origin=$origin_url (expected shreeve1/$name)"
-      fail=1
-      continue
-      ;;
+  *shreeve1/$name*) ;;
+  *)
+    echo "REMOTE MISMATCH for $name: origin=$origin_url (expected shreeve1/$name)"
+    fail=1
+    continue
+    ;;
   esac
 
   branch=$(git -C "$path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo NONE)

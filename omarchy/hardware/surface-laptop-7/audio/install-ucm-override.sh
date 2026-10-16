@@ -10,9 +10,18 @@ SYSTEM_UCM=/usr/share/alsa/ucm2
 DEST="${XDG_DATA_HOME:-$HOME/.local/share}/sl7-ucm2"
 DROPIN="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/wireplumber.service.d/sl7-ucm.conf"
 
-[[ $EUID -ne 0 ]] || { printf 'Run this script as the desktop user, not root.\n' >&2; exit 1; }
-[[ -d $SYSTEM_UCM ]] || { printf 'Missing %s\n' "$SYSTEM_UCM" >&2; exit 1; }
-[[ -f $PATCH ]] || { printf 'Missing %s\n' "$PATCH" >&2; exit 1; }
+[[ $EUID -ne 0 ]] || {
+  printf 'Run this script as the desktop user, not root.\n' >&2
+  exit 1
+}
+[[ -d $SYSTEM_UCM ]] || {
+  printf 'Missing %s\n' "$SYSTEM_UCM" >&2
+  exit 1
+}
+[[ -f $PATCH ]] || {
+  printf 'Missing %s\n' "$PATCH" >&2
+  exit 1
+}
 
 rm -rf -- "$DEST"
 mkdir -p "$DEST"
@@ -23,10 +32,10 @@ for relative in sof-soundwire/rt1320.conf codecs/rt1320/init.conf; do
   rm -- "$DEST/$relative"
   cp -- "$SYSTEM_UCM/$relative" "$DEST/$relative"
 done
-patch -d "$DEST" -p1 --fuzz=0 < "$PATCH"
+patch -d "$DEST" -p1 --fuzz=0 <"$PATCH"
 
 mkdir -p "$(dirname -- "$DROPIN")"
-printf '[Service]\nEnvironment=ALSA_CONFIG_UCM2=%s\n' "$DEST" > "$DROPIN"
+printf '[Service]\nEnvironment=ALSA_CONFIG_UCM2=%s\n' "$DEST" >"$DROPIN"
 systemctl --user daemon-reload
 
 # Validate immediately when the card exists. Immediately after a kernel update,
@@ -42,8 +51,8 @@ if grep -q 'sofsoundwire' /proc/asound/cards 2>/dev/null; then
   ready=false
   for _ in {1..20}; do
     if pactl get-default-source 2>/dev/null | grep -q 'HiFi__Mic__source' &&
-       amixer -D hw:0 cget "name='rt1320-2 FU Capture Switch'" 2>/dev/null |
-         grep -q 'values=on,on,on,on'; then
+      amixer -D hw:0 cget "name='rt1320-2 FU Capture Switch'" 2>/dev/null |
+      grep -q 'values=on,on,on,on'; then
       ready=true
       break
     fi

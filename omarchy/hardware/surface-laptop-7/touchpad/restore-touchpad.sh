@@ -27,14 +27,17 @@ FORK_COMMIT="3663e96e758145801c3cb1ce7c72f362d0d4a5f5"
 FORK_VER="3.1.0"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-die() { printf '\n!! %s\n' "$*" >&2; exit 1; }
+die() {
+  printf '\n!! %s\n' "$*" >&2
+  exit 1
+}
 say() { printf '\n==> %s\n' "$*"; }
 
 [[ $EUID -eq 0 ]] || die "run me with sudo:  sudo bash $0"
 
 for f in 0004-iptsd-add-Touchpad-LiftGraceMs-option.patch \
-         99-surface-laptop-7-touchpad.conf local-overrides.quirks 50-iptsd.rules; do
-    [[ -f "$HERE/$f" ]] || die "missing $HERE/$f"
+  99-surface-laptop-7-touchpad.conf local-overrides.quirks 50-iptsd.rules; do
+  [[ -f "$HERE/$f" ]] || die "missing $HERE/$f"
 done
 
 WORK="$(mktemp -d /tmp/iptsd-sl7-build.XXXXXX)"
@@ -45,7 +48,7 @@ cd "$WORK"
 git clone -q "$FORK_URL" iptsd-fork
 git -C iptsd-fork checkout -q "$FORK_COMMIT"
 say "applying LiftGraceMs patch"
-( cd iptsd-fork && patch -p1 --forward <"$HERE/0004-iptsd-add-Touchpad-LiftGraceMs-option.patch" )
+(cd iptsd-fork && patch -p1 --forward <"$HERE/0004-iptsd-add-Touchpad-LiftGraceMs-option.patch")
 grep -q 'lift_grace' iptsd-fork/src/core/generic/config.hpp || die "patch did not apply"
 
 say "packaging"

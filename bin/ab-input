@@ -3,8 +3,14 @@
 # Use for click, fill, press, open, tab, batch, screenshots and page-changing eval.
 # Never call while holding a sign-in reservation on the same lock: it would wait on itself.
 # Waits at most AB_LOCK_WAIT seconds (default 60) for the lock, then exits 254 instead of hanging.
-if [ "$1" = "-s" ]; then AB_SESSION=$2; shift 2; fi
-[ -n "$AB_SESSION" ] || { echo "ab-input: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2; exit 2; }
+if [ "$1" = "-s" ]; then
+  AB_SESSION=$2
+  shift 2
+fi
+[ -n "$AB_SESSION" ] || {
+  echo "ab-input: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2
+  exit 2
+}
 LOCK=/run/user/1000/agent-browser-chrome-9222-input.lock
 WAIT=${AB_LOCK_WAIT:-60}
 flock -w "$WAIT" -E 254 "$LOCK" agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"

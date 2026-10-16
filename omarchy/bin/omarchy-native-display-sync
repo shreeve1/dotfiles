@@ -300,8 +300,8 @@ reload_on_display_change() {
     fi
 
     case "$line" in
-      ACTION=*) action=${line#ACTION=} ;;
-      HOTPLUG=*) hotplug=${line#HOTPLUG=} ;;
+    ACTION=*) action=${line#ACTION=} ;;
+    HOTPLUG=*) hotplug=${line#HOTPLUG=} ;;
     esac
   done
 

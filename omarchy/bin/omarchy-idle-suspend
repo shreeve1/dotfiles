@@ -19,7 +19,7 @@ stay_awake="$HOME/.local/state/omarchy/indicators/stay-awake"
 
 cpu_totals() {
   local _ user nice system idle iowait irq softirq steal
-  read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+  read -r _ user nice system idle iowait irq softirq steal _ </proc/stat
   echo "$((user + nice + system + idle + iowait + irq + softirq + steal)) $((idle + iowait))"
 }
 

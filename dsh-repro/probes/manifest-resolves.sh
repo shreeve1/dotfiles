@@ -29,7 +29,10 @@ fi
 
 fail=0
 
-work=$(mktemp -d) || { echo "mktemp failed"; exit 1; }
+work=$(mktemp -d) || {
+  echo "mktemp failed"
+  exit 1
+}
 # shellcheck disable=SC2064
 trap "rm -rf '$work'" EXIT
 
@@ -38,7 +41,10 @@ if ! cp -r "$SRC_DIR" "$work/profile"; then
   exit 1
 fi
 
-cd "$work/profile" || { echo "cd $work/profile failed"; exit 1; }
+cd "$work/profile" || {
+  echo "cd $work/profile failed"
+  exit 1
+}
 
 # --lockfile-only: validate that the lockfile resolves with the captured
 # package.json WITHOUT materializing node_modules. --ignore-scripts: don't try

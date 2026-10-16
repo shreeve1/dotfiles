@@ -20,9 +20,9 @@ dock_connected() {
   local device product vendor
   for device in /sys/bus/usb/devices/*; do
     [[ -r $device/idVendor && -r $device/idProduct ]] || continue
-    read -r vendor < "$device/idVendor"
-    read -r product < "$device/idProduct"
-    [[ $vendor == 0424 && ( $product == 2807 || $product == 5807 ) ]] && return 0
+    read -r vendor <"$device/idVendor"
+    read -r product <"$device/idProduct"
+    [[ $vendor == 0424 && ($product == 2807 || $product == 5807) ]] && return 0
   done
   return 1
 }
