@@ -179,7 +179,8 @@ EOF
   git -C "$dir" add verify-integration.sh
   git -C "$dir" commit -qm init
   # Per-test local bare remote so publish_pr's `git push origin ...` succeeds.
-  local remote_dir="$TMPDIR/remote-$(basename "$dir")"
+  local remote_dir
+  remote_dir="$TMPDIR/remote-$(basename "$dir")"
   rm -rf "$remote_dir"
   git init -q --bare "$remote_dir/repo.git"
   git -C "$dir" remote add origin "$remote_dir/repo.git"
@@ -214,7 +215,8 @@ plan_repo() {
 REPO="$TMPDIR/jobs-default"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --verify 'bash verify-integration.sh' >/dev/null
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 jq -e '.orchestration.jobs == 2' "$MANIFEST" >/dev/null
@@ -222,14 +224,16 @@ jq -e '.orchestration.jobs == 2' "$MANIFEST" >/dev/null
 REPO="$TMPDIR/jobs-explicit"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 1 --verify 'bash verify-integration.sh' >/dev/null
 jq -e '.orchestration.jobs == 1' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
 REPO="$TMPDIR/jobs-three"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 3 --verify 'bash verify-integration.sh' >/dev/null
 jq -e '.orchestration.jobs == 3' "$REPO/.gralph/runs/42/manifest.json" >/dev/null
 
@@ -249,7 +253,8 @@ done
 REPO="$TMPDIR/concurrency-bound"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >/dev/null
 max_concurrent="$(awk '/start/ { for (i=1; i<=NF; i++) if ($i ~ /^count=/) { split($i, a, "="); if (a[2]+0 > m) m = a[2]+0 } } END { print m+0 }' "$CONCURRENCY_LOG")"
 [ "$max_concurrent" -le 2 ] || {
@@ -273,7 +278,8 @@ jq -e '
 REPO="$TMPDIR/serial-merge"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >/dev/null
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 merged_shas="$(jq -r '[.children[] | select(.merge.status == "landed") | .merge.mergedSha] | sort | unique | join(" ")' "$MANIFEST")"
@@ -290,7 +296,8 @@ git -C "$REPO" merge-base --is-ancestor "$(jq -r .baseSha "$MANIFEST")" gralph/4
 REPO="$TMPDIR/wave-order"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >/dev/null
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 jq -e '
@@ -317,7 +324,8 @@ later_waves_with_103="$(jq '[.orchestration.waveLog[1:][] | (.children // []) | 
 REPO="$TMPDIR/partial-failure"
 new_repo "$REPO"
 plan_repo "$REPO"
-: >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
+: >"$CONCURRENCY_LOG"
+: >"$CONCURRENCY_COUNT"
 if FAKE_PI_SCENARIO=fail-102 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >"$TMPDIR/partial.out" 2>"$TMPDIR/partial.err"; then
   echo "FAIL: partial failure run unexpectedly exited zero" >&2
   exit 1

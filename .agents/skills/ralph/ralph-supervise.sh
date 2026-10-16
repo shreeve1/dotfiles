@@ -123,7 +123,7 @@ while true; do
       elig=$(count_of eligible "$counts")
       act=$(count_of active "$counts")
       blk=$(count_of blocked "$counts")
-      donec=$(count_of done "$counts")
+      donec=$(count_of "done" "$counts")
       tot=$(count_of total "$counts")
       wait=$(waiting_total "$counts")
       if ((elig + act > 0)); then

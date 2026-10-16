@@ -185,11 +185,11 @@ expect_eq "numeric manifest parent stays a number" "42" "$(jq -c .parent "$REPO/
 # --- 7. --spec: filter the run, board-wide dependency rules ---------------------
 new_repo spec
 BOARD="$REPO/.kanban"
-ticket "$BOARD/issues" 1 alpha '[]' done # alpha, already done
-ticket "$BOARD/issues" 2 alpha           # alpha, ready
-ticket "$BOARD/issues" 3 beta '[1]'      # beta, blocker is DONE and outside the filter
-ticket "$BOARD/issues" 4 beta            # beta, ready
-ticket "$BOARD/issues" 5 beta '[2]'      # beta, blocker is PENDING and outside the filter
+ticket "$BOARD/issues" 1 alpha '[]' "done" # alpha, already done
+ticket "$BOARD/issues" 2 alpha             # alpha, ready
+ticket "$BOARD/issues" 3 beta '[1]'        # beta, blocker is DONE and outside the filter
+ticket "$BOARD/issues" 4 beta              # beta, ready
+ticket "$BOARD/issues" 5 beta '[2]'        # beta, blocker is PENDING and outside the filter
 git -C "$REPO" add -A && git -C "$REPO" commit -qm board
 g beta --spec beta --dry-run --verify true >/dev/null 2>&1 && ok || fail "--spec plan succeeds"
 SM="$REPO/.gralph/runs/beta/manifest.json"
@@ -328,7 +328,7 @@ new_repo specarch
 BOARD="$REPO/.kanban"
 mkdir -p "$BOARD/specs" "$BOARD/archive/2026-01-01"
 printf '# Spec\n' >"$BOARD/specs/zeta.md"
-ticket "$BOARD/archive/2026-01-01" 1 zeta '[]' done
+ticket "$BOARD/archive/2026-01-01" 1 zeta '[]' "done"
 ticket "$BOARD/issues" 2 zeta
 git -C "$REPO" add -A && git -C "$REPO" commit -qm board
 g zeta --spec zeta --dry-run --verify true >/dev/null 2>&1
