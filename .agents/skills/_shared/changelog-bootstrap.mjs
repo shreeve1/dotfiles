@@ -13,14 +13,14 @@
 import { execFileSync } from "node:child_process";
 
 const safe = (args, fb) => {
-	try {
-		return execFileSync("git", args, {
-			encoding: "utf-8",
-			stdio: ["ignore", "pipe", "ignore"],
-		});
-	} catch {
-		return fb;
-	}
+  try {
+    return execFileSync("git", args, {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return fb;
+  }
 };
 
 const root = safe(["rev-parse", "--show-toplevel"], "").trim();
@@ -29,9 +29,9 @@ const inRepo = root ? "yes" : "no";
 process.stdout.write(`in_repo: ${inRepo}\n`);
 
 if (!root) {
-	process.stdout.write("last_tag: (not in a git repo)\n");
-	process.stdout.write("---changelogs---\n");
-	process.exit(0);
+  process.stdout.write("last_tag: (not in a git repo)\n");
+  process.stdout.write("---changelogs---\n");
+  process.exit(0);
 }
 
 const lastTag = safe(["describe", "--tags", "--abbrev=0"], "").trim();

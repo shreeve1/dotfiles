@@ -62,7 +62,14 @@ function verificationOutcome(content: unknown): string {
     /\b\d+ passed(?:,\s*\d+ skipped)?(?:\s+in\s+[\d.]+s)?\b/,
   );
   if (testSummary) return testSummary[0];
-  return text.split("\n").map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 100) || "ok";
+  return (
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .at(-1)
+      ?.slice(0, 100) || "ok"
+  );
 }
 
 function buildWorkRecord(
@@ -78,19 +85,32 @@ function buildWorkRecord(
   for (const entry of entries) {
     if (entry.type !== "message") continue;
     const message: unknown = entry.message;
-    if (!message || typeof message !== "object" || !("role" in message)) continue;
+    if (!message || typeof message !== "object" || !("role" in message))
+      continue;
 
-    if (message.role === "assistant" && "content" in message && Array.isArray(message.content)) {
+    if (
+      message.role === "assistant" &&
+      "content" in message &&
+      Array.isArray(message.content)
+    ) {
       for (const block of message.content) {
         if (!block || typeof block !== "object" || !("type" in block)) continue;
         if (
           block.type === "toolCall" &&
-          "id" in block && typeof block.id === "string" &&
-          "name" in block && typeof block.name === "string" &&
-          "arguments" in block && block.arguments && typeof block.arguments === "object"
+          "id" in block &&
+          typeof block.id === "string" &&
+          "name" in block &&
+          typeof block.name === "string" &&
+          "arguments" in block &&
+          block.arguments &&
+          typeof block.arguments === "object"
         ) {
           calls.set(block.id, { name: block.name, args: block.arguments });
-        } else if (block.type === "text" && "text" in block && typeof block.text === "string") {
+        } else if (
+          block.type === "text" &&
+          "text" in block &&
+          typeof block.text === "string"
+        ) {
           const text = block.text.trim().replace(/\s+/g, " ");
           if (text) progress.push(text.slice(0, 140));
         }
@@ -100,8 +120,10 @@ function buildWorkRecord(
 
     if (
       message.role !== "toolResult" ||
-      !("toolCallId" in message) || typeof message.toolCallId !== "string" ||
-      !("toolName" in message) || typeof message.toolName !== "string" ||
+      !("toolCallId" in message) ||
+      typeof message.toolCallId !== "string" ||
+      !("toolName" in message) ||
+      typeof message.toolName !== "string" ||
       ("isError" in message && message.isError === true)
     ) {
       continue;
@@ -117,27 +139,46 @@ function buildWorkRecord(
     }
     if (!call) continue;
 
-    if (call.name === "bash" && "command" in call.args && typeof call.args.command === "string") {
+    if (
+      call.name === "bash" &&
+      "command" in call.args &&
+      typeof call.args.command === "string"
+    ) {
       if (VERIFICATION_RE.test(call.args.command) && verified.length < 5) {
-        verified.push(`\`${call.args.command}\` — ${verificationOutcome(content)}`);
+        verified.push(
+          `\`${call.args.command}\` — ${verificationOutcome(content)}`,
+        );
       }
       continue;
     }
 
     const paths =
-      call.name === "edit" && "input" in call.args && typeof call.args.input === "string"
-        ? [...call.args.input.matchAll(/^\[([^#\]]+)#[0-9A-F]{4}\]$/gm)].map((match) => match[1])
-        : call.name === "write" && "path" in call.args && typeof call.args.path === "string"
+      call.name === "edit" &&
+      "input" in call.args &&
+      typeof call.args.input === "string"
+        ? [...call.args.input.matchAll(/^\[([^#\]]+)#[0-9A-F]{4}\]$/gm)].map(
+            (match) => match[1],
+          )
+        : call.name === "write" &&
+            "path" in call.args &&
+            typeof call.args.path === "string"
           ? [call.args.path]
-          : call.name === "ast_edit" && "paths" in call.args && Array.isArray(call.args.paths)
-            ? call.args.paths.filter((path): path is string => typeof path === "string")
-            : call.name === "lsp" && "action" in call.args && "file" in call.args &&
+          : call.name === "ast_edit" &&
+              "paths" in call.args &&
+              Array.isArray(call.args.paths)
+            ? call.args.paths.filter(
+                (path): path is string => typeof path === "string",
+              )
+            : call.name === "lsp" &&
+                "action" in call.args &&
+                "file" in call.args &&
                 typeof call.args.file === "string" &&
                 (call.args.action === "rename_file" ||
                   (call.args.action === "rename" &&
                     (!("apply" in call.args) || call.args.apply !== false)) ||
                   (call.args.action === "code_actions" &&
-                    "apply" in call.args && call.args.apply === true))
+                    "apply" in call.args &&
+                    call.args.apply === true))
               ? [call.args.file]
               : [];
     for (const path of paths) {
@@ -157,15 +198,16 @@ function buildWorkRecord(
   const sections: string[] = [];
   if (modified.length) {
     const displayed = modified.slice(0, 10).map((path) => `\`${path}\``);
-    if (modified.length > displayed.length) displayed.push(`+${modified.length - displayed.length} more`);
+    if (modified.length > displayed.length)
+      displayed.push(`+${modified.length - displayed.length} more`);
     sections.push(`**Modified**: ${displayed.join(", ")}`);
   }
   if (verified.length) sections.push(`**Verified**: ${verified.join("; ")}`);
   if (todo) sections.push(`**Todo state**: ${todo}`);
-  if (progress.length) sections.push(`**Reported progress**: ${progress.slice(-3).join(" | ")}`);
+  if (progress.length)
+    sections.push(`**Reported progress**: ${progress.slice(-3).join(" | ")}`);
   return sections.length ? `\n## Work record\n\n${sections.join("\n")}\n` : "";
 }
-
 
 async function makeSlug(
   ctx: ExtensionContext,
@@ -199,7 +241,8 @@ async function makeSlug(
         temperature: 0,
       },
     );
-    if (resp.stopReason === "error" || resp.stopReason === "aborted") return null;
+    if (resp.stopReason === "error" || resp.stopReason === "aborted")
+      return null;
     const text = resp.content
       .filter((b) => b.type === "text")
       .map((b) => b.text)
@@ -244,7 +287,8 @@ export default function (pi: ExtensionAPI) {
         // AgentMessage is a broad union; not every member declares `content`
         // (string | blocks) — narrow with `in` before reading it.
         if (
-          typeof entry.message !== "object" || entry.message === null ||
+          typeof entry.message !== "object" ||
+          entry.message === null ||
           !("content" in entry.message)
         ) {
           continue;
@@ -299,7 +343,9 @@ export default function (pi: ExtensionAPI) {
             .replace(/^-+|-+$/g, "")
             .slice(0, 40)
             .replace(/-+$/, "");
-          const fileName = slug ? `${startTime}_${slug}.md` : `${startTime}_${sessionId}.md`;
+          const fileName = slug
+            ? `${startTime}_${slug}.md`
+            : `${startTime}_${sessionId}.md`;
           outFile = join(dir, fileName);
           n = 1;
         }

@@ -10,7 +10,7 @@ var settingNames = [
   "tap_and_drag",
   "middle_button_emulation",
   "trackpoint_sensitivity",
-  "trackpoint_middle_scroll"
+  "trackpoint_middle_scroll",
 ];
 var booleanNames = [
   "natural_scroll",
@@ -19,7 +19,7 @@ var booleanNames = [
   "disable_while_typing",
   "tap_and_drag",
   "middle_button_emulation",
-  "trackpoint_middle_scroll"
+  "trackpoint_middle_scroll",
 ];
 
 function controllerPath(url) {
@@ -27,16 +27,21 @@ function controllerPath(url) {
 }
 
 function concise(value, fallback) {
-  var text = String(value || "").replace(/\s+/g, " ").trim() || fallback;
+  var text =
+    String(value || "")
+      .replace(/\s+/g, " ")
+      .trim() || fallback;
   return text.length > 180 ? text.slice(0, 177) + "…" : text;
 }
 
 function validNumber(value, minimum, maximum, step) {
-  return typeof value === "number"
-    && Number.isFinite(value)
-    && value >= minimum - 1e-9
-    && value <= maximum + 1e-9
-    && Math.abs(value / step - Math.round(value / step)) < 1e-7;
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= minimum - 1e-9 &&
+    value <= maximum + 1e-9 &&
+    Math.abs(value / step - Math.round(value / step)) < 1e-7
+  );
 }
 
 function validSettings(settings) {
@@ -44,29 +49,41 @@ function validSettings(settings) {
     return false;
   var keys = Object.keys(settings).sort();
   var expected = settingNames.slice().sort();
-  if (keys.length !== expected.length
-      || !keys.every(function(key, index) { return key === expected[index]; }))
+  if (
+    keys.length !== expected.length ||
+    !keys.every(function (key, index) {
+      return key === expected[index];
+    })
+  )
     return false;
-  return validNumber(settings.touchpad_sensitivity, -1, 1, .05)
-    && validNumber(settings.scroll_factor, .1, 2, .1)
-    && validNumber(settings.trackpoint_sensitivity, -1, 1, .05)
-    && booleanNames.every(function(key) {
+  return (
+    validNumber(settings.touchpad_sensitivity, -1, 1, 0.05) &&
+    validNumber(settings.scroll_factor, 0.1, 2, 0.1) &&
+    validNumber(settings.trackpoint_sensitivity, -1, 1, 0.05) &&
+    booleanNames.every(function (key) {
       return typeof settings[key] === "boolean";
-    });
+    })
+  );
 }
 
 function parseResponse(raw) {
   try {
     var payload = JSON.parse(String(raw || ""));
     if (!payload || payload.schemaVersion !== schemaVersion)
-      return {ok: false, error: "Controller returned an unsupported response"};
+      return {
+        ok: false,
+        error: "Controller returned an unsupported response",
+      };
     if (payload.ok !== true)
-      return {ok: false, error: concise(payload.error, "Controller reported an error")};
+      return {
+        ok: false,
+        error: concise(payload.error, "Controller reported an error"),
+      };
     if (!validSettings(payload.settings))
-      return {ok: false, error: "Controller returned invalid settings"};
-    return {ok: true, payload: payload};
+      return { ok: false, error: "Controller returned invalid settings" };
+    return { ok: true, payload: payload };
   } catch (error) {
-    return {ok: false, error: "Controller returned invalid JSON"};
+    return { ok: false, error: "Controller returned invalid JSON" };
   }
 }
 
@@ -80,10 +97,10 @@ function restoreCommand(controller) {
 
 function applyCommand(controller, settings) {
   if (!validSettings(settings))
-    return {ok: false, error: "Invalid touchpad settings"};
+    return { ok: false, error: "Invalid touchpad settings" };
   return {
     ok: true,
-    command: [controller, "apply", "--json", JSON.stringify(settings)]
+    command: [controller, "apply", "--json", JSON.stringify(settings)],
   };
 }
 
@@ -96,5 +113,5 @@ if (typeof module !== "undefined")
     parseResponse,
     statusCommand,
     restoreCommand,
-    applyCommand
+    applyCommand,
   };
