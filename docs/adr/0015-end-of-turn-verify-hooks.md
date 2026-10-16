@@ -95,3 +95,28 @@ files the answer named. The `grilling` skill now keeps a ledger of the system
 - The commodity-ground sentence in `LEDGER_PROMPT` is model-sensitive: before it
   was added, the checker flagged "aidev can run a timer" and "the list endpoint
   pages". Re-test it with a fixture ledger when the checker model changes.
+
+## Addendum (2026-10-16): Pi post-work-cleanup is a commit gate plus a narrowed nudge
+
+The Pi extension `.pi/agent/extensions/verify-final.ts` also asks for the
+`post-work-cleanup` skill. Its first version diffed the whole repo's `git status`
+between prompt start and settle. In sessions from 2026-10-15/16 that missed 11 of
+19 code-editing prompts: the agent committed inside its own turn, so the tree was
+clean again by settle. It also nudged sessions that had changed nothing. A
+read-only review session was nudged because another session, ten seconds
+earlier, had edited `~/.config/hypr/hyprland.lua`, a symlink into the repo.
+
+- It tracks only this session's `edit`/`write` calls on code files, by real path,
+  so a symlinked config maps to its repo file. Edits made through bash
+  (`sed -i`, heredocs) are not seen.
+- **Commit gate:** a bash `git commit` for a repo holding tracked, uncleaned
+  files is blocked once per user prompt, and the block reason lists the files.
+  The same commit then goes through, so the user can still skip the cleanup.
+- **Settle nudge:** fires only while tracked files are still uncommitted, and
+  never asks for a commit; committing stays with the task and the repo's rules.
+- Reading the skill's `SKILL.md`, or `/skill:post-work-cleanup`, counts as running
+  it. Kill switch: `POST_WORK_CLEANUP=0`. Test:
+  `tests/verify-final-cleanup.test.sh`.
+- Model-sensitive wording: a gate reason that offered "the change is trivial" as
+  a reason to skip let the agent skip every time. It now says to skip only when
+  the user said to.
