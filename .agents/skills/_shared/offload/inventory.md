@@ -49,7 +49,7 @@ done
 SH
 ```
 
-Gate. Each declared dependency has an observed result or explicit access gap. Inspect failures in the private captures before claiming ready. An empty Mirror may have no HEAD at the project stage. The worker must have the exact expected branch, Brief HEAD and single full root. Compare live hook metadata with source authority when required, without executing the hook or printing its bytes.
+Gate. Each declared dependency has an observed result or explicit access gap. Inspect failures in the private captures before claiming ready. A newly created target copy may have no HEAD at the project stage. The worker must have the exact expected branch, Brief HEAD and single full root. Compare live hook metadata with source authority when required, without executing the hook or printing its bytes.
 
 Keep project-ready and worker-ready distinct. Append approved provisioning's observed results to the worker inventory. If provisioning changes mutable facts, refresh those facts together in one follow-up target call. Never cache hook policy, checkout identity or config presence across stages.
 

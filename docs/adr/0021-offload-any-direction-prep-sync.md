@@ -1,7 +1,9 @@
 ---
-status: accepted
+status: partially superseded by 0023
 ---
 # Offload roles are source and target; prep syncs project copies in any direction
+
+**Status:** The Mirror-based prep fast-forward is superseded by ADR 0023 (push into the target project copy; offload-sync). The source/target roles still hold.
 
 ADR 0016 described Offload as laptop to server. In practice work moves among three machines (omarchy, aidev, itan8n) in any order. A task can go out from omarchy, be merged and continued on aidev (ADR 0020), then go on to itan8n, and finally sync back to omarchy. The skills named machines by role ("laptop", "server"). They had no rule against starting an Offload from a Mirror, and they offered no route when two project copies had both moved.
 

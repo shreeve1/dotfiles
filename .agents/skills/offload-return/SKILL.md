@@ -11,7 +11,7 @@ Use [the return control recipe](../_shared/offload/commands.md#return-control) f
 
 ## Select the return role
 
-1. Discover the Offload by its actual checkout and absolute Git common directory, or by a supplied slug under known approved Mirror records. Reject ambiguous matches. Read the complete private dispatch record and check its original receipt digest, root, worker path, owner and modes. Source-side pull starts from the original source receipt and its recorded target control location.
+1. Discover the Offload by its actual checkout and absolute Git common directory, or by a supplied slug under the target project copy's records (or a retired `~/offload/` Mirror's for an Offload dispatched before ADR 0023). Reject ambiguous matches. Read the complete private dispatch record and check its original receipt digest, root, worker path, owner and modes. Source-side pull starts from the original source receipt and its recorded target control location.
 2. If this invocation is inside the worker pane or cgroup, prepare the terminal Result and use the independent-controller handoff below. Never stop the worker scope from inside it.
 3. A fresh authorized controller continues its own immutable intent and attempt. A later target retry creates a fresh attempt for the existing pin. A source-side pull uses the same target pin and original source authority locally. Neither needs the old chat, a live worker pane or a new Result.
 
@@ -52,4 +52,14 @@ Report `applied` or `already_applied` only from the helper's observed response. 
 
 Run Brief verification only when authorized. Do not commit or start a receiving agent unless requested. End this controller turn after one observed outcome. No daemon, polling, automatic retry, deployment or task restart is part of return.
 
-Report source, branch, Snapshot, work tip, exact Result/ref, task state and delivery outcome separately. Include applied or conflicting filenames, pending/refusal reason, checks exercised or deferred, and paused remaining steps. Retain refs, worktrees, private records and recovery proof until user-requested cleanup. A fresh source pull must remain possible after both original panes and chats disappear.
+Report source, branch, Snapshot, work tip, exact Result/ref, task state and delivery outcome separately. Include applied or conflicting filenames, pending/refusal reason, checks exercised or deferred, and paused remaining steps. Retain refs, worktrees, private records and recovery proof until [offload-cleanup](../offload-cleanup/SKILL.md) removes them. A fresh source pull must remain possible after both original panes and chats disappear.
+
+## Keep the machines level
+
+After `applied` or `already_applied`, the returned work exists only as uncommitted changes on the source. No default branch has it yet, and the target copy never will through return. Tell the user, in this order:
+
+1. Commit the returned work on the source when it is reviewed (this skill does not commit it).
+2. Run [offload-sync](../offload-sync/SKILL.md) from the source so the target copy and the third machine fast-forward to that commit.
+3. Run [offload-cleanup](../offload-cleanup/SKILL.md) for this slug. It proves the work landed before removing the worker worktree and branches.
+
+A pending or conflicting outcome skips all three.

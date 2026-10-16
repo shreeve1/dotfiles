@@ -294,15 +294,15 @@ The roles one Offload gives two machines: the source's project copy sends the Sn
 _Avoid_: laptop, server (those are machines, not roles)
 
 **Project copy**:
-The checkout of a project you actually work in on one machine, with its own `main`. Offloads start from a project copy and prep syncs project copies. A Mirror is never a project copy.
+The checkout of a project you actually work in on one machine, with its own default branch (normally `main`). Offloads start from the source's project copy and arrive in the target's: the Offload branch is pushed into it and the worker's worktree hangs off it. Sync keeps every machine's project copy on the same commit.
 _Avoid_: Mirror, worktree
 
 **Brief**:
 The written statement of a task's goal, where the work stands and what to do next, which the target agent starts from. The session that holds the context writes it, either after a grill or partway through a task.
 _Avoid_: prompt, spec, handoff
 
-**Mirror**:
-A machine's transport-only git copy of a project at `~/offload/<repo>-<first7root>/`. Offload branches arrive in it and target worktrees hang off it. Its `main` goes stale on purpose, so nobody works in it.
+**Mirror** (retired):
+A transport-only git copy at `~/offload/<repo>-<first7root>/` that Offloads used before ADR 0023. Its `main` went stale on purpose. New Offloads push into the target's project copy instead; `offload-cleanup` retires the old Mirrors.
 _Avoid_: clone, remote, deploy copy, project copy
 
 **Offload branch**:
@@ -314,8 +314,16 @@ A commit of a machine's whole dirty working tree, built without changing its HEA
 _Avoid_: stash, backup, wip commit
 
 **Offload merge**:
-Bringing commits into a project copy's `main` by fast-forward or an approved merge commit: an Offload branch on the target, so work continues there, or a diverged peer's `main` fetched by prep. Unlike return, it keeps history and never touches the other machine; that machine catches up later through prep.
+Bringing commits into a project copy's default branch by fast-forward or an approved merge commit: an Offload branch on the target, so work continues there, or a diverged peer's tip fetched by sync or prep. Unlike return, it keeps history and never touches the other machine; that machine catches up later through sync.
 _Avoid_: land, apply (that is return)
+
+**Sync**:
+Bringing every machine's project copy to the newest default-branch commit by fast-forward only, pushing a temporary `offload/prep-check-*` ref to a peer or pulling from one. Divergence stops it and goes to merge.
+_Avoid_: pull, push (those are single git steps)
+
+**Cleanup**:
+Removing one Offload's worker worktree, workspace and branches on both machines after merge or return provably landed, keeping its private records.
+_Avoid_: prune, gc
 
 **Deployment**:
 One piece of software running on a server because `offload-deploy` started it. Its source is either an Offload branch or a GitHub repo.

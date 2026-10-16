@@ -4,7 +4,7 @@ Resolve `GUARD` to this installed skill directory's absolute `git_guard.py` path
 
 ## Snapshot request
 
-Write this shape with observed values. The slug uses `YYYYMMDD` and three short lowercase words. The source and target paths are absolute. The Mirror root is the full source root SHA and its URL is freshly verified.
+Write this shape with observed values. The slug uses `YYYYMMDD` and three short lowercase words. The source and target paths are absolute project copies. The `mirror` object names the target project copy (see the contract): its root is the full source root SHA and its URL is freshly verified.
 
 ```json
 {
@@ -12,7 +12,7 @@ Write this shape with observed values. The slug uses `YYYYMMDD` and three short 
   "brief_path": ".offload/20261011-fix-small-task/brief.md",
   "source": {"host": "SOURCE_HOST", "path": "/absolute/source/repo"},
   "target": {"host": "TARGET_HOST", "path": "/absolute/target/project"},
-  "mirror": {"url": "TARGET_HOST:/absolute/mirror", "path": "/absolute/mirror", "root": "FULL_ROOT_SHA"}
+  "mirror": {"url": "TARGET_HOST:/absolute/target/project", "path": "/absolute/target/project", "root": "FULL_ROOT_SHA"}
 }
 ```
 
@@ -34,8 +34,8 @@ Bind these variables from the independent receipt before push or startup. Reject
 | `SNAPSHOT` | `identity.snapshot` |
 | `BRIEF_PATH` | `identity.brief_path` |
 | `BRIEF_COMMIT` | `brief_commit` |
-| `MIRROR` | `mirror.path` |
-| `MIRROR_URL` | `mirror.url` |
+| `TARGET_COPY` | `mirror.path` |
+| `TARGET_URL` | `mirror.url` |
 
 `brief_commit` is top-level. The other task identities are under `identity`.
 
@@ -43,8 +43,8 @@ After the user approves the reported filenames and historical exposure, push onl
 
 ```sh
 git -C "$SOURCE" push --no-verify --force-with-lease="refs/heads/$BRANCH:" \
-  "$MIRROR_URL" "refs/heads/$BRANCH:refs/heads/$BRANCH"
-git ls-remote "$MIRROR_URL" "refs/heads/$BRANCH"
+  "$TARGET_URL" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+git ls-remote "$TARGET_URL" "refs/heads/$BRANCH"
 ```
 
 Require the full remote SHA to equal the receipt's Brief transport commit. This creation-only lease does not authorize overwriting an existing Offload.
@@ -59,7 +59,7 @@ Use the installer's recorded canonical skill/helper paths and hashes for the cur
 
 ```sh
 umask 077
-herdr --machine "$MACHINE_ID" worktree create --cwd "$MIRROR" \
+herdr --machine "$MACHINE_ID" worktree create --cwd "$TARGET_COPY" \
   --branch "$BRANCH" --label "offload:$SLUG" --no-focus > "$CREATE_JSON"
 WORKTREE=$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1]))["result"]; print(r.get("worktree",{}).get("path") or r["root_pane"]["cwd"])' "$CREATE_JSON")
 PANE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["result"]["root_pane"]["pane_id"])' "$CREATE_JSON")
@@ -70,7 +70,7 @@ UNIT="$AGENT.scope"
 
 Gate. Creation succeeded. The returned absolute worktree path, pane and workspace are nonempty and belong to this attempt. If both `result.worktree.path` and `result.root_pane.cwd` are present, they agree. There is no worktree-ID field. Preserve the actual path and workspace/pane IDs beside the source receipt. On timeout, inspect the existing creation before retrying.
 
-Tell the user now, before startup: herdr opened two workspaces, the Mirror's base checkout and the worker labelled `offload:$SLUG` (`$WORKSPACE`). The worker runs in the labelled one. Closing the tab group closed both at once and hung up the worker, so ask the user to leave both open.
+Tell the user now, before startup: herdr may also open a workspace for the target project copy itself, beside the worker labelled `offload:$SLUG` (`$WORKSPACE`). Read `herdr worktree list --workspace "$WORKSPACE"` and record `result.source.source_workspace_id` as `BASE_WORKSPACE` with whether it existed before this create. The worker runs in the labelled one. Closing the tab group closed both at once and hung up the worker, so ask the user to leave both open.
 
 ### 2. Inventory and provision this checkout
 
@@ -78,7 +78,7 @@ Run [the batched worker inventory](inventory.md#batch-each-stage) with `CHECKOUT
 
 Apply only the Brief's approved provisioning plan to this checkout. Use [ignored-copy.md](ignored-copy.md) for each approved ignored `.mcp.json` or `.env` transfer. Record the recipe's post-transfer verification in the worker inventory. If provisioning changes hook, identity or runtime facts, refresh those changed facts together in one target call before advancing. A new gap outside the plan stops dispatch. Retain this attempt's records and resolve the gap in a new source Brief, not by changing the transported Brief.
 
-Use the fresh absolute `TARGET_META` and `WORKER_RECEIPT`, `WORKER_ALLOWLIST` when used, and `WORKER_INVENTORY` paths named by Finish. The directory is beneath the approved private metadata parent, outside the checkout. Require source metadata files to be mode 0600 before copying. Create only this attempt's new directory. On a new Mirror its parent `offload-receipts/` is absent too. This block creates that parent at mode 0700 and refuses a looser existing one, which `publish-dispatch` would later reject with `UNSAFE_STATE_PATH`.
+Use the fresh absolute `TARGET_META` and `WORKER_RECEIPT`, `WORKER_ALLOWLIST` when used, and `WORKER_INVENTORY` paths named by Finish. The directory is beneath the approved private metadata parent, outside the checkout. Require source metadata files to be mode 0600 before copying. Create only this attempt's new directory. On a target copy's first Offload its parent `offload-receipts/` is absent too. This block creates that parent at mode 0700 and refuses a looser existing one, which `publish-dispatch` would later reject with `UNSAFE_STATE_PATH`.
 
 ```sh
 META_CREATE=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-c","umask 077 && p=$(dirname -- \"$1\") && mkdir -p -m 0700 -- \"$p\" && test \"$(stat -c %a -- \"$p\")\" = 700 && mkdir -m 0700 -- \"$1\"","sh",sys.argv[1]]))' "$TARGET_META")
@@ -181,7 +181,7 @@ Creation, process-info and agent-start captures are JSON. `pane run` and `pane r
 Use this only when the worker pane closed before return control was published. Require the worktree clean at exactly `BRIEF_COMMIT` and `systemctl --user show "$UNIT" --property=LoadState` reading `not-found` on the target. Otherwise stop and report: the worker made progress or still runs.
 
 ```sh
-herdr --machine "$MACHINE_ID" worktree open --cwd "$MIRROR" --path "$WORKTREE" \
+herdr --machine "$MACHINE_ID" worktree open --cwd "$TARGET_COPY" --path "$WORKTREE" \
   --label "offload:$SLUG" --no-focus > "$OPEN_JSON"
 ```
 
@@ -265,7 +265,7 @@ The helper records the actual work tip and makes a separate normal Result commit
 
 ## Return control
 
-From the actual worker, resolve its absolute Git common directory and exact Offload slug. From a fresh target session, locate that slug only beneath approved Mirror common directories. From the source, use the original receipt and `return-control.json`. Read the private `dispatch.json`, `intent.json`, `freeze.json`, `pin.json` and attempt records as ordinary JSON. Require owned mode-0700 directories and mode-0600 regular files without symlink aliases. Multiple root or path matches require the specific worktree, not the newest timestamp.
+From the actual worker, resolve its absolute Git common directory and exact Offload slug. From a fresh target session, locate that slug only beneath the target project copy's common directory, or a retired `~/offload/` Mirror's for an Offload dispatched before ADR 0023. From the source, use the original receipt and `return-control.json`. Read the private `dispatch.json`, `intent.json`, `freeze.json`, `pin.json` and attempt records as ordinary JSON. Require owned mode-0700 directories and mode-0600 regular files without symlink aliases. Multiple root or path matches require the specific worktree, not the newest timestamp.
 
 Every helper call uses the recorded actual `WORKTREE` and explicit `SLUG`. Initial request and freeze require its exact clean branch. Pinned retries use the saved Result even if HEAD or the branch has moved. The four helper verbs own publication, request allocation, freeze and outcome. Herdr, SSH, source validation, semantic review and apply stay in the model's orchestration.
 
@@ -346,7 +346,7 @@ Perform these steps on the original receiver, using its retained original receip
 3. Fetch only the retained target Result ref and require the fetched full SHA to equal `pin.result_commit`.
 
 ```sh
-git -C "$RECEIVER" fetch --no-tags "$MIRROR_URL" \
+git -C "$RECEIVER" fetch --no-tags "$TARGET_URL" \
   "refs/offload-return/$SLUG/result:$FETCH_REF"
 test "$(git -C "$RECEIVER" rev-parse "$FETCH_REF")" = "$RESULT_SHA"
 python3 "$GUARD" validate --repo "$RECEIVER" --expected "$RECEIPT" \
@@ -411,65 +411,79 @@ Generate a fresh token and check that the exact remote and local refs are absent
 ```sh
 printf 'create %s %s\n' "$PREP_REF" "$SOURCE_SHA" | git -C "$SOURCE" update-ref --stdin
 git -C "$SOURCE" push --no-verify --force-with-lease="$PREP_REF:" \
-  "$MIRROR_URL" "$PREP_REF:$PREP_REF"
-git -C "$SOURCE" fetch --no-tags --no-write-fetch-head "$MIRROR_URL" "$PREP_REF:$VERIFY_REF"
+  "$TARGET_URL" "$PREP_REF:$PREP_REF"
+git -C "$SOURCE" fetch --no-tags --no-write-fetch-head "$TARGET_URL" "$PREP_REF:$VERIFY_REF"
 git -C "$SOURCE" rev-parse --verify "$VERIFY_REF"
 ```
 
 Require the fetched full SHA to equal `SOURCE_SHA`. Before removing the remote temporary ref, verify it still names that same SHA. After a successful round trip, delete only these run-owned refs.
 
 ```sh
-git -C "$SOURCE" push --no-verify --force-with-lease="$PREP_REF:$SOURCE_SHA" "$MIRROR_URL" ":$PREP_REF"
+git -C "$SOURCE" push --no-verify --force-with-lease="$PREP_REF:$SOURCE_SHA" "$TARGET_URL" ":$PREP_REF"
 git -C "$SOURCE" update-ref -d "$VERIFY_REF" "$SOURCE_SHA"
 git -C "$SOURCE" update-ref -d "$PREP_REF" "$SOURCE_SHA"
 ```
 
 A changed ref fails the exact lease or compare-and-delete. Keep receipts on any failure and inspect before retrying. No user branch or prefix-wide cleanup is involved.
 
-## Create a Mirror
+## Create a target copy
 
-Run only when the target has no `~/offload/<repo>-<first7root>/`. Create it as a non-bare clone of the source's history so herdr worktrees can hang off it.
+Run only when the target has no project copy at `TARGET_COPY`. Create an empty repo there on the default branch, then fill it with [the push fast-forward](#push-fast-forward).
 
 ```sh
-INIT_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-c","test ! -e \"$1\" && mkdir -p -- \"$(dirname -- \"$1\")\" && git init -q -b main -- \"$1\" && git -C \"$1\" config receive.denyCurrentBranch updateInstead","sh",sys.argv[1]]))' "$MIRROR")
+INIT_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-c","test ! -e \"$1\" && mkdir -p -- \"$(dirname -- \"$1\")\" && git init -q -b \"$2\" -- \"$1\"","sh",*sys.argv[1:]]))' "$TARGET_COPY" "$DEFAULT")
 ssh -T -- "$HOST" "$INIT_COMMAND"
-git -C "$SOURCE" push --no-verify --force-with-lease="refs/heads/main:" \
-  "$MIRROR_URL" "$SOURCE_SHA:refs/heads/main"
-git ls-remote "$MIRROR_URL" refs/heads/main
 ```
 
-Require the remote full SHA to equal `SOURCE_SHA`, and `git -C "$MIRROR" rev-list --max-parents=0 --all` on the target to print exactly `ROOT`. Run the history scan before this push. This seeding is the only push to a Mirror's `main`; afterwards it stays stale and only `offload/*` refs travel.
+After the fast-forward, require `git -C "$TARGET_COPY" rev-list --max-parents=0 --all` on the target to print exactly `ROOT`. Configure target-local `core.hooksPath` if the repo requires it.
 
-## Prep fast-forward
+## Push fast-forward
 
-Advance an existing target project copy `TARGET_COPY` to `SOURCE_SHA` after the user authorized it and `prep` reported the target HEAD as an ancestor. Two hops, each with a full-SHA check. The source never pushes to the target copy itself.
+Advance a peer project copy `TARGET_COPY` on `HOST` to `SOURCE_SHA` when the peer's default-branch HEAD is an ancestor of it. The source pushes only a temporary `offload/prep-check-<token>` branch. The peer moves its own checked-out branch with a local `merge --ff-only`.
 
-1. Push `SOURCE_SHA` to the target's Mirror as a fresh `PREP_REF` with [the prep transport check](#prep-transport-check), keeping the remote ref.
-2. On the target, fetch that ref into the project copy by the Mirror's absolute path, not a remote name, so a copy with no Mirror remote works too, then fast-forward:
+1. Scan what the peer lacks: `python3 "$GUARD" scan --repo "$SOURCE" --tip "$SOURCE_SHA"` with the reviewed `--allowlist` when the repo has one.
+2. Run [the prep transport check](#prep-transport-check) and keep the remote `PREP_REF`.
+3. On the peer, fast-forward from that local ref:
 
 ```sh
-FF_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-s","--",*sys.argv[1:]]))' "$TARGET_COPY" "$MIRROR" "$PREP_REF" "$SOURCE_SHA")
+FF_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-s","--",*sys.argv[1:]]))' "$TARGET_COPY" "$PREP_REF" "$SOURCE_SHA" "$DEFAULT")
 ssh -T -- "$HOST" "$FF_COMMAND" <<'SH'
 set -eu
-copy=$1 mirror=$2 ref=$3 sha=$4
-test -z "$(git -C "$copy" status --porcelain --untracked-files=all)"
-git -C "$copy" fetch --no-tags "$mirror" "$ref"
-test "$(git -C "$copy" rev-parse FETCH_HEAD)" = "$sha"
-git -C "$copy" merge-base --is-ancestor HEAD "$sha"
+copy=$1 ref=$2 sha=$3 default=$4
+test "$(git -C "$copy" symbolic-ref --short HEAD)" = "$default"
+test "$(git -C "$copy" rev-parse --verify "$ref^{commit}")" = "$sha"
+if git -C "$copy" rev-parse --verify -q HEAD >/dev/null; then
+  git -C "$copy" merge-base --is-ancestor HEAD "$sha"
+fi
 git -C "$copy" merge --ff-only "$sha"
 test "$(git -C "$copy" rev-parse HEAD)" = "$sha"
 SH
 ```
 
-3. Remove the Mirror's `PREP_REF` with its exact SHA lease and the local refs, as in the transport check.
+4. Delete the peer's `PREP_REF` with its exact SHA lease and the local refs, as in the transport check.
 
-A dirty copy, SHA mismatch or non-ancestor HEAD fails before `merge` runs and leaves the copy unchanged. Rerun `prep` before retrying: the target may have moved.
+The peer copy may have uncommitted edits. `merge --ff-only` refuses before changing anything when an edit or untracked file overlaps an incoming change, and keeps unrelated edits. A wrong branch, SHA mismatch or non-ancestor HEAD also fails first. On any failure, delete the temporary refs the same way, report the peer's state and stop. Rerun the comparison before retrying, because the peer may have moved.
+
+## Pull fast-forward
+
+Advance the current copy from a peer that it can reach but that cannot reach it, for example a laptop catching up from aidev after waking. Nothing is pushed.
+
+```sh
+git -C "$COPY" fetch --no-tags "$PEER_URL" "refs/heads/$DEFAULT:refs/offload-sync/peer"
+PEER_SHA=$(git -C "$COPY" rev-parse refs/offload-sync/peer)
+python3 "$GUARD" scan --repo "$COPY" --tip "$PEER_SHA"
+git -C "$COPY" merge-base --is-ancestor HEAD "$PEER_SHA"
+git -C "$COPY" merge --ff-only "$PEER_SHA"
+git -C "$COPY" update-ref -d refs/offload-sync/peer "$PEER_SHA"
+```
+
+The same overlap rules apply. The scan here checks what arrived, so a hit stops before the merge and leaves the copy unchanged. Keep `refs/offload-sync/peer` for review and report it.
 
 ## Parent verification
 
 ```sh
-python3 /home/james/dotfiles/.agents/skills/_shared/offload/verify.py
-python3 /home/james/dotfiles/.agents/skills/_shared/offload/verify.py
+python3 "$(dirname -- "$GUARD")/verify.py"
+python3 "$(dirname -- "$GUARD")/verify.py"
 ```
 
 These are rerunnable local fixtures. They do not exercise SSH, actual herdr containment, ignored-file transfer or a real deployment. Verify those through the actual target before accepting safe-to-close or return.

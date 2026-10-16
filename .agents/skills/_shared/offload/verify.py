@@ -687,6 +687,35 @@ class GitGuardFixtures(OffloadFixture):
         self.assertIn("nested-repository", response["paths"])
         self.assertEqual(self.git(self.repo, "for-each-ref", "--format=%(refname)", "refs/heads/offload/"), b"")
 
+    def test_snapshot_refuses_worktree_offload_branch_and_retired_mirror(self):
+        # The source must be a project copy: a linked worktree, an offload/* branch
+        # or anything under ~/offload is refused before any ref is written.
+        receipt, _ = self.snapshot(slug="20261016-first-real-task")
+        worker = self.worker(receipt)
+        original = self.repo
+        try:
+            self.repo = worker
+            self.snapshot(slug="20261016-worker-tree-src", error="NOT_PROJECT_COPY")
+            self.repo = original
+            self.git(self.repo, "switch", "--quiet", "-c", "offload/20261016-local-branch")
+            self.snapshot(slug="20261016-on-branch-src", error="NOT_PROJECT_COPY")
+            self.git(self.repo, "switch", "--quiet", "main")
+            home = self.base / "home"
+            mirror = home / "offload" / "repo-0000000"
+            mirror.parent.mkdir(parents=True)
+            self.git(self.base, "clone", "--quiet", str(self.repo), str(mirror))
+            self.repo = mirror
+            saved_env = self.env
+            self.env = {**saved_env, "HOME": str(home)}
+            try:
+                self.snapshot(slug="20261016-old-mirror-src", error="NOT_PROJECT_COPY")
+            finally:
+                self.env = saved_env
+        finally:
+            self.repo = original
+        for name in ("worker-tree-src", "on-branch-src", "old-mirror-src"):
+            self.assertEqual(self.git(original, "for-each-ref", "--format=%(refname)", f"refs/heads/offload/20261016-{name}"), b"")
+
     def test_clean_submodule_is_reported_and_dirty_submodule_refuses(self):
         dependency = self.base / "dependency"
         dependency.mkdir()
@@ -1207,7 +1236,7 @@ class GitGuardFixtures(OffloadFixture):
 class SkillStructureFixtures(unittest.TestCase):
     def test_offload_skill_frontmatter_and_local_references(self):
         documents = []
-        for name in ("offload-task", "offload-prep", "offload-return", "offload-deploy", "offload-merge"):
+        for name in ("offload-task", "offload-prep", "offload-return", "offload-deploy", "offload-merge", "offload-sync", "offload-cleanup"):
             path = SKILLS / name / "SKILL.md"
             with self.subTest(skill=name):
                 self.assertTrue(path.is_file(), str(path))
