@@ -1,0 +1,27 @@
+# Standard style contract: a copy of .config/style/template/ruff.toml plus the
+# dotfiles exclusions below. Its presence is what lets pi-lens format Python on
+# edit; style-check and post-work-cleanup read the same file.
+target-version = "py312"
+line-length = 100
+
+# Code this repo does not own the style of (mirrors .styleignore).
+# force-exclude makes ruff honour it even when pi-lens names the file directly.
+force-exclude = true
+extend-exclude = [
+  "archive",
+  ".pi/agent/extensions/pi-lens",
+  ".pi/agent/extensions/pi-subagents",
+  ".pi/agent/extensions/pi-advisor-flow",
+  ".pi/agent/extensions/rpiv-*",
+  ".pi/agent/extensions-archive",
+  ".agents/skills/post-work-cleanup/references/standards",
+  "omarchy/config/omarchy/plugins/meviusisback.agent-orchestr",
+  "omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber",
+]
+
+[lint]
+# Bug-finding only: style is the formatter's job.
+select = ["E", "F", "I", "B"]
+# E501: the formatter owns line length; long strings and URLs it cannot wrap
+# are not defects.
+ignore = ["E501"]

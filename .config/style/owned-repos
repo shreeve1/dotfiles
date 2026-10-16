@@ -1,0 +1,13 @@
+# Repos that adopt the standard style contract (.config/style/template).
+# post-work-cleanup offers `style-init` only for repos matched here; every
+# other repo keeps its own conventions and is never formatted without its own
+# config. One entry per line:
+#   owner:<github-owner>   any repo whose origin URL is under that owner
+#   path:<~/relative path>  a repo with no GitHub remote, matched by location
+owner:shreeve1
+owner:itanoc
+path:~/pi-durable
+path:~/aws
+# origin is a bare repo on aidev (~/git/itastack-workspace.git), not GitHub;
+# a different repo from itanoc/itastack on itan8n (different root commit).
+path:~/Documents/itastack

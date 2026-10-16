@@ -28,6 +28,9 @@ bin/*
 !bin/chrome-cdp
 !bin/ab
 !bin/ab-input
+!bin/style-check
+!bin/style-init
+!bin/style-tools-install
 
 # Machine-local secrets (not synced)
 .env

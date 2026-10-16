@@ -523,7 +523,9 @@ class GitGuardFixtures(OffloadFixture):
         self.assertEqual((self.repo / "work.txt").read_bytes(), b"returned work\n")
         self.assertEqual((self.repo / "binary.dat").read_bytes(), b"\x00returned\xfe\xff\x02\n")
         self.assertEqual((self.repo / "added.dat").read_bytes(), b"new\x00binary\xff")
-        self.assertEqual(stat.S_IMODE((self.repo / "executable.sh").stat().st_mode), 0o644)
+        # git apply writes a 100644 entry as 0o666 & ~umask, so assert the
+        # executable bits were dropped rather than an exact umask-shaped mode.
+        self.assertEqual(stat.S_IMODE((self.repo / "executable.sh").stat().st_mode) & 0o111, 0)
         for path in (receipt["identity"]["brief_path"], str(Path(receipt["identity"]["brief_path"]).with_suffix(".json")), self.result_path(receipt)):
             self.assertEqual((self.repo / path).read_bytes(), (worker / path).read_bytes())
             self.assertIn(path, applied["paths"])

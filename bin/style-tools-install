@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Install the pinned style tools (.config/style/tools.env) into ~/.local/bin.
+# Idempotent: a tool already at its pinned version is left alone. Needs no
+# root: binaries come from GitHub releases, ruff from `uv tool`, and the two
+# npm tools go into a private prefix so a root-owned global npm (omarchy's
+# prefix is /usr) never matters. Called by install.sh; safe to run by hand.
+set -euo pipefail
+
+STYLE_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.config/style" && pwd)"
+# shellcheck source=../.config/style/tools.env
+. "$STYLE_DIR/tools.env"
+
+BIN="$HOME/.local/bin"
+NPM_PREFIX="$HOME/.local/share/style-tools"
+mkdir -p "$BIN"
+
+case "$(uname -s)-$(uname -m)" in
+Linux-x86_64) SHFMT_ASSET=linux_amd64 SC_ASSET=linux.x86_64 ;;
+Linux-aarch64) SHFMT_ASSET=linux_arm64 SC_ASSET=linux.aarch64 ;;
+Darwin-arm64) SHFMT_ASSET=darwin_arm64 SC_ASSET=darwin.aarch64 ;;
+Darwin-x86_64) SHFMT_ASSET=darwin_amd64 SC_ASSET=darwin.x86_64 ;;
+*)
+  echo "warn: style tools: unsupported platform $(uname -sm); skipping" >&2
+  exit 0
+  ;;
+esac
+
+have() { # have BIN VERSION: the binary in ~/.local/bin reports VERSION
+  local flag=--version
+  # markdownlint-cli2 has no --version; its --help banner carries it.
+  [ "$1" = markdownlint-cli2 ] && flag=--help
+  local out
+  [ -x "$BIN/$1" ] || return 1
+  # Capture first: with pipefail, `| head` would SIGPIPE the tool and fail.
+  out="$("$BIN/$1" "$flag" 2>&1 || true)"
+  grep -q -F "$2" <<<"${out:0:400}"
+}
+
+fetch() { # fetch URL DEST
+  curl -fsSL --retry 2 -o "$2" "$1"
+}
+
+if have shfmt "$SHFMT_VERSION"; then
+  echo "ok: shfmt $SHFMT_VERSION"
+else
+  tmp="$(mktemp)"
+  fetch "https://github.com/mvdan/sh/releases/download/v$SHFMT_VERSION/shfmt_v${SHFMT_VERSION}_$SHFMT_ASSET" "$tmp"
+  install -m 0755 "$tmp" "$BIN/shfmt"
+  rm -f "$tmp"
+  echo "ok: installed shfmt $SHFMT_VERSION"
+fi
+
+if have shellcheck "$SHELLCHECK_VERSION"; then
+  echo "ok: shellcheck $SHELLCHECK_VERSION"
+else
+  tmp="$(mktemp -d)"
+  fetch "https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK_VERSION/shellcheck-v$SHELLCHECK_VERSION.$SC_ASSET.tar.xz" "$tmp/sc.tar.xz"
+  tar -xJf "$tmp/sc.tar.xz" -C "$tmp"
+  install -m 0755 "$tmp/shellcheck-v$SHELLCHECK_VERSION/shellcheck" "$BIN/shellcheck"
+  rm -rf "$tmp"
+  echo "ok: installed shellcheck $SHELLCHECK_VERSION"
+fi
+
+if have ruff "$RUFF_VERSION"; then
+  echo "ok: ruff $RUFF_VERSION"
+elif command -v uv >/dev/null 2>&1; then
+  uv tool install --quiet --force "ruff==$RUFF_VERSION"
+  echo "ok: installed ruff $RUFF_VERSION (uv tool)"
+else
+  echo "warn: uv not found; cannot pin ruff $RUFF_VERSION" >&2
+fi
+
+if have biome "$BIOME_VERSION" && have markdownlint-cli2 "$MARKDOWNLINT_CLI2_VERSION"; then
+  echo "ok: biome $BIOME_VERSION, markdownlint-cli2 $MARKDOWNLINT_CLI2_VERSION"
+elif command -v npm >/dev/null 2>&1; then
+  npm install --silent --no-fund --no-audit --prefix "$NPM_PREFIX" \
+    "@biomejs/biome@$BIOME_VERSION" "markdownlint-cli2@$MARKDOWNLINT_CLI2_VERSION" >/dev/null
+  ln -sfn "$NPM_PREFIX/node_modules/.bin/biome" "$BIN/biome"
+  ln -sfn "$NPM_PREFIX/node_modules/.bin/markdownlint-cli2" "$BIN/markdownlint-cli2"
+  echo "ok: installed biome $BIOME_VERSION, markdownlint-cli2 $MARKDOWNLINT_CLI2_VERSION"
+else
+  echo "warn: npm not found; cannot pin biome / markdownlint-cli2" >&2
+fi
+
+# pi-lens resolves formatters by PATH lookup, so the copy PATH finds first is
+# the one that runs. It need not be ours, only the pinned version: an earlier
+# copy at a different version is what split shfmt 3.8 from 3.13.
+bash "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/style-check" --doctor ||
+  echo "warn: a style tool earlier on PATH is not the pinned version; remove it or put ~/.local/bin first" >&2

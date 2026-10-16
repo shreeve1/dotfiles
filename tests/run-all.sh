@@ -14,9 +14,9 @@
 # Do not widen --fast into the full run: a hook that takes minutes gets skipped
 # with `--no-verify`, and that is exactly how the suite went red for 22 commits.
 #
-# Exits non-zero when a test file fails, when a shell file pi-lens will reformat
-# on its next edit has drifted from .editorconfig, or when a test file is
-# sitting untracked while a commit is staged (or at all, in --fast).
+# Exits non-zero when a test file fails, when a file pi-lens will reformat on
+# its next edit has drifted from the repo's style config (style-check), or when
+# a test file is sitting untracked while a commit is staged (or at all, in --fast).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,9 +37,6 @@ case "${1-}" in
 esac
 
 TEST_TIMEOUT="${TEST_TIMEOUT:-900}"
-# The surface this suite guards, and the set pi-lens reformats on edit. Widen
-# once the rest of the live tree is swept (bin/*, dsh-repro/, omarchy/ drift).
-FORMAT_TARGETS=(tests/run-all.sh tests/*.test.sh .agents/skills/ralph/*.sh)
 TEST_FILES=(tests/*.test.sh .agents/skills/ralph/tests/*.sh)
 
 PASS=0
@@ -104,20 +101,20 @@ for t in ${SELECTED[@]+"${SELECTED[@]}"}; do
   rm -f "$log"
 done
 
-# --- 2. shell formatting ----------------------------------------------------
-# pi-lens runs `shfmt -w` on every .sh/.bash it edits, so a file that is not
-# already conforming comes back as a whole-file reflow mixed into the real
-# change. Catch them here instead of in someone's diff.
-if ! command -v shfmt >/dev/null 2>&1; then
-  fail "shfmt is not on PATH; cannot check shell formatting"
+# --- 2. formatting ----------------------------------------------------------
+# pi-lens formats every file it edits, so a file that is not already conforming
+# comes back as a whole-file reflow mixed into the real change. style-check runs
+# the same formatters from the same config at the pinned versions, so this
+# agrees with pi-lens on every machine. Formatting only: lint findings are
+# reported by post-work-cleanup, not used to block a push.
+STYLE_CHECK="$ROOT/bin/style-check"
+if ! out="$(bash "$STYLE_CHECK" --doctor 2>&1)"; then
+  fail "style tools are not at their pinned versions" "$out"
+elif out="$(bash "$STYLE_CHECK" --format-only 2>&1)"; then
+  ok
 else
-  drifted="$(shfmt -l "${FORMAT_TARGETS[@]}" 2>/dev/null || true)"
-  if [ -z "$drifted" ]; then
-    ok
-  else
-    fail "shell formatting has drifted from .editorconfig" "$drifted
-  fix: shfmt -w $(printf '%s' "$drifted" | tr '\n' ' ')"
-  fi
+  fail "formatting has drifted from the repo's style config" "$out
+  fix: bin/style-check --fix --format-only"
 fi
 
 # --- 3. a test file must not be silently left out of a commit ---------------

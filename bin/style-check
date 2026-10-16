@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+# style-check: run the repo's own formatters and linters, the same ones pi-lens
+# runs on edit, from the same config files. One entry point for the push hook,
+# run-all.sh and the post-work-cleanup skill, so no caller has its own rules.
+#
+#   style-check [--fix] [--format-only] [--only SURFACE] [FILE...]
+#                     check (or fix) the repo; SURFACE is shell|python|ts|markdown
+#   style-check --doctor   show tool versions vs pins
+#   style-check --has-config SURFACE   exit 0 when the repo configures it
+#
+# A surface runs only when the repo declares it, mirroring pi-lens's gate:
+#   shell       .editorconfig            shfmt + shellcheck
+#   python      ruff.toml / .ruff.toml / [tool.ruff] in pyproject.toml   ruff
+#   ts/js       biome.json / biome.jsonc biome
+#   markdown    .markdownlint-cli2.jsonc markdownlint-cli2 (lint only)
+# With no FILE, scope is every git-tracked file. Paths matching a glob in the
+# repo's .styleignore (one per line, # comments) are skipped on every surface.
+# Exit 0 when clean, 1 on findings, 2 on a usage or tooling error.
+set -euo pipefail
+
+STYLE_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../.config/style" && pwd)"
+# shellcheck source=../.config/style/tools.env
+. "$STYLE_DIR/tools.env"
+
+MODE=check
+FORMAT_ONLY=0
+DOCTOR=0
+ONLY=
+HAS_CONFIG=
+FILES=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --fix) MODE=fix ;;
+  --format-only) FORMAT_ONLY=1 ;;
+  --doctor) DOCTOR=1 ;;
+  --has-config)
+    HAS_CONFIG="${2-}"
+    shift
+    ;;
+  --only)
+    ONLY="${2-}"
+    shift
+    case "$ONLY" in shell | python | ts | markdown) ;; *)
+      echo "style-check: --only takes shell, python, ts or markdown" >&2
+      exit 2
+      ;;
+    esac
+    ;;
+  -h | --help)
+    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  --)
+    shift
+    FILES+=("$@")
+    break
+    ;;
+  -*)
+    echo "style-check: unknown option $1" >&2
+    exit 2
+    ;;
+  *) FILES+=("$1") ;;
+  esac
+  shift
+done
+
+# version_of TOOL prints the bare version the binary on PATH reports.
+version_of() {
+  command -v "$1" >/dev/null 2>&1 || return 1
+  case "$1" in
+  shfmt) shfmt --version | sed 's/^v//' ;;
+  ruff) ruff --version | awk '{print $2}' ;;
+  biome) biome --version | awk '{print $NF}' ;;
+  markdownlint-cli2) # no --version flag; the --help banner carries it
+    markdownlint-cli2 --help 2>&1 | awk 'NR == 1 {sub(/^v/, "", $2); print $2}'
+    ;;
+  shellcheck) shellcheck --version | awk '/^version:/ {print $2}' ;;
+  esac
+}
+
+if [ "$DOCTOR" = 1 ]; then
+  bad=0
+  for pair in "shfmt:$SHFMT_VERSION" "ruff:$RUFF_VERSION" "biome:$BIOME_VERSION" \
+    "markdownlint-cli2:$MARKDOWNLINT_CLI2_VERSION" "shellcheck:$SHELLCHECK_VERSION"; do
+    tool="${pair%%:*}"
+    want="${pair#*:}"
+    have="$(version_of "$tool" || true)"
+    where="$(command -v "$tool" 2>/dev/null || echo missing)"
+    if [ "$have" = "$want" ]; then
+      printf 'ok    %-18s %-8s %s\n' "$tool" "$have" "$where"
+    else
+      printf 'DRIFT %-18s have=%-8s want=%-8s %s\n' "$tool" "${have:-none}" "$want" "$where"
+      bad=1
+    fi
+  done
+  [ "$bad" = 0 ] || echo "fix: bash ~/dotfiles/install.sh (installs the pinned versions)"
+  exit "$bad"
+fi
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "style-check: not inside a git repository" >&2
+  exit 2
+}
+cd "$ROOT"
+
+# The one definition of "this repo declares a surface": pi-lens's gate, and
+# what style-init asks before deciding which template files a repo needs.
+has_config() {
+  case "$1" in
+  shell) [ -f .editorconfig ] ;;
+  python) [ -f ruff.toml ] || [ -f .ruff.toml ] || { [ -f pyproject.toml ] && grep -q '^\[tool\.ruff' pyproject.toml; } ;;
+  ts) [ -f biome.json ] || [ -f biome.jsonc ] || compgen -G '.prettierrc*' >/dev/null || compgen -G 'prettier.config.*' >/dev/null ;;
+  markdown) compgen -G '.markdownlint-cli2.*' >/dev/null || compgen -G '.markdownlint.*' >/dev/null ;;
+  *) return 2 ;;
+  esac
+}
+if [ -n "$HAS_CONFIG" ]; then
+  has_config "$HAS_CONFIG"
+  exit $?
+fi
+
+# Scope: the named files, or every tracked file; minus .styleignore.
+IGNORES=()
+if [ -f .styleignore ]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [ -n "$line" ] && IGNORES+=("$line")
+  done <.styleignore
+fi
+ignored() {
+  local p
+  for p in ${IGNORES[@]+"${IGNORES[@]}"}; do
+    # shellcheck disable=SC2053 # glob match is the point
+    [[ "$1" == $p ]] && return 0
+  done
+  return 1
+}
+
+if [ ${#FILES[@]} -eq 0 ]; then
+  mapfile -t FILES < <(git ls-files)
+else
+  rel=()
+  for f in "${FILES[@]}"; do rel+=("$(realpath --relative-to="$ROOT" "$f")"); done
+  FILES=("${rel[@]}")
+fi
+
+is_shell_script() { # a #!...sh or #!...bash first line
+  local first
+  IFS= read -r first <"$1" 2>/dev/null || return 1
+  [[ "$first" =~ ^#!.*[/\ ](ba)?sh([[:space:]]|$) ]]
+}
+
+SH=() PY=() JS=() MD=()
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  ignored "$f" && continue
+  case "$f" in
+  *.sh | *.bash) SH+=("$f") ;;
+  *.py | *.pyi) PY+=("$f") ;;
+  *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) JS+=("$f") ;;
+  *.md) MD+=("$f") ;;
+  *)
+    # Extensionless scripts: classify by shebang.
+    if [[ "$(basename "$f")" != *.* ]] && is_shell_script "$f"; then SH+=("$f"); fi
+    ;;
+  esac
+done
+
+case "$ONLY" in
+shell) PY=() JS=() MD=() ;;
+python) SH=() JS=() MD=() ;;
+ts) SH=() PY=() MD=() ;;
+markdown) SH=() PY=() JS=() ;;
+esac
+
+FAILED=()
+SKIPPED=()
+run() { # run LABEL CMD...: record LABEL as failed when CMD exits non-zero
+  local label="$1"
+  shift
+  if ! "$@"; then FAILED+=("$label"); fi
+}
+quiet_mdl() { # markdownlint-cli2 without its banner; findings only
+  local out rc=0
+  out="$(markdownlint-cli2 --no-globs "$@" 2>&1)" || rc=$?
+  [ "$rc" = 0 ] || printf '%s\n' "$out" | grep -v -E '^(markdownlint-cli2 v|Finding:|Linting:|Summary:)'
+  return "$rc"
+}
+need() {
+  command -v "$1" >/dev/null 2>&1 && return 0
+  echo "style-check: $1 not on PATH; run: bash ~/dotfiles/install.sh" >&2
+  exit 2
+}
+
+# --- shell ------------------------------------------------------------------
+if [ ${#SH[@]} -gt 0 ]; then
+  if has_config shell; then
+    need shfmt
+    if [ "$MODE" = fix ]; then
+      run "shfmt" shfmt -w "${SH[@]}"
+    else
+      drift="$(shfmt -l "${SH[@]}" || true)"
+      if [ -n "$drift" ]; then
+        printf 'shfmt: not formatted (fix: style-check --fix):\n%s\n' "$drift" | sed '2,$s/^/  /'
+        FAILED+=("shfmt")
+      fi
+    fi
+    if [ "$FORMAT_ONLY" = 0 ]; then
+      need shellcheck
+      run "shellcheck" shellcheck -S warning -f gcc "${SH[@]}"
+    fi
+  else
+    SKIPPED+=("shell (no .editorconfig)")
+  fi
+fi
+
+# --- python -----------------------------------------------------------------
+if [ ${#PY[@]} -gt 0 ]; then
+  if has_config python; then
+    need ruff
+    if [ "$MODE" = fix ]; then
+      [ "$FORMAT_ONLY" = 1 ] || run "ruff check --fix" ruff check --fix --force-exclude --quiet "${PY[@]}"
+      run "ruff format" ruff format --force-exclude --quiet "${PY[@]}"
+    else
+      # One line per file, like shfmt -l; the full --check diff buries the summary.
+      drift="$(ruff format --check --force-exclude --output-format concise "${PY[@]}" 2>&1 |
+        sed -n -E 's/^([^:]+\.pyi?):[0-9]+:[0-9]+: unformatted.*/\1/p' | sort -u || true)"
+      if [ -n "$drift" ]; then
+        printf 'ruff format: not formatted (fix: style-check --fix):\n%s\n' "$drift" | sed '2,$s/^/  /'
+        FAILED+=("ruff format")
+      fi
+      [ "$FORMAT_ONLY" = 1 ] || run "ruff check" ruff check --force-exclude --quiet --output-format concise "${PY[@]}"
+    fi
+  else
+    SKIPPED+=("python (no ruff config)")
+  fi
+fi
+
+# --- ts / js ----------------------------------------------------------------
+if [ ${#JS[@]} -gt 0 ]; then
+  if [ -f biome.json ] || [ -f biome.jsonc ]; then
+    need biome
+    sub=check
+    [ "$FORMAT_ONLY" = 1 ] && sub=format
+    if [ "$MODE" = fix ]; then
+      run "biome $sub --write" biome "$sub" --write --no-errors-on-unmatched --diagnostic-level=error "${JS[@]}"
+    else
+      run "biome $sub" biome "$sub" --no-errors-on-unmatched --diagnostic-level=error --reporter=concise "${JS[@]}"
+    fi
+  else
+    SKIPPED+=("ts/js (no biome.json; a prettier setup is the repo's own, not run here)")
+  fi
+fi
+
+# --- markdown (lint only; never auto-formatted) -----------------------------
+if [ ${#MD[@]} -gt 0 ] && [ "$FORMAT_ONLY" = 0 ]; then
+  if has_config markdown; then
+    need markdownlint-cli2
+    run "markdownlint" quiet_mdl "${MD[@]}"
+  else
+    SKIPPED+=("markdown (no markdownlint config)")
+  fi
+fi
+
+for s in ${SKIPPED[@]+"${SKIPPED[@]}"}; do echo "style-check: skipped $s"; done
+if [ ${#FAILED[@]} -gt 0 ]; then
+  echo "style-check: FAILED: ${FAILED[*]}" >&2
+  exit 1
+fi
+echo "style-check: clean (${#SH[@]} shell, ${#PY[@]} python, ${#JS[@]} ts/js, ${#MD[@]} markdown)"

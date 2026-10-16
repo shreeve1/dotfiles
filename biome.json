@@ -1,0 +1,48 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!.pi/agent/extensions/pi-lens",
+      "!.pi/agent/extensions/pi-subagents",
+      "!.pi/agent/extensions/pi-advisor-flow",
+      "!.pi/agent/extensions/rpiv-*",
+      "!.pi/agent/extensions-archive",
+      "!omarchy/config/omarchy/plugins/meviusisback.agent-orchestr",
+      "!omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber",
+      "!archive",
+      "!graphify-out",
+      "!**/*.map"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "useEditorconfig": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": false,
+      "correctness": {
+        "recommended": true
+      },
+      "suspicious": {
+        "recommended": true
+      }
+    }
+  },
+  "assist": {
+    "enabled": false
+  },
+  "json": {
+    "formatter": {
+      "enabled": false
+    }
+  }
+}
