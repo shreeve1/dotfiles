@@ -17,7 +17,7 @@ Finish this section when the revision and every runtime choice are concrete and 
 
 ## Build and start
 
-1. Prepare an isolated destination for the pinned revision. Use a new deployment directory or the repo's documented release mechanism. For Offload source transport, use only the verified Mirror and explicit `offload/*` refs. For GitHub source, fetch the specified repo directly. Do not push either side's main branch.
+1. Prepare an isolated destination for the pinned revision. Use a new deployment directory or the repo's documented release mechanism. For Offload source transport, use only the verified target project copy and explicit `offload/*` refs. For GitHub source, fetch the specified repo directly. Do not push either side's main branch.
 2. Install and build only the dependencies required by the repo, using its lockfiles and documented commands. Run the repo's pre-deployment checks. Provision credentials through the target's supported secret flow. Use ignored mode-0600 config files when appropriate. Never copy age private keys or put credentials in a branch.
 3. Start the deployment with the chosen process manager. Bind only the approved addresses and ports. Configure persistence only if the user requested it. Preserve the previous release or configuration needed by the concrete rollback procedure.
 4. Exercise the actual health check through the intended entry point. Check the process status and relevant logs without exposing secrets. A running PID alone is not a working deployment. If the health check fails, execute the authorized rollback procedure and report the failure instead of claiming success.
@@ -26,4 +26,4 @@ Finish when the pinned revision answers the intended health check and its proces
 
 ## Report
 
-Name the host, deployed revision, destination, service identity, entry point, observed health result, exercised checks and exact rollback command. State whether it survives logout or reboot. Keep the Mirror, Offload refs and prior deployment until the user requests cleanup. Do not label an unverified deployment complete.
+Name the host, deployed revision, destination, service identity, entry point, observed health result, exercised checks and exact rollback command. State whether it survives logout or reboot. Keep the Offload refs and prior deployment until the user requests cleanup; offload-cleanup leaves deployments alone. Do not label an unverified deployment complete.

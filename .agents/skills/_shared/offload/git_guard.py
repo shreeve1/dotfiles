@@ -487,6 +487,17 @@ def source_state(git):
     return git.head(), index_bytes, states
 
 
+def project_copy(git):
+    # A Snapshot must come from the user's project copy: not a linked worktree
+    # (an Offload worker), not an offload/* branch, not a retired ~/offload Mirror.
+    common = Path(os.fsdecode(git.run("rev-parse", "--path-format=absolute", "--git-common-dir").strip())).resolve()
+    require(common == (git.path / ".git").resolve(), "NOT_PROJECT_COPY", 3)
+    branch = git.run("symbolic-ref", "--quiet", "--short", "HEAD", check=False)
+    require(not branch.stdout.startswith(b"offload/"), "NOT_PROJECT_COPY", 3)
+    mirrors = (Path.home() / "offload").resolve()
+    require(mirrors not in git.path.parents, "NOT_PROJECT_COPY", 3)
+
+
 def parse_request(value, git):
     keys(value, ("slug", "brief_path", "source", "target", "mirror"))
     slug(value["slug"])
@@ -636,6 +647,7 @@ def receiver_policy(git, binding, extra_allowed):
 
 def snapshot(git, args):
     request = parse_request(load_json(args.request), git)
+    project_copy(git)
     prose = Path(args.brief_prose).read_bytes()
     valid_prose(prose)
     head = git.head()

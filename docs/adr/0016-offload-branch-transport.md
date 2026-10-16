@@ -1,7 +1,9 @@
 ---
-status: accepted
+status: partially superseded by 0023
 ---
 # Offload work travels as `offload/*` branches, never pushed to `main`
+
+**Status:** The Mirror transport (pushing to `~/offload/` and hanging worktrees off it) is superseded by ADR 0023; the apply-based return still holds.
 
 The `offload` skills hand a task between the laptop and a server (aidev, itan8n) by pushing an `offload/<slug>` branch to the other machine's Mirror. The agent's work later comes back into the original receiving working tree. Neither side pushes to the other's `main`. Return stays user-triggered, whether requested from the worker pane, a fresh server session, or the original source.
 
