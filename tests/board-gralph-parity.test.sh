@@ -77,13 +77,13 @@ ticket "$B" 3 pending "$R" '[]'
 ticket "$B" 4 pending 'labels: [needs-info]' '[]'
 ticket "$B" 5 pending 'labels: [ready-for-agent, wontfix]' '[]'
 ticket "$B" 6 pending 'labels: [bug, ready-for-agent]' '[]'
-ticket "$B" 7 done - '[]'
+ticket "$B" 7 "done" - '[]'
 ticket "$B" 8 in-progress "$R" '[]'
 compare labels "$B"
 
 new blockers
-ticket "$B" 10 done - '[]'
-ticket "$B" 5 done - '[]' archive/2026-01-01
+ticket "$B" 10 "done" - '[]'
+ticket "$B" 5 "done" - '[]' archive/2026-01-01
 ticket "$B" 6 cancelled - '[]' archive/2026-01-01
 ticket "$B" 20 pending "$R" '[10]'
 ticket "$B" 21 pending "$R" '[5]'
@@ -96,7 +96,7 @@ compare blockers "$B"
 
 # review finding 4: a malformed blocker must not release the ticket in EITHER path.
 new malformed
-ticket "$B" 1 done - '[]'
+ticket "$B" 1 "done" - '[]'
 ticket "$B" 2 pending "$R" '[1x]'
 ticket "$B" 3 pending "$R" '[1, abc]'
 ticket "$B" 4 pending "$R" '[1]'
@@ -108,7 +108,7 @@ new parents
 ticket "$B" 1 pending "$R" '[]'
 ticket "$B" 2 pending "$R" '[]' issues 'parent: 1'
 ticket "$B" 3 pending "$R" '[]'
-ticket "$B" 4 done - '[]' issues 'parent: 3'
+ticket "$B" 4 "done" - '[]' issues 'parent: 3'
 compare parents "$B"
 
 # review finding 5: an ARCHIVED cancelled child still holds its parent open. The two
@@ -117,7 +117,7 @@ new archived-child
 ticket "$B" 1 pending "$R" '[]'
 ticket "$B" 2 cancelled - '[]' archive/2026-01-01 'parent: 1'
 ticket "$B" 3 pending "$R" '[]'
-ticket "$B" 4 done - '[]' archive/2026-01-01 'parent: 3'
+ticket "$B" 4 "done" - '[]' archive/2026-01-01 'parent: 3'
 compare archived-child "$B"
 got="$(cd "$REPO" && jq -r '[.children[] | select(.classification=="eligible") | .number] | join(" ")' .gralph/runs/parchived-child/manifest.json)"
 if [ "$got" = "3" ]; then ok; else fail "archived cancelled child must hold its parent in gralph too" "eligible=[$got] (want 3: parent 1 blocked, parent 3 has only a done archived child)"; fi
@@ -128,7 +128,7 @@ ticket "$B" 2 open "$R" '[]'
 compare todo-alias "$B"
 
 new spec-filter
-ticket "$B" 1 done - '[]' issues 'spec: a'
+ticket "$B" 1 "done" - '[]' issues 'spec: a'
 ticket "$B" 2 pending "$R" '[]' issues 'spec: a'
 ticket "$B" 3 pending "$R" '[1]' issues 'spec: b'
 ticket "$B" 4 pending "$R" '[2]' issues 'spec: b'

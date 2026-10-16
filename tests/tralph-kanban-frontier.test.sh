@@ -44,7 +44,8 @@ EOF
 
 write_ticket() {
   local id="$1" status="$2" blocked_by="$3" extra="${4-}"
-  local file="$BOARD/issues/$(printf '%03d' "$id")-$1.md"
+  local file
+  file="$BOARD/issues/$(printf '%03d' "$id")-$1.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$id"
@@ -66,7 +67,7 @@ write_ticket() {
 #   5  pending [4]                  → blocked transitively via 4
 #   6  pending [999]                → blocked, fail-closed on missing ref
 #   7  in-progress []               → excluded (missing_ready_for_agent_label)
-write_ticket 1 done '[]'
+write_ticket 1 "done" '[]'
 write_ticket 2 pending '[]'
 write_ticket 3 pending '[]'
 write_ticket 4 pending '[2]'

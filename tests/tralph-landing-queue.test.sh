@@ -42,7 +42,8 @@ chmod +x "$FAKE_BIN/git"
 write_ticket() {
   local id="$1" status="$2" blocked_by="$3"
   local verify="${4:-test -f worker-output-$id.txt}"
-  local file="$BOARD/issues/$(printf '%03d' "$id")-$id.md"
+  local file
+  file="$BOARD/issues/$(printf '%03d' "$id")-$id.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$id"

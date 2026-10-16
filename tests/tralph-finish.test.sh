@@ -49,7 +49,8 @@ new_repo() {
 write_ticket() {
   local board="$1" id="$2" status="$3" blocked_by="$4"
   local verify="${5:-test -f worker-output-$id.txt}"
-  local file="$board/issues/$(printf '%03d' "$id")-$id.md"
+  local file
+  file="$board/issues/$(printf '%03d' "$id")-$id.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$id"
@@ -109,7 +110,8 @@ new_repo "$REPO"
 write_ticket "$BOARD" 1 pending '[]'
 write_ticket "$BOARD" 2 pending '[1]'
 
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO" "$BOARD"
 
 MAIN_BEFORE="$(git -C "$REPO" rev-parse HEAD)"
@@ -208,7 +210,8 @@ new_repo "$REPO"
 
 write_ticket "$BOARD" 10 pending '[]'
 
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO" "$BOARD"
 
 if ! run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
@@ -246,7 +249,8 @@ BOARD2="$TMPDIR/board-diverged2"
 mkdir -p "$BOARD2/issues"
 new_repo "$REPO2"
 write_ticket "$BOARD2" 1 pending '[]'
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO2" "$BOARD2"
 
 # Diverge main before running the board run.
@@ -371,7 +375,8 @@ printf 'RALPH_RESULT: DONE #%s\n' "$ticket_num"
 EOF
 chmod +x "$FAKE_BIN/agent-singleton"
 
-: >"$AGENT_LOG" >"$PROMPT_LOG"
+: >"$AGENT_LOG"
+: >"$PROMPT_LOG"
 plan_board "$REPO" "$BOARD"
 
 run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-singleton --jobs 1 \

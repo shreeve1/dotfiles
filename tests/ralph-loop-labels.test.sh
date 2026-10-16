@@ -92,7 +92,8 @@ new_repo() {
 ticket() {
   local id="$1" status="$2" labels="$3" blocked="$4" dir="${5:-issues}"
   shift 5 || shift $#
-  local f="$REPO/.kanban/$dir/$(printf '%03d' "$id")-t$id.md"
+  local f
+  f="$REPO/.kanban/$dir/$(printf '%03d' "$id")-t$id.md"
   # to-spec writes the spec before to-tickets stamps spec:, and the loop blocks a ticket whose
   # spec file is missing, so a fixture that names a spec has the file (the spec-less-file cases
   # below create their ticket without it on purpose).
@@ -173,7 +174,7 @@ expect_eq "alpha ticket untouched" "pending" "$(status_of 1)"
 
 # --- 5. archive blockers ----------------------------------------------------
 new_repo archive
-ticket 5 done - '[]' archive/2026-01-01
+ticket 5 "done" - '[]' archive/2026-01-01
 ticket 6 cancelled - '[]' archive/2026-01-01
 ticket 10 pending "$R" '[5]'
 ticket 11 pending "$R" '[6]'

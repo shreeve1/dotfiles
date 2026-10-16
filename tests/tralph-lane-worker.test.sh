@@ -48,7 +48,8 @@ chmod +x "$FAKE_BIN/git"
 
 write_ticket() {
   local id="$1" status="$2" blocked_by="$3"
-  local file="$BOARD/issues/$(printf '%03d' "$id")-$id.md"
+  local file
+  file="$BOARD/issues/$(printf '%03d' "$id")-$id.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$id"
@@ -132,7 +133,7 @@ REPO="$TMPDIR/two-lanes"
 new_repo "$REPO"
 BOARD="$TMPDIR/board-2"
 mkdir -p "$BOARD/issues"
-write_ticket 1 done '[]'
+write_ticket 1 "done" '[]'
 write_ticket 2 pending '[]'
 write_ticket 3 pending '[]'
 write_ticket 4 pending '[2]'

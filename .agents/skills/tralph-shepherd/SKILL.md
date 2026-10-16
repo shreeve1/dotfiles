@@ -81,9 +81,11 @@ Each pass, in order:
      `LoopCreate trigger="<INTERVAL>" recurring=true maxFires=1000 prompt="Run one tralph-shepherd pass — re-gather signals and triage."`
      once, then **end the turn.** Pi-loop fires the prompt on schedule; each fire runs steps 1–2 and ends, so a 10-minute tool call is never held open. `<INTERVAL>` is `RALPH_SHEPHERD_INTERVAL` (seconds, default 600) converted to minutes, e.g. `10m`. On Termination or any Raise, stop the loop with `LoopDelete id="<id>"` before reporting — that is what actually stops the shepherd. A long run is bounded by `maxFires` (default 1000 ≈ 7 days at 10m); operators raising it should also raise `PI_LOOP_EXPIRES_IN` if the run must outlast the default.
    - **Other harnesses (no LoopCreate).** Run exactly one foreground bash call and wait for it to return:
+
      ```bash
      sleep "${RALPH_SHEPHERD_INTERVAL:-600}"
      ```
+
      Default 600 s (10 min); override via the env var in seconds. If a single-command cap bites, loop several shorter sleeps totalling the interval — you MUST wait the full interval before re-checking, so you don't hammer the board or the log. Raising `RALPH_SHEPHERD_INTERVAL` is appropriate when the last pass showed a healthy, progressing worker (spinner/▶ advancing, cost counter climbing) — a wider interval cuts shepherd cost and context growth; the tight default only earns its keep near park/stall boundaries.
 4. **Go back to step 1.**
 

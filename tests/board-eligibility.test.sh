@@ -35,7 +35,8 @@ new_board() {
 ticket() {
   local dir="$1" id="$2" status="$3" labels="$4" blocked="$5"
   shift 5
-  local f="$dir/$(printf '%03d' "$id")-t$id.md"
+  local f
+  f="$dir/$(printf '%03d' "$id")-t$id.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$id"
@@ -76,7 +77,7 @@ ticket "$B/issues" 5 pending 'labels: [ready-for-human]' '[]'             # huma
 ticket "$B/issues" 6 pending 'labels: [wontfix]' '[]'                     # wontfix
 ticket "$B/issues" 7 pending 'labels: [ready-for-agent, needs-info]' '[]' # conflict
 ticket "$B/issues" 8 pending 'labels: [bug, ready-for-agent]' '[]'        # non-state label ignored
-ticket "$B/issues" 9 done - '[]'                                          # done, no labels: exempt
+ticket "$B/issues" 9 "done" - '[]'                                        # done, no labels: exempt
 ticket "$B/issues" 10 pending 'labels: [bug]' '[]'                        # only non-state label -> triage
 ticket "$B/issues" 11 in-progress "$R" '[]'                               # active, not eligible
 ticket "$B/issues" 12 blocked "$R" '[]'
@@ -89,7 +90,7 @@ expect_eq "wontfix" "1" "$(count wontfix)"
 expect_eq "conflict" "1" "$(count conflict)"
 expect_eq "active" "1" "$(count active)"
 expect_eq "blocked" "1" "$(count blocked)"
-expect_eq "done" "1" "$(count done)"
+expect_eq "done" "1" "$(count "done")"
 expect_eq "eligible count" "2" "$(count eligible)"
 
 # block-list YAML form for labels and blocked_by
@@ -120,8 +121,8 @@ expect_ids "priority low first, then id (default priority 0)" "2 3 4 1" eligible
 
 # --- 4. blockers: done / cancelled / missing / archive ----------------------
 new_board blockers
-ticket "$B/issues" 10 done - '[]'
-ticket "$B/archive/2026-01-01" 5 done - '[]'
+ticket "$B/issues" 10 "done" - '[]'
+ticket "$B/archive/2026-01-01" 5 "done" - '[]'
 ticket "$B/archive/2026-01-01" 6 cancelled - '[]'
 ticket "$B/issues" 20 pending "$R" '[10]'    # active done blocker -> eligible
 ticket "$B/issues" 21 pending "$R" '[5]'     # archived done blocker -> eligible
@@ -144,13 +145,13 @@ ticket "$B/issues" 1 pending "$R" '[]'             # parent
 ticket "$B/issues" 2 pending "$R" '[]' 'parent: 1' # child
 ticket "$B/issues" 3 pending "$R" '[]' 'parent: 1' # child
 expect_ids "parent excluded while children open" "2 3" eligible
-ticket "$B/issues" 2 done - '[]' 'parent: 1'
-ticket "$B/issues" 3 done - '[]' 'parent: 1'
+ticket "$B/issues" 2 "done" - '[]' 'parent: 1'
+ticket "$B/issues" 3 "done" - '[]' 'parent: 1'
 expect_ids "parent eligible once children done" "1" eligible
 
 # --- 3. --spec filter keeps blocker lookup board-wide -----------------------
 new_board spec
-ticket "$B/issues" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 1 "done" - '[]' 'spec: alpha'
 ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
 ticket "$B/issues" 3 pending "$R" '[1]' 'spec: beta' # cross-spec blocker, done
 ticket "$B/issues" 4 pending "$R" '[2]' 'spec: beta' # cross-spec blocker, pending
@@ -211,7 +212,7 @@ out="$(bs validate || true)"
 case "$out" in *"dependency cycle"*) ok ;; *) fail "validate flags cycles" "$out" ;; esac
 rm "$B/issues/006-t6.md" "$B/issues/007-t7.md"
 
-ticket "$B/archive/2026-01-01" 1 done - '[]'
+ticket "$B/archive/2026-01-01" 1 "done" - '[]'
 out="$(bs validate || true)"
 case "$out" in *"duplicate id 1"*) ok ;; *) fail "validate flags id reused across issues/ and archive/" "$out" ;; esac
 rm "$B/archive/2026-01-01/001-t1.md"
@@ -267,7 +268,7 @@ expect_ids "--spec with a malformed value selects nothing" "" --spec "x';touch $
 
 # --- malformed blocker entries fail closed (review finding 4) -------------------
 new_board malformed
-ticket "$B/issues" 1 done - '[]'
+ticket "$B/issues" 1 "done" - '[]'
 ticket "$B/issues" 2 pending "$R" '[1x]'
 ticket "$B/issues" 3 pending "$R" '[1, abc]'
 ticket "$B/issues" 4 pending "$R" '[01]' # a leading zero is a valid number: id 1
@@ -285,7 +286,7 @@ expect_eq "json ready is false for a ticket with a malformed blocker" "false" "$
 new_board archparent
 ticket "$B/issues" 1 pending "$R" '[]'
 ticket "$B/archive/2026-01-01" 2 cancelled - '[]' 'parent: 1'
-ticket "$B/archive/2026-01-01" 3 done - '[]' 'parent: 1'
+ticket "$B/archive/2026-01-01" 3 "done" - '[]' 'parent: 1'
 expect_ids "archived cancelled child holds its parent (sequential rule)" "" eligible
 expect_eq "archive json carries parent" "1" "$(bs archive | jq -r '.[] | select(.id==2) | .parent')"
 expect_eq "archive json carries status" "cancelled" "$(bs archive | jq -r '.[] | select(.id==2) | .status')"
@@ -295,9 +296,9 @@ expect_eq "archive json: no parent is null" "null" "$(bs archive | jq -r '[.[] |
 new_board files
 ticket "$B/issues" 1 in-progress "$R" '[]' 'spec: alpha'
 ticket "$B/issues" 2 pending "$R" '[]' 'spec: beta'
-ticket "$B/issues" 3 done - '[]' 'spec: beta'
+ticket "$B/issues" 3 "done" - '[]' 'spec: beta'
 ticket "$B/issues" 4 blocked "$R" '[]'
-ticket "$B/archive/2026-01-01" 9 done - '[]' 'spec: beta'
+ticket "$B/archive/2026-01-01" 9 "done" - '[]' 'spec: beta'
 expect_eq "files: all tickets in issues/, not archive" "1 2 3 4" "$(bs files | sed 's#.*/0*\([0-9]*\)-t.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
 expect_eq "files --spec beta: only beta's tickets, any status" "2 3" "$(bs --spec beta files | sed 's#.*/0*\([0-9]*\)-t.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
 expect_eq "files --spec with no match is empty" "" "$(bs --spec nobody files)"
@@ -311,29 +312,29 @@ sd() {
 }
 
 new_board sd-live
-ticket "$B/issues" 1 done - '[]' 'spec: alpha'
-ticket "$B/issues" 2 done - '[]' 'spec: alpha'
+ticket "$B/issues" 1 "done" - '[]' 'spec: alpha'
+ticket "$B/issues" 2 "done" - '[]' 'spec: alpha'
 expect_eq "spec-done: all live tickets done" "0" "$(sd alpha)"
 
 new_board sd-open
-ticket "$B/issues" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 1 "done" - '[]' 'spec: alpha'
 ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
 expect_eq "spec-done: a pending ticket means not complete" "1" "$(sd alpha)"
 
 new_board sd-cancel
-ticket "$B/issues" 2 done - '[]' 'spec: alpha'
+ticket "$B/issues" 2 "done" - '[]' 'spec: alpha'
 ticket "$B/archive/2026-01-01" 1 cancelled - '[]' 'spec: alpha'
 expect_eq "spec-done: an ARCHIVED cancelled ticket means not complete" "1" "$(sd alpha)"
 expect_eq "archive JSON carries each ticket's spec" '"alpha"' "$(bs archive | jq -c '.[0].spec')"
 
 new_board sd-archived-done
-ticket "$B/archive/2026-01-01" 1 done - '[]' 'spec: alpha'
-ticket "$B/archive/2026-01-01" 2 done - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 1 "done" - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 2 "done" - '[]' 'spec: alpha'
 expect_eq "spec-done: every ticket archived as done is complete" "0" "$(sd alpha)"
 
 new_board sd-mixed
-ticket "$B/issues" 3 done - '[]' 'spec: alpha'
-ticket "$B/archive/2026-01-01" 1 done - '[]' 'spec: alpha'
+ticket "$B/issues" 3 "done" - '[]' 'spec: alpha'
+ticket "$B/archive/2026-01-01" 1 "done" - '[]' 'spec: alpha'
 ticket "$B/issues" 4 pending "$R" '[]' 'spec: beta'
 expect_eq "spec-done: live done + archived done, another spec's open ticket ignored" "0" "$(sd alpha)"
 expect_eq "spec-done: the other spec is not complete" "1" "$(sd beta)"
@@ -346,8 +347,8 @@ expect_eq "spec-done: no --spec is a usage error" "2" "$(
 )"
 
 new_board sd-quoted
-ticket "$B/issues" 1 done - '[]' 'spec: "alpha"'
-ticket "$B/issues" 2 done - '[]' 'spec: alpha # note'
+ticket "$B/issues" 1 "done" - '[]' 'spec: "alpha"'
+ticket "$B/issues" 2 "done" - '[]' 'spec: alpha # note'
 expect_eq "spec-done: quoted and commented spec values count as the spec" "0" "$(sd alpha)"
 
 # --- `spec-check ID`: can the spec this ticket names be used? (ralph-loop refuses the ticket if not) ---

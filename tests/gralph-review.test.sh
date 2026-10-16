@@ -105,7 +105,8 @@ EOF
   git -C "$dir" add child-verify.sh integration.sh
   git -C "$dir" commit -qm init
   # Per-test local bare remote so publish_pr's `git push origin ...` succeeds.
-  local remote_dir="$TMPDIR/remote-$(basename "$dir")"
+  local remote_dir
+  remote_dir="$TMPDIR/remote-$(basename "$dir")"
   rm -rf "$remote_dir"
   git init -q --bare "$remote_dir/repo.git"
   git -C "$dir" remote add origin "$remote_dir/repo.git"

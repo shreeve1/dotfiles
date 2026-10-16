@@ -95,7 +95,8 @@ chmod +x "$TMPDIR/bin/git"
 
 new_repo() {
   local dir="$1" integration_script="${2:-verify-integration.sh}"
-  local remote_dir="$TMPDIR/remote-$(basename "$dir")"
+  local remote_dir
+  remote_dir="$TMPDIR/remote-$(basename "$dir")"
   mkdir -p "$dir"
   git -C "$dir" init -q -b master
   git -C "$dir" config user.name test
