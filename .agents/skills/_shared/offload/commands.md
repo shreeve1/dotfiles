@@ -189,7 +189,7 @@ Rebind `PANE` and `WORKSPACE` from `result.root_pane.pane_id` and `result.root_p
 
 ### Publish return control
 
-Resolve the actual server-local herdr session from native `herdr status --json` on that server. An observed `server.session=null` means the unnamed default session. Keep it null and omit `--session`. A named session uses its exact observed selector. Verify that this session contains the recorded workspace, pane and worker agent. The laptop's saved `MACHINE_ID` is not this selector.
+Resolve the actual target-local herdr session from native `herdr status --json` on the target. An observed `server.session=null` means the unnamed default session. Keep it null and omit `--session`. A named session uses its exact observed selector. Verify that this session contains the recorded workspace, pane and worker agent. The source's saved `MACHINE_ID` is not this selector.
 
 Write `DISPATCH_DRAFT` privately with the source's observed receipt byte digest and actual original-receiver identity. Keep the existing approved copied receipt, inventory and optional allowance paths. The target helper captures boot, machine, UID, PID birth and owned-scope facts itself.
 
@@ -265,7 +265,7 @@ The helper records the actual work tip and makes a separate normal Result commit
 
 ## Return control
 
-From the actual worker, resolve its absolute Git common directory and exact Offload slug. From a fresh server session, locate that slug only beneath approved Mirror common directories. From the source, use the original receipt and `return-control.json`. Read the private `dispatch.json`, `intent.json`, `freeze.json`, `pin.json` and attempt records as ordinary JSON. Require owned mode-0700 directories and mode-0600 regular files without symlink aliases. Multiple root or path matches require the specific worktree, not the newest timestamp.
+From the actual worker, resolve its absolute Git common directory and exact Offload slug. From a fresh target session, locate that slug only beneath approved Mirror common directories. From the source, use the original receipt and `return-control.json`. Read the private `dispatch.json`, `intent.json`, `freeze.json`, `pin.json` and attempt records as ordinary JSON. Require owned mode-0700 directories and mode-0600 regular files without symlink aliases. Multiple root or path matches require the specific worktree, not the newest timestamp.
 
 Every helper call uses the recorded actual `WORKTREE` and explicit `SLUG`. Initial request and freeze require its exact clean branch. Pinned retries use the saved Result even if HEAD or the branch has moved. The four helper verbs own publication, request allocation, freeze and outcome. Herdr, SSH, source validation, semantic review and apply stay in the model's orchestration.
 
@@ -301,7 +301,7 @@ Require fresh pi readiness and its actual birth identity outside the worker subt
 
 ### Freeze from the independent controller
 
-Read the attempt's immutable intent and recorded worker control. Observe the controller's original shell and actual pi PIDs through the recorded server-local herdr session. Pass the actual workspace and pane. Include `--herdr-session "$HERDR_SESSION"` only for a recorded named session.
+Read the attempt's immutable intent and recorded worker control. Observe the controller's original shell and actual pi PIDs through the recorded target-local herdr session. Pass the actual workspace and pane. Include `--herdr-session "$HERDR_SESSION"` only for a recorded named session.
 
 ```sh
 SESSION_ARGS=()
@@ -316,9 +316,9 @@ Gate. `ok=true` binds the exact Result, retained ref and freeze proof. The helpe
 
 ### Retry or pull the same pin
 
-A later explicit server invocation runs `request` without `--state`, starts a fresh controller as above, then calls `freeze` with its new attempt. Existing proof and pin reconciliation needs no dead original controller arguments and stops no replacement scope. Delivery uses the same retained ref and Result.
+A later explicit target invocation runs `request` without `--state`, starts a fresh controller as above, then calls `freeze` with its new attempt. Existing proof and pin reconciliation needs no dead original controller arguments and stops no replacement scope. Delivery uses the same retained ref and Result.
 
-A fresh source-side invocation uses its original receipt and locator to read the target pin over the existing forward SSH route. Allocate a separate attempt with `request --mode source-pull`, then call `freeze --attempt "$ATTEMPT_ID"` to confirm or reconcile that pin. Neither command requires an old pane or a server model. Perform the validation, review and apply below in this fresh source model. Record the observed outcome over that forward route. A source pull never fabricates controller acceptance.
+A fresh source-side invocation uses its original receipt and locator to read the target pin over the existing forward SSH route. Allocate a separate attempt with `request --mode source-pull`, then call `freeze --attempt "$ATTEMPT_ID"` to confirm or reconcile that pin. Neither command requires an old pane or a target model. Perform the validation, review and apply below in this fresh source model. Record the observed outcome over that forward route. A source pull never fabricates controller acceptance.
 
 ### Record one delivery outcome
 
@@ -339,11 +339,11 @@ python3 "$RETURN_STATE" outcome --worktree "$WORKTREE" --slug "$SLUG" \
 
 ## Validate and apply
 
-Perform these steps on the original receiver, using its retained original receipt and authority objects. The server controller can own review after that receiver's policy scan. A laptop chat is not required.
+Perform these steps on the original receiver, using its retained original receipt and authority objects. The target controller can own review after that receiver's policy scan. A source chat is not required.
 
 1. Reverify source identity, original receipt bytes and installed helper digest. Establish actual affected-writer quiescence from observed ownership or explicit user pause assurance. Retain that evidence, not a claim that a Git lock stops editors. If unproved, record pending `receiver_busy` and finish.
 2. Use a fail-fast source common-directory apply lock to serialize Offload validation and apply. Keep affected writers paused across scan, review and apply. Choose a new collision-free `FETCH_REF` beneath `refs/offload-return/`.
-3. Fetch only the retained server Result ref and require the fetched full SHA to equal `pin.result_commit`.
+3. Fetch only the retained target Result ref and require the fetched full SHA to equal `pin.result_commit`.
 
 ```sh
 git -C "$RECEIVER" fetch --no-tags "$MIRROR_URL" \
@@ -425,6 +425,45 @@ git -C "$SOURCE" update-ref -d "$PREP_REF" "$SOURCE_SHA"
 ```
 
 A changed ref fails the exact lease or compare-and-delete. Keep receipts on any failure and inspect before retrying. No user branch or prefix-wide cleanup is involved.
+
+## Create a Mirror
+
+Run only when the target has no `~/offload/<repo>-<first7root>/`. Create it as a non-bare clone of the source's history so herdr worktrees can hang off it.
+
+```sh
+INIT_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-c","test ! -e \"$1\" && mkdir -p -- \"$(dirname -- \"$1\")\" && git init -q -b main -- \"$1\" && git -C \"$1\" config receive.denyCurrentBranch updateInstead","sh",sys.argv[1]]))' "$MIRROR")
+ssh -T -- "$HOST" "$INIT_COMMAND"
+git -C "$SOURCE" push --no-verify --force-with-lease="refs/heads/main:" \
+  "$MIRROR_URL" "$SOURCE_SHA:refs/heads/main"
+git ls-remote "$MIRROR_URL" refs/heads/main
+```
+
+Require the remote full SHA to equal `SOURCE_SHA`, and `git -C "$MIRROR" rev-list --max-parents=0 --all` on the target to print exactly `ROOT`. Run the history scan before this push. This seeding is the only push to a Mirror's `main`; afterwards it stays stale and only `offload/*` refs travel.
+
+## Prep fast-forward
+
+Advance an existing target project copy `TARGET_COPY` to `SOURCE_SHA` after the user authorized it and `prep` reported the target HEAD as an ancestor. Two hops, each with a full-SHA check. The source never pushes to the target copy itself.
+
+1. Push `SOURCE_SHA` to the target's Mirror as a fresh `PREP_REF` with [the prep transport check](#prep-transport-check), keeping the remote ref.
+2. On the target, fetch that ref into the project copy by the Mirror's absolute path, not a remote name, so a copy with no Mirror remote works too, then fast-forward:
+
+```sh
+FF_COMMAND=$(python3 -c 'import shlex,sys; print(shlex.join(["sh","-s","--",*sys.argv[1:]]))' "$TARGET_COPY" "$MIRROR" "$PREP_REF" "$SOURCE_SHA")
+ssh -T -- "$HOST" "$FF_COMMAND" <<'SH'
+set -eu
+copy=$1 mirror=$2 ref=$3 sha=$4
+test -z "$(git -C "$copy" status --porcelain --untracked-files=all)"
+git -C "$copy" fetch --no-tags "$mirror" "$ref"
+test "$(git -C "$copy" rev-parse FETCH_HEAD)" = "$sha"
+git -C "$copy" merge-base --is-ancestor HEAD "$sha"
+git -C "$copy" merge --ff-only "$sha"
+test "$(git -C "$copy" rev-parse HEAD)" = "$sha"
+SH
+```
+
+3. Remove the Mirror's `PREP_REF` with its exact SHA lease and the local refs, as in the transport check.
+
+A dirty copy, SHA mismatch or non-ancestor HEAD fails before `merge` runs and leaves the copy unchanged. Rerun `prep` before retrying: the target may have moved.
 
 ## Parent verification
 

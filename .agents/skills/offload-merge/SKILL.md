@@ -1,11 +1,20 @@
 ---
 name: offload-merge
-description: Use when merging an Offload branch into the project copy on the machine where it ran, to keep working there before syncing back.
+description: Use when merging an Offload branch into the project copy on the machine where it ran, or merging a diverged peer's main that prep fetched.
 ---
 
 # Offload merge
 
-Read [the shared contract](../_shared/offload/contract.md). Merge is user-triggered and runs on the machine that holds the Offload branch. It brings the branch's commits into the project working copy's `main` so work continues there. [offload-return](../offload-return/SKILL.md) is the other exit: it applies the Snapshot-to-Result delta to the original source's dirty tree without commits. Merge never pushes, never touches the source machine and never changes the Mirror's `main`, which stays stale on purpose.
+Read [the shared contract](../_shared/offload/contract.md). Merge is user-triggered and changes one project copy on the machine where it runs. It has two inputs:
+
+- **Offload branch.** Run on the target that holds the branch, to bring its commits into that project copy's `main` so work continues there. This is one of the contract's exits; [offload-return](../offload-return/SKILL.md) is the one that goes back to the source instead.
+- **Peer main.** [offload-prep](../offload-prep/SKILL.md) found that this copy and another machine's copy both have unique commits. It fetched the peer's `main` into an inspection ref. Merge that ref here so prep can fast-forward the peer afterwards.
+
+Merge never pushes, never touches the other machine and never changes a Mirror's `main`, which stays stale on purpose.
+
+## Merge a diverged peer main
+
+Use this branch for the peer input. Set `$WC` to the authority copy the user picked in prep and `TIP` to the full SHA of prep's inspection ref, and record where it came from (host and path). Require `$WC` clean as in step 6 below and its root equal to the peer's. Skip the Offload-only steps. Show the commits unique to each side, then follow [Merge](#merge) with the message `Merge <host> main`. Finish by returning to prep with `$WC` as the source.
 
 ## Resolve the Offload and the working copy
 
@@ -48,9 +57,9 @@ Report the working copy, branch, old and new `HEAD`, `$TIP`, Result state, commi
 
 Keep working in the working copy on `main`. The worker branch is finished: further commits to it need another merge, and a recorded Result is terminal. Run offload-merge again for each new Offload that reaches this machine.
 
-The source copy is `source.host:source.path`, and it was at `source_head` when dispatched. When the work is done, choose how it goes back:
+The source copy is `source.host:source.path`, and it was at `source_head` when dispatched. Later Offloads may start from this copy to any machine. When the work is done, choose how it reaches each other machine's project copy:
 
-- [offload-prep](../offload-prep/SKILL.md) with this working copy as the source and the original source as the target. It fast-forwards that copy's `main` only when that `main` is still an ancestor and its tree is clean, and it carries full history. Use it whenever you continued working after the merge.
+- [offload-prep](../offload-prep/SKILL.md) with this working copy as the source and the other copy as the target, once per machine. It fast-forwards that copy's `main` only when that `main` is still an ancestor and its tree is clean, and it carries full history. If that copy has its own new commits, prep hands back here for a peer merge first. Use it whenever you continued working after the merge.
 - [offload-return](../offload-return/SKILL.md) applies only this Offload's Snapshot-to-Result delta as uncommitted changes, and leaves out commits made on `main` after the merge. Use it only when the source has its own newer work or a dirty tree that blocks a fast-forward.
 
 For one Offload, take one route only. A returned delta sits uncommitted on the source, so a later fast-forward carrying the same commits refuses to overwrite it.

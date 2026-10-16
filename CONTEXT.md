@@ -281,24 +281,32 @@ _Avoid_: role, system prompt (the Persona is only the part you edit)
 The Ask agent's omp session plus the saved cards and Ask messages that make up the Timeline, kept under `~/Documents/itastack/artifacts/meeting-assistant/`. Deleted only by "new conversation".
 _Avoid_: chat, history, session (a session is also what the capture service calls a Meeting)
 
-## Offload (laptop to server)
+## Offload (between any two machines)
 
-The vocabulary for handing a task between the laptop and an agent on a server (aidev or itan8n) and bringing the result back.
+The vocabulary for handing a task from one machine to an agent on another (omarchy, aidev or itan8n, in any direction) and bringing the result back or carrying on where it ran.
 
 **Offload**:
-Handing one task from one machine to an agent running on the other, so the first stays free. Starts from a Brief and ends when the agent's work is applied back on whichever side wants it.
+Handing one task from a source machine to an agent on a target machine, so the source stays free. Starts from a Brief and ends in one exit: return, merge or deployment.
 _Avoid_: delegate (that is a subagent inside one session), sync
 
+**Source** / **Target**:
+The roles one Offload gives two machines: the source's project copy sends the Snapshot, the target runs the agent. Any of the three machines can take either role, and a later Offload may reverse or chain them.
+_Avoid_: laptop, server (those are machines, not roles)
+
+**Project copy**:
+The checkout of a project you actually work in on one machine, with its own `main`. Offloads start from a project copy and prep syncs project copies. A Mirror is never a project copy.
+_Avoid_: Mirror, worktree
+
 **Brief**:
-The written statement of a task's goal, where the work stands and what to do next, which the server agent starts from. The session that holds the context writes it, either after a grill or partway through a task.
+The written statement of a task's goal, where the work stands and what to do next, which the target agent starts from. The session that holds the context writes it, either after a grill or partway through a task.
 _Avoid_: prompt, spec, handoff
 
 **Mirror**:
-A project's git copy on the other machine, kept in step with the original by branches that travel in either direction.
-_Avoid_: clone, remote, deploy copy
+A machine's transport-only git copy of a project at `~/offload/<repo>-<first7root>/`. Offload branches arrive in it and target worktrees hang off it. Its `main` goes stale on purpose, so nobody works in it.
+_Avoid_: clone, remote, deploy copy, project copy
 
 **Offload branch**:
-The branch that carries one Offload's Snapshot and Brief out and the server agent's commits back.
+The branch that carries one Offload's Snapshot and Brief to the target and holds the target agent's commits.
 _Avoid_: feature branch, worktree alone
 
 **Snapshot**:
@@ -306,7 +314,7 @@ A commit of a machine's whole dirty working tree, built without changing its HEA
 _Avoid_: stash, backup, wip commit
 
 **Offload merge**:
-Bringing an Offload branch's commits into the project working copy's `main` on the machine where the work ran, by fast-forward or an approved merge commit, so work continues there. Unlike return, it keeps history and never touches the source machine; the source catches up later through prep.
+Bringing commits into a project copy's `main` by fast-forward or an approved merge commit: an Offload branch on the target, so work continues there, or a diverged peer's `main` fetched by prep. Unlike return, it keeps history and never touches the other machine; that machine catches up later through prep.
 _Avoid_: land, apply (that is return)
 
 **Deployment**:
