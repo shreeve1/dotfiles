@@ -259,18 +259,18 @@ persist_ticket_done() {
   rel="$(repo_relative_path "$ticket")"
   case "$rel" in
     '' | ../*)
-      update_board_ticket_status "$ticket" done || true
+      update_board_ticket_status "$ticket" "done" || true
       return 0
       ;;
   esac
   if git -C "$batch_worktree" ls-files --error-unmatch -- "$rel" >/dev/null 2>&1; then
-    update_board_ticket_status "$batch_worktree/$rel" done || return 0
+    update_board_ticket_status "$batch_worktree/$rel" "done" || return 0
     git -C "$batch_worktree" add -- "$rel" >/dev/null 2>&1 || return 0
     git -C "$batch_worktree" -c user.name=gralph -c user.email=gralph@localhost \
       commit -q -m "chore(kanban): mark #$child done" -- "$rel" >/dev/null 2>&1 \
       || echo "warn: could not commit done status for #$child" >&2
   else
-    update_board_ticket_status "$ticket" done || true
+    update_board_ticket_status "$ticket" "done" || true
   fi
   return 0
 }
@@ -658,32 +658,23 @@ run_child_pipeline() {
     cat "$verification_log"
   } >"$review_prompt"
 
-  local review_pid watchdog_pid review_timed_out timed_out="$run_dir/.reviewer-$child-timed-out"
-  rm -f "$timed_out"
+  # `timeout` owns the deadline. A `sleep`-based watchdog must kill the subshell
+  # to cancel early, which orphans the sleep it is running: every review leaked a
+  # process holding the runner's stdout for the full timeout (600s by default),
+  # blocking any caller that captures this command's output.
+  local review_timed_out=false
   set +e
   (cd "$worktree" && exec env HOME="$review_home" PI_CODING_AGENT_DIR="$pi_agent_dir" \
-    pi -p --no-session --no-extensions --no-skills --no-context-files \
+    timeout -k 5 "$review_timeout" pi -p --no-session --no-extensions --no-skills --no-context-files \
       --no-prompt-templates --no-themes --tools read,grep,find,ls \
-      "$(cat "$review_prompt")") >"$review_artifact" 2>&1 &
-  review_pid=$!
-  (
-    sleep "$review_timeout"
-    if kill -0 "$review_pid" 2>/dev/null; then
-      : >"$timed_out"
-      kill -TERM "$review_pid" 2>/dev/null
-      sleep 1
-      kill -KILL "$review_pid" 2>/dev/null
-    fi
-  ) &
-  watchdog_pid=$!
-  wait "$review_pid"
+      "$(cat "$review_prompt")") >"$review_artifact" 2>&1
   rc=$?
-  kill "$watchdog_pid" 2>/dev/null
-  wait "$watchdog_pid" 2>/dev/null
   set -e
-
-  review_timed_out="$([ -f "$timed_out" ] && printf true || printf false)"
-  rm -f "$timed_out"
+  # 124 is `timeout`'s own deadline status. It stays 124 even when the reviewer
+  # traps TERM and still emits a verdict, so a timed-out review always fails closed.
+  if [ "$rc" -eq 124 ]; then
+    review_timed_out=true
+  fi
 
   if [ "$review_timed_out" = true ]; then
     jq -n --argjson child "$child" --arg reason "review_timeout" \
@@ -1537,7 +1528,8 @@ write_repair_ticket() {
     case "$id" in [0-9]*) [ "$id" -gt "$max_id" ] 2>/dev/null && max_id="$id" ;; esac
   done < <(find "$board_dir/issues" "$board_dir/archive" -name '*.md' 2>/dev/null || true)
   local repair_id=$(( max_id + 1 ))
-  local candidate_file="$board_dir/issues/$(printf '%03d' "$repair_id")-repair-$child.md"
+  local candidate_file
+  candidate_file="$board_dir/issues/$(printf '%03d' "$repair_id")-repair-$child.md"
   {
     printf '%s\n' '---'
     printf 'id: %s\n' "$repair_id"
