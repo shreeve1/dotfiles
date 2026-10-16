@@ -254,7 +254,7 @@ merge_commits_after="$(git -C "$REPO" rev-list --count gralph/42/batch 2>/dev/nu
 [ "$merge_commits_after" = "$merge_commits_before" ]
 # Manifest state is unchanged for already-recovered children (excluding run-2 metadata).
 diff <(jq -S '.children' "$MANIFEST") \
-     <(jq -S '.children' "$TMPDIR/post-run1-manifest.json") >/dev/null
+  <(jq -S '.children' "$TMPDIR/post-run1-manifest.json") >/dev/null
 
 # Inconsistency: a child whose accepted review references a missing worker
 # branch must be reported as inconsistent (no destructive cleanup), and the
@@ -290,7 +290,10 @@ stamp_failed_execution "$MANIFEST" 101 "worker_incomplete"
 run_gralph "$REPO" 42 --verify 'bash verify-integration.sh' >"$TMPDIR/failed.out" 2>"$TMPDIR/failed.err" || true
 grep -E '^Recovery: 0 adopted, 0 resumed merge, 0 needs review, 0 stale cleared, 0 live left, 1 failed left, 0 inconsistent$' "$TMPDIR/failed.err" >/dev/null
 jq -e '.orchestration.recovery.failedLeft == 1 and .orchestration.recovery.decisions[0].reason == "execution_failed"' "$MANIFEST" >/dev/null
-grep -q '^issue edit 101 --remove-label' "$GH_LOG" && { echo "FAIL: failed-execution child triggered --remove-label" >&2; exit 1; } || true
+grep -q '^issue edit 101 --remove-label' "$GH_LOG" && {
+  echo "FAIL: failed-execution child triggered --remove-label" >&2
+  exit 1
+} || true
 # The failed child's branch and worktree remain on disk for inspection.
 [ -n "$(git -C "$REPO" branch --list 'gralph/42/issue-101' || true)" ] || true
 # (worker_incomplete leaves no branch; this assertion documents that failure
@@ -308,7 +311,10 @@ stamp_needs_review "$REPO" "$MANIFEST" 101 "feat 101"
 run_gralph "$REPO" 42 --verify 'bash verify-integration.sh' >"$TMPDIR/needs.out" 2>"$TMPDIR/needs.err" || true
 grep -E '^Recovery: 0 adopted, 0 resumed merge, 1 needs review, 0 stale cleared, 0 live left, 0 failed left, 0 inconsistent$' "$TMPDIR/needs.err" >/dev/null
 jq -e '.orchestration.recovery.needsReview == 1 and .orchestration.recovery.decisions[0].reason == "worker_complete_review_missing"' "$MANIFEST" >/dev/null
-grep -q '^issue edit 101 --add-label gralph:claimed$' "$GH_LOG" && { echo "FAIL: needs-review child was re-claimed" >&2; exit 1; } || true
+grep -q '^issue edit 101 --add-label gralph:claimed$' "$GH_LOG" && {
+  echo "FAIL: needs-review child was re-claimed" >&2
+  exit 1
+} || true
 
 # Stale claim cleanup uses --remove-label (not delete-branch / force-push);
 # no branches, worktrees, or commits are touched by recovery itself.

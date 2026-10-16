@@ -20,7 +20,10 @@ ZSHRC="$ROOT/.zshrc"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
@@ -200,24 +203,43 @@ if ! (cd "$REPO" && HOME="$TMPDIR/home-jobs2" PATH="$FAKE_BIN:$PATH" \
 fi
 
 MANIFEST="$REPO/.gralph/runs/0/manifest.json"
-[ -f "$MANIFEST" ] || { echo "FAIL: manifest missing" >&2; exit 1; }
+[ -f "$MANIFEST" ] || {
+  echo "FAIL: manifest missing" >&2
+  exit 1
+}
 
 # Both tickets landed.
 jq -e '
   (.orchestration.landed | sort == [1, 2])
   and (.children[] | select(.number == 1) | .merge.status) == "landed"
   and (.children[] | select(.number == 2) | .merge.status) == "landed"
-' "$MANIFEST" >/dev/null || { echo "FAIL: not all tickets landed" >&2; cat "$TMPDIR/jobs2.err" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: not all tickets landed" >&2
+  cat "$TMPDIR/jobs2.err" >&2
+  exit 1
+}
 
 # Main was fast-forwarded.
 MAIN_AFTER="$(git -C "$REPO" rev-parse HEAD)"
-[ "$MAIN_AFTER" != "$MAIN_BEFORE" ] || { echo "FAIL: main HEAD did not advance after ff-only" >&2; exit 1; }
+[ "$MAIN_AFTER" != "$MAIN_BEFORE" ] || {
+  echo "FAIL: main HEAD did not advance after ff-only" >&2
+  exit 1
+}
 
 # run-report.md exists and names both tickets.
 REPORT="$REPO/.kanban/run-report.md"
-[ -f "$REPORT" ] || { echo "FAIL: run-report.md missing" >&2; exit 1; }
-grep -q '| 1 |' "$REPORT" || { echo "FAIL: ticket 1 missing from report" >&2; exit 1; }
-grep -q '| 2 |' "$REPORT" || { echo "FAIL: ticket 2 missing from report" >&2; exit 1; }
+[ -f "$REPORT" ] || {
+  echo "FAIL: run-report.md missing" >&2
+  exit 1
+}
+grep -q '| 1 |' "$REPORT" || {
+  echo "FAIL: ticket 1 missing from report" >&2
+  exit 1
+}
+grep -q '| 2 |' "$REPORT" || {
+  echo "FAIL: ticket 2 missing from report" >&2
+  exit 1
+}
 
 echo "--jobs 2 board end-to-end: PASS"
 

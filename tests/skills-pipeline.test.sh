@@ -18,7 +18,10 @@ BS="$SK/kanban/board.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 PASS=0
 FAILN=0

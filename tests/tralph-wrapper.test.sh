@@ -18,7 +18,10 @@ ZSHRC="$ROOT/.zshrc"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-command -v zsh >/dev/null 2>&1 || { echo "SKIP: zsh not available"; exit 0; }
+command -v zsh >/dev/null 2>&1 || {
+  echo "SKIP: zsh not available"
+  exit 0
+}
 
 PASS=0
 FAILN=0

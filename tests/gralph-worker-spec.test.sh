@@ -15,7 +15,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GRALPH="$ROOT/bin/gralph"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 PASS=0
 FAILN=0
@@ -61,7 +64,7 @@ ticket() {
     # the real to-tickets template puts a backtick-quoted path in a '## Spec' section (only for a
     # real spec); it must not be mistaken for the ticket's single ## Verification command
     case "${2-}" in
-      'spec: alpha') printf '## Spec\n\n`.kanban/specs/%s.md`: read it before building.\n\n' "${2#spec: }" ;;
+    'spec: alpha') printf '## Spec\n\n`.kanban/specs/%s.md`: read it before building.\n\n' "${2#spec: }" ;;
     esac
     printf -- '## What to build\n\nBuild it.\n\n## Acceptance criteria\n\n- [ ] done\n\n## Verification\n\n`true`\n'
   } >"$REPO/.kanban/issues/$(printf '%03d' "$1")-t$1.md"
