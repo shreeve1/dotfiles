@@ -114,9 +114,18 @@ earlier, had edited `~/.config/hypr/hyprland.lua`, a symlink into the repo.
   The same commit then goes through, so the user can still skip the cleanup.
 - **Settle nudge:** fires only while tracked files are still uncommitted, and
   never asks for a commit; committing stays with the task and the repo's rules.
-- Reading the skill's `SKILL.md`, or `/skill:post-work-cleanup`, counts as running
-  it. Kill switch: `POST_WORK_CLEANUP=0`. Test:
+- A successful read of the skill's `SKILL.md`, or `/skill:post-work-cleanup`,
+  counts as running it. Kill switch: `POST_WORK_CLEANUP=0`. Test:
   `tests/verify-final-cleanup.test.sh`.
+- Commits are found by parsing the bash command into simple commands. The
+  parser handles quotes, `cd` (also on its own line; a `cd` inside `(...)`,
+  `$(...)` or backticks stays inside), `-C`, `--git-dir`/`--work-tree` and
+  `GIT_DIR=` prefixes, and skips heredoc bodies and comments. Every commit in
+  the command is checked. When the target repo cannot be worked out
+  (`cd "$(...)"`), the commit is held against all tracked files: a wrong hold
+  costs one retry, a missed one costs the cleanup.
+  Not seen: commits run through `eval`, `xargs`, `sh -c`, git aliases or a
+  script; edits after the cleanup ran in the same prompt.
 - Model-sensitive wording: a gate reason that offered "the change is trivial" as
   a reason to skip let the agent skip every time. It now says to skip only when
   the user said to.
