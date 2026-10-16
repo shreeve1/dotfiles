@@ -3,20 +3,23 @@
 This repo is synced across the user's Linux and Mac machines. Files here become
 real config via symlinks installed by `install.sh`.
 
-## Primary agent: DeepSeek Harness (dsh)
+## Primary agent surface: pi inside herdr, on all three machines
 
-The self-hosted DeepSeek Harness (dsh) web UI on `aidev` is the user's main agent
-surface; the other tool configs here support it and legacy workflows. See
-`docs/deepseek-harness.md` for access, architecture, and recovery.
+The user's agents are **pi** sessions running in **herdr** panes. Each machine
+(see the topology table below) runs its own long-lived `herdr server` with its own
+workspaces and pi agents; no machine hosts the agents for another. herdr's saved
+SSH machines (`herdr machine list`) let any one machine's herdr client show and
+drive the other two: it opens `ssh <alias> … herdr remote-client-bridge` to each
+one, using the SSH aliases. pi reports its state and session to herdr through
+`~/.pi/agent/extensions/herdr-agent-state.ts`. Phone and browser access goes
+through the herdr web ui on aidev (`https://100.95.230.15:7443`), which reaches
+omarchy and itan8n the same way. Config, machine lists, and the web ui setup:
+`docs/herdr.md`. pi extensions: `docs/pi-extensions.md`.
 
-**Building or installing dsh plugins?** Load the `dsh-plugin-build` skill
-first (`.agents/skills/dsh-plugin-build/SKILL.md`) — a dispatcher to the
-`dsh-plugin-guide` skill (the plugin contract) and to `docs/deepseek-harness.md`
-(the deployment's install/audit rules). Always install via `dsh plugin
---profile web add <spec>`; never hand-stage packages into `node_modules`.
-One plugin per restart, and only packages that declare `dsh.bundle` go in
-`dsh.profile.bundles` — client-only plugins mount via `- insert:` rows.
-See that doc's "Install best practices" for the full list.
+DeepSeek Harness (dsh) is **retired** (2026-10-16): `dsh-web.service` is stopped
+and disabled on aidev and itan8n. `docs/deepseek-harness.md` and the `dsh-*`
+skills are history. Leave `~/.dsh/dsh-tls.{crt,key}` on aidev: the herdr web
+ui's HTTPS still uses them.
 
 ## On a fresh machine
 
@@ -27,21 +30,23 @@ commands).
 ## Canonical surfaces
 
 - **AGENTS standard lane (canonical):** `.agents/AGENTS.md` (global agent
-  guidance) and `.agents/skills/<name>/SKILL.md`. dsh reads it natively via
-  `~/.dsh/AGENTS.md` → `dotfiles/.agents/AGENTS.md` (rank 500 `user-agents`
-  for skills). This is the only lane that applies without the model choosing
+  guidance) and `.agents/skills/<name>/SKILL.md`. pi discovers
+  `~/.agents/skills` (→ `dotfiles/.agents/skills`) natively. pi does **not**
+  read `.agents/AGENTS.md`: its user context file would be
+  `~/.pi/agent/AGENTS.md`, and none exists; codex reads it via
+  `~/.codex/AGENTS.md`. This is the only lane that applies without the model choosing
   to load anything: a skill contributes just its one-line description to
   context until something calls the `skill` tool, which on plain coding tasks
   it does not do. Keep the lane small — it is paid on every turn. Of the 64
   skills, 40 carry `disable-model-invocation: true` (user-invocable only,
   never in the catalog) — that is deliberate, do not "fix" it.
-- **Repo-level context:** this file (`AGENTS.md`). dsh's chain is
-  `~/.dsh/AGENTS.md` plus `AGENTS.md`/`CLAUDE.md` from project root down to
-  cwd; dsh does **not** read `~/.claude/CLAUDE.md`.
+- **Repo-level context:** this file (`AGENTS.md`). pi loads `AGENTS.md` /
+  `CLAUDE.md` from the working directory and every parent, plus
+  `~/.pi/agent/APPEND_SYSTEM.md` (→ `dotfiles/.pi/agent/APPEND_SYSTEM.md`).
 - **Claude Code lane (retired 2026-09-10, archive deleted 2026-09-19):**
   the only link into `~/.claude` is `~/.claude/skills` →
   `dotfiles/.agents/skills` (added 2026-10-05 via `install.sh`), so Claude Code
-  sees the same skills as dsh; new skills appear automatically. Note: Claude Code reads only
+  sees the same skills as pi; new skills appear automatically. Note: Claude Code reads only
   `CLAUDE.md` as its project doc — it does not auto-load `AGENTS.md` — which is
   why Claude-flavored repos keep the `CLAUDE.md` name.
 - See `README.md` § "Canonical vs tool-specific" for the full table.
@@ -65,7 +70,7 @@ let two machines diverge. Keep machine-specific edits (e.g. a local
 | Machine | Role | User | NetBird IP | NetBird DNS name | LAN |
 | --- | --- | --- | --- | --- | --- |
 | `omarchy` | laptop (Omarchy desktop) | `james` | `100.95.55.243` | `omarchy-55-243.netbird.selfhosted` | - |
-| `aidev` | server; hosts dsh web UI | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` | `10.20.20.16` |
+| `aidev` | always-on server; hosts herdr web ui | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` | `10.20.20.16` |
 | `itan8n` | server; n8n | `itadmin` | `100.95.224.218` | `n8n.netbird.selfhosted` | - |
 
 Every machine can reach every other on port 22. When one machine "can't find"
@@ -116,12 +121,9 @@ Environment facts that aren't in that doc:
   Code writes/bash are gated to a delegation allowlist and mutations go through
   `bin/pi-delegate`. Toggle with `claude-fusion on|off|status` from your shell
   (not runnable by the agent).
-- **Browser automation uses the real Chrome `ai` profile** through
-  `@caob23/dsh-browser-control` and its unpacked extension at
-  `~/.dsh/browser-control-extension`. Use the `browser_*` tools whenever browser
-  interaction is needed; they operate the user's logged-in desktop Chrome tabs.
-  `dsh-pilot` and its headless `pilot_*` tools were removed 2026-09-15. See
-  `docs/deepseek-harness.md` for install, translation, and recovery details.
+- **Browser automation on the laptop** uses `agent-browser` against the
+  persistent `chrome-cdp` Chrome on port 9222 (load the `browser-cdp` skill).
+  dsh's `browser_*` tools went away with dsh.
 
 ## Editing rules
 
