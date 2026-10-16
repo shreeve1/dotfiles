@@ -1,5 +1,5 @@
 // Pi extension that mirrors the Claude Code / Codex Stop hook
-// (.agents/bin/verify-final) and adds a post-work cleanup nudge.
+// (.agents/bin/verify-final) and adds a post-work cleanup gate and nudge.
 //
 // Grounding check (verify-final):
 //   TUI: runs after the agent settles, in the background, and delivers a FALSE
@@ -10,12 +10,21 @@
 //   sendUserMessage cannot run there — print mode awaits one session.prompt and
 //   exits. The boundary continuation is awaited inside that same prompt call.
 //
-// Cleanup nudge (post-work-cleanup):
-//   In every mode, when the turn changed a CODE file, the boundary appends a
-//   directive to clean up before committing: the workspace skill when it is
-//   loadable here, otherwise a self-contained checklist. Docs, notes, ledgers,
-//   data files and harness paths (.pi/) never trigger it, so a turn that only
-//   writes a note is left alone. Cheap and local: no model call.
+// Cleanup (post-work-cleanup):
+//   Tracks the code files THIS session changed through edit/write (by real
+//   path, so a symlinked ~/.config file maps to its repo copy). Another
+//   session's edits in the same repo are never counted. Two prompts:
+//   - Commit gate: a bash `git commit` while tracked files are uncleaned is
+//     blocked once per user prompt with the file list. Re-running the commit
+//     goes through, so the agent can skip cleanup when it does not apply.
+//   - Settle nudge: when the run ends with tracked files still uncommitted,
+//     the boundary asks for cleanup over those files. It never asks for a
+//     commit; whether to commit stays with the task and the repo's rules.
+//   Reading the skill's SKILL.md or invoking /skill:post-work-cleanup counts as
+//   running it: tracked files are cleared and the cleanup's own edits that
+//   prompt are not tracked. Docs, notes, data files and harness paths (.pi/)
+//   are never tracked. Edits made through bash (sed -i, heredocs) are not seen.
+//   Cheap and local: no model call.
 //
 // Both boundary handlers fire at most once per user prompt (guarded by
 // userPromptSeq) so a continuation cannot re-trigger itself: the run loop
@@ -28,9 +37,16 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent"
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
-import { dirname, join as pathJoin, resolve as pathResolve } from "node:path"
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join as pathJoin,
+  relative as pathRelative,
+  resolve as pathResolve,
+} from "node:path"
 
 const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final")
 const CHECK_TIMEOUT_MS = 180_000
@@ -45,28 +61,54 @@ const FINDING_RE = /(^|\n)\s*(?:FALSE|UNGROUNDED)\s*\|/
 // regresses and a handler re-fires.
 const MAX_CONTINUATIONS_PER_PROMPT = 2
 const CLEANUP_SKILL_NAME = "post-work-cleanup"
-// Porcelain paths the nudge ignores: harness and dependency output, not work.
+// The skill counts as run once its SKILL.md is read (model) or injected
+// (/skill:post-work-cleanup, which expands to a <skill name=...> block).
+const CLEANUP_SKILL_FILE_RE = /(^|[\\/])post-work-cleanup[\\/]SKILL\.md\b/
+const CLEANUP_SKILL_BLOCK_RE = /<skill name="post-work-cleanup"/
+// Repo-relative paths never tracked: harness and dependency output, not work.
 // pi-lens also drops a .pi-lens-probe-home/ directory into the cwd.
 const HARNESS_PATH_RE = /(^|\/)(?:\.pi|\.pi-lens[^/]*|node_modules)\//
-// Code surfaces only. The nudge exists for code cleanup, so a turn that changed
-// only docs, notes, ledgers, JSON or YAML is left alone. Extensionless scripts
-// (identified by shebang) are not matched and so do not trigger it.
+// A bash command that runs `git commit`, including `git -C dir commit` and
+// `git -c k=v commit`. Quoted text such as grep "git commit" does not match
+// because the quote is not an accepted separator.
+const GIT_COMMIT_RE = /(?:^|[\s;&|(])git((?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*)\s+commit\b/
+// Code surfaces only. Cleanup exists for code, so a session that changed only
+// docs, notes, ledgers, JSON or YAML is left alone. Extensionless scripts
+// (identified by shebang) are not matched.
 const CODE_EXT_RE =
   /\.(?:py|pyi|ps1|psm1|psd1|sh|bash|zsh|ksh|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rb|rs|c|h|cc|cpp|hpp|cxx|hxx|java|kt|kts|cs|php|sql|lua|swift|scala|pl|pm|r|ex|exs|erl|hs|clj|dart|vue|svelte)$/i
-const CLEANUP_SKILL_DIRECTIVE = [
-  "Workspace files changed during this turn and are not yet committed.",
-  "Before committing, run the `post-work-cleanup` skill over this session's diff,",
-  "apply its findings, then make the commit.",
-  "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
-].join(" ")
-// Used when the workspace skill is not loadable from this repository.
-const CLEANUP_FALLBACK_DIRECTIVE = [
-  "Workspace files changed during this turn and are not yet committed.",
-  "Before committing, review this session's diff for stray files, leftover debug",
-  "output, dead code and unused imports, run the project's linter or formatter if",
-  "one is configured, then make the commit.",
-  "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
-].join(" ")
+const CLEANUP_DISABLE_HINT = "(Set POST_WORK_CLEANUP=0 to disable this reminder.)"
+const NOT_A_COMMIT_REQUEST =
+  "This is not a request to commit: commit only if the task or the repo's rules call for it."
+
+function cleanupAction(skillAvailable: boolean): string {
+  return skillAvailable
+    ? "run the `post-work-cleanup` skill over them and apply its findings"
+    : "review them for leftover debug output, dead code and unused imports, and run the " +
+        "project's linter or formatter if one is configured"
+}
+
+/** Settle nudge: tracked files are still uncommitted at the end of the run. */
+function settleDirective(files: string[], skillAvailable: boolean): string {
+  return [
+    `This session changed code files that are not committed yet: ${files.join(", ")}.`,
+    `If the work on them is finished, ${cleanupAction(skillAvailable)} before they are committed;`,
+    "if it is not finished, say so and skip this.",
+    NOT_A_COMMIT_REQUEST,
+    CLEANUP_DISABLE_HINT,
+  ].join(" ")
+}
+
+/** Commit gate: the block reason the agent sees in place of the commit result. */
+function gateReason(files: string[], skillAvailable: boolean): string {
+  return [
+    `Commit held once by the post-work-cleanup gate: this session changed ${files.join(", ")}`,
+    `and the cleanup has not run. First ${cleanupAction(skillAvailable)}, then commit again.`,
+    "Skip the cleanup only if the user said to; then re-run the same commit and it will not",
+    "be held again for this prompt.",
+    CLEANUP_DISABLE_HINT,
+  ].join(" ")
+}
 
 interface RunResult {
   stdout: string
@@ -85,9 +127,11 @@ let lastFollowupSeq = -1
 let groundingDoneSeq = -1
 let cleanupDoneSeq = -1
 let continuationsThisPrompt = 0
-// Working-tree snapshot captured when the prompt started, compared at the
-// boundary to decide whether this turn changed anything.
-let treeAtPrompt = ""
+// Cleanup state. tracked: real path -> repo root, for code files this session
+// changed through edit/write since the cleanup last ran.
+const tracked = new Map<string, string>()
+let cleanupRanSeq = -1
+let gateHeldSeq = -1
 
 function shouldSkipText(text: string): boolean {
   const trimmed = text.trim()
@@ -100,44 +144,104 @@ function resolveCwd(ctx: ExtensionContext | undefined): string {
   return ctx?.cwd && ctx.cwd.length > 0 ? ctx.cwd : process.cwd()
 }
 
-/**
- * `git status --porcelain` for the repo at cwd, or "" when there is none.
- * Harness and dependency paths are dropped so tooling files cannot make the
- * tree look changed.
- */
-function gitStatus(cwd: string): Promise<string> {
+function git(cwd: string, args: string[]): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile(
-      "git",
-      ["status", "--porcelain", "--untracked-files=all"],
-      { cwd, timeout: 10_000, maxBuffer: 1 << 20 },
-      (err, stdout) => {
-        if (err) {
-          resolve("")
-          return
-        }
-        const kept = stdout
-          .replace(/\r/g, "")
-          .split("\n")
-          .filter((line) => line.trim().length > 0 && !HARNESS_PATH_RE.test(line.slice(3)))
-        resolve(kept.join("\n"))
-      },
-    )
+    execFile("git", args, { cwd, timeout: 10_000, maxBuffer: 1 << 20 }, (err, stdout) => {
+      resolve(err ? null : stdout.replace(/\r/g, ""))
+    })
   })
 }
 
-/** Porcelain lines present now that were not present at prompt start. */
-function newPorcelainLines(now: string, before: string): string[] {
-  const previous = new Set(before.split("\n").filter((line) => line.trim().length > 0))
-  return now.split("\n").filter((line) => line.trim().length > 0 && !previous.has(line))
+/** Repo root containing dir (real path), or null outside a work tree. */
+async function repoRootOf(dir: string): Promise<string | null> {
+  const out = await git(dir, ["rev-parse", "--show-toplevel"])
+  const root = out?.trim()
+  if (!root) return null
+  try {
+    return realpathSync(root)
+  } catch {
+    return root
+  }
 }
 
-/** True when a porcelain line names a changed path on a code surface. */
-function isCodeLine(line: string): boolean {
-  // Strip the XY status prefix, then the quoting git adds for odd paths.
-  let path = line.slice(3).trim().replace(/^"|"$/g, "")
-  if (path.includes(" -> ")) path = path.split(" -> ").pop() ?? path
-  return CODE_EXT_RE.test(path.replace(/^"|"$/g, ""))
+/** Resolve a tool path the way pi does (~, leading @, cwd-relative), then follow symlinks. */
+function realToolPath(raw: string, cwd: string): string {
+  let p = raw.startsWith("@") ? raw.slice(1) : raw
+  if (p === "~") p = homedir()
+  else if (p.startsWith("~/")) p = pathJoin(homedir(), p.slice(2))
+  const abs = isAbsolute(p) ? pathResolve(p) : pathResolve(cwd, p)
+  try {
+    return realpathSync(abs)
+  } catch {
+    try {
+      return pathJoin(realpathSync(dirname(abs)), basename(abs))
+    } catch {
+      return abs
+    }
+  }
+}
+
+/** Track a code file changed by edit/write, if it lives in a git work tree. */
+async function trackChangedFile(raw: string, cwd: string): Promise<void> {
+  const real = realToolPath(raw, cwd)
+  if (!CODE_EXT_RE.test(real)) return
+  const root = await repoRootOf(dirname(real))
+  if (!root) return
+  if (HARNESS_PATH_RE.test(pathRelative(root, real))) return
+  tracked.set(real, root)
+}
+
+/** Drop tracked files that are no longer dirty (committed, reverted, ignored). */
+async function pruneTracked(): Promise<void> {
+  const byRoot = new Map<string, string[]>()
+  for (const [file, root] of tracked) {
+    const list = byRoot.get(root) ?? []
+    list.push(file)
+    byRoot.set(root, list)
+  }
+  for (const [root, files] of byRoot) {
+    const out = await git(root, ["status", "--porcelain", "--untracked-files=all", "--", ...files])
+    // Unknown state (git failed): keep the entries rather than lose them.
+    if (out === null) continue
+    const dirty = new Set<string>()
+    for (const line of out.split("\n")) {
+      if (line.trim().length === 0) continue
+      let rel = line.slice(3).trim()
+      if (rel.includes(" -> ")) rel = rel.split(" -> ").pop() ?? rel
+      dirty.add(pathResolve(root, rel.replace(/^"|"$/g, "")))
+    }
+    for (const file of files) if (!dirty.has(file)) tracked.delete(file)
+  }
+}
+
+/** Short display path: cwd-relative inside cwd, ~-relative under home, else absolute. */
+function displayPath(file: string, cwd: string): string {
+  const rel = pathRelative(realToolPath(cwd, cwd), file)
+  if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel
+  const home = homedir()
+  return file.startsWith(home + "/") ? "~/" + file.slice(home.length + 1) : file
+}
+
+/**
+ * Repo a `git commit` command targets: its -C dir, else the directory of the
+ * last `cd` before it, else cwd. Null when that is not a work tree.
+ */
+async function commitRepo(command: string, cwd: string): Promise<string | null> {
+  const match = GIT_COMMIT_RE.exec(command)
+  if (!match) return null
+  let dir = cwd
+  const before = command.slice(0, match.index)
+  const cds = [...before.matchAll(/(?:^|[;&|(]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)]
+  const lastCd = cds.at(-1)?.[1]
+  if (lastCd) dir = realToolPath(lastCd.replace(/^["']|["']$/g, ""), dir)
+  const dashC = /-C\s+("[^"]+"|'[^']+'|\S+)/.exec(match[1] ?? "")?.[1]
+  if (dashC) dir = realToolPath(dashC.replace(/^["']|["']$/g, ""), dir)
+  return repoRootOf(dir)
+}
+
+function markCleanupRan(): void {
+  cleanupRanSeq = userPromptSeq
+  tracked.clear()
 }
 
 /** True when pi can load the cleanup skill from cwd or a user skill root. */
@@ -187,7 +291,9 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
       timedOut = true
       try {
         child.kill()
-      } catch {}
+      } catch {
+        // Already exited; close/error still resolves the promise.
+      }
     }, CHECK_TIMEOUT_MS)
     if (typeof timer.unref === "function") timer.unref()
     child.on("close", (exitCode, signal) => {
@@ -248,7 +354,7 @@ function withContinuation(event: AgentBeforeSettleEvent, entry: CustomMessageEnt
 export default function verifyFinalHook(pi: ExtensionAPI): void {
   let aborted = false
 
-  pi.on("before_agent_start", async (event, ctx) => {
+  pi.on("before_agent_start", async (event) => {
     // Only a user prompt begins a logical turn. A custom-triggered run
     // (pi.sendMessage with triggerTurn) belongs to the turn already in flight,
     // so counting it would reset the once-per-prompt guards and could make the
@@ -258,7 +364,47 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     groundingDoneSeq = -1
     cleanupDoneSeq = -1
     continuationsThisPrompt = 0
-    treeAtPrompt = await gitStatus(resolveCwd(ctx))
+    if (CLEANUP_SKILL_BLOCK_RE.test(event.prompt)) markCleanupRan()
+  })
+
+  pi.on("session_start", () => {
+    tracked.clear()
+  })
+
+  // A read of the cleanup skill means it is running now; a commit may be held.
+  pi.on("tool_call", async (event, ctx) => {
+    if (aborted) return
+    if (process.env.POST_WORK_CLEANUP === "0") return
+    const input = (event.input ?? {}) as Record<string, unknown>
+    if (event.toolName === "read") {
+      if (typeof input.path === "string" && CLEANUP_SKILL_FILE_RE.test(input.path)) markCleanupRan()
+      return
+    }
+    if (event.toolName !== "bash" || typeof input.command !== "string") return
+    // Commit gate.
+    const command = input.command
+    if (!GIT_COMMIT_RE.test(command)) return
+    if (tracked.size === 0) return
+    if (cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq) return
+    await pruneTracked()
+    const cwd = resolveCwd(ctx)
+    const root = await commitRepo(command, cwd)
+    const files = [...tracked].flatMap(([f, fileRoot]) => (root === null || fileRoot === root ? [f] : []))
+    if (files.length === 0) return
+    gateHeldSeq = userPromptSeq
+    const shown = files.map((f) => displayPath(f, cwd))
+    return { block: true, reason: gateReason(shown, cleanupSkillAvailable(cwd)) }
+  })
+
+  // Track code files this session changed. The cleanup's own edits are not.
+  pi.on("tool_result", async (event, ctx) => {
+    if (aborted) return
+    if (event.isError) return
+    if (event.toolName !== "edit" && event.toolName !== "write") return
+    if (cleanupRanSeq === userPromptSeq) return
+    const path = (event.input as { path?: unknown }).path
+    if (typeof path !== "string") return
+    await trackChangedFile(path, resolveCwd(ctx))
   })
 
   pi.on("agent_end", (event) => {
@@ -277,23 +423,24 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     lastAssistantText = text
   })
 
-  // Cleanup nudge: any working-tree change during the turn, in every mode.
+  // Settle nudge: this session's tracked code files are still uncommitted.
   pi.on("agent_before_settle", async (event, ctx): Promise<AgentBeforeSettleEventResult | void> => {
     if (aborted) return
     // Never extend a failed or interrupted run.
     if (event.outcome !== "completed") return
     if (process.env.POST_WORK_CLEANUP === "0") return
     if (cleanupDoneSeq === userPromptSeq) return
+    // Already running this prompt, or the gate already asked and was declined.
+    if (cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq) return
     if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return
+    if (tracked.size === 0) return
+    await pruneTracked()
+    if (tracked.size === 0) return
     const cwd = resolveCwd(ctx)
-    const now = await gitStatus(cwd)
-    // Only a newly changed code file triggers this, never a pre-existing dirty
-    // one, and never a docs/notes/ledger-only turn.
-    if (!newPorcelainLines(now, treeAtPrompt).some(isCodeLine)) return
     cleanupDoneSeq = userPromptSeq
     continuationsThisPrompt += 1
-    const directive = cleanupSkillAvailable(cwd) ? CLEANUP_SKILL_DIRECTIVE : CLEANUP_FALLBACK_DIRECTIVE
-    return withContinuation(event, customMessage(CLEANUP_SKILL_NAME, directive))
+    const shown = [...tracked.keys()].map((f) => displayPath(f, cwd))
+    return withContinuation(event, customMessage(CLEANUP_SKILL_NAME, settleDirective(shown, cleanupSkillAvailable(cwd))))
   })
 
   // Grounding check for headless modes, where a post-settle follow-up cannot run.
@@ -354,7 +501,9 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
         // UNSURE lines, "check could not run", or any other diagnostic.
         try {
           ctx.ui.notify(noticeText(result), "warning")
-        } catch {}
+        } catch {
+          // UI gone (session ended mid-check); the notice is best-effort.
+        }
       })
       .catch(() => {})
   })
@@ -366,7 +515,9 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       activeChild = null
       try {
         child.kill()
-      } catch {}
+      } catch {
+        // Already exited; nothing left to stop at shutdown.
+      }
     }
   })
 }
