@@ -3,9 +3,9 @@
 # `git config --global core.hooksPath ~/.config/git/hooks`).
 #
 # Purpose: run a repository's own check command before its commits leave the
-# machine, for repos that declare one. A repo opts in by committing an
-# executable `tests/run-all.sh`; every other repo is a silent no-op, so this
-# stays safe to install globally.
+# machine, for repos that declare one. A repo opts in by committing
+# `tests/run-all.sh`; every other repo is a silent no-op, so this stays safe to
+# install globally.
 #
 # Skip one push with `git push --no-verify`, or every repo for one command with
 # SKIP_REPO_CHECKS=1. A global core.hooksPath makes git ignore each repo's own
@@ -30,9 +30,11 @@ if [ -n "$_git_dir" ]; then
   fi
 fi
 
-# 2. Run the repo's check command, if it declares one.
+# 2. Run the repo's check command, if it declares one. Match on presence, not
+# the executable bit: git does not track that bit, and a repo can opt in with a
+# plain file. Run it with bash so the bit cannot silently disable the guard.
 check="$root/tests/run-all.sh"
-[ -x "$check" ] || exit 0
+[ -f "$check" ] || exit 0
 
 echo "pre-push: running $check" >&2
 if ! (cd "$root" && bash "$check"); then
