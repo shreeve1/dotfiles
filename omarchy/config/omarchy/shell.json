@@ -41,9 +41,6 @@
           "id": "omarchy.tray"
         },
         {
-          "id": "shreeve1.meeting-assistant"
-        },
-        {
           "id": "io.github.boomdev.voxtype-meeting-transcriber",
           "exportDirectory": "~/Documents/itastack/Meetings/",
           "notificationsEnabled": true
