@@ -563,6 +563,17 @@ class GitGuardFixtures(OffloadFixture):
                 forged = self.forge_commit(result["work_tip"], {path: json.dumps(document), **extra}, parents)
                 self.assert_refused_without_writes(expected, forged, "INVALID_RESULT")
 
+    def test_work_after_terminal_result_cannot_record_another_result(self):
+        _, expected, worker, result = self.ready_result()
+        self.put(worker, "follow-up.txt", "follow-up work\n")
+        follow_up = self.commit(worker, "Follow-up work after the Result")
+        refused = self.cli("result", repo=worker, expected=expected, summary=self.summary(), error="INVALID_RESULT")
+        self.assertNotIn("result_commit", refused)
+        self.assertEqual(self.oid(worker), follow_up)
+        self.assertEqual(self.git(worker, "status", "--porcelain", "--untracked-files=all"), b"")
+        self.cli("validate", expected=expected, result_commit=follow_up, error="INVALID_RESULT")
+        self.cli("validate", expected=expected, result_commit=result["result_commit"])
+
     def test_brief_bytes_modes_and_modify_then_revert_history_are_bound(self):
         receipt, expected = self.snapshot()
         brief = receipt["identity"]["brief_path"]
