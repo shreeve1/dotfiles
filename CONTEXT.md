@@ -305,6 +305,10 @@ _Avoid_: feature branch, worktree alone
 A commit of a machine's whole dirty working tree, built without changing its HEAD, index or files. It is the base the agent's work is measured against.
 _Avoid_: stash, backup, wip commit
 
+**Offload merge**:
+Bringing an Offload branch's commits into the project working copy's `main` on the machine where the work ran, by fast-forward or an approved merge commit, so work continues there. Unlike return, it keeps history and never touches the source machine; the source catches up later through prep.
+_Avoid_: land, apply (that is return)
+
 **Deployment**:
 One piece of software running on a server because `offload-deploy` started it. Its source is either an Offload branch or a GitHub repo.
 _Avoid_: install, service, release
