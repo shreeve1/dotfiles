@@ -98,6 +98,11 @@ don't fight pi-lens autoformat) all live there with rationale.
 
 Environment facts that aren't in that doc:
 
+- **Working on the ralph / tralph / gralph loop?** [`docs/ralph.md`](docs/ralph.md)
+  maps the two drivers, where the worker prompt and the per-ticket review
+  procedure live, and the tests. Run `bash tests/run-all.sh` (the repo's check
+  command; a pre-push hook runs it) before you push.
+
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.
 - **Fusion is off on this machine** (`claude-fusion status`). When on, Claude

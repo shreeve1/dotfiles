@@ -210,9 +210,13 @@ __pycache__/
 # .codex/config.toml.template by install.sh
 .codex/config.toml
 
-# Test scratch (incl. vendored mattpocock/skills clone) — machine-local only
+# Test scratch — machine-local only. The suite itself (tests/*.test.sh,
+# tests/run-all.sh) is tracked, so .sh is negated back in: without it,
+# `git add -A` silently skips a new test file and the commit looks complete.
+# Non-.sh, non-.py scratch under tests/ stays ignored.
 /tests/*
 !/tests/*.py
+!/tests/*.sh
 .claude/.fusion-off
 .claude/.harness-unlock
 .omp/agent/blobs/
