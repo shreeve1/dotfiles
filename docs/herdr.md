@@ -97,8 +97,11 @@ for it lives in this repo; all of it is machine-local on aidev.
 - **URL:** `https://100.95.230.15:7443` (NetBird). The self-signed cert is the one
   dsh uses (`~/.dsh/dsh-tls.{crt,key}`, SAN `IP:100.95.230.15`).
 - **TLS front:** user unit `~/.config/systemd/user/herdr-web-tls.service` runs
-  `socat` from `100.95.230.15:7443` to the app on `127.0.0.1:7317`. The app itself
-  stays bound to loopback.
+  Caddy (`~/.local/bin/caddy`, config `~/.config/herdr-web-tls/Caddyfile`) from
+  `100.95.230.15:7443` to the app on `127.0.0.1:7317`. The app itself stays bound to
+  loopback. It has to be a real HTTP proxy: a raw TLS tunnel (`socat`, tried first)
+  sends no `X-Forwarded-Proto`, so the app's same-origin check rejects every
+  browser POST, sign-in included, with `403 Use controls from this app`.
 - **Auth:** `HERDR_WEB_TOKEN` is required for every client (loopback included), or
   pair a device in Settings → Phone & devices. The token lives in the plugin `env` file
   (`herdr plugin config-dir devswha.herdr-web-ui`, mode 600) along with
