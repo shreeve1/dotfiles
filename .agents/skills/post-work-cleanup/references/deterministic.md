@@ -1,50 +1,76 @@
 # Deterministic Pass
 
-Run the language's formatter, then its linter with autofix, **before** any judgement. The formatter settles
-style so the judgement pass spends its attention on meaning. Never ask the model to out-lint a linter: a tool
-that fixes fifty style findings for free leaves the judgement for the fifty it cannot.
+Run the formatter, then the linter, **before** any judgement. The formatter settles style so the judgement
+pass spends its attention on meaning. Never ask the model to out-lint a linter.
 
-The pass is **best-effort**: if a surface has no installed tool, the sweep is judgement-only for that surface
-and the report must say so. Do not present an unverified judgement pass as a deterministic one.
+The **style contract** is the rule this pass shares with pi-lens (which formats on every edit), the
+pre-push hook and `run-all.sh`: **a tool runs only from the repo's own config, and every caller runs
+the same tool from that config.** Two callers that pick tools or flags of their own fight each other,
+each rewriting the other's output on alternate edits. So this pass adds no formatter, flag or rule
+the repo has not declared.
 
-## Policy
+## 1. Setup check
 
-- Run what is installed; detect with `command -v`, `Get-Command`, or an ephemeral runner. **Never install
-  tooling during a sweep.** When the project already runs a tool through an ephemeral runner (this
-  workspace's `.githooks/pre-commit` runs `uvx ruff`), use the same runner instead of `command -v`.
-- Use the project's own config when one exists (`pyproject.toml`, `ruff.toml`, `.shellcheckrc`,
-  `.editorconfig`, `tsconfig.json`, `PSScriptAnalyzerSettings.psd1`, `biome.json`, `.prettierrc`). Never
-  hard-code a style the project has not chosen.
-- A tool that is not installed is a line in the report, not a stop.
-- Fix findings; do not blanket-disable a rule. A suppression needs a specific code and a reason.
-- Run on the files in the sweep diff, not the whole tree. A formatter rewrites the **whole file** it is
-  given, so when the repo has no formatter config, skip formatting rather than reformat every unrelated
-  line — and say so in the report.
+Run `style-init --check` in the repo root (it is on PATH via `~/.local/bin`):
 
-## Commands by surface
+| Exit | Meaning | Do |
+| --- | --- | --- |
+| `0` | The repo has the standard files | Go to step 2 |
+| `3` | An owned repo (`~/dotfiles/.config/style/owned-repos`) missing some | Offer setup, below |
+| `4` | Not an owned repo | Go to step 2; it uses whatever config the repo has |
+| `127` | `style-init` not installed | Report "style tools not installed on this machine", go to step 2 |
 
-| Surface | Format | Lint / autofix | Typecheck / syntax | Test |
-| --- | --- | --- | --- | --- |
-| Python | `ruff format <files>` (or `uvx ruff format` if the project uses it) | `ruff check --fix <files>` | `python -m py_compile <files>`, `mypy`/`pyright` | the repo's runner — `python -m unittest discover -s <dir>` here, or `pytest` if the repo uses it |
-| PowerShell | `Invoke-Formatter` | `Invoke-ScriptAnalyzer -Path <p> -Severity Error,Warning` | `[Parser]::ParseFile` | `Invoke-Pester` |
-| Shell | `shfmt -w <files>` (project style; do not hard-code an indent) | `shellcheck -s sh\|bash <files>` | `sh -n <file>` / `bash -n <file>` | the project's isolated tests; run the script only through a project test/smoke target, never by hand, and never a mutating script |
-| TypeScript | `biome format --write` or `prettier --write` | `biome check --write` or `eslint --fix` | `tsc --noEmit` | project runner (`npm test`, `vitest`, …) |
-| JavaScript | `biome format --write` or `prettier --write` | `biome check --write` or `eslint --fix` | `node --check <file>` | project runner |
-| Markdown / JSON / YAML | `prettier --write` | `markdownlint-cli2 <files>` (Markdown only) | — | — |
+**Offer setup** (exit `3`): tell the user which files are missing, that setup is separate commits made
+*before* this session's work (config, then one baseline reformat per language, recorded in
+`.git-blame-ignore-revs`), and that the tree must be clean. Ask; do not run it unprompted. The sweep
+diff is the session's files, and a whole-repo reformat inside it would bury the real change.
 
-`markdownlint-cli2` lints Markdown only; JSON and YAML are format-only here. Run it with `--fix` only when
-the project carries a markdownlint config (`.markdownlint-cli2.*` or `.markdownlint.*`), so the rule set is
-the project's own. With no config, run it plain and report the findings rather than rewriting the files,
-since a default rule set is a style the project has not chosen.
+- **Yes:** `git stash push --include-untracked` if the tree is dirty, run `style-init --yes`, then
+  `git stash pop`. A conflicted pop means the reformat touched a session file; for each conflicted file
+  run `git checkout --theirs <file> && git reset -q <file>` (the session's version), run
+  `style-check --fix` on those files, then `git stash drop`. Report the commits `style-init` made. If it refuses (branch behind its upstream), report that and continue as for No.
+- **No:** continue. Formatting then runs only on surfaces the repo already configures.
 
-The order above (format, then lint --fix) is the default. `biome check --write` also sorts imports, so if you
-run it after `biome format --write` the file may be touched twice; run `biome check --write` once and skip a
-separate format when the project uses biome for both.
+**Done when** the check has run and, for exit `3`, the user has answered.
 
-If a surface has no project tooling installed, say so in the report and skip to judgement; do not invent a
-config or add a dependency.
+## 2. Format and lint the sweep diff
+
+**When `style-check` is available** (exit `0`, `3` or `4` above), it is the only command for this pass.
+It runs exactly what pi-lens runs, from the repo's config, at the pinned versions:
+
+```bash
+style-check --fix <sweep files>   # format + safe autofix
+style-check <sweep files>         # report what is left
+```
+
+A surface it reports as `skipped` has no config in this repo: say so in the report and do not format
+it by other means. A remaining finding is a judgement-pass item (fix it, or name it as out of scope);
+it is never silenced with a blanket disable.
+
+**When it is not installed**, use the repo's own config directly, still only for surfaces the repo
+declares:
+
+| Surface | Declared by | Format | Lint |
+| --- | --- | --- | --- |
+| Shell | `.editorconfig` | `shfmt -w <files>` | `shellcheck -S warning <files>` |
+| Python | `ruff.toml`, `.ruff.toml`, `[tool.ruff]` | `ruff format <files>` | `ruff check --fix <files>` |
+| Python | `[tool.black]` | `black <files>` | the repo's linter |
+| TS / JS | `biome.json(c)` | `biome check --write <files>` (also lints) | — |
+| TS / JS | `.prettierrc*` | `prettier --write <files>` | `eslint --fix` when configured |
+| Markdown | `.markdownlint*` | — (never formatted) | `markdownlint-cli2 <files>` |
+| PowerShell | `PSScriptAnalyzerSettings.psd1` | `Invoke-Formatter` | `Invoke-ScriptAnalyzer -Severity Error,Warning` |
+
+Undeclared surface → no formatter, and say so. Run tools from the repo root, on the sweep files only.
+
+**Done when** every surface in the diff has been formatted and linted from its config, or is named in
+the report as having none.
+
+## 3. Verify commands
+
+Run the repo's own checks after the judgement pass: `tests/run-all.sh` when it exists, otherwise the test,
+typecheck (`tsc --noEmit`, `python -m py_compile`, `bash -n`) and lint commands the repo documents.
 
 ## After the pass
 
-The formatter's rewriting of a file is part of the sweep diff — review it once, by hand, for the one thing
-formatters get wrong: a mechanical change that hides a semantic one.
+The formatter's rewriting of a file is part of the sweep diff: review it once, by hand, for the one thing
+formatters get wrong, a mechanical change that hides a semantic one.

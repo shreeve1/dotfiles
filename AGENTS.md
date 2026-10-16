@@ -98,6 +98,12 @@ don't fight pi-lens autoformat) all live there with rationale.
 
 Environment facts that aren't in that doc:
 
+- **Formatting and linting follow one contract** (`docs/adr/0022-one-style-contract.md`):
+  the repo's own config files decide, and pi-lens, `post-work-cleanup`, the push hook
+  and you all run `style-check`; reach for it instead of a formatter with flags of
+  your own. Tool versions are pinned in `.config/style/tools.env`; bump there, then
+  re-run `install.sh` on all three machines.
+
 - **Working on the ralph / tralph / gralph loop?** [`docs/ralph.md`](docs/ralph.md)
   maps the two drivers, where the worker prompt and the per-ticket review
   procedure live, and the tests. `bash tests/run-all.sh` is the repo's check

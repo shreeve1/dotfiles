@@ -1,0 +1,25 @@
+# Paths style-check and style-init leave alone: code this repo does not own
+# the style of. Edits here follow upstream; formatting them would turn every
+# re-sync into a whole-file diff (docs/pi-extensions.md, "Don't fight pi-lens").
+#
+# Vendored Pi extensions (first-party ones like fusion/ and *.ts at the top
+# level are not listed, so they are checked).
+.pi/agent/extensions/pi-lens/**
+.pi/agent/extensions/pi-subagents/**
+.pi/agent/extensions/pi-advisor-flow/**
+.pi/agent/extensions/rpiv-*/**
+.pi/agent/extensions-archive/**
+# Vendored skill bodies and the standards corpus post-work-cleanup ships
+.agents/skills/post-work-cleanup/references/standards/**
+.agents/skills/synced/**
+.agents/skills/mermaid/**
+.agents/skills/langfuse/**
+.agents/skills/professional-guidance/**
+# Third-party omarchy plugins (shreeve1.* and surface-battery are ours)
+omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber/**
+omarchy/config/omarchy/plugins/meviusisback.agent-orchestr/**
+# Frozen or generated content
+archive/**
+graphify-out/**
+wiki/raw/**
+.kanban/archive/**

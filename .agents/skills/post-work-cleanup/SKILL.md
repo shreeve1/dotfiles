@@ -30,11 +30,12 @@ another session is editing is named and left untouched.
 
 ### 2. Deterministic pass
 
-Read `references/deterministic.md`. For each surface in the diff, run the installed formatter, then the
-linter with autofix, on the changed files only. Never install tooling mid-sweep.
+Read `references/deterministic.md` and follow it: the setup check (which may offer `style-init` in a repo
+of yours that lacks the standard files), then `style-check` on the changed files only. Never install
+tooling mid-sweep, and never format a surface the repo has no config for.
 
-**Done when** every surface in the diff has had its formatter and linter run, or is recorded as unavailable
-with the reason.
+**Done when** the setup check has run, and every surface in the diff has been formatted and linted from
+the repo's config or is recorded as having none.
 
 ### 3. Load the language standards
 
@@ -66,7 +67,7 @@ applied in full (the sweep's exhaustiveness bar).
 
 ### 5. Verify
 
-Re-run the project's tests, typecheck and linter (the commands in `references/deterministic.md`). Cleanup
+Re-run the project's tests, typecheck and linter (`style-check` and `references/deterministic.md` step 3). Cleanup
 that breaks a test is a defect: revert it or fix forward.
 
 **Done when** tests, typecheck and linter are green, or every remaining failure is named as pre-existing.

@@ -3,6 +3,11 @@
     "enabled": true,
     "mode": "immediate"
   },
+  "rules": {
+    "unchecked-throwing-call-python": {
+      "disable": ["unchecked-throwing-call-python"]
+    }
+  },
   "actionableWarnings": {
     "enabled": true,
     "includeLspCodeActions": true,

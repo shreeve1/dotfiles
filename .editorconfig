@@ -1,9 +1,7 @@
-; Keeps pi-lens's `biome format --write` from re-indenting files on every agent
-; edit. Biome defaults to indent_style = tab; pi-lens only passes
-; --use-editorconfig=true when this file exists (see
-; .pi/agent/extensions/pi-lens/clients/formatters.ts hasEditorConfig). Without
-; it, every edited .ts came back tab-indented, producing whole-file diffs
-; against the 2-space vendored extensions and breaking upstream re-syncs.
+# Standard style contract: a copy of .config/style/template/.editorconfig,
+# which is the source for every adopting repo (docs/adr/0022-one-style-contract.md).
+# pi-lens formats shell only when this file exists and passes
+# --use-editorconfig to biome; style-check reads the same file.
 root = true
 
 [*]
@@ -14,11 +12,14 @@ charset = utf-8
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+[*.py]
+indent_size = 4
+
 [*.md]
 trim_trailing_whitespace = false
 
 [Makefile]
 indent_style = tab
 
-[.config/git/hooks/*]
+[*.go]
 indent_style = tab

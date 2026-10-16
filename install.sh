@@ -376,6 +376,18 @@ link_path "bin/herdr-fork" ".local/bin/herdr-fork"
 link_path "bin/dsh-browser-control-english" ".local/bin/dsh-browser-control-english"
 link_path "bin/ab" ".local/bin/ab"
 link_path "bin/ab-input" ".local/bin/ab-input"
+link_path "bin/style-check" ".local/bin/style-check"
+link_path "bin/style-init" ".local/bin/style-init"
+
+# ─── Style tools (one pinned formatter/linter set, every machine) ─
+# pi-lens, style-check, the pre-push hook and post-work-cleanup must all run the
+# same binaries. Versions live in .config/style/tools.env; see
+# docs/adr/0022-one-style-contract.md.
+if [ "${INSTALL_STYLE_TOOLS:-1}" = "1" ]; then
+  bash "$DOTFILES_DIR/bin/style-tools-install" || printf 'warn: style tools install failed; run: bash bin/style-tools-install\n'
+else
+  printf 'skip: style tools (INSTALL_STYLE_TOOLS=0)\n'
+fi
 
 # ─── graphify (knowledge-graph skill + global commit hook) ─
 # graphify is the codebase knowledge-graph tool. The skill is synced with the

@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+# style-init: adopt the standard style contract in one of your repos.
+#
+#   style-init [--check] [--yes] [REPO]
+#
+#   --check  report only: exit 0 when REPO already has the standard files,
+#            3 when it is an owned repo that is missing some, 4 when it is not
+#            an owned repo (see .config/style/owned-repos). Changes nothing.
+#   --yes    do not prompt before committing.
+#
+# Adoption is a set of commits made before any other work, so the reformat
+# never mixes with a real change:
+#   1. "style: adopt standard config"  copies each missing template file
+#      (an existing file is kept, never overwritten); skipped when none is
+#      missing, so a repo whose config already landed still gets step 2;
+#   2. "style: baseline reformat (<surface>)"  one per surface the formatter
+#      changed, each recorded in .git-blame-ignore-revs so git blame skips it.
+# Lint findings are reported, not fixed: fixing them is behaviour change.
+# Refuses a dirty tree and a branch that is behind its upstream.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+STYLE_DIR="$HERE/../.config/style"
+TEMPLATE="$STYLE_DIR/template"
+
+CHECK=0
+YES=0
+REPO=.
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --check) CHECK=1 ;;
+  --yes) YES=1 ;;
+  -h | --help)
+    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  -*)
+    echo "style-init: unknown option $1" >&2
+    exit 2
+    ;;
+  *) REPO="$1" ;;
+  esac
+  shift
+done
+
+ROOT="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "style-init: $REPO is not inside a git repository" >&2
+  exit 2
+}
+cd "$ROOT"
+
+# --- ownership --------------------------------------------------------------
+owned() {
+  local url owner line rel
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  owner="$(printf '%s' "$url" | sed -n -E 's#^.*github[^:/]*[:/]([^/]+)/[^/]+$#\1#p')"
+  rel="~${ROOT#"$HOME"}"
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line//[[:space:]]/}"
+    case "$line" in
+    owner:*) [ -n "$owner" ] && [ "${line#owner:}" = "$owner" ] && return 0 ;;
+    path:*) [ "${line#path:}" = "$rel" ] && return 0 ;;
+    esac
+  done <"$STYLE_DIR/owned-repos"
+  return 1
+}
+
+if ! owned; then
+  echo "style-init: $ROOT is not an owned repo (.config/style/owned-repos); leaving its conventions alone"
+  exit 4
+fi
+
+# --- which template files this repo needs -----------------------------------
+# .editorconfig always; a language's config only when the repo has that
+# language and style-check finds no config of its own for it.
+has_lang() { git ls-files -- "$@" | grep -q .; }
+missing=()
+[ -f .editorconfig ] || missing+=(.editorconfig)
+configured() { bash "$HERE/style-check" --has-config "$1"; }
+has_lang '*.py' '*.pyi' && ! configured python && missing+=(ruff.toml)
+has_lang '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' && ! configured ts && missing+=(biome.json)
+has_lang '*.md' && ! configured markdown && missing+=(.markdownlint-cli2.jsonc)
+if [ "$CHECK" = 1 ]; then
+  if [ ${#missing[@]} -eq 0 ]; then
+    echo "style-init: $ROOT already has the standard files"
+    exit 0
+  fi
+  echo "style-init: $ROOT is missing: ${missing[*]}"
+  exit 3
+fi
+if [ ${#missing[@]} -eq 0 ] && bash "$HERE/style-check" --format-only >/dev/null 2>&1; then
+  echo "style-init: $ROOT already has the standard files and is formatted"
+  exit 0
+fi
+
+# --- safety gates -----------------------------------------------------------
+if [ -n "$(git status --porcelain)" ]; then
+  echo "style-init: $ROOT has uncommitted changes; commit or stash them first" >&2
+  git status --short | head -10 >&2
+  exit 1
+fi
+if git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+  git fetch --quiet || true
+  behind="$(git rev-list --count 'HEAD..@{u}')"
+  if [ "$behind" -gt 0 ]; then
+    echo "style-init: branch is $behind commit(s) behind its upstream; pull first so the reformat lands on top" >&2
+    exit 1
+  fi
+fi
+bash "$HERE/style-check" --doctor >/dev/null || {
+  echo "style-init: style tools are not at their pinned versions; run: bash ~/dotfiles/install.sh" >&2
+  exit 1
+}
+
+if [ ${#missing[@]} -gt 0 ]; then
+  echo "style-init: $ROOT will get: ${missing[*]}"
+else
+  echo "style-init: $ROOT has the standard files; only the baseline reformat is left"
+fi
+if [ "$YES" = 0 ]; then
+  read -r -p "Adopt and commit the baseline reformat? [y/N] " ans
+  [[ "$ans" =~ ^[Yy] ]] || {
+    echo "style-init: aborted"
+    exit 1
+  }
+fi
+
+# --- 1. config commit -------------------------------------------------------
+if [ ${#missing[@]} -gt 0 ]; then
+  for f in "${missing[@]}"; do cp "$TEMPLATE/$f" "$f"; done
+  git add -- "${missing[@]}"
+  git commit --quiet -m "style: adopt standard config" -m "Copied from dotfiles .config/style/template by style-init: ${missing[*]}."
+  echo "committed: style: adopt standard config"
+fi
+
+# --- 2. one baseline commit per surface -------------------------------------
+# style-check decides which files each surface covers (extensions, shebangs,
+# .styleignore); this asks it to reformat one surface at a time.
+BASELINES=()
+for surface in shell python ts; do
+  bash "$HERE/style-check" --fix --format-only --only "$surface" >/dev/null || true
+  [ -n "$(git status --porcelain)" ] || continue
+  git add -u
+  git commit --quiet -m "style: baseline reformat ($surface)" \
+    -m "Mechanical: formatter output only, no hand edits. Listed in .git-blame-ignore-revs."
+  BASELINES+=("$(git rev-parse HEAD) $surface")
+  echo "committed: style: baseline reformat ($surface)"
+done
+
+if [ ${#BASELINES[@]} -gt 0 ]; then
+  [ -f .git-blame-ignore-revs ] || printf '# Mechanical reformats; git blame skips these.\n# Enable locally: git config blame.ignoreRevsFile .git-blame-ignore-revs\n' >.git-blame-ignore-revs
+  for b in "${BASELINES[@]}"; do printf '%s # style: baseline reformat (%s)\n' "${b%% *}" "${b#* }" >>.git-blame-ignore-revs; done
+  git add .git-blame-ignore-revs
+  git commit --quiet -m "style: ignore baseline reformats in git blame"
+  git config blame.ignoreRevsFile .git-blame-ignore-revs
+  echo "committed: style: ignore baseline reformats in git blame"
+fi
+
+# --- 3. report what is left -------------------------------------------------
+echo
+echo "style-init: done. Remaining lint findings (fix as their own changes):"
+bash "$HERE/style-check" || true
+echo
+echo "Not pushed. Push, then fast-forward the other machines before editing there."
