@@ -91,7 +91,10 @@ new_repo "$REPO"
 : >"$GH_LOG"
 run_gralph "$REPO" frontier 42 --dry-run --verify 'bash tests/integration.sh'
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
-[ -f "$MANIFEST" ] || { echo 'FAIL: manifest missing' >&2; exit 1; }
+[ -f "$MANIFEST" ] || {
+  echo 'FAIL: manifest missing' >&2
+  exit 1
+}
 BASE_SHA="$(git -C "$REPO" rev-parse HEAD)"
 jq -e --arg sha "$BASE_SHA" '
   . == {
@@ -135,11 +138,11 @@ for case in missing-parent non-numeric closed inaccessible malformed; do
   repo="$TMPDIR/$case"
   new_repo "$repo"
   case "$case" in
-    missing-parent) expect_failure "$case" "$repo" frontier --dry-run ;;
-    non-numeric) expect_failure "$case" "$repo" frontier nope --dry-run ;;
-    closed) expect_failure "$case" "$repo" closed 42 --dry-run ;;
-    inaccessible) expect_failure "$case" "$repo" inaccessible 42 --dry-run ;;
-    malformed) expect_failure "$case" "$repo" malformed 42 --dry-run ;;
+  missing-parent) expect_failure "$case" "$repo" frontier --dry-run ;;
+  non-numeric) expect_failure "$case" "$repo" frontier nope --dry-run ;;
+  closed) expect_failure "$case" "$repo" closed 42 --dry-run ;;
+  inaccessible) expect_failure "$case" "$repo" inaccessible 42 --dry-run ;;
+  malformed) expect_failure "$case" "$repo" malformed 42 --dry-run ;;
   esac
 done
 

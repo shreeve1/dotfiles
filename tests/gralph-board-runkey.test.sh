@@ -21,7 +21,10 @@ GRALPH="$ROOT/bin/gralph"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 PASS=0
 FAILN=0
@@ -182,11 +185,11 @@ expect_eq "numeric manifest parent stays a number" "42" "$(jq -c .parent "$REPO/
 # --- 7. --spec: filter the run, board-wide dependency rules ---------------------
 new_repo spec
 BOARD="$REPO/.kanban"
-ticket "$BOARD/issues" 1 alpha '[]' done      # alpha, already done
-ticket "$BOARD/issues" 2 alpha                 # alpha, ready
-ticket "$BOARD/issues" 3 beta '[1]'            # beta, blocker is DONE and outside the filter
-ticket "$BOARD/issues" 4 beta                  # beta, ready
-ticket "$BOARD/issues" 5 beta '[2]'            # beta, blocker is PENDING and outside the filter
+ticket "$BOARD/issues" 1 alpha '[]' done # alpha, already done
+ticket "$BOARD/issues" 2 alpha           # alpha, ready
+ticket "$BOARD/issues" 3 beta '[1]'      # beta, blocker is DONE and outside the filter
+ticket "$BOARD/issues" 4 beta            # beta, ready
+ticket "$BOARD/issues" 5 beta '[2]'      # beta, blocker is PENDING and outside the filter
 git -C "$REPO" add -A && git -C "$REPO" commit -qm board
 g beta --spec beta --dry-run --verify true >/dev/null 2>&1 && ok || fail "--spec plan succeeds"
 SM="$REPO/.gralph/runs/beta/manifest.json"

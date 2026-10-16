@@ -174,14 +174,22 @@ stamp_landed_child() {
 # Sync REPO_ROOT/manifest into the helper's environment and source publish_pr.
 load_publish() {
   local repo="$1" manifest="$2"
-  PARENT=42; export PARENT
-  REPO_ROOT="$repo"; export REPO_ROOT
-  PATH="$TMPDIR/bin:$PATH"; export PATH
-  GH_LOG="$GH_LOG"; export GH_LOG
-  GIT_LOG="$GIT_LOG"; export GIT_LOG
-  PR_STATE="$PR_STATE"; export PR_STATE
-  REAL_PATH="$REAL_PATH"; export REAL_PATH
-  FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-0}"; export FAKE_PUSH_FAIL
+  PARENT=42
+  export PARENT
+  REPO_ROOT="$repo"
+  export REPO_ROOT
+  PATH="$TMPDIR/bin:$PATH"
+  export PATH
+  GH_LOG="$GH_LOG"
+  export GH_LOG
+  GIT_LOG="$GIT_LOG"
+  export GIT_LOG
+  PR_STATE="$PR_STATE"
+  export PR_STATE
+  REAL_PATH="$REAL_PATH"
+  export REAL_PATH
+  FAKE_PUSH_FAIL="${FAKE_PUSH_FAIL:-0}"
+  export FAKE_PUSH_FAIL
   source_gralph
 }
 

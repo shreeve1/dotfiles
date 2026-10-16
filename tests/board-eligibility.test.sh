@@ -68,17 +68,17 @@ expect_eq() {
 # --- 1. labels matrix -------------------------------------------------------
 new_board labels
 R='labels: [ready-for-agent]'
-ticket "$B/issues" 1 pending - '[]'                                # absent -> not eligible
-ticket "$B/issues" 2 pending 'labels: []' '[]'                     # empty -> not eligible
-ticket "$B/issues" 3 pending "$R" '[]'                             # ready
-ticket "$B/issues" 4 pending 'labels: [needs-info]' '[]'           # waiting triage
-ticket "$B/issues" 5 pending 'labels: [ready-for-human]' '[]'      # human
-ticket "$B/issues" 6 pending 'labels: [wontfix]' '[]'              # wontfix
-ticket "$B/issues" 7 pending 'labels: [ready-for-agent, needs-info]' '[]'  # conflict
-ticket "$B/issues" 8 pending 'labels: [bug, ready-for-agent]' '[]' # non-state label ignored
-ticket "$B/issues" 9 done - '[]'                                   # done, no labels: exempt
-ticket "$B/issues" 10 pending 'labels: [bug]' '[]'                 # only non-state label -> triage
-ticket "$B/issues" 11 in-progress "$R" '[]'                        # active, not eligible
+ticket "$B/issues" 1 pending - '[]'                                       # absent -> not eligible
+ticket "$B/issues" 2 pending 'labels: []' '[]'                            # empty -> not eligible
+ticket "$B/issues" 3 pending "$R" '[]'                                    # ready
+ticket "$B/issues" 4 pending 'labels: [needs-info]' '[]'                  # waiting triage
+ticket "$B/issues" 5 pending 'labels: [ready-for-human]' '[]'             # human
+ticket "$B/issues" 6 pending 'labels: [wontfix]' '[]'                     # wontfix
+ticket "$B/issues" 7 pending 'labels: [ready-for-agent, needs-info]' '[]' # conflict
+ticket "$B/issues" 8 pending 'labels: [bug, ready-for-agent]' '[]'        # non-state label ignored
+ticket "$B/issues" 9 done - '[]'                                          # done, no labels: exempt
+ticket "$B/issues" 10 pending 'labels: [bug]' '[]'                        # only non-state label -> triage
+ticket "$B/issues" 11 in-progress "$R" '[]'                               # active, not eligible
 ticket "$B/issues" 12 blocked "$R" '[]'
 
 expect_ids "only explicitly-ready pending tickets are eligible" "3 8" eligible
@@ -123,13 +123,13 @@ new_board blockers
 ticket "$B/issues" 10 done - '[]'
 ticket "$B/archive/2026-01-01" 5 done - '[]'
 ticket "$B/archive/2026-01-01" 6 cancelled - '[]'
-ticket "$B/issues" 20 pending "$R" '[10]'        # active done blocker -> eligible
-ticket "$B/issues" 21 pending "$R" '[5]'         # archived done blocker -> eligible
-ticket "$B/issues" 22 pending "$R" '[6]'         # archived cancelled -> NOT satisfied
-ticket "$B/issues" 23 pending "$R" '[999]'       # missing -> NOT satisfied (fail closed)
-ticket "$B/issues" 24 pending "$R" '[20]'        # blocker pending -> waiting
-ticket "$B/issues" 25 pending "$R" '[5, 10]'     # multiple, all done
-ticket "$B/issues" 26 pending "$R" '[5, 6]'      # one unsatisfied
+ticket "$B/issues" 20 pending "$R" '[10]'    # active done blocker -> eligible
+ticket "$B/issues" 21 pending "$R" '[5]'     # archived done blocker -> eligible
+ticket "$B/issues" 22 pending "$R" '[6]'     # archived cancelled -> NOT satisfied
+ticket "$B/issues" 23 pending "$R" '[999]'   # missing -> NOT satisfied (fail closed)
+ticket "$B/issues" 24 pending "$R" '[20]'    # blocker pending -> waiting
+ticket "$B/issues" 25 pending "$R" '[5, 10]' # multiple, all done
+ticket "$B/issues" 26 pending "$R" '[5, 6]'  # one unsatisfied
 expect_ids "blocker rules: done/archived-done ok; cancelled/missing/pending not" "20 21 25" eligible
 expect_eq "waiting_deps" "4" "$(count waiting_deps)"
 expect_eq "archived counted" "2" "$(count archived)"
@@ -140,9 +140,9 @@ expect_ids "archive progress.md ignored" "20 21 25" eligible
 
 # --- parent / child ---------------------------------------------------------
 new_board parent
-ticket "$B/issues" 1 pending "$R" '[]'                    # parent
-ticket "$B/issues" 2 pending "$R" '[]' 'parent: 1'        # child
-ticket "$B/issues" 3 pending "$R" '[]' 'parent: 1'        # child
+ticket "$B/issues" 1 pending "$R" '[]'             # parent
+ticket "$B/issues" 2 pending "$R" '[]' 'parent: 1' # child
+ticket "$B/issues" 3 pending "$R" '[]' 'parent: 1' # child
 expect_ids "parent excluded while children open" "2 3" eligible
 ticket "$B/issues" 2 done - '[]' 'parent: 1'
 ticket "$B/issues" 3 done - '[]' 'parent: 1'
@@ -152,9 +152,9 @@ expect_ids "parent eligible once children done" "1" eligible
 new_board spec
 ticket "$B/issues" 1 done - '[]' 'spec: alpha'
 ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
-ticket "$B/issues" 3 pending "$R" '[1]' 'spec: beta'      # cross-spec blocker, done
-ticket "$B/issues" 4 pending "$R" '[2]' 'spec: beta'      # cross-spec blocker, pending
-ticket "$B/issues" 5 pending "$R" '[]'                    # no spec
+ticket "$B/issues" 3 pending "$R" '[1]' 'spec: beta' # cross-spec blocker, done
+ticket "$B/issues" 4 pending "$R" '[2]' 'spec: beta' # cross-spec blocker, pending
+ticket "$B/issues" 5 pending "$R" '[]'               # no spec
 expect_ids "no --spec reports everything eligible" "2 3 5" eligible
 expect_ids "--spec alpha" "2" --spec alpha eligible
 expect_ids "--spec beta sees cross-spec done blocker, blocked by pending one" "3" --spec beta eligible
@@ -248,7 +248,10 @@ rm -f "$PWN"
 for payload in "x';touch $PWN;'" "missing' || touch $PWN || 'missing" "\$(touch $PWN)" '`touch '"$PWN"'`' "a b" "../etc/passwd" "x/y"; do
   ticket "$B/issues" 1 pending "$R" '[]' "spec: $payload"
   out="$(bs validate 2>&1 || true)"
-  if [ -e "$PWN" ]; then fail "spec payload executed a command: $payload"; rm -f "$PWN"; else ok; fi
+  if [ -e "$PWN" ]; then
+    fail "spec payload executed a command: $payload"
+    rm -f "$PWN"
+  else ok; fi
   case "$out" in *"invalid spec"*) ok ;; *) fail "validate rejects the malformed spec: $payload" "$out" ;; esac
 done
 # A well-formed slug with a spec file validates; without one it is only a WARN.
@@ -267,7 +270,7 @@ new_board malformed
 ticket "$B/issues" 1 done - '[]'
 ticket "$B/issues" 2 pending "$R" '[1x]'
 ticket "$B/issues" 3 pending "$R" '[1, abc]'
-ticket "$B/issues" 4 pending "$R" '[01]'      # a leading zero is a valid number: id 1
+ticket "$B/issues" 4 pending "$R" '[01]' # a leading zero is a valid number: id 1
 ticket "$B/issues" 5 pending "$R" '[-1]'
 expect_ids "non-numeric blockers keep the ticket blocked; leading zero is fine" "4" eligible
 expect_eq "malformed blockers count as waiting_deps" "3" "$(count waiting_deps)"
@@ -302,7 +305,10 @@ expect_eq "files --spec with no match is empty" "" "$(bs --spec nobody files)"
 # --- `spec-done`: is every ticket of a spec finished, live AND archived (review: Spec complete lied) ---
 # finish-spec counts a spec's archived tickets and stops on a cancelled one, so the completion
 # check must too. Exit 0 = complete; 1 = not; 2 = bad usage.
-sd() { bs --spec "$1" spec-done >/dev/null 2>&1; echo $?; }
+sd() {
+  bs --spec "$1" spec-done >/dev/null 2>&1
+  echo $?
+}
 
 new_board sd-live
 ticket "$B/issues" 1 done - '[]' 'spec: alpha'
@@ -334,7 +340,10 @@ expect_eq "spec-done: the other spec is not complete" "1" "$(sd beta)"
 
 new_board sd-none
 expect_eq "spec-done: a spec with no tickets is not complete" "1" "$(sd ghost)"
-expect_eq "spec-done: no --spec is a usage error" "2" "$(bs spec-done >/dev/null 2>&1; echo $?)"
+expect_eq "spec-done: no --spec is a usage error" "2" "$(
+  bs spec-done >/dev/null 2>&1
+  echo $?
+)"
 
 new_board sd-quoted
 ticket "$B/issues" 1 done - '[]' 'spec: "alpha"'
@@ -346,7 +355,8 @@ expect_eq "spec-done: quoted and commented spec values count as the spec" "0" "$
 # invalid (slug breaks the rule, so it is never turned into a path). Exit 0 for none/ok, 1 otherwise.
 sc() { bs spec-check "$1" 2>/dev/null; }
 new_board speccheck
-mkdir -p "$B/specs"; printf '# s\n' >"$B/specs/alpha.md"
+mkdir -p "$B/specs"
+printf '# s\n' >"$B/specs/alpha.md"
 ticket "$B/issues" 1 pending "$R" '[]'
 ticket "$B/issues" 2 pending "$R" '[]' 'spec: alpha'
 ticket "$B/issues" 3 pending "$R" '[]' 'spec: ghost'
@@ -361,9 +371,18 @@ expect_eq "spec-check: unsafe slug is invalid" "invalid" "$(sc 4)"
 expect_eq "spec-check: spec: null is none" "none" "$(sc 5)"
 expect_eq "spec-check: quoted slug resolves like board.sh does" "ok" "$(sc 6)"
 expect_eq "spec-check: all-digit slug is invalid" "invalid" "$(sc 7)"
-expect_eq "spec-check: exit 0 for ok" "0" "$(bs spec-check 2 >/dev/null 2>&1; echo $?)"
-expect_eq "spec-check: exit 1 for missing" "1" "$(bs spec-check 3 >/dev/null 2>&1; echo $?)"
-expect_eq "spec-check: unknown id is a usage error" "2" "$(bs spec-check 99 >/dev/null 2>&1; echo $?)"
+expect_eq "spec-check: exit 0 for ok" "0" "$(
+  bs spec-check 2 >/dev/null 2>&1
+  echo $?
+)"
+expect_eq "spec-check: exit 1 for missing" "1" "$(
+  bs spec-check 3 >/dev/null 2>&1
+  echo $?
+)"
+expect_eq "spec-check: unknown id is a usage error" "2" "$(
+  bs spec-check 99 >/dev/null 2>&1
+  echo $?
+)"
 
 # --- empty / missing board --------------------------------------------------
 new_board empty

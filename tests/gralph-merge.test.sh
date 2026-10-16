@@ -109,7 +109,11 @@ new_repo "$REPO"
 plan_manifest "$REPO"
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 stamp_accepted_child "$REPO" "$MANIFEST" 101 "branch-101" "implement 101" "worker-output.txt"
-PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
+PARENT=42
+export PARENT
+REPO_ROOT="$REPO"
+export REPO_ROOT
+source_gralph
 mkdir -p "$REPO/.gralph/runs/42"
 if ! (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$(jq -r '.baseSha' "$MANIFEST")" 'bash verify-integration.sh' "test-accepted-101" "gralph/42/issue-101" "$(jq -r '.children[0].execution.commitSha' "$MANIFEST")"); then
   echo "FAIL: accepted merge did not succeed" >&2
@@ -140,7 +144,11 @@ new_repo "$REPO"
 plan_manifest "$REPO"
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 stamp_unreviewed_child "$REPO" "$MANIFEST" 101 rejected
-PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
+PARENT=42
+export PARENT
+REPO_ROOT="$REPO"
+export REPO_ROOT
+source_gralph
 if (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$(jq -r '.baseSha' "$MANIFEST")" 'bash verify-integration.sh' "test-rejected-101" "gralph/42/issue-101" "$(git -C "$REPO" rev-parse HEAD)") 2>"$TMPDIR/unreviewed.err"; then
   echo "FAIL: unreviewed merge unexpectedly succeeded" >&2
   exit 1
@@ -164,14 +172,22 @@ branch="$(stamp_accepted_child "$REPO" "$MANIFEST" 101 "branch-101" "implement 1
 # drop the seeding worktree so merge_one_child can attach to the branch.
 TMP_INIT="$REPO/.gralph/runs/42/batch-conflict-init"
 git -C "$REPO" worktree add -b gralph/42/batch "$TMP_INIT" "$(jq -r '.baseSha' "$MANIFEST")" >/dev/null
-(cd "$TMP_INIT" && printf 'batch-side\n' > README && git add README && git commit -qm "batch-init")
+(cd "$TMP_INIT" && printf 'batch-side\n' >README && git add README && git commit -qm "batch-init")
 git -C "$REPO" worktree remove --force "$TMP_INIT" >/dev/null
-PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
+PARENT=42
+export PARENT
+REPO_ROOT="$REPO"
+export REPO_ROOT
+source_gralph
 if (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$(jq -r '.baseSha' "$MANIFEST")" 'bash verify-integration.sh' "test-conflict-101" "gralph/42/issue-101" "$(jq -r '.children[0].execution.commitSha' "$MANIFEST")") 2>"$TMPDIR/conflict.err"; then
   echo "FAIL: conflict merge unexpectedly succeeded" >&2
   exit 1
 fi
-grep -q 'merge of gralph/42/issue-101 into gralph/42/batch reported a conflict' "$TMPDIR/conflict.err" || { echo "FAIL: missing conflict error message" >&2; cat "$TMPDIR/conflict.err" >&2; exit 1; }
+grep -q 'merge of gralph/42/issue-101 into gralph/42/batch reported a conflict' "$TMPDIR/conflict.err" || {
+  echo "FAIL: missing conflict error message" >&2
+  cat "$TMPDIR/conflict.err" >&2
+  exit 1
+}
 jq -e '
   .execution.status == "failed"
   and .execution.reason == "merge_conflict"
@@ -182,9 +198,19 @@ jq -e '
   cat "$MANIFEST" >&2
   exit 1
 }
-if [ -z "$(git -C "$REPO" branch --list 'gralph/42/batch')" ]; then echo "FAIL: batch branch missing after conflict" >&2; exit 1; fi
-if [ ! -d "$REPO/.gralph/runs/42/worktrees/batch-test-conflict-101" ]; then echo "FAIL: batch worktree missing after conflict" >&2; ls -la "$REPO/.gralph/runs/42/worktrees/" >&2; exit 1; fi
-if [ -z "$(git -C "$REPO" branch --list 'gralph/42/issue-101')" ]; then echo "FAIL: worker branch missing after conflict" >&2; exit 1; fi
+if [ -z "$(git -C "$REPO" branch --list 'gralph/42/batch')" ]; then
+  echo "FAIL: batch branch missing after conflict" >&2
+  exit 1
+fi
+if [ ! -d "$REPO/.gralph/runs/42/worktrees/batch-test-conflict-101" ]; then
+  echo "FAIL: batch worktree missing after conflict" >&2
+  ls -la "$REPO/.gralph/runs/42/worktrees/" >&2
+  exit 1
+fi
+if [ -z "$(git -C "$REPO" branch --list 'gralph/42/issue-101')" ]; then
+  echo "FAIL: worker branch missing after conflict" >&2
+  exit 1
+fi
 
 # Integration failure: merge succeeds but the integration command exits
 # non-zero, leaving the merged batch branch and worktree on disk.
@@ -198,7 +224,11 @@ git -C "$REPO" add verify-integration.sh && git -C "$REPO" commit -qm "integrati
 plan_manifest "$REPO"
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 stamp_accepted_child "$REPO" "$MANIFEST" 101 "branch-101" "implement 101" "worker-output.txt"
-PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
+PARENT=42
+export PARENT
+REPO_ROOT="$REPO"
+export REPO_ROOT
+source_gralph
 if (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$(jq -r '.baseSha' "$MANIFEST")" 'bash verify-integration.sh' "test-intfail-101" "gralph/42/issue-101" "$(jq -r '.children[0].execution.commitSha' "$MANIFEST")") 2>"$TMPDIR/intfail.err"; then
   echo "FAIL: integration failure unexpectedly succeeded" >&2
   exit 1
@@ -228,11 +258,15 @@ old_base="$(jq -r '.baseSha' "$MANIFEST")"
 # whenever that began with 0 (about 1 run in 16); the "ghost" then resolved and the
 # test failed for no reason.
 case "$old_base" in
-  f*) ghost_base="e${old_base#?}" ;;
-  *) ghost_base="f${old_base#?}" ;;
+f*) ghost_base="e${old_base#?}" ;;
+*) ghost_base="f${old_base#?}" ;;
 esac
 jq --arg base "$ghost_base" '.baseSha = $base' "$MANIFEST" >"$MANIFEST.tmp.$$" && mv "$MANIFEST.tmp.$$" "$MANIFEST"
-PARENT=42; export PARENT; REPO_ROOT="$REPO"; export REPO_ROOT; source_gralph
+PARENT=42
+export PARENT
+REPO_ROOT="$REPO"
+export REPO_ROOT
+source_gralph
 if (cd "$REPO" && merge_one_child 101 "$MANIFEST" "$REPO/.gralph/runs/42" "$ghost_base" 'bash verify-integration.sh' "test-stale-101" "gralph/42/issue-101" "$(jq -r '.children[0].execution.commitSha' "$MANIFEST")") 2>"$TMPDIR/stale.err"; then
   echo "FAIL: stale base merge unexpectedly succeeded" >&2
   exit 1

@@ -179,7 +179,10 @@ jq -e --arg base "$BASE_SHA" --arg commit "$COMMIT" '
 grep -q '^label create gralph:claimed ' "$GH_LOG"
 grep -q '^issue edit 101 --add-label gralph:claimed$' "$GH_LOG"
 for flag in -p --no-session --no-extensions -e --no-skills --skill --no-context-files --no-prompt-templates --no-themes --tools; do
-  grep -Fx -- "$flag" "$PI_LOG" >/dev/null || { echo "FAIL: missing Pi flag $flag" >&2; exit 1; }
+  grep -Fx -- "$flag" "$PI_LOG" >/dev/null || {
+    echo "FAIL: missing Pi flag $flag" >&2
+    exit 1
+  }
 done
 grep -Fx 'read,write,edit,grep,find,ls,gralph_check' "$PI_LOG" >/dev/null
 ! grep -Fx bash "$PI_LOG" >/dev/null

@@ -13,7 +13,10 @@ GRALPH="$ROOT/bin/gralph"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 PASS=0
 FAILN=0
@@ -61,7 +64,11 @@ compare() {
   if [ "$want" = "$got" ]; then ok; else fail "[$name] board.sh and gralph disagree" "board.sh=[$want] gralph=[$got]"; fi
 }
 
-new() { B="$TMP/$1"; rm -rf "$B"; mkdir -p "$B/issues" "$B/archive/2026-01-01"; }
+new() {
+  B="$TMP/$1"
+  rm -rf "$B"
+  mkdir -p "$B/issues" "$B/archive/2026-01-01"
+}
 
 new labels
 ticket "$B" 1 pending - '[]'

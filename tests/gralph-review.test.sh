@@ -154,7 +154,10 @@ jq -e '
 [ "$(grep -c '^read,grep,find,ls$' "$PI_LOG")" -eq 1 ]
 [ "$(grep -c '^read,write,edit,grep,find,ls,gralph_check$' "$PI_LOG")" -eq 1 ]
 for flag in -p --no-session --no-extensions --no-skills --no-context-files --no-prompt-templates --no-themes; do
-  [ "$(grep -Fxc -- "$flag" "$PI_LOG")" -ge 1 ] || { echo "FAIL: reviewer missing $flag" >&2; exit 1; }
+  [ "$(grep -Fxc -- "$flag" "$PI_LOG")" -ge 1 ] || {
+    echo "FAIL: reviewer missing $flag" >&2
+    exit 1
+  }
 done
 grep -F 'Create worker-output.txt.' "$REVIEW_PROMPT" >/dev/null
 grep -F -- '- [ ] output exists' "$REVIEW_PROMPT" >/dev/null

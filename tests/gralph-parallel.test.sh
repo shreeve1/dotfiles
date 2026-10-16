@@ -252,7 +252,11 @@ plan_repo "$REPO"
 : >"$CONCURRENCY_LOG" : >"$CONCURRENCY_COUNT"
 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >/dev/null
 max_concurrent="$(awk '/start/ { for (i=1; i<=NF; i++) if ($i ~ /^count=/) { split($i, a, "="); if (a[2]+0 > m) m = a[2]+0 } } END { print m+0 }' "$CONCURRENCY_LOG")"
-[ "$max_concurrent" -le 2 ] || { echo "FAIL: max concurrent = $max_concurrent (>2)" >&2; cat "$CONCURRENCY_LOG" >&2; exit 1; }
+[ "$max_concurrent" -le 2 ] || {
+  echo "FAIL: max concurrent = $max_concurrent (>2)" >&2
+  cat "$CONCURRENCY_LOG" >&2
+  exit 1
+}
 # Verify all three children landed across waves.
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 jq -e '
@@ -273,7 +277,10 @@ plan_repo "$REPO"
 run_gralph "$REPO" 42 --jobs 2 --verify 'bash verify-integration.sh' >/dev/null
 MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 merged_shas="$(jq -r '[.children[] | select(.merge.status == "landed") | .merge.mergedSha] | sort | unique | join(" ")' "$MANIFEST")"
-[ "$(echo "$merged_shas" | wc -w)" -eq 3 ] || { echo "FAIL: expected 3 unique merged SHAs, got: $merged_shas" >&2; exit 1; }
+[ "$(echo "$merged_shas" | wc -w)" -eq 3 ] || {
+  echo "FAIL: expected 3 unique merged SHAs, got: $merged_shas" >&2
+  exit 1
+}
 # The batch branch is gralph/42/batch and ancestors include the recorded baseSha.
 git -C "$REPO" show-ref --verify --quiet refs/heads/gralph/42/batch
 git -C "$REPO" merge-base --is-ancestor "$(jq -r .baseSha "$MANIFEST")" gralph/42/batch

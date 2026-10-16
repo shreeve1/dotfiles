@@ -16,7 +16,10 @@ GRALPH="$ROOT/bin/gralph"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-command -v jq >/dev/null 2>&1 || { echo "FAIL: jq is required" >&2; exit 1; }
+command -v jq >/dev/null 2>&1 || {
+  echo "FAIL: jq is required" >&2
+  exit 1
+}
 
 FAKE_BIN="$TMPDIR/bin"
 AGENT_LOG="$TMPDIR/agent.log"
@@ -112,7 +115,7 @@ plan_board "$REPO" "$BOARD"
 MAIN_BEFORE="$(git -C "$REPO" rev-parse HEAD)"
 
 if ! run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'true' >"$TMPDIR/clean.out" 2>"$TMPDIR/clean.err"; then
+  --verify 'true' >"$TMPDIR/clean.out" 2>"$TMPDIR/clean.err"; then
   echo "FAIL: clean run should exit 0" >&2
   cat "$TMPDIR/clean.err" >&2
   exit 1
@@ -125,38 +128,71 @@ jq -e '
   (.orchestration.landed | sort == [1, 2])
   and (.children[] | select(.number == 1) | .merge.status) == "landed"
   and (.children[] | select(.number == 2) | .merge.status) == "landed"
-' "$MANIFEST" >/dev/null || { echo "FAIL: not all tickets landed" >&2; exit 1; }
+' "$MANIFEST" >/dev/null || {
+  echo "FAIL: not all tickets landed" >&2
+  exit 1
+}
 
 # Main was fast-forwarded (HEAD moved).
 MAIN_AFTER="$(git -C "$REPO" rev-parse HEAD)"
-[ "$MAIN_AFTER" != "$MAIN_BEFORE" ] || { echo "FAIL: main HEAD did not advance after ff-only" >&2; exit 1; }
+[ "$MAIN_AFTER" != "$MAIN_BEFORE" ] || {
+  echo "FAIL: main HEAD did not advance after ff-only" >&2
+  exit 1
+}
 
 # The batch branch is now an ancestor of (or equal to) HEAD.
-git -C "$REPO" merge-base --is-ancestor "gralph/42/batch" HEAD || \
-  { echo "FAIL: batch branch not ancestor of main after merge" >&2; exit 1; }
+git -C "$REPO" merge-base --is-ancestor "gralph/42/batch" HEAD ||
+  {
+    echo "FAIL: batch branch not ancestor of main after merge" >&2
+    exit 1
+  }
 
 # Manifest records boardFinish.status = merged.
-jq -e '.orchestration.boardFinish.status == "merged"' "$MANIFEST" >/dev/null || \
-  { echo "FAIL: manifest should record boardFinish.status=merged" >&2; exit 1; }
-jq -e '(.orchestration.boardFinish.mergeSha | type == "string") and (.orchestration.boardFinish.mergeSha | length > 0)' "$MANIFEST" >/dev/null || \
-  { echo "FAIL: manifest should record boardFinish.mergeSha" >&2; exit 1; }
+jq -e '.orchestration.boardFinish.status == "merged"' "$MANIFEST" >/dev/null ||
+  {
+    echo "FAIL: manifest should record boardFinish.status=merged" >&2
+    exit 1
+  }
+jq -e '(.orchestration.boardFinish.mergeSha | type == "string") and (.orchestration.boardFinish.mergeSha | length > 0)' "$MANIFEST" >/dev/null ||
+  {
+    echo "FAIL: manifest should record boardFinish.mergeSha" >&2
+    exit 1
+  }
 
 # run-report.md exists and names both tickets.
 REPORT="$REPO/.kanban/run-report.md"
-[ -f "$REPORT" ] || { echo "FAIL: run-report.md missing" >&2; exit 1; }
-grep -q '| 1 |' "$REPORT" || { echo "FAIL: ticket 1 missing from report" >&2; exit 1; }
-grep -q '| 2 |' "$REPORT" || { echo "FAIL: ticket 2 missing from report" >&2; exit 1; }
-grep -q 'landed' "$REPORT" || { echo "FAIL: 'landed' outcome missing from report" >&2; exit 1; }
+[ -f "$REPORT" ] || {
+  echo "FAIL: run-report.md missing" >&2
+  exit 1
+}
+grep -q '| 1 |' "$REPORT" || {
+  echo "FAIL: ticket 1 missing from report" >&2
+  exit 1
+}
+grep -q '| 2 |' "$REPORT" || {
+  echo "FAIL: ticket 2 missing from report" >&2
+  exit 1
+}
+grep -q 'landed' "$REPORT" || {
+  echo "FAIL: 'landed' outcome missing from report" >&2
+  exit 1
+}
 
 # No stale marker.
 MARKER="$TMPDIR/home/.cache/ralph-merge-needed-board-42"
-[ ! -f "$MARKER" ] || { echo "FAIL: marker should not exist after successful merge" >&2; exit 1; }
+[ ! -f "$MARKER" ] || {
+  echo "FAIL: marker should not exist after successful merge" >&2
+  exit 1
+}
 
 # Landed lane worktrees/branches are removed.
 LANDED_BRANCH_1="$(jq -r '.children[] | select(.number == 1) | .execution.branch // ""' "$MANIFEST")"
 if [ -n "$LANDED_BRANCH_1" ]; then
-  git -C "$REPO" show-ref --verify --quiet "refs/heads/$LANDED_BRANCH_1" 2>/dev/null && \
-    { echo "FAIL: landed branch $LANDED_BRANCH_1 should have been pruned" >&2; exit 1; } || true
+  git -C "$REPO" show-ref --verify --quiet "refs/heads/$LANDED_BRANCH_1" 2>/dev/null &&
+    {
+      echo "FAIL: landed branch $LANDED_BRANCH_1 should have been pruned" >&2
+      exit 1
+    } || true
 fi
 
 echo "clean-run tests passed"
@@ -176,7 +212,7 @@ write_ticket "$BOARD" 10 pending '[]'
 plan_board "$REPO" "$BOARD"
 
 if ! run_gralph_board "$REPO" "$BOARD" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'true' >"$TMPDIR/diverge.out" 2>"$TMPDIR/diverge.err"; then
+  --verify 'true' >"$TMPDIR/diverge.out" 2>"$TMPDIR/diverge.err"; then
   echo "FAIL: run should succeed even with diverged main" >&2
   cat "$TMPDIR/diverge.err" >&2
   exit 1
@@ -186,7 +222,10 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 
 # Ticket 10 landed on batch.
 jq -e '(.children[] | select(.number == 10) | .merge.status) == "landed"' \
-  "$MANIFEST" >/dev/null || { echo "FAIL: ticket 10 should have landed on batch" >&2; exit 1; }
+  "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 10 should have landed on batch" >&2
+  exit 1
+}
 
 # Now advance main with a new commit so ff-only will fail on restart.
 echo "extra" >"$REPO/extra.txt"
@@ -219,7 +258,7 @@ git -C "$REPO2" commit -qm "diverge main"
 # But gralph stores base_sha from the plan (which is now behind HEAD).
 # Ticket lands on batch. finish_board tries ff-only → fails → deferred.
 if ! run_gralph_board "$REPO2" "$BOARD2" --agent-cmd agent-cmd --jobs 1 \
-    --verify 'true' >"$TMPDIR/diverge2.out" 2>"$TMPDIR/diverge2.err"; then
+  --verify 'true' >"$TMPDIR/diverge2.out" 2>"$TMPDIR/diverge2.err"; then
   echo "FAIL: run should exit 0 even when ff-only is deferred" >&2
   cat "$TMPDIR/diverge2.err" >&2
   exit 1
@@ -229,25 +268,46 @@ MANIFEST2="$REPO2/.gralph/runs/42/manifest.json"
 
 # Ticket landed on batch.
 jq -e '(.children[] | select(.number == 1) | .merge.status) == "landed"' \
-  "$MANIFEST2" >/dev/null || { echo "FAIL: ticket 1 should have landed on batch" >&2; exit 1; }
+  "$MANIFEST2" >/dev/null || {
+  echo "FAIL: ticket 1 should have landed on batch" >&2
+  exit 1
+}
 
 # boardFinish.status = deferred.
-jq -e '.orchestration.boardFinish.status == "deferred"' "$MANIFEST2" >/dev/null || \
-  { echo "FAIL: manifest should record boardFinish.status=deferred" >&2; exit 1; }
+jq -e '.orchestration.boardFinish.status == "deferred"' "$MANIFEST2" >/dev/null ||
+  {
+    echo "FAIL: manifest should record boardFinish.status=deferred" >&2
+    exit 1
+  }
 
 # Marker dropped.
 MARKER2="$TMPDIR/home/.cache/ralph-merge-needed-board-42"
-[ -f "$MARKER2" ] || { echo "FAIL: marker should exist after deferred merge" >&2; exit 1; }
+[ -f "$MARKER2" ] || {
+  echo "FAIL: marker should exist after deferred merge" >&2
+  exit 1
+}
 
 # Report says deferred.
 REPORT2="$REPO2/.kanban/run-report.md"
-[ -f "$REPORT2" ] || { echo "FAIL: run-report.md missing for deferred case" >&2; exit 1; }
-grep -qi 'deferred' "$REPORT2" || { echo "FAIL: 'deferred' missing from report" >&2; exit 1; }
-grep -q 'gralph/42/batch' "$REPORT2" || { echo "FAIL: batch branch missing from deferred report" >&2; exit 1; }
+[ -f "$REPORT2" ] || {
+  echo "FAIL: run-report.md missing for deferred case" >&2
+  exit 1
+}
+grep -qi 'deferred' "$REPORT2" || {
+  echo "FAIL: 'deferred' missing from report" >&2
+  exit 1
+}
+grep -q 'gralph/42/batch' "$REPORT2" || {
+  echo "FAIL: batch branch missing from deferred report" >&2
+  exit 1
+}
 
 # Batch branch still exists (not deleted on deferred).
-git -C "$REPO2" show-ref --verify --quiet refs/heads/gralph/42/batch || \
-  { echo "FAIL: batch branch should survive deferred merge" >&2; exit 1; }
+git -C "$REPO2" show-ref --verify --quiet refs/heads/gralph/42/batch ||
+  {
+    echo "FAIL: batch branch should survive deferred merge" >&2
+    exit 1
+  }
 
 echo "diverged-main tests passed"
 
@@ -256,11 +316,20 @@ echo "diverged-main tests passed"
 # =============================================================================
 
 SKILL="$ROOT/.agents/skills/tralph-merge/SKILL.md"
-[ -f "$SKILL" ] || { echo "FAIL: tralph-merge skill missing" >&2; exit 1; }
-grep -q 'ralph-merge-needed-board' "$SKILL" || \
-  { echo "FAIL: skill does not document board-mode marker" >&2; exit 1; }
-grep -q 'gralph.*batch' "$SKILL" || \
-  { echo "FAIL: skill does not document gralph batch branch" >&2; exit 1; }
+[ -f "$SKILL" ] || {
+  echo "FAIL: tralph-merge skill missing" >&2
+  exit 1
+}
+grep -q 'ralph-merge-needed-board' "$SKILL" ||
+  {
+    echo "FAIL: skill does not document board-mode marker" >&2
+    exit 1
+  }
+grep -q 'gralph.*batch' "$SKILL" ||
+  {
+    echo "FAIL: skill does not document gralph batch branch" >&2
+    exit 1
+  }
 
 echo "tralph-merge skill tests passed"
 
@@ -312,20 +381,38 @@ MANIFEST="$REPO/.gralph/runs/42/manifest.json"
 
 # Ticket 1 landed, ticket 2 bounced.
 jq -e '(.children[] | select(.number == 1) | .merge.status) == "landed"' \
-  "$MANIFEST" >/dev/null || { echo "FAIL: ticket 1 should have landed" >&2; exit 1; }
+  "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 1 should have landed" >&2
+  exit 1
+}
 jq -e '(.children[] | select(.number == 2) | .merge.status) == "bounced"' \
-  "$MANIFEST" >/dev/null || { echo "FAIL: ticket 2 should have bounced" >&2; exit 1; }
+  "$MANIFEST" >/dev/null || {
+  echo "FAIL: ticket 2 should have bounced" >&2
+  exit 1
+}
 
 # Bounced branch preserved.
 bounced_branch="$(jq -r '.children[] | select(.number == 2) | .merge.bouncedBranch // ""' "$MANIFEST")"
-[ -n "$bounced_branch" ] || { echo "FAIL: bounced branch not recorded in manifest" >&2; exit 1; }
-git -C "$REPO" show-ref --verify --quiet "refs/heads/$bounced_branch" || \
-  { echo "FAIL: bounced branch $bounced_branch should survive cleanup" >&2; exit 1; }
+[ -n "$bounced_branch" ] || {
+  echo "FAIL: bounced branch not recorded in manifest" >&2
+  exit 1
+}
+git -C "$REPO" show-ref --verify --quiet "refs/heads/$bounced_branch" ||
+  {
+    echo "FAIL: bounced branch $bounced_branch should survive cleanup" >&2
+    exit 1
+  }
 
 # run-report lists bounced outcome.
 REPORT="$REPO/.kanban/run-report.md"
-[ -f "$REPORT" ] || { echo "FAIL: run-report.md missing for bounced case" >&2; exit 1; }
-grep -q 'bounced' "$REPORT" || { echo "FAIL: 'bounced' missing from report" >&2; exit 1; }
+[ -f "$REPORT" ] || {
+  echo "FAIL: run-report.md missing for bounced case" >&2
+  exit 1
+}
+grep -q 'bounced' "$REPORT" || {
+  echo "FAIL: 'bounced' missing from report" >&2
+  exit 1
+}
 
 echo "bounced-lane tests passed"
 
