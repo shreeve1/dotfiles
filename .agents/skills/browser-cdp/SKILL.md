@@ -12,6 +12,10 @@ Use agent-browser for normal omp browser work. Preserve the existing Chrome wind
 - The profile was seeded 2026-09-30 by copying james's real `Default` profile (rsync minus caches) — site logins/cookies live there and persist. Local logins were re-verified (HaloPSA etc. restored logged-in).
 - Port 9222 = full control of that profile to any local process. Do not put banking/primary email logins there unless james asks; remind once if he does.
 
+## Before driving an admin portal
+
+The browser is the last route. For a Microsoft 365, Entra or Intune change or bulk read (group members, users, licences, devices), first try the ITAStack `itastack_m365` connector on the client's tenant. When the tenant is not configured there, offer PowerShell with Microsoft Graph before the portal: one device-code sign-in by James, then `Invoke-MgGraphRequest` calls, which are faster and exact for anything repeated (ten group members is ten POSTs, not ten picker clicks). Workspace details, including the PTY capture of the device code and the ita tenants where Conditional Access blocks device code, are in the workspace's `memory/workflows/365/m365-tool-gotchas.md`. Drive the portal only when James picks it, Graph cannot do the operation, or the sign-in is blocked; say which in one line.
+
 ## Workflow
 
 1. Check `http://127.0.0.1:9222/json/version`. If unavailable, launch `chrome-cdp`; from SSH use:
@@ -25,6 +29,8 @@ Use agent-browser for normal omp browser work. Preserve the existing Chrome wind
    ```
 
    Use `ab-input` for the entire input batch, navigation, first attachment, tab creation/switching/closing, screenshots, and JavaScript that changes the page. Read-only snapshots/evaluation can use `ab` after attachment. All agents and raw CDP input callers on this Chrome must use the same lock; it is cooperative, not browser-enforced.
+
+   `ab-input` takes the lock itself. Never wrap it in `flock`: the outer lock blocks the inner one (a 2026-10-16 run hung 29 minutes this way). It waits at most 60 seconds (`AB_LOCK_WAIT`) and then exits 254 with a message; on 254, find the holder (your own sign-in reservation, another agent) instead of retrying blindly. Give every browser bash call a `timeout`.
 4. For a new owner, `ab-input --json open <authorized-url>` creates and pins its own tab. Retain `data.targetId` as the explicitly owned `TARGET`. On continuation, reuse that same SESSION and `ab snapshot -i -c`; do not navigate away from an authenticated page merely to reconnect. `tab_gone` means the exact bound tab was closed: recover with `ab-input --json tab new <authorized-url>` and record the new target, not a neighboring tab. An existing target may be reused only with explicit ownership/authorization and `ab-input tab <targetId>`.
 5. Inspect with `ab snapshot -i -c`, then act using current refs or selectors. After an action, read only the change: `ab snapshot -i -c --delta` (the first call returns the full state; `--full` resets it), or scope a large grid or panel with `-s '<css>'`. A full snapshot of an admin portal costs 15-20k characters each time. Re-snapshot after navigation or a DOM change before reusing refs. Batch independent, authorized actions with `ab-input batch --bail`; include an expected-state wait and readback:
 
