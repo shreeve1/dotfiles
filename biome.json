@@ -16,6 +16,10 @@
       "!.pi/agent/extensions-archive",
       "!omarchy/config/omarchy/plugins/meviusisback.agent-orchestr",
       "!omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber",
+      "!.config/opencode/plugins",
+      "!.omp/agent/extensions/moshi-hooks.ts",
+      "!.pi/agent/extensions/moshi-hooks.ts",
+      "!.pi/agent/extensions/herdr-agent-state.ts",
       "!archive",
       "!graphify-out",
       "!**/*.map"
