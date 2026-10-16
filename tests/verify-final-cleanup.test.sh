@@ -19,8 +19,8 @@ export EXT TMP
 
 HOME="$TMP/home" VERIFY_FINAL=0 node --input-type=module - <<'EOF'
 import { execFileSync } from "node:child_process"
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 
 const tmp = process.env.TMP
 const { default: register } = await import(process.env.EXT)
@@ -70,7 +70,12 @@ async function session(cwd) {
       writeFileSync(path.startsWith("/") ? path : join(cwd, path), content)
       return emit("tool_result", { toolName: "edit", toolCallId: `e${++n}`, input: { path }, isError: false, content: [] })
     },
-    read: (path) => emit("tool_call", { toolName: "read", toolCallId: `r${++n}`, input: { path } }),
+    // Like pi: tool_call, then a tool_result that is an error when the file is missing.
+    read: async (path) => {
+      const id = `r${++n}`
+      await emit("tool_call", { toolName: "read", toolCallId: id, input: { path } })
+      return emit("tool_result", { toolName: "read", toolCallId: id, input: { path }, isError: !existsSync(path), content: [] })
+    },
     bash: (command) => emit("tool_call", { toolName: "bash", toolCallId: `b${++n}`, input: { command } }),
     settle: () => emit("agent_before_settle", { outcome: "completed", entries: [] }),
   }
@@ -137,7 +142,10 @@ const nudgeText = (r) => r?.entries?.at(-1)?.content ?? ""
   const s = await session(repo)
   await s.prompt()
   await s.edit("app.py")
-  await s.read("/home/x/.agents/skills/post-work-cleanup/SKILL.md")
+  const skill = join(tmp, "skills/post-work-cleanup/SKILL.md")
+  mkdirSync(dirname(skill), { recursive: true })
+  writeFileSync(skill, "---\nname: post-work-cleanup\n---\n")
+  await s.read(skill)
   await s.edit("app.py", "x = 4\n")
   check("commit after cleanup is not held", (await s.bash("git commit -am x")) === undefined)
   check("no settle nudge after cleanup", (await s.settle()) === undefined)
@@ -202,6 +210,112 @@ const nudgeText = (r) => r?.entries?.at(-1)?.content ?? ""
   await s.bash("git commit -am x")
   await s.prompt()
   check("gate re-arms on the next prompt", (await s.bash("git commit -am x"))?.block === true)
+}
+
+// --- Regressions from the 2026-10-16 independent review ---
+
+// 11. A failed read of the skill file is not a cleanup run.
+{
+  const repo = makeRepo("r11")
+  const s = await session(repo)
+  await s.prompt()
+  await s.edit("app.py")
+  await s.read(join(tmp, "missing/post-work-cleanup/SKILL.md"))
+  check("failed skill read keeps the gate armed", (await s.bash("git commit -am x"))?.block === true)
+  const t = await session(repo)
+  await t.prompt()
+  await t.edit("app.py")
+  await t.read(join(repo, "notes.md"))
+  check("reading another file is not a cleanup run", (await t.bash("git commit -am x"))?.block === true)
+}
+
+// 12. Non-ASCII and quote-needing file names stay tracked while dirty.
+{
+  const repo = makeRepo("r12")
+  for (const name of ["café.py", 'we"ird.py', "sp ace.py"]) writeFileSync(join(repo, name), "x = 1\n")
+  git(repo, "add", "-A")
+  git(repo, "commit", "-qm", "names")
+  for (const name of ["café.py", 'we"ird.py', "sp ace.py"]) {
+    const s = await session(repo)
+    await s.prompt()
+    await s.edit(name)
+    const held = await s.bash("git commit -am x")
+    check(`escaped name stays tracked: ${name}`, held?.block === true && held.reason.includes(name), JSON.stringify(held))
+    git(repo, "checkout", "--", name)
+  }
+}
+
+// 13. Shell forms of a commit that must be held.
+{
+  const spaced = makeRepo("r13 with spaces")
+  const a = makeRepo("r13-a")
+  const cases = [
+    ["quoted -C with spaces", `git -C "${spaced}" commit -am x`],
+    ["single-quoted -C", `git -C '${spaced}' commit -am x`],
+    ["second of two commits", `git -C ${a} commit --allow-empty -m c && git -C "${spaced}" commit -am x`],
+    ["cd on its own line", `cd /\ncd "${spaced}"\ngit commit -am x`],
+    ["--git-dir as two words", `git --git-dir "${spaced}/.git" --work-tree "${spaced}" commit -am x`],
+    ["GIT_DIR env prefix", `GIT_DIR="${spaced}/.git" GIT_WORK_TREE="${spaced}" git commit -am x`],
+    ["cd inside a subshell", `(cd "${spaced}" && git commit -am x)`],
+    // A cd inside a child shell does not move the outer commit.
+    ["cd only inside $(...)", `cd "${spaced}" && v=$(cd ${a} && git rev-parse HEAD); git commit -am x`],
+    ["cd only inside a subshell", `cd "${spaced}" && (cd ${a} && ls); git commit -am x`],
+    ["cd only inside backticks", `cd "${spaced}"; v=\`cd ${a}; pwd\`; git commit -am x`],
+    ["nested parens in $(...)", `cd "${spaced}" && v=$( (cd ${a}) ; echo ); git commit -am x`],
+    // The parser cannot evaluate $(...), so the target may be any repo: hold.
+    ["unresolvable cd target", `cd "$(git rev-parse --show-toplevel)" && git commit -am x`],
+    ["after a heredoc", `cat <<'EOT' > /dev/null\ngit commit is in this body\nEOT\ncd "${spaced}" && git commit -am x`],
+  ]
+  for (const [name, command] of cases) {
+    const s = await session(tmp)
+    await s.prompt()
+    await s.edit(join(spaced, "app.py"))
+    check(`held: ${name}`, (await s.bash(command))?.block === true, command)
+  }
+}
+
+// 14. Commands that only mention a commit are not held.
+{
+  const repo = makeRepo("r14")
+  const other = makeRepo("r14-other")
+  const cases = [
+    ["unquoted grep", "grep git commit README.md"],
+    ["echo", "echo do not git commit when ready"],
+    ["piped grep", "ls -la | grep git commit"],
+    ["commit-graph", "git commit-graph write"],
+    ["commit-tree", "git commit-tree HEAD^{tree} -m x"],
+    ["comment", "ls # then git commit"],
+    ["heredoc body", "cat <<EOT\ngit commit -am x\nEOT"],
+    ["git log --grep", 'git log --grep "commit"'],
+    ["cd away, then commit", `cd ${other} && git commit -am x`],
+    ["commit inside a subshell elsewhere", `(cd ${other} && git commit -am x)`],
+  ]
+  for (const [name, command] of cases) {
+    const s = await session(repo)
+    await s.prompt()
+    await s.edit("app.py")
+    check(`not held: ${name}`, (await s.bash(command)) === undefined, command)
+  }
+}
+
+// 15. Parallel commit calls in one batch: only one is held.
+{
+  const repo = makeRepo("r15")
+  const s = await session(repo)
+  await s.prompt()
+  await s.edit("app.py")
+  const results = await Promise.all([s.bash("git commit -am a"), s.bash("git commit -am b")])
+  check("parallel commits hold once", results.filter((r) => r?.block).length === 1, JSON.stringify(results))
+}
+
+// 16. Long file lists are capped.
+{
+  const repo = makeRepo("r16")
+  const s = await session(repo)
+  await s.prompt()
+  for (let k = 0; k < 14; k += 1) await s.edit(`m${k}.py`)
+  const reason = (await s.bash("git add -A && git commit -m x"))?.reason ?? ""
+  check("file list capped with a count", reason.includes("and 4 more") && !reason.includes("m13.py"), reason)
 }
 
 // 10. Kill switch.

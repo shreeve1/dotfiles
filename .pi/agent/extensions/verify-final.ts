@@ -20,11 +20,13 @@
 //   - Settle nudge: when the run ends with tracked files still uncommitted,
 //     the boundary asks for cleanup over those files. It never asks for a
 //     commit; whether to commit stays with the task and the repo's rules.
-//   Reading the skill's SKILL.md or invoking /skill:post-work-cleanup counts as
-//   running it: tracked files are cleared and the cleanup's own edits that
-//   prompt are not tracked. Docs, notes, data files and harness paths (.pi/)
-//   are never tracked. Edits made through bash (sed -i, heredocs) are not seen.
-//   Cheap and local: no model call.
+//   A successful read of the skill's SKILL.md, or /skill:post-work-cleanup,
+//   counts as running it: tracked files are cleared and the cleanup's own edits
+//   that prompt are not tracked. Docs, notes, data files and harness paths
+//   (.pi/) are never tracked. Edits made through bash (sed -i, heredocs) are
+//   not seen. Commits are found by parsing the bash command into its simple
+//   commands; a commit run through eval, xargs, a git alias or a script is
+//   not seen. Cheap and local: no model call.
 //
 // Both boundary handlers fire at most once per user prompt (guarded by
 // userPromptSeq) so a continuation cannot re-trigger itself: the run loop
@@ -68,10 +70,14 @@ const CLEANUP_SKILL_BLOCK_RE = /<skill name="post-work-cleanup"/
 // Repo-relative paths never tracked: harness and dependency output, not work.
 // pi-lens also drops a .pi-lens-probe-home/ directory into the cwd.
 const HARNESS_PATH_RE = /(^|\/)(?:\.pi|\.pi-lens[^/]*|node_modules)\//
-// A bash command that runs `git commit`, including `git -C dir commit` and
-// `git -c k=v commit`. Quoted text such as grep "git commit" does not match
-// because the quote is not an accepted separator.
-const GIT_COMMIT_RE = /(?:^|[\s;&|(])git((?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*)\s+commit\b/
+// Cheap prefilter before parsing a bash command for commits.
+const MAYBE_COMMIT_RE = /\bgit\b[\s\S]*\bcommit\b/
+// git global options that take the next word as their value.
+const GIT_ARG_OPTS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"])
+// Words that may precede the command name of a simple command.
+const SHELL_PREFIX_WORDS = new Set(["!", "{", "}", "if", "then", "elif", "else", "do", "while", "until", "time", "env", "command", "nohup", "exec"])
+// Paths shown in a message before the rest are summarised.
+const MAX_FILES_SHOWN = 10
 // Code surfaces only. Cleanup exists for code, so a session that changed only
 // docs, notes, ledgers, JSON or YAML is left alone. Extensionless scripts
 // (identified by shebang) are not matched.
@@ -80,6 +86,12 @@ const CODE_EXT_RE =
 const CLEANUP_DISABLE_HINT = "(Set POST_WORK_CLEANUP=0 to disable this reminder.)"
 const NOT_A_COMMIT_REQUEST =
   "This is not a request to commit: commit only if the task or the repo's rules call for it."
+
+/** "a, b, c" with anything past MAX_FILES_SHOWN summarised as "and N more". */
+function fileList(files: string[]): string {
+  if (files.length <= MAX_FILES_SHOWN) return files.join(", ")
+  return `${files.slice(0, MAX_FILES_SHOWN).join(", ")} and ${files.length - MAX_FILES_SHOWN} more`
+}
 
 function cleanupAction(skillAvailable: boolean): string {
   return skillAvailable
@@ -91,7 +103,7 @@ function cleanupAction(skillAvailable: boolean): string {
 /** Settle nudge: tracked files are still uncommitted at the end of the run. */
 function settleDirective(files: string[], skillAvailable: boolean): string {
   return [
-    `This session changed code files that are not committed yet: ${files.join(", ")}.`,
+    `This session changed code files that are not committed yet: ${fileList(files)}.`,
     `If the work on them is finished, ${cleanupAction(skillAvailable)} before they are committed;`,
     "if it is not finished, say so and skip this.",
     NOT_A_COMMIT_REQUEST,
@@ -102,7 +114,7 @@ function settleDirective(files: string[], skillAvailable: boolean): string {
 /** Commit gate: the block reason the agent sees in place of the commit result. */
 function gateReason(files: string[], skillAvailable: boolean): string {
   return [
-    `Commit held once by the post-work-cleanup gate: this session changed ${files.join(", ")}`,
+    `Commit held once by the post-work-cleanup gate: this session changed ${fileList(files)}`,
     `and the cleanup has not run. First ${cleanupAction(skillAvailable)}, then commit again.`,
     "Skip the cleanup only if the user said to; then re-run the same commit and it will not",
     "be held again for this prompt.",
@@ -200,15 +212,27 @@ async function pruneTracked(): Promise<void> {
     byRoot.set(root, list)
   }
   for (const [root, files] of byRoot) {
-    const out = await git(root, ["status", "--porcelain", "--untracked-files=all", "--", ...files])
+    // -z keeps paths unescaped (non-ASCII, quotes); literal pathspecs keep a
+    // file named with * or [ from matching as a glob.
+    const out = await git(root, [
+      "--literal-pathspecs",
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+      "--",
+      ...files,
+    ])
     // Unknown state (git failed): keep the entries rather than lose them.
     if (out === null) continue
     const dirty = new Set<string>()
-    for (const line of out.split("\n")) {
-      if (line.trim().length === 0) continue
-      let rel = line.slice(3).trim()
-      if (rel.includes(" -> ")) rel = rel.split(" -> ").pop() ?? rel
-      dirty.add(pathResolve(root, rel.replace(/^"|"$/g, "")))
+    const fields = out.split("\0")
+    for (let i = 0; i < fields.length; i += 1) {
+      const entry = fields[i]
+      if (entry.length < 4) continue
+      dirty.add(pathResolve(root, entry.slice(3)))
+      // A rename or copy is followed by its source path as its own field.
+      if (entry[0] === "R" || entry[0] === "C") i += 1
     }
     for (const file of files) if (!dirty.has(file)) tracked.delete(file)
   }
@@ -219,24 +243,243 @@ function displayPath(file: string, cwd: string): string {
   const rel = pathRelative(realToolPath(cwd, cwd), file)
   if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel
   const home = homedir()
-  return file.startsWith(home + "/") ? "~/" + file.slice(home.length + 1) : file
+  return file.startsWith(`${home}/`) ? `~/${file.slice(home.length + 1)}` : file
 }
 
+/** Mark a word that holds an expansion the parser cannot evaluate. */
+const UNKNOWN = "\u0000"
+// Pseudo-commands bracketing a child shell ((...), $(...), backticks): a cd
+// inside one does not move the commands after it.
+const SUBSHELL_OPEN = "\u0001("
+const SUBSHELL_CLOSE = "\u0001)"
+
 /**
- * Repo a `git commit` command targets: its -C dir, else the directory of the
- * last `cd` before it, else cwd. Null when that is not a work tree.
+ * Split a bash command into its simple commands, as word lists. Honours
+ * quotes, backslashes, comments, heredoc bodies and command separators
+ * (; & | && || newline parentheses). Commands inside $(...) and backticks are
+ * returned as commands too; the word holding them is marked UNKNOWN. Child
+ * shells are bracketed by SUBSHELL_OPEN / SUBSHELL_CLOSE pseudo-commands.
  */
-async function commitRepo(command: string, cwd: string): Promise<string | null> {
-  const match = GIT_COMMIT_RE.exec(command)
-  if (!match) return null
-  let dir = cwd
-  const before = command.slice(0, match.index)
-  const cds = [...before.matchAll(/(?:^|[;&|(]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)]
-  const lastCd = cds.at(-1)?.[1]
-  if (lastCd) dir = realToolPath(lastCd.replace(/^["']|["']$/g, ""), dir)
-  const dashC = /-C\s+("[^"]+"|'[^']+'|\S+)/.exec(match[1] ?? "")?.[1]
-  if (dashC) dir = realToolPath(dashC.replace(/^["']|["']$/g, ""), dir)
-  return repoRootOf(dir)
+function scanShell(s: string, start: number, out: string[][], closer: string | null): number {
+  let depth = 0
+  // Scan a child shell's body: a recursive scan bracketed by scope markers.
+  const child = (body: string, from: number, end: string | null): number => {
+    out.push([SUBSHELL_OPEN])
+    const next = scanShell(body, from, out, end)
+    out.push([SUBSHELL_CLOSE])
+    return next
+  }
+  let words: string[] = []
+  let word = ""
+  let inWord = false
+  let heredocStrip: boolean | null = null
+  const heredocs: { delim: string; strip: boolean }[] = []
+  const endWord = (): void => {
+    if (!inWord) return
+    if (heredocStrip !== null) {
+      heredocs.push({ delim: word, strip: heredocStrip })
+      heredocStrip = null
+    } else words.push(word)
+    word = ""
+    inWord = false
+  }
+  const endCommand = (): void => {
+    endWord()
+    if (words.length > 0) out.push(words)
+    words = []
+  }
+  // Skip heredoc bodies that start after the newline at index nl.
+  const skipHeredocs = (nl: number): number => {
+    let at = nl + 1
+    for (const { delim, strip } of heredocs) {
+      while (at < s.length) {
+        const eol = s.indexOf("\n", at)
+        const lineEnd = eol === -1 ? s.length : eol
+        const line = s.slice(at, lineEnd)
+        at = lineEnd + 1
+        if ((strip ? line.replace(/^\t+/, "") : line) === delim) break
+      }
+    }
+    heredocs.length = 0
+    return at
+  }
+  let i = start
+  while (i < s.length) {
+    const c = s[i]
+    if (c === ")" && depth === 0 && closer !== null) {
+      endCommand()
+      return i + 1
+    }
+    if (c === "\\") {
+      if (s[i + 1] !== "\n") {
+        word += s[i + 1] ?? ""
+        inWord = true
+      }
+      i += 2
+    } else if (c === "'") {
+      const end = s.indexOf("'", i + 1)
+      word += s.slice(i + 1, end === -1 ? s.length : end)
+      inWord = true
+      i = end === -1 ? s.length : end + 1
+    } else if (c === '"') {
+      inWord = true
+      i += 1
+      while (i < s.length && s[i] !== '"') {
+        if (s[i] === "\\" && i + 1 < s.length) {
+          word += s[i + 1]
+          i += 2
+        } else if (s.startsWith("$(", i)) {
+          i = child(s, i + 2, ")")
+          word += UNKNOWN
+        } else if (s[i] === "`") {
+          const end = s.indexOf("`", i + 1)
+          child(s.slice(i + 1, end === -1 ? s.length : end), 0, null)
+          word += UNKNOWN
+          i = end === -1 ? s.length : end + 1
+        } else {
+          if (s[i] === "$") word += UNKNOWN
+          word += s[i]
+          i += 1
+        }
+      }
+      i += 1
+    } else if (s.startsWith("$(", i)) {
+      i = child(s, i + 2, ")")
+      word += UNKNOWN
+      inWord = true
+    } else if (c === "`") {
+      const end = s.indexOf("`", i + 1)
+      child(s.slice(i + 1, end === -1 ? s.length : end), 0, null)
+      word += UNKNOWN
+      inWord = true
+      i = end === -1 ? s.length : end + 1
+    } else if (c === "#" && !inWord) {
+      const eol = s.indexOf("\n", i)
+      i = eol === -1 ? s.length : eol
+    } else if (c === "\n") {
+      endCommand()
+      i = heredocs.length > 0 || heredocStrip !== null ? skipHeredocs(i) : i + 1
+    } else if (c === "(") {
+      endCommand()
+      out.push([SUBSHELL_OPEN])
+      depth += 1
+      i += 1
+    } else if (c === ")") {
+      endCommand()
+      // An unmatched ")" (a case pattern) closes nothing.
+      if (depth > 0) {
+        out.push([SUBSHELL_CLOSE])
+        depth -= 1
+      }
+      i += 1
+    } else if (c === ";" || c === "&" || c === "|") {
+      endCommand()
+      i += 1
+    } else if (s.startsWith("<<<", i)) {
+      endWord()
+      i += 3
+    } else if (s.startsWith("<<", i)) {
+      endWord()
+      i += 2
+      heredocStrip = s[i] === "-"
+      if (heredocStrip) i += 1
+    } else if (c === "<" || c === ">") {
+      endWord()
+      i += 1
+    } else if (c === " " || c === "\t" || c === "\r") {
+      endWord()
+      i += 1
+    } else {
+      if (c === "$") word += UNKNOWN
+      word += c
+      inWord = true
+      i += 1
+    }
+  }
+  endCommand()
+  return i
+}
+
+/** A path word resolved against base, or null when it holds an expansion. */
+function shellPath(word: string | undefined, base: string | null): string | null {
+  if (base === null || word === undefined) return null
+  if (word.includes(UNKNOWN) || /[*?[]/.test(word)) return null
+  return realToolPath(word, base)
+}
+
+interface CommitTarget {
+  /** Directory git runs in after cd and -C, or null when not resolvable. */
+  dir: string | null
+  /** --git-dir / --work-tree (or GIT_DIR / GIT_WORK_TREE): absent when not given, null when not resolvable. */
+  gitDir?: string | null
+  workTree?: string | null
+}
+
+/** Every `git commit` in a bash command, with where each one runs. */
+function commitTargets(command: string, cwd: string): CommitTarget[] {
+  if (!MAYBE_COMMIT_RE.test(command)) return []
+  const commands: string[][] = []
+  scanShell(command, 0, commands, null)
+  const targets: CommitTarget[] = []
+  let dir: string | null = cwd
+  const outer: (string | null)[] = []
+  for (const words of commands) {
+    if (words[0] === SUBSHELL_OPEN) {
+      outer.push(dir)
+      continue
+    }
+    if (words[0] === SUBSHELL_CLOSE) {
+      if (outer.length > 0) dir = outer.pop() ?? null
+      continue
+    }
+    let k = 0
+    const env: Record<string, string> = {}
+    for (; k < words.length; k += 1) {
+      const assignment = /^([A-Za-z_]\w*)=([\s\S]*)$/.exec(words[k])
+      if (assignment) env[assignment[1]] = assignment[2]
+      else if (!SHELL_PREFIX_WORDS.has(words[k])) break
+    }
+    const name = words[k]
+    if (name === undefined) continue
+    if (name === "cd" || name === "pushd") {
+      const arg = words[k + 1]
+      if (arg === undefined) dir = homedir()
+      else if (arg !== "-" && !arg.startsWith("-")) dir = shellPath(arg, dir)
+      continue
+    }
+    if (basename(name) !== "git") continue
+    let at = dir
+    let gitDir: string | undefined = env.GIT_DIR
+    let workTree: string | undefined = env.GIT_WORK_TREE
+    k += 1
+    while (k < words.length && words[k].startsWith("-")) {
+      const opt = words[k]
+      const eq = opt.indexOf("=")
+      // "--opt=value" carries its value; "-C dir" / "--git-dir dir" take the next word.
+      const separate = eq === -1 && GIT_ARG_OPTS.has(opt)
+      const key = eq === -1 ? opt : opt.slice(0, eq)
+      const value = separate ? words[k + 1] : opt.slice(eq + 1)
+      if (key === "-C") at = shellPath(value, at)
+      else if (key === "--git-dir") gitDir = value
+      else if (key === "--work-tree") workTree = value
+      k += separate ? 2 : 1
+    }
+    if (words[k] !== "commit") continue
+    targets.push({
+      dir: at,
+      gitDir: gitDir === undefined ? undefined : shellPath(gitDir, at),
+      workTree: workTree === undefined ? undefined : shellPath(workTree, at),
+    })
+  }
+  return targets
+}
+
+/** Repo root a commit target writes to, or null when it cannot be told. */
+function targetRoot(target: CommitTarget): Promise<string | null> {
+  if (target.dir === null || target.gitDir === null || target.workTree === null) return Promise.resolve(null)
+  if (target.workTree) return repoRootOf(target.workTree)
+  if (target.gitDir) return repoRootOf(basename(target.gitDir) === ".git" ? dirname(target.gitDir) : target.gitDir)
+  return repoRootOf(target.dir)
 }
 
 function markCleanupRan(): void {
@@ -371,39 +614,44 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     tracked.clear()
   })
 
-  // A read of the cleanup skill means it is running now; a commit may be held.
+  // Commit gate: hold a bash `git commit` once while tracked files are uncleaned.
   pi.on("tool_call", async (event, ctx) => {
     if (aborted) return
     if (process.env.POST_WORK_CLEANUP === "0") return
-    const input = (event.input ?? {}) as Record<string, unknown>
-    if (event.toolName === "read") {
-      if (typeof input.path === "string" && CLEANUP_SKILL_FILE_RE.test(input.path)) markCleanupRan()
-      return
-    }
-    if (event.toolName !== "bash" || typeof input.command !== "string") return
-    // Commit gate.
-    const command = input.command
-    if (!GIT_COMMIT_RE.test(command)) return
-    if (tracked.size === 0) return
-    if (cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq) return
-    await pruneTracked()
+    if (event.toolName !== "bash") return
+    const command = (event.input as { command?: unknown }).command
+    if (typeof command !== "string") return
+    const seq = userPromptSeq
+    const held = (): boolean => seq !== userPromptSeq || cleanupRanSeq === seq || gateHeldSeq === seq
+    if (tracked.size === 0 || held()) return
     const cwd = resolveCwd(ctx)
-    const root = await commitRepo(command, cwd)
-    const files = [...tracked].flatMap(([f, fileRoot]) => (root === null || fileRoot === root ? [f] : []))
-    if (files.length === 0) return
-    gateHeldSeq = userPromptSeq
+    const targets = commitTargets(command, cwd)
+    if (targets.length === 0) return
+    await pruneTracked()
+    const roots = await Promise.all(targets.map(targetRoot))
+    // A target the parser cannot resolve may be any repo: hold for all files.
+    const anyRepo = roots.includes(null)
+    const files = [...tracked].flatMap(([f, fileRoot]) => (anyRepo || roots.includes(fileRoot) ? [f] : []))
+    // Parallel commit calls: only the first to get here holds.
+    if (files.length === 0 || held()) return
+    gateHeldSeq = seq
     const shown = files.map((f) => displayPath(f, cwd))
     return { block: true, reason: gateReason(shown, cleanupSkillAvailable(cwd)) }
   })
 
-  // Track code files this session changed. The cleanup's own edits are not.
+  // A successful read of the cleanup skill means it is running now. Track code
+  // files this session changed; the cleanup's own edits are not tracked.
   pi.on("tool_result", async (event, ctx) => {
     if (aborted) return
     if (event.isError) return
-    if (event.toolName !== "edit" && event.toolName !== "write") return
-    if (cleanupRanSeq === userPromptSeq) return
     const path = (event.input as { path?: unknown }).path
     if (typeof path !== "string") return
+    if (event.toolName === "read") {
+      if (CLEANUP_SKILL_FILE_RE.test(path)) markCleanupRan()
+      return
+    }
+    if (event.toolName !== "edit" && event.toolName !== "write") return
+    if (cleanupRanSeq === userPromptSeq) return
     await trackChangedFile(path, resolveCwd(ctx))
   })
 
@@ -436,6 +684,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     if (tracked.size === 0) return
     await pruneTracked()
     if (tracked.size === 0) return
+    if (cleanupDoneSeq === userPromptSeq || cleanupRanSeq === userPromptSeq || gateHeldSeq === userPromptSeq) return
     const cwd = resolveCwd(ctx)
     cleanupDoneSeq = userPromptSeq
     continuationsThisPrompt += 1
