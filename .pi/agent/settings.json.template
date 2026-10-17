@@ -7,81 +7,18 @@
   "hideThinkingBlock": true,
   "transport": "sse",
   "packages": [
-    "npm:@trevonistrevon/pi-loop",
-    "npm:pi-background-tasks",
     "npm:pi-cc-extensions",
-    "npm:pi-btw"
+    "npm:pi-btw",
+    {
+      "source": "npm:pi-fabric@0.117.1",
+      "extensions": [
+        "!node_modules/pi-coralbricks-provider/**"
+      ]
+    }
   ],
   "defaultTools": [
     "+codemode"
   ],
-  "subagents": {
-    "agentOverrides": {
-      "scout": {
-        "model": "cliproxy/minimax-m3",
-        "thinking": "low",
-        "tools": [
-          "read",
-          "grep",
-          "find",
-          "ls"
-        ]
-      },
-      "researcher": {
-        "model": "cliproxy/gpt-6-luna",
-        "thinking": "high",
-        "tools": [
-          "read",
-          "web_search",
-          "web_fetch"
-        ]
-      },
-      "worker": {
-        "model": "cliproxy/minimax-m3",
-        "thinking": "high",
-        "tools": [
-          "read",
-          "grep",
-          "find",
-          "ls",
-          "bash",
-          "edit",
-          "write"
-        ]
-      },
-      "reviewer": {
-        "model": "cliproxy/gpt-6-luna",
-        "thinking": "high",
-        "tools": [
-          "read",
-          "grep",
-          "find",
-          "ls",
-          "bash"
-        ]
-      },
-      "planner": {
-        "model": "cliproxy/claude-sonnet-5-5",
-        "thinking": "high"
-      },
-      "oracle": {
-        "model": "cliproxy/gpt-6.1-sol"
-      },
-      "delegate": {
-        "model": "cliproxy/minimax-m3"
-      },
-      "evidence-auditor": {
-        "model": "cliproxy/minimax-m3"
-      },
-      "context-builder": {
-        "model": "cliproxy/minimax-m3"
-      },
-      "startday-light": {
-        "model": "cliproxy/deepseek-v4.1-flash",
-        "thinking": "high"
-      }
-    }
-  },
   "retry": {
     "maxRetries": 6,
     "provider": {

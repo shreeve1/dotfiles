@@ -57,8 +57,8 @@ fi
 
 # ─── 2. shell syntax ───────────────────────────────────────
 # Selected by CONTENT, not extension. Extension globbing missed exactly the
-# files that matter most: bin/* are extension-less (pi-delegate carries every
-# Fusion mutation), and .zshrc/.bashrc have neither extension nor shebang
+# files that matter most: bin/* are extension-less (gralph drives the ralph
+# loop), and .zshrc/.bashrc have neither extension nor shebang
 # because they are sourced, not executed. Demonstrated 2026-09-03: a syntax
 # error in either passed the old gate with exit 0, and a broken .bashrc breaks
 # every new shell on both machines.
@@ -98,7 +98,7 @@ while read -r must; do
   shell_files | grep -qxF "$must" ||
     fail "shell-file scan no longer reaches $must — the selector is broken, not the repo"
 done <<'MUST'
-bin/pi-delegate
+bin/gralph
 .bashrc
 .zshrc
 MUST

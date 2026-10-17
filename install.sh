@@ -370,8 +370,6 @@ fi
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
 link_path "bin/rralph" ".local/bin/rralph"
 link_path "bin/osc52" ".local/bin/osc52"
-link_path "bin/pi-delegate" ".local/bin/pi-delegate"
-link_path "bin/claude-fusion" ".local/bin/claude-fusion"
 link_path "bin/herdr-fork" ".local/bin/herdr-fork"
 link_path "bin/dsh-browser-control-english" ".local/bin/dsh-browser-control-english"
 link_path "bin/ab" ".local/bin/ab"
@@ -432,23 +430,22 @@ link_path ".pi/agent" ".pi/agent"
 link_path ".pi/README.md" ".pi/README.md"
 link_path ".pi-lens/config.json" ".pi-lens/config.json"
 
-# The whole agent directory is linked, so the vendored subagent runtime
-# (nicobailon/pi-subagents) and delegation policy travel together. Builtin
-# agents ship inside the extension; .pi/agent/agents/ is intentionally empty.
-# pi auto-discovers extensions under .pi/agent/extensions/, so a settings entry
-# is not needed to enable pi-subagents; it would only disable it via a
-# '-extensions/pi-subagents' exclusion.
-_pi_subagents_ok=1
-[ -f "$HOME/.pi/agent/extensions/pi-subagents/package.json" ] || _pi_subagents_ok=0
-grep -Fq '## Delegation guidance is mode-aware' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_subagents_ok=0
-for _pi_settings in "$HOME/.pi/agent/settings.json" "$HOME/.pi/agent/settings.json.template"; do
-  [ -f "$_pi_settings" ] || _pi_subagents_ok=0
-  grep -Fq -- '-extensions/pi-subagents' "$_pi_settings" 2>/dev/null && _pi_subagents_ok=0 || true
+# pi-fabric (npm package, not vendored) is the orchestration runtime since
+# 2026-10-16; pi-subagents, fusion, pi-advisor-flow and rpiv-todo are archived
+# under .pi/agent/extensions-archive/. The machine-local settings.json must
+# list the filtered pi-fabric entry (Coral Bricks provider excluded) and the
+# package must be installed; see docs/pi-extensions.md for the exact entry.
+_pi_fabric_ok=1
+[ -f "$HOME/.pi/agent/npm/node_modules/pi-fabric/package.json" ] || _pi_fabric_ok=0
+grep -Fq '# Delegation guidance (pi-fabric)' "$HOME/.pi/agent/APPEND_SYSTEM.md" 2>/dev/null || _pi_fabric_ok=0
+grep -Fq 'pi-coralbricks-provider' "$HOME/.pi/agent/settings.json" 2>/dev/null || _pi_fabric_ok=0
+for _old in pi-subagents fusion pi-advisor-flow rpiv-todo; do
+  [ -e "$HOME/.pi/agent/extensions/$_old" ] && _pi_fabric_ok=0
 done
-if [ "$_pi_subagents_ok" = "1" ]; then
-  printf 'ok: Pi subagent runtime, policy, and settings present\n'
+if [ "$_pi_fabric_ok" = "1" ]; then
+  printf 'ok: pi-fabric installed, Coral Bricks filtered, archived extensions out of discovery\n'
 else
-  printf 'warn: Pi subagent setup incomplete; pull latest dotfiles and rerun bash install.sh\n'
+  printf 'warn: pi-fabric setup incomplete; see docs/pi-extensions.md (pi-fabric section)\n'
 fi
 
 # ─── oh-my-pi (omp) Agent ──────────────────────────────────
@@ -514,20 +511,6 @@ fi
 if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   install_npm_deps_if_needed "$HOME/.pi/agent"
 
-  # pi-subagents (nicobailon) is vendored so its runtime, builtin agents, and
-  # delegation policy sync together, not installed via `pi install npm:pi-subagents`.
-  # Builtin agents ship in the extension; .pi/agent/agents/ stays empty.
-  # Fresh-system / AI-session repair command:
-  #   cd ~/.pi/agent/extensions/pi-subagents && npm install --omit=dev --omit=peer
-  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/pi-subagents" --omit=dev --omit=peer
-
-  # rpiv-todo is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:@juicesharp/rpiv-todo`. Its package imports Pi SDK packages
-  # as runtime peers, so install its extension-local deps without --omit=peer.
-  # Fresh-system / AI-session repair command:
-  #   cd ~/.pi/agent/extensions/rpiv-todo && npm install --omit=dev
-  install_npm_deps_if_needed "$HOME/.pi/agent/extensions/rpiv-todo" --omit=dev
-
   # rpiv-pi is vendored so it syncs with dotfiles, not installed via
   # `pi install npm:@juicesharp/rpiv-pi`. Its core imports Pi SDK packages as
   # runtime peers, so install its extension-local deps without --omit=peer.
@@ -544,28 +527,6 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   # npm form does not ship, so it destroys dist/ and fails.
   # Fresh-system / AI-session repair command:
   #   cd ~/.pi/agent/extensions/pi-lens && npm install --omit=dev --omit=peer --ignore-scripts
-
-  # pi-advisor-flow is vendored so it syncs with dotfiles, not installed via
-  # `pi install npm:pi-advisor-flow`. It is auto-discovered in
-  # ~/.pi/agent/extensions/pi-advisor-flow via its manifest
-  # (extensions: ["./dist/index.js"]); no settings.json entry is needed. The
-  # npm tarball ships a prebuilt `dist/index.js` and has 0 runtime
-  # dependencies, so no install step is required and peers resolve from
-  # ~/.pi/agent/node_modules. SKIP this in the generic npm-install loop
-  # because the manifest's `prepare: husky` lifecycle script would write
-  # `.husky/` into the vendored tree on a local `npm install`. Repaired
-  # manually only if the tarball is replaced.
-  # Replacement for rpiv-advisor (archived 2026-10-13): same role, but adds
-  # automatic review gates (before plans, after repeated failures, before
-  # declaring completion) and loop detection — explains the "I never saw
-  # advice" experience with rpiv-advisor, which was strictly model-initiated.
-  # NOTE — peer/runtime version: pi-advisor-flow declares peers
-  # @earendil-works/{pi-ai,pi-coding-agent,pi-tui} at ^1.0.0; the root pin
-  # in ~/.pi/agent/package.json is currently ^0.82.0 (installed 0.82.1),
-  # so the extension imports the 0.82.1 packages at runtime. The module
-  # loads, but 1.x-specific API surfaces in ask_advisor may error until
-  # the root pin is bumped to ^1.0.0. Tracked as a follow-up; do not bump
-  # the root pin silently — it is a multi-extension change.
 
   # rpiv-web-tools is vendored so it syncs with dotfiles, not installed via
   # `pi install npm:@juicesharp/rpiv-web-tools`. It is registered in
@@ -589,12 +550,9 @@ if [ "${INSTALL_PI_NPM:-1}" != "0" ]; then
   for package_json in "$HOME"/.pi/agent/extensions/*/package.json "$HOME"/.pi/agent/extensions/@*/*/package.json; do
     [ -f "$package_json" ] || continue
     case "$(dirname "$package_json")" in
-    "$HOME/.pi/agent/extensions/pi-subagents") continue ;;
     "$HOME/.pi/agent/extensions/pi-lens") continue ;;
-    "$HOME/.pi/agent/extensions/rpiv-todo") continue ;;
     "$HOME/.pi/agent/extensions/file-search") continue ;;
     "$HOME/.pi/agent/extensions/git-info") continue ;;
-    "$HOME/.pi/agent/extensions/pi-advisor-flow") continue ;;
     esac
     install_npm_deps_if_needed "$(dirname "$package_json")" --omit=dev --omit=peer
   done
