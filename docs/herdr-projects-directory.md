@@ -40,7 +40,12 @@ to run services. No machine is implicitly the authoritative copy.
 ### The two ITAStack projects
 
 - `itastack-workspace` is the workspace under `Documents/itastack` on all three
-  machines; its recorded remote is the workspace repository on aidev.
+  machines. The omarchy copy is the source and has no `origin`; the copies are
+  kept level with offload-sync, machine to machine. Without `origin`,
+  herdr-projects starts tasks from the checkout's own commit and merges them
+  locally, with no pull request. (A 2026-10-15 T3 Code setup added an `origin`
+  pointing at a bare repo on aidev, `~/git/itastack-workspace.git`; it was
+  removed on omarchy on 2026-10-16 because tasks started from its stale `main`.)
 - `itastack-app` is the distinct application on itan8n, with origin
   `github.com/itanoc/itastack`.
 - For a new request saying only “itastack”, ask which one unless an explicit
