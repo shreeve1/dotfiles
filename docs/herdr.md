@@ -238,3 +238,60 @@ for it lives in this repo; all of it is machine-local on aidev.
 - **Remote PCs:** omarchy and itan8n each need **Connect** in the UI once, which
   installs a loopback bridge there under `~/.config/herdr-web-ui`.
 - Collie (the earlier phone UI) was unlinked and its `collie.service` removed.
+
+## ccgram Telegram bridge on aidev and omarchy
+
+Installed 2026-10-17: [ccgram](https://github.com/alexei-led/ccgram) 4.16.0, a
+Telegram bot that maps each herdr pi agent to one Telegram topic. Messages typed
+in a topic go into that agent's pane, like typing in the TUI; pi's replies come
+back from its session file. Everything is machine-local; nothing for it lives in
+this repo.
+
+| Machine | Bot | Starts new topics in |
+| --- | --- | --- |
+| aidev | `@testywmLt2nDl0Qf2Q3bot` | `/home/james/testy-bot` |
+| omarchy | `@itastackwmLt2nDl0Qf2Q3bot` | `/home/james/Documents/itastack` |
+
+- **Install:** `uv tool install --python 3.14 ccgram` (uv fetches its own
+  Python 3.14; aidev's system Python is 3.12). Binary: `~/.local/bin/ccgram`.
+- **Config:** `~/.ccgram/.env` (mode 600): `TELEGRAM_BOT_TOKEN`, `ALLOWED_USERS`
+  (numeric Telegram ID only; a username fails), `CCGRAM_MULTIPLEXER=herdr`,
+  `CCGRAM_PROVIDER=pi`, `CCGRAM_INSTANCE_NAME`, `CCGRAM_HIDE_TOOL_CALLS=true`.
+- **Service:** user unit `~/.config/systemd/user/ccgram.service` runs
+  `ccgram run` with `Restart=always`. Its `WorkingDirectory` is where the
+  folder picker for a new topic opens. The unit sets `PATH` so herdr, pi
+  and ccgram are found. Linger is on for both machines. omarchy's bot answers
+  only while the laptop is awake.
+- **One bot per machine.** Telegram allows one poller per token, and a bot
+  with a webhook cannot be polled at all. The first bot tried
+  (`@testytechn8n_bot`) has a webhook (likely n8n) and was left alone.
+- **Topics:** the bot needs Threaded Mode, which exists only in the BotFather
+  Mini App (search BotFather, tap **Open** → bot → Bot Settings), not in the
+  `/mybots` text menu. Check it with `getMe` → `has_topics_enabled`.
+- **pi needs no ccgram hook.** herdr reports `herdr-agent-state.ts` as its pi
+  integration (`herdr integration status`), and ccgram reads the session
+  through herdr. Don't run `herdr integration install pi` over it. The
+  doctor's "Claude hook missing" line is irrelevant.
+- **Topic names** are `Pi ▸ <workspace> ▸ <tab> ▸ <pane>` from herdr labels;
+  rename the herdr workspace/tab to change them (`herdr workspace rename`,
+  `herdr tab rename`). Skipping the workspace step in `/new` creates a
+  workspace named after the folder.
+- **`ccgram status` always says `(unbound)` on herdr.** It reads only the
+  legacy `thread_bindings` key in `~/.ccgram/state.json`; bindings live in
+  `chat_thread_bindings`. Display bug in 4.16.0, not a broken binding.
+
+### Delivery stall (upstream issue #302)
+
+On aidev, replies stopped reaching Telegram at 03:43 on 2026-10-17 while input
+still reached pi. Topic icons kept updating. The log showed `Delivery wedge
+suspected: transcript growing, watermark frozen`. A restart did not clear it:
+ccgram re-parsed and queued the backlog but sent nothing and logged no error.
+Telegram accepted a direct `sendMessage` to the topic, so the stall was inside
+ccgram. This matches the open upstream issue
+[#302](https://github.com/alexei-led/ccgram/issues/302) (root cause unknown).
+
+Recovery, from upstream [#245](https://github.com/alexei-led/ccgram/issues/245):
+stop the service, back up `~/.ccgram/monitor_state.json`, set each stuck
+session's `last_byte_offset` to its transcript's file size, start the service.
+The skipped output never reaches Telegram but stays in the pane and session
+file. Tool calls are now hidden on both machines to cut the traffic.
