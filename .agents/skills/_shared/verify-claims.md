@@ -44,13 +44,7 @@ question with no repo or source anchor), skip the check and say so.
 
 ## The call
 
-Two routes — pick the one your current harness takes. Both keep the checker
-read-only and grounded only in the files it reads this call, and both return
-the same VERIFIED / FALSE / UNSURE + file:line format.
-
-### Default — Fusion not active
-
-Run from the repo root:
+One route: a fresh, read-only `pi -p` process. Run it from the repo root:
 
 ```bash
 timeout 120 pi -p --no-session --no-skills --no-context-files \
@@ -64,34 +58,22 @@ timeout 120 pi -p --no-session --no-skills --no-context-files \
    2. <claim>"
 ```
 
-### When Fusion is active
+### In Pi with pi-fabric
 
-Fusion caps the parent's tool surface, so spawning `pi -p` from `bash` is
-denied — that's a harness restriction, **not** a failed check
-(see *Fallback when the check can't run* below). Use one fresh `subagent`
-call instead. The `reviewer` role in `settings.json` already pins a read-only
-tool set (`read`, `grep`, `find`, `ls`) and the model/thinking — do not
-override either per-call:
+In Fabric's full code mode the model has no direct `bash` tool. Run the same
+command with `pi.bash` inside one `fabric_exec` program and return its output.
+Fabric's whole-program deadline defaults to 120 s, the same as the checker's
+`timeout`, so ask for more room on that call:
 
-```text
-subagent(
-  agent: "reviewer",
-  task: "You are fact-checking claims against ground truth. For each
-   claim, read the relevant files/sources and reply on one line:
-   VERIFIED | FALSE | UNSURE, then file:line (or source) evidence, then
-   a one-line correction if FALSE. Do not speculate — if you cannot find
-   evidence, say UNSURE. Claims:
-   1. <claim>
-   2. <claim>",
-  context: "fresh",
-  output: false,
-  skill: false,
-)
+```ts
+// fabric_exec({ timeoutMs: 180000, code: ... })
+const r = await pi.bash({ command: `timeout 120 pi -p --no-session ...` });
+return r;
 ```
 
-The reviewer runs as a fresh child with no parent conversation state and no
-inherited skills, and its read-only tool set comes from settings — so file
-evidence is required, not remembered context.
+Use the `pi -p` command above unchanged. Do not swap in a Fabric child agent
+(`agents.run`): a child inherits Fabric's capabilities and the user's
+extensions, so it is not the read-only, context-free checker this needs.
 
 Notes:
 
@@ -103,21 +85,17 @@ Notes:
   repo's own commands (e.g. a Playwright suite that spins up API/Next.js
   servers), blowing past the verifier timeout and mutating the worktree. The
   allowlist is what makes the check a *read-only second opinion* rather than
-  an actor. On the Fusion route the `reviewer` role's tool allowlist in
-  `settings.json` (`read`, `grep`, `find`, `ls`) plays the same role — don't
-  widen it.
-- `--no-skills` is mandatory on the direct route: it stops the checker
-  reloading this or any other skill and recursing. On the Fusion route the
-  reviewer inherits no parent skills by design.
-- `--no-session --no-context-files` keep the direct checker grounded only in
-  the files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
-  bias. The Fusion reviewer has no parent session either.
-- `cliproxy/deepseek-v4.1-flash` is the fixed checker model on the direct route,
-  independent of whatever model drives the main session. On the Fusion route
-  the reviewer's model and thinking come from `settings.json` — pick the
-  `reviewer` role precisely so you do not have to pin them here.
-- The checker has no memory of the conversation on either route — spell each
-  claim out in full, self-contained (name the term, the file, the behaviour,
+  an actor. `--no-extensions` also keeps pi-fabric out of the checker, so it
+  gets the four plain tools and not `fabric_exec` (verified 2026-10-16).
+- `--no-skills` is mandatory: it stops the checker reloading this or any
+  other skill and recursing.
+- `--no-session --no-context-files` keep the checker grounded only in the
+  files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
+  bias.
+- `cliproxy/deepseek-v4.1-flash` is the fixed checker model, independent of
+  whatever model drives the main session.
+- The checker has no memory of the conversation — spell each claim out in
+  full, self-contained (name the term, the file, the behaviour,
   the source). "The thing we discussed" verifies nothing.
 
 ## Grill turns (harnesses without the hook)
@@ -138,24 +116,10 @@ It prints `verify-final: no findings` or the findings, worded as the hook
 would send them: FALSE for factual claims or recommendations that contradict
 the files or a ledger line, UNGROUNDED for recommendations resting on a system
 capability the ledger doesn't establish (research it, record it in the ledger
-with its source, revise the turn). Fold the findings in before you send. On
-Fusion, where `bash` cannot spawn the checker, use the same `reviewer` call as
-*When Fusion is active* above (same `context`, `output`, `skill` settings; the
-role's pinned model and read-only tools) with this task, filling in the ledger
-path and the drafted turn:
-
-```text
-You are the grill-turn checker. Read ~/.agents/bin/verify-final. Take its
-PROMPT string, replace {ledger} with its LEDGER_PROMPT string (with {path}
-replaced by .kanban/grilling/<topic>.md) and {answer} with the turn below,
-then carry out the result exactly as written, reading files relative to
-<the grill's working directory>. Reply only with the verdict lines it asks for.
-Turn:
-<the drafted turn, verbatim>
-```
-
-The script holds the only copy of the grill-check wording, so both routes stay
-in step.
+with its source, revise the turn). Fold the findings in before you send. Under
+pi-fabric, run it with `pi.bash` inside `fabric_exec` as above, with
+`timeoutMs: 210000` to cover the 150 s timeout. The script holds the only copy
+of the grill-check wording.
 
 ## Fallback when the check can't run
 
@@ -166,8 +130,8 @@ You cannot get an independent result when any of these happens:
   `timeout` firing (exit 124).
 - The output lacks a VERIFIED / FALSE / UNSURE line for a claim (fall back for
   the missing claims only).
-- On Fusion: the `subagent` route is unavailable (no `reviewer` role, or
-  `pi-subagents` not loaded) or the reviewer errors or returns nothing usable.
+- Under pi-fabric: `fabric_exec` hits its deadline (raise `timeoutMs` once
+  before falling back) or an approval policy denies `pi.bash`.
 
 Don't retry in a loop — these failures are usually config, not transient. Fall
 back to **re-grounding yourself**: re-read the specific files or sources each
@@ -175,10 +139,6 @@ claim depends on *this run* — do not trust your earlier reading — and confir
 file:line (or source) evidence before you assert. Tell the user you used the
 fallback and why (one line, including the error), so they know the check wasn't
 independent. The independent check is preferred whenever it can run.
-
-A Fusion Bash denial is **not** this condition — on Fusion the parent cannot
-spawn `pi -p` from `bash` by design; that's what the reviewer-subagent route
-exists for.
 
 ## Acting on the result
 

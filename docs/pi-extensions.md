@@ -121,7 +121,8 @@ here.
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
-- Pi subagents use the synced vendored `pi-subagents` runtime
+- **Archived 2026-10-16 (pi-fabric replaced it; paths below are now under
+  `extensions-archive/` and `archive/bin/`).** Pi subagents used the synced vendored `pi-subagents` runtime
   (nicobailon/pi-subagents) at `.pi/agent/extensions/pi-subagents`, registered in
   both Pi settings files as `extensions/pi-subagents`. It spawns each subagent as
   a fresh child `pi` process (real isolation, per-role model) and provides the
@@ -424,7 +425,8 @@ here.
   `docs/adr/0001-verification-two-layers.md` for why this does NOT contradict
   the "augment pi-duo's in-band verifier" rejection.
 - `session-log` (Pi human-readable session transcript) is a synced, zero-dependency vendored extension at `.pi/agent/extensions/session-log/`, auto-discovered by Pi — no `settings.json{,.template}` entry is needed to enable it (it would only be *disabled* by a `-extensions/session-log/index.ts` exclusion). On each completed interactive (`tui`) turn (`agent_settled`) it appends that turn's user prompt plus the assistant's final markdown answer to `<git-project-root>/.sessions/<YYYY-MM-DD>_<slug>-<hash6>.md`. The `<slug>` is a short human-readable title generated ONCE per session (first turn) by a small `deepseek/deepseek-v4-flash` call over the first prompt+response; any model/auth/timeout/empty failure falls back to `<YYYY-MM-DD>_<sessionId>.md`, and the markdown append NEVER fails due to slug generation. Restart-safe: an interrupted/resumed session re-finds its existing file by the stable `hash6`/sessionId filename suffix (no second model call). Output dir `.sessions/` is `.gitignore`d. No `install.sh` change is required — the whole `.pi/agent` directory is symlinked by `install.sh` and the extension ships no `package.json`.
-- **Claude Fusion** (Claude Code orchestrates, Pi executes — the CC-side port of
+- **Claude Fusion** (archived 2026-10-16 with `fusion` and `bin/pi-delegate`;
+  kept as history). (Claude Code orchestrates, Pi executes — the CC-side port of
   Pi's Fusion; design in `docs/adr/0003-claude-fusion.md`, glossed in
   `CONTEXT.md`). When on, Claude is the brain (intent/spec/diff-review/verify) and
   cannot mutate — all writes/grind are delegated to a fresh `pi -p` role process.
