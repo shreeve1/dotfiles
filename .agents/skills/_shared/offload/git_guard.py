@@ -306,16 +306,18 @@ class Git:
 FALLBACK = (
     ("private_key", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     ("age_private_key", r"\bAGE-SECRET-KEY-1[0-9A-Z]{20,}\b"),
-    (
-        "credential_assignment",
-        r"(?i)\b(password|passwd|pwd|passphrase|secret|client[_-]?secret|api[_-]?key|access[_-]?key|token|psk|wifi key)\b\s*[:=]\s*['\"]?(?!value\b|<|\$|\{|\(|\*)[^\s'\"()<>`|]{6,}",
-    ),
     ("bearer", r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
     ("jwt", r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}"),
     ("aws_access_id", r"\bAKIA[0-9A-Z]{16}\b"),
     ("github_token", r"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
     ("slack_token", r"\bxox[abprs]-[A-Za-z0-9-]{10,}"),
 )
+
+# Rules no longer scanned. Allowlists and receipts written while they were active
+# still name them, so they stay valid rule IDs; their entries just never match.
+# credential_assignment (keyword followed by = or :) was retired 2026-10-16: it
+# matched prose, test fixtures and env reads far more often than credentials.
+RETIRED_RULES = ("credential_assignment",)
 
 
 def literal_flags(node):
@@ -566,7 +568,11 @@ def parse_allowlist(value, git):
             repo_path(row["path"])
         require(
             type(row["rule"]) is str
-            and (row["rule"] in dict(FALLBACK) or re.fullmatch(r"policy_[1-9][0-9]*", row["rule"])),
+            and (
+                row["rule"] in dict(FALLBACK)
+                or row["rule"] in RETIRED_RULES
+                or re.fullmatch(r"policy_[1-9][0-9]*", row["rule"])
+            ),
             "INVALID_INPUT",
             2,
         )
