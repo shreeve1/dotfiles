@@ -185,6 +185,30 @@ settings backups are under
 `~/.local/state/herdr/upgrades/projects-model-policy-<UTC timestamp>/`. Pulling
 dotfiles alone does not provision these machine-local settings.
 
+### Project directory and Offload guidance
+
+The [fleet project directory](herdr-projects-directory.md) lists nine approved
+projects by absolute path on each machine, with distinct `itastack-workspace`
+and `itastack-app` lookup labels. These labels do not rename Projects repo keys
+or existing tasks. Routing honors an explicit destination, otherwise the
+board-selected machine or local execution machine; a missing checkout means ask,
+not silently choose another host.
+
+A separate marked block in `coordinator.instructions` points coordinators to
+re-read the directory for each new task and defines the Offload boundary:
+prep/sync use their skill gates, Projects owns ordinary board tasks, full
+Offload dispatch is an explicitly requested alternative, and deployment requires
+a separate request. The exact block is in the directory document.
+
+Provisioning is machine-local: first sync and verify the document on all three,
+then append that block through `herdr-projects set coordinator.instructions`
+while preserving the existing instructions/model policy. Pulling dotfiles alone
+does not apply it. Backups and before/after evidence live under
+`~/.local/state/herdr/upgrades/projects-directory-<UTC timestamp>/`.
+No task or coordinator restart is needed for saving the setting; this does not
+prove that an already-running pi session has loaded the new guidance. No live
+routing or Offload dispatch was exercised during this setup.
+
 ## herdr web ui on aidev (browser/phone client)
 
 Installed 2026-10-16: the [herdr-web-ui](https://github.com/devswha/herdr-web-ui)
