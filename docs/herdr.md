@@ -92,9 +92,9 @@ The live machine lists differ per machine; the repo seed is only omarchy's:
 
 | Machine | herdr | Saved machines (label → alias) |
 | --- | --- | --- |
-| omarchy | 0.9.1 | `aidev` → `aidev`, `n8n` → `itan8n` |
-| aidev | 0.9.3 | `omarchy laptop` → `omarchy`, `n8n` → `itan8n` |
-| itan8n | 0.9.1 | `aidev · default` → `aidev`, `n8n` → `itan8n` (itself), `omarchy laptop` → `omarchy` |
+| omarchy | 0.9.5 | `aidev` → `aidev`, `n8n` → `itan8n` |
+| aidev | 0.9.5 | `omarchy laptop` → `omarchy`, `n8n` → `itan8n` |
+| itan8n | 0.9.5 | `aidev · default` → `aidev`, `omarchy laptop` → `omarchy`; stale `n8n` self-entry disabled |
 
 All sessions are `default`. Agents are pi panes; pi reports state and session to
 herdr through `~/.pi/agent/extensions/herdr-agent-state.ts` (synced, so present
@@ -103,6 +103,49 @@ on all three).
 `~/.config/herdr/config.toml` leaves `[remote] manage_ssh_config` at its default
 (true), which lets herdr add `ServerAliveInterval` fallbacks to `~/.ssh/config`;
 this machine currently has no herdr-managed entries there.
+
+## Herdr Projects on all three machines
+
+Installed 2026-10-16: [Herdr Projects](https://github.com/eliasstravik/herdr-projects)
+1.2.1, pinned to release commit `5cf84391d856a943043fa3feacc7a75763ebc22a`:
+
+```sh
+herdr plugin install eliasstravik/herdr-projects --ref 5cf84391d856a943043fa3feacc7a75763ebc22a --yes
+```
+
+The plugin is Herdr-managed, not vendored into dotfiles. Its launcher is
+`~/.herdr-projects/data/bin/herdr-projects`, symlinked from
+`~/.local/bin/herdr-projects`; tasks and settings stay machine-local under
+`~/.herdr-projects/`. Opening `herdr-projects` offers optional key/sidebar setup;
+no blocks were added to the shared Herdr config during installation.
+
+On each host, `worker.agent`, `reviewer.agent`, and `coordinator.agent` are `pi`,
+with no explicit model override. `watcher.agent` is `none`, avoiding the default
+Claude/Haiku watcher. Reviews remain enabled and `merge.by` is `you` (approval
+required). The agents still run with the plugin's default full access; a worktree
+and a review are not a sandbox.
+
+Every machine owns its tasks and coordinators. `Alt+M` selects another machine;
+in the all-machines view, `@aidev …` (or the displayed machine label) routes to
+that machine's coordinator. `Enter` sends; `Tab` also starts agents on tasks the
+message adds. This is explicit targeting, not automatic fleet load balancing.
+
+Remote commands run through a noninteractive login shell, not `.zshrc`. Aidev's
+machine-local `~/.zprofile` adds the existing user binary directories, including
+`~/.local/bin` and `~/.npm-global/bin`, so both Projects and pi are found over SSH.
+Check from each host:
+
+```sh
+herdr-projects machines
+herdr-projects doctor
+```
+
+To update Herdr itself, use a shell outside Herdr. `herdr update --handoff` opts
+into experimental live transfer; ordinary server stop/restart ends pane
+processes. This rollout's backups and verification records are machine-local in
+`~/.local/state/herdr/upgrades/20261016-projects-095/` (omarchy's external-SSH retry
+also has a `-retry` directory). Verify both client and running server with
+`herdr status --json`; replacing the binary alone does not upgrade the server.
 
 ## herdr web ui on aidev (browser/phone client)
 
