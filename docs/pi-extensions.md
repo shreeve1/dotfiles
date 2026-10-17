@@ -45,6 +45,18 @@ here.
   `pi install npm:pi-background-tasks`; copy `settings.json.bak-pre-fabric`
   over `settings.json`; `bash install.sh` (reinstalls pi-subagents deps and
   relinks the scripts); restart Pi. Do the same on every machine.
+  **Node 24+ is required** for Fabric's child-agent workers: on Node 22 a
+  child fails with "Fabric workers require Node.js 24+" while plain
+  `fabric_exec` still works. On 2026-10-16 aidev and itan8n were moved from
+  the nodesource `node_22.x` apt repo to `node_24.x` (backup
+  `/etc/apt/sources.list.d/nodesource.sources.bak-node22`). itan8n's
+  `~/.local/bin/{node,npm,npx,corepack}` had pointed at a user-local
+  `~/.local/node-v22.20.0`; they now point at `/usr/bin` (old links kept as
+  `*.bak-node22`). omarchy runs Node 26. Leftover untracked copies of
+  pi-subagents and rpiv-todo on the servers went to
+  `~/pi-extension-leftovers-fabric/`. On the servers, `pi install` rewrites
+  the tracked `npm/package-lock.json` with machine-specific paths; discard
+  that with `git checkout -- .pi/agent/npm/package-lock.json`.
 - **2026-10-12 archive sweep:** every extension not in the enabled set moved
   from `.pi/agent/extensions/` to `.pi/agent/extensions-archive/` (outside
   Pi's discovery tree; plain move, git history intact):
