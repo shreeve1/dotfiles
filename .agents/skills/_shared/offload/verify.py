@@ -505,7 +505,6 @@ class GitGuardFixtures(OffloadFixture):
         examples = {
             "private_key": "-----BEGIN " + "PRIVATE KEY-----",
             "age_private_key": "AGE-SECRET-KEY-1" + "J" * 59,
-            "credential_assignment": "password" + "=fixturecredential",
             "bearer": "Bearer " + "A" * 24,
             "jwt": "eyJ" + "A" * 12 + "." + "B" * 12 + "." + "C" * 12,
             "aws_access_id": "AKIA" + "D" * 16,
@@ -528,6 +527,12 @@ class GitGuardFixtures(OffloadFixture):
         for rule in examples:
             self.assertIn((f"fallback-{rule}.txt", rule), observed)
         self.assertFalse((Path(self.env["HOME"]) / "hook-events").exists())
+
+    def test_retired_keyword_assignment_rule_no_longer_blocks_history(self):
+        self.put(self.repo, "notes.txt", "token = uuid4()\npassword" + "=fixturecredential\n")
+        tip = self.commit(self.repo, "Keyword assignment prose")
+        scanned = self.cli("scan", tip=tip)
+        self.assertEqual(scanned["tip"], tip)
 
     def test_scanner_deduplicates_object_path_rule_but_keeps_distinct_paths(self):
         secret = "ghp_" + "L" * 36
