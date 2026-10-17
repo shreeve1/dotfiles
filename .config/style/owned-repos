@@ -8,6 +8,7 @@ owner:shreeve1
 owner:itanoc
 path:~/pi-durable
 path:~/aws
-# origin is a bare repo on aidev (~/git/itastack-workspace.git), not GitHub;
-# a different repo from itanoc/itastack on itan8n (different root commit).
+# The itastack workspace has no origin on omarchy: each machine's copy is kept
+# level with offload-sync. It is a different repo from itanoc/itastack on
+# itan8n (different root commit).
 path:~/Documents/itastack
