@@ -256,7 +256,8 @@ this repo.
   Python 3.14; aidev's system Python is 3.12). Binary: `~/.local/bin/ccgram`.
 - **Config:** `~/.ccgram/.env` (mode 600): `TELEGRAM_BOT_TOKEN`, `ALLOWED_USERS`
   (numeric Telegram ID only; a username fails), `CCGRAM_MULTIPLEXER=herdr`,
-  `CCGRAM_PROVIDER=pi`, `CCGRAM_INSTANCE_NAME`, `CCGRAM_HIDE_TOOL_CALLS=true`.
+  `CCGRAM_PROVIDER=pi`, `CCGRAM_INSTANCE_NAME`, `CCGRAM_HIDE_TOOL_CALLS=true`,
+  `CCGRAM_AUTODELETE_DEAD_TOPICS=false`.
 - **Service:** user unit `~/.config/systemd/user/ccgram.service` runs
   `ccgram run` with `Restart=always`. Its `WorkingDirectory` is where the
   folder picker for a new topic opens. The unit sets `PATH` so herdr, pi
@@ -279,6 +280,13 @@ this repo.
 - **`ccgram status` always says `(unbound)` on herdr.** It reads only the
   legacy `thread_bindings` key in `~/.ccgram/state.json`; bindings live in
   `chat_thread_bindings`. Display bug in 4.16.0, not a broken binding.
+- **Topics are kept when a session looks dead.** With the default
+  auto-delete, ccgram deleted topics (and their history) whenever a herdr
+  session briefly vanished or reappeared under a second target ID. On
+  2026-10-17 one omarchy pi session got two IDs with the same session file,
+  and its topics were deleted and recreated. Ended agents' topics now stay
+  until deleted by hand or via `/sync`; the `/sessions` **Kill** button still
+  deletes its topic.
 
 ### Delivery stall (upstream issue #302)
 
