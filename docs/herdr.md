@@ -116,8 +116,13 @@ herdr plugin install eliasstravik/herdr-projects --ref 5cf84391d856a943043fa3fea
 The plugin is Herdr-managed, not vendored into dotfiles. Its launcher is
 `~/.herdr-projects/data/bin/herdr-projects`, symlinked from
 `~/.local/bin/herdr-projects`; tasks and settings stay machine-local under
-`~/.herdr-projects/`. Opening `herdr-projects` offers optional key/sidebar setup;
-no blocks were added to the shared Herdr config during installation.
+`~/.herdr-projects/`. The optional key and sidebar blocks are enabled in the
+shared `home/herdr/config.toml`: **Ctrl+S, then A** opens the work board, and the
+sidebar includes task summary/progress rows. The plugin deliberately refuses to
+rewrite symlinked configs, so its first-run setup prints "Could not change"
+with blocks to paste. Both blocks were added to the shared source with user
+approval; keep the symlink intact. After syncing future config edits, run
+`herdr config check` and `herdr server reload-config` on each machine.
 
 On each host, `worker.agent`, `reviewer.agent`, and `coordinator.agent` are `pi`,
 with no explicit model override. `watcher.agent` is `none`, avoiding the default
