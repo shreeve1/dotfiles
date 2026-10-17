@@ -39,11 +39,10 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
       archive/     (retired OpenCode commands/agents/skills)
   .pi/
     agent/
-      APPEND_SYSTEM.md       (Pi delegation policy)
-      agents/                (empty; builtins ship in pi-subagents)
-      extensions/
-        pi-subagents/        (vendored nicobailon subagent runtime)
-        session-log/         (per-turn transcripts -> <repo>/.sessions/*.md)
+      APPEND_SYSTEM.md       (Pi delegation policy, written for pi-fabric)
+      fabric.json            (pi-fabric config: role model aliases)
+      extensions/            (vendored: pi-lens, rpiv-web-tools, verify-final, ...)
+      extensions-archive/    (retired extensions, kept for rollback)
       settings.json.template
   .codex/
   omarchy/             (Linux/Omarchy-only desktop configuration and migration guide)
@@ -98,27 +97,25 @@ $env:DOTFILES_DIR = "C:\path\to\dotfiles"
 & "$env:DOTFILES_DIR\install-win.ps1"
 ```
 
-### Pi subagents on another system
+### Pi on another system (pi-fabric)
 
-The repo already contains the Pi subagent runtime, agent definitions, and
-delegation policy. Install them together; do not install a second runtime:
+Agents, workflows and delegation come from the `pi-fabric` npm package; role
+models are aliases in `~/.pi/agent/fabric.json`:
 
 ```bash
 git clone <dotfiles> ~/dotfiles
 cd ~/dotfiles
 INSTALL_PI_CLI=1 bash install.sh   # omit INSTALL_PI_CLI=1 when Pi already exists
 cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json
-# edit provider/model settings, then restart Pi or run /reload
+# edit provider/model settings, then install the packages the template lists:
+pi install npm:pi-cc-extensions && pi install npm:pi-btw
+pi install npm:pi-fabric@0.117.1   # then restore the filtered entry (below)
 ```
 
-Use `/agents` in Pi to inspect the available agent types. To repair stale npm
-dependencies after a pull, run `INSTALL_PI_NPM=always bash install.sh`.
-
-This setup uses the vendored `pi-subagents` (nicobailon) runtime, which spawns
-each subagent as a fresh child `pi` process with its own model (worker →
-`minimax/MiniMax-M3`, reviewer → `deepseek/deepseek-v4-flash`; set in
-`settings.json` `subagents.agentOverrides`). Do **not** `pi install
-npm:pi-subagents`; use the repo copy so it syncs.
+`pi install` rewrites the `packages` entry as a plain string, so afterwards
+put back the template's object form, which keeps the Coral Bricks provider out:
+`{"source": "npm:pi-fabric@0.117.1", "extensions": ["!node_modules/pi-coralbricks-provider/**"]}`.
+See `docs/pi-extensions.md` § pi-fabric.
 
 ## What Install Scripts Do
 
@@ -147,17 +144,15 @@ After install, verify the lanes are live:
 readlink ~/.dsh/AGENTS.md ~/.agents/AGENTS.md ~/.agents/skills ~/.codex/AGENTS.md
 ls ~/.agents/skills | wc -l                  # 82 skills + _shared
 
-# Pi delegation setup
+# Pi + pi-fabric
 pi --version
-grep -F '## Delegate Non-Trivial Work' ~/.pi/agent/APPEND_SYSTEM.md
-test -f ~/.pi/agent/extensions/pi-subagents/package.json
-grep -F '"extensions/pi-subagents"' ~/.pi/agent/settings.json ~/.pi/agent/settings.json.template
-npm --prefix ~/.pi/agent/extensions/pi-subagents ls --depth=0
+pi list                                      # pi-fabric@0.117.1 (filtered)
+grep -F '# Delegation guidance (pi-fabric)' ~/.pi/agent/APPEND_SYSTEM.md
+pi --list-models | grep -c coralbricks       # 0
 ```
 
 In a fresh dsh session the context banner should show `~/.dsh/AGENTS.md` plus the
 repo-level `AGENTS.md` chain, and the skill catalog should list the ~31
 model-visible lane skills (the rest are `disable-model-invocation: true` by
-design). In Pi: run `/reload`, then `/agents` and confirm the custom agent list
-appears. The Claude Code lane is retired; the historical snapshot under
+design). In Pi: run `/reload`, then `/fabric` and confirm the dashboard opens. The Claude Code lane is retired; the historical snapshot under
 `archive/claude/` should not be restored without an explicit revisit.

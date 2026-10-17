@@ -98,9 +98,15 @@ another, the cause is almost always a name, not the network:
 and the exact commands. The Pi-extension mechanics that silently break things
 (don't `pi install` vendored extensions; pi-lens needs `--ignore-scripts`;
 disabling needs a `-extensions/<name>/index.ts` exclusion *and* the `packages`
-entry removed; per-role subagent models go in `.pi/agent/settings.json`
-`subagents.agentOverrides`, not frontmatter; keep the pi-subagents `biome.json`;
-don't fight pi-lens autoformat) all live there with rationale.
+entry removed; don't fight pi-lens autoformat) all live there with rationale.
+
+**pi-fabric is the orchestration runtime (2026-10-16).** It is the one
+extension installed from npm rather than vendored, pinned at `0.117.1` (the
+last release for Pi 1.2.0) with its bundled Coral Bricks provider filtered out
+in `settings.json` `packages`. Role models are aliases in
+`.pi/agent/fabric.json`. pi-subagents, fusion, pi-advisor-flow, rpiv-todo,
+pi-loop, pi-background-tasks, `bin/pi-delegate` and `bin/claude-fusion` are
+archived; the rollback is in `docs/pi-extensions.md` § pi-fabric.
 
 Environment facts that aren't in that doc:
 
@@ -118,10 +124,6 @@ Environment facts that aren't in that doc:
 
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.
-- **Fusion is off on this machine** (`claude-fusion status`). When on, Claude
-  Code writes/bash are gated to a delegation allowlist and mutations go through
-  `bin/pi-delegate`. Toggle with `claude-fusion on|off|status` from your shell
-  (not runnable by the agent).
 - **Browser automation on the laptop** uses `agent-browser` against the
   persistent `chrome-cdp` Chrome on port 9222 (load the `browser-cdp` skill).
   dsh's `browser_*` tools went away with dsh.

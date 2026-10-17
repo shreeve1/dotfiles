@@ -133,7 +133,7 @@ def main():
         (
             "shell guard survives a rename",
             lambda: check_guard_survives_rename(
-                "bin/pi-delegate", "git ls-files '*.sh'", "git ls-files '*.NOPE'"
+                "bin/gralph", "git ls-files '*.sh'", "git ls-files '*.NOPE'"
             ),
         ),
     ]

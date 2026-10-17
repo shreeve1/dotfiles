@@ -5,6 +5,46 @@ repo-level context file to keep auto-loaded agent context lean. `AGENTS.md` §
 "Non-obvious requirements" carries the short must-not-break rules and points
 here.
 
+- **pi-fabric (2026-10-16): the orchestration runtime, and its rollback.**
+  `npm:pi-fabric@0.117.1` replaces the overlapping extensions with one
+  package. It is the deliberate exception to vendoring: it is installed with
+  `pi install` into `~/.pi/agent/npm` on each machine. Pinned at 0.117.1
+  because 0.117.2 depends on `@earendil-works/{pi-durable,chord}` 1.3.0 and
+  the machines run Pi 1.2.0; bump the pin together with Pi itself. The
+  `packages` entry in `settings.json` and the template is the object form,
+  which drops the bundled Coral Bricks provider (its maintainers work there):
+  `{"source": "npm:pi-fabric@0.117.1", "extensions": ["!node_modules/pi-coralbricks-provider/**"]}`.
+  `pi install` rewrites it as a plain string, so restore the object form
+  after any reinstall; check with `pi list` (shows `(filtered)`) and
+  `pi --list-models | grep -c coralbricks` (0).
+  In full code mode the model sees `fabric_exec` and calls everything inside
+  it. Verified 2026-10-16 with the kept extensions loaded: an edit made
+  through `pi.edit` inside `fabric_exec` still triggered verify-final's
+  post-work-cleanup nudge, so tool lifecycle events still reach other
+  extensions. Role models moved from `subagents.agentOverrides` to
+  `.pi/agent/fabric.json` `models.aliases`; `APPEND_SYSTEM.md` was rewritten
+  for Fabric. Jev (typed judgments, auto-approval classifier) uses a
+  TypeSafe key: `/login jev` stores it in `auth.json` (machine-local), or set
+  `TYPESAFE_API_KEY`. The key never goes in `fabric.json`.
+  **Archived** (plain `git mv`, history intact): extensions `pi-subagents`,
+  `fusion`, `pi-advisor-flow`, `rpiv-todo` into
+  `.pi/agent/extensions-archive/`; `bin/pi-delegate` and `bin/claude-fusion`
+  into `archive/bin/` (both need pi-subagents/fusion, and their
+  `~/.local/bin` links were removed); npm packages
+  `@trevonistrevon/pi-loop@^0.7.18` and `pi-background-tasks@^2.6.10`
+  removed with `pi remove`. **Kept:** pi-lens, rpiv-web-tools,
+  rpiv-ask-user-question (still excluded), verify-final.ts, moshi-hooks.ts,
+  herdr-agent-state.ts, pi-btw, pi-cc-extensions (TUI rendering; Fabric does
+  not replace it), `+codemode` (Fabric hides it in full code mode).
+  The pre-Fabric `settings.json` on each machine is at
+  `~/.pi/agent/settings.json.bak-pre-fabric` (gitignored).
+  **Rollback:** `git mv` each folder from `extensions-archive/` back to
+  `extensions/` and both scripts back to `bin/`; `git revert` the migration
+  commit for the docs, `install.sh`, `check.sh` and template;
+  `pi remove npm:pi-fabric`; `pi install npm:@trevonistrevon/pi-loop` and
+  `pi install npm:pi-background-tasks`; copy `settings.json.bak-pre-fabric`
+  over `settings.json`; `bash install.sh` (reinstalls pi-subagents deps and
+  relinks the scripts); restart Pi. Do the same on every machine.
 - **2026-10-12 archive sweep:** every extension not in the enabled set moved
   from `.pi/agent/extensions/` to `.pi/agent/extensions-archive/` (outside
   Pi's discovery tree; plain move, git history intact):

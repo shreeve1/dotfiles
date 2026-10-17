@@ -19,3 +19,6 @@ package-lock.json
 __pycache__/
 *.pyc
 .DS_Store
+
+# pi-fabric runtime state (entropy pools, mesh, caches); config is fabric.json
+fabric/
