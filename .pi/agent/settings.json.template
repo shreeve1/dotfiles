@@ -1,6 +1,6 @@
 {
   "defaultProvider": "cliproxy",
-  "defaultModel": "deepseek-v4.1-flash",
+  "defaultModel": "minimax-m3",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "ember",
