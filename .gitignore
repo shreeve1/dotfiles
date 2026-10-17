@@ -273,3 +273,6 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 # offload transport scratch + pi loop-run state (machine-local)
 .offload/
 .pi/loops/
+
+# pi-fabric project-scope runtime state (mesh, MCP cache)
+.pi/fabric/
