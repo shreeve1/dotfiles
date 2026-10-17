@@ -25,5 +25,8 @@
       "cheap": "cliproxy/deepseek-v4.1-flash"
     }
   },
+  "mcp": {
+    "nativeServers": ["itastack"]
+  },
   "configVersion": 4
 }
