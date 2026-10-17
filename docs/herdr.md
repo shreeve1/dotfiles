@@ -162,6 +162,7 @@ on each machine in `~/.herdr-projects/settings/config.json`:
 | Difficult debugging or substantial implementation | `pi/cliproxy/claude-sonnet-5-5` | Coordinator sets the task's worker |
 | Implementation review | `pi/cliproxy/gpt-6-luna` | `reviewer.agent` default |
 | Planning when warranted | `pi/cliproxy/claude-sonnet-5-5` | `plan.agent` default; coordinator enables planning per task |
+| Coordinator chat | `pi/cliproxy/claude-sonnet-5-5` | `coordinator.agent`, independent of pi's global default |
 
 `coordinator.instructions` contains the standing authorization to classify new
 tasks and apply these exact choices before starting them, including tasks started
@@ -178,11 +179,13 @@ inherits the worker default unless you supply an override; it bypasses coordinat
 classification. All three catalogs list the approved models, but live inference
 and classification were not exercised during setup.
 
-The coordinator itself remains `pi` on pi's own default model; effort levels are
-unchanged. Settings apply when the relevant agent next starts, not mid-run. No
-coordinators or tasks were started or restarted to apply this policy. Per-host
-settings backups are under
-`~/.local/state/herdr/upgrades/projects-model-policy-<UTC timestamp>/`. Pulling
+The coordinator is explicitly pinned on all three machines with
+`herdr-projects set coordinator.agent pi/cliproxy/claude-sonnet-5-5`; pi's global
+default and all effort levels are unchanged. This default applies to the next
+new coordinator, not an already-running chat. No coordinators or tasks were
+started or restarted to apply these settings. Per-host settings backups are under
+`~/.local/state/herdr/upgrades/projects-model-policy-<UTC timestamp>/` and
+`projects-coordinator-sonnet-<UTC timestamp>/` in the same directory. Pulling
 dotfiles alone does not provision these machine-local settings.
 
 ### Project directory and Offload guidance
