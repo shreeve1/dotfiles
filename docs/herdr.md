@@ -124,11 +124,10 @@ with blocks to paste. Both blocks were added to the shared source with user
 approval; keep the symlink intact. After syncing future config edits, run
 `herdr config check` and `herdr server reload-config` on each machine.
 
-On each host, `worker.agent`, `reviewer.agent`, and `coordinator.agent` are `pi`,
-with no explicit model override. `watcher.agent` is `none`, avoiding the default
-Claude/Haiku watcher. Reviews remain enabled and `merge.by` is `you` (approval
-required). The agents still run with the plugin's default full access; a worktree
-and a review are not a sandbox.
+All roles use pi. `watcher.agent` is `none`, avoiding the default Claude/Haiku
+watcher. Reviews remain enabled (`review.when=repos`) and `merge.by` is `you`
+(approval required). The agents still run with the plugin's default full access;
+a worktree and a review are not a sandbox.
 
 Every machine owns its tasks and coordinators. `Alt+M` selects another machine;
 in the all-machines view, `@aidev …` (or the displayed machine label) routes to
@@ -151,6 +150,40 @@ processes. This rollout's backups and verification records are machine-local in
 `~/.local/state/herdr/upgrades/20261016-projects-095/` (omarchy's external-SSH retry
 also has a `-retry` directory). Verify both client and running server with
 `herdr status --json`; replacing the binary alone does not upgrade the server.
+
+### Model policy on all three machines
+
+User-approved role defaults and standing coordinator policy are stored separately
+on each machine in `~/.herdr-projects/settings/config.json`:
+
+| Work | Exact agent selection | How selected |
+| --- | --- | --- |
+| Exploration/scouting and routine changes | `pi/cliproxy/minimax-m3` | `worker.agent` default |
+| Difficult debugging or substantial implementation | `pi/cliproxy/claude-sonnet-5-5` | Coordinator sets the task's worker |
+| Implementation review | `pi/cliproxy/gpt-6-luna` | `reviewer.agent` default |
+| Planning when warranted | `pi/cliproxy/claude-sonnet-5-5` | `plan.agent` default; coordinator enables planning per task |
+
+`coordinator.instructions` contains the standing authorization to classify new
+tasks and apply these exact choices before starting them, including tasks started
+with `Tab`. Substantial implementation needing a plan uses task-scoped
+`plan.approve=reviewer`; the global value remains `none`, so routine tasks do not
+all get a planning step. Pure exploration/report requests use research-only tasks;
+fixes do not become research-only merely because they need investigation first.
+
+This is an agent-followed policy, not deterministic model routing, and it does not
+force a separate scouting task for every request. Later explicit choices and
+existing task/repo overrides are preserved. Inspect early delegations with
+`herdr-projects show <id>` to confirm classification. Direct CLI task creation
+inherits the worker default unless you supply an override; it bypasses coordinator
+classification. All three catalogs list the approved models, but live inference
+and classification were not exercised during setup.
+
+The coordinator itself remains `pi` on pi's own default model; effort levels are
+unchanged. Settings apply when the relevant agent next starts, not mid-run. No
+coordinators or tasks were started or restarted to apply this policy. Per-host
+settings backups are under
+`~/.local/state/herdr/upgrades/projects-model-policy-<UTC timestamp>/`. Pulling
+dotfiles alone does not provision these machine-local settings.
 
 ## herdr web ui on aidev (browser/phone client)
 
