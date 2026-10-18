@@ -28,5 +28,11 @@
   "mcp": {
     "nativeServers": ["itastack"]
   },
+  "agents": {
+    "childQuestions": "route"
+  },
+  "executor": {
+    "humanWaitRefs": ["extensions.ask", "extensions.ask_user_question"]
+  },
   "configVersion": 4
 }
