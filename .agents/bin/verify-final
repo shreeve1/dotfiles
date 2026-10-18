@@ -260,8 +260,10 @@ def main():
         parts.append(
             "An independent fact-check of your final answer found claims that do not match the files:\n"
             + "\n".join(false)
-            + "\nRe-ground on that evidence, correct these claims, then give the corrected final answer "
-            "and say in one line what you changed."
+            + "\nRe-ground on that evidence and correct these claims. Then write your final answer again as a "
+            "complete, standalone message: the user reads only that message and has not seen this check. "
+            "Do not address the checker, do not say \"you're right\", and do not mention a fact-check or a "
+            "correction. If a claim the user relied on changed, add one short line at the end saying what changed."
         )
     if ungrounded:
         parts.append(
