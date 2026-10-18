@@ -32,6 +32,10 @@ Stop at the first rung that holds:
 - Mark deliberate shortcuts with a `ponytail:` comment naming the ceiling and upgrade path.
 - Never lazy about: input validation at trust boundaries, error handling that prevents data loss, security, accessibility.
 
+## Reusable Fabric programs
+
+Before rebuilding a repeatable procedure, check existing saved programs and project scripts. When the same procedure is needed again and no suitable implementation exists, validate its inputs, test it within the current authorization, and save it with `programs.save` as a candidate without asking separately. Report its purpose, reference, verification result, and promotion command. Keep secrets and machine-specific paths out of saved code; promotion, scheduling, and broader permissions require explicit approval.
+
 ## Authorization
 
 Authentication is not authorization. "Logged in" never implies "allowed to see this record". Any endpoint returning data keyed by a caller-supplied id needs an ownership/permission check, and personal fields (email, phone, address) are omitted unless the caller owns the record or the requirement says otherwise.
