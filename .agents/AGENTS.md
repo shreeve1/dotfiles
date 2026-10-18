@@ -104,7 +104,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - **Fix root causes.** Find why it broke and fix it there. Don't add a guard that only hides the crash.
 - **Test behavior, not implementation.** A test checks what a user would see. If it would still pass with the code gutted, rewrite or delete it.
 - **Encode repeated lessons.** If you've written the same instruction twice, turn it into a lint, hook or script instead of more text.
-- **Final answers are fact-checked by a hook.** An end-of-turn hook (`~/.agents/bin/verify-final`) runs the independent verify on your final answer; don't run your own on it. If it sends findings back, correct each claim from the evidence and say in one line what you changed. Kill switch: `VERIFY_FINAL=0`.
+- **Final answers are fact-checked by a hook.** An end-of-turn hook (`~/.agents/bin/verify-final`) runs the independent verify on your final answer; don't run your own on it. If it sends findings back, correct each claim from the evidence and write your final answer again as a complete, standalone message: the user has not seen the check, so do not address it or say "you're right". If a claim the user relied on changed, add one short line at the end saying what changed. Kill switch: `VERIFY_FINAL=0`.
 
 ## Changing code that has no tests (legacy)
 
