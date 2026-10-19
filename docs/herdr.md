@@ -158,7 +158,7 @@ on each machine in `~/.herdr-projects/settings/config.json`:
 
 | Work | Exact agent selection | How selected |
 | --- | --- | --- |
-| Exploration/scouting and routine changes | `pi/cliproxy/minimax-m3` | `worker.agent` default |
+| Exploration/scouting and routine changes | `pi/cliproxy/minimax-m3.1-flash` | `worker.agent` default |
 | Difficult debugging or substantial implementation | `pi/cliproxy/claude-sonnet-5-5` | Coordinator sets the task's worker |
 | Implementation review | `pi/cliproxy/gpt-6-luna` | `reviewer.agent` default |
 | Planning when warranted | `pi/cliproxy/claude-sonnet-5-5` | `plan.agent` default; coordinator enables planning per task |
