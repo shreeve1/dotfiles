@@ -2,11 +2,11 @@
   "models": {
     "aliases": {
       "scout": {
-        "model": "cliproxy/minimax-m3",
+        "model": "cliproxy/minimax-m3.1-flash",
         "thinking": "low"
       },
       "worker": {
-        "model": "cliproxy/minimax-m3",
+        "model": "cliproxy/minimax-m3.1-flash",
         "thinking": "high"
       },
       "researcher": {
