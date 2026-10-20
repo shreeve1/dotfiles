@@ -5,3 +5,5 @@ why does the offload verify suite hang ||| ReturnLifecycleFixtures
 what is the primary agent surface now that dsh is retired ||| dsh-web.service is stopped and disabled
 does pi read the global .agents/AGENTS.md ||| ../../.agents/AGENTS.md
 herdr web ui sign-in fails 403 Use controls from this app ||| X-Forwarded-Proto
+what is pi's default model on all three machines ||| cliproxy/glm-5.3
+does editing .pi/agent/settings.json reach the other machines ||| gitignored

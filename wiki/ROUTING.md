@@ -1,5 +1,19 @@
 # Wiki Routing
 
+## Pi Default Model Across The Fleet
+
+- Claims: C-0171 (fleet default model is cliproxy/glm-5.3; `.pi/agent/settings.json` is untracked, so the change is applied per machine and only the template travels by git)
+- Raw: `wiki/raw/sessions/2026-10-20-pi-default-model-glm-5.3.md`
+- Keywords: pi, default model, defaultModel, cliproxy, glm-5.3, settings.json, settings.json.template, gitignored, omarchy, aidev, itan8n
+- Claims-only capture; the setting itself is authoritative in `.pi/agent/settings.json` and `.pi/agent/settings.json.template`.
+
+## Fabric Prewalk And Supervisor Probes
+
+- Claims: C-0170 (bounded headless-supervisor non-parity; not a reliability rate)
+- Raw: `wiki/raw/sessions/2026-10-18-fabric-prewalk-supervisor-probes.md`
+- Keywords: fabric, prewalk, trajectory, supervisor, verify-final, agent_settled, agent_before_settle, RPC, print mode, headless
+- No promoted page or rollout decision; claim-only capture of a verified gotcha.
+
 ## LLM Wiki Skills
 
 - Pages: `wiki/analyses/analysis-session-wiki-skills-autonomous.md` (promoted)
