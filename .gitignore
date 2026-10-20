@@ -16,6 +16,7 @@ plans/
 
 # Machine-local youtube skill output (transcript/research extracts — per-machine)
 youtube/
+!.agents/skills/youtube/
 
 # Machine-local helper binaries (sync rralph; keep the rest machine-local)
 bin/*
