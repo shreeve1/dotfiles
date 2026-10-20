@@ -476,6 +476,29 @@ run_board_child_pipeline() {
         '{child:$child, outcome:"failed", reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, worktreeClean:$worktreeClean}' >"$sidecar"
       return 0
     fi
+    # Driver-side drift check (shared with ralph-loop.sh): the lane's commits against the
+    # ticket's spec and grill ledger. Only DRIFT blocks; PASS, DEGRADED and SKIPPED land.
+    # A drift-blocked lane is recorded failed with sentinel "blocked" and reason "drift",
+    # like a worker BLOCKED. Its worktree and branch are removed (the commit sha stays in
+    # the sidecar and the findings file) so a rerun with --replan is not refused with
+    # branch_exists.
+    local drift_check drift_file="$run_dir/.child-$child-$run_id-drift.txt" drift_verdict=""
+    if drift_check=$(locate_skill_file GRALPH_DRIFT_CHECK ralph/ralph-drift-check.sh); then
+      (cd "$worktree" && bash "$drift_check" "$ticket_path" "$start_sha" "$commit_sha") >"$drift_file" 2>&1 || true
+      drift_verdict=$(tail -1 "$drift_file")
+      echo "lane #$child: ${drift_verdict:-DRIFT_CHECK: no verdict} ($drift_file)" >&2
+    fi
+    if [ "$drift_verdict" = "DRIFT_CHECK: DRIFT" ]; then
+      printf '\nDrifted commit: %s (inspect with: git show %s)\n' "$commit_sha" "$commit_sha" >>"$drift_file"
+      git -C "$REPO_ROOT" worktree remove --force "$worktree" >/dev/null 2>&1 || true
+      git -C "$REPO_ROOT" branch -D "$branch" >/dev/null 2>&1 || true
+      echo "error: lane #$child blocked by the drift check; findings in $drift_file. Fix the cause, then rerun with --replan" >&2
+      jq -n --argjson child "$child" --arg reason "drift" --arg sentinel "blocked" \
+        --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
+        --arg workerLog "$output_file" --argjson workerExitCode "$worker_rc" --arg driftLog "$drift_file" \
+        '{child:$child, outcome:"failed", sentinel:$sentinel, reason:$reason, branch:$branch, worktree:$worktree, startingSha:$startingSha, commitSha:$commitSha, workerLog:$workerLog, workerExitCode:$workerExitCode, driftLog:$driftLog}' >"$sidecar"
+      return 0
+    fi
     jq -n --argjson child "$child" --arg sentinel "DONE" \
       --arg branch "$branch" --arg worktree "$worktree" --arg startingSha "$start_sha" --arg commitSha "$commit_sha" \
       --arg workerLog "$output_file" --argjson workerExitCode "$worker_rc" --argjson worktreeClean "$worktree_clean" \
