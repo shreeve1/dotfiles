@@ -12,8 +12,9 @@ pointer, not a design doc:
   [0007](adr/0007-ralph-single-worker-per-issue.md),
   [0008](adr/0008-ralph-omp-workers.md),
   [0009](adr/0009-parallel-ralph-landing-queue.md),
-  [0010](adr/0010-parallel-ralph-full-tool-workers.md) and
-  [0018](adr/0018-pi-replaces-omp.md) (the omp → pi move).
+  [0010](adr/0010-parallel-ralph-full-tool-workers.md),
+  [0018](adr/0018-pi-replaces-omp.md) (the omp → pi move) and
+  [0024](adr/0024-driver-side-drift-check.md) (driver-side drift check).
 
 ## The two drivers
 
@@ -39,6 +40,7 @@ context. Both read the same board through `board.sh`.
 | Per-ticket review procedure (independent reviewers, one fix round, cleanup) | `.agents/skills/ralph/references/review.md` |
 | Unattended supervisor of a blocked board | `.agents/skills/tralph-shepherd/SKILL.md` |
 | Driver helpers | `.agents/skills/ralph/ralph-finalize.sh`, `ralph-supervise.sh`, `ralph-worktree.sh` |
+| Driver-side drift check (both drivers, after DONE; ADR 0024) | `.agents/skills/ralph/ralph-drift-check.sh` — called from `ralph-loop.sh` `run_drift_gate()` and `bin/gralph` `run_board_child_pipeline()` |
 | Lane worker prompt | `bin/gralph` `run_child_pipeline()` — builds it and names the skill files the worker must read |
 | Skill-file lookup for that prompt | `bin/gralph` `locate_skill_file()` — env override, then this checkout, then `$HOME` |
 | Run artifacts | `.gralph/runs/<key>/manifest.json` (gitignored), `.kanban/run-report*.md` |

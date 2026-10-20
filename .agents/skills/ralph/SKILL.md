@@ -51,6 +51,12 @@ high-severity finding.
 The driver verification gate is a deterministic backstop on top of that review
 for cleanly-runnable verifications: the worker's `DONE` already passed its
 review, and now it also has to pass a script the driver runs.
+For a ticket with a `spec:`, the driver then runs `ralph-drift-check.sh`
+(ADR 0024): one fresh strong-model reviewer checks the worker turn's commits
+against the spec and its grill ledger. `DRIFT_CHECK: DRIFT` overrides
+`done→blocked` with the findings in `## Blocker`; PASS, DEGRADED and SKIPPED
+leave `done`. Board mode (`bin/gralph`) runs the same script before a lane
+can land.
 The driver commits any status flip immediately so the worktree-merge finalizer
 sees it.
 
