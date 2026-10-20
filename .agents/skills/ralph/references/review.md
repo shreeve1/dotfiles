@@ -44,7 +44,10 @@ rerun it once.
 ### Reviewer prompt
 
 Fill in `{LENS}`, `{LENS_TEXT}` (from `lenses.md`), `{ID}`, `{TICKET}` (the ticket body,
-or its path), `{BASE_SHA}` and `{VERIFY}` (the `## Verification` command):
+or its path), `{BASE_SHA}`, `{VERIFY}` (the `## Verification` command) and `{VERIFY_RESULT}`
+(the exit code and last 20 lines of your most recent run of it). Reviewers do not run the
+tests, lint or typecheck themselves: parallel reviewers each running the full suite overload the
+machine, and you and the driver's verification gate already run them.
 
 ```text
 You are an adversarial reviewer with the {LENS} lens. Find real problems; do not validate
@@ -60,10 +63,12 @@ too: callers, callees, types, tests, docs, config. Gaps often live outside the d
 
 Also check:
 1. Every acceptance criterion is objectively satisfied.
-2. The verification command passes (exit 0): {VERIFY}. If it fails only because a bare runner
-   resolved the wrong interpreter (e.g. ModuleNotFoundError from a system Python without the
-   project's deps), report it as a verification-command fix, not a code defect.
-3. Lint and typecheck pass.
+2. The verification command actually tests the acceptance criteria: {VERIFY}. The worker's last
+   run of it: {VERIFY_RESULT}. A nonzero exit, or a command that would pass with the change
+   reverted, is a finding. A bare runner that can resolve the wrong interpreter (e.g. a system
+   Python without the project's deps) is a verification-command fix, not a code defect.
+3. Do not run the test suite, lint, typecheck or the verification command; the worker and the
+   driver already run them. Read the code instead.
 4. Critical LSP diagnostics in touched files (type/call/signature/import errors) are fixed.
 5. No unrelated changes leaked into the diff.
 6. Scope matches the ticket; no scope creep.
