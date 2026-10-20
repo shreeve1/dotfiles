@@ -83,6 +83,11 @@ done
 grep -qE '^session: ' "$TS" && ok || fail "to-spec spec template has a session: frontmatter line"
 grep -qiE '^## Decisions from the grill' "$TS" && ok || fail "to-spec spec template has a 'Decisions from the grill' section"
 grep -qiE 'no.*(grill|decisions).*(conversation|context)|fresh session' "$TS" && ok || fail "to-spec says what to do when the conversation holds no grill decisions"
+# to-spec links the grill ledger and checks the spec covers it before publishing (drift check A)
+grep -qE '^ledger: \.kanban/grilling/' "$TS" && ok || fail "to-spec spec template has a ledger: frontmatter line"
+grep -q 'MISSING' "$TS" && grep -q 'CONTRADICTED' "$TS" && ok || fail "to-spec coverage check marks ledger decisions MISSING or CONTRADICTED"
+cov_step="$(sed -n '/Check the spec covers the grill/,/Verify the spec before publishing/p' "$TS")"
+if printf '%s' "$cov_step" | grep -qiE "wait for (their|the user's) approval"; then ok; else fail "to-spec gets the user's approval of the coverage table before publishing"; fi
 
 # grill-with-docs hands over to to-spec instead of ending in the conversation
 grep -q 'to-spec' "$GD" && ok || fail "grill-with-docs names to-spec as the next step"
