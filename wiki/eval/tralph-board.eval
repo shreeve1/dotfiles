@@ -8,6 +8,6 @@ why did a six second test report 602 seconds ||| orphan
 rerun does not retry failed gralph lane ||| --replan
 why does tralph default path not show the finish-spec reminder ||| ralph-loop.sh writes no manifest
 does gralph board mode actually review a lane ||| ralph-drift-check.sh
-what happens to a lane the drift check blocks ||| --replan can retry
+what happens to a lane the drift check blocks ||| ready-for-human repair ticket
 find the transcript for a session id ||| find -name
 can a spec slug be all digits ||| not all digits

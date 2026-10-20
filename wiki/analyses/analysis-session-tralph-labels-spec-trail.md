@@ -37,6 +37,8 @@ In `gralph` the coordinator records a lane's `DONE` with hardcoded `reviewGate:"
 
 **Update 2026-10-20 (ADR 0024, C-0172 supersedes C-0157):** the coordinator-side check was decided and built, narrowly. Both drivers now run `.agents/skills/ralph/ralph-drift-check.sh` after a DONE on a ticket with a `spec:`: one strong-model reviewer checks the diff against the spec and its grill ledger (`ledger:` frontmatter), and only `DRIFT_CHECK: DRIFT` blocks. In board mode a drifted lane is recorded failed (sentinel `blocked`, reason `drift`), its findings go to `.gralph/runs/<key>/.child-<N>-<run>-drift.txt`, and its branch is removed so `--replan` can retry it. Non-drift lanes are still recorded with the hardcoded `reviewGate:"accepted"`; general review stays in the worker. See [the session capture](/raw/sessions/2026-10-20-grill-drift-checks.md).
 
+**Update 2026-10-20, after a gap review (C-0173 supersedes C-0172):** a drift-blocked board lane now keeps its branch, its ticket is parked `blocked`, and a `ready-for-human` repair ticket (`Drift check blocked ticket #N`) carries the findings; the lanes that passed still land and gralph exits 3. The `--replan` retry was dropped because it stuck when another lane had landed. The reviewer is read-only by tool allowlist and never reverts worktree files; `DRIFT_CHECK: ERROR` blocks; sequential mode checks the whole ticket from its first `(#ID)` commit, including `--review-loop`. See [the gap-fix capture](/raw/sessions/2026-10-20-grill-drift-checks-gap-fixes.md).
+
 ## Spec trail contracts
 
 - A ticket's `spec: <slug>` points at `.kanban/specs/<slug>.md`. A slug is `[A-Za-z0-9][A-Za-z0-9_-]*` and not all digits: it is also the gralph run key, where a bare number is a numeric key and `0` is the whole board.
