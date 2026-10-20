@@ -1470,11 +1470,39 @@ set_issue_status() {
   perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
 }
 
+# Driver drift gate: runs ralph-drift-check.sh over the worker's commits
+# (WORKER_BASE_SHA..HEAD) against the ticket's spec and grill ledger. Returns 1
+# after parking the ticket blocked with the findings when the verdict is DRIFT;
+# PASS, DEGRADED and SKIPPED return 0 (only DRIFT blocks).
+run_drift_gate() {
+  local target_file="$1" target_id="$2" out last
+  if [[ -z "${WORKER_BASE_SHA:-}" ]]; then
+    echo "⚠️  Drift check skipped for #$target_id: no worker base commit recorded" | tee -a "$LOG_FILE"
+    return 0
+  fi
+  echo "▶ Drift check (#$target_id): $WORKER_BASE_SHA..HEAD against spec + grill ledger" | tee -a "$LOG_FILE"
+  out=$(bash "$SKILL_DIR/ralph-drift-check.sh" "$target_file" "$WORKER_BASE_SHA" HEAD 2>&1)
+  printf '%s\n' "$out" >>"$LOG_FILE"
+  last=$(printf '%s\n' "$out" | tail -1)
+  case "$last" in
+  "DRIFT_CHECK: DRIFT")
+    echo "❌ Drift check found drift for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
+    set_issue_status "$target_file" blocked
+    printf '\n## Blocker\n\nWorker printed DONE but the driver drift check found the diff contradicts a recorded decision or builds something out of scope. Fix the code, or change the spec or ledger if the decision itself was wrong, then set `status: pending` again.\n\n%s\n' "$(printf '%s\n' "$out" | sed '$d')" >>"$target_file"
+    return 1
+    ;;
+  "DRIFT_CHECK: PASS") echo "✅ Drift check passed for #$target_id" | tee -a "$LOG_FILE" ;;
+  *) echo "⚠️  Drift check for #$target_id: ${last#DRIFT_CHECK: } (does not block)" | tee -a "$LOG_FILE" ;;
+  esac
+  return 0
+}
+
 # Driver verification gate: after a worker prints RALPH_RESULT: DONE #<id>, the
 # driver itself re-runs the issue's cleanly-runnable ## Verification command and
 # overrides to blocked on failure — the worker's DONE is not trusted on faith.
 # Prose verifications have no runnable command, so the DONE stands (the worker's
-# own protocol §4 fresh review remains the review layer). Driver-authored status
+# own protocol §4 fresh review remains the review layer). Either way the drift
+# gate runs last and can still park the ticket blocked. Driver-authored status
 # changes are committed immediately so the worktree-merge finalizer sees them.
 run_verification_gate() {
   local output_file="$1" raw_id target_id target_file verify_cmd
@@ -1487,14 +1515,16 @@ run_verification_gate() {
   if [[ -n "$verify_cmd" ]]; then
     echo "▶ Verification gate (#$target_id): $verify_cmd" | tee -a "$LOG_FILE"
     if bash -lc "$verify_cmd" 2>&1 | tee -a "$LOG_FILE"; then
-      set_issue_status "$target_file" done
-      echo "✅ Verification gate passed for #$target_id (status: done)" | tee -a "$LOG_FILE"
+      if run_drift_gate "$target_file" "$target_id"; then
+        set_issue_status "$target_file" done
+        echo "✅ Verification gate passed for #$target_id (status: done)" | tee -a "$LOG_FILE"
+      fi
     else
       echo "❌ Verification FAILED for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
       set_issue_status "$target_file" blocked
       printf '\n## Blocker\n\nWorker printed DONE but the driver verification gate failed: `%s` (exit nonzero). Auto-parked done→blocked; see the loop log for output.\n' "$verify_cmd" >> "$target_file"
     fi
-  else
+  elif run_drift_gate "$target_file" "$target_id"; then
     set_issue_status "$target_file" done
     echo "✅ Verification gate: prose verification for #$target_id — trusting worker DONE (status: done)" | tee -a "$LOG_FILE"
   fi
@@ -1772,6 +1802,10 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     rm -f "$PRE_WORKER_STATUS_FILE"
     break
   fi
+  # The drift gate checks WORKER_BASE_SHA..HEAD: this worker turn's commits only.
+  # ponytail: a resumed ticket's commits from an earlier turn are not re-checked;
+  # record a per-ticket base in the ticket file if that gap shows up in practice.
+  WORKER_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || true)
 
   AGENT_PROMPT="$BASE_AGENT_PROMPT"
   if [[ "$REVIEW_LOOP" == "true" ]]; then
