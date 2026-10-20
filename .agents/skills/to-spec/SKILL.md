@@ -20,7 +20,7 @@ Check with the user that these seams match their expectations.
 
 3. Write the spec using the template below.
 
-4. **Check the spec covers the grill.** A long grill loses its early decisions from your context, and those are often the "we are not doing X" calls. The grill ledger (`.kanban/grilling/<topic-slug>.md`, written by the `grilling` skill) is the record that does not fade. Find this grill's ledger: the conversation's `Ledger:` lines name it. Re-read it now, not from memory. Then list every line under its Decisions and Defaults headings in a table for the user:
+4. **Check the spec covers the grill.** A long grill loses its early decisions from your context, and those are often the "we are not doing X" calls. The grill ledger (`.kanban/grilling/<topic-slug>.md`, written by the `grilling` skill) is the record that does not fade. Find this grill's ledger: the conversation's `Ledger:` lines name it. Re-read it now, not from memory. Then list every line under its `## Decisions` and `## Defaults` headings in a table for the user. If the ledger has no `## Decisions` heading (written before the grilling skill fixed its headings), do not treat an empty list as a pass: read the whole ledger, list every line that records something the user settled, and tell the user you did so:
 
    | Ledger line | Where the spec honours it                                                            |
    | ----------- | ------------------------------------------------------------------------------------ |

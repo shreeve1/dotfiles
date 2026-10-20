@@ -98,6 +98,20 @@ if printf '%s' "$cov_step" | grep -qiE "wait for (their|the user's) approval"; t
 grep -q 'to-spec' "$GD" && ok || fail "grill-with-docs names to-spec as the next step"
 grep -qiE 'same session|decisions' "$GD" && ok || fail "grill-with-docs tells the user to run to-spec in the same session or record decisions"
 
+# shepherd never hands a drift block back to a worker (ADR 0024): it raises it
+grep -q 'Drift check — needs the user' "$SH" && ok || fail "shepherd recognises a drift-check Blocker"
+raise_list="$(sed -n '/RAISE with the user/,/When you raise:/p' "$SH")"
+if printf '%s' "$raise_list" | grep -qi 'drift check'; then ok; else fail "shepherd RAISE list includes drift-check blocks"; fi
+grep -q 'drift_check_error' "$SH" && ok || fail "shepherd explains drift-blocked board lanes"
+# grilling defines the ledger headings the drift checks parse
+GR="$SK/grilling/SKILL.md"
+grep -q '## Decisions' "$GR" && grep -q '## Defaults' "$GR" && ok || fail "grilling names the ## Decisions and ## Defaults ledger headings"
+led="$(sed -n '/^## The ledger/,/^## Explore first/p' "$GR")"
+if printf '%s' "$led" | grep -qiE 'to-spec|finish-spec|drift'; then ok; else fail "grilling says downstream checks parse those headings"; fi
+# to-spec and finish-spec handle a ledger without those headings, and process lines
+grep -qiE 'no `## Decisions` heading' "$TS" && ok || fail "to-spec handles a ledger without a Decisions heading"
+grep -qiE 'not applicable' "$FS" && ok || fail "finish-spec has a not-applicable outcome for process decisions"
+
 # shepherd tells the user to run finish-spec when the run report says the spec is complete
 grep -q 'Spec complete' "$SH" && grep -q '/finish-spec' "$SH" && ok || fail "shepherd surfaces the report's 'Spec complete' section and /finish-spec"
 
