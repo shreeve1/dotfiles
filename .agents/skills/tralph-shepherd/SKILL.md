@@ -258,6 +258,8 @@ done
 [ -f "$REPORT" ] && cat "$REPORT" || echo "no run report yet ($REPORT)"
 ```
 
+**A lane that failed with `reason: drift` or `drift_check_error`** was stopped by the driver drift check (ADR 0024). gralph has already parked the ticket `status: blocked`, kept its lane branch, and filed a `ready-for-human` repair ticket titled `Drift check blocked ticket #N` carrying the findings. RAISE it with the user; never relabel or relaunch it. The lanes that passed still landed.
+
 **A lane that failed with `reason: spec_missing` or `spec_invalid`** (sidecar, step 4) is a ticket/spec problem, not a code defect: the ticket's `spec:` names a file that is not in `.kanban/specs/` or a slug that breaks the rule, and `gralph` refused to run it without the spec. Do not relaunch it. Fix `spec:` (or create the spec file), commit, then rerun with `--replan`: a failed lane stays failed on a plain rerun, as any failed lane does. In sequential mode the equivalent is a ticket the loop set to `status: blocked` with a `## Blocker` naming the spec; fix it and set it back to `pending`.
 
 **Board-mode triage key:** "coordinator parked/crashed" means the lock
@@ -405,7 +407,13 @@ For each blocked issue in normal mode, decide up-front. Three outcomes:
     a deploy decision,
   - the ticket has no `## Verification` (or equivalent sparkable
     command) — the worker's verification gate can't confirm anything,
-    so raise to add one before re-delegating.
+    so raise to add one before re-delegating,
+  - the `## Blocker` starts with **Drift check — needs the user** (ADR
+    0024): the driver's drift check found the diff contradicts a
+    recorded decision, or could not run. Even when its findings cite
+    file:line, this is a judgment call, never DEFAULT or DELEGATE: the
+    user decides whether the code or the decision is wrong. Do not edit
+    the spec or ledger yourself.
   When you raise: print the issue id, the Blocker summary, what you
   found, and your recommended fix, then stop. The driver stays parked
   (idle bash in tmux session `ralph-loop`); the blocked issue stays

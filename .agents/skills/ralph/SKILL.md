@@ -52,11 +52,14 @@ The driver verification gate is a deterministic backstop on top of that review
 for cleanly-runnable verifications: the worker's `DONE` already passed its
 review, and now it also has to pass a script the driver runs.
 For a ticket with a `spec:`, the driver then runs `ralph-drift-check.sh`
-(ADR 0024): one fresh strong-model reviewer checks the worker turn's commits
-against the spec and its grill ledger. `DRIFT_CHECK: DRIFT` overrides
-`done→blocked` with the findings in `## Blocker`; PASS, DEGRADED and SKIPPED
-leave `done`. Board mode (`bin/gralph`) runs the same script before a lane
-can land.
+(ADR 0024): one fresh, read-only, strong-model reviewer checks all of the
+ticket's `(#ID)` commits against the spec and its grill ledger, including after
+`--review-loop`. `DRIFT` or `ERROR` overrides `done→blocked` with a `## Blocker`
+that starts **Drift check — needs the user**; PASS, DEGRADED and SKIPPED leave
+`done`, and the verdict is recorded under `## Drift check`. Workers must not edit
+the spec or ledger to clear a drift block. Board mode (`bin/gralph`) runs the
+same script before a lane can land and files a `ready-for-human` repair ticket
+when it blocks.
 The driver commits any status flip immediately so the worktree-merge finalizer
 sees it.
 
