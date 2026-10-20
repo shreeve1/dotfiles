@@ -67,6 +67,9 @@ grep -qiE 'medium and low findings never block' "$RR" && ok || fail "review proc
 grep -qiE 'upheld.*blocked|blocked.*upheld' "$RR" && ok || fail "review procedure blocks only on an upheld high finding"
 grep -q 'cliproxy/claude-opus-5-5' "$RR" && ok || fail "review procedure runs the Gaps lens on a different model family"
 grep -q 'post-work-cleanup/SKILL.md' "$RR" && ok || fail "review procedure runs post-work-cleanup"
+# parallel reviewers each running the full suite overloaded the machine; reviewers read, the worker runs
+grep -qE '^3\. Do not run the test suite' "$RR" && ok || fail "reviewers do not run the test suite"
+grep -q '{VERIFY_RESULT}' "$RR" && ok || fail "reviewer prompt carries the worker's verification result"
 # finish-spec ends with the architecture step, skipped when no user is present
 FS="$SK/finish-spec/SKILL.md"
 grep -q 'improve-codebase-architecture/SKILL.md' "$FS" && ok || fail "finish-spec runs improve-codebase-architecture"

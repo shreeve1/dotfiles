@@ -304,7 +304,7 @@ For the selected issue:
      git diff "${FIRST}^" HEAD
      ```
 
-   Reviewers are independent: each is a fresh `pi -p` process that re-derives from the repo and does not inherit your context, and the Gaps reviewer runs on a different model family from yours. The reviewer contract in `review.md` checks each acceptance criterion, the `## Verification` command, lint/typecheck, critical LSP diagnostics, scope, unrelated changes, and that the diff does not contradict the ticket's spec.
+   Reviewers are independent: each is a fresh `pi -p` process that re-derives from the repo and does not inherit your context, and the Gaps reviewer runs on a different model family from yours. The reviewer contract in `review.md` checks each acceptance criterion, whether the `## Verification` command really tests them (reviewers read the worker's last run of it and do not run tests, lint or typecheck themselves), critical LSP diagnostics, scope, unrelated changes, and that the diff does not contradict the ticket's spec.
 
 **Review outcomes:**
 
