@@ -20,9 +20,17 @@ Check with the user that these seams match their expectations.
 
 3. Write the spec using the template below.
 
-4. **Verify the spec before publishing.** A spec asserts a pile of things about the current codebase — what modules exist, what the seams are, what prior art the tests have, what's already wired. Those claims drift as you synthesise. Before you publish, extract every load-bearing repo claim from the draft (Implementation Decisions, Testing Decisions, the seams from step 2) and run an **independent verify (see `../_shared/verify-claims.md`)** on them in one batched call. Correct any that come back FALSE, then publish. A spec that ships a wrong assumption sends every downstream ticket the wrong way.
+4. **Check the spec covers the grill.** A long grill loses its early decisions from your context, and those are often the "we are not doing X" calls. The grill ledger (`.kanban/grilling/<topic-slug>.md`, written by the `grilling` skill) is the record that does not fade. Find this grill's ledger: the conversation's `Ledger:` lines name it. Re-read it now, not from memory. Then list every line under its Decisions and Defaults headings in a table for the user:
 
-5. Publish the verified spec to the project issue tracker. How depends on the tracker `/setup-matt-pocock-skills` configured:
+   | Ledger line | Where the spec honours it                                                            |
+   | ----------- | ------------------------------------------------------------------------------------ |
+   | D1 ...      | section and a one-line quote, or **MISSING**, or **CONTRADICTED** (quote the clash)  |
+
+   Fix every MISSING line (usually in "Decisions from the grill" or "Out of Scope") and every CONTRADICTED line. If the spec should overrule a ledger line, that is the user's call: ask, and record their answer in the ledger. Show the user the final table and wait for their approval before going on. Set the spec's `ledger:` frontmatter to the ledger path. If no ledger exists (an older grill, or no grill), say so, omit `ledger:`, and skip this step.
+
+5. **Verify the spec before publishing.** A spec asserts a pile of things about the current codebase — what modules exist, what the seams are, what prior art the tests have, what's already wired. Those claims drift as you synthesise. Before you publish, extract every load-bearing repo claim from the draft (Implementation Decisions, Testing Decisions, the seams from step 2) and run an **independent verify (see `../_shared/verify-claims.md`)** on them in one batched call. Correct any that come back FALSE, then publish. A spec that ships a wrong assumption sends every downstream ticket the wrong way.
+
+6. Publish the verified spec to the project issue tracker. How depends on the tracker `/setup-matt-pocock-skills` configured:
 
    - **GitHub / GitLab / other:** create the spec as an issue and apply the `ready-for-agent` triage label — no need for additional triage.
    - **Local `.kanban/` board:** write the spec to `.kanban/specs/<spec-slug>.md` (see `docs/agents/issue-tracker.md`). Pick a short kebab-case slug (`[a-z0-9][a-z0-9-]*`, not all digits — it doubles as the `tralph --spec` run key, where a bare number means a different thing) that is not already a file in `.kanban/specs/`, and create the directory if needed. A local spec is a document, **not a ticket**: do not put it in `.kanban/issues/` (the loop reads every file there as a runnable ticket) and give it no triage label.
@@ -35,11 +43,12 @@ Check with the user that these seams match their expectations.
 ---
 slug: <spec-slug>
 session: <host>:<session id>
+ledger: .kanban/grilling/<topic-slug>.md
 created: <today, YYYY-MM-DD>
 ---
 ```
 
-Set `session:` from `$PI_SESSION_ID` and the machine's ssh alias when the variable is set; omit the line when it is not. The `kanban` skill's "Session breadcrumb" maps `hostname` to the alias (`n8n` is `itan8n`) and says where transcripts live and how to search one. It names the machine and session where this spec was written, which is normally the grill itself. It is a breadcrumb for a human (or a later session) who needs to recover why something was decided: transcripts are not synced between machines, so look with `ssh <host>`, and search the transcript for the specific decision. Never load a whole transcript into context.
+Set `session:` from `$PI_SESSION_ID` and the machine's ssh alias when the variable is set; omit the line when it is not. The `kanban` skill's "Session breadcrumb" maps `hostname` to the alias (`n8n` is `itan8n`) and says where transcripts live and how to search one. Set `ledger:` to the grill ledger checked in step 4; omit it when there is none. The per-ticket drift check and `/finish-spec` read the ledger through this line. `session:` names the machine and session where this spec was written, which is normally the grill itself. It is a breadcrumb for a human (or a later session) who needs to recover why something was decided: transcripts are not synced between machines, so look with `ssh <host>`, and search the transcript for the specific decision. Never load a whole transcript into context.
 
 ## Problem Statement
 
