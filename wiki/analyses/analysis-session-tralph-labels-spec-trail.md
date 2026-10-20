@@ -3,7 +3,7 @@ title: tralph Labels, .kanban Board And Spec Trail
 type: analysis
 status: promoted
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-20
 promoted: 2026-10-14
 sources:
   - wiki/raw/sessions/2026-10-14-tralph-labels-spec-trail.md
@@ -12,6 +12,8 @@ sources:
   - .agents/skills/ralph/ralph-loop.sh
   - .zshrc
   - .gitignore
+  - wiki/raw/sessions/2026-10-20-grill-drift-checks.md
+  - docs/adr/0024-driver-side-drift-check.md
 confidence: high
 tags: [tralph, gralph, ralph, kanban, triage-labels, spec, board]
 description: How the tralph loop decides what to run (one eligibility rule in board.sh, two drivers behind it), what the board mode does and does not enforce about specs, and the gotchas that cost time this session.
@@ -31,7 +33,9 @@ description: How the tralph loop decides what to run (one eligibility rule in bo
 
 ## What board mode does not enforce
 
-In `gralph` the coordinator records a lane's `DONE` with hardcoded `reviewGate:"accepted"`, `reviewStatus:"approved"` and zero findings. It never spawns or reads a reviewer; acceptance is the worker's `RALPH_RESULT` sentinel plus a new commit. So telling a worker to read its spec and to have its reviewer check the diff against it reduces drift but does not prevent it. A coordinator-side reviewer (or a mechanical Out-of-Scope bounce) is the enforcing design and is an open decision, not made.
+In `gralph` the coordinator records a lane's `DONE` with hardcoded `reviewGate:"accepted"`, `reviewStatus:"approved"` and zero findings. It never spawns or reads a reviewer; acceptance is the worker's `RALPH_RESULT` sentinel plus a new commit. So telling a worker to read its spec and to have its reviewer check the diff against it reduces drift but does not prevent it.
+
+**Update 2026-10-20 (ADR 0024, C-0172 supersedes C-0157):** the coordinator-side check was decided and built, narrowly. Both drivers now run `.agents/skills/ralph/ralph-drift-check.sh` after a DONE on a ticket with a `spec:`: one strong-model reviewer checks the diff against the spec and its grill ledger (`ledger:` frontmatter), and only `DRIFT_CHECK: DRIFT` blocks. In board mode a drifted lane is recorded failed (sentinel `blocked`, reason `drift`), its findings go to `.gralph/runs/<key>/.child-<N>-<run>-drift.txt`, and its branch is removed so `--replan` can retry it. Non-drift lanes are still recorded with the hardcoded `reviewGate:"accepted"`; general review stays in the worker. See [the session capture](/raw/sessions/2026-10-20-grill-drift-checks.md).
 
 ## Spec trail contracts
 

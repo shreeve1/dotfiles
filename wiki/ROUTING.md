@@ -83,6 +83,7 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 ## tralph, gralph And The .kanban Board
 
 - Pages: `wiki/analyses/analysis-session-tralph-labels-spec-trail.md` (promoted)
-- Claims: C-0154, C-0155, C-0156, C-0157, C-0158, C-0159
-- Raw: `wiki/raw/sessions/2026-10-14-tralph-labels-spec-trail.md`
-- Keywords: tralph, gralph, ralph-loop, board.sh, kanban, triage labels, ready-for-agent, spec, spec-done, spec-check, finish-spec, --replan, failed lane, git add -f, tests gitignored, session breadcrumb, run report
+- Claims: C-0154, C-0155, C-0156, C-0157 (superseded by C-0172), C-0158, C-0159, C-0172
+- Raw: `wiki/raw/sessions/2026-10-14-tralph-labels-spec-trail.md`, `wiki/raw/sessions/2026-10-20-grill-drift-checks.md`
+- Decisions: `docs/adr/0024-driver-side-drift-check.md` (driver-side drift check)
+- Keywords: tralph, gralph, ralph-loop, board.sh, kanban, triage labels, ready-for-agent, spec, spec-done, spec-check, finish-spec, --replan, failed lane, git add -f, tests gitignored, session breadcrumb, run report, drift check, ralph-drift-check.sh, DRIFT_CHECK, ledger:, grill ledger, to-spec coverage
