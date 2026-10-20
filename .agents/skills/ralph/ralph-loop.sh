@@ -775,6 +775,10 @@ if [[ ! -x "$BOARD_SH" ]]; then
   echo "❌ Error: kanban eligibility script not found or not executable: $BOARD_SH" >&2
   exit 1
 fi
+if [[ ! -f "$SKILL_DIR/ralph-drift-check.sh" ]]; then
+  echo "❌ Error: drift check script not found: $SKILL_DIR/ralph-drift-check.sh" >&2
+  exit 1
+fi
 
 if [[ "$SESSION_NAME" =~ [.:] ]]; then
   echo "❌ Error: session name '$SESSION_NAME' contains '.' or ':' (invalid in tmux)" >&2
@@ -1470,30 +1474,103 @@ set_issue_status() {
   perl -0pi -e "s/^status: (?:pending|in-progress|review|done|blocked|todo)\b.*\$/status: $new/m unless \$seen++" "$file"
 }
 
-# Driver drift gate: runs ralph-drift-check.sh over the worker's commits
-# (WORKER_BASE_SHA..HEAD) against the ticket's spec and grill ledger. Returns 1
-# after parking the ticket blocked with the findings when the verdict is DRIFT;
-# PASS, DEGRADED and SKIPPED return 0 (only DRIFT blocks).
+# ticket_drift_base ID: the commit the drift check diffs from. That is the parent of the
+# ticket's first (#ID) commit (the same base the worker's own review uses, ralph SKILL §4),
+# so a resumed or retried ticket is checked across all of its work, not only the last
+# turn's. Falls back to WORKER_BASE_SHA when the ticket has no tagged commit yet or when
+# its first tagged commit is newer than this turn's start.
+ticket_drift_base() {
+  local id="$1" first
+  first=$(git log -F --grep="(#$id)" --reverse --format=%H 2>/dev/null | head -1)
+  if [[ -n "$first" ]] && git rev-parse -q --verify "$first^" >/dev/null 2>&1 &&
+    { [[ -z "${WORKER_BASE_SHA:-}" ]] || git merge-base --is-ancestor "$first^" "$WORKER_BASE_SHA" 2>/dev/null; }; then
+    git rev-parse "$first^"
+  else
+    printf '%s\n' "${WORKER_BASE_SHA:-}"
+  fi
+}
+
+# record_drift_verdict FILE VERDICT RANGE: append the verdict to the ticket's
+# "## Drift check" section, so a done ticket shows whether it was checked.
+record_drift_verdict() {
+  local file="$1" verdict="$2" range="$3"
+  grep -q '^## Drift check$' "$file" || printf '\n## Drift check\n\n' >>"$file"
+  printf -- '- %s: %s (%s)\n' "$(date +%F)" "$verdict" "$range" >>"$file"
+}
+
+# park_blocked FILE ID MESSAGE: set status: blocked and append a ## Blocker. If the status
+# did not change (malformed frontmatter), stop the loop instead of continuing as if it had.
+park_blocked() {
+  local file="$1" id="$2" message="$3"
+  set_issue_status "$file" blocked || true
+  printf '\n## Blocker\n\n%s\n' "$message" >>"$file"
+  if [[ "$(issue_status_for_file "$file")" != "blocked" ]]; then
+    echo "❌ Could not set #$id to blocked (check its frontmatter); stopping the loop" | tee -a "$LOG_FILE"
+    LAST_EXIT_CODE=1
+  fi
+}
+
+# Driver drift gate (ADR 0024): runs ralph-drift-check.sh over the ticket's work against its
+# spec and grill ledger. Returns 1 after parking the ticket blocked when the verdict is
+# DRIFT or the check could not run (ERROR, or no verdict line); PASS, DEGRADED and SKIPPED
+# return 0. A drift block is addressed to the user: the shepherd raises it, never
+# delegates it, and workers must not clear it by editing the spec or ledger.
 run_drift_gate() {
-  local target_file="$1" target_id="$2" out last
-  if [[ -z "${WORKER_BASE_SHA:-}" ]]; then
-    echo "⚠️  Drift check skipped for #$target_id: no worker base commit recorded" | tee -a "$LOG_FILE"
+  local target_file="$1" target_id="$2" out last base range
+  base=$(ticket_drift_base "$target_id")
+  if [[ -z "$base" ]]; then
+    echo "⚠️  Drift check skipped for #$target_id: no base commit" | tee -a "$LOG_FILE"
     return 0
   fi
-  echo "▶ Drift check (#$target_id): $WORKER_BASE_SHA..HEAD against spec + grill ledger" | tee -a "$LOG_FILE"
-  out=$(bash "$SKILL_DIR/ralph-drift-check.sh" "$target_file" "$WORKER_BASE_SHA" HEAD 2>&1)
+  range="$(git rev-parse --short "$base")..$(git rev-parse --short HEAD)"
+  echo "▶ Drift check (#$target_id): $range against spec + grill ledger" | tee -a "$LOG_FILE"
+  out=$(bash "$SKILL_DIR/ralph-drift-check.sh" "$target_file" "$base" HEAD 2>&1)
   printf '%s\n' "$out" >>"$LOG_FILE"
   last=$(printf '%s\n' "$out" | tail -1)
   case "$last" in
   "DRIFT_CHECK: DRIFT")
     echo "❌ Drift check found drift for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
-    set_issue_status "$target_file" blocked
-    printf '\n## Blocker\n\nWorker printed DONE but the driver drift check found the diff contradicts a recorded decision or builds something out of scope. Fix the code, or change the spec or ledger if the decision itself was wrong, then set `status: pending` again.\n\n%s\n' "$(printf '%s\n' "$out" | sed '$d')" >>"$target_file"
+    record_drift_verdict "$target_file" DRIFT "$range"
+    park_blocked "$target_file" "$target_id" "**Drift check — needs the user.** The driver's drift check found that this ticket's diff ($range) contradicts a recorded decision or builds something out of scope. Workers must not edit the spec or ledger to clear this. The user decides: fix the code and set \`status: pending\`, or change the spec or ledger because the decision itself was wrong.
+
+$(printf '%s\n' "$out" | sed '$d')"
     return 1
     ;;
-  "DRIFT_CHECK: PASS") echo "✅ Drift check passed for #$target_id" | tee -a "$LOG_FILE" ;;
-  *) echo "⚠️  Drift check for #$target_id: ${last#DRIFT_CHECK: } (does not block)" | tee -a "$LOG_FILE" ;;
+  "DRIFT_CHECK: PASS")
+    record_drift_verdict "$target_file" PASS "$range"
+    echo "✅ Drift check passed for #$target_id" | tee -a "$LOG_FILE"
+    ;;
+  "DRIFT_CHECK: SKIPPED") echo "ℹ️  Drift check skipped for #$target_id (no spec)" | tee -a "$LOG_FILE" ;;
+  "DRIFT_CHECK: DEGRADED")
+    record_drift_verdict "$target_file" "DEGRADED (no model answered; not checked)" "$range"
+    echo "⚠️  Drift check degraded for #$target_id: no model answered (does not block)" | tee -a "$LOG_FILE"
+    ;;
+  *)
+    echo "❌ Drift check could not run for #$target_id; overriding DONE→blocked" | tee -a "$LOG_FILE"
+    record_drift_verdict "$target_file" ERROR "$range"
+    park_blocked "$target_file" "$target_id" "**Drift check — needs the user.** The drift check could not run, so this ticket was not checked against its spec. Fix the cause below (a missing spec, a bad range, a missing script), then set \`status: pending\`.
+
+$(printf '%s\n' "$out" | tail -5)"
+    return 1
+    ;;
   esac
+  return 0
+}
+
+# Review-loop drift gate: a --review-loop worker can change code and mark a ticket done, so
+# its DONE goes through the same drift check before the driver accepts it.
+run_review_loop_drift_gate() {
+  local output_file="$1" raw_id target_id target_file
+  raw_id=$(extract_completed_issue "$output_file")
+  [[ -n "$raw_id" ]] || return 0
+  target_id=$(normalize_issue_id "$raw_id")
+  target_file=$(grep -l "^id: ${target_id}$" .kanban/issues/*.md 2>/dev/null | head -1 || true)
+  [[ -n "$target_file" ]] || return 0
+  run_drift_gate "$target_file" "$target_id" || true
+  if ! git diff --quiet -- "$target_file" 2>/dev/null; then
+    git add -- "$target_file" 2>/dev/null &&
+      git commit -m "review(#$target_id): driver drift check after review loop" 2>&1 | tee -a "$LOG_FILE" || true
+  fi
   return 0
 }
 
@@ -1802,9 +1879,7 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
     rm -f "$PRE_WORKER_STATUS_FILE"
     break
   fi
-  # The drift gate checks WORKER_BASE_SHA..HEAD: this worker turn's commits only.
-  # ponytail: a resumed ticket's commits from an earlier turn are not re-checked;
-  # record a per-ticket base in the ticket file if that gap shows up in practice.
+  # Fallback base for the drift gate (ticket_drift_base prefers the ticket's own commits).
   WORKER_BASE_SHA=$(git rev-parse HEAD 2>/dev/null || true)
 
   AGENT_PROMPT="$BASE_AGENT_PROMPT"
@@ -1900,6 +1975,8 @@ while [[ $ITERATION -lt $MAX_ITERATIONS ]]; do
   # blocked with a Blocker note. Prose verifications stay worker-authoritative.
   if [[ "$REVIEW_LOOP" != "true" && $LAST_EXIT_CODE -eq 0 ]]; then
     run_verification_gate "$RALPH_OUTPUT"
+  elif [[ "$REVIEW_LOOP" == "true" && $LAST_EXIT_CODE -eq 0 ]]; then
+    run_review_loop_drift_gate "$RALPH_OUTPUT"
   fi
 
   if [[ "$REVIEW_LOOP" == "true" && -n "$CURRENT_REVIEW_TARGET_ID" ]]; then
