@@ -1,6 +1,6 @@
 {
   "defaultProvider": "cliproxy",
-  "defaultModel": "minimax-m3.1-flash",
+  "defaultModel": "glm-5.3",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "ember",
