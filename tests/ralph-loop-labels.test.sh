@@ -9,6 +9,7 @@
 #   5. archived done blocker releases a dependent; cancelled / missing do not
 #   6. a board with only not-ready tickets ends cleanly without launching a worker
 #   7. conflicting labels fail closed
+#   8. the driver drift check blocks a DONE ticket on DRIFT and leaves it done on PASS
 
 set -euo pipefail
 
@@ -57,6 +58,16 @@ while [ $# -gt 0 ]; do
   if [ "$1" = "-p" ]; then prompt="$2"; shift; fi
   shift
 done
+# The driver's drift check (ralph-drift-check.sh) also calls pi. Answer it from
+# $DRIFT_VERDICT (default PASS) and log the call, without touching the board.
+case "$prompt" in
+"You are a drift checker"*)
+  echo drift >>"$DRIFT_LOG"
+  echo "1. finding for the test"
+  echo "DRIFT_CHECK: ${DRIFT_VERDICT:-PASS}"
+  exit 0
+  ;;
+esac
 path="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on \(ticket\|review target\) \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\2/p' | head -1)"
 id="$(printf '%s' "$prompt" | sed -n 's/.*Operate only on \(ticket\|review target\) \([^ ]*\) (issue #\([0-9A-Za-z]*\)).*/\3/p' | head -1)"
 if [ -z "$path" ]; then
@@ -83,6 +94,8 @@ new_repo() {
   git -C "$REPO" config user.email test@example.com
   WORKER_LOG="$TMP/$1.workers"
   : >"$WORKER_LOG"
+  DRIFT_LOG="$TMP/$1.drift"
+  : >"$DRIFT_LOG"
   FAKEHOME="$TMP/$1.home"
   rm -rf "$FAKEHOME"
   mkdir -p "$FAKEHOME"
@@ -121,7 +134,8 @@ ticket() {
 
 run_loop() { # extra args...
   (cd "$REPO" && git add -A && git commit -qm fixture --allow-empty &&
-    env HOME="$FAKEHOME" PATH="$BIN:$PATH" WORKER_LOG="$WORKER_LOG" RALPH_MODEL=stub \
+    env HOME="$FAKEHOME" PATH="$BIN:$PATH" WORKER_LOG="$WORKER_LOG" DRIFT_LOG="$DRIFT_LOG" \
+      DRIFT_VERDICT="${DRIFT_VERDICT:-PASS}" RALPH_DRIFT_MODELS=stub/drift RALPH_MODEL=stub \
       bash "$LOOP" --force --unattended --sleep-interval 0 --no-checkpoint-dirty "$@" pi t1) \
     >"$TMP/last.out" 2>&1 || true
 }
@@ -299,6 +313,31 @@ printf '# Spec\n' >"$REPO/.kanban/specs/real.md"
 ticket 1 pending "$R" '[]' issues 'spec: real'
 run_loop
 expect_eq "a ticket whose spec exists is worked" "1" "$(workers)"
+
+# --- 8. driver drift check --------------------------------------------------
+drift_calls() { wc -l <"$DRIFT_LOG" | tr -d ' '; }
+
+new_repo driftblock
+ticket 1 pending "$R" '[]' issues 'spec: alpha'
+DRIFT_VERDICT=DRIFT run_loop
+expect_eq "drift: the worker ran" "1" "$(workers)"
+expect_eq "drift: the driver ran the drift check once" "1" "$(drift_calls)"
+expect_eq "drift: DONE is overridden to blocked" "blocked" "$(status_of 1)"
+grep -q 'driver drift check found' "$REPO/.kanban/issues/001-t1.md" && ok || fail "drift: Blocker note names the drift check"
+grep -q 'finding for the test' "$REPO/.kanban/issues/001-t1.md" && ok || fail "drift: Blocker note carries the findings"
+(cd "$REPO" && git diff --quiet -- .kanban/issues/001-t1.md) && ok || fail "drift: the driver committed the blocked status"
+
+new_repo driftpass
+ticket 1 pending "$R" '[]' issues 'spec: alpha'
+DRIFT_VERDICT=PASS run_loop
+expect_eq "pass: the driver ran the drift check" "1" "$(drift_calls)"
+expect_eq "pass: ticket stays done" "done" "$(status_of 1)"
+
+new_repo driftnospec
+ticket 1 pending "$R" '[]'
+DRIFT_VERDICT=DRIFT run_loop
+expect_eq "no spec: no reviewer call" "0" "$(drift_calls)"
+expect_eq "no spec: ticket stays done" "done" "$(status_of 1)"
 
 echo "ralph-loop-labels: $PASS passed, $FAILN failed"
 [ "$FAILN" -eq 0 ]
