@@ -74,6 +74,11 @@ grep -q '{VERIFY_RESULT}' "$RR" && ok || fail "reviewer prompt carries the worke
 FS="$SK/finish-spec/SKILL.md"
 grep -q 'improve-codebase-architecture/SKILL.md' "$FS" && ok || fail "finish-spec runs improve-codebase-architecture"
 grep -qiE 'skip this step when no user is present' "$FS" && ok || fail "finish-spec skips the architecture step when headless"
+# finish-spec walks the grill ledger the spec names, not only its acceptance criteria (drift check B)
+grep -q 'ledger:' "$FS" && ok || fail "finish-spec reads the spec's ledger: line"
+walk_step="$(sed -n '/Walk the grill ledger/,/Fix only small integration gaps/p' "$FS")"
+if printf '%s' "$walk_step" | grep -qiE 'contradict'; then ok; else fail "finish-spec has a ledger walk step that checks for contradictions"; fi
+if grep -qiE 'completion note.*(ledger|decisions checked)|(ledger|decisions checked).*completion note' "$FS"; then ok; else fail "finish-spec's completion note records the ledger decisions checked"; fi
 # the skills those two steps load must exist in the synced tree
 for s in post-work-cleanup improve-codebase-architecture codebase-design independent-review; do
   [ -f "$SK/$s/SKILL.md" ] && ok || fail "skill $s exists"
