@@ -91,8 +91,8 @@ the agent name, pane ID and status.
 
 ## 4. Report
 
-In one or two lines: the tab label, the agent name, and a
-`[brief](agent-open:///absolute/path.md)` link.
+In one or two lines: the tab label, the agent name, and the brief's absolute path
+as plain text in a codespan.
 
 - `task`: then go back to what you were doing.
 - `handoff`: ask whether to close this pane. If the user says yes, make
