@@ -27,6 +27,12 @@ auto_switch = false
 # channel = "stable"   # Homebrew/mise/Nix installs ignore this; "preview" for opt-in builds
 
 [ui]
+# Use the outer terminal's real (blinking) cursor. herdr's "auto" default draws
+# a steady cursor of its own on native Windows and WSL, which is hard to see in
+# pi's input. Linux and macOS already use the real cursor, so this changes
+# nothing there. Trade-off on Windows/WSL: occasional cursor flicker during
+# fast output (herdr docs: windows-beta, "Cursor rendering").
+host_cursor = "native"
 # agent_panel_sort = "spaces"  # grouped by workspace; "priority" = attention queue
 # accent = "cyan"
 
