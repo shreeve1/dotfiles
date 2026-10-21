@@ -4,7 +4,7 @@
 # m365 <admin-upn>  pwsh session connected to both
 
 _m365_check() {
-  command -v pwsh >/dev/null || { echo "pwsh not installed (Linux: yay -S powershell-bin, Mac: brew install powershell)"; return 1; }
+  command -v pwsh >/dev/null || { echo "pwsh not installed (Arch: yay -S powershell-bin, Ubuntu: apt install powershell from packages.microsoft.com, Mac: brew install powershell)"; return 1; }
   [[ -z "$1" ]] && { echo "usage: $2 <admin-upn>  e.g. $2 itadmin@contoso.com"; return 1; }
 }
 
