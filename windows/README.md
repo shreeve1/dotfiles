@@ -8,8 +8,10 @@ config into this public repo.
 
 - **The keyboard is mine, not the vendor's** — CapsLock is Ctrl, done at the
   registry level so it works everywhere with no helper app.
-- **Terminal-first** — PowerShell 7 with Oh My Posh, PSReadLine predictions,
-  Windows Terminal sized 120×35.
+- **Terminal-first, one look everywhere** — the same starship prompt,
+  Catppuccin Mocha colours, JetBrains Mono Nerd Font and history keys in
+  PowerShell (7 and 5.1), WSL zsh and the Omarchy laptop. Windows Terminal
+  stands in for Ghostty, which has no Windows build.
 - **Linux work lives in WSL2** — agents, dev tools and project files in
   Ubuntu; Windows stays for games, browser and desktop apps.
 - **Machines reach each other over a private mesh** — no port-forwarding on
@@ -26,6 +28,11 @@ config into this public repo.
   every trap learned the hard way.
 - `config-backup.md` — what's captured, what must NEVER be committed, and the
   capture/restore commands.
+- `wsl-dev-setup.md` — WSL2 as a work machine: pi from these dotfiles, zsh
+  and terminal tools matching Omarchy, GitHub push, and sharing a project
+  folder with Windows.
+- `config/` — the committed config: PowerShell profiles and the Windows
+  Terminal patch.
 
 ## Public-repo safety, short version
 

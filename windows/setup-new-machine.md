@@ -105,11 +105,26 @@ See `config-backup.md` for what's safe to copy and from where:
   two FancyZones canvas layouts, **Awake enabled** (mode: keep system awake,
   display may sleep). On a battery laptop, reconsider Awake — it defeats
   sleep entirely.
-- PowerShell 7 (`winget install Microsoft.PowerShell -e --scope user`), Oh My Posh
-  (`winget install JanDeDobbeleer.OhMyPosh -e --scope user`; the official
-  install.ps1 has failed silently over SSH before — winget is the reliable
-  path), kali theme, the two PS profiles, Windows Terminal patched to
-  defaults (120×35, PowerShell 7 default).
+- Shell look, matching WSL zsh and Omarchy (starship prompt, Catppuccin
+  Mocha, same history keys and aliases):
+  - PowerShell 7 (`winget install Microsoft.PowerShell -e --scope user`).
+  - CLI tools, user scope: `winget install -e --scope user --id` each of
+    `Starship.Starship`, `eza-community.eza`, `sharkdp.bat`,
+    `junegunn.fzf`, `ajeetdsouza.zoxide`, `sxyazi.yazi`,
+    `JesseDuffield.lazygit`. winget's exit code can lie, so check each one
+    with `Get-Command`.
+  - JetBrains Mono Nerd Font: the nerd-fonts `JetBrainsMono.zip`, installed
+    per user (copy the TTFs into `%LOCALAPPDATA%\Microsoft\Windows\Fonts`
+    and add HKCU `...\CurrentVersion\Fonts` entries; no admin needed).
+  - Execution policy: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+    Without it, Windows PowerShell 5.1 refuses to load any profile.
+  - Modules: `PSFzf` for 7 and 5.1, plus PSReadLine 2.4+ for 5.1 (its
+    bundled 2.0 can't show history predictions). Install both with
+    `Install-Module -Scope CurrentUser` from inside each shell.
+  - The two profiles from `windows/config/powershell/`, and the Windows
+    Terminal patch, applied as described in `config-backup.md` → Restore.
+  - Pass: a new Windows Terminal tab shows the starship prompt; typing the
+    start of an old command shows a grey suggestion; Ctrl+R opens fzf.
 - codex custom provider block (placeholder URL in the committed copy).
 
 ## Phase 7 — Reboot validation
@@ -147,6 +162,18 @@ on the always-on server, not on a desktop.
 - winget under SSH needs its full path
   (`%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe`), and **exit code 0 can
   lie** — always verify the binary landed.
+- **herdr's `default_shell` needs a full path to the program.** herdr starts
+  panes with `CreateProcessW`, which doesn't search PATH, so `'pwsh'` fails
+  with "cannot find the file specified". PowerShell 7 from the Store lives at
+  `%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe`. Put the setting in a
+  Windows-only copy of the herdr config (`config.windows.toml`, selected with
+  the user env var `HERDR_CONFIG_PATH`), never in the shared
+  `home/herdr/config.toml`: the Linux machines have no `pwsh`.
+- An `herdr server stop` run from inside a herdr pane kills that pane, and
+  any agent in it, before the server comes back. Restart herdr from a
+  terminal that isn't running under it.
+- Windows Terminal's `settings.json` may start with a UTF-8 BOM, which
+  breaks plain JSON parsers. Edit it with PowerShell's `ConvertFrom-Json`.
 - On ARM64 Windows: x86_64 binaries (herdr, Oh My Posh, AutoHotkey) run fine
   emulated; PowerToys installs user-scope natively; PowerShell 7 arm64 via
   the GitHub zip if winget balks. If emulated herdr ever misbehaves, the
