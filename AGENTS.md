@@ -131,9 +131,11 @@ Environment facts that aren't in that doc:
 
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.
-- **Browser automation on the laptop** uses `agent-browser` against the
-  persistent `chrome-cdp` Chrome on port 9222 (load the `browser-cdp` skill).
-  dsh's `browser_*` tools went away with dsh.
+- **Browser automation** uses `agent-browser` against the persistent
+  `chrome-cdp` Chrome on port 9222 (load the `browser-cdp` skill). On wrk and
+  surftop that Chrome is a Windows Chrome; wrk drives it from WSL (native
+  Windows pi reaches it through `~/bin` stubs into WSL), surftop natively from
+  Git Bash. dsh's `browser_*` tools went away with dsh.
 
 ## Editing rules
 

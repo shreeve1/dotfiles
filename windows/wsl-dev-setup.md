@@ -132,6 +132,8 @@ starts at boot and hands every new pane the `SHELL` it started with. After
 `systemctl --user set-environment SHELL=/usr/bin/zsh && systemctl --user restart herdr`.
 The restart closes every WSL herdr pane.
 
+For the agents' browser, follow `agent-browser.md` once this phase passes.
+
 ## Phase D — GitHub push from WSL
 
 Pulling this public repo needs no login; pushing does.

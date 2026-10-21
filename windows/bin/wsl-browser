@@ -1,0 +1,7 @@
+#!/bin/sh
+# Native Windows pi (Git Bash) on wrk: run ab, ab-input or chrome-cdp inside WSL, so Windows
+# and WSL agents share one agent-browser install and one input lock. install-win.ps1 writes
+# ~/bin stubs that call this as: wsl-browser <ab|ab-input|chrome-cdp> [args...].
+# Paths passed through (screenshot, download) must be WSL paths, e.g. /mnt/c/Users/james/x.png.
+export MSYS_NO_PATHCONV=1 WSLENV="${WSLENV:+$WSLENV:}AB_SESSION:AB_LOCK_WAIT:CDP_WAIT"
+exec wsl.exe -e bash -lc 'exec "$0" "$@"' "$@"

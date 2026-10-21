@@ -31,6 +31,8 @@ config into this public repo.
 - `wsl-dev-setup.md` — WSL2 as a work machine: pi from these dotfiles, zsh
   and terminal tools matching the Linux machines, GitHub push, and sharing a
   project folder with Windows.
+- `agent-browser.md` — the agents' own Chrome: one Windows Chrome on port
+  9222 that WSL agents and native Windows pi both drive, taking turns on input.
 - `config/` — the committed Windows config: PowerShell profiles, the
   Windows Terminal patch, PowerToys (Keyboard Manager, FancyZones, Awake),
   the CapsLock registry file, the codex provider block, and the WSL plumbing

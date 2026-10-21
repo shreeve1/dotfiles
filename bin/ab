@@ -11,4 +11,18 @@ fi
   echo "ab: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2
   exit 2
 }
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*)
+  # A newly spawned agent-browser daemon inherits stdout/stderr and keeps a capturing pipe open
+  # forever on Windows; route output through files the daemon does not hold.
+  out=$(mktemp)
+  err=$(mktemp)
+  trap 'rm -f "$out" "$err"' EXIT
+  agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@" >"$out" 2>"$err" </dev/null
+  rc=$?
+  cat "$out"
+  cat "$err" >&2
+  exit "$rc"
+  ;;
+esac
 exec agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"
