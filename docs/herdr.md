@@ -77,34 +77,38 @@ herdr machine add --label "aidev · default" --remote-session default aidev
 herdr machine add --label "n8n" --remote-session default itan8n
 ```
 
-## How the three machines connect (recorded 2026-10-16)
+## How the machines connect (updated 2026-10-21)
 
-Every machine runs its own `herdr server` (aidev's since 2026-09-21, itan8n's
-since 2026-09-22, both herdr-managed, not systemd), holding that machine's
-workspaces and pi agents. A herdr client on any machine reaches the other two
-through its saved machines: herdr runs `ssh -T <alias> … herdr
-remote-client-bridge` with its own ControlMaster socket, `BatchMode=yes` and
+Every Linux-side machine runs its own `herdr server` (aidev's since 2026-09-21,
+itan8n's since 2026-09-22, both herdr-managed, not systemd; the wrk desktop's
+since 2026-10-21, a systemd user service inside Ubuntu-24.04 WSL2, reachable
+at the host's NetBird IP on ssh port 2222), holding that machine's workspaces
+and pi agents. A herdr client on any machine reaches the others through its
+saved machines: herdr runs `ssh -T <alias> … herdr`
+`remote-client-bridge` with its own ControlMaster socket, `BatchMode=yes` and
 `StrictHostKeyChecking=yes`, so each alias needs working key auth and a known
-host key. The user usually reaches a machine's herdr over mosh
+host key. surftop (Surface thin client, ARM64) runs the native Windows herdr
+client only. The user usually reaches a machine's herdr over mosh
 (`exec herdr --session default`).
 
-The live machine lists differ per machine; the repo seed is only omarchy's:
+The live machine lists differ per machine; the repo seed is the baseline:
 
 | Machine | herdr | Saved machines (label → alias) |
 | --- | --- | --- |
-| omarchy | 0.9.5 | `aidev` → `aidev`, `n8n` → `itan8n` |
-| aidev | 0.9.5 | `omarchy laptop` → `omarchy`, `n8n` → `itan8n` |
-| itan8n | 0.9.5 | `aidev · default` → `aidev`, `omarchy laptop` → `omarchy`; stale `n8n` self-entry disabled |
+| wrk (WSL2) | 0.9.5 | none yet (server role; entries seeded on demand) |
+| aidev | 0.9.5 | `omarchy laptop` → `omarchy` (stale since retirement), `n8n` → `itan8n` |
+| itan8n | 0.9.5 | `aidev · default` → `aidev`, `omarchy laptop` → `omarchy` (stale); stale `n8n` self-entry disabled |
+| surftop | 0.9.5 (Windows) | `Desktop WSL` → `desktop-wsl`, `aidev · default` → `aidev`, `n8n` → `n8n` |
 
 All sessions are `default`. Agents are pi panes; pi reports state and session to
 herdr through `~/.pi/agent/extensions/herdr-agent-state.ts` (synced, so present
-on all three).
+on all Linux machines).
 
 `~/.config/herdr/config.toml` leaves `[remote] manage_ssh_config` at its default
 (true), which lets herdr add `ServerAliveInterval` fallbacks to `~/.ssh/config`;
 this machine currently has no herdr-managed entries there.
 
-## Herdr Projects on all three machines
+## Herdr Projects (installed 2026-10-16; historical three-machine rollout)
 
 Installed 2026-10-16: [Herdr Projects](https://github.com/eliasstravik/herdr-projects)
 1.2.1, pinned to release commit `5cf84391d856a943043fa3feacc7a75763ebc22a`:
