@@ -176,10 +176,14 @@ See `config-backup.md` for what's safe to copy and from where:
   herdr config check
   ```
 
-  Re-run it after changing the shared config. Then restart the herdr server
-  from a terminal that is not inside herdr (`herdr server stop`, then
-  `herdr` in a new Windows Terminal tab).
-  - Pass: `$PSVersionTable.PSVersion` in a new herdr pane is 7.x.
+  Re-run it after changing the shared config, so the Windows copy picks up
+  shared settings such as `host_cursor` (see the traps below). After
+  config-only changes, `herdr server reload-config` applies them without
+  closing panes. A changed `default_shell` needs a server restart from a
+  terminal that is not inside herdr (`herdr server stop`, then `herdr` in
+  a new Windows Terminal tab).
+  - Pass: `$PSVersionTable.PSVersion` in a new herdr pane is 7.x, and the
+    cursor in pi's input blinks.
 - codex custom provider block (placeholder URL in the committed copy).
 
 ## Phase 7 — Reboot validation
@@ -227,6 +231,17 @@ on the always-on server, not on a desktop.
 - An `herdr server stop` run from inside a herdr pane kills that pane, and
   any agent in it, before the server comes back. Restart herdr from a
   terminal that isn't running under it.
+- **No blinking cursor in pi inside herdr (Windows and WSL).** herdr's
+  default `host_cursor = "auto"` draws its own steady, non-blinking cursor
+  on native Windows and WSL, to hide cursor flicker from ConPTY. pi also
+  draws its input cursor as a reverse-video cell, so the two together leave
+  no visible cursor to track while editing. The fix is `host_cursor =
+  "native"` under `[ui]` in the shared `home/herdr/config.toml` (on Linux
+  and macOS it is what `auto` already does), then `herdr server
+  reload-config` on each machine; panes keep running. Trade-off, per herdr's
+  windows-beta docs: the cursor can flicker or jump during fast output.
+  Windows machines that run their own herdr read `config.windows.toml`, so
+  re-run the Phase 6 snippet to carry the setting over.
 - Windows Terminal's `settings.json` may start with a UTF-8 BOM, which
   breaks plain JSON parsers. Edit it with PowerShell's `ConvertFrom-Json`.
 - On ARM64 Windows: x86_64 binaries (herdr, Oh My Posh, AutoHotkey) run fine

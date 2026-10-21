@@ -132,6 +132,12 @@ starts at boot and hands every new pane the `SHELL` it started with. After
 `systemctl --user set-environment SHELL=/usr/bin/zsh && systemctl --user restart herdr`.
 The restart closes every WSL herdr pane.
 
+**Trap — no blinking cursor in pi.** On WSL, herdr draws its own steady
+cursor by default; the shared `home/herdr/config.toml` sets
+`host_cursor = "native"` to use Windows Terminal's blinking one instead.
+See `setup-new-machine.md` → Traps. After pulling a config change,
+`herdr server reload-config` applies it without closing panes.
+
 For the agents' browser, follow `agent-browser.md` once this phase passes.
 
 ## Phase D — GitHub push from WSL
