@@ -7,7 +7,8 @@
             "type": "command",
             "command": "\"$HOME/.agents/bin/verify-final\" --harness codex",
             "timeout": 150,
-            "statusMessage": "Verifying final answer"
+            "statusMessage": "Verifying final answer",
+            "commandWindows": "python $HOME/.agents/bin/verify-final --harness codex"
           }
         ]
       }
