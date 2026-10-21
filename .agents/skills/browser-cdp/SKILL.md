@@ -95,6 +95,8 @@ Note: diverging profiles — the CDP profile keeps any NEW logins made in it; a 
 - Chrome M136+ REFUSES `--remote-debugging-port` on the default profile ("DevTools remote debugging requires a non-default data directory"). Attaching to james's everyday Chrome is impossible without killing it and using a separate data dir — that's why chrome-cdp exists. Don't try to relaunch his main Chrome with the flag.
 - Don't kill or write into `~/.config/google-chrome` while his everyday Chrome runs (see OPTIONAL step for the safe order).
 - If the desktop is wedged from a dock/MST incident, see `hypr-dock-monitor-black` first — no browser work until the session is back.
+- agent-browser syntax (verified on 0.39.1, each cost a failed call + doc lookup): `screenshot` takes a positional path (`ab screenshot shot.png`), no `--path`; a fixed delay is `wait 2000` (positional milliseconds — `--time` does not exist and a bogus flag hangs until the 25s default timeout); condition waits are `wait @e1` / `wait --text "…"` / `wait --url "**/dash"` / `wait --fn "js"` / `wait --load load|domcontentloaded`.
+- In Git Bash, wrap `eval` JS in single quotes with double quotes inside (`ab eval 'document.querySelector("#x").textContent'`); `\"` inside a double-quoted command string arrives stripped and fails as `ReferenceError`.
 
 ## Credentials
 
