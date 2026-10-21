@@ -1,5 +1,7 @@
 {
   "/Users/james": true,
   "/home/itadmin": true,
-  "/home/james": true
+  "/home/james": true,
+  "C:\\Users\\james": true,
+  "/mnt/c/Users/james/Documents": true
 }

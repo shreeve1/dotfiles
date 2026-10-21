@@ -20,7 +20,10 @@ REMOVE = "--remove" in sys.argv
 HOME = os.path.expanduser("~")
 TARGETS = [
     (os.path.join(HOME, ".claude", "settings.json"), "claude", "--rewake", {"asyncRewake": True}),
-    (os.path.join(HOME, ".codex", "hooks.json"), "codex", "", {"statusMessage": "Verifying final answer"}),
+    (os.path.join(HOME, ".codex", "hooks.json"), "codex", "", {
+        "statusMessage": "Verifying final answer",
+        # Codex on Windows runs hooks through PowerShell, which cannot exec a shebang script.
+        "commandWindows": "python $HOME/.agents/bin/verify-final --harness codex"}),
 ]
 
 
