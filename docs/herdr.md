@@ -96,8 +96,8 @@ The live machine lists differ per machine; the repo seed is the baseline:
 | Machine | herdr | Saved machines (label → alias) |
 | --- | --- | --- |
 | wrk (WSL2) | 0.9.5 | none yet (server role; entries seeded on demand) |
-| aidev | 0.9.5 | `omarchy laptop` → `omarchy` (stale since retirement), `n8n` → `itan8n` |
-| itan8n | 0.9.5 | `aidev · default` → `aidev`, `omarchy laptop` → `omarchy` (stale); stale `n8n` self-entry disabled |
+| aidev | 0.9.5 | `n8n` → `itan8n`, `wrk wsl` → `wsl-wrk` |
+| itan8n | 0.9.5 | `aidev · default` → `aidev`; disabled `n8n` self-entry remains |
 | surftop | 0.9.5 (Windows) | `Desktop WSL` → `desktop-wsl`, `aidev · default` → `aidev`, `n8n` → `n8n` |
 
 All sessions are `default`. Agents are pi panes; pi reports state and session to
