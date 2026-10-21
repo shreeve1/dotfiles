@@ -10,9 +10,10 @@ public forever.**
 | Config | Machine path | Repo destination | Notes |
 | --- | --- | --- | --- |
 | PowerToys settings | `%LOCALAPPDATA%\Microsoft\PowerToys\` | `windows/config/powertoys/` | excludes listed below |
-| PowerShell 7 profile | `Documents\PowerShell\Microsoft.PowerShell_profile.ps1` | `windows/config/powershell/` | oh-my-posh kali + PSReadLine |
-| Windows PowerShell 5.1 profile | `Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` | `windows/config/powershell/` | choco block is a safe no-op |
-| Windows Terminal settings | `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json` | `windows/config/terminal/` | patch fields, don't wholesale-copy (see restore) |
+| PowerShell 7 profile | `Documents\PowerShell\Microsoft.PowerShell_profile.ps1` | `windows/config/powershell/Microsoft.PowerShell_profile.ps1` | starship, PSReadLine, PSFzf, zoxide, eza/bat/yazi aliases; choco block is a safe no-op |
+| Windows PowerShell 5.1 profile | `Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` | `windows/config/powershell/WindowsPowerShell_profile.ps1` | one line: loads the PowerShell 7 profile |
+| Windows Terminal settings | `%LOCALAPPDATA%\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json` | `windows/config/terminal/settings.patch.json` | only the fields we set; merge it in, don't wholesale-copy (see restore) |
+| herdr Windows shell | `%APPDATA%\herdr\config.windows.toml` + user env `HERDR_CONFIG_PATH` | not committed | a copy of `home/herdr/config.toml` plus `default_shell` (full `pwsh.exe` path); re-copy after changing the shared config |
 | CapsLock→Ctrl registry | `HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layout` → `Scancode Map` | `windows/config/registry/capslock-ctrl.reg` | REG_BINARY; admin; effective at sign-out |
 | WSL networking | `%USERPROFILE%\.wslconfig` (mirrored) + WSL `/etc/wsl.conf` | `windows/config/wsl/` | the reachability mechanism |
 | WSL keepalive | Startup folder `wsl-boot.vbs` | `windows/config/wsl/` | hidden `wsl -e sleep infinity` |
@@ -67,11 +68,31 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Keyboard Layout" /v "Scancode Map
 
    (Same value as `windows/config/registry/capslock-ctrl.reg` — import that
    file instead if you prefer.)
-3. Terminal: **patch fields, don't wholesale-copy** — take the machine's own
-   `settings.json` and set `defaultProfile` to the PowerShell GUID
-   `{574e775e-4f2a-5b96-ac1e-a2962a402336}`, `initialCols` 120,
-   `initialRows` 35. Wholesale copies drag stale dynamic profiles
-   (per-machine generated) onto the new machine.
+3. Terminal: **patch fields, don't wholesale-copy** — wholesale copies drag
+   stale dynamic profiles (per-machine generated) onto the new machine. Back
+   up the machine's own `settings.json`, then set `defaultProfile` (the
+   PowerShell GUID `{574e775e-4f2a-5b96-ac1e-a2962a402336}`, or the WSL
+   profile's GUID on an agent host), `initialCols` 120, `initialRows` 35,
+   and merge in `windows/config/terminal/settings.patch.json` (Catppuccin
+   Mocha, JetBrains Mono Nerd Font 11, padding, copy-on-select, Ctrl+H/J/K/L
+   pane focus). Run this from the repo root; it is safe to run twice:
+
+   ```powershell
+   $wt = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+   Copy-Item $wt "$wt.bak"
+   $s = Get-Content $wt -Raw | ConvertFrom-Json
+   $p = Get-Content windows\config\terminal\settings.patch.json -Raw | ConvertFrom-Json
+   $s.copyOnSelect = $p.copyOnSelect
+   $s.profiles.defaults = $p.profiles.defaults
+   $s.schemes = @(@($s.schemes) | Where-Object { $_ -and $_.name -ne 'Catppuccin Mocha' }) + $p.schemes
+   $s.actions = @(@($s.actions) | Where-Object { $_ -and $p.actions.id -notcontains $_.id }) + $p.actions
+   $s.keybindings = @(@($s.keybindings) | Where-Object { $_ -and $p.keybindings.keys -notcontains $_.keys }) + $p.keybindings
+   [IO.File]::WriteAllText($wt, ($s | ConvertTo-Json -Depth 20), [Text.UTF8Encoding]::new($false))
+   ```
+
+   PowerShell profiles: copy `windows/config/powershell/Microsoft.PowerShell_profile.ps1`
+   to `Documents\PowerShell\` and `WindowsPowerShell_profile.ps1` to
+   `Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`.
 4. codex provider — if `~\.codex\config.toml` already exists, merge, don't
    replace: strip any existing top-level `model`/`model_provider`/
    `model_reasoning_effort` lines and any existing `[model_providers.<id>]`
