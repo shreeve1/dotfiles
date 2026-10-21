@@ -38,14 +38,16 @@ else
     sleep 0.5
   done
   if [ "$rc" -eq 0 ]; then
-    cat /proc/$$/winpid >"$LOCK/pid"
-    # A newly spawned agent-browser daemon inherits stdout and keeps a capturing pipe open
-    # forever on Windows; route output through a file the daemon does not hold.
+    # A newly spawned agent-browser daemon inherits stdout/stderr and keeps a capturing pipe open
+    # forever on Windows; route output through files the daemon does not hold.
     out=$(mktemp)
-    trap 'rm -rf "$LOCK" "$out"' EXIT
-    agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@" >"$out" 2>&1 </dev/null
+    err=$(mktemp)
+    trap 'rm -rf "$LOCK" "$out" "$err"' EXIT
+    cat /proc/$$/winpid >"$LOCK/pid"
+    agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@" >"$out" 2>"$err" </dev/null
     rc=$?
     cat "$out"
+    cat "$err" >&2
   fi
 fi
 if [ "$rc" -eq 254 ]; then
