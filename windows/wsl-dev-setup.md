@@ -1,9 +1,10 @@
 # WSL2 as a work machine
 
 How WSL2 Ubuntu on a Windows machine gets the same pi, shell and terminal as
-the Linux machines, and how Windows tools share its project folders. Written
-from the 2026-10-21 setup of `wrk`. It follows `setup-new-machine.md`
-phases 2-4; do those first.
+the fleet's Linux machines, and how Windows tools share its project folders.
+Written from the 2026-10-21 setup of `wrk`, which is now the reference: copy
+machine-local files from wrk's WSL home. It follows `setup-new-machine.md`
+phases 2-4; do those first. Commands assume x86_64 or aarch64 Ubuntu 24.04.
 
 ## Phase A — Base tools and sudo
 
@@ -20,22 +21,36 @@ phases 2-4; do those first.
    and WSL can write to your Windows files under `/mnt/c`. Undo with
    `wsl -d Ubuntu-24.04 -u root rm /etc/sudoers.d/<user>`.
 
-2. Packages: `sudo apt install -y zsh unzip make ripgrep fd-find jq btop
-   ffmpegthumbnailer p7zip-full poppler-utils imagemagick chafa wslu xclip`.
-   Ubuntu names fd `fdfind`, so add `ln -s /usr/bin/fdfind ~/.local/bin/fd`.
+2. As your user, create the folders everything below installs into and put
+   them on PATH for this shell and every later one. A fresh home has no
+   `~/.local`, and nothing else adds these to PATH until Phase C:
 
-3. Linux Node, matching the Windows version, under `~/.local` with its own
-   global npm folder:
+   ```bash
+   mkdir -p ~/.local/bin ~/.local/opt ~/.npm-global/bin
+   export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
+   echo 'export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"' >> ~/.profile
+   ```
+
+3. Packages: `sudo apt install -y git curl xz-utils zsh unzip make ripgrep
+   fd-find jq btop ffmpegthumbnailer p7zip-full poppler-utils imagemagick
+   chafa wslu xclip`. Ubuntu names fd `fdfind`, so add
+   `ln -sfn /usr/bin/fdfind ~/.local/bin/fd`.
+
+4. Linux Node, matching the Windows version, with its own global npm folder:
 
    ```bash
    V=v24.22.0
-   curl -fsSL https://nodejs.org/dist/$V/node-$V-linux-x64.tar.xz | tar -xJ -C ~/.local/opt
-   for b in node npm npx; do ln -sfn ~/.local/opt/node-$V-linux-x64/bin/$b ~/.local/bin/$b; done
+   case "$(uname -m)" in x86_64) NA=x64 ;; aarch64) NA=arm64 ;; esac
+   curl -fsSL "https://nodejs.org/dist/$V/node-$V-linux-$NA.tar.xz" | tar -xJ -C ~/.local/opt
+   for b in node npm npx; do ln -sfn ~/.local/opt/node-$V-linux-$NA/bin/$b ~/.local/bin/$b; done
+   hash -r
+   command -v npm   # must print /home/<user>/.local/bin/npm before the next line
    npm config set prefix ~/.npm-global
    ```
 
-   **Trap:** without this, WSL silently runs the Windows `npm` from
-   `/mnt/c/Program Files/nodejs`, and installs land in `%APPDATA%\npm`.
+   **Trap:** if `~/.local/bin` is not first on PATH, WSL silently runs the
+   Windows `npm` from `/mnt/c/Program Files/nodejs`, and installs land in
+   `%APPDATA%\npm`.
 
 - Pass: `command -v node npm` both point into `~/.local/bin`, and
   `npm config get prefix` is `~/.npm-global`.
@@ -43,7 +58,10 @@ phases 2-4; do those first.
 ## Phase B — Dotfiles and pi
 
 1. Clone this repo to `~/dotfiles` (WSL's own copy, separate from the
-   Windows one) and run `bash install.sh`. It backs up the stock `.bashrc` as
+   Windows one) and run `bash install.sh` **from a shell where
+   `command -v herdr` prints the pinned binary** from `setup-new-machine.md`
+   Phase 4. If herdr is not on PATH, `install.sh` downloads the latest upstream
+   herdr over it. The installer backs up the stock `.bashrc` as
    `.bashrc-bak-<stamp>` and links `~/.pi/agent`, `~/.agents`, `.zshrc` and
    `~/.config/*`.
 2. `npm install -g @earendil-works/pi-coding-agent@<fleet version>`, the same
@@ -62,9 +80,9 @@ phases 2-4; do those first.
   `pi --list-models | grep -c coralbricks` is 0; from a project folder
   `pi -p "Reply with exactly: OK"` answers.
 
-## Phase C — Shell and terminal tools (match Omarchy)
+## Phase C — Shell and terminal tools
 
-Omarchy's shell is zsh with oh-my-zsh and the dotfiles `.zshrc`. The
+The fleet's shell is zsh with oh-my-zsh and the dotfiles `.zshrc`. The
 "remembers commands" behaviour is three oh-my-zsh plugins plus fzf:
 zsh-autosuggestions (grey suggestions as you type),
 zsh-history-substring-search (Up/Down search by what you've typed) and
@@ -75,30 +93,38 @@ zsh-syntax-highlighting, with fzf on Ctrl+R.
    then clone the three `zsh-users/*` plugins into
    `~/.oh-my-zsh/custom/plugins/`.
 2. `sudo chsh -s /usr/bin/zsh <user>`.
-3. Terminal tools from their upstream Linux releases into `~/.local/bin`.
-   Ubuntu 24.04's packages are too old (nvim 0.9 against a config needing
-   0.10+) or missing: yazi (with `ya`), eza, bat, vivid, fzf, starship,
-   zellij, lazygit, zoxide, gh, fastfetch, and nvim (keep its whole folder
-   under `~/.local/opt`, not just the binary).
+3. Terminal tools: `bash ~/dotfiles/windows/wsl/install-terminal-tools.sh`.
+   It installs the latest upstream Linux releases of yazi (with `ya`), eza,
+   bat, vivid, fzf, starship, zellij, lazygit, zoxide, gh, fastfetch and nvim
+   into `~/.local/bin`, for x86_64 or aarch64, and exits non-zero if any tool
+   failed. Ubuntu 24.04's packages are too old (nvim 0.9 against a config
+   needing 0.10+) or missing.
 4. `~/.zshenv`, machine-local and not in the repo:
 
    ```bash
    export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"
    ```
 
-   **Trap:** `.zshrc` sets up fzf before it adds `~/.local/bin` to PATH. On
-   Omarchy fzf is in `/usr/bin`, so it works there; in WSL fzf is not found
-   in time and Ctrl+R silently stays the plain built-in search.
-5. btop: copy `~/.config/btop/btop.conf` and the active theme file from
-   Omarchy (`~/.local/state/omarchy/current/theme/btop.theme` to
-   `~/.config/btop/themes/current.theme`). It is a snapshot: it won't follow
-   later Omarchy theme switches.
-6. `nvim --headless "+Lazy! sync" +qa` once, so plugins install up front.
-7. `~/.zshrc.secrets` from Omarchy (`chmod 600`). It's machine-local,
-   never committed, and `.zshrc` loads it if present.
+   **Trap:** `.zshrc` sets up fzf before it adds `~/.local/bin` to PATH. Where
+   fzf comes from a distro package in `/usr/bin` that is fine; here fzf is
+   not found in time and Ctrl+R silently stays the plain built-in search.
+5. btop: copy the committed snapshot (Tokyo Night theme, taken from wrk):
 
-- Pass: in `zsh -i`, `bindkey -M viins '^R'` shows `fzf-history-widget`,
-  and `alias ls` shows eza.
+   ```bash
+   mkdir -p ~/.config/btop/themes
+   cp ~/dotfiles/windows/wsl/btop/btop.conf ~/.config/btop/
+   cp ~/dotfiles/windows/wsl/btop/themes/current.theme ~/.config/btop/themes/
+   ```
+
+6. `nvim --headless "+Lazy! sync" +qa` once, so plugins install up front.
+7. `~/.zshrc.secrets` (`chmod 600`): copy it from wrk's WSL home with
+   `scp`. It's machine-local, never committed, and `.zshrc` loads it if
+   present. Check what it points at exists on the new machine (on wrk it sets
+   `DPI_ENV_FILE` to a pi-durable `.env`).
+
+- Pass: `install-terminal-tools.sh` exits 0; in `zsh -i`,
+  `bindkey -M viins '^R'` shows `fzf-history-widget` and `alias ls` shows
+  eza.
 
 **Trap — herdr keeps the old shell.** `herdr.service` (a systemd user unit)
 starts at boot and hands every new pane the `SHELL` it started with. After

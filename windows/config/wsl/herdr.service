@@ -1,0 +1,11 @@
+# ~/.config/systemd/user/herdr.service inside WSL (setup-new-machine.md Phase 4).
+# Replace <user>. Note the `server` argument.
+[Unit]
+Description=herdr server
+
+[Service]
+ExecStart=/home/<user>/.local/bin/herdr server
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

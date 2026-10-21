@@ -1,4 +1,4 @@
-# PowerShell 7 profile: mirrors the WSL/Omarchy zsh setup (starship prompt,
+# PowerShell 7 profile: mirrors the WSL zsh setup (starship prompt,
 # Catppuccin Mocha, eza/bat aliases, zoxide, fzf history). Previous oh-my-posh
 # profile saved as Microsoft.PowerShell_profile.ps1.bak-20261021.
 

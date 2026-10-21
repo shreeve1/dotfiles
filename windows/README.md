@@ -10,8 +10,8 @@ config into this public repo.
   registry level so it works everywhere with no helper app.
 - **Terminal-first, one look everywhere** — the same starship prompt,
   Catppuccin Mocha colours, JetBrains Mono Nerd Font and history keys in
-  PowerShell (7 and 5.1), WSL zsh and the Omarchy laptop. Windows Terminal
-  stands in for Ghostty, which has no Windows build.
+  PowerShell (7 and 5.1) and WSL zsh, as on the fleet's Linux machines.
+  Windows Terminal stands in for Ghostty, which has no Windows build.
 - **Linux work lives in WSL2** — agents, dev tools and project files in
   Ubuntu; Windows stays for games, browser and desktop apps.
 - **Machines reach each other over a private mesh** — no port-forwarding on
@@ -29,10 +29,14 @@ config into this public repo.
 - `config-backup.md` — what's captured, what must NEVER be committed, and the
   capture/restore commands.
 - `wsl-dev-setup.md` — WSL2 as a work machine: pi from these dotfiles, zsh
-  and terminal tools matching Omarchy, GitHub push, and sharing a project
-  folder with Windows.
-- `config/` — the committed config: PowerShell profiles and the Windows
-  Terminal patch.
+  and terminal tools matching the Linux machines, GitHub push, and sharing a
+  project folder with Windows.
+- `config/` — the committed Windows config: PowerShell profiles, the
+  Windows Terminal patch, PowerToys (Keyboard Manager, FancyZones, Awake),
+  the CapsLock registry file, the codex provider block, and the WSL plumbing
+  (`.wslconfig`, `wsl.conf`, `wsl-boot.vbs`, `herdr.service`).
+- `wsl/` — inside-WSL extras: `install-terminal-tools.sh` and the btop
+  snapshot.
 
 ## Public-repo safety, short version
 

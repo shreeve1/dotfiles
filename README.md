@@ -86,6 +86,10 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 Windows symlinks require Developer Mode or an elevated PowerShell.
 
+The full Windows standard (WSL2 agent host, PowerShell and Terminal look,
+PowerToys, what is safe to commit) lives in [`windows/`](windows/README.md);
+`install-win.ps1` is one step of it.
+
 If repo lives somewhere else, set `DOTFILES_DIR` first:
 
 ```bash

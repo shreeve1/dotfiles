@@ -27,11 +27,18 @@ role (Linux work in WSL2); a thin-client role runs phases 1 and 5-6 only.
    - `/etc/wsl.conf`: `[boot]` `systemd=true`, `[user]` `default=<user>`
    - create the user (`useradd -m -s /bin/bash -G sudo <user>`); leave the
      password unset — root stays available via `wsl -u root`
-   - `apt-get install openssh-server`; drop-in
-     `/etc/ssh/sshd_config.d/10-port.conf` with `Port 2222` (the Windows host
-     owns 22); `systemctl enable ssh`
    - `<home>/.ssh/authorized_keys` with the fleet public keys (700/600,
      correct owner)
+   - From Windows, restart WSL so `wsl.conf` takes effect (systemd is not
+     running until then, and `systemctl` fails):
+     `wsl --shutdown`, then `wsl -d Ubuntu-24.04 -u root` again. Check with
+     `ps -p 1 -o comm=`, which must print `systemd`.
+   - `apt-get install openssh-server`; drop-in
+     `/etc/ssh/sshd_config.d/10-port.conf` with `Port 2222` (the Windows host
+     owns 22). Ubuntu 24.04 starts sshd from `ssh.socket`, which still
+     listens on 22 until reloaded, so apply the port with
+     `systemctl daemon-reload && systemctl restart ssh.socket ssh.service`
+     and `systemctl enable ssh`. Check with `ss -ltn | grep 2222`.
 3. **Idle-stop trap (WSL 3.x):** the distro stops ~60 s after the last
    session closes. systemd services do NOT hold it, and `vmIdleTimeout` is
    ignored (both `-1` and numeric). Fix: a Startup-folder script holding a
@@ -51,6 +58,10 @@ guest then answers on the host's own IPs **including the mesh VPN adapter** —
 no portproxy or firewall rule is needed. NAT + `netsh portproxy` is the
 documented fallback if a future WSL breaks mirrored mode.
 
+`.wslconfig` is read only when the WSL VM starts. After writing it, run
+`wsl --shutdown` and start the keepalive again (run `wsl-boot.vbs`, or sign
+out and in) before the check below.
+
 - Pass: `ssh -p 2222 <user>@<mesh-ip>` with key auth from two other machines.
 
 ## Phase 4 — herdr + pi inside WSL
@@ -60,10 +71,24 @@ documented fallback if a future WSL breaks mirrored mode.
    herdr servers — an ordinary restart kills all running panes.
 2. `~/.config/herdr/config.toml` from `home/herdr/config.toml` in this repo;
    `herdr config check` → ok.
-3. `~/.config/systemd/user/herdr.service` (ExecStart the binary,
-   Restart=on-failure, WantedBy=default.target),
-   `systemctl --user enable --now herdr`, and `loginctl enable-linger <user>`
-   (as root) so the user manager starts at boot.
+3. `~/.config/systemd/user/herdr.service`, the unit wrk runs (note the
+   `server` argument; without it the binary starts the interactive client):
+
+   ```ini
+   [Unit]
+   Description=herdr server
+
+   [Service]
+   ExecStart=/home/<user>/.local/bin/herdr server
+   Restart=on-failure
+
+   [Install]
+   WantedBy=default.target
+   ```
+
+   Then `systemctl --user enable --now herdr`, and
+   `loginctl enable-linger <user>` (as root) so the user manager starts at
+   boot.
 
 - Pass: `systemctl --user is-active herdr` = active, socket exists, survives
   the phase-2 idle test.
@@ -73,9 +98,9 @@ documented fallback if a future WSL breaks mirrored mode.
 1. herdr Windows installer (stable):
    `powershell -c "irm https://herdr.dev/install.ps1 | iex"` — user-scope,
    lands in `~\.herdr\packages\...`.
-2. State locations on Windows: config `~\.config\herdr\config.toml` (and/or
-   `%APPDATA%\herdr\config.toml`), **machine list
-   `%LOCALAPPDATA%\herdr\client\endpoints.json`**.
+2. State locations on Windows: config `%APPDATA%\herdr\config.toml` (`herdr
+   --help` prints the path it reads; `HERDR_CONFIG_PATH` overrides it),
+   **machine list `%LOCALAPPDATA%\herdr\client\endpoints.json`**.
 3. `herdr machine add` needs a TTY — over SSH it hangs forever. Seed
    `endpoints.json` directly (format: `{"version":1,"ssh":[{"id","label",
    "target","session","enabled"}]}`, `target` = an SSH alias from
@@ -105,8 +130,16 @@ See `config-backup.md` for what's safe to copy and from where:
   two FancyZones canvas layouts, **Awake enabled** (mode: keep system awake,
   display may sleep). On a battery laptop, reconsider Awake — it defeats
   sleep entirely.
-- Shell look, matching WSL zsh and Omarchy (starship prompt, Catppuccin
-  Mocha, same history keys and aliases):
+- Shell look, matching WSL zsh (starship prompt, Catppuccin Mocha, same
+  history keys and aliases):
+  - Dotfiles on Windows first: the PowerShell profile reads
+    `~\.config\starship.toml` and `~\.config\yazi`, which only
+    `install-win.ps1` links. Clone this repo to `~\dotfiles` and run
+    `install-win.ps1` as the repo `README.md` describes (symlinks need
+    Developer Mode or an elevated shell). The Restore steps below also run
+    from that checkout.
+  - Git for Windows (`winget install Git.Git -e`): needed for the clone, and
+    yazi uses its `file.exe` for file types.
   - PowerShell 7 (`winget install Microsoft.PowerShell -e --scope user`).
   - CLI tools, user scope: `winget install -e --scope user --id` each of
     `Starship.Starship`, `eza-community.eza`, `sharkdp.bat`,
@@ -123,8 +156,30 @@ See `config-backup.md` for what's safe to copy and from where:
     `Install-Module -Scope CurrentUser` from inside each shell.
   - The two profiles from `windows/config/powershell/`, and the Windows
     Terminal patch, applied as described in `config-backup.md` → Restore.
-  - Pass: a new Windows Terminal tab shows the starship prompt; typing the
-    start of an old command shows a grey suggestion; Ctrl+R opens fzf.
+  - Pass: `(Get-Item ~\.config\starship.toml).Target` points into
+    `~\dotfiles`; a new Windows Terminal tab shows the starship prompt;
+    typing the start of an old command shows a grey suggestion; Ctrl+R
+    opens fzf.
+- herdr on Windows, only if this machine runs herdr panes on Windows itself
+  (wrk does; a thin client that only attaches to remote machines does not
+  need it). herdr's `default_shell` must be the full path to `pwsh.exe` (see
+  the traps below), and the shared `home/herdr/config.toml` must not carry it
+  because the Linux machines have no `pwsh`. So keep a Windows-only copy:
+
+  ```powershell
+  $d = "$env:APPDATA\herdr"
+  $pwsh = (Get-Command pwsh).Source   # Store install: ...\WindowsApps\pwsh.exe
+  $t = [IO.File]::ReadAllText("$env:USERPROFILE\dotfiles\home\herdr\config.toml", [Text.Encoding]::UTF8)
+  $t = $t -replace '(?m)^\[terminal\]\r?\n', "[terminal]`ndefault_shell = '$pwsh'`n"
+  [IO.File]::WriteAllText("$d\config.windows.toml", $t, [Text.UTF8Encoding]::new($false))
+  [Environment]::SetEnvironmentVariable('HERDR_CONFIG_PATH', "$d\config.windows.toml", 'User')
+  herdr config check
+  ```
+
+  Re-run it after changing the shared config. Then restart the herdr server
+  from a terminal that is not inside herdr (`herdr server stop`, then
+  `herdr` in a new Windows Terminal tab).
+  - Pass: `$PSVersionTable.PSVersion` in a new herdr pane is 7.x.
 - codex custom provider block (placeholder URL in the committed copy).
 
 ## Phase 7 — Reboot validation
