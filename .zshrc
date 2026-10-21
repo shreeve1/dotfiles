@@ -465,6 +465,10 @@ HELP
 
 alias op='opencode'
 
+# Shell helpers: every ~/dotfiles/zsh/*.zsh (nmap, m365, ...)
+for _f in ${DOTFILES_DIR:-$HOME/dotfiles}/zsh/*.zsh(N); do source "$_f"; done
+unset _f
+
 # Machine-local secrets (not tracked in dotfiles)
 [[ -f "$HOME/.zshrc.secrets" ]] && source "$HOME/.zshrc.secrets"
 if [[ $IS_MACOS -eq 1 ]]; then
