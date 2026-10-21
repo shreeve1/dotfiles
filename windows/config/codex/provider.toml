@@ -1,0 +1,14 @@
+# codex custom provider (from wrk's ~/.codex/config.toml, base URL placeholdered).
+# Merge into ~/.codex/config.toml as windows/config-backup.md -> Restore step 4
+# describes: the three activation lines go at the very top of the file (TOML
+# needs top-level keys before the first table), the [model_providers] block at
+# the end. No key lives here; the proxy authenticates the machine, not codex.
+
+model = "claude-opus-5-5"
+model_provider = "cliproxy"
+model_reasoning_effort = "medium"
+
+[model_providers.cliproxy]
+name = "CLIProxy"
+base_url = "http://<cliproxy-host>:8317/v1"
+wire_api = "responses"

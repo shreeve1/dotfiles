@@ -1,0 +1,5 @@
+# %USERPROFILE%\.wslconfig on an agent host. Read only when the WSL VM starts:
+# run `wsl --shutdown` after changing it (setup-new-machine.md Phase 3).
+[wsl2]
+networkingMode=mirrored
+vmIdleTimeout=86400000

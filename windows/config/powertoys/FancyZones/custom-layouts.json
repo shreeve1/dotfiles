@@ -1,0 +1,52 @@
+{
+  "custom-layouts": [
+    {
+      "uuid": "{EFA5504E-B662-425B-8922-D2459592DFDD}",
+      "name": "Custom layout 1",
+      "type": "canvas",
+      "info": {
+        "ref-width": 2560,
+        "ref-height": 1392,
+        "zones": [
+          {
+            "X": 2,
+            "Y": 0,
+            "width": 1825,
+            "height": 1392
+          },
+          {
+            "X": 1272,
+            "Y": 0,
+            "width": 1286,
+            "height": 1392
+          }
+        ],
+        "sensitivity-radius": 20
+      }
+    },
+    {
+      "uuid": "{A5D10CC9-ADBD-4A17-B0A5-84184D447681}",
+      "name": "Custom layout 2",
+      "type": "canvas",
+      "info": {
+        "ref-width": 2560,
+        "ref-height": 1392,
+        "zones": [
+          {
+            "X": 0,
+            "Y": 0,
+            "width": 1800,
+            "height": 1392
+          },
+          {
+            "X": 760,
+            "Y": 0,
+            "width": 1800,
+            "height": 1392
+          }
+        ],
+        "sensitivity-radius": 20
+      }
+    }
+  ]
+}
