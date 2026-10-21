@@ -185,6 +185,40 @@ Link-Path ".config/zellij" ".config/zellij"
 Link-Path "bin/rralph" ".local/bin/rralph"
 Link-Path "bin/osc52" ".local/bin/osc52"
 
+# Agent browser (windows/agent-browser.md): chrome-cdp, ab and ab-input for Git Bash, pi's shell.
+# With agent-browser installed in WSL (wrk), stubs in ~/bin (on the Windows PATH) run the WSL
+# commands, so Windows and WSL agents share one install and one input lock; they are written rather
+# than linked, so they need no Developer Mode. Without it (surftop), the scripts run natively.
+$wslBrowser = $false
+if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+    & wsl.exe -e bash -lc 'command -v agent-browser' *> $null
+    $wslBrowser = $LASTEXITCODE -eq 0
+}
+if ($wslBrowser) {
+    $shim = (Convert-RepoPath "windows/bin/wsl-browser") -replace '\\', '/'
+    foreach ($name in @("ab", "ab-input", "chrome-cdp")) {
+        $stub = Convert-HomePath "bin/$name"
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $stub)
+        [IO.File]::WriteAllText($stub, "#!/bin/sh`nexec '$shim' $name `"`$@`"`n")
+        Write-Host "ok: $(Get-DisplayPath $stub) -> WSL $name"
+    }
+} else {
+    foreach ($name in @("ab", "ab-input", "chrome-cdp")) {
+        Link-Path "bin/$name" ".local/bin/$name"
+    }
+    $localBin = Convert-HomePath ".local/bin"
+    $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+    if (-not (($userPath -split ';') -contains $localBin)) {
+        [Environment]::SetEnvironmentVariable("PATH", "$userPath;$localBin", "User")
+        Write-Host "path: added $localBin to user PATH (new shells)"
+    }
+    if (Get-Command agent-browser -ErrorAction SilentlyContinue) {
+        Write-Host "ok: agent-browser available"
+    } else {
+        Write-Warning "agent-browser not found; install with: npm install -g agent-browser"
+    }
+}
+
 # Opencode
 Link-Path ".config/opencode" ".config/opencode"
 
@@ -192,6 +226,8 @@ Link-Path ".config/opencode" ".config/opencode"
 Link-Path ".pi/agent" ".pi/agent"
 Link-Path ".pi/README.md" ".pi/README.md"
 Link-Path ".pi-lens/config.json" ".pi-lens/config.json"
+# The pi verify-final extension runs ~/.agents/bin/verify-final (through python on Windows).
+Link-Path ".agents/bin" ".agents/bin"
 
 if (Get-Command pi -ErrorAction SilentlyContinue) {
     Write-Host "ok: pi CLI available: $((pi --version 2>&1 | Select-Object -First 1))"

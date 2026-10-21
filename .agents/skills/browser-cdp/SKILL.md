@@ -1,6 +1,6 @@
 ---
 name: browser-cdp
-description: "Default browser automation for omp on James's laptop: agent-browser attaches to persistent chrome-cdp on port 9222 with saved logins. Use for browsing, portal sign-in, scraping, and browser interaction. Other harnesses keep their own browser routes."
+description: "Default browser automation on James's machines (wrk and surftop on Windows, and the old omarchy laptop): agent-browser attaches to persistent chrome-cdp on port 9222 with saved logins. Use for browsing, portal sign-in, scraping, and browser interaction."
 ---
 
 # Drive James's persistent Chrome with agent-browser
@@ -8,9 +8,23 @@ description: "Default browser automation for omp on James's laptop: agent-browse
 Use agent-browser for normal omp browser work. Preserve the existing Chrome window, `~/.config/chrome-cdp` profile and saved logins; do not launch another browser with `--profile`, export authentication state, or enable `--restore`. Omp's native browser API remains unchanged; raw CDP is a fallback only for operations agent-browser cannot perform.
 
 ## The setup (already built)
+
 - `~/dotfiles/bin/chrome-cdp` (linked to `~/.local/bin/chrome-cdp`, wired into install.sh): launches `/opt/google/chrome/chrome` on the dedicated profile `~/.config/chrome-cdp` with `--remote-debugging-port=9222`, Wayland flags, gnome-libsecret password store, and the omarchy extensions (copy-url, yt-dlp, whatsapp-slim). Idempotent: exits 0 with "already running" if 9222 answers.
 - The profile was seeded 2026-09-30 by copying james's real `Default` profile (rsync minus caches) — site logins/cookies live there and persist. Local logins were re-verified (HaloPSA etc. restored logged-in).
 - Port 9222 = full control of that profile to any local process. Do not put banking/primary email logins there unless james asks; remind once if he does.
+
+## On Windows (wrk, surftop)
+
+The agent Chrome is a Windows Chrome, not a Linux one. Everything else in this skill applies unchanged, with these differences:
+
+- `chrome-cdp` hands off to `~/dotfiles/windows/bin/chrome-cdp.ps1`, which starts `C:\Program Files\Google\Chrome\Application\chrome.exe` minimized on profile `%LOCALAPPDATA%\chrome-cdp`. There is no workspace 5: the window sits minimized on the Windows taskbar.
+- Profile refresh (the OPTIONAL section below) is `chrome-cdp -Seed` with every Chrome window closed, in place of steps 2-3. On surftop (2026-10-21) site logins did not survive the copy (Google and GitHub came up signed out): expect James to sign in once by hand in the agent Chrome.
+- `agent-open` is omarchy-only; give James the URL in your reply.
+
+The rest depends on whether the machine has agent-browser in WSL:
+
+- **wrk (WSL):** agent-browser, `ab`, `ab-input` and the lock (`/run/user/1000/...`) all live in WSL, which reaches the Windows Chrome at `127.0.0.1:9222` through mirrored networking. Native Windows pi calls the same commands through `~/bin/{ab,ab-input,chrome-cdp}` stubs that run them inside WSL, so both sides share one lock. Pass file paths as WSL paths (`/mnt/c/Users/james/x.png`). The sign-in reservation in step 6 runs in WSL too: `wsl.exe -e flock --verbose --no-fork /run/user/1000/agent-browser-chrome-9222-input.lock sleep infinity`.
+- **surftop (no WSL):** `ab`, `ab-input` and `chrome-cdp` run natively in Git Bash from `~/.local/bin`; `agent-browser` is a global npm install (x64 binary under ARM64 emulation). Git Bash has no `flock`, so `ab-input` locks with the directory `%LOCALAPPDATA%\agent-browser-chrome-9222-input.lock.d` holding the owner's Windows PID, and takes over a lock whose PID is dead. For a sign-in reservation, `mkdir` that directory and write a live PID (e.g. `cat /proc/$$/winpid` of a `sleep infinity` shell) to `pid`; remove the directory when done. Call agent-browser only through `ab`/`ab-input`: a newly spawned daemon keeps a captured pipe open and a direct call never returns.
 
 ## Before driving an admin portal
 
@@ -60,7 +74,9 @@ Use only when the required operation is unavailable in agent-browser. Address an
 For hidden tabs (`document.visibilityState === "hidden"`), agent-browser 0.39.0 `screenshot` timed out at `Page.captureScreenshot`. Capture directly on the exact owned target with `Page.captureScreenshot {format:'png', fromSurface:false}` under the shared lock; this produced a verified image without activation. Do not repeatedly retry the hidden-tab CLI screenshot or switch tabs just to capture it.
 
 ## OPTIONAL: refresh session data from the everyday profile first
+
 Only when james asks to "copy over session data" / sync logins / start from his current sessions — otherwise skip; the CDP profile keeps its own state between runs.
+
 1. Confirm with james first: this closes BOTH Chromes (his everyday Chrome too — unsaved GUI work in either is lost; tabs themselves restore).
 2. `pkill -TERM -x chrome; sleep 4; pgrep -x chrome >/dev/null && { sleep 4; pkill -KILL -x chrome; sleep 1; }` until `pgrep -x chrome` is empty.
 3. `mkdir -p ~/.config/chrome-cdp/Default && rsync -a --exclude '*Cache*' --exclude 'Singleton*' --exclude 'LOCK' ~/.config/google-chrome/Default/ ~/.config/chrome-cdp/Default/ && cp -a ~/.config/google-chrome/'Local State' ~/.config/chrome-cdp/`
@@ -69,19 +85,23 @@ Only when james asks to "copy over session data" / sync logins / start from his 
 Note: diverging profiles — the CDP profile keeps any NEW logins made in it; a re-sync overwrites them.
 
 ## Known limits of a profile copy (observed 2026-09-30)
+
 - Most site sessions carry over. **Device-bound sessions do NOT**: Amazon and Microsoft forced re-login (Amazon uses DBSC — device-bound session credentials; binding check fails on a copied profile and the server invalidates). Sign in manually in the CDP browser; this restores access but does not guarantee indefinite login persistence.
 - **Extensions end up half-registered**: Chrome stores extension enable-registration in `Secure Preferences`, HMAC-sealed per profile; a copied Secure Preferences is rejected and reset, leaving Web Store extensions (e.g. Bitwarden) present on disk, toggle showing enabled, but no background service worker and a popup that never renders. Fix = reinstall the extension from the Web Store (vault/login data is server-side for Bitwarden; also survives in Local Extension Settings). Native install/remove confirm dialogs need james's click.
 - Chrome sync tokens may not survive the copy (site cookies do); a Google re-login prompt is expected noise.
 
 ## Gotchas
+
 - Chrome M136+ REFUSES `--remote-debugging-port` on the default profile ("DevTools remote debugging requires a non-default data directory"). Attaching to james's everyday Chrome is impossible without killing it and using a separate data dir — that's why chrome-cdp exists. Don't try to relaunch his main Chrome with the flag.
 - Don't kill or write into `~/.config/google-chrome` while his everyday Chrome runs (see OPTIONAL step for the safe order).
 - If the desktop is wedged from a dock/MST incident, see `hypr-dock-monitor-black` first — no browser work until the session is back.
 
 ## Credentials
+
 James handles account selection, passwords and MFA directly in Chrome. Never choose among saved accounts, request credentials in chat or files, inject them, or configure an agent-browser credential vault. Keep the authenticated pinned tab for reuse.
 
 ## Verify
+
 - Acted effect observed (navigation, DOM state), not "no error".
 - Verify the bound target matches the recorded owned target; do not dump all shared tabs or authentication URLs.
 - Downloads land in the profile's download dir or capture via CDP Page.downloadWillBegin — report paths, not raw bytes.

@@ -11,13 +11,46 @@ fi
   echo "ab-input: set AB_SESSION or pass -s NAME (one name per agent session and site)" >&2
   exit 2
 }
-LOCK=/run/user/1000/agent-browser-chrome-9222-input.lock
 WAIT=${AB_LOCK_WAIT:-60}
-flock -w "$WAIT" -E 254 "$LOCK" agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"
-rc=$?
+if command -v flock >/dev/null 2>&1; then
+  LOCK=/run/user/1000/agent-browser-chrome-9222-input.lock
+  HINT="fuser -v $LOCK"
+  # -o: the agent-browser daemon this call may spawn must not inherit the lock fd, or it holds the lock for good.
+  flock -o -w "$WAIT" -E 254 "$LOCK" agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@"
+  rc=$?
+else
+  # Git Bash on Windows has no flock: the lock is a directory holding the owner's Windows PID.
+  # A lock whose owner process is gone is taken over.
+  LOCK="$(cygpath -u "$LOCALAPPDATA")/agent-browser-chrome-9222-input.lock.d"
+  HINT="cat $LOCK/pid, then tasklist /FI \"PID eq <pid>\""
+  deadline=$(($(date +%s) + WAIT))
+  rc=0
+  until mkdir "$LOCK" 2>/dev/null; do
+    pid=$(cat "$LOCK/pid" 2>/dev/null)
+    if [ -n "$pid" ] && ! tasklist //FI "PID eq $pid" //NH 2>/dev/null | grep -q " $pid "; then
+      rm -rf "$LOCK"
+      continue
+    fi
+    [ "$(date +%s)" -ge "$deadline" ] && {
+      rc=254
+      break
+    }
+    sleep 0.5
+  done
+  if [ "$rc" -eq 0 ]; then
+    cat /proc/$$/winpid >"$LOCK/pid"
+    # A newly spawned agent-browser daemon inherits stdout and keeps a capturing pipe open
+    # forever on Windows; route output through a file the daemon does not hold.
+    out=$(mktemp)
+    trap 'rm -rf "$LOCK" "$out"' EXIT
+    agent-browser --session "$AB_SESSION" --cdp 9222 --pin-tab "$@" >"$out" 2>&1 </dev/null
+    rc=$?
+    cat "$out"
+  fi
+fi
 if [ "$rc" -eq 254 ]; then
   echo "ab-input: input lock still held after ${WAIT}s ($LOCK). Another holder has it: a sign-in reservation" \
-    "(maybe yours), another agent, or an outer flock around this call. Do not wrap ab-input in flock;" \
-    "release your own reservation first, or check: fuser -v $LOCK" >&2
+    "(maybe yours), another agent, or an outer lock around this call. Do not wrap ab-input in a lock;" \
+    "release your own reservation first, or check: $HINT" >&2
 fi
 exit "$rc"

@@ -1,0 +1,5 @@
+# Shell scripts that Git Bash or WSL run straight from the Windows checkout: CRLF breaks bash.
+bin/ab text eol=lf
+bin/ab-input text eol=lf
+bin/chrome-cdp text eol=lf
+windows/bin/wsl-browser text eol=lf

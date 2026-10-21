@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Reusable Chrome instance with CDP remote debugging on a dedicated profile
 # (Chrome M136+ forbids --remote-debugging-port on the default profile).
-# Sessions/cookies persist in ~/.config/chrome-cdp, so logins survive reboots.
+# Sessions/cookies persist in the profile dir, so logins survive reboots:
+# ~/.config/chrome-cdp on Linux, %LOCALAPPDATA%\chrome-cdp on Windows.
 # Returns once the CDP port answers (exit 0) or after CDP_WAIT seconds (exit 1),
 # never blocking on Chrome itself, so agents and SSH shells can call it directly.
 set -u
@@ -17,6 +18,20 @@ case "$WAIT" in '' | *[!0-9]* | 0)
 esac
 
 cdp_up() { curl -s --max-time 1 "http://127.0.0.1:$PORT/json/version" >/dev/null 2>&1; }
+
+# Windows: the agent Chrome is a Windows Chrome, started by the PowerShell launcher, which does its
+# own running check and takes -Seed (copy the everyday profile in). Git Bash (surftop) runs it
+# directly; WSL (wrk) reaches that Chrome through mirrored networking's shared 127.0.0.1:$PORT.
+ps1="$(dirname "$(readlink -f "$0")")/../windows/bin/chrome-cdp.ps1"
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*)
+  exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$ps1")" "$@"
+  ;;
+esac
+if grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; then
+  export WSLENV="${WSLENV:+$WSLENV:}CDP_WAIT"
+  exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w "$ps1")" "$@"
+fi
 
 if cdp_up; then
   echo "already running on port $PORT"
