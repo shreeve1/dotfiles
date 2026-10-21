@@ -17,6 +17,8 @@ trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/home" "$TMP/bin"
 cat >"$TMP/bin/pi" <<'EOF'
 #!/bin/sh
+cat >"$FAKE_PI_STDIN"
+printf '%s\n' "$@" >"$FAKE_PI_ARGS"
 printf '%s\n' "$FAKE_PI_OUTPUT"
 EOF
 chmod +x "$TMP/bin/pi"
@@ -36,7 +38,8 @@ lacks() { case "$1" in *"$2"*) echo no ;; *) echo yes ;; esac }
 verify() {
   local output="$1"
   shift
-  env PATH="$TMP/bin:$PATH" HOME="$TMP/home" FAKE_PI_OUTPUT="$output" "$BIN" "$@"
+  env PATH="$TMP/bin:$PATH" HOME="$TMP/home" FAKE_PI_OUTPUT="$output" \
+    FAKE_PI_STDIN="$TMP/stdin" FAKE_PI_ARGS="$TMP/args" "$BIN" "$@"
 }
 
 FINDING='FALSE | a.txt:1 | the claim -- the fix'
@@ -48,6 +51,10 @@ check "manual: says the user reads only that message" "$(contains "$manual" "the
 check "manual: forbids addressing the checker" "$(contains "$manual" "Do not address the checker")"
 check "manual: forbids a you're-right opener" "$(contains "$manual" "you're right")"
 check "manual: no longer asks to say what changed up front" "$(lacks "$manual" "and say in one line what you changed")"
+# On Windows pi is a .cmd shim and cmd.exe cuts an argument at its first newline, so the
+# multi-line prompt must reach the checker on stdin, never as an argument.
+check "prompt: the answer reaches the checker on stdin" "$(contains "$(cat "$TMP/stdin")" "$ANSWER")"
+check "prompt: the answer is not passed as an argument" "$(lacks "$(cat "$TMP/args")" "$ANSWER")"
 
 event="$(python3 -c 'import json,sys; print(json.dumps({"last_assistant_message": sys.argv[1], "cwd": sys.argv[2]}))' "$ANSWER" "$TMP")"
 hook="$(printf '%s' "$event" | verify "$FINDING")"

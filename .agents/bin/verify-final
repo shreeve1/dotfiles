@@ -48,7 +48,7 @@ import tempfile
 import time
 
 MIN_CHARS = 200
-INLINE_MAX_BYTES = 100_000  # one argv entry is capped near 128 KB; longer answers go via a file
+INLINE_MAX_BYTES = 100_000  # longer answers go via a file the checker reads with its tools
 MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/deepseek-v4.1-flash")
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
@@ -164,7 +164,7 @@ def read_event():
         return json.load(sys.stdin)
     MANUAL = True
     src = sys.argv[sys.argv.index("--check") + 1]
-    with (sys.stdin if src == "-" else open(src)) as f:
+    with (sys.stdin if src == "-" else open(src, encoding="utf-8")) as f:
         return {"last_assistant_message": f.read(), "cwd": os.getcwd()}
 
 
@@ -214,12 +214,14 @@ def main():
     cmd = [
         pi, "-p", "--no-session", "--no-skills", "--no-context-files",
         "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL,
-        PROMPT.format(answer=body, ledger=ledger),
     ]
     env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
     try:
+        # The prompt goes on stdin, not argv: on Windows `pi` is a .cmd shim, and cmd.exe
+        # cuts an argument at its first newline, so the checker never saw the answer.
         r = subprocess.run(cmd, cwd=ev.get("cwd") or None, env=env, capture_output=True,
-                           text=True, timeout=TIMEOUT, stdin=subprocess.DEVNULL)
+                           text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
+                           input=PROMPT.format(answer=body, ledger=ledger))
         out, err, rc = r.stdout, r.stderr, r.returncode
     except subprocess.TimeoutExpired:
         out, err, rc = "", f"timed out after {TIMEOUT}s", 124
@@ -286,6 +288,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # Windows pipes default to the ANSI code page; hooks and the pi extension speak UTF-8.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
     main()
     if WARNINGS and not EMITTED:
         say({})

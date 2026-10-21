@@ -48,13 +48,18 @@ import {
   join as pathJoin,
   relative as pathRelative,
   resolve as pathResolve,
+  sep,
 } from "node:path";
 
 const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final");
+// Windows cannot run a script from its shebang, so the checker starts through python there.
+const [VERIFY_EXE, VERIFY_ARGS]: readonly [string, readonly string[]] =
+  process.platform === "win32" ? ["python", [VERIFY_BIN]] : [VERIFY_BIN, []];
 const CHECK_TIMEOUT_MS = 180_000;
 const MIN_CHARS = 200;
-// Grill format markers: answering questions or selecting next options.
-const GRILL_MARKER_RE = /[\u2753\u27a1\ufe0f]/u;
+// Grill format markers: answering questions or selecting next options. Same as the
+// script's GRILL_MARKERS: ❓, or ➡ followed by its emoji selector U+FE0F.
+const GRILL_MARKER_RE = /\u2753|\u27a1\ufe0f/u;
 // The verify-final script opens every FALSE and UNGROUNDED finding with the
 // verdict name and a pipe — match those, not bare "FALSE" / "UNGROUNDED"
 // substrings, so the notice path can never be triggered by prose.
@@ -69,7 +74,8 @@ const CLEANUP_SKILL_FILE_RE = /(^|[\\/])post-work-cleanup[\\/]SKILL\.md\b/;
 const CLEANUP_SKILL_BLOCK_RE = /<skill name="post-work-cleanup"/;
 // Repo-relative paths never tracked: harness and dependency output, not work.
 // pi-lens also drops a .pi-lens-probe-home/ directory into the cwd.
-const HARNESS_PATH_RE = /(^|\/)(?:\.pi|\.pi-lens[^/]*|node_modules)\//;
+// Either separator: path.relative gives backslashes on Windows.
+const HARNESS_PATH_RE = /(^|[\\/])(?:\.pi|\.pi-lens[^\\/]*|node_modules)[\\/]/;
 // Cheap prefilter before parsing a bash command for commits.
 const MAYBE_COMMIT_RE = /\bgit\b[\s\S]*\bcommit\b/;
 // git global options that take the next word as their value.
@@ -266,7 +272,7 @@ function displayPath(file: string, cwd: string): string {
   const rel = pathRelative(realToolPath(cwd, cwd), file);
   if (rel && !rel.startsWith("..") && !isAbsolute(rel)) return rel;
   const home = homedir();
-  return file.startsWith(`${home}/`) ? `~/${file.slice(home.length + 1)}` : file;
+  return file.startsWith(`${home}${sep}`) ? `~/${file.slice(home.length + 1)}` : file;
 }
 
 /** Mark a word that holds an expansion the parser cannot evaluate. */
@@ -538,7 +544,7 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
     let errored = false;
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(VERIFY_BIN, ["--check", "-"], {
+      child = spawn(VERIFY_EXE, [...VERIFY_ARGS, "--check", "-"], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
