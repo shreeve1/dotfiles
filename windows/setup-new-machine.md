@@ -1,0 +1,153 @@
+# The Windows standard (how I like Windows)
+
+What any Windows machine of mine should look like. Each phase ends with a
+pass check — don't start the next until it passes. Written for the agent-host
+role (Linux work in WSL2); a thin-client role runs phases 1 and 5-6 only.
+
+## Phase 1 — Base
+
+1. Windows 11 Pro, sign in, Windows Update.
+2. Private mesh VPN: install, join with the setup key — the key is a secret,
+   entered interactively, never committed.
+   - Pass: the machine's mesh IP answers ping from two other fleet machines.
+3. Remote access: one tool (RustDesk), unattended-access password set in the
+   UI — secret, machine-local. Public rendezvous servers are fine; direct
+   LAN/mesh access enabled.
+   - Pass: a remote-control session from another machine works.
+4. OpenSSH Server (optional, admin): Settings → Apps → Optional features.
+   - Pass: `ssh` from a fleet machine works.
+
+## Phase 2 — WSL2 + Ubuntu (agent-host role only)
+
+1. Admin PowerShell: `wsl --install -d Ubuntu-24.04`. If only the engine
+   landed, register the distro non-interactively from any shell:
+   `wsl --install -d Ubuntu-24.04 --no-launch` (default user stays root; OOBE
+   never runs — intended).
+2. As root via `wsl -d Ubuntu-24.04 -u root`:
+   - `/etc/wsl.conf`: `[boot]` `systemd=true`, `[user]` `default=<user>`
+   - create the user (`useradd -m -s /bin/bash -G sudo <user>`); leave the
+     password unset — root stays available via `wsl -u root`
+   - `apt-get install openssh-server`; drop-in
+     `/etc/ssh/sshd_config.d/10-port.conf` with `Port 2222` (the Windows host
+     owns 22); `systemctl enable ssh`
+   - `<home>/.ssh/authorized_keys` with the fleet public keys (700/600,
+     correct owner)
+3. **Idle-stop trap (WSL 3.x):** the distro stops ~60 s after the last
+   session closes. systemd services do NOT hold it, and `vmIdleTimeout` is
+   ignored (both `-1` and numeric). Fix: a Startup-folder script holding a
+   permanent hidden session — `wsl-boot.vbs`:
+
+   ```vbs
+   CreateObject("WScript.Shell").Run "wsl.exe -d Ubuntu-24.04 -u <user> -e sleep infinity", 0, False
+   ```
+
+   - Pass: 75 s after your last WSL/ssh touch, `wsl --list --verbose` still
+     shows Running and ssh on 2222 still answers.
+
+## Phase 3 — Private reachability into WSL
+
+`%USERPROFILE%\.wslconfig` with `[wsl2]` `networkingMode=mirrored`. The WSL
+guest then answers on the host's own IPs **including the mesh VPN adapter** —
+no portproxy or firewall rule is needed. NAT + `netsh portproxy` is the
+documented fallback if a future WSL breaks mirrored mode.
+
+- Pass: `ssh -p 2222 <user>@<mesh-ip>` with key auth from two other machines.
+
+## Phase 4 — herdr + pi inside WSL
+
+1. Copy the fleet herdr binary to `~/.local/bin/herdr` (pin the fleet
+   version) rather than installing fresh. Do not casually upgrade fleet
+   herdr servers — an ordinary restart kills all running panes.
+2. `~/.config/herdr/config.toml` from `home/herdr/config.toml` in this repo;
+   `herdr config check` → ok.
+3. `~/.config/systemd/user/herdr.service` (ExecStart the binary,
+   Restart=on-failure, WantedBy=default.target),
+   `systemctl --user enable --now herdr`, and `loginctl enable-linger <user>`
+   (as root) so the user manager starts at boot.
+
+- Pass: `systemctl --user is-active herdr` = active, socket exists, survives
+  the phase-2 idle test.
+
+## Phase 5 — Thin-client role
+
+1. herdr Windows installer (stable):
+   `powershell -c "irm https://herdr.dev/install.ps1 | iex"` — user-scope,
+   lands in `~\.herdr\packages\...`.
+2. State locations on Windows: config `~\.config\herdr\config.toml` (and/or
+   `%APPDATA%\herdr\config.toml`), **machine list
+   `%LOCALAPPDATA%\herdr\client\endpoints.json`**.
+3. `herdr machine add` needs a TTY — over SSH it hangs forever. Seed
+   `endpoints.json` directly (format: `{"version":1,"ssh":[{"id","label",
+   "target","session","enabled"}]}`, `target` = an SSH alias from
+   `~/.ssh/config`).
+4. SSH: one keypair per machine, public keys installed on the targets;
+   `~/.ssh/config` aliases with `StrictHostKeyChecking accept-new`.
+
+- Pass: `herdr machine list` shows the entries; `ssh <alias> echo ok` works;
+  the real acceptance test is interactive — open `herdr`, attach to the
+  agent-host workspace, detach, reattach, agent still alive.
+
+## Phase 6 — Preferences
+
+See `config-backup.md` for what's safe to copy and from where:
+
+- CapsLock→Ctrl at the registry level (exact value
+  `0000000000000000020000001D003A0000000000`; full `reg add` in
+  `config-backup.md` → Restore; effective at sign-out). With this in place, PowerToys'
+  Keyboard-Manager CapsLock rule is redundant but harmless.
+- AutoHotkey v2 (`winget install AutoHotkey.AutoHotkey -e --scope user`)
+  plus the hotstring script and a Startup-folder shortcut. The script
+  contains PII — copy machine-to-machine, never commit it as-is.
+- PowerToys (`winget install Microsoft.PowerToys -e`; user scope works on
+  ARM64): Keyboard Manager layer (CapsLock→LCtrl plus 13 Alt-shortcuts:
+  Alt+I/J/K/L arrows, Alt+U/O Home/End, Alt+P/Y PgDn/PgUp, Alt+Q
+  ctrl+shift+Tab, Alt+W ctrl+W, Alt+M Backspace, Alt+N Delete, Alt+E Tab),
+  two FancyZones canvas layouts, **Awake enabled** (mode: keep system awake,
+  display may sleep). On a battery laptop, reconsider Awake — it defeats
+  sleep entirely.
+- PowerShell 7 (`winget install Microsoft.PowerShell -e --scope user`), Oh My Posh
+  (`winget install JanDeDobbeleer.OhMyPosh -e --scope user`; the official
+  install.ps1 has failed silently over SSH before — winget is the reliable
+  path), kali theme, the two PS profiles, Windows Terminal patched to
+  defaults (120×35, PowerShell 7 default).
+- codex custom provider block (placeholder URL in the committed copy).
+
+## Phase 7 — Reboot validation
+
+Reboot, sign in once, touch nothing. Then from another machine: ssh into WSL
+on 2222, `systemctl --user is-active herdr` = active, and it stays that way
+past 75 s. That's the one test proving the keepalive survives reality.
+
+**Standing caveat:** everything starts at *sign-in* (Startup-folder bound).
+After an unattended reboot — power cut, updates — the agent host is dark
+until someone signs in once. If that matters, Windows auto-login is the
+lever; it trades physical-access security for unattended reachability.
+
+**Sleep rule:** a machine hosting agents must not sleep — Awake is what
+enforces it (Phase 6). Work that must survive any desktop going down belongs
+on the always-on server, not on a desktop.
+
+## Traps learned the hard way
+
+- **Anything spawned over SSH dies when the SSH session ends** (exit
+  `0xC000013A`). Keepalives and app starts must come from sign-in context
+  (Startup folder) or a logon scheduled task — never from a remote shell.
+- Scheduled-task-launched **GUI** apps (tray apps like PowerToys) exit
+  immediately in non-interactive contexts. Configure while stopped; they
+  self-start at the next sign-in.
+- `wsl.exe --install --no-launch` is the non-interactive registration path;
+  plain `--install` without the follow-up reboot leaves "no installed
+  distributions".
+- PowerShell over SSH mangles quoted args (use `-EncodedCommand`);
+  `Compress-Archive` fails silently over SSH (use `tar.exe`); scp to Windows
+  needs **relative** destination paths.
+- In PowerShell single-quoted strings, `\n` and `\\` are literal — generated
+  files get corrupted. `Set-Content` with an array of lines is the safe
+  pattern.
+- winget under SSH needs its full path
+  (`%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe`), and **exit code 0 can
+  lie** — always verify the binary landed.
+- On ARM64 Windows: x86_64 binaries (herdr, Oh My Posh, AutoHotkey) run fine
+  emulated; PowerToys installs user-scope natively; PowerShell 7 arm64 via
+  the GitHub zip if winget balks. If emulated herdr ever misbehaves, the
+  fallback is WSL ARM64 Ubuntu + the native aarch64 herdr inside.
