@@ -57,9 +57,10 @@ commands).
 ## Machine topology (NetBird)
 
 Four machines share the self-hosted NetBird mesh (`*.netbird.selfhosted`).
-Recorded 2026-10-21. This repo is installed on aidev, itan8n and the wrk
-desktop's WSL; surftop is a Windows client (herdr client + configs only, no
-repo checkout). Homelab servers (`pve1`, `pve4`, `jellyfin`, and the rest)
+Recorded 2026-10-21. This repo is installed on aidev, itan8n, the wrk
+desktop's WSL, and surftop's native Windows checkout
+(`james@100.95.222.42`, repo at `C:/Users/james/dotfiles`; cmd over ssh — no
+`head`/pipes). Homelab servers (`pve1`, `pve4`, `jellyfin`, and the rest)
 never get these dotfiles or agent config; do not sync or apply changes there.
 `macbook-air` is retired (2026-10-03); `omarchy` is retired (2026-10-21). The
 previous Ryzen desktop (LAN `10.20.20.10`) is being wiped and given away —
@@ -77,7 +78,7 @@ let two machines diverge. Keep machine-specific edits (e.g. a local
 | `wrk` | gaming desktop; agent host — herdr + pi in Ubuntu-24.04 WSL2 (sshd on 2222; the Windows host owns 22) | `james` | `100.95.235.60` | `wrk-235-60.netbird.selfhosted` | `10.20.20.176` |
 | `aidev` | always-on server; hosts herdr web ui | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` | `10.20.20.16` |
 | `itan8n` | server; n8n | `itadmin` | `100.95.224.218` | `n8n.netbird.selfhosted` | - |
-| `surftop` | Surface thin client (Snapdragon ARM64); native Windows herdr reaching wrk/aidev/itan8n over SSH | `james` | `100.95.222.42` | `surftop.netbird.selfhosted` | `10.20.20.126` |
+| `surftop` | Surface thin client (Snapdragon ARM64); native Windows herdr reaching wrk/aidev/itan8n over SSH; Windows repo checkout (synced) | `james` | `100.95.222.42` | `surftop.netbird.selfhosted` | `10.20.20.126` |
 
 Every machine can reach every other on port 22. When one machine "can't find"
 another, the cause is almost always a name, not the network:
@@ -121,7 +122,7 @@ Environment facts that aren't in that doc:
   the repo's own config files decide, and pi-lens, `post-work-cleanup`, the push hook
   and you all run `style-check`; reach for it instead of a formatter with flags of
   your own. Tool versions are pinned in `.config/style/tools.env`; bump there, then
-  re-run `install.sh` on all three machines.
+  re-run `install.sh` on every machine (aidev, itan8n, wrk WSL, surftop; surftop uses `install-win.ps1`).
 
 - `bash tests/run-all.sh` is the repo's check command; the pre-push hook runs
   only its `--fast` subset (guards plus the test files this branch changed), so
