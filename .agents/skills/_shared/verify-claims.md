@@ -1,10 +1,8 @@
 # Independent claim verification
 
 Shared engine — the single source of truth for fact-checking claims against
-ground truth with a fresh, independent `pi -p` process. Consumed by `to-spec`,
-`to-tickets`, `wayfinder`, `code-review`, `implement`, `teach`, `wiki-update`,
-`grill-with-docs` (once, on a brainstorm intent doc), and `grilling` (every
-turn, in harnesses without the hook; see *Grill turns* below). Callers reach it via
+ground truth with a fresh, independent `pi -p` process. Consumed by
+`teach` and `wiki-update`. Callers reach it via
 the phrase *independent verify (see `_shared/verify-claims.md`)*; change the
 mechanics here, not in each skill. The end-of-turn hook
 `.agents/bin/verify-final` runs the same checker command. There are no
@@ -97,29 +95,6 @@ Notes:
 - The checker has no memory of the conversation — spell each claim out in
   full, self-contained (name the term, the file, the behaviour,
   the source). "The thing we discussed" verifies nothing.
-
-## Grill turns (harnesses without the hook)
-
-The end-of-turn hook checks grill turns against the grill's ledger. dsh and Pi
-have no hook, so a grill there runs the same check by hand on each drafted turn,
-before sending it. Draft the full turn, including its closing
-`Ledger: .kanban/grilling/<topic>.md` line, then run it from the grill's working
-directory:
-
-```bash
-timeout 150 ~/.agents/bin/verify-final --check - <<'TURN'
-<the drafted turn, verbatim>
-TURN
-```
-
-It prints `verify-final: no findings` or the findings, worded as the hook
-would send them: FALSE for factual claims or recommendations that contradict
-the files or a ledger line, UNGROUNDED for recommendations resting on a system
-capability the ledger doesn't establish (research it, record it in the ledger
-with its source, revise the turn). Fold the findings in before you send. Under
-pi-fabric, run it with `pi.bash` inside `fabric_exec` as above, with
-`timeoutMs: 210000` to cover the 150 s timeout. The script holds the only copy
-of the grill-check wording.
 
 ## Fallback when the check can't run
 
