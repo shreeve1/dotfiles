@@ -217,8 +217,33 @@ start ralph-loop` to resume.
 ```bash
 git -C "$BASE_REPO" branch -d "$BRANCH"   # safe delete; only if merged
 rm -f "$MARKER"
-# Worktrees for landed lanes were already pruned by finish_board.
-# Bounced/blocked lane worktrees are preserved — do NOT remove them.
+
+# Sweep the lane worktrees and branches. finish_board prunes landed lanes only
+# when it runs to the end; if the coordinator exited early (non-zero, "unlanded
+# children remain") every lane is still here. Remove a lane only when its branch
+# is merged into $BASE_BRANCH AND its worktree is clean (pi's own .pi/ scratch
+# folder does not count as dirty). Bounced, failed and dirty lanes are kept and
+# reported: a repair ticket or the user still needs them.
+kept=""
+for b in $(git -C "$BASE_REPO" for-each-ref --format='%(refname:short)' "refs/heads/gralph/$KEY/issue-*"); do
+  wt="$(git -C "$BASE_REPO" worktree list --porcelain | awk -v r="refs/heads/$b" '/^worktree /{w=$2} $0=="branch "r{print w}')"
+  if git -C "$BASE_REPO" merge-base --is-ancestor "$b" "$BASE_BRANCH" \
+     && { [ -z "$wt" ] || [ -z "$(git -C "$wt" status --porcelain | grep -v '^?? .pi')" ]; }; then
+    [ -z "$wt" ] || git -C "$BASE_REPO" worktree remove --force "$wt"
+    git -C "$BASE_REPO" branch -d "$b"
+  else
+    kept="$kept $b(+$(git -C "$BASE_REPO" cherry "$BASE_BRANCH" "$b" | grep -c '^+') unmatched)"
+  fi
+done
+git -C "$BASE_REPO" worktree prune
+echo "kept (unmerged or dirty):$kept"
+# A lane landed by cherry-pick or rebase (e.g. by a fix-up agent) is NOT an ancestor,
+# and `git cherry` also reports it unmatched once a conflict was resolved. The sweep
+# cannot tell that from unmerged work, so it keeps it. To clear such a lane, check by
+# hand that every line it added is in $BASE_BRANCH (or that its changes were replaced
+# on purpose), confirm with the user, then `git branch -D` it.
+# Any other worktree left under the run dir (e.g. one a fix-up agent created):
+git -C "$BASE_REPO" worktree list | grep "/.gralph/runs/$KEY/"
 
 # Record the merge in the manifest. finish_board did not (it deferred), and gralph
 # decides "resume the saved run" vs "plan fresh" from boardFinish.status: left as
@@ -240,6 +265,8 @@ at the end of the coordinator. After a successful manual merge, the run is
 complete. To start the next board run, invoke `tralph` again (with the same
 `--spec`, if any); because the manifest now records the merge, it plans fresh.
 
+**No marker, coordinator exited early?** Merging only the verified commits (by hash, not the branch name) leaves `$BRANCH` unmerged, so `branch -d` correctly refuses it: keep it. The lane sweep above still applies; run it after that merge.
+
 Only `git push` if the user explicitly asks.
 
 **Spec runs: check for completion.** A deferred merge never got the `## Spec complete` section that `gralph` writes into the run report on a clean finish, so check it here once the batch has landed (skip for a whole-board run, `KEY=0`):
@@ -254,7 +281,9 @@ If it prints, include that line in your report.
 
 ## Report
 
-Summarize: commits landed, files changed, any conflicts resolved, cleanup done,
+Summarize: commits landed, files changed, any conflicts resolved, cleanup done
+(lanes removed; lanes and extra worktrees kept, each with its reason; `du -sh .gralph`
+so the user sees what is left),
 and whether the supervisor is now free to start the next batch (worktree gone +
 marker cleared). If you stopped early (batch still running, base dirty, conflict
 the user wants to defer), say exactly what is blocking and the one command to
