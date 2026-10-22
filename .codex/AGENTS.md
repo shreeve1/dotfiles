@@ -76,3 +76,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 * * *
 
 These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Sub-agents
+
+For superpowers sub-agent roles, spawn the matching custom agent type: design_checker, implementer (or implementer_light for copy-the-code tasks), task_reviewer, final_reviewer, re_reviewer.
