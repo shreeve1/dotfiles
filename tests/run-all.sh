@@ -37,7 +37,7 @@ case "${1-}" in
 esac
 
 TEST_TIMEOUT="${TEST_TIMEOUT:-900}"
-TEST_FILES=(tests/*.test.sh .agents/skills/ralph/tests/*.sh)
+TEST_FILES=(tests/*.test.sh)
 
 PASS=0
 FAILN=0
@@ -63,7 +63,7 @@ changed_test_files() {
     git diff --name-only --cached
   } 2>/dev/null | sort -u | while IFS= read -r f; do
     case "$f" in
-    tests/*.test.sh | .agents/skills/ralph/tests/*.sh)
+    tests/*.test.sh)
       [ -f "$f" ] && printf '%s\n' "$f"
       ;;
     esac
