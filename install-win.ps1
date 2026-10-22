@@ -304,6 +304,7 @@ Link-Path ".codex/config.toml" ".codex/config.toml"
 Link-Path ".codex/AGENTS.md" ".codex/AGENTS.md"
 Link-Path ".codex/hooks.json" ".codex/hooks.json"
 Link-Path ".codex/rules" ".codex/rules"
+Link-Path ".codex/agents" ".codex/agents"
 
 $codexSkills = Convert-RepoPath ".codex/skills"
 if (Test-Path -LiteralPath $codexSkills) {

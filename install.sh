@@ -598,6 +598,7 @@ link_path ".codex/config.toml" ".codex/config.toml"
 link_path ".agents/AGENTS.md" ".codex/AGENTS.md"
 link_path ".codex/hooks.json" ".codex/hooks.json"
 link_path ".codex/rules" ".codex/rules"
+link_path ".codex/agents" ".codex/agents"
 # Bridge every canonical AGENTS skill into codex's skills dir. Codex loads
 # its own .system/ skills natively; we link every canonical AGENTS skill so
 # codex sees the full set. _shared (helpers, not a skill) is included as the

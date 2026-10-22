@@ -131,6 +131,10 @@ I direct the work but don't write the code myself. Assume I'm capable but not a 
 
 The test: could a smart non-coder follow this and make the call confidently?
 
+## Sub-agents
+
+For superpowers sub-agent roles, spawn the matching custom agent type: design_checker, implementer (or implementer_light for copy-the-code tasks), task_reviewer, final_reviewer, re_reviewer.
+
 ## Explore via the code graph before grep (graphify)
 
 When the user types `/graphify`, use the graphify skill (`~/.agents/skills/graphify/SKILL.md`) before doing anything else.
