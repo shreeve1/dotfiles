@@ -1,5 +1,12 @@
 # Wiki Routing
 
+## WSL CPU From pi Sessions On /mnt/c
+
+- Claims: C-0175 (pi-cc-extensions footer polls git every 10 s; on /mnt/c this saturates the 9p bridge), C-0176 (wrk itastack agents run in `~/Documents/itastack` with a WSL Syncthing; `.git` not synced)
+- Raw: `wiki/raw/sessions/2026-10-22-wsl-cpu-git-footer-9p.md`
+- Keywords: WSL, Vmmem, CPU, 9p, drvfs, /mnt/c, p9_read_work, CAL, IPI, git status, footer, pi-cc-extensions, Syncthing, itastack, wrk, typing lag
+- Claims-only capture; no promoted page.
+
 ## Pi Default Model Across The Fleet
 
 - Claims: C-0171 (fleet default model is cliproxy/glm-5.3; `.pi/agent/settings.json` is untracked, so the change is applied per machine and only the template travels by git)
@@ -50,6 +57,7 @@ Use this file after reading `wiki/index.md` when narrowing a wiki-backed questio
 - Claims: C-0135, C-0136, C-0137, C-0138
 - Raw: `wiki/raw/sessions/2026-09-19-omarchy-bare-metal-and-surface-recovery.md`
 - Keywords: Omarchy, Hyprland, hypr-deck, workspace, eDP-1, DP-4, Surface Laptop 7, MSHW0551, SAM, BAT1, ADP1, iptsd, SoundWire, UCM, Bluetooth, btintel_pcie, kernel update, bare metal
+
 ## Projectlean Wiki-First SOUL
 
 - Pages: `wiki/analyses/analysis-session-projectlean-wiki-first-soul.md` (promoted)
