@@ -2,8 +2,8 @@
 
 ## WSL CPU From pi Sessions On /mnt/c
 
-- Claims: C-0175 (pi-cc-extensions footer polls git every 10 s; on /mnt/c this saturates the 9p bridge), C-0176 (wrk itastack agents run in `~/Documents/itastack` with a WSL Syncthing; `.git` not synced)
-- Raw: `wiki/raw/sessions/2026-10-22-wsl-cpu-git-footer-9p.md`
+- Claims: C-0175 (pi-cc-extensions footer polls git every 10 s; on /mnt/c this saturates the 9p bridge), C-0177 (itastack has no git since 2026-10-22; agents run in `~/Documents/itastack` with a WSL Syncthing; supersedes C-0176)
+- Raw: `wiki/raw/sessions/2026-10-22-wsl-cpu-git-footer-9p.md`, `wiki/raw/sessions/2026-10-22-itastack-git-removed.md`
 - Keywords: WSL, Vmmem, CPU, 9p, drvfs, /mnt/c, p9_read_work, CAL, IPI, git status, footer, pi-cc-extensions, Syncthing, itastack, wrk, typing lag
 - Claims-only capture; no promoted page.
 
