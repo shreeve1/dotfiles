@@ -40,9 +40,9 @@ commands).
   reads the same file via `~/.codex/AGENTS.md`. This is the only lane that applies without the model choosing
   to load anything: a skill contributes just its one-line description to
   context until something calls the `skill` tool, which on plain coding tasks
-  it does not do. Keep the lane small — it is paid on every turn. Of the 64
-  skills, 40 carry `disable-model-invocation: true` (user-invocable only,
-  never in the catalog) — that is deliberate, do not "fix" it.
+  it does not do. Keep the lane small — it is paid on every turn. Skills marked
+  `disable-model-invocation: true` are user-invocable only on purpose — do not
+  "fix" them.
 - **Repo-level context:** this file (`AGENTS.md`). pi loads `AGENTS.md` /
   `CLAUDE.md` from the working directory and every parent, plus
   `~/.pi/agent/APPEND_SYSTEM.md` (→ `dotfiles/.pi/agent/APPEND_SYSTEM.md`).
@@ -123,11 +123,9 @@ Environment facts that aren't in that doc:
   your own. Tool versions are pinned in `.config/style/tools.env`; bump there, then
   re-run `install.sh` on all three machines.
 
-- **Working on the ralph / tralph / gralph loop?** [`docs/ralph.md`](docs/ralph.md)
-  maps the two drivers, where the worker prompt and the per-ticket review
-  procedure live, and the tests. `bash tests/run-all.sh` is the repo's check
-  command; the pre-push hook runs only its `--fast` subset (guards plus the test
-  files this branch changed), so run the full suite yourself before you push.
+- `bash tests/run-all.sh` is the repo's check command; the pre-push hook runs
+  only its `--fast` subset (guards plus the test files this branch changed), so
+  run the full suite yourself before you push.
 
 - **graphify CLI is machine-local** (`uv tool install graphifyy`, double-y), not
   synced; only its skill + guard extension sync.
