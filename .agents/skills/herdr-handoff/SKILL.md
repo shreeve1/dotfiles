@@ -19,7 +19,11 @@ carrying on the current work is `handoff`. Ask only if it is truly unclear.
 
 ## 1. Check herdr
 
-`test "${HERDR_ENV:-}" = 1` must pass. If not, say you are not inside herdr and stop.
+Inside a herdr pane, `test "${HERDR_ENV:-}" = 1` passes. Outside one (Codex, a plain shell),
+a running herdr server still works: `herdr workspace list` must answer. The script then opens
+the tab in the workspace with a pane in the current directory, else the focused one, and always
+in the background, so `handoff` behaves like `task`. If neither check passes, say herdr is not
+reachable and stop.
 
 ## 2. Write the brief
 
@@ -69,8 +73,10 @@ first and what can be cut:
 
 At the end of either brief, add a line with the previous session file so the new
 session can search it if it needs more:
-`Previous session: <path>`. Get the path from
-`herdr pane current --current | jq -r '.result.pane.agent_session.value'`.
+`Previous session: <path>`. Get the path:
+
+- pi in a herdr pane: `herdr pane current --current | jq -r '.result.pane.agent_session.value'`
+- Codex: `ls ~/.codex/sessions/*/*/*/*"$CODEX_THREAD_ID"*.jsonl`
 
 ## 3. Spawn
 
@@ -92,9 +98,10 @@ the agent name, pane ID and status.
 ## 4. Report
 
 In one or two lines: the tab label, the agent name, and the brief's absolute path
-as plain text in a codespan.
+as plain text in a codespan. From outside herdr, also name the workspace from the script's
+`workspace=` output: the tab opened there without taking focus.
 
 - `task`: then go back to what you were doing.
-- `handoff`: ask whether to close this pane. If the user says yes, make
+- `handoff` from inside herdr: ask whether to close this pane. If the user says yes, make
   `herdr pane close "$HERDR_PANE_ID"` your last action, because it ends this session.
   The session file stays on disk.
