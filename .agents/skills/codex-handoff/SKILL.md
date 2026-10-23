@@ -27,7 +27,8 @@ moves a chat to a worktree, so neither one makes a fresh chat.
 ## 2. Write the brief
 
 The brief is the new chat's first message and is visible to the user. Write it for a capable
-engineer who has seen nothing. Use facts from this session: real paths, commands, error
+engineer who has seen nothing. A project chat already loads the repo's `AGENTS.md`, skills
+and working directory, so the brief adds only what this session learned. Use facts from this session: real paths, commands, error
 text and decisions. Leave out the story of how you got here. A brief that says "the bug we
 found" without saying what the bug is fails.
 
@@ -79,7 +80,8 @@ use `read_thread` for more:
    `target: {type: "project", projectId, environment: {type: "local"}}`. Leave
    `model` and `thinking` unset. If no project matches, use `{type: "projectless"}`
    and put the working directory in the brief.
-3. If you get a `threadId`, call `wait_threads` once on it with `timeoutMs: 0`. If it is
+3. If you get a `threadId`, call `wait_threads` once on it with `timeoutMs: 30000`. It
+   returns early if the chat finishes or stops for you; a timeout means it is working. If it is
    waiting for approval or input, tell the user what it needs and do not offer to archive
    this chat. Do not answer it for the user. If you get a `clientThreadId` instead, the
    chat is still being set up, so skip this check.
