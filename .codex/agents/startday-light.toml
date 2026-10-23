@@ -1,6 +1,6 @@
 name = "startday_light"
 description = "Cheap read-only codex-startday child: the Halo preflight check and light research (R<halo_id>, route light). Use startday_research for full research and scope passes."
-model = "claude-sonnet-5-5"
+model = "gpt-6-luna"
 model_reasoning_effort = "low"
 developer_instructions = """
 You are one codex-startday subagent. Follow the task text and the files it names; they bind you.

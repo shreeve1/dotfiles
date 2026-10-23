@@ -1,6 +1,6 @@
 name = "startday_research"
 description = "Read-only codex-startday research child: full research of one Halo ticket or project (R<halo_id>, route full) or a scope pass (S<halo_id>). Use for codex-startday full-route and scope-pass spawns."
-model = "claude-sonnet-5-5"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 developer_instructions = """
 You are one codex-startday subagent. Follow the task text and the files it names; they bind you.
