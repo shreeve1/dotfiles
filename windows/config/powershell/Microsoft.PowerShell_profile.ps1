@@ -3,7 +3,8 @@
 # profile saved as Microsoft.PowerShell_profile.ps1.bak-20261021.
 
 # Same prompt config as zsh: ~/.config/starship.toml is linked from dotfiles.
-Invoke-Expression (&starship init powershell)
+# Agent shells (Codex) run with TERM=dumb; starship only prints an error there.
+if ($env:TERM -ne 'dumb') { Invoke-Expression (&starship init powershell) }
 
 # History: up/down search by what you've typed (zsh-history-substring-search),
 # grey inline prediction from history (zsh-autosuggestions).
