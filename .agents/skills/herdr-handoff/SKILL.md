@@ -1,6 +1,6 @@
 ---
 name: herdr-handoff
-description: Open a new herdr tab with a fresh pi session that starts from a written brief. Two modes - `task` spins off a separate task found mid-session into a background tab; `handoff` continues the current work in a fresh session and switches to it. Use when the user says /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", or "start a new pi on this".
+description: Open a new herdr tab with a fresh pi session that starts from a written brief. Two modes - `task` spins off a separate task found mid-session into a background tab; `handoff` continues the current work in a fresh session and switches to it. Use when the user says /herdr-handoff, or, inside herdr, "hand this off", "continue in a fresh session", "spin this off into a new tab", or "start a new pi on this".
 ---
 
 # herdr-handoff
