@@ -217,10 +217,12 @@ __pycache__/
 # Test scratch — machine-local only. The suite itself (tests/*.test.sh,
 # tests/run-all.sh) is tracked, so .sh is negated back in: without it,
 # `git add -A` silently skips a new test file and the commit looks complete.
-# Non-.sh, non-.py scratch under tests/ stays ignored.
+# .mjs is negated too: Node-driven tests that must also run on native Windows.
+# Other scratch under tests/ stays ignored.
 /tests/*
 !/tests/*.py
 !/tests/*.sh
+!/tests/*.mjs
 .claude/.fusion-off
 .claude/.harness-unlock
 .omp/agent/blobs/
