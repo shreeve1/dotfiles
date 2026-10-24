@@ -12,15 +12,25 @@
 //     uncleaned. Simplified from pi: no shell parsing and no repo targeting
 //     (surftop runs PowerShell), so the hold covers all tracked files and a
 //     false hold costs one retry. Re-running the commit goes through.
+//   - Settle nudge: when a run ends with tracked files still uncommitted, a
+//     follow-up asks for cleanup over those files. It never asks for a commit.
 //   A successful read of the skill's SKILL.md, or activating the
 //   post-work-cleanup skill, counts as running it: tracked files are cleared
 //   and the cleanup's own edits that prompt are not tracked.
+//
+// Grounding check (verify-final):
+//   When a root session's run succeeds, its last answer is checked in the
+//   background; a FALSE or UNGROUNDED finding goes back as a synthetic
+//   follow-up. If the settle nudge fired instead, the answer after the cleanup
+//   turn is the one checked. The check's own correction turn is never checked
+//   again. At most one follow-up per run end and two per user prompt; a result
+//   is dropped when a new turn started while it ran.
 //
 // The checker shells out to `pi`, so `pi` must be on PATH wherever this runs.
 //
 // Default export is a plain { id, setup } object with no runtime import of
 // @opencode/plugin, and only erasable TypeScript, so node can run it in tests.
-import { execFile, type ChildProcess } from "node:child_process"
+import { execFile, spawn, type ChildProcess } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import {
@@ -43,6 +53,16 @@ const MAX_FILES_SHOWN = 10
 const CODE_EXT_RE =
   /\.(?:py|pyi|ps1|psm1|psd1|sh|bash|zsh|ksh|ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rb|rs|c|h|cc|cpp|hpp|cxx|hxx|java|kt|kts|cs|php|sql|lua|swift|scala|pl|pm|r|ex|exs|erl|hs|clj|dart|vue|svelte)$/i
 const CLEANUP_DISABLE_HINT = "(Set POST_WORK_CLEANUP=0 to disable this reminder.)"
+const NOT_A_COMMIT_REQUEST =
+  "This is not a request to commit: commit only if the task or the repo's rules call for it."
+const CHECK_TIMEOUT_MS = 180_000
+const MIN_CHARS = 200
+// Grill format markers: ❓, or ➡ followed by its emoji selector U+FE0F.
+const GRILL_MARKER_RE = /\u2753|\u27a1\ufe0f/u
+// Finding lines open with the verdict and a pipe; bare words in prose never match.
+const FINDING_RE = /(^|\n)\s*(?:FALSE|UNGROUNDED)\s*\|/
+const NO_FINDINGS = "verify-final: no findings"
+const MAX_FOLLOWUPS_PER_PROMPT = 2
 
 function fileList(files: string[]): string {
   if (files.length <= MAX_FILES_SHOWN) return files.join(", ")
@@ -54,6 +74,22 @@ function cleanupAction(skillAvailable: boolean): string {
     ? "run the `post-work-cleanup` skill over them and apply its findings"
     : "review them for leftover debug output, dead code and unused imports, and run the " +
         "project's linter or formatter if one is configured"
+}
+
+function settleDirective(files: string[], skillAvailable: boolean): string {
+  return [
+    `This session changed code files that are not committed yet: ${fileList(files)}.`,
+    `If the work on them is finished, ${cleanupAction(skillAvailable)} before they are committed;`,
+    "if it is not finished, say so and skip this.",
+    NOT_A_COMMIT_REQUEST,
+    CLEANUP_DISABLE_HINT,
+  ].join(" ")
+}
+
+function shouldSkipText(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  return trimmed.length < MIN_CHARS && !GRILL_MARKER_RE.test(trimmed)
 }
 
 function gateReason(files: string[], skillAvailable: boolean): string {
@@ -83,12 +119,18 @@ interface SessionState {
   isRoot: boolean | null
 }
 
+interface SessionInfo {
+  parentID?: string
+  location?: { directory?: string }
+  directory?: string
+}
+
 // Minimal structural view of the V2 plugin context this plugin uses.
 interface Ctx {
   location: { directory: string }
   session: {
     hook(name: string, cb: (e: any) => unknown): Promise<unknown>
-    get(input: { sessionID: string }): Promise<any>
+    get(input: { sessionID: string }): Promise<SessionInfo>
     synthetic(input: Record<string, unknown>): Promise<unknown>
   }
   tool: { hook(name: string, cb: (e: any) => unknown): Promise<unknown> }
@@ -121,30 +163,27 @@ function state(sessionID: string): SessionState {
   return s
 }
 
-async function sessionInfo(ctx: Ctx, sessionID: string): Promise<any> {
+/** Fill isRoot and dir from the session's info once. A failed lookup counts as a root in ctx's directory. */
+async function loadInfo(ctx: Ctx, sessionID: string, s: SessionState): Promise<void> {
+  let info: SessionInfo | null = null
   try {
-    return await ctx.session.get({ sessionID })
+    info = await ctx.session.get({ sessionID })
   } catch {
-    return null
+    // Unknown session: treat as root.
   }
+  s.isRoot = !info?.parentID
+  s.dir = info?.location?.directory ?? info?.directory ?? ctx.location.directory
 }
 
 async function isRoot(ctx: Ctx, sessionID: string): Promise<boolean> {
   const s = state(sessionID)
-  if (s.isRoot === null) {
-    const info = await sessionInfo(ctx, sessionID)
-    s.isRoot = !info?.parentID
-    if (s.dir === null && info) s.dir = info.location?.directory ?? info.directory ?? null
-  }
-  return s.isRoot
+  if (s.isRoot === null) await loadInfo(ctx, sessionID, s)
+  return s.isRoot ?? true
 }
 
 async function sessionDir(ctx: Ctx, sessionID: string): Promise<string> {
   const s = state(sessionID)
-  if (s.dir === null) {
-    const info = await sessionInfo(ctx, sessionID)
-    s.dir = info?.location?.directory ?? info?.directory ?? ctx.location.directory
-  }
+  if (s.dir === null) await loadInfo(ctx, sessionID, s)
   return s.dir ?? ctx.location.directory
 }
 
@@ -267,6 +306,121 @@ function log(what: string, err: unknown): void {
   console.error(`[verify-final] ${what}:`, err)
 }
 
+interface CheckResult {
+  stdout: string
+  stderr: string
+  code: number | null
+  timedOut: boolean
+}
+
+/** Run the checker with text on stdin. Never rejects. */
+function runCheck(cwd: string, text: string, s: SessionState): Promise<CheckResult> {
+  const bin = process.env.VERIFY_FINAL_BIN || pathJoin(homedir(), ".agents", "bin", "verify-final")
+  // Windows cannot run a script from its shebang; the .mjs test double runs under node.
+  const [exe, args] = bin.endsWith(".mjs")
+    ? [process.execPath, [bin]]
+    : process.platform === "win32"
+      ? ["python", [bin]]
+      : [bin, []]
+  return new Promise((resolve) => {
+    let stdout = ""
+    let stderr = ""
+    let timedOut = false
+    let settled = false
+    const finish = (code: number | null): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (s.child === child) s.child = null
+      resolve({ stdout, stderr, code, timedOut })
+    }
+    let child: ChildProcess
+    try {
+      child = spawn(exe, [...args, "--check", "-"], { cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+    } catch (err) {
+      resolve({ stdout: "", stderr: String(err), code: null, timedOut: false })
+      return
+    }
+    s.child = child
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill()
+    }, CHECK_TIMEOUT_MS)
+    child.stdout?.setEncoding("utf8")
+    child.stderr?.setEncoding("utf8")
+    child.stdout?.on("data", (c: string) => (stdout += c))
+    child.stderr?.on("data", (c: string) => (stderr += c))
+    child.on("error", (err) => {
+      stderr += String(err)
+      finish(null)
+    })
+    child.on("close", (code) => finish(code))
+    child.stdin?.on("error", () => {})
+    child.stdin?.end(text, "utf8")
+  })
+}
+
+async function followUp(ctx: Ctx, sessionID: string, s: SessionState, text: string): Promise<void> {
+  s.followups += 1
+  s.ownFollowupPending = true
+  await ctx.session.synthetic({ sessionID, text, resume: true })
+}
+
+async function onTurnEnd(ctx: Ctx, sessionID: string): Promise<void> {
+  const s = state(sessionID)
+  const answer = s.lastAnswer
+  s.lastAnswer = null
+  if (!(await isRoot(ctx, sessionID))) return
+  if (s.ownFollowupPending) {
+    s.ownFollowupPending = false
+    // Our fact-check correction turn: never checked or nudged again.
+    if (!s.pendingFactCheck) return
+    // The cleanup turn: fall through to the fact-check only.
+  } else if (
+    !cleanupDisabled() &&
+    s.followups < MAX_FOLLOWUPS_PER_PROMPT &&
+    s.nudgedSeq !== s.promptSeq &&
+    s.cleanupRanSeq !== s.promptSeq &&
+    s.gateHeldSeq !== s.promptSeq &&
+    s.tracked.size > 0
+  ) {
+    await pruneTracked(s)
+    if (s.tracked.size > 0) {
+      const cwd = await sessionDir(ctx, sessionID)
+      const shown = [...s.tracked.keys()].map((f) => displayPath(f, cwd))
+      s.nudgedSeq = s.promptSeq
+      s.pendingFactCheck = true
+      await followUp(ctx, sessionID, s, settleDirective(shown, cleanupSkillAvailable(cwd)))
+      return
+    }
+  }
+
+  s.pendingFactCheck = false
+  if (process.env.VERIFY_FINAL === "0") return
+  if (s.checkedSeq === s.promptSeq || s.followups >= MAX_FOLLOWUPS_PER_PROMPT) return
+  const text = answer?.texts.join("\n") ?? ""
+  if (shouldSkipText(text)) return
+  s.checkedSeq = s.promptSeq
+  const seq = s.promptSeq
+  const cwd = await sessionDir(ctx, sessionID)
+  void (async () => {
+    try {
+      const result = await runCheck(cwd, text, s)
+      // A new turn (user or ours) started while the check ran: stale.
+      if (seq !== s.promptSeq || s.ownFollowupPending || !sessions.has(sessionID)) return
+      if (result.stdout.includes(NO_FINDINGS)) return
+      if (FINDING_RE.test(result.stdout)) {
+        await followUp(ctx, sessionID, s, result.stdout)
+        return
+      }
+      const head = (result.stdout.trim() || result.stderr.trim()).split("\n", 1)[0]
+      log("check", result.timedOut ? "timed out" : head || `exit ${result.code}`)
+    } catch (err) {
+      log("check follow-up", err)
+    }
+  })()
+}
+
 async function setup(ctx: Ctx) {
   const abort = new AbortController()
 
@@ -329,6 +483,24 @@ async function setup(ctx: Ctx) {
     const sessionID = ev?.data?.sessionID
     if (typeof sessionID !== "string") return
     switch (ev.type) {
+      case "session.text.ended": {
+        const s = state(sessionID)
+        const id = String(ev.data.assistantMessageID ?? "")
+        if (s.lastAnswer?.messageID !== id) s.lastAnswer = { messageID: id, texts: [] }
+        if (typeof ev.data.text === "string") s.lastAnswer.texts.push(ev.data.text)
+        return
+      }
+      case "session.execution.succeeded":
+        await onTurnEnd(ctx, sessionID)
+        return
+      case "session.execution.failed":
+      case "session.execution.interrupted": {
+        const s = state(sessionID)
+        s.ownFollowupPending = false
+        s.pendingFactCheck = false
+        s.lastAnswer = null
+        return
+      }
       case "session.skill.activated":
         if (ev.data.name === CLEANUP_SKILL_NAME || ev.data.id === CLEANUP_SKILL_NAME)
           markCleanupRan(state(sessionID))

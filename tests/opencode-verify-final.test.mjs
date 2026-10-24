@@ -2,7 +2,7 @@
 // ctx against throwaway git repos. Portable (no bash, no symlinks) so it runs on
 // native Windows too. Run: node tests/opencode-verify-final.test.mjs
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -11,6 +11,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
 const PLUGIN = pathToFileURL(join(ROOT, ".config", "opencode", "plugins", "verify-final.ts")).href
 const tmp = mkdtempSync(join(tmpdir(), "ovf-"))
 process.on("exit", () => rmSync(tmp, { recursive: true, force: true }))
+// A home with no post-work-cleanup skill, so the wording is machine-independent.
+mkdirSync(join(tmp, "home"))
+process.env.HOME = process.env.USERPROFILE = join(tmp, "home")
 
 let pass = 0
 const failures = []
@@ -108,6 +111,10 @@ function makeCtx(dir, { parents = {} } = {}) {
     },
     evaluate: (sessionID, resources, action = "shell") =>
       call("permission.evaluate", { sessionID, agent: "build", action, resources, effect: "allow" }),
+    answer: (sessionID, text, assistantMessageID = `a${++n}`) =>
+      api.emit("session.text.ended", { sessionID, assistantMessageID, ordinal: 0, text }),
+    end: (sessionID, how = "succeeded") =>
+      api.emit(`session.execution.${how}`, how === "interrupted" ? { sessionID, reason: "user" } : { sessionID }),
   }
   return api
 }
@@ -221,6 +228,184 @@ await run("disabled", makeRepo("t11"), async (t) => {
     delete process.env.POST_WORK_CLEANUP
   }
 })
+
+// ---- Task 2: end of turn ----
+delete process.env.VERIFY_FINAL
+process.env.VERIFY_FINAL_BIN = join(ROOT, "tests", "fake-verify-final.mjs")
+const FALSE_OUT = "FALSE | a.py:1 | claim -- fix\n"
+const LONG = "The answer. " + "x".repeat(240)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const waitFor = async (cond, ms = 15000) => {
+  const until = Date.now() + ms
+  while (!cond() && Date.now() < until) await sleep(25)
+  return cond()
+}
+// Long enough for a node child to start, read stdin and log.
+const QUIET_MS = 2500
+let logN = 0
+/** Point the fake at a fresh log; returns a reader of the stdin texts it got. */
+function fake({ out = "", exit = 0, delay = 0 } = {}) {
+  const log = join(tmp, `fake-${++logN}.log`)
+  Object.assign(process.env, { FAKE_VF_OUT: out, FAKE_VF_EXIT: String(exit), FAKE_VF_DELAY_MS: String(delay), FAKE_VF_LOG: log })
+  return () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [])
+}
+// Pi's settleDirective for one file, in both wordings: the skill lookup walks up
+// from the repo, and on Windows the temp dir sits under the real home folder.
+const settleTexts = (file) =>
+  [
+    "run the `post-work-cleanup` skill over them and apply its findings",
+    "review them for leftover debug output, dead code and unused imports, and run the " +
+      "project's linter or formatter if one is configured",
+  ].map(
+    (action) =>
+      `This session changed code files that are not committed yet: ${file}. If the work on them is finished, ` +
+      `${action} before they are committed; if it is not finished, say so and skip this. ` +
+      "This is not a request to commit: commit only if the task or the repo's rules call for it. " +
+      "(Set POST_WORK_CLEANUP=0 to disable this reminder.)",
+  )
+
+await run("FALSE finding", makeRepo("u1"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  await t.prompt("A")
+  await t.answer("A", "an earlier message", "a-old")
+  await t.answer("A", LONG, "a-last")
+  await t.answer("A", "tail", "a-last")
+  await t.end("A")
+  await waitFor(() => t.synthetic.length > 0)
+  check("FALSE finding becomes one follow-up", t.synthetic.length === 1, JSON.stringify(t.synthetic))
+  check("follow-up text is the checker's stdout", t.synthetic[0]?.text === FALSE_OUT, t.synthetic[0]?.text)
+  check("follow-up resumes the session", t.synthetic[0]?.resume === true && t.synthetic[0]?.sessionID === "A")
+  check("checker gets the last message's texts joined", calls()[0] === `${LONG}\ntail`, JSON.stringify(calls()))
+  // The correction turn ends: never checked again.
+  await t.answer("A", LONG + " corrected")
+  await t.end("A")
+  await sleep(QUIET_MS)
+  check("own follow-up turn is not checked again", calls().length === 1 && t.synthetic.length === 1)
+})
+
+for (const [label, opts] of [
+  ["no findings", { out: "verify-final: no findings\n" }],
+  ["UNSURE only", { out: "UNSURE | x | y\n" }],
+  ["checker failure", { out: "", exit: 1 }],
+]) {
+  await run(label, makeRepo(`u2-${logN}`), async (t) => {
+    const calls = fake(opts)
+    await t.prompt("A")
+    await t.answer("A", LONG)
+    await t.end("A")
+    await waitFor(() => calls().length > 0)
+    await sleep(300)
+    check(`${label}: checker ran`, calls().length === 1)
+    check(`${label}: sends nothing`, t.synthetic.length === 0, JSON.stringify(t.synthetic))
+  })
+}
+
+await run("short answers", makeRepo("u3"), async (t) => {
+  const calls = fake({ out: "verify-final: no findings\n" })
+  await t.prompt("A")
+  await t.answer("A", "y".repeat(50))
+  await t.end("A")
+  await sleep(QUIET_MS)
+  check("short answers are skipped", calls().length === 0)
+  await t.prompt("A")
+  await t.answer("A", "y".repeat(50) + " \u2753")
+  await t.end("A")
+  check("a short answer with a grill marker is checked", await waitFor(() => calls().length === 1))
+})
+
+await run("stale result", makeRepo("u4"), async (t) => {
+  const calls = fake({ out: FALSE_OUT, delay: 300 })
+  await t.prompt("A")
+  await t.answer("A", LONG)
+  await t.end("A")
+  await t.prompt("A", "next question")
+  await waitFor(() => calls().length > 0)
+  await sleep(300)
+  check("stale result is dropped", calls().length === 1 && t.synthetic.length === 0, JSON.stringify(t.synthetic))
+})
+
+await run("failed or interrupted", makeRepo("u5"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  await t.prompt("A")
+  await t.edit("A", "app.py")
+  await t.answer("A", LONG)
+  await t.end("A", "failed")
+  await t.answer("A", LONG)
+  await t.end("A", "interrupted")
+  await sleep(QUIET_MS)
+  check("failed or interrupted runs are ignored", calls().length === 0 && t.synthetic.length === 0)
+})
+
+await run("settle nudge then post-cleanup check", makeRepo("u6"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  await t.prompt("A")
+  await t.edit("A", "app.py")
+  await t.answer("A", LONG)
+  await t.end("A")
+  check("settle nudge when tracked files are uncommitted", t.synthetic.length === 1)
+  check("nudge is Pi's settle wording", settleTexts("app.py").includes(t.synthetic[0]?.text), t.synthetic[0]?.text)
+  await sleep(QUIET_MS)
+  check("the nudged answer is not fact-checked", calls().length === 0)
+  await t.answer("A", LONG + " after cleanup")
+  await t.end("A")
+  await waitFor(() => t.synthetic.length > 1)
+  check("answer after the cleanup turn is fact-checked", calls()[0] === LONG + " after cleanup", JSON.stringify(calls()))
+  check("its FALSE finding is the second follow-up", t.synthetic.length === 2 && t.synthetic[1]?.text === FALSE_OUT)
+  await t.answer("A", LONG + " third")
+  await t.end("A")
+  await sleep(QUIET_MS)
+  check("a third turn end gets nothing", t.synthetic.length === 2 && calls().length === 1)
+})
+
+await run("no nudge after gate", makeRepo("u7"), async (t) => {
+  const calls = fake({ out: "verify-final: no findings\n" })
+  await t.prompt("A")
+  await t.edit("A", "app.py")
+  check("gate fires", held(await t.evaluate("A", ["git commit -m x"])))
+  await t.answer("A", LONG)
+  await t.end("A")
+  await waitFor(() => calls().length > 0)
+  check("no nudge when the gate already fired", t.synthetic.length === 0)
+  check("the answer is fact-checked instead", calls().length === 1)
+})
+
+await run("no nudge after cleanup", makeRepo("u8"), async (t) => {
+  fake({ out: "verify-final: no findings\n" })
+  await t.prompt("A")
+  await t.edit("A", "app.py")
+  await t.emit("session.skill.activated", { sessionID: "A", id: "post-work-cleanup", name: "post-work-cleanup", text: "" })
+  await t.answer("A", LONG)
+  await t.end("A")
+  await sleep(300)
+  check("no nudge when cleanup ran this prompt", t.synthetic.length === 0)
+})
+
+await run("VERIFY_FINAL=0", makeRepo("u9"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  process.env.VERIFY_FINAL = "0"
+  try {
+    await t.prompt("A")
+    await t.edit("A", "app.py")
+    await t.answer("A", LONG)
+    await t.end("A")
+    check("VERIFY_FINAL=0 keeps the nudge", t.synthetic.length === 1)
+    await t.answer("A", LONG)
+    await t.end("A")
+    await sleep(QUIET_MS)
+    check("VERIFY_FINAL=0 skips the check", calls().length === 0 && t.synthetic.length === 1)
+  } finally {
+    delete process.env.VERIFY_FINAL
+  }
+})
+
+await run("child session end", makeRepo("u10"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  await t.prompt("C")
+  await t.answer("C", LONG)
+  await t.end("C")
+  await sleep(QUIET_MS)
+  check("child sessions are never checked", calls().length === 0 && t.synthetic.length === 0)
+}, { parents: { C: "A" } })
 
 console.log(`opencode-verify-final: ${pass} passed, ${failures.length} failed`)
 for (const f of failures) console.log(`FAIL: ${f}`)
