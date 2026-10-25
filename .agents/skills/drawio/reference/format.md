@@ -54,6 +54,8 @@ Common style strings. Keep shapes uncoloured by default. When colour carries mea
 
 Label decision branches on the edge (`value="yes"` / `value="no"`).
 
+**Topic map:** the subject as an ellipse (200×80) near the centre of the page, e.g. `x=320 y=480`; branches as steps placed in a ring about 260 px out, each joined to the centre by a plain arrow with `endArrow=none;`. Sub-points sit a further 200 px out from their branch.
+
 ## Minimal complete example
 
 Start → step → decision → two ends:

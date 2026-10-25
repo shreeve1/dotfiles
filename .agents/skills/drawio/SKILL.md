@@ -1,6 +1,6 @@
 ---
 name: drawio
-description: Shared draw.io canvas that James edits in a browser while you edit the same .drawio file on disk. Use when planning or brainstorming a flow, workflow, process, agent or bot design, or system structure with James; when he asks for a diagram or flowchart he can edit himself; when starting, stopping or checking the draw.io server; or when reading or editing any .drawio file.
+description: Shared draw.io canvas that James edits in a browser while you edit the same .drawio file on disk. Use when James asks to talk about or brainstorm a subject with this skill (draw a seed diagram first); when planning or brainstorming a flow, workflow, process, agent or bot design, or system structure with James; when he asks for a diagram or flowchart he can edit himself; when starting, stopping or checking the draw.io server; or when reading or editing any .drawio file.
 ---
 
 # drawio
@@ -44,10 +44,27 @@ The file on disk is the shared state. The page saves only when James presses Sav
 
 Before writing or editing any `.drawio` XML, read [`reference/format.md`](reference/format.md).
 
+## Kick-off: "let's talk about <subject> and brainstorm"
+
+When James invokes this skill along with a subject to talk about, invoking the skill means yes to the canvas. Your first message comes with a seed diagram, so he has something to react to from the start:
+
+1. **Load the brainstorming skill** and follow it for the conversation. This section replaces its visual companion offer; everything else in that skill still applies.
+2. **Look before you draw.** Read what the subject points at: the plan, spec, code, notes or earlier conversation it names or that obviously relates to it. Stop once you can sketch how it works today, or what he seems to want. When there is little or nothing to read, seed from the subject alone: a topic map of the usual parts of such a thing, mostly `?` labels, is still a better start than a blank page.
+3. **Pick the shape** that fits the subject:
+   - **Flow** (steps, a process, a pipeline, a bot or agent loop, a request path): a rough flowchart of what you know.
+   - **Structure** (a system, its parts and how they connect): boxes for the parts, arrows for the connections.
+   - **Topic map** (anything still fuzzy: an idea, a decision, a problem): the subject in the centre, branches for the parts, goals, constraints and options you found or he named.
+4. **Seed it:** 5 to 12 shapes. Use his words for labels. Anything you filled in yourself ends its label with ` ?`. Add 2 to 4 yellow notes (200×80) with the open questions whose answers would change the diagram most, each placed next to the part it concerns. Put it where the placement rules above say, named after the subject.
+5. **Serve it:** `status`, then `start` if needed, and check the XML.
+6. **First message:** the direct link; one or two lines on what you drew and what you based it on; then the brainstorming skill's first message (a one-line subject counts as "they haven't said what they want", even when the files you read fill in a lot), ending with its single question. Make that question one the canvas can answer too: "fix it in the text or on the diagram, whichever is quicker."
+
+From then on, follow **Taking turns** and the rules below.
+
 ## In brainstorming
 
-This canvas is the editable form of the brainstorming skill's visual companion. When a flow, sequence of steps, set of states, or structure comes up, offer to sketch it on the canvas instead of describing it, in a message of its own. When he has already asked for a diagram, skip the offer and sketch. Then:
+This canvas is the editable form of the brainstorming skill's visual companion. When a flow, sequence of steps, set of states, or structure comes up, offer to sketch it on the canvas instead of describing it, in a message of its own. When he has already asked for a diagram, or opened with the kick-off above, skip the offer and sketch. Then:
 
 - Sketch the current understanding: rough, labelled, few shapes. Put each open question or guess in a yellow note shape beside the step it concerns, so he can see what to correct.
+- Keep the diagram in step with the conversation: when he settles something in text, update the canvas in the same turn and say so.
 - Read his edits as answers. A deleted box is a rejected step; a new arrow is a dependency he cares about. Confirm what you read before building on it.
 - Decisions belong in the spec or design doc; the diagram illustrates them. When you next write that doc, link the diagram's path from it.
