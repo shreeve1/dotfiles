@@ -124,14 +124,14 @@ test("list is recursive, sorted, and skips dot-dirs and node_modules", async (t)
 test("index lists files with edit links and a new-diagram form", async (t) => {
   const { dir, base } = await serve(t);
   fs.mkdirSync(path.join(dir, "plans"));
-  fs.writeFileSync(path.join(dir, "plans/a <b>.drawio"), XML);
+  fs.writeFileSync(path.join(dir, "plans/a & 'b'.drawio"), XML);
   const res = await fetch(`${base}/`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/html/);
   const html = await res.text();
-  assert.ok(html.includes(`href="/edit?file=${encodeURIComponent("plans/a <b>.drawio")}"`));
-  assert.ok(html.includes("plans/a &lt;b&gt;.drawio"));
-  assert.ok(!html.includes("a <b>.drawio"));
+  assert.ok(html.includes(`href="/edit?file=${encodeURIComponent("plans/a & 'b'.drawio")}"`));
+  assert.ok(html.includes("plans/a &amp; &#39;b&#39;.drawio"));
+  assert.ok(!html.includes("a & 'b'.drawio"));
   assert.match(html, /<form[^>]*action="\/edit"/);
 });
 
