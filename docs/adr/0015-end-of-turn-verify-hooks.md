@@ -144,7 +144,8 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
   `session.skill.activated`.
 - Simplified commit gate: any `shell` permission resource matching `git … commit`
   is denied once per prompt while tracked files are uncleaned. Pi's bash parser is
-  not ported: surftop runs PowerShell, and a false hold costs one retry.
+  not ported: native Windows OpenCode runs PowerShell, and a false hold costs one
+  retry.
 - State is kept per root session; subagent (child) sessions are ignored.
 - If the settle nudge fires, the answer after the cleanup turn is the one
   fact-checked. The check's own correction turn is never checked. At most one
@@ -158,9 +159,9 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
   by id. Before that fix the checker got every answer twice.
 - Editing a loaded plugin re-runs `setup` with the cached module: a change only
   takes effect after the background service (`opencode-cli`) restarts.
-- Live check on surftop (2026-10-25): a false 256-char claim about
-  `tests/run-all.sh --slow` got one follow-up with two FALSE lines about 5 s after
-  the turn ended. The agent re-read the file and rewrote the answer, and the
+- Live check on wrk's native Windows OpenCode (2026-10-25): a false 256-char
+  claim about `tests/run-all.sh --slow` got one follow-up with two FALSE lines
+  about 5 s after the turn ended. The agent re-read the file and rewrote the answer, and the
   rewrite was not checked again. A one-line answer got no check. The gate denied
   a real `git commit` with the file list, and the commit went through after
   post-work-cleanup. Test: `tests/opencode-verify-final.test.mjs`.

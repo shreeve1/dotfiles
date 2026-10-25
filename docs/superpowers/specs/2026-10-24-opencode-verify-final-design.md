@@ -18,7 +18,7 @@ OpenCode sessions get the same two guards as Pi, Claude Code and Codex
 
 - Same checker, same wording, same off switches (`VERIFY_FINAL=0`,
   `POST_WORK_CLEANUP=0`) as the other harnesses.
-- Works on surftop (native Windows, PowerShell shell), where OpenCode is live.
+- Works on native Windows (wrk and surftop, PowerShell shell), where OpenCode is live.
   The code stays platform-neutral so it also works on Linux if OpenCode comes
   back there, but no Linux install changes are made (builder's call).
 - At most one plugin follow-up per idle, and at most two per user prompt
@@ -137,8 +137,8 @@ James picked A.
 ### Done means (builder's call)
 
 - The fake-ctx test passes.
-- A live check in OpenCode on surftop (where this session runs): a FALSE claim
-  produces a correction turn, a commit with uncleaned code is held once then
+- A live check in OpenCode on wrk's native Windows (where this session runs): a
+  FALSE claim produces a correction turn, a commit with uncleaned code is held once then
   allowed, and a short answer is not checked. Results go in the ADR addendum.
 
 ## Left to the builder (verify against the V2 docs/API, then decide)

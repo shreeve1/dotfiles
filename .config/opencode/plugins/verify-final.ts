@@ -10,8 +10,8 @@
 //   - Commit gate: a shell permission check whose command looks like a
 //     `git commit` is denied once per user prompt while tracked files are
 //     uncleaned. Simplified from pi: no shell parsing and no repo targeting
-//     (surftop runs PowerShell), so the hold covers all tracked files and a
-//     false hold costs one retry. Re-running the commit goes through.
+//     (native Windows runs PowerShell), so the hold covers all tracked files
+//     and a false hold costs one retry. Re-running the commit goes through.
 //   - Settle nudge: when a run ends with tracked files still uncommitted, a
 //     follow-up asks for cleanup over those files. It never asks for a commit.
 //   A successful read of the skill's SKILL.md, or activating the
