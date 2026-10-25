@@ -10,6 +10,7 @@
 | [pi Tool-Call Content Blocks](memory/docs/pi-tool-call-blocks.md) | doc | In pi messages a tool call is a toolCall block (name, arguments), not Anthropic's tool_use/input; parsing tool_use silently finds nothing. | 2026-10-25 |
 | [pi Footer Git Polling Saturates WSL /mnt/c](memory/docs/pi-footer-git-polling.md) | doc | pi-cc-extensions' footer runs git every 10 s in every pi session; in a repo on /mnt/c this saturates the WSL 9p bridge (Vmmem CPU, laggy herdr). | 2026-10-25 |
 | [pi Default Model Is Per Machine](memory/docs/pi-default-model-per-machine.md) | doc | pi's defaultModel lives in each machine's gitignored .pi/agent/settings.json; a change must be made on every machine, only the template travels by git. | 2026-10-25 |
+| [OpenCode Plugin Edits Need a Server Restart](memory/docs/opencode-plugin-reload.md) | doc | Edited OpenCode plugins run only after the server restarts: systemctl --user restart opencode-server on Linux; on Windows end opencode-cli.exe. | 2026-10-25 |
 | [itastack Workspace Has No Git, Synced by Syncthing](memory/docs/itastack-workspace-sync.md) | doc | Since 2026-10-22 itastack has no git; on wrk agents work in the WSL copy, synced by Syncthing with the Windows copy; .stversions is the only undo. | 2026-10-25 |
 
 ## Client Hubs
