@@ -5,6 +5,9 @@ artifacts/
 
 # Machine-local session work logs (per-machine)
 MEMORY/
+# core.ignorecase makes MEMORY/ match the project memory dir; keep it tracked
+!/memory/
+/memory/raw/
 
 # Machine-local kanban/runtime logs
 .kanban/*.log
@@ -237,7 +240,6 @@ __pycache__/
 # graphify rebuildable cache + transient locks (any location)
 graphify-out/cache/
 docs/graphify-out/cache/
-wiki/graphify-out/cache/
 .rebuild.lock
 # graphify timestamped snapshot archives (YYYY-MM-DD dirs)
 graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

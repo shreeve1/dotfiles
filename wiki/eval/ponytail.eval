@@ -1,3 +1,0 @@
-# Eval slice for ponytail + wiki-gate claims (C-0116..C-0118). Format: <query> ||| <token that must stay retrievable in CLAIMS.md>
-# Retired 2026-10-14: C-0116/C-0117 cited the retired Claude Code lane (CLAUDE.md, .claude/settings-*.json) and moved to CLAIMS-cold.md. Those two cases removed; see git history.
-how do claims get into CLAIMS.md? ||| only through gate.py with an ADMIT verdict
