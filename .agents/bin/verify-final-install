@@ -7,7 +7,8 @@ wakes Claude). Codex runs it as an ordinary blocking Stop hook. An outdated entr
 ours is replaced in place.
 
 omp needs no install step: .omp/agent/extensions/verify-final.ts is tracked and
-auto-discovered through the ~/.omp/agent -> dotfiles/.omp/agent link.
+auto-discovered through the ~/.omp/agent -> dotfiles/.omp/agent link. Neither does
+OpenCode: .config/opencode/plugins/verify-final.ts loads through ~/.config/opencode.
 
 Codex requires you to trust the hook once: run `codex`, then `/hooks`.
 """

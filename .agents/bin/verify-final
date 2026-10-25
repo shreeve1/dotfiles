@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""verify-final: end-of-turn grounding gate shared by Claude Code, Codex and omp.
+"""verify-final: end-of-turn grounding gate shared by Claude Code, Codex, omp and OpenCode.
 
 Reads one Stop-hook event as JSON on stdin (Claude Code / Codex shape):
   {"last_assistant_message": str, "cwd": str, "stop_hook_active": bool}

@@ -129,3 +129,37 @@ earlier, had edited `~/.config/hypr/hyprland.lua`, a symlink into the repo.
 - Model-sensitive wording: a gate reason that offered "the change is trivial" as
   a reason to skip let the agent skip every time. It now says to skip only when
   the user said to.
+
+## Addendum (2026-10-24): OpenCode adapter
+
+OpenCode V2 gets the fact-check and the post-work-cleanup gate and nudge from one
+global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
+`~/.config/opencode` link; no install step). It calls the same checker,
+`.agents/bin/verify-final --check -`, so `pi` must be on PATH where OpenCode runs.
+
+- Hooks: `tool` `execute.after` tracks `edit`/`write`/`patch` on code files;
+  `permission` `evaluate` runs the commit gate; `session` `prompt` starts a new
+  user prompt; the event stream gives each answer's text (`session.text.ended`),
+  the end of a run (`session.execution.succeeded`, `failed`, `interrupted`), and
+  `session.skill.activated`.
+- Simplified commit gate: any `shell` permission resource matching `git … commit`
+  is denied once per prompt while tracked files are uncleaned. Pi's bash parser is
+  not ported: surftop runs PowerShell, and a false hold costs one retry.
+- State is kept per root session; subagent (child) sessions are ignored.
+- If the settle nudge fires, the answer after the cleanup turn is the one
+  fact-checked. The check's own correction turn is never checked. At most one
+  follow-up per run end and two per user prompt; a result is dropped when a new
+  turn started while it ran.
+- Follow-ups go through `ctx.session.synthetic({ resume: true })`. It starts a
+  new turn, so the `prompt`-metadata fallback in the plan was not needed.
+- OpenCode loads the plugin once per location (twice in practice). The copies
+  share module state and each receives every event, so events are handled once
+  by id. Before that fix the checker got every answer twice.
+- Editing a loaded plugin re-runs `setup` with the cached module: a change only
+  takes effect after the background service (`opencode-cli`) restarts.
+- Live check on surftop (2026-10-25): a false 256-char claim about
+  `tests/run-all.sh --slow` got one follow-up with two FALSE lines about 5 s after
+  the turn ended. The agent re-read the file and rewrote the answer, and the
+  rewrite was not checked again. A one-line answer got no check. The gate denied
+  a real `git commit` with the file list, and the commit went through after
+  post-work-cleanup. Test: `tests/opencode-verify-final.test.mjs`.
