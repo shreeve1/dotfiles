@@ -19,10 +19,6 @@ I direct the work but don't write code. Assume I'm capable but not a specialist.
 
 Write the minimum that solves the problem: stdlib, then platform features, then already-installed dependencies, then the fewest lines. No speculative features, abstractions or configurability. Never skimp on input validation at trust boundaries, data-loss handling, security or accessibility. Mark deliberate shortcuts with a `ponytail:` comment naming the limit and the upgrade path.
 
-## Sub-agents
-
-For superpowers sub-agent roles, spawn the matching custom agent type: design_checker, implementer (or implementer_light for copy-the-code tasks), task_reviewer, final_reviewer, re_reviewer.
-
 ## Showing me things
 
 My terminal can't open links: write paths and URLs as plain codespans, never Markdown links. To show me a file or page, run `agent-open <file-or-url>` (pages open in chrome-cdp on workspace 5, Markdown in Obsidian, `agent-open changes` opens lazygit) and say where it opened. From a pane I'm not viewing it only prints the target; pass that on.
