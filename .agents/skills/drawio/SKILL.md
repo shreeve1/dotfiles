@@ -20,7 +20,7 @@ Start the server with `--dir <project root>` so both kinds appear in its list.
 
 ## Start, stop, status
 
-```
+```sh
 node <skill-dir>/scripts/drawio.mjs start --dir <project root>
 node <skill-dir>/scripts/drawio.mjs status
 node <skill-dir>/scripts/drawio.mjs stop
@@ -44,7 +44,7 @@ The file on disk is the shared state. The page saves only when James presses Sav
 
 Before writing or editing any `.drawio` XML, read [`reference/format.md`](reference/format.md).
 
-## Kick-off: "let's talk about <subject> and brainstorm"
+## Kick-off: "let's talk about X and brainstorm"
 
 When James invokes this skill along with a subject to talk about, invoking the skill means yes to the canvas. Your first message comes with a seed diagram, so he has something to react to from the start:
 
@@ -54,7 +54,7 @@ When James invokes this skill along with a subject to talk about, invoking the s
    - **Flow** (steps, a process, a pipeline, a bot or agent loop, a request path): a rough flowchart of what you know.
    - **Structure** (a system, its parts and how they connect): boxes for the parts, arrows for the connections.
    - **Topic map** (anything still fuzzy: an idea, a decision, a problem): the subject in the centre, branches for the parts, goals, constraints and options you found or he named.
-4. **Seed it:** 5 to 12 shapes. Use his words for labels. Anything you filled in yourself ends its label with ` ?`. Add 2 to 4 yellow notes (200×80) with the open questions whose answers would change the diagram most, each placed next to the part it concerns. Put it where the placement rules above say, named after the subject.
+4. **Seed it:** 5 to 12 shapes. Use his words for labels. Anything you filled in yourself ends its label with a question mark after a space ("Agent triages ?"). Add 2 to 4 yellow notes (200×80) with the open questions whose answers would change the diagram most, each placed next to the part it concerns. Put it where the placement rules above say, named after the subject.
 5. **Serve it:** `status`, then `start` if needed, and check the XML.
 6. **First message:** the direct link; one or two lines on what you drew and what you based it on; then the brainstorming skill's first message (a one-line subject counts as "they haven't said what they want", even when the files you read fill in a lot), ending with its single question. Make that question one the canvas can answer too: "fix it in the text or on the diagram, whichever is quicker."
 

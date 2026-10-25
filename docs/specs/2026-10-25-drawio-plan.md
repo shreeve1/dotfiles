@@ -45,6 +45,7 @@
 **Files:** Create `scripts/server.mjs`, `scripts/drawio.test.mjs`, `tests/drawio.test.sh` (paths under `.agents/skills/drawio/` unless noted).
 
 **Interfaces:**
+
 - Produces: `createServer({ dir: string, idleMs?: number, onIdle?: () => void }) -> http.Server` (not listening).
 - Routes (all `file` params are paths relative to `dir`, `/` separators):
   - `GET /api/health` → `200 {"ok":true,"dir":<abs dir>}`
@@ -73,6 +74,7 @@
 **Files:** Modify `scripts/server.mjs`, `scripts/drawio.test.mjs`.
 
 **Interfaces:**
+
 - `GET /` → HTML: list of diagrams linking `/edit?file=<encoded>`, and a "New diagram" form (name input, relative path allowed, `.drawio` appended if missing) that navigates to `/edit?file=`.
 - `GET /edit?file=` → HTML editor page (400 on invalid file).
 - Editor page behaviour (inline script):
@@ -93,6 +95,7 @@
 **Files:** Create `scripts/drawio.mjs`; modify `scripts/drawio.test.mjs`.
 
 **Interfaces:**
+
 - `node drawio.mjs start [--dir D] [--host H] [--port 8740] [--idle-minutes 240]`: stops any recorded server, spawns `server.mjs` detached (`detached:true, stdio` to a log at `~/.drawio-server.log`, `windowsHide:true`, `unref()`), waits up to 5s for `/api/health`, writes state `{pid,host,port,dir,url,started}` to the state file, prints `url` and `dir`. On failure prints the log tail, removes state, exits 1.
 - `stop`: kills recorded pid (ignore ESRCH), removes state, prints `stopped` or `not running`.
 - `status`: prints `running <url> <dir>` if pid alive and health ok, else `not running` (and removes stale state). Exit 0 either way.
@@ -115,6 +118,7 @@
 **Files:** Create `SKILL.md`, `reference/format.md`.
 
 `SKILL.md` contains, in order:
+
 1. Frontmatter: `name: drawio`; description starting "Use when" covering: planning or brainstorming a flow, workflow, process or structure with James on a shared editable diagram; starting/stopping the draw.io server; reading or editing `.drawio` files.
 2. Where diagrams go: project root (git root of cwd, else cwd) `diagrams/<topic>.drawio`; diagram for a plan → beside the plan file, `<plan-name>.drawio`. Start the server with `--dir` at the project root so both kinds show up.
 3. Start/stop: exact commands with the skill dir path (`node <skill-dir>/scripts/drawio.mjs start --dir <root>`); on a headless host add `--host <NetBird IP>` (aidev `100.95.230.15`, wrk WSL needs `--host 0.0.0.0` only if browsing from another machine); give James the printed URL; `stop` when the session ends.

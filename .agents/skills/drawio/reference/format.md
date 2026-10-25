@@ -39,7 +39,7 @@
 Common style strings. Keep shapes uncoloured by default. When colour carries meaning (say, who does a step), use at most three fills and add a small legend note: bot/automated `fillColor=#dae8fc;strokeColor=#6c8ebf;`, human `fillColor=#f8cecc;strokeColor=#b85450;`, external system `fillColor=#d5e8d4;strokeColor=#82b366;`. Yellow is reserved for open-question notes.
 
 | Meaning | Style |
-|---|---|
+| --- | --- |
 | Step / action | `rounded=1;whiteSpace=wrap;html=1;` |
 | Decision (yes/no) | `rhombus;whiteSpace=wrap;html=1;` |
 | Start / end | `ellipse;whiteSpace=wrap;html=1;` |
