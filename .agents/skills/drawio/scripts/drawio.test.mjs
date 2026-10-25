@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import net from "node:net";
+import { execFile } from "node:child_process";
 import { createServer } from "./server.mjs";
 
 const XML = '<mxfile><diagram id="d" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
@@ -154,6 +156,115 @@ test("stat=1 returns only mtime", async (t) => {
   assert.deepEqual(await res.json(), { mtime });
   const missing = await fetch(`${base}/api/file?file=b.drawio&stat=1`);
   assert.deepEqual(await missing.json(), { mtime: null });
+});
+
+// --- controller CLI ---------------------------------------------------------
+
+const CLI = path.join(path.dirname(new URL(import.meta.url).pathname), "drawio.mjs");
+
+function cli(args, stateFile) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, [CLI, ...args, "--state-file", stateFile], (err, stdout, stderr) =>
+      resolve({ code: err ? err.code : 0, stdout, stderr }),
+    );
+  });
+}
+
+function freePort() {
+  return new Promise((resolve) => {
+    const s = net.createServer().listen(0, "127.0.0.1", () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
+}
+
+function cliFixture(t) {
+  const stateFile = path.join(tmpDir(), "state.json");
+  t.after(() => cli(["stop"], stateFile));
+  return stateFile;
+}
+
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test("start then status reports running url", async (t) => {
+  const stateFile = cliFixture(t);
+  const dir = tmpDir();
+  const port = await freePort();
+  const started = await cli(["start", "--dir", dir, "--port", String(port)], stateFile);
+  assert.equal(started.code, 0, started.stderr);
+  assert.match(started.stdout, new RegExp(`http://localhost:${port}/`));
+  const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  assert.equal(state.dir, path.resolve(dir));
+  const status = await cli(["status"], stateFile);
+  assert.match(status.stdout, new RegExp(`^running http://localhost:${port}/ `));
+  const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
+  assert.equal(health.dir, path.resolve(dir));
+});
+
+test("stop then status reports not running", async (t) => {
+  const stateFile = cliFixture(t);
+  const port = await freePort();
+  await cli(["start", "--dir", tmpDir(), "--port", String(port)], stateFile);
+  const { pid } = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  const stopped = await cli(["stop"], stateFile);
+  assert.match(stopped.stdout, /stopped/);
+  assert.equal(fs.existsSync(stateFile), false);
+  assert.match((await cli(["status"], stateFile)).stdout, /not running/);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(alive(pid), false);
+});
+
+test("status with stale state file reports not running and removes it", async (t) => {
+  const stateFile = cliFixture(t);
+  fs.writeFileSync(stateFile, JSON.stringify({ pid: 999999, port: 1, url: "http://localhost:1/" }));
+  const status = await cli(["status"], stateFile);
+  assert.equal(status.code, 0);
+  assert.match(status.stdout, /not running/);
+  assert.equal(fs.existsSync(stateFile), false);
+  const stopped = await cli(["stop"], stateFile);
+  assert.equal(stopped.code, 0);
+  assert.match(stopped.stdout, /not running/);
+});
+
+test("start on a busy port exits 1 and writes no state", async (t) => {
+  const stateFile = cliFixture(t);
+  const blocker = net.createServer();
+  await new Promise((r) => blocker.listen(0, "127.0.0.1", r));
+  t.after(() => blocker.close());
+  const res = await cli(["start", "--dir", tmpDir(), "--port", String(blocker.address().port)], stateFile);
+  assert.equal(res.code, 1);
+  assert.match(res.stderr, /EADDRINUSE|in use/);
+  assert.equal(fs.existsSync(stateFile), false);
+});
+
+test("start twice replaces the first server", async (t) => {
+  const stateFile = cliFixture(t);
+  const port = await freePort();
+  await cli(["start", "--dir", tmpDir(), "--port", String(port)], stateFile);
+  const first = JSON.parse(fs.readFileSync(stateFile, "utf8")).pid;
+  const dir2 = tmpDir();
+  const again = await cli(["start", "--dir", dir2, "--port", String(port)], stateFile);
+  assert.equal(again.code, 0, again.stderr);
+  const second = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  assert.notEqual(second.pid, first);
+  assert.equal(alive(first), false);
+  assert.equal(second.dir, path.resolve(dir2));
+});
+
+test("start with a host prints that host in the url", async (t) => {
+  const stateFile = cliFixture(t);
+  const port = await freePort();
+  const res = await cli(["start", "--dir", tmpDir(), "--host", "127.0.0.1", "--url-host", "example.test", "--port", String(port)], stateFile);
+  assert.equal(res.code, 0, res.stderr);
+  assert.match(res.stdout, new RegExp(`http://example.test:${port}/`));
 });
 
 test("idle timeout calls onIdle", async (t) => {
