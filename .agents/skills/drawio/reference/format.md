@@ -20,7 +20,7 @@
 - Each `<diagram>` is a page (tab). Most files have one.
 - **Shape (vertex):** `<mxCell id="…" value="label" style="…" vertex="1" parent="1"><mxGeometry x="…" y="…" width="…" height="…" as="geometry"/></mxCell>`
 - **Arrow (edge):** `<mxCell id="…" value="optional label" style="…" edge="1" parent="1" source="<shape id>" target="<shape id>"><mxGeometry relative="1" as="geometry"/></mxCell>`. An edge's `<mxGeometry>` may contain `<Array as="points">` waypoints James added; keep them.
-- **Compressed pages:** if `<diagram>` contains a base64 blob instead of `<mxGraphModel>`, it was saved compressed elsewhere (deflate-raw, then URI-encoded, then base64). The server's editor saves uncompressed. Decode it to edit (`node -e` with `zlib.inflateRawSync` then `decodeURIComponent`), or ask James to open and Save it once through the server page.
+- **Compressed pages:** if `<diagram>` contains a base64 blob instead of `<mxGraphModel>`, it was saved compressed elsewhere (`encodeURIComponent`, then deflate-raw, then base64). The server's editor saves uncompressed. Decode it to edit (`node -e` with `zlib.inflateRawSync` then `decodeURIComponent`), or ask James to open and Save it once through the server page.
 
 ## Editing without wrecking James's work
 

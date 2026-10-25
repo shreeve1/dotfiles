@@ -38,7 +38,8 @@ const alive = (pid) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function healthy(port, host) {
+// Returns the pid the server on host:port reports, or null when nothing drawio answers.
+async function serverPid(port, host) {
   const target = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
   try {
     const res = await fetch(
@@ -47,16 +48,21 @@ async function healthy(port, host) {
         signal: AbortSignal.timeout(1000),
       },
     );
-    return res.ok;
+    if (!res.ok) return null;
+    const body = await res.json();
+    return Number.isInteger(body.pid) ? body.pid : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
+// Kill only a server we can confirm is ours: a recorded pid can be reused by
+// any process after a crash or reboot.
 async function stop(stateFile, { quiet = false } = {}) {
   const state = readState(stateFile);
   fs.rmSync(stateFile, { force: true });
-  if (!state?.pid || !alive(state.pid)) {
+  const confirmed = state?.pid && (await serverPid(state.port, state.host)) === state.pid;
+  if (!confirmed) {
     if (!quiet) console.log("not running");
     return;
   }
@@ -69,8 +75,14 @@ async function stop(stateFile, { quiet = false } = {}) {
 
 async function status(stateFile) {
   const state = readState(stateFile);
-  if (state?.pid && alive(state.pid) && (await healthy(state.port, state.host))) {
+  if (state?.pid && (await serverPid(state.port, state.host)) === state.pid) {
     console.log(`running ${state.url} ${state.dir}`);
+    return;
+  }
+  if (state?.pid && alive(state.pid)) {
+    console.log(
+      `not responding: pid ${state.pid} is alive but ${state.url} does not answer as that server; state kept`,
+    );
     return;
   }
   fs.rmSync(stateFile, { force: true });
@@ -102,7 +114,7 @@ async function start(stateFile, opts) {
   for (let i = 0; i < 50; i++) {
     await sleep(100);
     if (child.exitCode !== null || !alive(child.pid)) break;
-    if (await healthy(port, host)) {
+    if ((await serverPid(port, host)) === child.pid) {
       const state = { pid: child.pid, host, port, dir, url, started: new Date().toISOString() };
       fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
       console.log(`url  ${url}`);

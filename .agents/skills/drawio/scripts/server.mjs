@@ -63,10 +63,10 @@ function readBody(req) {
 async function handleFile(req, res, dir, url) {
   const full = resolveFile(dir, url.searchParams.get("file"));
   if (!full) return send(res, 400, { error: "invalid file" });
-  const diskMtime = mtimeOf(full);
 
   if (req.method === "GET") {
-    if (url.searchParams.get("stat") === "1") return send(res, 200, { mtime: diskMtime });
+    const diskMtime = mtimeOf(full);
+    if (url.searchParams.get("stat") === "1") return send(res, 200, { mtime: diskMtime, dir });
     if (diskMtime === null) return send(res, 404, { mtime: null });
     return send(res, 200, { xml: fs.readFileSync(full, "utf8"), mtime: diskMtime });
   }
@@ -79,9 +79,13 @@ async function handleFile(req, res, dir, url) {
       return send(res, 400, { error: "invalid json" });
     }
     if (typeof body.xml !== "string") return send(res, 400, { error: "xml required" });
+    // Compare only once the body is in: the agent may write the file while a slow upload is in flight.
+    const diskMtime = mtimeOf(full);
     if (diskMtime !== (body.baseMtime ?? null)) return send(res, 409, { mtime: diskMtime });
     fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(full, body.xml);
+    const tmp = `${full}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, body.xml);
+    fs.renameSync(tmp, full);
     return send(res, 200, { mtime: mtimeOf(full) });
   }
 
@@ -95,7 +99,7 @@ function handleEdit(res, dir, url) {
     return res.end();
   }
   if (!resolveFile(dir, file)) return send(res, 400, "Invalid diagram path", "text/plain");
-  return send(res, 200, editorPage(file), "text/html");
+  return send(res, 200, editorPage(file, dir), "text/html");
 }
 
 export function createServer({ dir, idleMs, onIdle }) {
@@ -112,9 +116,14 @@ export function createServer({ dir, idleMs, onIdle }) {
     touch();
     const url = new URL(req.url, "http://localhost");
     try {
-      if (url.pathname === "/api/health") return send(res, 200, { ok: true, dir: root });
+      if (url.pathname === "/api/health")
+        return send(res, 200, { ok: true, dir: root, pid: process.pid });
       if (url.pathname === "/api/list") return send(res, 200, { files: listDiagrams(root) });
       if (url.pathname === "/api/file") return await handleFile(req, res, root, url);
+      if (url.pathname === "/" && url.searchParams.has("file")) {
+        res.writeHead(302, { location: `/edit${url.search}` });
+        return res.end();
+      }
       if (url.pathname === "/")
         return send(res, 200, indexPage(root, listDiagrams(root)), "text/html");
       if (url.pathname === "/edit") return handleEdit(res, root, url);

@@ -57,7 +57,9 @@ for (const t of document.querySelectorAll("time[data-ms]")) {
 </body></html>`;
 }
 
-export function editorPage(file) {
+const scriptJson = (v) => JSON.stringify(v).replace(/</g, "\\u003c");
+
+export function editorPage(file, dir) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(file)}</title>
@@ -68,95 +70,123 @@ export function editorPage(file) {
   header a { color: #a8c7fa; }
   header span { font-family: ui-monospace, monospace; }
   #state { margin-left: auto; color: #ccc; }
-  #banner { display: none; gap: .75rem; align-items: center; flex-wrap: wrap; padding: .6rem .75rem; background: #fff4cc; color: #3d2e00; border-bottom: 1px solid #c9a400; }
-  #banner.show { display: flex; }
-  #banner button { padding: .35rem .8rem; font: inherit; border: 1px solid #3d2e00; border-radius: 4px; background: #fff; cursor: pointer; }
+  .banner { display: none; gap: .75rem; align-items: center; flex-wrap: wrap; padding: .6rem .75rem; background: #fff4cc; color: #3d2e00; border-bottom: 1px solid #c9a400; }
+  .banner.show { display: flex; }
+  .banner button { padding: .35rem .8rem; font: inherit; border: 1px solid #3d2e00; border-radius: 4px; background: #fff; cursor: pointer; }
   iframe { flex: 1; border: 0; width: 100%; }
   :focus-visible { outline: 2px solid #0b57d0; outline-offset: 2px; }
 </style></head>
 <body>
 <header><a href="/">All diagrams</a><span id="name"></span><span id="state" role="status"></span></header>
-<div id="banner" role="alert">
+<div id="banner" class="banner" role="alert">
   <span>This diagram changed on disk since you opened it. Your edits are still here. Reload loses them; Save as copy keeps both.</span>
   <button id="reload" type="button">Reload</button>
   <button id="copy" type="button">Save as copy</button>
 </div>
+<div id="moved" class="banner" role="alert">
+  <span>The server now serves a different folder, so saving here is switched off. Your edits are still in this tab: use File &gt; Export as &gt; XML to keep them, then open the diagram from the new server.</span>
+</div>
 <iframe id="editor" title="draw.io editor" referrerpolicy="no-referrer" src="${EMBED_URL}"></iframe>
 <script>
-let file = ${JSON.stringify(file)};
+const EDITOR_ORIGIN = "https://embed.diagrams.net";
+const DIR = ${scriptJson(dir)};
+let file = ${scriptJson(file)};
 const frame = document.getElementById("editor");
 const banner = document.getElementById("banner");
+const moved = document.getElementById("moved");
 const state = document.getElementById("state");
 let mtime = null;
 let modified = false;
 let currentXml = "";
 let conflictMtime = null;
+let saving = false;
+let locked = false;
 
 const api = (f, q = "") => "/api/file?file=" + encodeURIComponent(f) + q;
-const post = (msg) => frame.contentWindow.postMessage(JSON.stringify(msg), "*");
+const post = (msg) => frame.contentWindow.postMessage(JSON.stringify(msg), EDITOR_ORIGIN);
 const setName = () => { document.getElementById("name").textContent = file; document.title = file; };
 setName();
 
 async function load() {
-  const res = await fetch(api(file));
-  const body = await res.json();
-  mtime = body.mtime;
-  currentXml = body.xml || "";
-  modified = false;
-  conflictMtime = null;
-  banner.classList.remove("show");
-  post({ action: "load", xml: currentXml, autosave: 1, title: file });
-  state.textContent = mtime === null ? "New diagram, not saved yet" : "";
+  if (locked) return;
+  try {
+    const res = await fetch(api(file));
+    const body = await res.json();
+    mtime = body.mtime;
+    currentXml = body.xml || "";
+    modified = false;
+    conflictMtime = null;
+    banner.classList.remove("show");
+    post({ action: "load", xml: currentXml, autosave: 1, title: file });
+    state.textContent = mtime === null ? "New diagram, not saved yet" : "";
+  } catch {
+    state.textContent = "Server unreachable";
+  }
 }
 
 async function save(xml) {
   currentXml = xml;
-  const res = await fetch(api(file), {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ xml, baseMtime: mtime }),
-  });
-  const body = await res.json();
-  if (res.ok) {
-    mtime = body.mtime;
-    modified = false;
-    banner.classList.remove("show");
-    post({ action: "status", message: "Saved", modified: false });
-    state.textContent = "Saved " + new Date().toLocaleTimeString();
-  } else if (res.status === 409) {
-    conflictMtime = body.mtime;
-    banner.classList.add("show");
-  } else {
-    state.textContent = "Save failed: " + (body.error || res.status);
+  if (locked) return;
+  if (saving) { state.textContent = "Still saving, press Save again in a moment"; return; }
+  saving = true;
+  try {
+    const res = await fetch(api(file), {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ xml, baseMtime: mtime }),
+    });
+    const body = await res.json();
+    if (res.ok) {
+      mtime = body.mtime;
+      modified = false;
+      banner.classList.remove("show");
+      post({ action: "status", message: "Saved", modified: false });
+      state.textContent = "Saved " + new Date().toLocaleTimeString();
+    } else if (res.status === 409) {
+      conflictMtime = body.mtime;
+      banner.classList.add("show");
+    } else {
+      state.textContent = "Save failed: " + (body.error || res.status);
+    }
+  } catch {
+    state.textContent = "Save failed: server unreachable. Your edits are still here.";
+  } finally {
+    saving = false;
   }
 }
 
 async function saveCopy() {
+  if (locked) return;
   const stem = file.replace(/\\.drawio$/, "");
   for (const suffix of ["-mine", "-mine-" + Date.now()]) {
     const target = stem + suffix + ".drawio";
-    const res = await fetch(api(target), {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ xml: currentXml, baseMtime: null }),
-    });
-    if (res.ok) {
-      file = target;
-      mtime = (await res.json()).mtime;
-      modified = false;
-      banner.classList.remove("show");
-      history.replaceState(null, "", "/edit?file=" + encodeURIComponent(file));
-      setName();
-      post({ action: "status", message: "Saved as " + file, modified: false });
-      state.textContent = "Saved as copy";
-      return;
+    try {
+      const res = await fetch(api(target), {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ xml: currentXml, baseMtime: null }),
+      });
+      if (res.ok) {
+        file = target;
+        mtime = (await res.json()).mtime;
+        modified = false;
+        conflictMtime = null;
+        banner.classList.remove("show");
+        history.replaceState(null, "", "/edit?file=" + encodeURIComponent(file));
+        setName();
+        post({ action: "status", message: "Saved as " + file, modified: false });
+        state.textContent = "Saved as copy";
+        return;
+      }
+    } catch {
+      break;
     }
   }
   state.textContent = "Could not save a copy";
 }
 
 window.addEventListener("message", (e) => {
-  if (e.source !== frame.contentWindow || typeof e.data !== "string") return;
+  if (e.origin !== EDITOR_ORIGIN || e.source !== frame.contentWindow || typeof e.data !== "string") return;
   let msg;
   try { msg = JSON.parse(e.data); } catch { return; }
   if (msg.event === "configure") post({ action: "configure", config: { compressXml: false } });
@@ -169,8 +199,16 @@ document.getElementById("reload").addEventListener("click", load);
 document.getElementById("copy").addEventListener("click", saveCopy);
 
 setInterval(async () => {
+  if (locked || saving) return;
   try {
-    const { mtime: disk } = await (await fetch(api(file, "&stat=1"))).json();
+    const { mtime: disk, dir } = await (await fetch(api(file, "&stat=1"))).json();
+    if (dir !== DIR) {
+      locked = true;
+      banner.classList.remove("show");
+      moved.classList.add("show");
+      state.textContent = "Saving off";
+      return;
+    }
     if (disk === mtime || disk === conflictMtime) return;
     if (!modified) load();
     else { conflictMtime = disk; banner.classList.add("show"); }

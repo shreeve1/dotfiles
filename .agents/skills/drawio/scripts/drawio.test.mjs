@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import net from "node:net";
-import { execFile } from "node:child_process";
+import http from "node:http";
+import { execFile, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createServer } from "./server.mjs";
 
@@ -35,7 +36,9 @@ test("health returns dir", async (t) => {
   const { dir, base } = await serve(t);
   const res = await fetch(`${base}/api/health`);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { ok: true, dir: path.resolve(dir) });
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.dir, path.resolve(dir));
 });
 
 test("put then get round-trips xml and mtime", async (t) => {
@@ -168,9 +171,9 @@ test("stat=1 returns only mtime", async (t) => {
   const { base } = await serve(t);
   const { mtime } = await (await put(base, "a.drawio", { xml: XML, baseMtime: null })).json();
   const res = await fetch(`${base}/api/file?file=a.drawio&stat=1`);
-  assert.deepEqual(await res.json(), { mtime });
+  assert.equal((await res.json()).mtime, mtime);
   const missing = await fetch(`${base}/api/file?file=b.drawio&stat=1`);
-  assert.deepEqual(await missing.json(), { mtime: null });
+  assert.equal((await missing.json()).mtime, null);
 });
 
 // --- controller CLI ---------------------------------------------------------
@@ -296,6 +299,100 @@ test("start with a host prints that host in the url", async (t) => {
   );
   assert.equal(res.code, 0, res.stderr);
   assert.match(res.stdout, new RegExp(`http://example.test:${port}/`));
+});
+
+// --- final-review fixes -------------------------------------------------------
+
+test("health reports the server pid", async (t) => {
+  const { base } = await serve(t);
+  const health = await (await fetch(`${base}/api/health`)).json();
+  assert.equal(health.pid, process.pid);
+});
+
+test("start fails when a foreign http server already answers on the port", async (t) => {
+  const stateFile = cliFixture(t);
+  const foreign = http.createServer((_, res) => res.end("{}"));
+  await new Promise((r) => foreign.listen(0, "127.0.0.1", r));
+  t.after(() => foreign.close());
+  const res = await cli(
+    ["start", "--dir", tmpDir(), "--port", String(foreign.address().port)],
+    stateFile,
+  );
+  assert.equal(res.code, 1);
+  assert.equal(fs.existsSync(stateFile), false);
+});
+
+test("stop never kills an unrelated process named in a stale state file", async (t) => {
+  const stateFile = cliFixture(t);
+  const victim = spawn(process.execPath, ["-e", "setTimeout(()=>{}, 30000)"]);
+  t.after(() => victim.kill());
+  const port = await freePort();
+  fs.writeFileSync(
+    stateFile,
+    JSON.stringify({ pid: victim.pid, host: "127.0.0.1", port, url: `http://localhost:${port}/` }),
+  );
+  const res = await cli(["stop"], stateFile);
+  assert.equal(res.code, 0);
+  assert.equal(alive(victim.pid), true);
+  assert.equal(fs.existsSync(stateFile), false);
+});
+
+test("status keeps the state file when the pid is alive but not answering", async (t) => {
+  const stateFile = cliFixture(t);
+  const victim = spawn(process.execPath, ["-e", "setTimeout(()=>{}, 30000)"]);
+  t.after(() => victim.kill());
+  const port = await freePort();
+  fs.writeFileSync(
+    stateFile,
+    JSON.stringify({ pid: victim.pid, host: "127.0.0.1", port, url: `http://localhost:${port}/` }),
+  );
+  const res = await cli(["status"], stateFile);
+  assert.match(res.stdout, /not responding/);
+  assert.equal(fs.existsSync(stateFile), true);
+});
+
+test("edit page escapes a script-breaking file name", async (t) => {
+  const { base } = await serve(t);
+  const bad = "</script><script>alert(1)</script>.drawio";
+  const res = await fetch(`${base}/edit?file=${encodeURIComponent(bad)}`);
+  const html = await res.text();
+  assert.ok(!html.includes("<script>alert(1)"));
+});
+
+test("put compares mtime after the body arrives", async (t) => {
+  const { dir, base } = await serve(t);
+  const first = await (await put(base, "a.drawio", { xml: XML, baseMtime: null })).json();
+  const body = JSON.stringify({ xml: "browser edit", baseMtime: first.mtime });
+  const { port } = new URL(base);
+  const status = await new Promise((resolve) => {
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        method: "PUT",
+        path: "/api/file?file=a.drawio",
+        headers: { "content-length": Buffer.byteLength(body) },
+      },
+      (res) => resolve(res.statusCode),
+    );
+    req.write(body.slice(0, 10));
+    setTimeout(() => {
+      fs.writeFileSync(path.join(dir, "a.drawio"), "agent edit");
+      const future = new Date(first.mtime + 5000);
+      fs.utimesSync(path.join(dir, "a.drawio"), future, future);
+      req.end(body.slice(10));
+    }, 100);
+  });
+  assert.equal(status, 409);
+  assert.equal(fs.readFileSync(path.join(dir, "a.drawio"), "utf8"), "agent edit");
+});
+
+test("stat=1 and the edit page carry the served dir", async (t) => {
+  const { dir, base } = await serve(t);
+  const stat = await (await fetch(`${base}/api/file?file=a.drawio&stat=1`)).json();
+  assert.equal(stat.dir, path.resolve(dir));
+  const html = await (await fetch(`${base}/edit?file=a.drawio`)).text();
+  assert.ok(html.includes(JSON.stringify(path.resolve(dir)).replace(/</g, "\\u003c")));
 });
 
 test("idle timeout calls onIdle", async (t) => {

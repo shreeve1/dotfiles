@@ -29,7 +29,7 @@ node <skill-dir>/scripts/drawio.mjs stop
 - Default bind is `127.0.0.1:8740`: fine when James's browser runs on the same machine (wrk desktop, surftop).
 - When his browser is on another machine (a headless host like aidev), bind the NetBird IP: `--host <ip>`. aidev is `100.95.230.15`; get any host's IP with `netbird status` or from the dotfiles `AGENTS.md` table. Pass `--url-host <name>` if he prefers a name in the link.
 - WSL on wrk: a browser on wrk's Windows side reaches the default `localhost` link.
-- `start` replaces any server already running, so one call switches projects. Other flags: `--port`, `--idle-minutes` (default 240; it exits by itself after that long without a browser request).
+- Run `status` before `start`. `start` replaces the running server, and another session may be using it: if it serves a different folder, ask James before replacing it (any tab open on the old folder switches saving off). Other flags: `--port`, `--idle-minutes` (default 240; it exits by itself after that long without a browser request).
 - Give James the printed `url`. Link straight to a diagram with `<url>edit?file=<path relative to --dir>`; a path that doesn't exist yet opens a blank diagram that is created on first Save.
 - Run `stop` when the session's diagram work is done.
 
@@ -40,7 +40,7 @@ The file on disk is the shared state. The page saves only when James presses Sav
 1. **Before you edit an existing diagram**, ask James to save, then read the file. (A new diagram has nothing to save: write it, then give him the link.) If he changed it since your last turn, say in a line or two what he changed (added, moved, relabelled, deleted), because that is his half of the conversation.
 2. **Edit** following `reference/format.md`.
 3. **Tell him** what you changed. His page reloads by itself when he has no unsaved edits.
-4. If he had unsaved edits when you wrote, his page shows a banner instead: Reload takes your version, Save as copy keeps his as `<name>-mine.drawio`. If a `-mine` file appears, read both and merge them into the original yourself, then delete the copy once he agrees.
+4. If he had unsaved edits when you wrote, his page shows a banner instead: Reload takes your version, Save as copy keeps his as `<name>-mine.drawio`. His tab then edits the `-mine` copy. Read both, merge into the original, give him the original's link, and delete the copy once he has switched back and agrees.
 
 Before writing or editing any `.drawio` XML, read [`reference/format.md`](reference/format.md).
 
