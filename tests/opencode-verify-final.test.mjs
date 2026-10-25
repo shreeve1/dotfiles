@@ -71,7 +71,10 @@ function makeCtx(dir, { parents = {}, dup = false } = {}) {
     location: { directory: dir },
     session: {
       hook: hook("session"),
-      get: async ({ sessionID }) => ({ id: sessionID, parentID: parents[sessionID], location: { directory: dir } }),
+      get: async ({ sessionID }) => {
+        if (api.getDelay) await new Promise((r) => setTimeout(r, api.getDelay))
+        return { id: sessionID, parentID: parents[sessionID], location: { directory: dir } }
+      },
       synthetic: async (input) => {
         synthetic.push(input)
       },
@@ -89,6 +92,8 @@ function makeCtx(dir, { parents = {}, dup = false } = {}) {
   const api = {
     ctx,
     synthetic,
+    /** ms each session lookup waits, to open race windows. */
+    getDelay: 0,
     emit: (type, data) =>
       new Promise((done) => {
         const ev = { id: `ev${++n}`, type, data }
@@ -325,9 +330,9 @@ await run("stale result", makeRepo("u4"), async (t) => {
   await t.answer("A", LONG)
   await t.end("A")
   await t.prompt("A", "next question")
-  await waitFor(() => calls().length > 0)
-  await sleep(300)
-  check("stale result is dropped", calls().length === 1 && t.synthetic.length === 0, JSON.stringify(t.synthetic))
+  await sleep(QUIET_MS)
+  // The new prompt stops the checker (or drops its result if it already finished).
+  check("stale result is dropped", calls().length <= 1 && t.synthetic.length === 0, JSON.stringify(t.synthetic))
 })
 
 await run("failed or interrupted", makeRepo("u5"), async (t) => {
@@ -432,6 +437,57 @@ await run("duplicate event delivery", makeRepo("u11"), async (t) => {
   )
   check("a duplicated turn end sends one finding", t.synthetic.length === 2, JSON.stringify(t.synthetic))
 }, { dup: true })
+
+await run("prompt during turn-end lookup", makeRepo("u12"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  t.getDelay = 300
+  await t.prompt("A")
+  await t.answer("A", LONG)
+  const ended = t.end("A")
+  await sleep(50)
+  await t.prompt("A", "next question")
+  await ended
+  await sleep(QUIET_MS)
+  check(
+    "an answer from before a new prompt is never checked",
+    calls().length === 0 && t.synthetic.length === 0,
+    JSON.stringify(t.synthetic),
+  )
+})
+
+await run("new prompt stops a running check", makeRepo("u13"), async (t) => {
+  const calls = fake({ out: FALSE_OUT, delay: 1500 })
+  await t.prompt("A")
+  await t.answer("A", LONG)
+  await t.end("A")
+  await sleep(500)
+  await t.prompt("A", "next question")
+  await sleep(QUIET_MS)
+  check("a new prompt kills the running checker", calls().length === 0, JSON.stringify(calls()))
+})
+
+await run("cleanup during edit tracking", makeRepo("u14"), async (t) => {
+  await t.prompt("A")
+  const edited = t.edit("A", "app.py")
+  await t.emit("session.skill.activated", { sessionID: "A", id: "post-work-cleanup", name: "post-work-cleanup", text: "" })
+  await edited
+  await t.prompt("A")
+  check("an edit finishing after the cleanup is not tracked", !held(await t.evaluate("A", ["git commit -m x"])))
+})
+
+await run("failed checker with findings", makeRepo("u15"), async (t) => {
+  const calls = fake({ out: FALSE_OUT, exit: 1 })
+  await t.prompt("A")
+  await t.answer("A", LONG)
+  await t.end("A")
+  await waitFor(() => calls().length > 0)
+  await sleep(300)
+  check(
+    "a failed checker's output is not sent",
+    calls().length === 1 && t.synthetic.length === 0,
+    JSON.stringify(t.synthetic),
+  )
+})
 
 console.log(`opencode-verify-final: ${pass} passed, ${failures.length} failed`)
 for (const f of failures) console.log(`FAIL: ${f}`)

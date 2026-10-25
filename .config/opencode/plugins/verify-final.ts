@@ -239,11 +239,17 @@ function realToolPath(raw: string, cwd: string): string {
   }
 }
 
-async function trackChangedFile(s: SessionState, raw: string, cwd: string): Promise<void> {
+/** still(): false once the cleanup ran (or a new prompt began) while git was looked up. */
+async function trackChangedFile(
+  s: SessionState,
+  raw: string,
+  cwd: string,
+  still: () => boolean,
+): Promise<void> {
   const real = realToolPath(raw, cwd)
   if (!CODE_EXT_RE.test(real)) return
   const root = await repoRootOf(dirname(real))
-  if (!root) return
+  if (!root || !still()) return
   if (HARNESS_PATH_RE.test(pathRelative(root, real))) return
   s.tracked.set(real, root)
 }
@@ -352,6 +358,8 @@ function runCheck(cwd: string, text: string, s: SessionState): Promise<CheckResu
       if (s.child === child) s.child = null
       resolve({ stdout, stderr, code, timedOut })
     }
+    // One checker per session: never orphan an earlier one.
+    killChild(s)
     let child: ChildProcess
     try {
       child = spawn(exe, [...args, "--check", "-"], { cwd, stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
@@ -388,7 +396,10 @@ async function onTurnEnd(ctx: Ctx, sessionID: string): Promise<void> {
   const s = state(sessionID)
   const answer = s.lastAnswer
   s.lastAnswer = null
-  if (!(await isRoot(ctx, sessionID))) return
+  // A user prompt admitted during any await below makes this run end stale.
+  const seq = s.promptSeq
+  const stale = (): boolean => seq !== s.promptSeq || !sessions.has(sessionID)
+  if (!(await isRoot(ctx, sessionID)) || stale()) return
   if (s.ownFollowupPending) {
     s.ownFollowupPending = false
     // Our fact-check correction turn: never checked or nudged again.
@@ -403,8 +414,10 @@ async function onTurnEnd(ctx: Ctx, sessionID: string): Promise<void> {
     s.tracked.size > 0
   ) {
     await pruneTracked(s)
+    if (stale()) return
     if (s.tracked.size > 0) {
       const cwd = await sessionDir(ctx, sessionID)
+      if (stale()) return
       const shown = [...s.tracked.keys()].map((f) => displayPath(f, cwd))
       s.nudgedSeq = s.promptSeq
       s.pendingFactCheck = true
@@ -418,21 +431,25 @@ async function onTurnEnd(ctx: Ctx, sessionID: string): Promise<void> {
   if (s.checkedSeq === s.promptSeq || s.followups >= MAX_FOLLOWUPS_PER_PROMPT) return
   const text = answer?.texts.join("\n") ?? ""
   if (shouldSkipText(text)) return
-  s.checkedSeq = s.promptSeq
-  const seq = s.promptSeq
   const cwd = await sessionDir(ctx, sessionID)
+  if (stale()) return
+  s.checkedSeq = seq
   void (async () => {
     try {
       const result = await runCheck(cwd, text, s)
       // A new turn (user or ours) started while the check ran: stale.
-      if (seq !== s.promptSeq || s.ownFollowupPending || !sessions.has(sessionID)) return
+      if (stale() || s.ownFollowupPending) return
+      if (result.timedOut || result.code !== 0) {
+        log("check", result.timedOut ? "timed out" : `exit ${result.code}`)
+        return
+      }
       if (result.stdout.includes(NO_FINDINGS)) return
       if (FINDING_RE.test(result.stdout)) {
         await followUp(ctx, sessionID, s, result.stdout)
         return
       }
       const head = (result.stdout.trim() || result.stderr.trim()).split("\n", 1)[0]
-      log("check", result.timedOut ? "timed out" : head || `exit ${result.code}`)
+      log("check", head || "no output")
     } catch (err) {
       log("check follow-up", err)
     }
@@ -445,6 +462,8 @@ async function setup(ctx: Ctx) {
   await ctx.session.hook("prompt", (e) => {
     const s = state(e.sessionID)
     s.promptSeq += 1
+    // A check of the previous answer is stale now; stop it.
+    killChild(s)
     s.followups = 0
     s.pendingFactCheck = false
     s.ownFollowupPending = false
@@ -461,14 +480,16 @@ async function setup(ctx: Ctx) {
         if (typeof path === "string" && CLEANUP_SKILL_FILE_RE.test(path)) markCleanupRan(s)
         return
       }
-      if (s.cleanupRanSeq === s.promptSeq) return
+      const seq = s.promptSeq
+      const still = (): boolean => seq === s.promptSeq && s.cleanupRanSeq !== seq
+      if (!still()) return
       const paths: string[] = []
       if ((e.tool === "edit" || e.tool === "write") && typeof path === "string") paths.push(path)
       if (e.tool === "patch" && typeof input.patchText === "string")
         for (const m of input.patchText.matchAll(PATCH_FILE_RE)) paths.push(m[1].trim())
       if (paths.length === 0) return
       const cwd = await sessionDir(ctx, e.sessionID)
-      for (const p of paths) await trackChangedFile(s, p, cwd)
+      for (const p of paths) await trackChangedFile(s, p, cwd, still)
     } catch (err) {
       log("execute.after", err)
     }

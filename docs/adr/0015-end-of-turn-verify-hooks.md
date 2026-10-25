@@ -148,8 +148,9 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
 - State is kept per root session; subagent (child) sessions are ignored.
 - If the settle nudge fires, the answer after the cleanup turn is the one
   fact-checked. The check's own correction turn is never checked. At most one
-  follow-up per run end and two per user prompt; a result is dropped when a new
-  turn started while it ran.
+  follow-up per run end and two per user prompt. A new user prompt stops a
+  running check, and a result is dropped when any new turn started while it ran.
+  A checker that fails or times out is only logged, even if it printed findings.
 - Follow-ups go through `ctx.session.synthetic({ resume: true })`. It starts a
   new turn, so the `prompt`-metadata fallback in the plan was not needed.
 - OpenCode loads the plugin once per location (twice in practice). The copies
