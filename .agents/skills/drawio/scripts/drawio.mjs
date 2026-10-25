@@ -41,9 +41,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function healthy(port, host) {
   const target = host === "0.0.0.0" || host === "::" ? "127.0.0.1" : host;
   try {
-    const res = await fetch(`http://${target.includes(":") ? `[${target}]` : target}:${port}/api/health`, {
-      signal: AbortSignal.timeout(1000),
-    });
+    const res = await fetch(
+      `http://${target.includes(":") ? `[${target}]` : target}:${port}/api/health`,
+      {
+        signal: AbortSignal.timeout(1000),
+      },
+    );
     return res.ok;
   } catch {
     return false;
@@ -81,7 +84,8 @@ async function start(stateFile, opts) {
   const host = opts.host ?? "127.0.0.1";
   const port = Number(opts.port ?? 8740);
   const idle = String(opts["idle-minutes"] ?? 240);
-  const urlHost = opts["url-host"] ?? (host === "127.0.0.1" || host === "0.0.0.0" ? "localhost" : host);
+  const urlHost =
+    opts["url-host"] ?? (host === "127.0.0.1" || host === "0.0.0.0" ? "localhost" : host);
   const url = `http://${urlHost}:${port}/`;
   const logFile = `${stateFile.replace(/\.json$/, "")}.log`;
 
@@ -110,7 +114,9 @@ async function start(stateFile, opts) {
   try {
     process.kill(child.pid);
   } catch {}
-  const tail = fs.existsSync(logFile) ? fs.readFileSync(logFile, "utf8").trim().split("\n").slice(-5).join("\n") : "";
+  const tail = fs.existsSync(logFile)
+    ? fs.readFileSync(logFile, "utf8").trim().split("\n").slice(-5).join("\n")
+    : "";
   console.error(`drawio server failed to start on ${host}:${port}`);
   if (tail) console.error(tail);
   process.exitCode = 1;
@@ -123,6 +129,8 @@ if (cmd === "start") await start(stateFile, opts);
 else if (cmd === "stop") await stop(stateFile);
 else if (cmd === "status") await status(stateFile);
 else {
-  console.error("usage: node drawio.mjs start|stop|status [--dir D] [--host H] [--url-host N] [--port P] [--idle-minutes M]");
+  console.error(
+    "usage: node drawio.mjs start|stop|status [--dir D] [--host H] [--url-host N] [--port P] [--idle-minutes M]",
+  );
   process.exitCode = 2;
 }

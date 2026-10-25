@@ -5,9 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import net from "node:net";
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createServer } from "./server.mjs";
 
-const XML = '<mxfile><diagram id="d" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
+const XML =
+  '<mxfile><diagram id="d" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "drawio-test-"));
@@ -81,7 +83,14 @@ test("put with baseMtime null on existing file returns 409", async (t) => {
 
 test("rejects traversal and non-drawio names", async (t) => {
   const { base } = await serve(t);
-  for (const bad of ["../x.drawio", "/etc/x.drawio", "a/../../x.drawio", "a.txt", "", "C:\\x.drawio"]) {
+  for (const bad of [
+    "../x.drawio",
+    "/etc/x.drawio",
+    "a/../../x.drawio",
+    "a.txt",
+    "",
+    "C:\\x.drawio",
+  ]) {
     const g = await fetch(`${base}/api/file?file=${encodeURIComponent(bad)}`);
     assert.equal(g.status, 400, `GET ${bad}`);
     const p = await put(base, bad, { xml: XML, baseMtime: null });
@@ -91,7 +100,13 @@ test("rejects traversal and non-drawio names", async (t) => {
 
 test("list is recursive, sorted, and skips dot-dirs and node_modules", async (t) => {
   const { dir, base } = await serve(t);
-  for (const f of ["b.drawio", "plans/a.drawio", ".git/x.drawio", "node_modules/y.drawio", "notes.md"]) {
+  for (const f of [
+    "b.drawio",
+    "plans/a.drawio",
+    ".git/x.drawio",
+    "node_modules/y.drawio",
+    "notes.md",
+  ]) {
     fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
     fs.writeFileSync(path.join(dir, f), XML);
   }
@@ -160,7 +175,7 @@ test("stat=1 returns only mtime", async (t) => {
 
 // --- controller CLI ---------------------------------------------------------
 
-const CLI = path.join(path.dirname(new URL(import.meta.url).pathname), "drawio.mjs");
+const CLI = fileURLToPath(new URL("./drawio.mjs", import.meta.url));
 
 function cli(args, stateFile) {
   return new Promise((resolve) => {
@@ -239,7 +254,10 @@ test("start on a busy port exits 1 and writes no state", async (t) => {
   const blocker = net.createServer();
   await new Promise((r) => blocker.listen(0, "127.0.0.1", r));
   t.after(() => blocker.close());
-  const res = await cli(["start", "--dir", tmpDir(), "--port", String(blocker.address().port)], stateFile);
+  const res = await cli(
+    ["start", "--dir", tmpDir(), "--port", String(blocker.address().port)],
+    stateFile,
+  );
   assert.equal(res.code, 1);
   assert.match(res.stderr, /EADDRINUSE|in use/);
   assert.equal(fs.existsSync(stateFile), false);
@@ -262,7 +280,20 @@ test("start twice replaces the first server", async (t) => {
 test("start with a host prints that host in the url", async (t) => {
   const stateFile = cliFixture(t);
   const port = await freePort();
-  const res = await cli(["start", "--dir", tmpDir(), "--host", "127.0.0.1", "--url-host", "example.test", "--port", String(port)], stateFile);
+  const res = await cli(
+    [
+      "start",
+      "--dir",
+      tmpDir(),
+      "--host",
+      "127.0.0.1",
+      "--url-host",
+      "example.test",
+      "--port",
+      String(port),
+    ],
+    stateFile,
+  );
   assert.equal(res.code, 0, res.stderr);
   assert.match(res.stdout, new RegExp(`http://example.test:${port}/`));
 });

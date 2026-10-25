@@ -34,7 +34,8 @@ function listDiagrams(dir) {
     for (const e of entries) {
       const relPath = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) {
-        if (!e.name.startsWith(".") && !SKIP_DIRS.has(e.name)) walk(path.join(abs, e.name), relPath);
+        if (!e.name.startsWith(".") && !SKIP_DIRS.has(e.name))
+          walk(path.join(abs, e.name), relPath);
       } else if (e.isFile() && e.name.endsWith(".drawio")) {
         out.push({ file: relPath, mtime: mtimeOf(path.join(abs, e.name)) });
       }
@@ -114,7 +115,8 @@ export function createServer({ dir, idleMs, onIdle }) {
       if (url.pathname === "/api/health") return send(res, 200, { ok: true, dir: root });
       if (url.pathname === "/api/list") return send(res, 200, { files: listDiagrams(root) });
       if (url.pathname === "/api/file") return await handleFile(req, res, root, url);
-      if (url.pathname === "/") return send(res, 200, indexPage(root, listDiagrams(root)), "text/html");
+      if (url.pathname === "/")
+        return send(res, 200, indexPage(root, listDiagrams(root)), "text/html");
       if (url.pathname === "/edit") return handleEdit(res, root, url);
       return send(res, 404, { error: "not found" });
     } catch (err) {

@@ -2,7 +2,10 @@ const EMBED_URL =
   "https://embed.diagrams.net/?embed=1&proto=json&spin=1&configure=1&saveAndExit=0&noExitBtn=1&libraries=1&ui=atlas";
 
 const escapeHtml = (s) =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
 
 const STYLE = `
   body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1d1d1f; background: #fafafa; }
