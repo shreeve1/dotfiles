@@ -226,9 +226,6 @@ alias claude-minimax='claude-provider minimax'
 alias claude-openai='claude-provider openai'
 alias cc='claude'
 
-# RUDR9 isolated Hermes instance (separate HERMES_HOME, own board/profiles)
-alias rud9='HERMES_HOME=/home/james/.hermes-rudr9 hermes chat'
-
 # Android SDK
 if [[ $IS_MACOS -eq 1 ]]; then
   export ANDROID_HOME=$HOME/Library/Android/sdk
