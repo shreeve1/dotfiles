@@ -1,6 +1,6 @@
 # projectlean — portable lean Hermes profile package
 
-A tracked, portable, project-scoped Hermes profile. Vendors six skill
+A tracked, portable, project-scoped Hermes profile. Vendors four skill
 trees, a portable runtime config, a non-loaded SOUL template, a
 non-loaded router template, and a Python-stdlib installer / verifier /
 candidate-prep tool.
@@ -18,13 +18,11 @@ candidate-prep tool.
 │   ├── project-hermes-router.md.template
 │   ├── projectlean-soul.md.template
 │   └── projectlean-config.json.template
-├── skills/                           # six vendored trees, byte-identical
+├── skills/                           # four vendored trees, byte-identical
 │   ├── grill-me/
 │   ├── handoff/
 │   ├── hermes-agent/
-│   ├── independent-reviewer/
-│   ├── llm-wiki-setup/
-│   └── wiki-update/
+│   └── independent-reviewer/
 ├── manifest.json                     # generated; SHA over each asset
 └── tests/                            # hermetic, fake hermes CLI
 ```
@@ -70,7 +68,7 @@ python3 .hermes/projectlean/bin/install-projectlean.py --profile projectlean --c
 Behavior:
 
 - **No profile yet** → creates `projectlean` cloned from `default`,
-  stages the six vendored skill trees, sets the portable config, and
+  stages the four vendored skill trees, sets the portable config, and
   writes the managed marker.
 - **Profile exists, not managed** → refuses; rerun with
   `--adopt-unmanaged` to back up the existing `config.yaml`, `.env`,
@@ -133,7 +131,7 @@ Asserts:
 - explicit disabled toolset list matches;
 - exact live config values match the portable contract;
 - profile `SOUL.md` byte-matches the human-installed template;
-- profile skill directory set is exactly the six;
+- profile skill directory set is exactly the four;
 - prompt-size structure contains the approved toolsets, no forbidden
   ones, and no exact version/tool count is asserted.
 

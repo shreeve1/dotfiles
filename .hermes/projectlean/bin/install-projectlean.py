@@ -47,8 +47,6 @@ REQUIRED_SKILLS = (
     "grill-me",
     "handoff",
     "hermes-agent",
-    "llm-wiki-setup",
-    "wiki-update",
 )
 
 CLI_TOOLSETS = ("file", "terminal", "vision", "skills")

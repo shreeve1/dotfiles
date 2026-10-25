@@ -45,8 +45,6 @@ REQUIRED_SKILLS = (
     "grill-me",
     "handoff",
     "hermes-agent",
-    "llm-wiki-setup",
-    "wiki-update",
 )
 
 APPROVED_CLI_TOOLSETS = {"file", "terminal", "vision", "skills"}
@@ -125,24 +123,6 @@ def _python_tree_hash(directory: Path) -> str:
     return digest.hexdigest()
 
 
-def _python_search(pattern: str, root: Path) -> list:
-    rx = re.compile(pattern)
-    hits: list = []
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
-            continue
-        try:
-            text = path.read_text(errors="replace")
-        except OSError:
-            continue
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            if rx.search(line):
-                hits.append((str(path), lineno, line))
-    return hits
-
-
 def _command(*args: str, check: bool = True) -> str:
     proc = subprocess.run(
         list(args), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=check
@@ -190,17 +170,16 @@ def _validate_soul_template() -> tuple:
         b"State uncertainty plainly",
         b"Evidence over deference",
         b"Depth only when asked",
-        b"wiki/index.md",
-        b"never load the whole wiki",
+        b"memory/index.md",
+        b"never load all of memory",
         b"Live state, code, config, and primary docs outrank",
-        b"llm-wiki-setup",
-        b"wiki-update",
+        b"personal-memory",
         b"project's documented/native issue system",
         b"Never invent a backend or silently create an external issue",
         b"Before completion",
         b"durable decisions",
-        b"candidate/review and claim gates",
-        b"supersede-not-delete",
+        b"the audit gate",
+        b"overwrite-in-place",
         b"raw transcripts or secrets",
         b"Universal Hermes safety",
     )
@@ -218,7 +197,7 @@ def _validate_soul_template() -> tuple:
         or any(tok not in content for tok in required)
         or any(tok in content for tok in forbidden)
     ):
-        _die("SOUL template violates portable wiki-first static contract")
+        _die("SOUL template violates portable memory-first static contract")
     return content, hashlib.sha256(content).hexdigest()
 
 
@@ -297,22 +276,11 @@ def run_preflight(hermes: str) -> dict:
     if missing:
         _die(f"missing skill assets: {', '.join(missing)}")
 
-    # Legacy /tmp/claude paths must not be referenced inside the vendored
-    # wiki trees. Use Python regex search instead of rg.
-    legacy = _python_search(r"~/.claude/skills/wiki-update/gate\.py", SKILLS)
-    resolver = SKILLS / "wiki-update" / "resolve-gate.py"
-    if legacy or not resolver.is_file():
-        _die(
-            f"wiki asset preflight failed: "
-            f"legacy_refs={bool(legacy)}, resolver_present={resolver.is_file()}"
-        )
-
     # Package preflight must be self-contained: a consuming repository's
     # .agents tree is optional and may legitimately be at a different
     # revision. The manifest below is the authoritative vendored-asset
     # integrity check; postapply separately verifies installed parity.
     source_hashes = {n: _python_tree_hash(SKILLS / n) for n in REQUIRED_SKILLS}
-    canonical_wiki = {}
 
     # Verify tracked manifest matches assets.
     if MANIFEST_FILE.is_file():
@@ -360,7 +328,6 @@ def run_preflight(hermes: str) -> dict:
         "soul_template": {"bytes": len(soul_bytes), "sha256": soul_sha},
         "portable_config": portable,
         "source_hashes": source_hashes,
-        "canonical_wiki_hashes": canonical_wiki,
         "manifest_check": "ok",
         "cli_tools_visible": cli_tools,
         "prompt_probe": prompt_probe,
@@ -422,7 +389,7 @@ def run_postapply(hermes: str, profile: str) -> dict:
     if not soul.is_file() or soul.read_bytes() != soul_bytes:
         _die("projectlean SOUL.md must exactly match the human-installed portable template")
 
-    # Profile skill dirs must be exactly the six.
+    # Profile skill dirs must be exactly the four.
     skill_dirs = {p.name for p in (pdir / "skills").iterdir() if p.is_dir()}
     if skill_dirs != set(REQUIRED_SKILLS):
         _die(f"unexpected profile skill directories: {sorted(skill_dirs)}")

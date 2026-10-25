@@ -57,15 +57,13 @@ class FreshInstallTests(ProjectleanTestBase):
         marker_text = json.loads(marker.read_text())
         assert marker_text["managed_by"] == "projectlean"
         assert marker_text["source_manifest_sha256"] == result["manifest_sha256"]
-        # exactly the six skill dirs
+        # exactly the four skill dirs
         skills = {p.name for p in (pdir / "skills").iterdir() if p.is_dir()}
         assert skills == {
             "grill-me",
             "handoff",
             "hermes-agent",
             "independent-reviewer",
-            "llm-wiki-setup",
-            "wiki-update",
         }
         # marker references source manifest by hash
         backup_root = _find_backup(result)
@@ -107,8 +105,6 @@ class IdempotenceTests(ProjectleanTestBase):
             "handoff",
             "hermes-agent",
             "independent-reviewer",
-            "llm-wiki-setup",
-            "wiki-update",
         }
 
 
@@ -180,7 +176,7 @@ class RefusalTests(ProjectleanTestBase):
         if os.name == "posix":
             assert (backup.stat().st_mode & 0o777) == 0o700
             assert ((backup / ".env").stat().st_mode & 0o777) == 0o600
-        # Profile now has the six vendored skills, preadopt skill gone.
+        # Profile now has the four vendored skills, preadopt skill gone.
         new_skills = sorted(p.name for p in (pdir / "skills").iterdir())
         assert new_skills != preadopt_skills
         assert set(new_skills) == {
@@ -188,8 +184,6 @@ class RefusalTests(ProjectleanTestBase):
             "handoff",
             "hermes-agent",
             "independent-reviewer",
-            "llm-wiki-setup",
-            "wiki-update",
         }
         # Marker placed.
         assert (pdir / "projectlean.managed.json").is_file()
@@ -577,8 +571,6 @@ class ManifestTests(ProjectleanTestBase):
             "handoff",
             "hermes-agent",
             "independent-reviewer",
-            "llm-wiki-setup",
-            "wiki-update",
         }
 
     def test_installer_dry_run_reports_manifest(self):

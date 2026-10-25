@@ -30,7 +30,7 @@
     "x_search",
     "yuanbao"
   ],
-  "manifest_sha256": "d88266d58ecfce1a99d220350adf29380a385a9a1917cafe488e54f92ec70ba5",
+  "manifest_sha256": "ef28ae7cca317b4f1ebd39e4be17f5d95ac48d346427ddd9991038322d51ec14",
   "name": "projectlean",
   "portable_config": {
     "agent.coding_context": "off",
@@ -46,12 +46,10 @@
     "grill-me": "dbaa8c334fbce8a945fc4be9ce97a30d1075da2a02a11b8569fbb976bc028bf8",
     "handoff": "0766deec2a5a1c2d2f867e7066a478fb59846f34e2536841ea495da6bf718763",
     "hermes-agent": "8d27c7155e0b89fbce8f945db1854890041f8ab597da53dc73e1780760c10ac1",
-    "independent-reviewer": "1db0c1bc1f89fdc93a3230bf7bf3350bcc5164447fec44a779566c9b07a7fa94",
-    "llm-wiki-setup": "e1b7b48b514cde06ace98d9e39cb14fa1bc421fe44da79be2b005c89357e2603",
-    "wiki-update": "301a86b35a52014cac61659e284d34431f555ccbb26834614591691e6f654724"
+    "independent-reviewer": "1db0c1bc1f89fdc93a3230bf7bf3350bcc5164447fec44a779566c9b07a7fa94"
   },
   "soul_template": {
-    "bytes": 1886,
-    "sha256": "8662733d6b4141e10f70b2c3ff9109392500ea4c7c9f2e7fe4279fa5733edaa5"
+    "bytes": 1628,
+    "sha256": "dc70ec21cd7ff6c42b996937c0fb8ab440261e183d2ea1249244e6c6fa926266"
   }
 }

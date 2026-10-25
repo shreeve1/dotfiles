@@ -2,7 +2,7 @@
 
 Shared engine — the single source of truth for fact-checking claims against
 ground truth with a fresh, independent `pi -p` process. Consumed by
-`teach` and `wiki-update`. Callers reach it via
+`teach`. Callers reach it via
 the phrase *independent verify (see `_shared/verify-claims.md`)*; change the
 mechanics here, not in each skill. The end-of-turn hook
 `.agents/bin/verify-final` runs the same checker command. There are no
