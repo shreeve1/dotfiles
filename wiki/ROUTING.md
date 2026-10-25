@@ -1,5 +1,12 @@
 # Wiki Routing
 
+## OpenCode Plugin Reload And Double Load
+
+- Claims: C-0178 (a plugin edit runs only after the background server restarts; how to restart on Windows and Linux), C-0179 (a global plugin loads twice and sees every event twice; dedupe by event id)
+- Raw: `wiki/raw/sessions/2026-10-25-opencode-plugin-restart.md`
+- Keywords: OpenCode, plugin, hot reload, cached module, setup, opencode-cli, opencode-server, restart, verify-final, duplicate events, firstSeen
+- Claims-only capture; the design is authoritative in `docs/adr/0015-end-of-turn-verify-hooks.md`.
+
 ## WSL CPU From pi Sessions On /mnt/c
 
 - Claims: C-0175 (pi-cc-extensions footer polls git every 10 s; on /mnt/c this saturates the 9p bridge), C-0177 (itastack has no git since 2026-10-22; agents run in `~/Documents/itastack` with a WSL Syncthing; supersedes C-0176)
