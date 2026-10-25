@@ -29,3 +29,7 @@ archive/**
 graphify-out/**
 wiki/raw/**
 .kanban/archive/**
+# Memory files: gate.py compact owns their table format (compact pipes keep
+# every-session reads small), which markdownlint MD060 would fight.
+memory/**
+.agents/skills/personal-memory/scaffold/**
