@@ -139,6 +139,24 @@ interface Ctx {
 }
 
 const sessions = new Map<string, SessionState>()
+// OpenCode can load this file more than once (one instance per location), and
+// every instance shares this module state and receives every event. Handle each
+// event id once.
+const seenEvents = new Set<string>()
+const MAX_SEEN_EVENTS = 1000
+
+function firstSeen(id: unknown): boolean {
+  if (typeof id !== "string") return true
+  if (seenEvents.has(id)) return false
+  seenEvents.add(id)
+  if (seenEvents.size > MAX_SEEN_EVENTS) {
+    for (const oldest of seenEvents) {
+      seenEvents.delete(oldest)
+      break
+    }
+  }
+  return true
+}
 
 function state(sessionID: string): SessionState {
   let s = sessions.get(sessionID)
@@ -480,6 +498,7 @@ async function setup(ctx: Ctx) {
   })
 
   const onEvent = async (ev: any): Promise<void> => {
+    if (!firstSeen(ev?.id)) return
     const sessionID = ev?.data?.sessionID
     if (typeof sessionID !== "string") return
     switch (ev.type) {

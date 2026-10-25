@@ -37,8 +37,12 @@ const makeRepo = (name) => {
   return dir
 }
 
-/** Fake V2 plugin ctx. parents: sessionID -> parentID for child sessions. */
-function makeCtx(dir, { parents = {} } = {}) {
+/**
+ * Fake V2 plugin ctx. parents: sessionID -> parentID for child sessions.
+ * dup: deliver every event twice with the same id, as OpenCode does when it
+ * loads the plugin once per location and both instances share module state.
+ */
+function makeCtx(dir, { parents = {}, dup = false } = {}) {
   const hooks = new Map()
   const synthetic = []
   const hook = (domain) => async (name, cb) => {
@@ -87,7 +91,9 @@ function makeCtx(dir, { parents = {} } = {}) {
     synthetic,
     emit: (type, data) =>
       new Promise((done) => {
-        pending.push({ ev: { id: `ev${++n}`, type, data }, done })
+        const ev = { id: `ev${++n}`, type, data }
+        if (dup) pending.push({ ev, done: () => {} })
+        pending.push({ ev, done })
         const w = waiter
         waiter = null
         w?.()
@@ -406,6 +412,26 @@ await run("child session end", makeRepo("u10"), async (t) => {
   await sleep(QUIET_MS)
   check("child sessions are never checked", calls().length === 0 && t.synthetic.length === 0)
 }, { parents: { C: "A" } })
+
+await run("duplicate event delivery", makeRepo("u11"), async (t) => {
+  const calls = fake({ out: FALSE_OUT })
+  await t.prompt("A")
+  await t.edit("A", "app.py")
+  await t.answer("A", LONG)
+  await t.end("A")
+  await sleep(300)
+  check("a duplicated turn end nudges once", t.synthetic.length === 1, JSON.stringify(t.synthetic))
+  await t.answer("A", LONG)
+  await t.end("A")
+  await waitFor(() => t.synthetic.length > 1)
+  await sleep(300)
+  check(
+    "a duplicated answer reaches the checker once",
+    calls().length === 1 && calls()[0] === LONG,
+    JSON.stringify(calls()),
+  )
+  check("a duplicated turn end sends one finding", t.synthetic.length === 2, JSON.stringify(t.synthetic))
+}, { dup: true })
 
 console.log(`opencode-verify-final: ${pass} passed, ${failures.length} failed`)
 for (const f of failures) console.log(`FAIL: ${f}`)
