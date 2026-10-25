@@ -101,6 +101,61 @@ test("list is recursive, sorted, and skips dot-dirs and node_modules", async (t)
   assert.equal(typeof files[0].mtime, "number");
 });
 
+test("index lists files with edit links and a new-diagram form", async (t) => {
+  const { dir, base } = await serve(t);
+  fs.mkdirSync(path.join(dir, "plans"));
+  fs.writeFileSync(path.join(dir, "plans/a <b>.drawio"), XML);
+  const res = await fetch(`${base}/`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /text\/html/);
+  const html = await res.text();
+  assert.ok(html.includes(`href="/edit?file=${encodeURIComponent("plans/a <b>.drawio")}"`));
+  assert.ok(html.includes("plans/a &lt;b&gt;.drawio"));
+  assert.ok(!html.includes("a <b>.drawio"));
+  assert.match(html, /<form[^>]*action="\/edit"/);
+});
+
+test("edit page embeds diagrams.net and the file name", async (t) => {
+  const { base } = await serve(t);
+  const res = await fetch(`${base}/edit?file=${encodeURIComponent("plans/x.drawio")}`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.ok(html.includes("https://embed.diagrams.net/?embed=1"));
+  assert.ok(html.includes("proto=json"));
+  assert.ok(html.includes("configure=1"));
+  assert.ok(html.includes('"plans/x.drawio"'));
+  assert.ok(html.includes("compressXml"));
+});
+
+test("edit page sends no referrer to the editor host", async (t) => {
+  // embed.diagrams.net returns 403 to referrers on private/NetBird hosts.
+  const { base } = await serve(t);
+  const html = await (await fetch(`${base}/edit?file=x.drawio`)).text();
+  assert.match(html, /<iframe[^>]*referrerpolicy="no-referrer"/);
+});
+
+test("edit page appends .drawio to a bare name", async (t) => {
+  const { base } = await serve(t);
+  const res = await fetch(`${base}/edit?file=notes`, { redirect: "manual" });
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("location"), "/edit?file=notes.drawio");
+});
+
+test("edit page rejects invalid file", async (t) => {
+  const { base } = await serve(t);
+  const res = await fetch(`${base}/edit?file=${encodeURIComponent("../x.drawio")}`);
+  assert.equal(res.status, 400);
+});
+
+test("stat=1 returns only mtime", async (t) => {
+  const { base } = await serve(t);
+  const { mtime } = await (await put(base, "a.drawio", { xml: XML, baseMtime: null })).json();
+  const res = await fetch(`${base}/api/file?file=a.drawio&stat=1`);
+  assert.deepEqual(await res.json(), { mtime });
+  const missing = await fetch(`${base}/api/file?file=b.drawio&stat=1`);
+  assert.deepEqual(await missing.json(), { mtime: null });
+});
+
 test("idle timeout calls onIdle", async (t) => {
   let idle = false;
   await serve(t, { idleMs: 200, onIdle: () => (idle = true) });

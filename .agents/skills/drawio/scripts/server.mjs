@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { editorPage, indexPage } from "./pages.mjs";
 
 const SKIP_DIRS = new Set(["node_modules"]);
 
@@ -86,6 +87,16 @@ async function handleFile(req, res, dir, url) {
   return send(res, 405, { error: "method not allowed" });
 }
 
+function handleEdit(res, dir, url) {
+  let file = (url.searchParams.get("file") ?? "").trim().replaceAll("\\", "/");
+  if (file && !file.endsWith(".drawio")) {
+    res.writeHead(302, { location: `/edit?file=${encodeURIComponent(`${file}.drawio`)}` });
+    return res.end();
+  }
+  if (!resolveFile(dir, file)) return send(res, 400, "Invalid diagram path", "text/plain");
+  return send(res, 200, editorPage(file), "text/html");
+}
+
 export function createServer({ dir, idleMs, onIdle }) {
   const root = path.resolve(dir);
   let idleTimer = null;
@@ -103,6 +114,8 @@ export function createServer({ dir, idleMs, onIdle }) {
       if (url.pathname === "/api/health") return send(res, 200, { ok: true, dir: root });
       if (url.pathname === "/api/list") return send(res, 200, { files: listDiagrams(root) });
       if (url.pathname === "/api/file") return await handleFile(req, res, root, url);
+      if (url.pathname === "/") return send(res, 200, indexPage(root, listDiagrams(root)), "text/html");
+      if (url.pathname === "/edit") return handleEdit(res, root, url);
       return send(res, 404, { error: "not found" });
     } catch (err) {
       return send(res, 500, { error: String(err?.message ?? err) });
