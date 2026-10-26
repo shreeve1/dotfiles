@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import filecmp
+import os
 import shutil
 from pathlib import Path
 
@@ -14,43 +15,78 @@ SKILLS = ("personal-memory", "memory-setup")
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--starter", type=Path, default=Path.home() / "starter-agent")
-    parser.add_argument("--dest", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--starter",
+        type=lambda value: Path(value).expanduser(),
+        default=Path.home() / "starter-agent",
+    )
+    parser.add_argument(
+        "--dest",
+        type=lambda value: Path(value).expanduser(),
+        default=Path(__file__).resolve().parents[1],
+    )
     return parser.parse_args()
 
 
-def files(root: Path) -> set[Path]:
-    return {
-        path.relative_to(root)
-        for path in root.rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts
-    }
+def tree(root: Path, reject_symlinks: bool) -> dict[Path, str]:
+    entries: dict[Path, str] = {}
+
+    def visit(folder: Path, relative: Path = Path()) -> None:
+        for entry in os.scandir(folder):
+            if entry.name == "__pycache__":
+                continue
+            entry_relative = relative / entry.name
+            if entry.is_symlink():
+                if reject_symlinks:
+                    raise ValueError(f"source symlink is not allowed: {entry.path}")
+                entries[entry_relative] = "symlink"
+            elif entry.is_dir(follow_symlinks=False):
+                entries[entry_relative] = "dir"
+                visit(Path(entry.path), entry_relative)
+            else:
+                entries[entry_relative] = "file"
+
+    visit(root)
+    return entries
+
+
+def remove(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
 
 
 def sync_skill(source: Path, destination: Path, dest_root: Path) -> list[str]:
-    source_files = files(source)
-    destination_files = files(destination) if destination.exists() else set()
+    source_tree = tree(source, reject_symlinks=True)
     changes: list[str] = []
+    if destination.is_symlink():
+        remove(destination)
+        changes.append(str(destination.relative_to(dest_root)))
+    destination_tree = tree(destination, reject_symlinks=False) if destination.exists() else {}
 
-    for relative in sorted(destination_files - source_files):
+    for relative in sorted(destination_tree, key=lambda path: (len(path.parts), path), reverse=True):
         path = destination / relative
-        path.unlink()
-        changes.append(str(path.relative_to(dest_root)))
+        if relative not in source_tree or destination_tree[relative] != source_tree[relative]:
+            remove(path)
+            changes.append(str(path.relative_to(dest_root)))
 
-    for relative in sorted(source_files):
+    destination.mkdir(parents=True, exist_ok=True)
+    for relative in sorted(source_tree, key=lambda path: (len(path.parts), path)):
         source_path = source / relative
         destination_path = destination / relative
-        if not destination_path.exists() or not filecmp.cmp(
+        if source_tree[relative] == "dir":
+            if not destination_path.exists():
+                destination_path.mkdir()
+                changes.append(str(destination_path.relative_to(dest_root)))
+        elif (
+            destination_tree.get(relative) != "file"
+            or not filecmp.cmp(
             source_path, destination_path, shallow=False
+            )
         ):
-            destination_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_path, destination_path)
             changes.append(str(destination_path.relative_to(dest_root)))
-
-    if destination.exists():
-        for path in sorted(destination.rglob("*"), reverse=True):
-            if path.is_dir() and ("__pycache__" in path.parts or not any(path.iterdir())):
-                shutil.rmtree(path)
 
     return changes
 
@@ -62,6 +98,11 @@ def main() -> int:
     for skill in SKILLS:
         if not (source_root / skill / "SKILL.md").is_file():
             print(f"missing starter skill: {source_root / skill / 'SKILL.md'}")
+            return 2
+        try:
+            tree(source_root / skill, reject_symlinks=True)
+        except ValueError as error:
+            print(error)
             return 2
 
     changes: list[str] = []
