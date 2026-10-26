@@ -1,6 +1,6 @@
 ---
 title: Remote Agent Servers per Machine
-summary: OpenCode serves remotely on NetBird :4096 on aidev, itan8n and surftop; wrk has none. Codex app-server is a local unix-socket helper, not remote.
+summary: All opencode/codex remote servers stopped and disabled 2026-10-26 at James's request; re-enable commands per machine inside.
 type: doc
 status: promoted
 created: 2026-10-26
@@ -10,16 +10,23 @@ topics: []
 
 ## Active memory
 
-Verified 2026-10-26 by probing each machine:
+State since 2026-10-26 (James asked for everything stopped, disabled, reversible):
 
-- aidev: `opencode-server.service` (enabled) runs `opencode serve --hostname 100.95.230.15 --port 4096`; a second `opencode serve --service` also runs. Codex `app-server`, `app-server proxy` and `codex-code-mode-host` run as local background processes.
-- itan8n: same shape — `opencode-server.service` on 100.95.224.218:4096, plus the codex background trio.
-- surftop (Windows): `opencode-cli.exe` listens on 0.0.0.0:4096; a `codex-windows-sandbox` service process runs.
-- wrk: none of it — no unit files, processes or scheduled tasks on either the WSL or Windows side; `~/.codex` config exists but no server runs.
-- Codex `app-server` listens on a unix socket only: it is a local helper for Codex sessions, not a remote-management endpoint. Remote management goes through OpenCode :4096.
-- From aidev there is no `wrk` ssh alias; bare `ssh wrk` falls back to defaults (port 22) and fails. Use the `wsl-wrk` alias (100.95.235.60:2222). From WSL, `tasklist.exe` checks the Windows side without ssh.
+- aidev, itan8n: `opencode-server.service` stopped and disabled (`systemctl --user disable --now opencode-server`). Codex `app-server` helpers killed; they have no unit and only respawn when a codex/code-mode session runs.
+- surftop: `opencode-cli.exe` killed; it had no autostart entry (Run keys, Startup folders, scheduled tasks all clean), so it will not return on reboot. Codex sandbox service `CodexSandboxService.OpenAI.Codex` stopped, but still AUTO_START: `sc config` was denied over unelevated ssh. To keep it off reboot, run as admin on surftop: `sc config CodexSandboxService.OpenAI.Codex start= demand` (MSIX servicing may revert it); or accept it boots — it is inert until the Codex app runs and listens on nothing remote.
+- wrk: never had any of it.
+
+Turn back on:
+- aidev, itan8n: `systemctl --user enable --now opencode-server`
+- surftop: `opencode-cli service start` from a one-off scheduled task with `/it` so it survives the ssh session (see [OpenCode plugin reload](memory/docs/opencode-plugin-reload.md)).
+- codex helpers: nothing to re-enable; they spawn when codex is next used.
+
+Gotchas:
+- After `disable --now` the aidev unit shows "failed" (opencode exits non-zero on SIGTERM); that is the stopped state, not a fault.
+- itan8n has a cron (`~/scripts/cleanup/opencode-cleanup.sh`, 11:30 UTC daily) that only kills stale opencode processes; it starts nothing.
+- From aidev there is no `wrk` ssh alias; use `wsl-wrk` (100.95.235.60:2222). From WSL, `tasklist.exe` checks the Windows side without ssh.
 
 ## Related
 
-- Informs [OpenCode plugin reload](memory/docs/opencode-plugin-reload.md): which machines run the server that needs restarting after plugin edits.
-- Alongside [Retired agent services](memory/decisions/workstation/decision-retired-agent-services.md): which agent services are deliberately off.
+- Shares restart mechanics with [OpenCode plugin reload](memory/docs/opencode-plugin-reload.md).
+- Policy: [Retired agent services](memory/decisions/workstation/decision-retired-agent-services.md) — these stay off unless James asks.

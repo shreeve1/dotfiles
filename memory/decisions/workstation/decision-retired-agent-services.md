@@ -1,10 +1,10 @@
 ---
 title: Retired Agent Services on aidev and itan8n
-summary: 2026-10-25 James retired genops/ops-team Hermes, RUDR9, LiteLLM, aidev-mcp, Honcho and stale itan8n services; on aidev only the media Hermes profile runs.
+summary: 2026-10-25 genops/ops-team Hermes, RUDR9, LiteLLM, aidev-mcp and Honcho retired; 2026-10-26 opencode/codex servers stopped+disabled on aidev and itan8n.
 type: decision
 status: promoted
 created: 2026-10-25
-updated: 2026-10-25
+updated: 2026-10-26
 topics: [workstation]
 ---
 
@@ -18,6 +18,7 @@ On 2026-10-25 James decided these stay off. Do not restart or re-enable them wit
 - `litellm-proxy`, `litellm-socat` and `aidev-mcp-http` user services are stopped and disabled. OpenCode uses CLIProxyAPI (8317), not LiteLLM.
 - Honcho (`~/honcho`, 4 containers) is stopped with restart policy `no`; data kept. The compose file still says `unless-stopped`, so `docker compose up -d` would bring it back on boot.
 - `ralph-loop.service` is kept (linked, not enabled) for possible future use.
+- `opencode-server` (OpenCode on NetBird :4096) stopped and disabled 2026-10-26 at James's request; codex `app-server` helpers killed. Re-enable: `systemctl --user enable --now opencode-server`.
 
 **itan8n**
 - RUDR9 gateway and `~/.hermes-rudr9` deleted.
@@ -25,6 +26,7 @@ On 2026-10-25 James decided these stay off. Do not restart or re-enable them wit
 - `paperclip-postgres` stopped, restart policy `no`, data kept.
 - `open-terminal.service` (shell API on 0.0.0.0:8001) stopped and disabled.
 - Crontab line restarting nonexistent `agent-zero-admin`/`agent-zero-ita` removed; backup at `~/crontab.bak-*`.
+- `opencode-server` stopped and disabled 2026-10-26 at James's request; codex `app-server` helpers killed. Re-enable: `systemctl --user enable --now opencode-server`.
 
 ## Notes
 
