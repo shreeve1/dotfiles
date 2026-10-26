@@ -1,6 +1,7 @@
 """gate.py audit over memory/rules.md: broken pointers and unreached preference files."""
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -8,7 +9,15 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_indexes import GATE, HUBS, INDEXES, make_index, make_schema, run_script  # noqa: E402
+from test_indexes import (  # noqa: E402
+    GATE,
+    HUBS,
+    INDEXES,
+    SKILL_DIR,
+    make_index,
+    make_schema,
+    run_script,
+)
 
 HEADER = "| When | Lead | Also load | Note |\n|---|---|---|---|\n"
 
@@ -37,7 +46,7 @@ def workspace(td, rows, skills=(), files=()):
 
 
 def audit(mem, home=None):
-    """Run the audit with HOME pointed at an empty dir, so globally installed skills don't leak in."""
+    """Run with an empty HOME so installed global skills do not leak in."""
     if home is None:
         home = mem.parent / "home"
         home.mkdir(exist_ok=True)
@@ -56,11 +65,76 @@ def global_skill(home, name):
     )
 
 
+def copied_gate_audit(td, mem):
+    root = Path(td)
+    skill = root / "skills" / "personal-memory"
+    skill.mkdir(parents=True)
+    for script in SKILL_DIR.glob("*.py"):
+        shutil.copy2(script, skill / script.name)
+    sibling = root / "skills" / "sibling"
+    sibling.mkdir()
+    (sibling / "SKILL.md").write_text("---\nname: sibling\n---\n", encoding="utf-8")
+    home = root / "empty-home"
+    home.mkdir()
+    return subprocess.run(
+        [sys.executable, str(skill / "gate.py"), "--memory", str(mem), "audit"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home)},
+        cwd=td,
+    )
+
+
 def index_row(path):
     return f"| [X]({path}) | preference | x | 2026-10-10 |\n"
 
 
 class RulesAuditTests(unittest.TestCase):
+    def test_global_skill_passes(self):
+        with tempfile.TemporaryDirectory() as td:
+            mem = workspace(td, ["| Email | | skill `antislop` | |"])
+            home = Path(td) / "home"
+            global_skill(home, "antislop")
+            proc = audit(mem, home)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            self.assertNotIn("skill antislop not found", proc.stdout)
+
+    def test_skill_missing_locally_and_globally_fails(self):
+        with tempfile.TemporaryDirectory() as td:
+            mem = workspace(td, ["| Email | | skill `missing-test-skill` | |"])
+            home = Path(td) / "home"
+            global_skill(home, "other-skill")
+            proc = audit(mem, home)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("memory/rules.md: skill missing-test-skill not found", proc.stdout)
+
+    def test_runs_outside_git_repo(self):
+        with tempfile.TemporaryDirectory() as td:
+            mem = workspace(
+                td,
+                ["| Shorthand name | | `memory/glossary.md` | |"],
+                files=[("memory/glossary.md", "# Glossary\n")],
+            )
+            self.assertFalse((Path(td) / ".git").exists())
+            env = {**os.environ, "GIT_CEILING_DIRECTORIES": td}
+            for script in (INDEXES, HUBS, GATE):
+                args = ["audit"] if script == GATE else []
+                proc = subprocess.run(
+                    [sys.executable, str(script), "--memory", str(mem), *args],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    cwd=td,
+                )
+                self.assertEqual(proc.returncode, 0, f"{script.name}: {proc.stdout}{proc.stderr}")
+
+    def test_skill_next_to_script_passes(self):
+        with tempfile.TemporaryDirectory(prefix="memory skills ") as td:
+            mem = workspace(td, ["| Email | | skill `sibling` | |"])
+            proc = copied_gate_audit(td, mem)
+            self.assertFalse((Path(td) / ".agents").exists())
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
     def test_valid_rules_pass(self):
         with tempfile.TemporaryDirectory() as td:
             mem = workspace(
@@ -87,48 +161,10 @@ class RulesAuditTests(unittest.TestCase):
 
     def test_missing_skill_fails(self):
         with tempfile.TemporaryDirectory() as td:
-            mem = workspace(td, ["| Email | | skill `antislop` | |"])
+            mem = workspace(td, ["| Email | | skill `missing-test-skill` | |"])
             proc = audit(mem)
             self.assertEqual(proc.returncode, 1)
-            self.assertIn("- memory/rules.md: skill antislop not found", proc.stdout)
-
-    def test_global_skill_passes(self):
-        with tempfile.TemporaryDirectory() as td:
-            mem = workspace(td, ["| Email | | skill `antislop` | |"])
-            home = Path(td) / "home"
-            global_skill(home, "antislop")
-            proc = audit(mem, home)
-            self.assertEqual(proc.returncode, 0, proc.stdout)
-            self.assertNotIn("skill antislop not found", proc.stdout)
-
-    def test_skill_missing_locally_and_globally_fails(self):
-        with tempfile.TemporaryDirectory() as td:
-            mem = workspace(td, ["| Email | | skill `antislop` | |"])
-            home = Path(td) / "home"
-            global_skill(home, "other-skill")
-            proc = audit(mem, home)
-            self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("memory/rules.md: skill antislop not found", proc.stdout)
-
-    def test_runs_outside_git_repo(self):
-        with tempfile.TemporaryDirectory() as td:
-            mem = workspace(
-                td,
-                ["| Shorthand name | | `memory/glossary.md` | |"],
-                files=[("memory/glossary.md", "# Glossary\n")],
-            )
-            self.assertFalse((Path(td) / ".git").exists())
-            env = {**os.environ, "GIT_CEILING_DIRECTORIES": td}
-            for script in (INDEXES, HUBS, GATE):
-                args = ["audit"] if script == GATE else []
-                proc = subprocess.run(
-                    [sys.executable, str(script), "--memory", str(mem), *args],
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                    cwd=td,
-                )
-                self.assertEqual(proc.returncode, 0, f"{script.name}: {proc.stdout}{proc.stderr}")
+            self.assertIn("- memory/rules.md: skill missing-test-skill not found", proc.stdout)
 
     def test_missing_path_fails(self):
         with tempfile.TemporaryDirectory() as td:

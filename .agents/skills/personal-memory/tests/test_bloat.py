@@ -35,6 +35,41 @@ def audit(mem):
 
 
 class BloatWarningTests(unittest.TestCase):
+    def test_no_git_wording_outside_repo(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            self.assertFalse(any((p / ".git").exists() for p in (root, *root.parents)))
+            (root / "memory").mkdir()
+            mem = memory(root / "memory")
+            note(
+                mem,
+                "decisions/memory/decision-a.md",
+                status="superseded",
+                body="- Superseded 2026-10-01: old rule.\n",
+            )
+            note(mem, "decisions/memory/decision-b.md", body="- Superseded 2026-10-01: old rule.\n")
+            out = audit(mem).stdout
+            self.assertIn("status superseded; delete the file", out)
+            self.assertIn("history line; overwrite in place", out)
+            self.assertNotIn("git keeps", out)
+
+    def test_git_wording_inside_repo(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".git").mkdir()
+            (root / "memory").mkdir()
+            mem = memory(root / "memory")
+            note(
+                mem,
+                "decisions/memory/decision-a.md",
+                status="superseded",
+                body="- Superseded 2026-10-01: old rule.\n",
+            )
+            note(mem, "decisions/memory/decision-b.md", body="- Superseded 2026-10-01: old rule.\n")
+            out = audit(mem).stdout
+            self.assertIn("status superseded; delete the file, git keeps it", out)
+            self.assertIn("history line; overwrite in place, git keeps the old text", out)
+
     def test_clean_note_has_no_warning(self):
         with tempfile.TemporaryDirectory() as td:
             mem = memory(td)

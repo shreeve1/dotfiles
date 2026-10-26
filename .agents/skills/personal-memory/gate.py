@@ -146,6 +146,7 @@ def audit_rules(memory_dir):
         if not any(
             (base / ".agents" / "skills" / s / "SKILL.md").exists() for base in (root, Path.home())
         )
+        and not (Path(__file__).resolve().parents[1] / s / "SKILL.md").exists()
     ]
     problems += [
         f"memory/rules.md: {p} not found" for p in sorted(paths) if not (root / p).exists()
@@ -207,9 +208,14 @@ def compact_tables(text):
     return "".join(out)
 
 
+def in_git_repo(root: Path) -> bool:
+    return any((base / ".git").exists() for base in (root, *root.parents))
+
+
 def bloat(memory_dir):
     """Warning lines for oversize notes, long summaries, history lines, retired files and the retired log."""
     out = []
+    git = in_git_repo(memory_dir.resolve().parent)
     if (memory_dir / "log.md").exists():
         out.append(
             "memory/log.md is retired: put the entry in the commit message and delete the file"
@@ -241,9 +247,14 @@ def bloat(memory_dir):
         if len(fm.get("summary", "")) > SUMMARY_LIMIT:
             out.append(f"{rel}: summary {len(fm['summary'])} chars, over {SUMMARY_LIMIT}")
         if fm.get("status") == "superseded":
-            out.append(f"{rel}: status superseded; delete the file")
+            out.append(
+                f"{rel}: status superseded; delete the file" + (", git keeps it" if git else "")
+            )
         elif HISTORY_LINE.search(text):
-            out.append(f"{rel}: history line; overwrite in place")
+            out.append(
+                f"{rel}: history line; overwrite in place"
+                + (", git keeps the old text" if git else "")
+            )
         elif len(CHANGED_LINE.findall(text)) > 1:
             out.append(
                 f"{rel}: more than one Changed line; keep only the reason that still matters"

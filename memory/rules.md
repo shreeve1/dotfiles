@@ -17,4 +17,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Changing pi's default model or settings.json | | `memory/docs/pi-default-model-per-machine.md` | |
 | Work touching the itastack workspace or its sync | | `memory/docs/itastack-workspace-sync.md` | |
 | Editing or testing an OpenCode plugin | | `memory/docs/opencode-plugin-reload.md` | |
+| Editing the personal-memory or memory-setup skill | | `memory/docs/starter-agent-skill-source.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |

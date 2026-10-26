@@ -12,6 +12,7 @@
 | [pi Default Model Is Per Machine](memory/docs/pi-default-model-per-machine.md) | doc | pi's defaultModel lives in each machine's gitignored .pi/agent/settings.json; a change must be made on every machine, only the template travels by git. | 2026-10-25 |
 | [OpenCode Plugin Edits Need a Server Restart](memory/docs/opencode-plugin-reload.md) | doc | Edited OpenCode plugins run only after the server restarts: systemctl --user restart opencode-server on Linux; on Windows end opencode-cli.exe. | 2026-10-25 |
 | [itastack Workspace Has No Git, Synced by Syncthing](memory/docs/itastack-workspace-sync.md) | doc | Since 2026-10-22 itastack has no git; on wrk agents work in the WSL copy, synced by Syncthing with the Windows copy; .stversions is the only undo. | 2026-10-26 |
+| [Starter-agent Skill Source](memory/docs/starter-agent-skill-source.md) | doc | personal-memory and memory-setup are edited in starter-agent, then synced into dotfiles. | 2026-10-26 |
 
 ## Client Hubs
 

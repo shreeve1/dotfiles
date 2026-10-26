@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Synchronize skills whose source of truth is starter-agent."""
+
+from __future__ import annotations
+
+import argparse
+import filecmp
+import shutil
+from pathlib import Path
+
+
+SKILLS = ("personal-memory", "memory-setup")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--starter", type=Path, default=Path.home() / "starter-agent")
+    parser.add_argument("--dest", type=Path, default=Path(__file__).resolve().parents[1])
+    return parser.parse_args()
+
+
+def files(root: Path) -> set[Path]:
+    return {
+        path.relative_to(root)
+        for path in root.rglob("*")
+        if path.is_file() and "__pycache__" not in path.parts
+    }
+
+
+def sync_skill(source: Path, destination: Path, dest_root: Path) -> list[str]:
+    source_files = files(source)
+    destination_files = files(destination) if destination.exists() else set()
+    changes: list[str] = []
+
+    for relative in sorted(destination_files - source_files):
+        path = destination / relative
+        path.unlink()
+        changes.append(str(path.relative_to(dest_root)))
+
+    for relative in sorted(source_files):
+        source_path = source / relative
+        destination_path = destination / relative
+        if not destination_path.exists() or not filecmp.cmp(
+            source_path, destination_path, shallow=False
+        ):
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, destination_path)
+            changes.append(str(destination_path.relative_to(dest_root)))
+
+    if destination.exists():
+        for path in sorted(destination.rglob("*"), reverse=True):
+            if path.is_dir() and ("__pycache__" in path.parts or not any(path.iterdir())):
+                shutil.rmtree(path)
+
+    return changes
+
+
+def main() -> int:
+    args = parse_args()
+    source_root = args.starter / ".agents" / "skills"
+    destination_root = args.dest / ".agents" / "skills"
+    for skill in SKILLS:
+        if not (source_root / skill / "SKILL.md").is_file():
+            print(f"missing starter skill: {source_root / skill / 'SKILL.md'}")
+            return 2
+
+    changes: list[str] = []
+    for skill in SKILLS:
+        changes.extend(
+            sync_skill(source_root / skill, destination_root / skill, args.dest)
+        )
+    for path in changes:
+        print(path)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

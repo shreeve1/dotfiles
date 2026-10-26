@@ -1,5 +1,5 @@
 <!-- markdownlint-disable-file MD041 -->
-<!-- Paste the sections below into the project's AGENTS.md or CLAUDE.md, in place of any wiki section. -->
+<!-- Paste the sections below into the project's AGENTS.md or CLAUDE.md, in place of any wiki section. Replace `<skills>` with the path chosen in memory-setup step 2. -->
 
 ## DO THIS FIRST: read memory before your first reply
 
@@ -25,9 +25,9 @@ Does not qualify: one-off task details, the status of work still in motion (save
 
 ## Project memory
 
-`memory/` holds this project's durable memory, operated by the `personal-memory` skill at `~/.agents/skills/personal-memory/`. `memory/README.md` is the layout contract; read it before creating a memory file.
+`memory/` holds this project's durable memory, operated by the `personal-memory` skill at `<skills>/personal-memory/`. `memory/README.md` is the layout contract; read it before creating a memory file.
 
-- **Write:** once per task, to the right file (workflows and decisions in a topic folder from `memory/schema.json`), update `memory/index.md`, then from the project root run `python3 ~/.agents/skills/personal-memory/indexes.py` if a workflow or decision changed, and `python3 ~/.agents/skills/personal-memory/gate.py --memory memory audit` until it exits 0.
+- **Write:** once per task, to the right file (workflows and decisions in a topic folder from `memory/schema.json`), update `memory/index.md`, then from the project root run `python3 <skills>/personal-memory/indexes.py` if a workflow or decision changed, and `python3 <skills>/personal-memory/gate.py --memory memory audit` until it exits 0. Without Python, use the skill's manual checks instead.
 - **Conflicts:** a new item that contradicts memory overwrites it in place. Files state only what is true now.
 - **Git:** if this project is a git repo, commit the memory files you wrote with the task (stage only your own). If not, the capture ends after the audit.
 - **Rules:** `memory/rules.md` routes tasks to skills and files, one row per trigger, pointers only. Add a row through the `personal-memory` skill.
