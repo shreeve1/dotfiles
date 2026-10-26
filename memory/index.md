@@ -14,6 +14,7 @@
 | [itastack Workspace Has No Git, Synced by Syncthing](memory/docs/itastack-workspace-sync.md) | doc | Since 2026-10-22 itastack has no git; on wrk agents work in the WSL copy, synced by Syncthing with the Windows copy; .stversions is the only undo. | 2026-10-26 |
 | [Fabric Child Model Tiers](memory/docs/fabric-child-model-tiers.md) | doc | A fabric child with no model runs on Main's model; skill tiers map cheap->cheap, standard->reviewer, most capable->oracle. | 2026-10-26 |
 | [Starter-agent Skill Source](memory/docs/starter-agent-skill-source.md) | doc | personal-memory and memory-setup are edited in starter-agent, then synced into dotfiles. | 2026-10-26 |
+| [wrk WSL Port Exposure](memory/docs/wrk-wsl-port-exposure.md) | doc | A WSL server bound to 0.0.0.0 on wrk is reachable from NetBird peers but not the LAN; Windows tools must use 127.0.0.1, not localhost. | 2026-10-26 |
 | [Remote Agent Servers per Machine](memory/docs/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
 
 ## Client Hubs
