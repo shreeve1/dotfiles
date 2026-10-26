@@ -9,7 +9,6 @@ import os
 import shutil
 from pathlib import Path
 
-
 SKILLS = ("personal-memory", "memory-setup")
 
 
@@ -65,7 +64,9 @@ def sync_skill(source: Path, destination: Path, dest_root: Path) -> list[str]:
         changes.append(str(destination.relative_to(dest_root)))
     destination_tree = tree(destination, reject_symlinks=False) if destination.exists() else {}
 
-    for relative in sorted(destination_tree, key=lambda path: (len(path.parts), path), reverse=True):
+    for relative in sorted(
+        destination_tree, key=lambda path: (len(path.parts), path), reverse=True
+    ):
         path = destination / relative
         if relative not in source_tree or destination_tree[relative] != source_tree[relative]:
             remove(path)
@@ -79,11 +80,8 @@ def sync_skill(source: Path, destination: Path, dest_root: Path) -> list[str]:
             if not destination_path.exists():
                 destination_path.mkdir()
                 changes.append(str(destination_path.relative_to(dest_root)))
-        elif (
-            destination_tree.get(relative) != "file"
-            or not filecmp.cmp(
+        elif destination_tree.get(relative) != "file" or not filecmp.cmp(
             source_path, destination_path, shallow=False
-            )
         ):
             shutil.copy2(source_path, destination_path)
             changes.append(str(destination_path.relative_to(dest_root)))
@@ -115,9 +113,7 @@ def main() -> int:
 
     changes: list[str] = []
     for skill in SKILLS:
-        changes.extend(
-            sync_skill(source_root / skill, destination_root / skill, args.dest)
-        )
+        changes.extend(sync_skill(source_root / skill, destination_root / skill, args.dest))
     for path in changes:
         print(path)
     return 0
