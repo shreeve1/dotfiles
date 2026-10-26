@@ -23,4 +23,6 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Starting, restarting or re-enabling a service on aidev or itan8n | | `memory/decisions/workstation/decision-retired-agent-services.md` | |
 | Exposing a WSL server on wrk to NetBird, or Windows can't reach it | | `memory/docs/wrk-wsl-port-exposure.md` | |
 | Suggesting a browser review, annotation or agent-inbox tool | | `memory/decisions/workstation/decision-no-plannotator.md` | |
+| The owner starts defining a procedure ("let's define a procedure for …") | skill `personal-memory` | `memory/TEMPLATES.md`, `memory/workflows/index.md` | Steps: personal-memory reference.md "Procedures". |
+| A task a saved procedure or workflow covers | | `memory/workflows/index.md` | Open the matching file and follow it. |
 | Saving, pruning or checking memory | skill `personal-memory` | | |
