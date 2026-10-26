@@ -96,11 +96,19 @@ def main() -> int:
     source_root = args.starter / ".agents" / "skills"
     destination_root = args.dest / ".agents" / "skills"
     for skill in SKILLS:
-        if not (source_root / skill / "SKILL.md").is_file():
-            print(f"missing starter skill: {source_root / skill / 'SKILL.md'}")
+        source_skill = source_root / skill
+        destination_skill = destination_root / skill
+        if source_skill.is_symlink():
+            print(f"source skill root is a symlink: {source_skill}")
+            return 2
+        if destination_skill.is_symlink():
+            print(f"destination skill root is a symlink: {destination_skill}")
+            return 2
+        if not (source_skill / "SKILL.md").is_file():
+            print(f"missing starter skill: {source_skill / 'SKILL.md'}")
             return 2
         try:
-            tree(source_root / skill, reject_symlinks=True)
+            tree(source_skill, reject_symlinks=True)
         except ValueError as error:
             print(error)
             return 2

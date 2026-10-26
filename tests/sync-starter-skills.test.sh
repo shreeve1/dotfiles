@@ -76,4 +76,35 @@ else
 fi
 diff -r "$TMP/before-missing" "$dest"
 
+source_root_target="$TMP/source-root-target"
+mkdir "$source_root_target"
+printf '%s\n' source-root >"$source_root_target/SKILL.md"
+mv "$starter/.agents/skills/memory-setup" "$starter/.agents/skills/memory-setup-real"
+ln -s "$source_root_target" "$starter/.agents/skills/memory-setup"
+cp -a "$dest" "$TMP/before-source-root"
+if run_sync; then
+  echo "source skill root symlink unexpectedly succeeded" >&2
+  exit 1
+else
+  status=$?
+  test "$status" -eq 2
+fi
+diff -r --exclude='__pycache__' "$TMP/before-source-root" "$dest"
+rm "$starter/.agents/skills/memory-setup"
+mv "$starter/.agents/skills/memory-setup-real" "$starter/.agents/skills/memory-setup"
+
+destination_root_target="$TMP/destination-root-target"
+mkdir "$destination_root_target"
+printf '%s\n' outside >"$destination_root_target/untouched.txt"
+rm -rf "$dest/.agents/skills/memory-setup"
+ln -s "$destination_root_target" "$dest/.agents/skills/memory-setup"
+if run_sync; then
+  echo "destination skill root symlink unexpectedly succeeded" >&2
+  exit 1
+else
+  status=$?
+  test "$status" -eq 2
+fi
+test "$(cat "$destination_root_target/untouched.txt")" = outside
+
 echo "sync-starter-skills tests: PASS"
