@@ -17,7 +17,7 @@ Verified 2026-10-26 by probing each machine:
 - surftop (Windows): `opencode-cli.exe` listens on 0.0.0.0:4096; a `codex-windows-sandbox` service process runs.
 - wrk: none of it — no unit files, processes or scheduled tasks on either the WSL or Windows side; `~/.codex` config exists but no server runs.
 - Codex `app-server` listens on a unix socket only: it is a local helper for Codex sessions, not a remote-management endpoint. Remote management goes through OpenCode :4096.
-- From aidev the `wrk` ssh alias is stale (port 22, no route); use `-p 2222 james@100.95.235.60`. From WSL, `tasklist.exe` checks the Windows side without ssh.
+- From aidev there is no `wrk` ssh alias; bare `ssh wrk` falls back to defaults (port 22) and fails. Use the `wsl-wrk` alias (100.95.235.60:2222). From WSL, `tasklist.exe` checks the Windows side without ssh.
 
 ## Related
 
