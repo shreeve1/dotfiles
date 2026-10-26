@@ -22,4 +22,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | OpenCode/Codex servers or ssh between machines | | `memory/docs/remote-agent-servers.md` | |
 | Starting, restarting or re-enabling a service on aidev or itan8n | | `memory/decisions/workstation/decision-retired-agent-services.md` | |
 | Exposing a WSL server on wrk to NetBird, or Windows can't reach it | | `memory/docs/wrk-wsl-port-exposure.md` | |
+| Configuring Plannotator or its pi extension | | `memory/decisions/workstation/decision-plannotator-agent-terminal-off.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |
