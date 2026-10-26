@@ -18,4 +18,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Work touching the itastack workspace or its sync | | `memory/docs/itastack-workspace-sync.md` | |
 | Editing or testing an OpenCode plugin | | `memory/docs/opencode-plugin-reload.md` | |
 | Editing the personal-memory or memory-setup skill | | `memory/docs/starter-agent-skill-source.md` | |
+| Dispatching a subagent or changing fabric child models | | `memory/docs/fabric-child-model-tiers.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |
