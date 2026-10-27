@@ -10,13 +10,19 @@ dest="$TMP/destination with spaces"
 mkdir -p "$starter/.agents/skills/personal-memory/scaffold" \
   "$starter/.agents/skills/memory-setup/nested" \
   "$starter/.agents/skills/memory-setup" \
+  "$starter/.agents/skills/drawio/reference" \
+  "$starter/.agents/skills/drawio/scripts" \
   "$dest/.agents/skills/personal-memory" \
   "$dest/.agents/skills/memory-setup" \
+  "$dest/.agents/skills/drawio" \
   "$dest/.agents/skills/other"
 printf '%s\n' personal-memory >"$starter/.agents/skills/personal-memory/SKILL.md"
 printf '%s\n' scaffold >"$starter/.agents/skills/personal-memory/scaffold/x.md"
 printf '%s\n' memory-setup >"$starter/.agents/skills/memory-setup/SKILL.md"
 printf '%s\n' nested >"$starter/.agents/skills/memory-setup/nested/x.md"
+printf '%s\n' drawio >"$starter/.agents/skills/drawio/SKILL.md"
+printf '%s\n' format >"$starter/.agents/skills/drawio/reference/format.md"
+printf '%s\n' script >"$starter/.agents/skills/drawio/scripts/drawio.mjs"
 mkdir -p "$dest/.agents/skills/personal-memory/__pycache__"
 printf '%s\n' destination-cache >"$dest/.agents/skills/personal-memory/__pycache__/x.pyc"
 printf '%s\n' old >"$dest/.agents/skills/memory-setup/removed.md"
@@ -37,11 +43,16 @@ diff -r --exclude='__pycache__' \
 diff -r --exclude='__pycache__' \
   "$starter/.agents/skills/memory-setup" \
   "$dest/.agents/skills/memory-setup"
+diff -r --exclude='__pycache__' \
+  "$starter/.agents/skills/drawio" \
+  "$dest/.agents/skills/drawio"
 test ! -e "$dest/.agents/skills/memory-setup/removed.md"
 test "$(cat "$dest/.agents/skills/other/SKILL.md")" = other
 test "$(cat "$dest/.agents/skills/personal-memory/__pycache__/x.pyc")" = destination-cache
 test -f "$dest/.agents/skills/personal-memory/scaffold/x.md"
 test -f "$dest/.agents/skills/memory-setup/nested/x.md"
+test -f "$dest/.agents/skills/drawio/reference/format.md"
+test -f "$dest/.agents/skills/drawio/scripts/drawio.mjs"
 
 outside="$TMP/outside.txt"
 printf '%s\n' outside >"$outside"
