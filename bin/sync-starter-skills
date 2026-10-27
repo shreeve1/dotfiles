@@ -9,7 +9,7 @@ import os
 import shutil
 from pathlib import Path
 
-SKILLS = ("personal-memory", "memory-setup")
+SKILLS = ("personal-memory", "memory-setup", "drawio")
 
 
 def parse_args() -> argparse.Namespace:
