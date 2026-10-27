@@ -11,24 +11,44 @@ James drags shapes in the full draw.io editor in his browser; you read and edit 
 
 ## Where diagrams go
 
-Diagrams live with the work they describe:
+Place each diagram beside the artifact it illustrates. Use the first matching route:
 
-- **Belongs to a plan:** beside the plan file, named after it. `plans/bot-intake.md` → `plans/bot-intake.drawio`.
-- **Otherwise:** `<project root>/diagrams/<topic>.drawio`. Project root is the git root of the working directory, else the working directory.
+- **Superpowers planning:** when writing or executing a plan, save the diagram beside the plan with the same basename. Superpowers' default is `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`, so the companion is `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.drawio`.
+- **Superpowers brainstorming/design:** when brainstorming or shaping a design, save the diagram beside the design/spec it is producing, using the same basename. Superpowers' default is `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, so reserve the companion there even before the spec is written.
+- **Personal memory:** when no Superpowers planning or brainstorming route applies and the project has `memory/`, use the `personal-memory` skill to identify or create the related memory note, save the companion `.drawio` beside that note, and add a relative link from the note to the diagram. Examples: `memory/docs/topic.md` → `memory/docs/topic.drawio`; `memory/decisions/projects/decision-feature.md` → `memory/decisions/projects/decision-feature.drawio`.
+- **Fallback:** when neither Superpowers nor project memory applies, save to `cwd/drawio/<subject>/diagram.drawio`. The file extension is `.drawio`, not `.io`.
 
-Start the server with `--dir <project root>` so both kinds appear in its list.
+Start the server with `--dir` set to the root containing the selected location: normally the project root, or `cwd` for the fallback route.
+
+## Find before create
+
+Reuse the relevant diagram instead of creating a second one:
+
+1. Resolve the owning artifact and storage route above, then search that location and the project root for existing `.drawio` files matching the subject, plan/spec basename, memory-note basename, or an obviously related name. Inspect the running server's diagram list too when available.
+2. If a relevant diagram exists, report its path (or paths) and ask James to confirm which one to open. Do not create or edit a diagram until he confirms.
+3. After confirmation, serve and open that diagram, then iterate on it. If several candidates exist, list each path and ask him to choose one.
+4. If no relevant diagram exists, create one at the selected storage location and give him its link.
+
+## Question and decision notes
+
+Use notes throughout the diagram's life, not only during brainstorming:
+
+- Reserve a clear column on the right for unresolved questions, decisions needing confirmation, assumptions, risks, and other items James can answer or correct.
+- Keep the main flow or structure separate from this question column. Stack active notes vertically and keep their wording short and specific; use the yellow note style from `reference/format.md`.
+- When a question is answered, keep its note as history. Mark it answered, move it below the active notes, or consolidate related answered notes into an `Answered decisions` note. Do not remove an answered note just because it is resolved.
+- As new questions appear, add them to the active right-hand column and stack or consolidate the answered history to preserve room. Update the notes in the same turn when a decision is settled.
 
 ## Start, stop, status
 
 ```sh
-node <skill-dir>/scripts/drawio.mjs start --dir <project root>
+node <skill-dir>/scripts/drawio.mjs start --dir <project root> --host <NetBird IPv4> --url-host <NetBird IPv4>
 node <skill-dir>/scripts/drawio.mjs status
 node <skill-dir>/scripts/drawio.mjs stop
 ```
 
-- Default bind is `127.0.0.1:8740`: fine when James's browser runs on the same machine (wrk desktop, surftop).
-- When his browser is on another machine (a headless host like aidev), bind the NetBird IP: `--host <ip>`. aidev is `100.95.230.15`; get any host's IP with `netbird status` or from the dotfiles `AGENTS.md` table. Pass `--url-host <name>` if he prefers a name in the link.
-- WSL on wrk: a browser on wrk's Windows side reaches the default `localhost` link.
+- Always find the machine's NetBird IPv4 with `netbird status` or from the dotfiles `AGENTS.md` table, and pass it to both `--host` and `--url-host`. The printed link must use the NetBird IPv4, never `localhost`.
+- On a native host, bind directly to its NetBird IPv4. aidev is `100.95.230.15`; wrk is `100.95.235.60`; itan8n is `100.95.224.218`; surftop is `100.95.222.42`.
+- WSL on wrk is the exception: NetBird runs on Windows, so bind the WSL server to `0.0.0.0` but pass wrk's NetBird IPv4 (`100.95.235.60`) to `--url-host`. Use `node <skill-dir>/scripts/drawio.mjs start --dir <project root> --host 0.0.0.0 --url-host 100.95.235.60`.
 - Run `status` before `start`. `start` replaces the running server, and another session may be using it: if it serves a different folder, ask James before replacing it (any tab open on the old folder switches saving off). Other flags: `--port`, `--idle-minutes` (default 240; it exits by itself after that long without a browser request).
 - Give James the printed `url`. Link straight to a diagram with `<url>edit?file=<path relative to --dir>`; a path that doesn't exist yet opens a blank diagram that is created on first Save.
 - Run `stop` when the session's diagram work is done.
@@ -37,7 +57,7 @@ node <skill-dir>/scripts/drawio.mjs stop
 
 The file on disk is the shared state. The page saves only when James presses Save (Ctrl+S), and it polls the file every 2 s.
 
-1. **Before you edit an existing diagram**, ask James to save, then read the file. (A new diagram has nothing to save: write it, then give him the link.) If he changed it since your last turn, say in a line or two what he changed (added, moved, relabelled, deleted), because that is his half of the conversation.
+1. **When James reports that he updated, changed, or edited the diagram, treat that report as confirmation that he saved it.** Read the file immediately and proceed; do not ask him to confirm saving again. If he has not reported a change and you need to edit an existing diagram, ask him to save first. (A new diagram has nothing to save: write it, then give him the link.) If he changed it since your last turn, say in a line or two what he changed (added, moved, relabelled, deleted), because that is his half of the conversation.
 2. **Edit** following `reference/format.md`.
 3. **Tell him** what you changed. His page reloads by itself when he has no unsaved edits.
 4. If he had unsaved edits when you wrote, his page shows a banner instead: Reload takes your version, Save as copy keeps his as `<name>-mine.drawio`. His tab then edits the `-mine` copy. Read both, merge into the original, give him the original's link, and delete the copy once he has switched back and agrees.
@@ -46,7 +66,7 @@ Before writing or editing any `.drawio` XML, read [`reference/format.md`](refere
 
 ## Kick-off: "let's talk about X and brainstorm"
 
-When James invokes this skill along with a subject to talk about, invoking the skill means yes to the canvas. Your first message comes with a seed diagram, so he has something to react to from the start:
+When James invokes this skill along with a subject to talk about, invoking the skill means yes to the canvas. First find any relevant existing diagram. Your first message either asks James to confirm a matching diagram to open or gives him a new seed diagram to react to:
 
 1. **Load the brainstorming skill** and follow it for the conversation. This section replaces its visual companion offer; everything else in that skill still applies.
 2. **Look before you draw.** Read what the subject points at: the plan, spec, code, notes or earlier conversation it names or that obviously relates to it. Stop once you can sketch how it works today, or what he seems to want. When there is little or nothing to read, seed from the subject alone: a topic map of the usual parts of such a thing, mostly `?` labels, is still a better start than a blank page.
@@ -54,7 +74,7 @@ When James invokes this skill along with a subject to talk about, invoking the s
    - **Flow** (steps, a process, a pipeline, a bot or agent loop, a request path): a rough flowchart of what you know.
    - **Structure** (a system, its parts and how they connect): boxes for the parts, arrows for the connections.
    - **Topic map** (anything still fuzzy: an idea, a decision, a problem): the subject in the centre, branches for the parts, goals, constraints and options you found or he named.
-4. **Seed it:** 5 to 12 shapes. Use his words for labels. Anything you filled in yourself ends its label with a question mark after a space ("Agent triages ?"). Add 2 to 4 yellow notes (200×80) with the open questions whose answers would change the diagram most, each placed next to the part it concerns. Put it where the placement rules above say, named after the subject.
+4. **Seed it:** 5 to 12 main shapes. Use his words for labels. Anything you filled in yourself ends its label with a question mark after a space ("Agent triages ?"). Add 2 to 4 yellow notes (200×80) in the right-hand question column for the open questions whose answers would change the diagram most. Keep the question column separate from the main flow or structure. Put it where the placement rules above say, named after the subject.
 5. **Serve it:** `status`, then `start` if needed, and check the XML.
 6. **First message:** the direct link; one or two lines on what you drew and what you based it on; then the brainstorming skill's first message (a one-line subject counts as "they haven't said what they want", even when the files you read fill in a lot), ending with its single question. Make that question one the canvas can answer too: "fix it in the text or on the diagram, whichever is quicker."
 
@@ -62,9 +82,9 @@ From then on, follow **Taking turns** and the rules below.
 
 ## In brainstorming
 
-This canvas is the editable form of the brainstorming skill's visual companion. When a flow, sequence of steps, set of states, or structure comes up, offer to sketch it on the canvas instead of describing it, in a message of its own. When he has already asked for a diagram, or opened with the kick-off above, skip the offer and sketch. Then:
+This canvas is the editable form of the brainstorming skill's visual companion. When a flow, sequence of steps, set of states, or structure comes up, offer to sketch it on the canvas instead of describing it, in a message of its own. When he has already asked for a diagram, or opened with the kick-off above, skip the offer and follow **Find before create**: reuse a confirmed relevant diagram, or create one only when no relevant diagram exists. Then:
 
-- Sketch the current understanding: rough, labelled, few shapes. Put each open question or guess in a yellow note shape beside the step it concerns, so he can see what to correct.
+- Sketch the current understanding in the confirmed existing diagram or the newly created one: rough, labelled, few shapes. Put each open question or guess in a yellow note shape beside the step it concerns, so he can see what to correct.
 - Keep the diagram in step with the conversation: when he settles something in text, update the canvas in the same turn and say so.
 - Read his edits as answers. A deleted box is a rejected step; a new arrow is a dependency he cares about. Confirm what you read before building on it.
 - Decisions belong in the spec or design doc; the diagram illustrates them. When you next write that doc, link the diagram's path from it.

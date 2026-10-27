@@ -29,7 +29,7 @@
 - **New ids:** unique and readable, from the label: `step-validate`, `dec-has-attachment`, `edge-validate-to-route`.
 - **Deleting a shape:** also delete every edge whose `source` or `target` is that shape, and any cell whose `parent` is it.
 - **Labels:** XML-escape (`&amp;` `&lt;` `&gt;` `&quot;`). With `html=1` in the style, a line break is `&lt;br&gt;`.
-- **Placement:** put new shapes in empty space, near what they connect to, continuing the flow's direction. Find free space from existing geometries before choosing `x`/`y`.
+- **Placement:** put new shapes in empty space, near what they connect to, continuing the flow's direction. Reserve a clear right-hand column for yellow question and decision notes; stack active notes there and place answered notes below them or consolidate them into an answered-decisions note. Find free space from existing geometries before choosing `x`/`y`.
 - **Grid:** snap to 10. Default shape 160×60 (decisions 160×80), 80 px gap along the flow, 60 px between parallel branches. Flow runs top to bottom unless the existing diagram runs left to right.
 - If your additions came out cramped, tell James that **Arrange > Layout** (vertical flow) tidies the whole diagram in one click; whether to use it is his call.
 - After editing, check the file is still well-formed XML: `python3 -c "import sys,xml.dom.minidom as m; m.parse(sys.argv[1])" <file>` (silent means good). Where python is missing, open the diagram through the server page yourself, or ask James to reload; the editor reports malformed XML.

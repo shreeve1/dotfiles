@@ -281,3 +281,6 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 
 # pi-fabric project-scope runtime state (mesh, MCP cache)
 .pi/fabric/
+
+# Pi's machine-local Git checkout/cache
+.pi/agent/git/
