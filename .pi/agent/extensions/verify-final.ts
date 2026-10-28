@@ -10,6 +10,15 @@
 //   sendUserMessage cannot run there — print mode awaits one session.prompt and
 //   exits. The boundary continuation is awaited inside that same prompt call.
 //
+// Completion check (verify-final --done):
+//   On a turn that edited, wrote or ran a command, the user's request (with the
+//   two before it as context) and the final answer go to the same checker in
+//   --done mode, which reports parts of the request that are not done. It runs
+//   alongside the grounding check, at the same points and the same minimum
+//   length; when either finds something, both findings go to the agent as ONE
+//   follow-up turn. A turn's own follow-up is never checked again.
+//   VERIFY_DONE=0 turns it off; VERIFY_FINAL=0 turns off both checks.
+//
 // Cleanup (post-work-cleanup):
 //   Tracks the code files THIS session changed through edit/write (by real
 //   path, so a symlinked ~/.config file maps to its repo copy). Another
@@ -160,7 +169,14 @@ interface RunResult {
   errored: boolean;
 }
 
-let activeChild: ChildProcessWithoutNullStreams | null = null;
+const activeChildren = new Set<ChildProcessWithoutNullStreams>();
+// Completion check state: recent user requests (latest last) and whether this
+// prompt's run edited, wrote or ran a command.
+const REQUEST_HISTORY = 3;
+const DONE_FINDING_RE = /(^|\n)\s*MISSING\s*\|/;
+const WORK_TOOLS = new Set(["edit", "write", "bash"]);
+const recentRequests: string[] = [];
+let workedSeq = -1;
 let lastAssistantText = "";
 let userPromptSeq = 0;
 let lastFollowupSeq = -1;
@@ -536,7 +552,33 @@ function cleanupSkillAvailable(cwd: string): boolean {
   return candidates.some((candidate) => existsSync(candidate));
 }
 
+/** Grounding check: the answer's claims against the files. */
 function runCheck(cwd: string, text: string): Promise<RunResult> {
+  return runChecker(cwd, ["--harness", "pi", "--check", "-"], text);
+}
+
+/** Completion check: did the run finish what the user asked? */
+function runDoneCheck(cwd: string, text: string): Promise<RunResult> {
+  const input = JSON.stringify({ requests: recentRequests, answer: text });
+  return runChecker(cwd, ["--harness", "pi", "--done", "-"], input);
+}
+
+/** True when this prompt's run did work the completion check can judge. */
+function shouldCheckDone(): boolean {
+  return (
+    process.env.VERIFY_DONE !== "0" && workedSeq === userPromptSeq && recentRequests.length > 0
+  );
+}
+
+/** The follow-up text from both checks, or "" when neither found anything. */
+function findingsText(grounding: RunResult, done: RunResult | null): string {
+  const parts: string[] = [];
+  if (FINDING_RE.test(grounding.stdout)) parts.push(grounding.stdout.trim());
+  if (done && DONE_FINDING_RE.test(done.stdout)) parts.push(done.stdout.trim());
+  return parts.join("\n\n");
+}
+
+function runChecker(cwd: string, args: string[], text: string): Promise<RunResult> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
@@ -544,7 +586,7 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
     let errored = false;
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(VERIFY_EXE, [...VERIFY_ARGS, "--harness", "pi", "--check", "-"], {
+      child = spawn(VERIFY_EXE, [...VERIFY_ARGS, ...args], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -559,7 +601,7 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
       });
       return;
     }
-    activeChild = child;
+    activeChildren.add(child);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
@@ -579,13 +621,13 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
     if (typeof timer.unref === "function") timer.unref();
     child.on("close", (exitCode, signal) => {
       clearTimeout(timer);
-      if (activeChild === child) activeChild = null;
+      activeChildren.delete(child);
       resolve({ stdout, stderr, exitCode, signal, timedOut, errored });
     });
     child.on("error", () => {
       errored = true;
       clearTimeout(timer);
-      if (activeChild === child) activeChild = null;
+      activeChildren.delete(child);
       resolve({
         stdout,
         stderr,
@@ -661,10 +703,20 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     cleanupDoneSeq = -1;
     continuationsThisPrompt = 0;
     if (CLEANUP_SKILL_BLOCK_RE.test(event.prompt)) markCleanupRan();
+    // The checks' own follow-up is not a request to judge the next answer against.
+    if (userPromptSeq !== lastFollowupSeq && event.prompt.trim()) {
+      recentRequests.push(event.prompt.trim());
+      if (recentRequests.length > REQUEST_HISTORY) recentRequests.shift();
+    }
   });
 
   pi.on("session_start", () => {
     tracked.clear();
+    recentRequests.length = 0;
+  });
+
+  pi.on("tool_call", (event) => {
+    if (WORK_TOOLS.has(event.toolName)) workedSeq = userPromptSeq;
   });
 
   // Commit gate: hold a bash `git commit` once while tracked files are uncleaned.
@@ -772,12 +824,14 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     const text = lastAssistantText;
     if (shouldSkipText(text)) return;
     groundingDoneSeq = userPromptSeq;
-    const result = await runCheck(resolveCwd(ctx), text);
+    const cwd = resolveCwd(ctx);
+    const [grounding, done] = await Promise.all([
+      runCheck(cwd, text),
+      shouldCheckDone() ? runDoneCheck(cwd, text) : Promise.resolve(null),
+    ]);
     if (aborted) return;
-    const out = result.stdout;
-    if (!out.trim()) return;
-    if (out.includes("verify-final: no findings")) return;
-    if (!FINDING_RE.test(out)) return;
+    const out = findingsText(grounding, done);
+    if (!out) return;
     continuationsThisPrompt += 1;
     return withContinuation(event, customMessage("verify-final", out));
   });
@@ -800,24 +854,33 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     const cwd = resolveCwd(ctx);
     const checkSeq = userPromptSeq;
     groundingDoneSeq = userPromptSeq;
-    void runCheck(cwd, text)
-      .then((result) => {
+    void Promise.all([
+      runCheck(cwd, text),
+      shouldCheckDone() ? runDoneCheck(cwd, text) : Promise.resolve(null),
+    ])
+      .then(([grounding, done]) => {
         if (aborted) return;
         // A new user prompt arrived while the check ran — discard stale result.
         if (checkSeq !== userPromptSeq) return;
         if (userPromptSeq === lastFollowupSeq) return;
-        const out = result.stdout;
-        const trimmed = out.trim();
-        if (!trimmed) return;
-        if (out.includes("verify-final: no findings")) return;
-        if (FINDING_RE.test(out)) {
+        const out = findingsText(grounding, done);
+        if (out) {
           lastFollowupSeq = userPromptSeq + 1;
           pi.sendUserMessage(out);
           return;
         }
-        // UNSURE lines, "check could not run", or any other diagnostic.
+        // "check could not run", or any other diagnostic, from either check.
+        const notices = [grounding, done].flatMap((result) =>
+          result &&
+          result.stdout.trim() &&
+          !result.stdout.includes("verify-final: no findings") &&
+          !result.stdout.includes("verify-final: work done")
+            ? [noticeText(result)]
+            : [],
+        );
+        if (notices.length === 0) return;
         try {
-          ctx.ui.notify(noticeText(result), "warning");
+          ctx.ui.notify(notices.join("\n"), "warning");
         } catch {
           // UI gone (session ended mid-check); the notice is best-effort.
         }
@@ -827,14 +890,13 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
 
   pi.on("session_shutdown", () => {
     aborted = true;
-    const child = activeChild;
-    if (child) {
-      activeChild = null;
+    for (const child of activeChildren) {
       try {
         child.kill();
       } catch {
         // Already exited; nothing left to stop at shutdown.
       }
     }
+    activeChildren.clear();
   });
 }

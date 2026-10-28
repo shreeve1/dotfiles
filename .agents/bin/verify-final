@@ -39,6 +39,15 @@ could not run"; =all also shows UNSURE claims; =none shows neither. Hidden
 UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims always block,
 whatever the level.
 
+--done FILE (FILE or - for stdin): completion check. FILE is JSON
+{"requests": [earlier..., latest], "answer": str}. The checker reads the request
+and the final answer, opens files where the answer claims a change, and prints
+"MISSING |" lines for what was asked but not done, with an instruction for the
+agent, or "verify-final: work done". The model answers DONE or MISSING for each part
+of the request. Same model, thinking, minimum length, cache
+and log (statuses done_*) as --check. The pi extension runs it on turns that
+edited, wrote or ran a command. VERIFY_DONE=0 turns it off there.
+
 --rewake (Claude Code `asyncRewake` hook): a FALSE finding is written to stderr and the
 script exits 2, which wakes Claude in the background with the findings as a system
 reminder. Claude sends stop_hook_active=true on the Stop that follows that wake (and
@@ -83,6 +92,40 @@ FINAL ANSWER:
 <<<
 {answer}
 >>>"""
+
+DONE_PROMPT = """You are an independent completion reviewer. Below is what the user asked an AI agent to do, and the FINAL ANSWER the agent gave when it stopped. Decide whether the agent finished what the user asked, working in this directory. Where the answer says something was changed, read the files (read-only tools only) to see whether the change is really there.
+
+Judge only what the user asked for in the LATEST REQUEST; earlier requests are context for what it refers to. A part counts as missing when the user asked for it and the answer neither shows it done nor openly says it was not done and why. A question back to the user, a stated blocker, or the user's own instruction to wait counts as openly saying. Do not ask for extra work, improvements, tests or polish the user did not ask for. Do not report things only running a command could confirm (tests, pushes, deploys, services, other machines) unless the answer itself shows they were not done.
+
+First split the latest request into each separate thing it asks for (\"change X, and also update Y, and add Z\" is three parts). Then reply with one line per part, in the order asked, nothing else:
+DONE | <evidence: file:line, or the answer's own words> | <the part>
+MISSING | <evidence: what is absent from the answer and files> | <the part> -- <what is not done>
+A part the answer never mentions is MISSING unless the files show it done. Never reply with an empty message.
+
+EARLIER REQUESTS (context only):
+<<<
+{earlier}
+>>>
+
+LATEST REQUEST:
+<<<
+{request}
+>>>
+
+FINAL ANSWER:
+<<<
+{answer}
+>>>"""
+
+DONE_INSTRUCTION = (
+    "\nFinish each part now if the user asked for it. Do not do anything the user did not ask for, and do "
+    "not take an irreversible step (pushing, deleting data, changing a live system) the user has not "
+    "approved; ask instead. Then write your final answer again as a complete, standalone message: the user "
+    "reads only that message. Open it with one line per part, in the form \"Missing: <what was not done>; "
+    "<now done, or why it still is not>.\" If your re-check shows a part was already done, open with "
+    "\"Checked: <the part> was done; <your evidence>.\" instead. Then give the rest of the answer. Do not "
+    "address the checker."
+)
 
 LEDGER_PROMPT = """
 This answer is a turn of a grilling session. The system it is grilling inside (decisions settled, documented capabilities and limits, observed facts) is recorded in the ledger: {path}. Read the ledger in full first. Then, besides factual claims, check every recommendation, proposed option, and suggested approach in the answer (including lines starting with ➡️) against the ledger, and report each one that fails:
@@ -150,15 +193,15 @@ def log(harness, status, secs, detail=""):
         pass
 
 
-def cache_path(cwd, answer, ledger_path):
-    """The clean-verdict marker for this answer, directory and ledger state."""
+def cache_path(cwd, answer, ledger_path, kind="claims"):
+    """The clean-verdict marker for this answer, directory, ledger state and kind of check."""
     ledger_stamp = ""
     if ledger_path:
         try:
             ledger_stamp = str(os.path.getmtime(os.path.join(cwd or ".", ledger_path)))
         except OSError:
             pass
-    key = "\0".join([os.path.realpath(cwd or "."), ledger_path, ledger_stamp, MODEL, answer])
+    key = "\0".join([kind, os.path.realpath(cwd or "."), ledger_path, ledger_stamp, MODEL, answer])
     return os.path.join(STATE, "clean-" + hashlib.sha256(key.encode()).hexdigest()[:32])
 
 
@@ -183,6 +226,84 @@ def remember_clean(path):
             pass
     except OSError:
         pass
+
+
+def run_checker(template, cwd, answer, **fields):
+    """Run the read-only checker model on template; (stdout, stderr, returncode, seconds)."""
+    pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
+    spill = None
+    if len(answer.encode()) <= INLINE_MAX_BYTES:
+        body = answer
+    else:
+        fd, spill = tempfile.mkstemp(prefix="verify-final-", suffix=".txt")
+        with os.fdopen(fd, "w") as f:
+            f.write(answer)
+        body = f"(The answer is too long to inline. Read the ENTIRE file {spill} and check all of it, through to the last line.)"
+    t0 = time.time()
+    cmd = [
+        pi, "-p", "--no-session", "--no-skills", "--no-context-files",
+        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL, "--thinking", THINKING,
+    ]
+    env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
+    try:
+        # The prompt goes on stdin, not argv: on Windows `pi` is a .cmd shim, and cmd.exe
+        # cuts an argument at its first newline, so the checker never saw the answer.
+        r = subprocess.run(cmd, cwd=cwd or None, env=env, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
+                           input=template.format(answer=body, **fields))
+        out, err, rc = r.stdout, r.stderr, r.returncode
+    except subprocess.TimeoutExpired:
+        out, err, rc = "", f"timed out after {TIMEOUT}s", 124
+    except OSError as e:
+        out, err, rc = "", str(e), 127
+    finally:
+        if spill:
+            os.unlink(spill)
+    return out, err, rc, time.time() - t0
+
+
+MISSING_LINE = re.compile(r"^\W*MISSING\b", re.IGNORECASE)
+DONE_LINE = re.compile(r"^\W*DONE\b", re.IGNORECASE)
+
+
+def done_main(harness):
+    """--done: did the agent finish what the user asked? Prints the instruction or "work done"."""
+    global ANSWER_LEN
+    src = sys.argv[sys.argv.index("--done") + 1]
+    try:
+        with (sys.stdin if src == "-" else open(src, encoding="utf-8")) as f:
+            ev = json.load(f)
+    except (ValueError, OSError, IndexError) as e:
+        sys.exit(f"verify-final: cannot read --done input ({e})")
+    requests = [str(r).strip() for r in ev.get("requests") or [] if str(r).strip()]
+    answer = str(ev.get("answer") or "").strip()
+    ANSWER_LEN = len(answer)
+    if not requests or len(answer) < MIN_CHARS:
+        log(harness, "done_skip_short", 0.0)
+        print("verify-final: work done (nothing to check)")
+        return
+    cwd = os.getcwd()
+    marker = cache_path(cwd, "\0".join(requests + [answer]), "", kind="done")
+    if cached_clean(marker):
+        log(harness, "done_cached", 0.0)
+        print("verify-final: work done (same answer found done earlier)")
+        return
+    earlier = "\n---\n".join(requests[:-1]) or "(none)"
+    out, err, rc, secs = run_checker(DONE_PROMPT, cwd, answer, earlier=earlier, request=requests[-1])
+    missing = [l.strip() for l in out.splitlines() if MISSING_LINE.match(l)]
+    if rc == 0 and not missing and any(DONE_LINE.match(l) for l in out.splitlines()):
+        log(harness, "done_clean", secs)
+        remember_clean(marker)
+        print("verify-final: work done")
+        return
+    if rc != 0 or not missing:
+        why = (err.strip().splitlines() or ["no MISSING or DONE line in checker output"])[-1][:200]
+        log(harness, "done_error", secs, why)
+        print(f"verify-final: completion check could not run ({why})")
+        return
+    log(harness, "done_missing", secs, f"missing={len(missing)}")
+    print("An independent check of whether the work is finished found parts of the request that are not done:\n"
+          + "\n".join(missing) + DONE_INSTRUCTION)
 
 
 MANUAL = False
@@ -218,6 +339,9 @@ def main():
     harness = sys.argv[sys.argv.index("--harness") + 1] if "--harness" in sys.argv else "unknown"
     if os.environ.get("VERIFY_FINAL") == "0" or os.environ.get("VERIFY_FINAL_RUNNING"):
         return
+    if "--done" in sys.argv:
+        done_main(harness)
+        return
     try:
         ev = read_event()
     except (ValueError, OSError, IndexError) as e:
@@ -252,37 +376,8 @@ def main():
             print("verify-final: no findings (same answer found clean earlier)")
         return
 
-    pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
-    spill = None
-    if len(answer.encode()) <= INLINE_MAX_BYTES:
-        body = answer
-    else:
-        fd, spill = tempfile.mkstemp(prefix="verify-final-", suffix=".txt")
-        with os.fdopen(fd, "w") as f:
-            f.write(answer)
-        body = f"(The answer is too long to inline. Read the ENTIRE file {spill} and check every claim in it, through to the last line.)"
     ledger = LEDGER_PROMPT.format(path=ledger_path) if ledger_path else ""
-    t0 = time.time()
-    cmd = [
-        pi, "-p", "--no-session", "--no-skills", "--no-context-files",
-        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL, "--thinking", THINKING,
-    ]
-    env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
-    try:
-        # The prompt goes on stdin, not argv: on Windows `pi` is a .cmd shim, and cmd.exe
-        # cuts an argument at its first newline, so the checker never saw the answer.
-        r = subprocess.run(cmd, cwd=ev.get("cwd") or None, env=env, capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
-                           input=PROMPT.format(answer=body, ledger=ledger))
-        out, err, rc = r.stdout, r.stderr, r.returncode
-    except subprocess.TimeoutExpired:
-        out, err, rc = "", f"timed out after {TIMEOUT}s", 124
-    except OSError as e:
-        out, err, rc = "", str(e), 127
-    finally:
-        if spill:
-            os.unlink(spill)
-    secs = time.time() - t0
+    out, err, rc, secs = run_checker(PROMPT, ev.get("cwd"), answer, ledger=ledger)
 
     verdicts = [VERDICT.match(l) for l in out.splitlines()]
     verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]

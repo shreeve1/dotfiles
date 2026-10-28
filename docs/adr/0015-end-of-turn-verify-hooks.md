@@ -169,3 +169,33 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
   rewrite was not checked again. A one-line answer got no check. The gate denied
   a real `git commit` with the file list, and the commit went through after
   post-work-cleanup. Test: `tests/opencode-verify-final.test.mjs`.
+
+## Addendum (2026-10-28): Pi completion check
+
+- The grounding check asks whether the answer's claims are true. It cannot see
+  work that was asked for and never mentioned. `verify-final --done` asks a
+  second question: did the agent finish what the user asked? Its input is JSON
+  `{"requests": [...], "answer": "..."}`. The checker splits the latest request
+  into parts and answers `DONE` or `MISSING` for each, reading files where the
+  answer claims a change. Earlier requests are context only.
+- The Pi extension runs it next to the grounding check, at the same points
+  (TUI after settle, headless at the boundary) and the same 500-character
+  minimum, on turns that called edit, write or bash. A read-only question gets
+  only the grounding check. When either check finds something, both findings go
+  to the agent as one follow-up. The agent opens its rewrite with a
+  `Missing: <part>; <now done, or why not>` line per part, or
+  `Checked: <part> was done; <evidence>` when it disagrees. It must not take an irreversible step
+  the user has not approved. The follow-up turn is never checked again.
+- Same model, thinking level, cache and log as the grounding check; statuses
+  `done_clean`, `done_missing`, `done_error`, `done_cached`, `done_skip_short`.
+  `VERIFY_DONE=0` turns it off; `VERIFY_FINAL=0` turns off both.
+- Why per-part verdicts: asked for a single `DONE`, the model answered `DONE` for
+  a request with a part the answer never mentioned. Asked to list each part, it
+  caught the missing part in 3 of 3 runs and passed the complete answer in 3
+  of 3.
+- Pi only for now. Claude Code, Codex, omp and OpenCode run only the grounding
+  check.
+- Tested end to end with real `pi -p` on minimax-m3: the agent was told to skip
+  one of two requested edits. The check logged `done_missing`, the agent made
+  the edit, and its answer opened with a "Missing:" line. Test:
+  `tests/verify-final-done.test.sh`.
