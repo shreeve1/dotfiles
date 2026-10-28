@@ -15,6 +15,7 @@
 | [Fabric Child Model Tiers](memory/docs/fabric-child-model-tiers.md) | doc | A fabric child with no model runs on Main's model; skill tiers map cheap->cheap, standard->reviewer, most capable->oracle. | 2026-10-26 |
 | [Starter-agent Skill Source](memory/docs/starter-agent-skill-source.md) | doc | personal-memory, memory-setup, and drawio are edited in starter-agent, then synced into dotfiles. | 2026-10-27 |
 | [wrk WSL Port Exposure](memory/docs/wrk-wsl-port-exposure.md) | doc | A WSL server bound to 0.0.0.0 on wrk is reachable from NetBird peers but not the LAN; Windows tools must use 127.0.0.1, not localhost. | 2026-10-26 |
+| [verify-final Logs and How to Measure It](memory/docs/verify-final-logs.md) | doc | Every verify-final check appends to ~/.cache/verify-final.log per machine; pi and OpenCode runs log as harness "manual" because both call --check. | 2026-10-28 |
 | [Remote Agent Servers per Machine](memory/docs/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
 
 ## Client Hubs
