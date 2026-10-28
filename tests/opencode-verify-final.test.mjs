@@ -291,7 +291,7 @@ await run("disabled", makeRepo("t11"), async (t) => {
 delete process.env.VERIFY_FINAL;
 process.env.VERIFY_FINAL_BIN = join(ROOT, "tests", "fake-verify-final.mjs");
 const FALSE_OUT = "FALSE | a.py:1 | claim -- fix\n";
-const LONG = "The answer. " + "x".repeat(240);
+const LONG = "The answer. " + "x".repeat(540);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const waitFor = async (cond, ms = 15000) => {
   const until = Date.now() + ms;

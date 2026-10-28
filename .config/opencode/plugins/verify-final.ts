@@ -56,7 +56,7 @@ const CLEANUP_DISABLE_HINT = "(Set POST_WORK_CLEANUP=0 to disable this reminder.
 const NOT_A_COMMIT_REQUEST =
   "This is not a request to commit: commit only if the task or the repo's rules call for it."
 const CHECK_TIMEOUT_MS = 180_000
-const MIN_CHARS = 200
+const MIN_CHARS = 500
 // Grill format markers: ❓, or ➡ followed by its emoji selector U+FE0F.
 const GRILL_MARKER_RE = /\u2753|\u27a1\ufe0f/u
 // Finding lines open with the verdict and a pipe; bare words in prose never match.

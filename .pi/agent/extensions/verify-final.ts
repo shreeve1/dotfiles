@@ -56,7 +56,7 @@ const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final");
 const [VERIFY_EXE, VERIFY_ARGS]: readonly [string, readonly string[]] =
   process.platform === "win32" ? ["python", [VERIFY_BIN]] : [VERIFY_BIN, []];
 const CHECK_TIMEOUT_MS = 180_000;
-const MIN_CHARS = 200;
+const MIN_CHARS = 500;
 // Grill format markers: answering questions or selecting next options. Same as the
 // script's GRILL_MARKERS: ❓, or ➡ followed by its emoji selector U+FE0F.
 const GRILL_MARKER_RE = /\u2753|\u27a1\ufe0f/u;

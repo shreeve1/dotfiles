@@ -25,14 +25,15 @@ printf '%s\n' "$FAKE_PI_OUTPUT"
 EOF
 chmod +x "$TMP/bin/pi"
 
-# Long enough to pass the 200-character minimum; the fake checker ignores it.
-ANSWER="$(head -c 300 /dev/zero | tr '\0' 'a')"
+# Long enough to pass the 500-character minimum; the fake checker ignores it.
+ANSWER="$(head -c 600 /dev/zero | tr '\0' 'a')"
 
 pass=0
 failures=()
 check() {
   if [ "$2" = "yes" ]; then pass=$((pass + 1)); else failures+=("$1"); fi
 }
+last_log() { tail -1 "$TMP/home/.cache/verify-final.log"; }
 json_field() { python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"; }
 contains() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac }
 lacks() { case "$1" in *"$2"*) echo no ;; *) echo yes ;; esac }
@@ -78,11 +79,31 @@ check "UNSURE only: hidden by default" "$(lacks "$unsure" "UNSURE")"
 check "UNSURE only: hidden lines are logged" "$(contains "$(cat "$TMP/home/.cache/verify-final.log")" "unsure_hidden")"
 shown="$(printf '%s' "$event" | VERIFY_FINAL_WARN=all verify 'UNSURE | cannot confirm | a claim')"
 check "UNSURE only: shown with VERIFY_FINAL_WARN=all" "$(contains "$shown" "UNSURE")"
+check "UNSURE only: not cached as clean" "$(lacks "$(last_log)" " cached ")"
 
-printf '%s' "$ANSWER" | verify NO_CLAIMS --harness pi --check - >/dev/null
-check "--check --harness pi: logged as pi" "$(contains "$(tail -1 "$TMP/home/.cache/verify-final.log")" " pi no_claims ")"
-printf '%s' "$ANSWER" | verify NO_CLAIMS --check - >/dev/null
-check "--check alone: still logged as manual" "$(contains "$(tail -1 "$TMP/home/.cache/verify-final.log")" " manual no_claims ")"
+printf '%s' "$ANSWER pi" | verify NO_CLAIMS --harness pi --check - >/dev/null
+check "--check --harness pi: logged as pi" "$(contains "$(last_log)" " pi no_claims ")"
+printf '%s' "$ANSWER manual" | verify NO_CLAIMS --check - >/dev/null
+check "--check alone: still logged as manual" "$(contains "$(last_log)" " manual no_claims ")"
+
+# A clean answer is not re-sent to the model in the same directory; a FALSE one always is.
+rm -f "$TMP/args"
+again="$(printf '%s' "$ANSWER pi" | verify NO_CLAIMS --harness pi --check -)"
+check "cache: a repeated clean answer is not re-checked" "$([ ! -e "$TMP/args" ] && echo yes || echo no)"
+check "cache: the repeat is logged as cached" "$(contains "$(last_log)" " pi cached ")"
+check "cache: the repeat still reports no findings" "$(contains "$again" "verify-final: no findings")"
+rm -f "$TMP/args"
+(cd "$TMP/home" && printf '%s' "$ANSWER pi" | verify NO_CLAIMS --harness pi --check - >/dev/null)
+check "cache: another directory is checked afresh" "$([ -e "$TMP/args" ] && echo yes || echo no)"
+printf '%s' "$ANSWER false" | verify "$FINDING" --check - >/dev/null
+rm -f "$TMP/args"
+printf '%s' "$ANSWER false" | verify "$FINDING" --check - >/dev/null
+check "cache: a FALSE answer is re-checked every time" "$([ -e "$TMP/args" ] && echo yes || echo no)"
+
+rm -f "$TMP/args"
+short="$(head -c 450 /dev/zero | tr '\0' 'b' | verify "$FINDING" --check -)"
+check "minimum: a 450-character answer is skipped" "$([ ! -e "$TMP/args" ] && echo yes || echo no)"
+check "minimum: the skip names 500" "$(contains "$short" "under 500 chars")"
 
 for f in "${failures[@]+"${failures[@]}"}"; do echo "FAIL: $f" >&2; done
 echo "verify-final-wording: $pass passed, ${#failures[@]} failed"

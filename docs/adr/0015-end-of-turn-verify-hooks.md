@@ -33,8 +33,11 @@ Code, Codex and omp.
   no state file. omp also runs detached, because omp aborts `agent_end`
   handlers after 30 s. Codex stays a blocking Stop hook: its background hooks
   cannot start a turn, so a correction would only arrive on your next message.
-- Scope: every final answer of 200+ characters in the main interactive
-  session. One correction pass per turn (`stop_hook_active`). Kill switch
+- Scope: every final answer of 500+ characters in the main interactive
+  session (raised from 200 on 2026-10-28: answers under 500 held 4% of catches
+  for 8% of checks). An answer already found clean in the same directory
+  within 24 hours is not re-checked (logged `cached`); some callers re-sent one
+  long answer hundreds of times. One correction pass per turn (`stop_hook_active`). Kill switch
   `VERIFY_FINAL=0`. Every outcome (checked, skipped, dropped) is logged to
   `~/.cache/verify-final.log` with the session id prefix and answer length.
 
@@ -77,7 +80,7 @@ files the answer named. The `grilling` skill now keeps a ledger of the system
   grill question format (❓ / ➡️) falls back to the single newest ledger
   modified within `VERIFY_FINAL_LEDGER_HOURS` (default 24, so a grill paused
   overnight stays covered). Ledger turns are checked whatever their length;
-  the 200-character minimum applies only outside ledger mode.
+  the 500-character minimum applies only outside ledger mode.
 - FALSE: a recommendation breaks a ledger line without openly asking to
   revisit it. UNGROUNDED: a recommendation depends on a system-specific
   capability (vendor feature, endpoint filter, quota) that the ledger does not

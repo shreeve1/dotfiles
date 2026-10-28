@@ -11,8 +11,9 @@ Stdout (JSON, only when there is something to say):
   {"systemMessage":...}               UNSURE claims, or the check could not run
 Silent (exit 0, no output) when clean, skipped, or no checkable claims.
 
-Skips: VERIFY_FINAL=0, answers under 200 chars, stop_hook_active (one correction
-pass per turn). Never blocks when the check itself fails.
+Skips: VERIFY_FINAL=0, answers under 500 chars, stop_hook_active (one correction
+pass per turn), and an answer already found clean in the same directory within
+CACHE_HOURS (logged as "cached"). Never blocks when the check itself fails.
 
 Grill ledger mode: the checker also reads the grill's ledger and holds every
 recommendation against it: FALSE when one breaks a ledger line, UNGROUNDED when
@@ -22,7 +23,7 @@ capability. The ledger is the one the answer names (a .kanban/grilling/<name>.md
 path that exists under cwd; the grilling skill ends every turn with it). With no
 named ledger, an answer in the grilling question format ("❓" or "➡️") falls back
 to the newest ledger modified within VERIFY_FINAL_LEDGER_HOURS (default 24).
-Ledger mode ignores the 200-char minimum. VERIFY_FINAL_LEDGER=0 turns it off.
+Ledger mode ignores the 500-char minimum. VERIFY_FINAL_LEDGER=0 turns it off.
 
 --check FILE (FILE or - for stdin): manual run for harnesses without the hook
 (see _shared/verify-claims.md). Checks FILE's text from the current directory
@@ -43,6 +44,7 @@ script exits 2, which wakes Claude in the background with the findings as a syst
 reminder. Claude sends stop_hook_active=true on the Stop that follows that wake (and
 false on a fresh user turn), so the correction pass is skipped by that flag alone.
 """
+import hashlib
 import json
 import os
 import re
@@ -52,7 +54,10 @@ import sys
 import tempfile
 import time
 
-MIN_CHARS = 200
+MIN_CHARS = 500
+# A clean verdict is reused for the same answer, directory and ledger for this long:
+# some callers re-send one long answer many times.
+CACHE_HOURS = 24
 INLINE_MAX_BYTES = 100_000  # longer answers go via a file the checker reads with its tools
 MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/deepseek-v4.1-flash")
 THINKING = os.environ.get("VERIFY_FINAL_THINKING", "low").strip().lower()
@@ -145,6 +150,41 @@ def log(harness, status, secs, detail=""):
         pass
 
 
+def cache_path(cwd, answer, ledger_path):
+    """The clean-verdict marker for this answer, directory and ledger state."""
+    ledger_stamp = ""
+    if ledger_path:
+        try:
+            ledger_stamp = str(os.path.getmtime(os.path.join(cwd or ".", ledger_path)))
+        except OSError:
+            pass
+    key = "\0".join([os.path.realpath(cwd or "."), ledger_path, ledger_stamp, MODEL, answer])
+    return os.path.join(STATE, "clean-" + hashlib.sha256(key.encode()).hexdigest()[:32])
+
+
+def cached_clean(path):
+    try:
+        return time.time() - os.path.getmtime(path) < CACHE_HOURS * 3600
+    except OSError:
+        return False
+
+
+def remember_clean(path):
+    # ponytail: a clean verdict is reused even if the files change within CACHE_HOURS; key on
+    # file state if a re-sent answer ever needs re-checking against edited files.
+    try:
+        os.makedirs(STATE, exist_ok=True)
+        cutoff = time.time() - CACHE_HOURS * 3600
+        for name in os.listdir(STATE):
+            old = os.path.join(STATE, name)
+            if name.startswith("clean-") and os.path.getmtime(old) < cutoff:
+                os.unlink(old)
+        with open(path, "w"):
+            pass
+    except OSError:
+        pass
+
+
 MANUAL = False
 WARNINGS = []  # non-blocking notes merged into the single output object
 EMITTED = False
@@ -203,7 +243,13 @@ def main():
     if len(answer) < MIN_CHARS and not ledger_path:
         log(harness, "skip_short", 0.0)
         if MANUAL and not WARNINGS:
-            print("verify-final: no findings (answer under 200 chars, no ledger)")
+            print(f"verify-final: no findings (answer under {MIN_CHARS} chars, no ledger)")
+        return
+    clean_marker = cache_path(ev.get("cwd"), answer, ledger_path)
+    if cached_clean(clean_marker):
+        log(harness, "cached", 0.0, f"ledger={ledger_path or '-'}")
+        if MANUAL and not WARNINGS:
+            print("verify-final: no findings (same answer found clean earlier)")
         return
 
     pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
@@ -242,6 +288,7 @@ def main():
     verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
     if rc == 0 and not verdicts and "NO_CLAIMS" in out:
         log(harness, "no_claims", secs, f"ledger={ledger_path or '-'}")
+        remember_clean(clean_marker)
         if MANUAL and not WARNINGS:
             print("verify-final: no findings")
         return
@@ -285,6 +332,8 @@ def main():
     if parts:
         out_obj["decision"] = "block"
         out_obj["reason"] = "\n\n".join(parts)
+    elif not unsure:
+        remember_clean(clean_marker)
     if rewake and parts and not MANUAL:
         sys.stderr.write("\n\n".join(WARNINGS + [out_obj["reason"]]) + "\n")
         sys.exit(2)
