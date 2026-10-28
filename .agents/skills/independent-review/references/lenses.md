@@ -12,6 +12,15 @@ Challenge completeness. Ask:
 - What did the author claim works that nothing in the change proves?
 - What follow-up, migration, cleanup, or rollback step is implied but missing?
 
+## Quick
+
+The one-reviewer lens: Gaps with Skeptic folded in. Ask the Gaps questions, then:
+
+- What inputs, states, or sequences break this?
+- Which error paths are unhandled or silently swallowed?
+- What race, or what happens if this runs twice or crashed halfway last time?
+- What does the author believe is true that nothing in the change proves?
+
 ## Skeptic
 
 Challenge correctness. Ask:

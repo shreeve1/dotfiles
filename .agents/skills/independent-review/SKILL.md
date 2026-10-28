@@ -1,6 +1,6 @@
 ---
 name: independent-review
-description: Independent review by fresh-context subagents on a different model family, to find gaps in finished or planned work. Use when the user asks for an independent review, a gap check, a second opinion from a subagent, or "look for any gaps".
+description: Independent review by fresh-context subagents on a different model family, to find gaps in finished or planned work. Use when the user asks for an independent review, a gap check, a second opinion from a subagent, "look for any gaps", or adds "quick" for a single fast reviewer.
 ---
 
 # Independent Review
@@ -8,6 +8,18 @@ description: Independent review by fresh-context subagents on a different model 
 Spawn read-only reviewer subagents on a **different model family from yours**, each attacking the work from one lens. The deliverable is a synthesized verdict. Do NOT change anything; the user decides what to fix.
 
 Reviewers get the intent and a way to read the change, not your reasoning. Same-model reviewers share your blind spots, so Step 3 forces a different family.
+
+## Quick mode
+
+When the user says "quick" (or "fast"), run one reviewer on a fast model. Steps 1, 3's single-subagent call, Step 5 and the verdict format still apply; what shrinks is the lens set, the read, and the output.
+
+- **Lens:** `Quick` in `references/lenses.md`: the Gaps questions with the Skeptic correctness questions folded in.
+- **Model:** the first of `cliproxy/gpt-6-luna`, `cliproxy/glm-5.3-flash`, `cliproxy/minimax-m3`, `cliproxy/deepseek-v4.1-flash` that is not your own model. Step 2's fallback and unknown-id rules apply; if the row runs out, say the review is degraded.
+- **Read:** the change and its direct callers. Skip the wider sweep of tests, docs and config.
+- **Findings:** at most five, high and medium only.
+- **Judgment:** verify each high finding against the code; triage the mediums. Skip the cross-reviewer deduplication pass.
+
+Quick mode has no Architect or Minimalist lens: expect it to miss design-level findings and "this is more than the goal needs". Say so in one line of the verdict.
 
 ## Step 1: Scope and intent
 
@@ -118,5 +130,7 @@ Numbered, high to low. For each:
 - **PASS**: no accepted high-severity findings.
 - **CONTESTED**: high-severity findings that reviewers disagree on, or that you rejected over a reviewer's objection.
 - **REJECT**: accepted high-severity findings with reviewer consensus.
+
+Quick mode drops **What Went Well** and reports only high and medium findings.
 
 End by offering to fix the accepted findings. Wait for the user's go-ahead.
