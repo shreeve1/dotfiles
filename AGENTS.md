@@ -12,7 +12,7 @@ Config synced across the user's machines; `install.sh` symlinks it into place (f
 
 ## Machine topology (NetBird)
 
-Recorded 2026-10-21. Installed on aidev, itan8n, wrk's WSL and surftop's native Windows checkout (`C:/Users/james/dotfiles`; cmd over ssh, no `head`/pipes). Homelab servers (`pve1`, `pve4`, `jellyfin`, ...) never get these dotfiles.
+Recorded 2026-10-21. Installed on aidev, itan8n, wrk's WSL, and native Windows checkouts on wrk and surftop (`C:/Users/james/dotfiles`; cmd over ssh, no `head`/pipes; git is not on PATH there, use `"C:\Program Files\Git\cmd\git.exe"`). wrk's Windows side is `ssh -p 22 james@100.95.235.60` and has its own pi with its own gitignored settings, so a per-machine change must be made there too. Homelab servers (`pve1`, `pve4`, `jellyfin`, ...) never get these dotfiles.
 
 `origin/main` is the sync point and any machine may commit: `git pull --rebase` before work, push after, `git pull --ff-only` on the others. Keep machine-specific edits out of commits.
 

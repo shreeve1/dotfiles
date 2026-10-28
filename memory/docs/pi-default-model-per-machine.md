@@ -10,6 +10,6 @@ topics: []
 
 ## Active memory
 
-- pi's default model is `defaultModel` in each machine's `.pi/agent/settings.json` (currently `minimax-m3` at `defaultThinkingLevel` `high`, set on aidev, itan8n, wrk and surftop 2026-10-28). That file is gitignored (`.gitignore`, `.pi/agent/settings.json`), so changing the default means editing it on every machine directly.
+- pi's default model is `defaultModel` in each machine's `.pi/agent/settings.json` (currently `minimax-m3` at `defaultThinkingLevel` `high`, set on aidev, itan8n, wrk WSL, wrk Windows and surftop 2026-10-28). That file is gitignored (`.gitignore`, `.pi/agent/settings.json`), so changing the default means editing it on every machine directly.
 - `.pi/agent/models.json` is gitignored per machine too. `.pi/agent/advisor.json` (aidev, itan8n) is a leftover: no loaded extension reads it since pi-advisor-flow was archived on 2026-10-16, so editing it changes nothing. A model rename must also change the alias in cliproxy's `~/cliproxyapi/config.yaml` on both aidev and itan8n, and cliproxy reads that file only at start: `systemctl --user restart cliproxyapi`. wrk and surftop use aidev's proxy.
 - Only `.pi/agent/settings.json.template` travels by git; a fresh machine copies it by hand (`README.md`). Update the template too so new machines match.
