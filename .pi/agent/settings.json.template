@@ -1,6 +1,6 @@
 {
   "defaultProvider": "cliproxy",
-  "defaultModel": "glm-5.3",
+  "defaultModel": "minimax-m3",
   "defaultThinkingLevel": "high",
   "quietStartup": true,
   "theme": "ember",
@@ -29,7 +29,7 @@
   "doubleEscapeAction": "tree",
   "extensions": [],
   "enabledModels": [
-    "cliproxy/minimax-m3.1-flash",
+    "cliproxy/minimax-m3",
     "cliproxy/claude-opus-5-5",
     "cliproxy/claude-sonnet-5-5",
     "cliproxy/gpt-6.1-sol",
