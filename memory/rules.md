@@ -15,6 +15,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Writing a pi extension or script that reads pi sessions | | `memory/docs/pi-tool-call-blocks.md` | |
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/pi-footer-git-polling.md` | |
 | Changing pi's default model or settings.json | | `memory/docs/pi-default-model-per-machine.md` | |
+| Adding a cliproxy model to pi, or a model missing from pi's list | | `memory/docs/pi-cliproxy-model-fleet.md` | |
 | Work touching the itastack workspace or its sync | | `memory/docs/itastack-workspace-sync.md` | |
 | Editing or testing an OpenCode plugin | | `memory/docs/opencode-plugin-reload.md` | |
 | Editing the personal-memory or memory-setup skill | | `memory/docs/starter-agent-skill-source.md` | |
