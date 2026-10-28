@@ -26,12 +26,17 @@ Ledger mode ignores the 200-char minimum. VERIFY_FINAL_LEDGER=0 turns it off.
 
 --check FILE (FILE or - for stdin): manual run for harnesses without the hook
 (see _shared/verify-claims.md). Checks FILE's text from the current directory
-and prints the findings as plain text, or "verify-final: no findings".
+and prints the findings as plain text, or "verify-final: no findings". The log
+names the harness "manual" unless --harness NAME is also given (the pi
+extension passes --harness pi).
 
-Warnings (never block): VERIFY_FINAL_WARN=all (default) shows UNSURE claims and
-"check could not run"; =errors shows only "check could not run"; =none shows
-neither. Hidden UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims
-always block, whatever the level.
+Checker model: VERIFY_FINAL_MODEL (default cliproxy/deepseek-v4.1-flash) at thinking level
+VERIFY_FINAL_THINKING (default low; any pi --thinking level).
+
+Warnings (never block): VERIFY_FINAL_WARN=errors (default) shows only "check
+could not run"; =all also shows UNSURE claims; =none shows neither. Hidden
+UNSURE lines still go to ~/.cache/verify-final.log. FALSE claims always block,
+whatever the level.
 
 --rewake (Claude Code `asyncRewake` hook): a FALSE finding is written to stderr and the
 script exits 2, which wakes Claude in the background with the findings as a system
@@ -50,8 +55,9 @@ import time
 MIN_CHARS = 200
 INLINE_MAX_BYTES = 100_000  # longer answers go via a file the checker reads with its tools
 MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/deepseek-v4.1-flash")
+THINKING = os.environ.get("VERIFY_FINAL_THINKING", "low").strip().lower()
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
-WARN = os.environ.get("VERIFY_FINAL_WARN", "all").strip().lower()
+WARN = os.environ.get("VERIFY_FINAL_WARN", "errors").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")
 STATE = os.path.expanduser("~/.cache/verify-final")
 LEDGER_DIR = os.path.join(".kanban", "grilling")
@@ -178,7 +184,7 @@ def main():
         if "--check" in sys.argv:
             sys.exit(f"verify-final: cannot read --check input ({e})")
         return
-    if MANUAL:
+    if MANUAL and "--harness" not in sys.argv:
         harness = "manual"
     rewake = "--rewake" in sys.argv
     global SID, ANSWER_LEN
@@ -213,7 +219,7 @@ def main():
     t0 = time.time()
     cmd = [
         pi, "-p", "--no-session", "--no-skills", "--no-context-files",
-        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL,
+        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL, "--thinking", THINKING,
     ]
     env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
     try:
@@ -262,10 +268,11 @@ def main():
         parts.append(
             "An independent fact-check of your final answer found claims that do not match the files:\n"
             + "\n".join(false)
-            + "\nRe-ground on that evidence and correct these claims. Then write your final answer again as a "
-            "complete, standalone message: the user reads only that message and has not seen this check. "
-            "Do not address the checker, do not say \"you're right\", and do not mention a fact-check or a "
-            "correction. If a claim the user relied on changed, add one short line at the end saying what changed."
+            + "\nRe-ground on that evidence. Then write your final answer again as a complete, standalone "
+            "message: the user reads only that message. Open it with one line per claim that changed, in the "
+            "form \"Corrected: I said <the old claim>; <what the files show>.\" If your re-check shows a "
+            "finding is wrong, open with \"Checked: <the claim> stands; <your evidence>.\" instead. Then give "
+            "the rest of the answer. Do not address the checker or say \"you're right\"."
         )
     if ungrounded:
         parts.append(

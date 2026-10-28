@@ -15,9 +15,10 @@ Code, Codex and omp.
   (`last_assistant_message`, `cwd`, `stop_hook_active`) and runs the read-only
   `pi -p` checker from `_shared/verify-claims.md` on the final answer.
 - A FALSE claim returns `{"decision":"block","reason":…}`: the agent gets the
-  findings and corrects itself (a **gate**, not an audit). UNSURE claims and
-  checker failures only produce a warning; the hook never blocks when the check
-  itself fails.
+  findings and corrects itself (a **gate**, not an audit), opening its new
+  answer with a visible "Corrected:" line per changed claim. Checker failures
+  only produce a warning; UNSURE claims are logged only, unless
+  `VERIFY_FINAL_WARN=all`. The hook never blocks when the check itself fails.
 - Adapters: Claude Code, Codex and omp. Claude Code and Codex `Stop` hooks are
   installed into the machine-local `~/.claude/settings.json` and
   `~/.codex/hooks.json` by `.agents/bin/verify-final-install` (run from

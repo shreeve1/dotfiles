@@ -544,7 +544,7 @@ function runCheck(cwd: string, text: string): Promise<RunResult> {
     let errored = false;
     let child: ChildProcessWithoutNullStreams;
     try {
-      child = spawn(VERIFY_EXE, [...VERIFY_ARGS, "--check", "-"], {
+      child = spawn(VERIFY_EXE, [...VERIFY_ARGS, "--harness", "pi", "--check", "-"], {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
       });

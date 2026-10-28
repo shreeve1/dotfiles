@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # The correction message verify-final sends when a claim is FALSE. A fake `pi` stands in for
 # the checker, so no model runs. Checks that the message tells the agent the user reads only the
-# final answer (so it must stand alone and not address the checker), in both the manual
-# --check path and the Stop-hook JSON path, and that clean and UNSURE-only results never block.
+# final answer (so it must stand alone, open with a visible "Corrected:" line per changed claim, and
+# not address the checker), in both the manual --check path and the Stop-hook JSON path, that clean
+# and UNSURE-only results never block, that UNSURE is hidden by default, and that --harness names
+# the log entry of a --check run.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$ROOT/.agents/bin/verify-final"
@@ -50,11 +52,14 @@ check "manual: asks for a standalone final answer" "$(contains "$manual" "comple
 check "manual: says the user reads only that message" "$(contains "$manual" "the user reads only that message")"
 check "manual: forbids addressing the checker" "$(contains "$manual" "Do not address the checker")"
 check "manual: forbids a you're-right opener" "$(contains "$manual" "you're right")"
-check "manual: no longer asks to say what changed up front" "$(lacks "$manual" "and say in one line what you changed")"
+check "manual: opens with a visible Corrected: line" "$(contains "$manual" "Corrected: I said")"
+check "manual: lets the agent push back on a wrong finding" "$(contains "$manual" "stands; <your evidence>")"
+check "manual: no longer hides the correction" "$(lacks "$manual" "do not mention a fact-check")"
 # On Windows pi is a .cmd shim and cmd.exe cuts an argument at its first newline, so the
 # multi-line prompt must reach the checker on stdin, never as an argument.
 check "prompt: the answer reaches the checker on stdin" "$(contains "$(cat "$TMP/stdin")" "$ANSWER")"
 check "prompt: the answer is not passed as an argument" "$(lacks "$(cat "$TMP/args")" "$ANSWER")"
+check "prompt: the checker runs at low thinking by default" "$(contains "$(tr '\n' ' ' <"$TMP/args")" "--thinking low ")"
 
 event="$(python3 -c 'import json,sys; print(json.dumps({"last_assistant_message": sys.argv[1], "cwd": sys.argv[2]}))' "$ANSWER" "$TMP")"
 hook="$(printf '%s' "$event" | verify "$FINDING")"
@@ -69,6 +74,15 @@ check "clean: reports no findings" "$(contains "$clean" "verify-final: no findin
 
 unsure="$(printf '%s' "$event" | verify 'UNSURE | cannot confirm | a claim')"
 check "UNSURE only: does not block" "$(lacks "$unsure" '"decision"')"
+check "UNSURE only: hidden by default" "$(lacks "$unsure" "UNSURE")"
+check "UNSURE only: hidden lines are logged" "$(contains "$(cat "$TMP/home/.cache/verify-final.log")" "unsure_hidden")"
+shown="$(printf '%s' "$event" | VERIFY_FINAL_WARN=all verify 'UNSURE | cannot confirm | a claim')"
+check "UNSURE only: shown with VERIFY_FINAL_WARN=all" "$(contains "$shown" "UNSURE")"
+
+printf '%s' "$ANSWER" | verify NO_CLAIMS --harness pi --check - >/dev/null
+check "--check --harness pi: logged as pi" "$(contains "$(tail -1 "$TMP/home/.cache/verify-final.log")" " pi no_claims ")"
+printf '%s' "$ANSWER" | verify NO_CLAIMS --check - >/dev/null
+check "--check alone: still logged as manual" "$(contains "$(tail -1 "$TMP/home/.cache/verify-final.log")" " manual no_claims ")"
 
 for f in "${failures[@]+"${failures[@]}"}"; do echo "FAIL: $f" >&2; done
 echo "verify-final-wording: $pass passed, ${#failures[@]} failed"
