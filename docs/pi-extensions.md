@@ -109,11 +109,6 @@ here.
   archived copies on pull). An `install.sh` warn-on-untracked-`extensions/*`
   check is a wanted follow-up so this surfaces as a warning, not a manual
   audit.
-- Known open items: aidev's `defaultModel: claude-opus-4-8` still 400s
-  (pre-existing; `--model gpt-5.6-sol` works — aidev is not a pi Offload
-  target until this is fixed); itan8n's machine-local `enabledModels` still
-  names `deepseek/deepseek-v4-flash`, which no available provider matches
-  (cosmetic boot warning).
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
