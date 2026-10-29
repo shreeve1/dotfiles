@@ -102,7 +102,7 @@ chmod +x "$TMP/home/.agents/bin/verify-final"
 export EXT TMP
 
 node_out="$(
-  HOME="$TMP/home" FAKE_CALLS="$TMP/calls" node --input-type=module - <<'EOF' 2>&1
+  HOME="$TMP/home" FAKE_CALLS="$TMP/calls" VERIFY_RECOMMEND=0 node --input-type=module - <<'EOF' 2>&1
 import { readFileSync, rmSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { execFileSync } from "node:child_process"
 const tmp = process.env.TMP

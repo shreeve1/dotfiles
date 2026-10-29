@@ -19,6 +19,18 @@
 //   follow-up turn. A turn's own follow-up is never checked again.
 //   VERIFY_DONE=0 turns it off; VERIFY_FINAL=0 turns off both checks.
 //
+// Recommendation check (verify-final --recommend):
+//   TUI only. After each settled answer (any turn, same minimum length) the
+//   request history and answer go to the checker in --recommend mode, which
+//   grounds the answer's recommendations in local docs, official docs and
+//   existing open-source projects (web search through Exa, so it can take a few
+//   minutes). It runs on its own, not merged with the two checks above, and its
+//   result is delivered however late: as a new turn when the agent is idle, or
+//   queued as a follow-up (deliverAs "followUp") when it is busy. A queued
+//   revision rides inside the newer prompt's run, so that run is not checked;
+//   a revision that starts its own turn is skipped like the follow-up above.
+//   At most one per user prompt. VERIFY_RECOMMEND=0 turns it off.
+//
 // Cleanup (post-work-cleanup):
 //   Tracks the code files THIS session changed through edit/write (by real
 //   path, so a symlinked ~/.config file maps to its repo copy). Another
@@ -65,6 +77,11 @@ const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final");
 const [VERIFY_EXE, VERIFY_ARGS]: readonly [string, readonly string[]] =
   process.platform === "win32" ? ["python", [VERIFY_BIN]] : [VERIFY_BIN, []];
 const CHECK_TIMEOUT_MS = 180_000;
+// The script's own limit is VERIFY_RECOMMEND_TIMEOUT (300 s); this is a backstop.
+const REC_TIMEOUT_MS = 330_000;
+const REC_HEADER = "An independent check of the recommendations in an earlier answer found problems:";
+const REC_FINDING_RE = /(^|\n)\s*(?:IMPOSSIBLE|WRONG|EXISTS)\s*\|/;
+const REC_ERROR_PREFIX = "verify-final: recommendation check could not run";
 const MIN_CHARS = 500;
 // Grill format markers: answering questions or selecting next options. Same as the
 // script's GRILL_MARKERS: ❓, or ➡ followed by its emoji selector U+FE0F.
@@ -181,6 +198,10 @@ let workedSeq = -1;
 let lastAssistantText = "";
 let userPromptSeq = 0;
 let lastFollowupSeq = -1;
+// Recommendation check: the prompt it last started for, and the prompt whose
+// run carries a queued revision (that run is not checked).
+let recStartedSeq = -1;
+let recRevisionSeq = -1;
 // Boundary guards, keyed to the user prompt they fired for.
 let groundingDoneSeq = -1;
 let cleanupDoneSeq = -1;
@@ -571,6 +592,12 @@ function runDoneCheck(cwd: string, text: string): Promise<RunResult> {
   return runChecker(cwd, ["--harness", "pi", "--done", "-"], input);
 }
 
+/** Recommendation check: do the answer's recommendations hold against docs and projects? */
+function runRecommendCheck(cwd: string, text: string): Promise<RunResult> {
+  const input = JSON.stringify({ requests: recentRequests, answer: text });
+  return runChecker(cwd, ["--harness", "pi", "--recommend", "-"], input, REC_TIMEOUT_MS);
+}
+
 /** True when this prompt's run did work the completion check can judge. */
 function shouldCheckDone(): boolean {
   return (
@@ -586,7 +613,12 @@ function findingsText(grounding: RunResult, done: RunResult | null): string {
   return parts.join("\n\n");
 }
 
-function runChecker(cwd: string, args: string[], text: string): Promise<RunResult> {
+function runChecker(
+  cwd: string,
+  args: string[],
+  text: string,
+  timeoutMs = CHECK_TIMEOUT_MS,
+): Promise<RunResult> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
@@ -625,7 +657,7 @@ function runChecker(cwd: string, args: string[], text: string): Promise<RunResul
       } catch {
         // Already exited; close/error still resolves the promise.
       }
-    }, CHECK_TIMEOUT_MS);
+    }, timeoutMs);
     if (typeof timer.unref === "function") timer.unref();
     child.on("close", (exitCode, signal) => {
       clearTimeout(timer);
@@ -711,6 +743,8 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     cleanupDoneSeq = -1;
     continuationsThisPrompt = 0;
     if (CLEANUP_SKILL_BLOCK_RE.test(event.prompt)) markCleanupRan();
+    // A recommendation revision that starts its own turn is not checked or kept.
+    if (event.prompt.startsWith(REC_HEADER)) lastFollowupSeq = userPromptSeq;
     // The checks' own follow-up is not a request to judge the next answer against.
     if (userPromptSeq !== lastFollowupSeq && event.prompt.trim()) {
       recentRequests.push(event.prompt.trim());
@@ -832,6 +866,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     if (userPromptSeq === lastFollowupSeq) return;
     if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
     if (cleanupPendingSeq === userPromptSeq) return;
+    if (recRevisionSeq === userPromptSeq) return;
     const text = lastAssistantText;
     if (shouldSkipText(text)) return;
     groundingDoneSeq = userPromptSeq;
@@ -858,12 +893,39 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     // Skip the turn that our own correction follow-up started.
     if (userPromptSeq === lastFollowupSeq) return;
     if (groundingDoneSeq === userPromptSeq) return;
+    if (recRevisionSeq === userPromptSeq) return;
     if (process.env.VERIFY_FINAL === "0") return;
     const text = lastAssistantText;
     lastAssistantText = "";
     if (shouldSkipText(text)) return;
     const cwd = resolveCwd(ctx);
     const checkSeq = userPromptSeq;
+    if (process.env.VERIFY_RECOMMEND !== "0" && recStartedSeq !== userPromptSeq) {
+      recStartedSeq = userPromptSeq;
+      // No stale-result rule: a late finding is still delivered.
+      void runRecommendCheck(cwd, text)
+        .then((rec) => {
+          if (aborted) return;
+          if (REC_FINDING_RE.test(rec.stdout)) {
+            const out = rec.stdout.trim();
+            if (typeof ctx.isIdle !== "function" || ctx.isIdle()) {
+              pi.sendUserMessage(out);
+            } else {
+              recRevisionSeq = userPromptSeq;
+              pi.sendUserMessage(out, { deliverAs: "followUp" });
+            }
+            return;
+          }
+          if (rec.stdout.includes(REC_ERROR_PREFIX) || rec.timedOut || rec.errored) {
+            try {
+              ctx.ui.notify(noticeText(rec), "warning");
+            } catch {
+              // UI gone (session ended mid-check); the notice is best-effort.
+            }
+          }
+        })
+        .catch(() => {});
+    }
     groundingDoneSeq = userPromptSeq;
     void Promise.all([
       runCheck(cwd, text),
