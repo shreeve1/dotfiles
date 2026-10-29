@@ -179,9 +179,10 @@ on the `.tmp` premise with that URL. The timer itself is possible
   (rough keyword count), so around 12 full checks a day plus cheap
   `NO_RECOMMENDATIONS` runs. Model usage comes from the GLM plan quota.
 - Web search uses each machine's `rpiv-web-tools` config (aidev: Exa).
-  The Exa plan's monthly limit is unknown; roughly 360 extra searches a
-  month at the cap. A machine without a search config (not checked on the
-  Windows machines) runs the check with local sources only.
+  At the cap (3 searches and 3 fetches per check, about 12 checks a day
+  in aidev's sessions) that is up to about 1,080 searches and 1,080 page
+  fetches a month. Provider choice is still open. A machine without a
+  search key runs the check with local sources only.
 
 ## Left to the builder
 
