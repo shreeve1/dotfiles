@@ -79,7 +79,8 @@ const [VERIFY_EXE, VERIFY_ARGS]: readonly [string, readonly string[]] =
 const CHECK_TIMEOUT_MS = 180_000;
 // The script's own limit is VERIFY_RECOMMEND_TIMEOUT (300 s); this is a backstop.
 const REC_TIMEOUT_MS = 330_000;
-const REC_HEADER = "An independent check of the recommendations in an earlier answer found problems:";
+const REC_HEADER =
+  "An independent check of the recommendations in an earlier answer found problems:";
 const REC_FINDING_RE = /(^|\n)\s*(?:IMPOSSIBLE|WRONG|EXISTS)\s*\|/;
 const REC_ERROR_PREFIX = "verify-final: recommendation check could not run";
 const MIN_CHARS = 500;
