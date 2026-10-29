@@ -48,6 +48,17 @@ of the request. Same model, thinking, minimum length, cache
 and log (statuses done_*) as --check. The pi extension runs it on turns that
 edited, wrote or ran a command. VERIFY_DONE=0 turns it off there.
 
+--recommend FILE (FILE or - for stdin): recommendation check. Same JSON input as
+--done. The checker lists each recommendation in the answer, then grounds it in
+local memory and docs, official docs (web) and, for a build recommendation,
+existing open-source projects. It prints sourced "IMPOSSIBLE |", "WRONG |" or
+"EXISTS |" lines with an instruction for the agent, "verify-final:
+recommendations hold", or "verify-final: no recommendations". Web search comes
+from the rpiv-web-tools extension with WEB_SEARCH_PROVIDER=exa, only where
+~/.pi/agent/extensions/rpiv-web-tools exists; elsewhere it uses local sources.
+Timeout VERIFY_RECOMMEND_TIMEOUT (default 300 s); log statuses rec_*.
+VERIFY_RECOMMEND=0 turns it off.
+
 --rewake (Claude Code `asyncRewake` hook): a FALSE finding is written to stderr and the
 script exits 2, which wakes Claude in the background with the findings as a system
 reminder. Claude sends stop_hook_active=true on the Stop that follows that wake (and
@@ -71,6 +82,8 @@ INLINE_MAX_BYTES = 100_000  # longer answers go via a file the checker reads wit
 MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/glm-5.3-flash")
 THINKING = os.environ.get("VERIFY_FINAL_THINKING", "low").strip().lower()
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
+REC_TIMEOUT = int(os.environ.get("VERIFY_RECOMMEND_TIMEOUT", "300"))
+WEB_TOOLS_EXT = os.path.expanduser("~/.pi/agent/extensions/rpiv-web-tools")
 WARN = os.environ.get("VERIFY_FINAL_WARN", "errors").strip().lower()
 LOG = os.path.expanduser("~/.cache/verify-final.log")
 STATE = os.path.expanduser("~/.cache/verify-final")
@@ -228,7 +241,8 @@ def remember_clean(path):
         pass
 
 
-def run_checker(template, cwd, answer, **fields):
+def run_checker(template, cwd, answer, tools="read,grep,find,ls", extensions=(), env_extra=None,
+                timeout=None, **fields):
     """Run the read-only checker model on template; (stdout, stderr, returncode, seconds)."""
     pi = shutil.which("pi") or os.path.expanduser("~/.local/bin/pi")
     spill = None
@@ -242,18 +256,21 @@ def run_checker(template, cwd, answer, **fields):
     t0 = time.time()
     cmd = [
         pi, "-p", "--no-session", "--no-skills", "--no-context-files",
-        "--no-extensions", "--tools", "read,grep,find,ls", "--model", MODEL, "--thinking", THINKING,
+        "--no-extensions", "--tools", tools, "--model", MODEL, "--thinking", THINKING,
     ]
-    env = dict(os.environ, VERIFY_FINAL_RUNNING="1")
+    for ext in extensions:
+        cmd += ["-e", ext]
+    env = dict(os.environ, VERIFY_FINAL_RUNNING="1", **(env_extra or {}))
+    timeout = timeout or TIMEOUT
     try:
         # The prompt goes on stdin, not argv: on Windows `pi` is a .cmd shim, and cmd.exe
         # cuts an argument at its first newline, so the checker never saw the answer.
         r = subprocess.run(cmd, cwd=cwd or None, env=env, capture_output=True,
-                           text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
+                           text=True, encoding="utf-8", errors="replace", timeout=timeout,
                            input=template.format(answer=body, **fields))
         out, err, rc = r.stdout, r.stderr, r.returncode
     except subprocess.TimeoutExpired:
-        out, err, rc = "", f"timed out after {TIMEOUT}s", 124
+        out, err, rc = "", f"timed out after {timeout}s", 124
     except OSError as e:
         out, err, rc = "", str(e), 127
     finally:
@@ -316,6 +333,126 @@ def done_main(harness):
           + "\n".join(missing) + DONE_INSTRUCTION)
 
 
+REC_PROMPT = """You are an independent architecture reviewer. Below is what the user asked an AI agent, and the FINAL ANSWER the agent gave. Check the recommendations in it, working in this directory. Read-only: never run, install or change anything.
+
+Step 1. List every recommendation in the answer: an approach, architecture, tool or product choice, or something to build (a script, service, timer, hook, plugin, layer). Explanations of what was done, facts, and questions to the user are not recommendations. If there is none, reply exactly: NO_RECOMMENDATIONS
+
+Step 2. For each one, name the system it has to work inside (the harness, framework, product or platform), from the answer and the request.
+
+Step 3. Ground each recommendation and the premises it rests on, in this order:
+  a. Local sources first: memory/, docs/, AGENTS.md and README files under this directory, and local documentation for the system (for pi, its docs folder under the pi-coding-agent package).
+  b. Then the system's official documentation.
+  c. Only for a recommendation to build something: search for an existing, popular open-source project that already does it (many stars for its niche and a commit in the last 12 months, as shown on its repository page).
+{web}
+
+Report only problems, one line each, nothing else:
+IMPOSSIBLE | <source URL or file:line> | <recommendation> -- <what the system cannot do>
+WRONG | <source URL or file:line> | <premise> -- <what the source says instead>
+EXISTS | <source URL> | <recommendation> -- <what already covers it>
+Every line needs a source you actually read. A recommendation you could not ground gets no line; never report a guess. Design choices the sources leave open (names, structure, style) and suggestions for extra work get no line. If the recommendations hold, reply exactly: NO_FINDINGS. Never reply with an empty message.
+
+EARLIER REQUESTS (context only):
+<<<
+{earlier}
+>>>
+
+LATEST REQUEST:
+<<<
+{request}
+>>>
+
+FINAL ANSWER:
+<<<
+{answer}
+>>>"""
+
+REC_WEB = ("Use web_search and web_fetch for b and c: at most 3 web_search calls and at most 3 web_fetch calls "
+           "for the whole answer. Prefer official documentation and repository pages over blogs and forums.")
+REC_NO_WEB = "Web search is not available on this machine; use local sources only."
+REC_HEADER = "An independent check of the recommendations in an earlier answer found problems:"
+REC_INSTRUCTION = (
+    "\nThis concerns an earlier answer, which may not be the work in progress now. Re-read the source on each "
+    "line. Then restate that advice as a complete, standalone message: the user reads only that message. "
+    "Open it with one line per finding, in the form \"Revised: <recommendation>; <what changed and why>.\" If "
+    "the source does not support the finding, open with \"Kept: <recommendation>; <why the finding does not "
+    "apply>.\" instead. Do not start other work, and do not take an irreversible step the user has not "
+    "approved. Do not address the checker."
+)
+REC_LINE = re.compile(r"^\W*(IMPOSSIBLE|WRONG|EXISTS)\b\W*(.*)$", re.IGNORECASE)
+
+
+def rec_findings(output):
+    """Sourced verdict lines as "VERDICT | source | rest", and how many were dropped for no source."""
+    kept, dropped = [], 0
+    for line in output.splitlines():
+        match = REC_LINE.match(line)
+        if not match:
+            continue
+        fields = match.group(2).split("|", 1)
+        if len(fields) < 2 or not fields[0].strip():
+            dropped += 1
+            continue
+        kept.append(f"{match.group(1).upper()} | {fields[0].strip()} | {fields[1].strip()}")
+    return kept, dropped
+
+
+def recommend_main(harness):
+    """--recommend: do the answer's recommendations hold against docs and existing projects?"""
+    global ANSWER_LEN
+    src = sys.argv[sys.argv.index("--recommend") + 1]
+    try:
+        with (sys.stdin if src == "-" else open(src, encoding="utf-8")) as f:
+            ev = json.load(f)
+    except (ValueError, OSError, IndexError) as e:
+        sys.exit(f"verify-final: cannot read --recommend input ({e})")
+    if os.environ.get("VERIFY_RECOMMEND") == "0":
+        print("verify-final: recommendation check off")
+        return
+    requests = [str(r).strip() for r in ev.get("requests") or [] if str(r).strip()]
+    answer = str(ev.get("answer") or "").strip()
+    ANSWER_LEN = len(answer)
+    if len(answer) < MIN_CHARS:
+        log(harness, "rec_skip_short", 0.0)
+        print("verify-final: no recommendations (nothing to check)")
+        return
+    cwd = os.getcwd()
+    marker = cache_path(cwd, "\0".join(requests + [answer]), "", kind="recommend")
+    if cached_clean(marker):
+        log(harness, "rec_cached", 0.0)
+        print("verify-final: recommendations hold (same answer found clean earlier)")
+        return
+    web = os.path.isdir(WEB_TOOLS_EXT)
+    out, err, rc, secs = run_checker(
+        REC_PROMPT, cwd, answer,
+        tools="read,grep,find,ls,web_search,web_fetch" if web else "read,grep,find,ls",
+        extensions=(WEB_TOOLS_EXT,) if web else (),
+        env_extra={"WEB_SEARCH_PROVIDER": "exa"} if web else None,
+        timeout=REC_TIMEOUT,
+        earlier="\n---\n".join(requests[:-1]) or "(none)",
+        request=requests[-1] if requests else "(none)",
+        web=REC_WEB if web else REC_NO_WEB,
+    )
+    kept, dropped = rec_findings(out)
+    counts = {v: sum(1 for l in kept if l.startswith(v + " ")) for v in ("IMPOSSIBLE", "WRONG", "EXISTS")}
+    detail = " ".join(f"{v.lower()}={n}" for v, n in counts.items()) + f" dropped={dropped} web={int(web)}"
+    if rc == 0 and kept:
+        log(harness, "rec_found", secs, detail)
+        print(REC_HEADER + "\n" + "\n".join(kept) + REC_INSTRUCTION)
+        return
+    if rc == 0 and "NO_RECOMMENDATIONS" in out and not dropped:
+        log(harness, "rec_none", secs, detail)
+        remember_clean(marker)
+        print("verify-final: no recommendations")
+        return
+    if rc == 0 and (dropped or "NO_FINDINGS" in out):
+        log(harness, "rec_clean", secs, detail)
+        remember_clean(marker)
+        print("verify-final: recommendations hold")
+        return
+    why = (err.strip().splitlines() or ["no verdict line in checker output"])[-1][:200]
+    log(harness, "rec_error", secs, f"{why} web={int(web)}")
+    print(f"verify-final: recommendation check could not run ({why})")
+
 MANUAL = False
 WARNINGS = []  # non-blocking notes merged into the single output object
 EMITTED = False
@@ -351,6 +488,9 @@ def main():
         return
     if "--done" in sys.argv:
         done_main(harness)
+        return
+    if "--recommend" in sys.argv:
+        recommend_main(harness)
         return
     try:
         ev = read_event()
