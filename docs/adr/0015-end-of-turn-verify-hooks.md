@@ -199,3 +199,43 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
   one of two requested edits. The check logged `done_missing`, the agent made
   the edit, and its answer opened with a "Missing:" line. Test:
   `tests/verify-final-done.test.sh`.
+
+## Addendum (2026-10-29): Pi recommendation check
+
+- The grounding check ignores recommendations, and the ledger check covers
+  only grilling turns. Agents recommended architecture their system cannot
+  support, such as a hook pi does not have. They also hand-built things the
+  docs or an open-source project already cover.
+  `verify-final --recommend` (same JSON input as `--done`) is a second opinion
+  on every recommendation. Design: `docs/superpowers/specs/2026-10-29-recommendation-check-design.md`.
+- The checker lists each recommendation and grounds it in local `memory/`,
+  `docs/`, `AGENTS.md` and READMEs first. It then reads the system's official
+  docs and, for a build recommendation only, looks for a popular open-source
+  project. Verdicts: `IMPOSSIBLE`, `WRONG` (a false premise) and `EXISTS`, each
+  with a URL or `file:line` it read. A line without a source is dropped.
+  Sentinels: `NO_RECOMMENDATIONS` and `NO_FINDINGS`.
+- Web search: the checker loads only the `rpiv-web-tools` extension, with
+  `WEB_SEARCH_PROVIDER=exa`, which outranks the machine's config, so Exa's
+  free monthly credit is the checker's alone. The prompt budget is 3 searches
+  and 3 fetches per answer. Without that extension folder it runs on local
+  sources and logs `web=0`. Timeout: `VERIFY_RECOMMEND_TIMEOUT` (300 s).
+- The pi extension runs it in the TUI only, after every settled answer of 500+
+  characters, on its own and not merged with the grounding and completion
+  checks. A late result is never dropped. If the agent is idle, it starts a
+  turn. If the agent is busy, it is queued with `deliverAs: "followUp"` and
+  rides inside the newer prompt's run, so that run is not checked. The agent
+  opens its rewrite with `Revised: <recommendation>; <why>` or
+  `Kept: <recommendation>; <why the finding does not apply>`. At most one per
+  prompt. `VERIFY_RECOMMEND=0` turns it off; `VERIFY_FINAL=0` turns off all
+  checks. Statuses are `rec_*` in the same log.
+- Live runs on `glm-5.3-flash` with Exa:
+  - A Syncthing answer: `WRONG` on the `.tmp`-means-stuck premise, citing
+    `docs.syncthing.net/users/syncing.html`. A second `WRONG` disputed
+    "localhost relay", reading the answer's WSL network relay as Syncthing
+    relaying. That is a misreading, and the agent's `Kept:` line handles it.
+    No line on the timer, which is possible. 64 s.
+  - An answer built on `pi.on("session_idle_timeout")`: `IMPOSSIBLE`, citing
+    pi's `docs/extensions.md`, plus `WRONG` on the invented
+    `idleTimeoutMinutes` setting. 52 s.
+  - A factual summary: `NO_RECOMMENDATIONS` in 5 s.
+  Test: `tests/verify-final-recommend.test.sh`.
