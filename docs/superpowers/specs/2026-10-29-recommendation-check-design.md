@@ -181,8 +181,14 @@ on the `.tmp` premise with that URL. The timer itself is possible
 - Web search uses each machine's `rpiv-web-tools` config (aidev: Exa).
   At the cap (3 searches and 3 fetches per check, about 12 checks a day
   in aidev's sessions) that is up to about 1,080 searches and 1,080 page
-  fetches a month. Provider choice is still open. A machine without a
-  search key runs the check with local sources only.
+  fetches a month.
+- **Search provider: Exa, for the checker only** (owner, 2026-10-29). The
+  checker's `pi -p` runs with `WEB_SEARCH_PROVIDER=exa`, which outranks the
+  machine's config file, so interactive sessions keep their own provider
+  (none of them use Exa, so its $10 monthly free credit is the checker's).
+  Every machine has an Exa key in `~/.config/rpiv-web-tools/config.json`.
+  Exa's free tier: $10 credit renewed monthly; search $4-7 and contents $1
+  per 1,000, so about $9 at the cap.
 
 ## Left to the builder
 
