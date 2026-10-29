@@ -378,7 +378,9 @@ REC_INSTRUCTION = (
     "apply>.\" instead. Do not start other work, and do not take an irreversible step the user has not "
     "approved. Do not address the checker."
 )
-REC_LINE = re.compile(r"^\W*(IMPOSSIBLE|WRONG|EXISTS)\b\W*(.*)$", re.IGNORECASE)
+# The verdict word must be followed by its pipe, so prose that starts with "Impossible"
+# or "Wrong" is not a verdict line.
+REC_LINE = re.compile(r"^\W*(IMPOSSIBLE|WRONG|EXISTS)\s*\|(.*)$", re.IGNORECASE)
 
 
 def rec_findings(output):

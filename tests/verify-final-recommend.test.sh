@@ -69,6 +69,15 @@ check "script: an unsourced line is dropped" "$(contains "$unsourced" "verify-fi
 check "script: dropped line logged rec_clean" "$(contains "$(last_log)" " pi rec_clean ")"
 check "script: dropped count logged" "$(contains "$(last_log)" "dropped=1")"
 
+shifted="$(event "q" "$ANSWER two-b" | rec_run 'WRONG |  | a | b')"
+check "script: an empty source is not filled by the next field" "$(contains "$shifted" "verify-final: recommendations hold")"
+check "script: empty source with more fields is dropped" "$(contains "$(last_log)" "dropped=1")"
+prose="$(event "q" "$ANSWER two-c" | rec_run 'Impossible to verify without web access.')"
+check "script: prose starting with a verdict word is an error" "$(contains "$prose" "recommendation check could not run")"
+check "script: prose is logged rec_error, not cached clean" "$(contains "$(last_log)" " pi rec_error ")"
+prose2="$(event "q" "$ANSWER two-d" | rec_run 'Wrong answer, see a | b')"
+check "script: a verdict word without its pipe is not a finding" "$(lacks "$prose2" "WRONG |")"
+
 none="$(event "q" "$ANSWER three" | rec_run "NO_RECOMMENDATIONS")"
 check "script: NO_RECOMMENDATIONS prints no recommendations" "$(contains "$none" "verify-final: no recommendations")"
 check "script: NO_RECOMMENDATIONS logs rec_none" "$(contains "$(last_log)" " pi rec_none ")"
@@ -129,8 +138,9 @@ data = sys.stdin.read()
 mode = "done" if "--done" in sys.argv else "recommend" if "--recommend" in sys.argv else "check"
 with open(os.environ["FAKE_CALLS"], "a") as f:
     f.write(json.dumps({"mode": mode, "input": data}) + "\n")
-if mode == "recommend":
-    time.sleep(int(os.environ.get("FAKE_REC_DELAY_MS", "0")) / 1000)
+delay = {"recommend": "FAKE_REC_DELAY_MS", "check": "FAKE_CHECK_DELAY_MS"}.get(mode)
+if delay:
+    time.sleep(int(os.environ.get(delay, "0")) / 1000)
 print(os.environ.get({"done": "FAKE_DONE", "recommend": "FAKE_REC", "check": "FAKE_CHECK"}[mode], ""))
 EOF
 chmod +x "$TMP/home/.agents/bin/verify-final"
@@ -162,18 +172,23 @@ const quiet = () => {
   process.env.FAKE_DONE = "verify-final: work done"
   process.env.FAKE_REC = "verify-final: recommendations hold"
   process.env.FAKE_REC_DELAY_MS = "0"
+  process.env.FAKE_CHECK_DELAY_MS = "0"
   delete process.env.VERIFY_RECOMMEND
 }
 
 let instance = 0
-async function session(mode = "tui") {
+// autoTurn: like pi, a message sent while idle starts a user-prompt turn at once.
+async function session(mode = "tui", autoTurn = false) {
   instance += 1
   const mod = await import(`${process.env.EXT}?i=${instance}`)
   const handlers = new Map()
   const sent = []
   mod.default({
     on: (n, fn) => handlers.set(n, [...(handlers.get(n) ?? []), fn]),
-    sendUserMessage: (m, o) => sent.push({ m, o }),
+    sendUserMessage: (m, o) => {
+      sent.push({ m, o })
+      if (autoTurn && !o?.deliverAs) void emit("before_agent_start", { messageType: "user", prompt: m })
+    },
   })
   const notices = []
   let idle = true
@@ -249,6 +264,15 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
   check("rec: not merged with the fact-check", s.sent.length === 2 && fact.length === 1 && recSent(s).length === 1 && !fact[0].m.includes("WRONG |"), JSON.stringify(s.sent))
 }
 
+// A fast recommendation finding must not make a slower fact-check correction stale.
+{
+  reset(); quiet(); process.env.FAKE_CHECK = FALSE_LINE; process.env.FAKE_CHECK_DELAY_MS = "700"; process.env.FAKE_REC = WRONG
+  const s = await session("tui", true)
+  await s.prompt("advise me"); await s.answer(LONG); await s.settled(); await wait(1000)
+  const fact = s.sent.filter((x) => x.m.includes("FALSE |"))
+  check("rec: an early finding does not discard the fact-check", fact.length === 1 && recSent(s).length === 1, JSON.stringify(s.sent))
+}
+
 // Once per prompt.
 {
   reset(); quiet()
@@ -279,6 +303,14 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
   const s = await session()
   await s.prompt("advise me"); await s.answer(LONG); await s.settled()
   check("rec: error shows a notice", s.sent.length === 0 && s.notices.length === 1 && s.notices[0].level === "warning", JSON.stringify([s.sent, s.notices]))
+}
+
+// A checker that crashed with no output still shows a warning.
+{
+  reset(); quiet(); process.env.FAKE_REC = ""
+  const s = await session()
+  await s.prompt("advise me"); await s.answer(LONG); await s.settled()
+  check("rec: empty output shows a notice", s.sent.length === 0 && s.notices.length === 1, JSON.stringify([s.sent, s.notices]))
 }
 
 // Session shutdown while the check runs: nothing is sent.

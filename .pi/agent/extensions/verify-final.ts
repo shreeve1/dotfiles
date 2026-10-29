@@ -82,7 +82,6 @@ const REC_TIMEOUT_MS = 330_000;
 const REC_HEADER =
   "An independent check of the recommendations in an earlier answer found problems:";
 const REC_FINDING_RE = /(^|\n)\s*(?:IMPOSSIBLE|WRONG|EXISTS)\s*\|/;
-const REC_ERROR_PREFIX = "verify-final: recommendation check could not run";
 const MIN_CHARS = 500;
 // Grill format markers: answering questions or selecting next options. Same as the
 // script's GRILL_MARKERS: ❓, or ➡ followed by its emoji selector U+FE0F.
@@ -901,23 +900,38 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     if (shouldSkipText(text)) return;
     const cwd = resolveCwd(ctx);
     const checkSeq = userPromptSeq;
+    groundingDoneSeq = userPromptSeq;
+    const checks = Promise.all([
+      runCheck(cwd, text),
+      shouldCheckDone() ? runDoneCheck(cwd, text) : Promise.resolve(null),
+    ]);
     if (process.env.VERIFY_RECOMMEND !== "0" && recStartedSeq !== userPromptSeq) {
       recStartedSeq = userPromptSeq;
-      // No stale-result rule: a late finding is still delivered.
-      void runRecommendCheck(cwd, text)
-        .then((rec) => {
+      // No stale-result rule: a late finding is still delivered. It waits for this
+      // prompt's other two checks, because an idle delivery starts a new prompt
+      // and would make their result look stale and be dropped.
+      void Promise.all([runRecommendCheck(cwd, text), checks.catch(() => null)])
+        .then(([rec]) => {
           if (aborted) return;
           if (REC_FINDING_RE.test(rec.stdout)) {
             const out = rec.stdout.trim();
             if (typeof ctx.isIdle !== "function" || ctx.isIdle()) {
               pi.sendUserMessage(out);
             } else {
+              // ponytail: the run this follow-up joins goes unchecked, newer work
+              // included, since its final message is the revision. Check the
+              // pre-revision answer if that costs catches.
               recRevisionSeq = userPromptSeq;
               pi.sendUserMessage(out, { deliverAs: "followUp" });
             }
             return;
           }
-          if (rec.stdout.includes(REC_ERROR_PREFIX) || rec.timedOut || rec.errored) {
+          const quiet = [
+            "verify-final: recommendations hold",
+            "verify-final: no recommendations",
+            "verify-final: recommendation check off",
+          ];
+          if (!quiet.some((q) => rec.stdout.includes(q))) {
             try {
               ctx.ui.notify(noticeText(rec), "warning");
             } catch {
@@ -927,11 +941,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
         })
         .catch(() => {});
     }
-    groundingDoneSeq = userPromptSeq;
-    void Promise.all([
-      runCheck(cwd, text),
-      shouldCheckDone() ? runDoneCheck(cwd, text) : Promise.resolve(null),
-    ])
+    void checks
       .then(([grounding, done]) => {
         if (aborted) return;
         // A new user prompt arrived while the check ran — discard stale result.
