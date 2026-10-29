@@ -31,7 +31,7 @@ and prints the findings as plain text, or "verify-final: no findings". The log
 names the harness "manual" unless --harness NAME is also given (the pi
 extension passes --harness pi).
 
-Checker model: VERIFY_FINAL_MODEL (default cliproxy/deepseek-v4.1-flash) at thinking level
+Checker model: VERIFY_FINAL_MODEL (default cliproxy/glm-5.3-flash) at thinking level
 VERIFY_FINAL_THINKING (default low; any pi --thinking level).
 
 Warnings (never block): VERIFY_FINAL_WARN=errors (default) shows only "check
@@ -68,7 +68,7 @@ MIN_CHARS = 500
 # some callers re-send one long answer many times.
 CACHE_HOURS = 24
 INLINE_MAX_BYTES = 100_000  # longer answers go via a file the checker reads with its tools
-MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/deepseek-v4.1-flash")
+MODEL = os.environ.get("VERIFY_FINAL_MODEL", "cliproxy/glm-5.3-flash")
 THINKING = os.environ.get("VERIFY_FINAL_THINKING", "low").strip().lower()
 TIMEOUT = int(os.environ.get("VERIFY_FINAL_TIMEOUT", "120"))
 WARN = os.environ.get("VERIFY_FINAL_WARN", "errors").strip().lower()
@@ -266,6 +266,16 @@ MISSING_LINE = re.compile(r"^\W*MISSING\b", re.IGNORECASE)
 DONE_LINE = re.compile(r"^\W*DONE\b", re.IGNORECASE)
 
 
+def normalized_verdicts(output):
+    verdicts = []
+    for line in output.splitlines():
+        match = VERDICT.match(line)
+        if match:
+            value = match.group(1).upper()
+            verdicts.append((value, f"{value} | {match.group(2).strip()}"))
+    return verdicts
+
+
 def done_main(harness):
     """--done: did the agent finish what the user asked? Prints the instruction or "work done"."""
     global ANSWER_LEN
@@ -379,8 +389,7 @@ def main():
     ledger = LEDGER_PROMPT.format(path=ledger_path) if ledger_path else ""
     out, err, rc, secs = run_checker(PROMPT, ev.get("cwd"), answer, ledger=ledger)
 
-    verdicts = [VERDICT.match(l) for l in out.splitlines()]
-    verdicts = [(m.group(1).upper(), l) for m, l in zip(verdicts, out.splitlines()) if m]
+    verdicts = normalized_verdicts(out)
     if rc == 0 and not verdicts and "NO_CLAIMS" in out:
         log(harness, "no_claims", secs, f"ledger={ledger_path or '-'}")
         remember_clean(clean_marker)

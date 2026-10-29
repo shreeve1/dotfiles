@@ -47,7 +47,7 @@ One route: a fresh, read-only `pi -p` process. Run it from the repo root:
 ```bash
 timeout 120 pi -p --no-session --no-skills --no-context-files \
   --no-extensions --tools read,grep,find,ls \
-  --model cliproxy/deepseek-v4.1-flash \
+  --model cliproxy/glm-5.3-flash \
   "You are fact-checking claims against ground truth. For each claim, read the
    relevant files/sources and reply on one line: VERIFIED | FALSE | UNSURE,
    then file:line (or source) evidence, then a one-line correction if FALSE. Do
@@ -90,7 +90,7 @@ Notes:
 - `--no-session --no-context-files` keep the checker grounded only in the
   files it reads this call — no accumulated state, no `CLAUDE.md`/`AGENTS.md`
   bias.
-- `cliproxy/deepseek-v4.1-flash` is the fixed checker model, independent of
+- `cliproxy/glm-5.3-flash` is the fixed checker model, independent of
   whatever model drives the main session.
 - The checker has no memory of the conversation — spell each claim out in
   full, self-contained (name the term, the file, the behaviour,

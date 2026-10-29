@@ -103,7 +103,8 @@ export EXT TMP
 
 node_out="$(
   HOME="$TMP/home" FAKE_CALLS="$TMP/calls" node --input-type=module - <<'EOF' 2>&1
-import { readFileSync, rmSync, existsSync } from "node:fs"
+import { readFileSync, rmSync, existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
 const tmp = process.env.TMP
 let pass = 0
 const failures = []
@@ -116,19 +117,31 @@ const calls = () =>
     ? readFileSync(`${tmp}/calls`, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : []
 const reset = () => rmSync(`${tmp}/calls`, { force: true })
+const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" })
+const makeRepo = (name) => {
+  const dir = `${tmp}/${name}`
+  mkdirSync(dir, { recursive: true })
+  git(dir, "init", "-q", "-b", "main")
+  git(dir, "config", "user.email", "t@t")
+  git(dir, "config", "user.name", "t")
+  writeFileSync(`${dir}/app.py`, "x = 1\n")
+  git(dir, "add", "-A")
+  git(dir, "commit", "-qm", "init")
+  return dir
+}
 const LONG = "The answer. " + "x".repeat(600)
 const GAP = "An independent check of whether the work is finished found parts of the request that are not done:\nMISSING | answer | the README"
 const FALSE_LINE = "An independent fact-check of your final answer found claims that do not match the files:\nFALSE | a:1 | claim -- fix"
 
 let instance = 0
-async function session(mode = "tui") {
+async function session(mode = "tui", cwd = tmp) {
   instance += 1
   const mod = await import(`${process.env.EXT}?i=${instance}`)
   const handlers = new Map()
   const sent = []
   mod.default({ on: (n, fn) => handlers.set(n, [...(handlers.get(n) ?? []), fn]), sendUserMessage: (m) => sent.push(m) })
   const notices = []
-  const ctx = { cwd: tmp, mode, isIdle: () => true, ui: { notify: (m) => notices.push(m) } }
+  const ctx = { cwd, mode, isIdle: () => true, ui: { notify: (m) => notices.push(m) } }
   const emit = async (name, event) => {
     let last
     for (const fn of handlers.get(name) ?? []) {
@@ -142,6 +155,18 @@ async function session(mode = "tui") {
     sent, notices,
     prompt: (text) => emit("before_agent_start", { messageType: "user", prompt: text }),
     tool: (toolName) => emit("tool_call", { toolName, toolCallId: `t${Math.random()}`, input: {} }),
+    edit: async (path) => {
+      const id = `e${Math.random()}`
+      writeFileSync(`${cwd}/${path}`, "x = 2\n")
+      await emit("tool_call", { toolName: "edit", toolCallId: id, input: { path } })
+      return emit("tool_result", { toolName: "edit", toolCallId: id, input: { path }, isError: false, content: [] })
+    },
+    cleanupRead: () => emit("tool_result", {
+      toolName: "read",
+      input: { path: `${tmp}/.agents/skills/post-work-cleanup/SKILL.md` },
+      isError: false,
+      content: [],
+    }),
     answer,
     settled: async () => { await emit("agent_settled", { aborted: false }); await new Promise((r) => setTimeout(r, 400)) },
     beforeSettle: () => emit("agent_before_settle", { outcome: "completed", entries: [] }),
@@ -179,7 +204,17 @@ async function session(mode = "tui") {
   check("clean read-only turn sends nothing", s.sent.length === 0)
 }
 
-// 3. Both find something: one follow-up carrying both.
+// 3. A short answer naming a ledger is still checked.
+{
+  reset(); process.env.FAKE_CHECK = "verify-final: no findings"; process.env.FAKE_DONE = "verify-final: work done"
+  mkdirSync(`${tmp}/.kanban/grilling`, { recursive: true })
+  writeFileSync(`${tmp}/.kanban/grilling/foo.md`, "ledger\n")
+  const s = await session()
+  await s.prompt("check the ledger"); await s.answer("See .kanban/grilling/foo.md"); await s.settled()
+  check("short named ledger is checked", calls().length === 1, JSON.stringify(calls()))
+}
+
+// 4. Both find something: one follow-up carrying both.
 {
   reset(); process.env.FAKE_CHECK = FALSE_LINE; process.env.FAKE_DONE = GAP
   const s = await session()
@@ -187,7 +222,20 @@ async function session(mode = "tui") {
   check("both findings merge into one follow-up", s.sent.length === 1 && s.sent[0].includes("FALSE |") && s.sent[0].includes("MISSING |"), JSON.stringify(s.sent))
 }
 
-// 4. Both clean: nothing sent, no notice.
+// 5. Cleanup must finish before the headless grounding check sees the answer.
+{
+  reset(); process.env.FAKE_CHECK = "verify-final: no findings"; process.env.FAKE_DONE = "verify-final: work done"
+  const repo = makeRepo("cleanup-headless")
+  const s = await session("print", repo)
+  await s.prompt("edit the file"); await s.edit("app.py"); await s.answer(LONG)
+  const cleanup = await s.beforeSettle()
+  check("headless cleanup runs before grounding", cleanup?.continue === true && calls().length === 0, JSON.stringify([cleanup, calls()]))
+  await s.cleanupRead(); await s.answer(LONG + " after cleanup")
+  const checked = await s.beforeSettle()
+  check("headless grounding checks the post-cleanup answer", checked?.continue !== true && calls().length === 2, JSON.stringify([checked, calls()]))
+}
+
+// 6. Both clean: nothing sent, no notice.
 {
   reset(); process.env.FAKE_CHECK = "verify-final: no findings"; process.env.FAKE_DONE = "verify-final: work done"
   const s = await session()
@@ -195,7 +243,7 @@ async function session(mode = "tui") {
   check("clean turn sends nothing", s.sent.length === 0 && s.notices.length === 0, JSON.stringify([s.sent, s.notices]))
 }
 
-// 5. VERIFY_DONE=0 turns off only the completion check.
+// 7. VERIFY_DONE=0 turns off only the completion check.
 {
   reset(); process.env.VERIFY_DONE = "0"; process.env.FAKE_CHECK = "verify-final: no findings"; process.env.FAKE_DONE = GAP
   const s = await session()
@@ -204,7 +252,7 @@ async function session(mode = "tui") {
   delete process.env.VERIFY_DONE
 }
 
-// 6. Headless: findings return as one boundary continuation.
+// 8. Headless: findings return as one boundary continuation.
 {
   reset(); process.env.FAKE_CHECK = "verify-final: no findings"; process.env.FAKE_DONE = GAP
   const s = await session("print")

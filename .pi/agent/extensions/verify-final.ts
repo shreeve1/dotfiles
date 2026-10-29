@@ -69,6 +69,7 @@ const MIN_CHARS = 500;
 // Grill format markers: answering questions or selecting next options. Same as the
 // script's GRILL_MARKERS: ❓, or ➡ followed by its emoji selector U+FE0F.
 const GRILL_MARKER_RE = /\u2753|\u27a1\ufe0f/u;
+const GRILL_LEDGER_RE = /\.kanban[\\/]grilling[\\/][\w.-]+\.md\b/u;
 // The verify-final script opens every FALSE and UNGROUNDED finding with the
 // verdict name and a pipe — match those, not bare "FALSE" / "UNGROUNDED"
 // substrings, so the notice path can never be triggered by prose.
@@ -183,6 +184,7 @@ let lastFollowupSeq = -1;
 // Boundary guards, keyed to the user prompt they fired for.
 let groundingDoneSeq = -1;
 let cleanupDoneSeq = -1;
+let cleanupPendingSeq = -1;
 let continuationsThisPrompt = 0;
 // Cleanup state. tracked: real path -> repo root, for code files this session
 // changed through edit/write since the cleanup last ran.
@@ -193,7 +195,12 @@ let gateHeldSeq = -1;
 function shouldSkipText(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return true;
-  if (trimmed.length < MIN_CHARS && !GRILL_MARKER_RE.test(trimmed)) return true;
+  if (
+    trimmed.length < MIN_CHARS &&
+    !GRILL_MARKER_RE.test(trimmed) &&
+    !GRILL_LEDGER_RE.test(trimmed)
+  )
+    return true;
   return false;
 }
 
@@ -531,6 +538,7 @@ function targetRoot(target: CommitTarget): Promise<string | null> {
 
 function markCleanupRan(): void {
   cleanupRanSeq = userPromptSeq;
+  cleanupPendingSeq = -1;
   tracked.clear();
 }
 
@@ -780,6 +788,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       if (text && role === "assistant") break;
       text = "";
     }
+    if (cleanupPendingSeq === userPromptSeq) cleanupPendingSeq = -1;
     lastAssistantText = text;
   });
 
@@ -804,6 +813,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       return;
     const cwd = resolveCwd(ctx);
     cleanupDoneSeq = userPromptSeq;
+    cleanupPendingSeq = userPromptSeq;
     continuationsThisPrompt += 1;
     const shown = [...tracked.keys()].map((f) => displayPath(f, cwd));
     return withContinuation(
@@ -821,6 +831,7 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     if (groundingDoneSeq === userPromptSeq) return;
     if (userPromptSeq === lastFollowupSeq) return;
     if (continuationsThisPrompt >= MAX_CONTINUATIONS_PER_PROMPT) return;
+    if (cleanupPendingSeq === userPromptSeq) return;
     const text = lastAssistantText;
     if (shouldSkipText(text)) return;
     groundingDoneSeq = userPromptSeq;

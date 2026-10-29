@@ -46,6 +46,7 @@ verify() {
 }
 
 FINDING='FALSE | a.txt:1 | the claim -- the fix'
+MALFORMED_FINDING='**false** | a.txt:1 | the claim -- the fix'
 
 manual="$(printf '%s' "$ANSWER" | verify "$FINDING" --check -)"
 check "manual: names the findings" "$(contains "$manual" "$FINDING")"
@@ -104,6 +105,10 @@ rm -f "$TMP/args"
 short="$(head -c 450 /dev/zero | tr '\0' 'b' | verify "$FINDING" --check -)"
 check "minimum: a 450-character answer is skipped" "$([ ! -e "$TMP/args" ] && echo yes || echo no)"
 check "minimum: the skip names 500" "$(contains "$short" "under 500 chars")"
+
+normalized="$(printf '%s' "$ANSWER malformed" | verify "$MALFORMED_FINDING" --check -)"
+check "verdicts: normalizes symbols and case" "$(contains "$normalized" 'FALSE | a.txt:1 | the claim -- the fix')"
+check "verdicts: does not pass malformed finding through" "$(lacks "$normalized" '**false**')"
 
 for f in "${failures[@]+"${failures[@]}"}"; do echo "FAIL: $f" >&2; done
 echo "verify-final-wording: $pass passed, ${#failures[@]} failed"
