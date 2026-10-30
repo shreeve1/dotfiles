@@ -132,6 +132,43 @@ out="$(
 )"
 check "timeout: status jev_timeout" "$(contains "$(jq_get "d['status']" <<<"$out")" jev_timeout)"
 
+# Spaced project path: fresh evidence still resolves (NUL-delimited rg output, shutil.which).
+mkdir -p "$TMP/pro ject"
+printf 'omega-only-word config.json note\n' >"$TMP/pro ject/config.json"
+python3 - "$TMP" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/input.json"
+d = json.load(open(p))
+d["cwd"] = sys.argv[1] + "/pro ject"
+d["answer"] = "The file `config.json` exists in the project root for the spaced path test. " + "fill " * 30
+d["record"] = [{"tool": "bash", "call": "cat config.json", "result": "config.json listed only"}]
+json.dump(d, open(p, "w"))
+EOF
+printf ok >"$TMP/mode"
+out="$(env TYPESAFE_API_KEY=test-key HOME="$TMP/home" JEV_SHADOW_URL="$URL" "$BIN" <"$TMP/input.json")"
+body="$(cat "$TMP/bodies.jsonl")"
+check "spaces: fresh evidence found" "$(contains "$body" "omega-only-word")"
+rm -rf "$TMP/pro ject"
+
+# Newest-first evidence: when old and new reads match equally, the newest wins.
+python3 - "$TMP" <<'EOF'
+import json, sys
+p = sys.argv[1] + "/input.json"
+d = json.load(open(p))
+d["cwd"] = sys.argv[1] + "/project"
+d["answer"] = "The file `docs/example.md` says hello. " + "fill " * 30
+d["record"] = [
+  {"tool": "bash", "call": "cat docs/example.md", "result": "docs/example.md old-says-alpha"},
+  {"tool": "bash", "call": "cat docs/example.md", "result": "docs/example.md new-says-beta"},
+]
+json.dump(d, open(p, "w"))
+EOF
+out="$(run_shadow ok)"
+body="$(cat "$TMP/bodies.jsonl")"
+check "recency: newest evidence judged first" "$(python3 -c 'import sys; b=sys.stdin.read(); print("yes" if b.find("new-says-beta") < b.find("old-says-alpha") else "no")' <<<"$body")"
+check "replay: sentences stored" "$(python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); print("yes" if d.get("replay",{}).get("sentences",{}).get("0","").startswith("The file") else "no")' <<<"$out")"
+check "replay: evidence stored" "$(python3 -c 'import json,sys; d=json.loads(sys.stdin.read()); ev=d.get("replay",{}).get("evidence",[]); print("yes" if ev and "new-says-beta" in json.dumps(ev) else "no")' <<<"$out")"
+
 # Cached-clean marker: the second identical clean answer names the cache, also for --harness pi.
 mkdir -p "$TMP/bin2"
 cat >"$TMP/bin2/pi" <<'PYEOF'
@@ -170,6 +207,8 @@ with open(os.environ["FAKE_CALLS"], "a") as f:
 delay = {"recommend": "FAKE_REC_DELAY_MS", "check": "FAKE_CHECK_DELAY_MS"}.get(mode)
 if delay:
     time.sleep(int(os.environ.get(delay, "0")) / 1000)
+if os.environ.get("FAKE_EXIT"):
+    sys.exit(int(os.environ["FAKE_EXIT"]))
 print(os.environ.get({"done": "FAKE_DONE", "recommend": "FAKE_REC", "check": "FAKE_CHECK"}[mode], ""))
 PYEOF
 chmod +x "$TMP/home/.agents/bin/verify-final"
@@ -244,7 +283,7 @@ async function session(mode = "tui") {
   })
   const notices = []
   let idle = true
-  const ctx = { cwd: tmp, mode, isIdle: () => idle, ui: { notify: (m, level) => notices.push({ m, level }) } }
+  const ctx = { cwd: tmp, mode, isIdle: () => idle, ui: { notify: (m, level) => notices.push({ m, level }) }, sessionManager: { getSessionId: () => `sess-${instance}` } }
   const emit = async (name, event) => {
     let last
     for (const fn of handlers.get(name) ?? []) { const r = await fn(event, ctx); if (r) last = r }
@@ -271,7 +310,27 @@ async function session(mode = "tui") {
   check("row: glm lines recorded", rs[0]?.glm?.lines?.[0]?.includes("FALSE | a:1") === true, JSON.stringify(rs[0]?.glm))
   check("row: jev result recorded", rs[0]?.jev?.status === "jev_ok" && rs[0]?.jev?.risk_session === 0.42, JSON.stringify(rs[0]?.jev))
   check("row: answer length recorded", rs[0]?.answer_len === LONG.length, JSON.stringify(rs[0]?.answer_len))
+  check("row: session id from the manager", (rs[0]?.session_id ?? "").startsWith("sess-"), JSON.stringify(rs[0]?.session_id))
   check("row: no second message to the agent", s.sent.length === 1 && s.sent[0].m === FALSE_LINE, JSON.stringify(s.sent))
+}
+
+// (f) GLM output is redacted into the row, failures get a status, session id comes from the manager.
+{
+  clearRows(); quiet()
+  process.env.FAKE_CHECK = "An independent fact-check found:\nFALSE | a:1 | uses ghp_" + "a1".repeat(15) + " here -- fix"
+  const s = await session()
+  await s.prompt("secret in findings"); await s.answer(LONG); await s.settled()
+  const line = rows()[0]?.glm?.lines?.[0] ?? ""
+  check("row: glm findings redacted", !line.includes("ghp_") && line.includes("[secret]"), JSON.stringify(line))
+  check("row: glm status ok", rows()[0]?.glm?.status === "ok", JSON.stringify(rows()[0]?.glm))
+}
+{
+  clearRows(); quiet(); process.env.FAKE_EXIT = "1"; process.env.FAKE_CHECK = ""
+  const s = await session()
+  await s.prompt("checker broke"); await s.answer(LONG); await s.settled()
+  check("row: glm failure has status error", rows()[0]?.glm?.status === "error", JSON.stringify(rows()[0]?.glm))
+  check("row: glm failure has no lines", (rows()[0]?.glm?.lines ?? []).length === 0, JSON.stringify(rows()[0]?.glm))
+  delete process.env.FAKE_EXIT
 }
 
 // (cached) A GLM-cached clean answer is marked in the row.

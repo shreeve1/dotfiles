@@ -670,8 +670,25 @@ interface ShadowRunResult {
   errored: boolean;
 }
 
+/** The same five patterns the script applies, so logged GLM lines carry no secrets either. */
+const SECRET_RES: readonly [RegExp, string][] = [
+  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, "[secret]"],
+  [/\b(?:sk|pk|rk|ghp|gho|ghs|xox[abpr]|glpat|AKIA)[-_A-Za-z0-9]{12,}/g, "[secret]"],
+  [/(bearer\s+)[A-Za-z0-9._~+/=-]{16,}/gi, "$1[secret]"],
+  [
+    /((?:api[_-]?key|token|secret|password|passwd|pwd|authorization)["']?\s*[:=]\s*["']?)[^\s"',;]{6,}/gi,
+    "$1[secret]",
+  ],
+  [/\b[A-Za-z0-9+/_-]{48,}={0,2}/g, "[blob]"],
+];
+
+function redactText(text: string): string {
+  for (const [rx, rep] of SECRET_RES) text = text.replace(rx, rep);
+  return text;
+}
+
 /** Run the Jev shadow script beside the GLM check; it never blocks or talks to the agent. */
-function runShadow(cwd: string, text: string): Promise<ShadowRunResult> {
+function runShadow(cwd: string, text: string, sessionId: string): Promise<ShadowRunResult> {
   return new Promise((resolve) => {
     if (!existsSync(JEV_SHADOW_BIN)) {
       resolve({ stdout: "", timedOut: false, errored: true });
@@ -679,7 +696,7 @@ function runShadow(cwd: string, text: string): Promise<ShadowRunResult> {
     }
     const input = JSON.stringify({
       cwd,
-      sessionId: process.env.PI_SESSION_ID ?? "",
+      sessionId,
       answer: text,
       record: sessionRecord,
     });
@@ -720,13 +737,32 @@ function runShadow(cwd: string, text: string): Promise<ShadowRunResult> {
   });
 }
 
-/** The GLM finding lines (FALSE/UNSURE/UNGROUNDED) from a check result. */
+/** The GLM finding lines (FALSE/UNSURE/UNGROUNDED) from a check result, redacted. */
 function glmFindingLines(grounding: RunResult | null): string[] {
   if (!grounding) return [];
   return grounding.stdout
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => redactText(l.trim()))
     .filter((l) => /^(?:FALSE|UNSURE|UNGROUNDED)\s*\|/.test(l));
+}
+
+/** ok / timeout / error, so a failed check can never be read as a clean label. */
+function glmStatus(grounding: RunResult | null): "ok" | "timeout" | "error" {
+  if (!grounding) return "error";
+  if (grounding.timedOut) return "timeout";
+  if (grounding.errored || grounding.exitCode !== 0) return "error";
+  return "ok";
+}
+
+/** The session manager's id is authoritative; the env var is only a fallback. */
+function shadowSessionId(ctx: { sessionManager?: { getSessionId?: () => unknown } }): string {
+  try {
+    const id = ctx.sessionManager?.getSessionId?.();
+    if (typeof id === "string" && id) return id;
+  } catch {
+    // A manager that cannot answer falls back to the environment.
+  }
+  return process.env.PI_SESSION_ID ?? "";
 }
 
 /** One row beside GLM's verdict: the only output of the whole shadow side. */
@@ -734,6 +770,7 @@ function appendShadowRow(
   text: string,
   grounding: RunResult | null,
   shadow: ShadowRunResult | null,
+  sessionId: string,
 ): void {
   try {
     let jev: unknown = { status: "jev_error", error: "script did not run" };
@@ -748,10 +785,11 @@ function appendShadowRow(
     }
     const row = {
       t: new Date().toISOString(),
-      session_id: process.env.PI_SESSION_ID ?? "",
+      session_id: sessionId,
       answer_len: text.length,
       answer_sha256: createHash("sha256").update(text).digest("hex").slice(0, 16),
       glm: {
+        status: glmStatus(grounding),
         cached: !!grounding && grounding.stdout.includes("same answer found clean earlier"),
         lines: glmFindingLines(grounding),
       },
@@ -1100,11 +1138,12 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
     // Jev shadow: log only. Started beside the checks, awaited separately, and
     // never part of the follow-up decision above.
     if (process.env.VERIFY_JEV_SHADOW !== "0" && existsSync(JEV_SHADOW_BIN)) {
-      const shadow = runShadow(cwd, text);
+      const sessionId = shadowSessionId(ctx);
+      const shadow = runShadow(cwd, text, sessionId);
       void Promise.allSettled([checks, shadow]).then(([c, s]) => {
         if (aborted) return;
         const grounding = c.status === "fulfilled" ? (c.value[0] ?? null) : null;
-        appendShadowRow(text, grounding, s.status === "fulfilled" ? s.value : null);
+        appendShadowRow(text, grounding, s.status === "fulfilled" ? s.value : null, sessionId);
       });
     }
     if (process.env.VERIFY_RECOMMEND !== "0" && recStartedSeq !== userPromptSeq) {

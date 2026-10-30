@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -103,7 +104,7 @@ def evidence_for(sentence, record):
     if not ks:
         return []
     scored = []
-    for item in record:
+    for item in reversed(record):  # newest first: ties keep the latest read
         blob = f"$ {item['call']}\n{item['result']}"
         low = blob.lower()
         hits = [k for k in ks if k.lower() in low]
@@ -135,9 +136,12 @@ def evidence_for(sentence, record):
     return out
 
 
-def fresh_evidence(sentence, cwd, rg):
+RG_PATH = shutil.which("rg")
+
+
+def fresh_evidence(sentence, cwd):
     home = os.path.expanduser("~")
-    if not cwd or not rg or os.path.realpath(cwd) == os.path.realpath(home) or not os.path.isdir(cwd):
+    if not cwd or not RG_PATH or os.path.realpath(cwd) == os.path.realpath(home) or not os.path.isdir(cwd):
         return []
     keys = [k for k in keys_of(sentence) if len(k) >= 4][:5]
     if not keys:
@@ -146,20 +150,21 @@ def fresh_evidence(sentence, cwd, rg):
     for k in keys:
         try:
             r = subprocess.run(
-                ["rg", "-l", "-F", "-i", "--max-filesize", "1M", "-g", "!node_modules", "-g", "!.git", "--", k, cwd],
+                [RG_PATH, "-l", "--null", "-F", "-i", "--max-filesize", "1M", "-g", "!node_modules", "-g", "!.git", "--", k, cwd],
                 capture_output=True, text=True, timeout=15,
             )
         except Exception:
             continue
-        for f in r.stdout.split():
-            score[f] = score.get(f, 0) + 1
+        for f in r.stdout.split("\0"):
+            if f:
+                score[f] = score.get(f, 0) + 1
     out = []
     for f in sorted(score, key=lambda f: (-score[f], f))[:FRESH_FILES]:
         args = ["rg", "-n", "-F", "-i", "-C", "2", "-m", "3"]
         for k in keys:
             args += ["-e", k]
         try:
-            r = subprocess.run(args + ["--", f], capture_output=True, text=True, timeout=15)
+            r = subprocess.run([RG_PATH] + args + ["--", f], capture_output=True, text=True, timeout=15)
         except Exception:
             continue
         text = redact(r.stdout)[:FRESH_MAX_CHARS]
@@ -213,7 +218,7 @@ def main():
     record = [{"tool": i.get("tool", ""), "call": redact(str(i.get("call", ""))), "result": redact(str(i.get("result", "")))} for i in payload.get("record", [])]
     sentences = [redact(p) for p in pieces(answer)]
 
-    def finish(status, claims=None, risk_s=0.0, risk_f=0.0, error=None):
+    def finish(status, claims=None, risk_s=0.0, risk_f=0.0, error=None, replay=None):
         out = {
             "status": status,
             "model": MODEL,
@@ -226,6 +231,8 @@ def main():
         }
         if error:
             out["error"] = str(error).splitlines()[0][:200]
+        if replay is not None:
+            out["replay"] = replay
         print(json.dumps(out, ensure_ascii=False))
 
     key = os.environ.get("TYPESAFE_API_KEY")
@@ -249,27 +256,28 @@ def main():
         if not claims:
             finish("jev_skip")
             return
-        rg = any(os.access(os.path.join(p, "rg"), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep))
         out_claims, risk_s, risk_f = [], 0.0, 0.0
+        replay = {"sentences": {str(i): s for i, s in enumerate(sentences)}, "evidence": []}
         for i in claims:
             s = sentences[i]
             ev_a = evidence_for(s, record)
-            ev_b = ev_a + fresh_evidence(s, payload.get("cwd"), rg) if rg else ev_a
+            ev_b = ev_a + fresh_evidence(s, payload.get("cwd"))
             probs_a = probs_b = None
             if ev_a:
                 st = {"claim": s, "evidence": ev_a}
                 probs_a = evaluate(st, {"v": VERDICT_Q}, rkey(st, {"v": VERDICT_Q}))["v"]["probabilities"]
-            if rg and ev_b:
+            if ev_b:
                 st = {"claim": s, "evidence": ev_b}
                 probs_b = evaluate(st, {"v": VERDICT_Q}, rkey(st, {"v": VERDICT_Q}))["v"]["probabilities"]
             elif ev_a:
-                probs_b = None if not rg else probs_a
+                probs_b = None
+            replay["evidence"].append({"i": i, "session": ev_a, "files": ev_b if ev_b != ev_a else None})
             if ev_a:
                 risk_s = 1 - (1 - risk_s) * (1 - probs_a.get("contradicted", 0.0))
             if probs_b:
                 risk_f = 1 - (1 - risk_f) * (1 - probs_b.get("contradicted", 0.0))
             out_claims.append({"i": i, "claim": claim_answers[f"c{i}"]["noul"], "session": probs_a, "files": probs_b})
-        finish("jev_ok", out_claims, risk_s, risk_f)
+        finish("jev_ok", out_claims, risk_s, risk_f, replay=replay)
     except Timeout:
         finish("jev_timeout")
     except Exception as e:
