@@ -284,3 +284,5 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 
 # Pi's machine-local Git checkout/cache
 .pi/agent/git/
+
+.superpowers/
