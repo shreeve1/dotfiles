@@ -149,6 +149,8 @@ export EXT TMP
 node_out="$(
   HOME="$TMP/home" FAKE_CALLS="$TMP/calls" node --input-type=module - <<'EOF' 2>&1
 import { readFileSync, rmSync, existsSync } from "node:fs"
+import cp from "node:child_process"
+import { syncBuiltinESMExports } from "node:module"
 const tmp = process.env.TMP
 let pass = 0
 const failures = []
@@ -163,6 +165,30 @@ const calls = () =>
 const recCalls = () => calls().filter((c) => c.mode === "recommend")
 const reset = () => rmSync(`${tmp}/calls`, { force: true })
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+// Count the checker processes the extension has running. It spawns them synchronously
+// inside the event handler, so "none running" after an event means every check has
+// finished and been delivered; a fixed sleep instead expires first on a busy machine.
+let running = 0
+const realSpawn = cp.spawn
+cp.spawn = (...args) => {
+  const child = realSpawn(...args)
+  running += 1
+  let counted = true
+  const done = () => { if (counted) { counted = false; running -= 1 } }
+  child.once("close", done)
+  child.once("error", done)
+  return child
+}
+syncBuiltinESMExports()
+// Poll until cond() holds; a timeout is recorded as a failure instead of hanging.
+const waitFor = async (what, cond, ms = 30000) => {
+  const end = Date.now() + ms
+  while (!cond()) {
+    if (Date.now() > end) { check(`timed out waiting for ${what}`, false); return }
+    await wait(10)
+  }
+}
+const drained = () => waitFor("the checkers to finish", () => running === 0)
 const HEADER = "An independent check of the recommendations in an earlier answer found problems:"
 const WRONG = `${HEADER}\nWRONG | https://docs.example/page | the premise -- what the docs say`
 const FALSE_LINE = "An independent fact-check of your final answer found claims that do not match the files:\nFALSE | a:1 | claim -- fix"
@@ -206,7 +232,8 @@ async function session(mode = "tui", autoTurn = false) {
     setIdle: (v) => { idle = v },
     prompt: (text) => emit("before_agent_start", { messageType: "user", prompt: text }),
     answer: (text) => emit("agent_end", { messages: [{ role: "assistant", content: [{ type: "text", text }] }] }),
-    settled: async () => { await emit("agent_settled", { aborted: false }); await wait(400) },
+    fire: () => emit("agent_settled", { aborted: false }),
+    settled: async () => { await emit("agent_settled", { aborted: false }); await drained() },
     beforeSettle: () => emit("agent_before_settle", { outcome: "completed", entries: [] }),
     shutdown: () => emit("session_shutdown", {}),
   }
@@ -242,9 +269,9 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
 {
   reset(); quiet(); process.env.FAKE_REC = WRONG; process.env.FAKE_REC_DELAY_MS = "700"
   const s = await session()
-  await s.prompt("advise me"); await s.answer(LONG); await s.settled()
+  await s.prompt("advise me"); await s.answer(LONG); await s.fire()
   await s.prompt("newer task"); s.setIdle(false)
-  await wait(1200)
+  await drained()
   const r = recSent(s)[0]
   check("rec: late finding still delivered after a new prompt", r !== undefined, JSON.stringify(s.sent))
   check("rec: busy finding is queued as followUp", r?.o?.deliverAs === "followUp", JSON.stringify(r))
@@ -268,7 +295,7 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
 {
   reset(); quiet(); process.env.FAKE_CHECK = FALSE_LINE; process.env.FAKE_CHECK_DELAY_MS = "700"; process.env.FAKE_REC = WRONG
   const s = await session("tui", true)
-  await s.prompt("advise me"); await s.answer(LONG); await s.settled(); await wait(1000)
+  await s.prompt("advise me"); await s.answer(LONG); await s.settled()
   const fact = s.sent.filter((x) => x.m.includes("FALSE |"))
   check("rec: an early finding does not discard the fact-check", fact.length === 1 && recSent(s).length === 1, JSON.stringify(s.sent))
 }
@@ -293,7 +320,7 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
 {
   reset(); quiet()
   const s = await session("print")
-  await s.prompt("advise me"); await s.answer(LONG); await s.beforeSettle(); await wait(400)
+  await s.prompt("advise me"); await s.answer(LONG); await s.beforeSettle(); await drained()
   check("rec: headless does nothing", recCalls().length === 0, JSON.stringify(calls()))
 }
 
@@ -317,8 +344,9 @@ const recSent = (s) => s.sent.filter((x) => x.m.startsWith(HEADER))
 {
   reset(); quiet(); process.env.FAKE_REC = WRONG; process.env.FAKE_REC_DELAY_MS = "800"
   const s = await session()
-  await s.prompt("advise me"); await s.answer(LONG); await s.settled()
-  await s.shutdown(); await wait(900)
+  await s.prompt("advise me"); await s.answer(LONG); await s.fire()
+  await waitFor("the checker to start", () => recCalls().length > 0 || running === 0)
+  await s.shutdown(); await drained()
   check("rec: shutdown discards", recSent(s).length === 0, JSON.stringify(s.sent))
 }
 
