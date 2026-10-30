@@ -200,6 +200,12 @@ global plugin, `.config/opencode/plugins/verify-final.ts` (loaded through the
   the edit, and its answer opened with a "Missing:" line. Test:
   `tests/verify-final-done.test.sh`.
 
+## Addendum (2026-10-30): Jev shadow beside the fact check
+
+- In the TUI, every fact check also runs `.agents/bin/jev-shadow` (Jev `jev-1.14.0`, shadow only) and appends one row with both results to `~/.cache/verify-final-jev/<day>.jsonl` (kept 60 days); design `docs/superpowers/specs/2026-10-30-verify-final-jev-shadow-design.md`.
+- The Jev side never reaches the agent and never delays GLM. `VERIFY_JEV_SHADOW=0` turns it off; `VERIFY_FINAL=0` turns off everything. A machine with no Jev key logs `jev_no_key` and sends nothing.
+- A cached clean answer now prints `verify-final: no findings (same answer found clean earlier)` for `--harness pi` too, so the shadow row can mark it.
+
 ## Addendum (2026-10-29): Pi recommendation check
 
 - The grounding check ignores recommendations, and the ledger check covers

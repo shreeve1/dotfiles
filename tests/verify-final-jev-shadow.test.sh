@@ -132,6 +132,24 @@ out="$(
 )"
 check "timeout: status jev_timeout" "$(contains "$(jq_get "d['status']" <<<"$out")" jev_timeout)"
 
+# Cached-clean marker: the second identical clean answer names the cache, also for --harness pi.
+mkdir -p "$TMP/bin2"
+cat >"$TMP/bin2/pi" <<'PYEOF'
+#!/bin/sh
+cat >/dev/null
+printf 'VERIFIED\n'
+PYEOF
+chmod +x "$TMP/bin2/pi"
+VF="$ROOT/.agents/bin/verify-final"
+ANSWER2="A cached answer. $(head -c 600 /dev/zero | tr '\0' 'c')"
+cached_run() {
+  printf '%s' "$ANSWER2" | env PATH="$TMP/bin2:$PATH" HOME="$TMP/home" "$VF" --harness pi --check -
+}
+first_out="$(cached_run)"
+second_out="$(cached_run)"
+check "cache: first answer is clean" "$(contains "$first_out" "verify-final: no findings")"
+check "cache: second answer names the cache" "$(contains "$second_out" "same answer found clean earlier")"
+
 # Extension half: the extension starts jev-shadow beside the GLM check and writes one row.
 command -v node >/dev/null || {
   echo "SKIP: node not installed (extension half)"
@@ -254,6 +272,16 @@ async function session(mode = "tui") {
   check("row: jev result recorded", rs[0]?.jev?.status === "jev_ok" && rs[0]?.jev?.risk_session === 0.42, JSON.stringify(rs[0]?.jev))
   check("row: answer length recorded", rs[0]?.answer_len === LONG.length, JSON.stringify(rs[0]?.answer_len))
   check("row: no second message to the agent", s.sent.length === 1 && s.sent[0].m === FALSE_LINE, JSON.stringify(s.sent))
+}
+
+// (cached) A GLM-cached clean answer is marked in the row.
+{
+  clearRows(); quiet(); process.env.FAKE_CHECK = "verify-final: no findings (same answer found clean earlier)"
+  const s = await session()
+  await s.prompt("again"); await s.answer(LONG); await s.settled()
+  const r = rows()[0]
+  check("row: cached marked", r?.glm?.cached === true, JSON.stringify(r?.glm))
+  check("row: cached has no lines", Array.isArray(r?.glm?.lines) && r.glm.lines.length === 0, JSON.stringify(r?.glm))
 }
 
 // (b) The follow-up the agent receives is identical with the shadow on and off.

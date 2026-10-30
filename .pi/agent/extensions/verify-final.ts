@@ -751,7 +751,10 @@ function appendShadowRow(
       session_id: process.env.PI_SESSION_ID ?? "",
       answer_len: text.length,
       answer_sha256: createHash("sha256").update(text).digest("hex").slice(0, 16),
-      glm: { cached: false, lines: glmFindingLines(grounding) },
+      glm: {
+        cached: !!grounding && grounding.stdout.includes("same answer found clean earlier"),
+        lines: glmFindingLines(grounding),
+      },
       jev,
       record_chars: sessionRecordChars,
     };
