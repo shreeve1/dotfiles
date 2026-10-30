@@ -22,6 +22,8 @@ topics: [knowledge]
 - The 90% catch-keep share is a provisional call; James has not set the accuracy bar.
 - `~/jev-tune/data/` holds redacted session excerpts and cached Jev answers; delete it when the work ends.
 
+- Approved follow-up: shadow mode in verify-final, design `docs/superpowers/specs/2026-10-30-verify-final-jev-shadow-design.md`, plan `docs/superpowers/plans/2026-10-30-verify-final-jev-shadow.md` (James approved TypeSafe data sharing, no folder exclusions).
+
 ## Related
 
 - [verify-final Logs and How to Measure It](memory/docs/knowledge/verify-final-logs.md) - the checker model, the GLM plan and the log statuses these tests used as labels.
