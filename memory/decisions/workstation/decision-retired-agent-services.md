@@ -1,10 +1,10 @@
 ---
 title: Retired Agent Services on aidev and itan8n
-summary: 2026-10-25 genops/RUDR9/Honcho retired; 2026-10-26 opencode/codex off; 2026-10-30 itan8n Hermes gateway, MCP HTTP, Chrome, cron and Honcho all stopped.
+summary: 2026-10-25 genops/RUDR9/Honcho retired; 2026-10-26 opencode/codex off; 2026-10-30 itan8n Hermes stack and qdrant all stopped and deleted.
 type: decision
 status: promoted
 created: 2026-10-25
-updated: 2026-10-30
+updated: 2026-10-31
 topics: [workstation]
 ---
 
@@ -32,7 +32,12 @@ On 2026-10-25 James decided these stay off. Do not restart or re-enable them wit
 - All 9 Hermes cron jobs in `~/.hermes/cron/jobs.json` paused with `hermes cron pause` (0 active). The OpenWork MCP watchdog job duplicated the systemd timer above.
 - itastack Honcho (4 containers, `docker-compose.honcho.yml`) stopped; restart policy `no` on the live containers and in the compose file, which said `unless-stopped` before. Data kept. Backup `docker-compose.honcho.yml.bak-stopped-20261030`.
 - `chrome-cdp.service` also served the browser-control skill (3CX console) and the Chrome window on the Sunshine display `:1`. Sunshine itself captures x11 and was unaffected. The browser comes back with `systemctl --user enable --now chrome-cdp.service`, not the `chrome-cdp` script, which needs Wayland that itan8n does not have.
+- 2026-10-31, qdrant (vector DB, `~/qdrant`) stopped and deleted at James's request. Container, image, volume, network and project dir all gone; ports 6333/6334 free. It held two collections: `CMMC lvl2` (1902 points of embedded CMMC Level 2 control text) and `3CX-MAL-Profile` (8 points). The embedded text was not recoverable from any file on the host — only the vectors existed — so re-seeding needs the original CMMC source document. Backup of the compose file (which held a plaintext API key) at `~/qdrant.bak-deleted-20261031`.
+- n8n's `docker-compose.yml` declared `qdrant_qdrant-network` as an external network, and the running `n8n-n8n-1` container was attached to it. The container was disconnected live (`docker network disconnect`, no restart) and the network removed, then the compose file edited to drop the reference. n8n stayed up throughout; backup `~/n8n-compose.yml.bak-noqdrant-20261031`.
+- The n8n workflow `CMMC Bot` was active with two Qdrant vector-store nodes on the `CMMC lvl2` collection. It had **zero** executions ever and nothing on the host called its webhooks, so it was deactivated (not deleted) via the n8n API on 2026-10-31. The three orphaned Qdrant credentials remain in n8n and are harmless.
 
 ## Notes
 
-- Still not reviewed with James: Langfuse, qdrant, `rmm-windows-override`, `cpa-manager-plus` (all still running on itan8n).
+- Still not reviewed with James: Langfuse, `rmm-windows-override`, `cpa-manager-plus` (all still running on itan8n).
+- `rmm-windows-override.service` (started 2026-10-25) drives Chrome on CDP :9222 to force the `rmm.myitassurance.com` tab to report a Windows user agent, so the IT Assurance VSA portal sees a Windows browser. It has never once connected successfully — 6993 `Waiting for Chrome CDP: Connection refused` log lines and no success — and it logs every 2 seconds, about 1800 lines/hour. It depends on `chrome-cdp.service`, which was stopped on 2026-10-30, so it can only work again if that service comes back.
+- `cpa-manager-plus.service` is a third-party panel (github.com/seakee/CPA-Manager-Plus) for CLIProxyAPI, the LLM proxy the agents use. It serves a dashboard on `0.0.0.0:18317`, reads the proxy at `127.0.0.1:8317`, and keeps request/cost history in `~/cpa-manager-plus/data/usage.sqlite` (35 MB). It observes the proxy; it is not a dependency of it.
