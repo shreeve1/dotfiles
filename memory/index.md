@@ -19,6 +19,7 @@
 | [wrk WSL Port Exposure](memory/docs/wrk-wsl-port-exposure.md) | doc | A WSL server bound to 0.0.0.0 on wrk is reachable from NetBird peers but not the LAN; Windows tools must use 127.0.0.1, not localhost. | 2026-10-26 |
 | [Web Search Providers per Machine](memory/docs/web-search-providers.md) | doc | rpiv-web-tools config per machine; Exa is reserved for the verify-final checker (WEB_SEARCH_PROVIDER=exa), sessions use Tavily or Serper. | 2026-10-29 |
 | [verify-final Logs and How to Measure It](memory/docs/verify-final-logs.md) | doc | Every verify-final check appends to ~/.cache/verify-final.log per machine; pi logs as "pi" since 2026-10-28, other --check callers as "manual". | 2026-10-28 |
+| [Jev as a verify-final Checker: Test Results](memory/docs/jev-verify-final-tests.md) | doc | Jev tested 2026-10-29/30 to replace or gate verify-final's GLM checks; too inaccurate so far. Tuning run and ledger in ~/jev-tune. | 2026-10-30 |
 | [Remote Agent Servers per Machine](memory/docs/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
 
 ## Client Hubs
