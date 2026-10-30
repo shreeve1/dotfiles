@@ -13,6 +13,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Shorthand name of a host, service, person or system | | `memory/glossary.md` | |
 | A word that sounds like a defined term | | `CONTEXT.md` | |
 | Writing a pi extension or script that reads pi sessions | | `memory/docs/knowledge/pi-tool-call-blocks.md` | |
+| herdr disconnects between Windows and WSL | | `memory/docs/workstation/herdr-wsl-direct-attach.md` | |
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/workstation/pi-footer-git-polling.md` | |
 | Changing pi's default model or settings.json | | `memory/docs/workstation/pi-default-model-per-machine.md` | |
 | Changing pi's compaction reserve tokens or per-model compaction overrides | | `memory/docs/workstation/pi-compaction-model-overrides.md` | |
