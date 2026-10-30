@@ -60,7 +60,16 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import {
   basename,
@@ -77,6 +86,15 @@ const VERIFY_BIN = pathJoin(homedir(), ".agents", "bin", "verify-final");
 const [VERIFY_EXE, VERIFY_ARGS]: readonly [string, readonly string[]] =
   process.platform === "win32" ? ["python", [VERIFY_BIN]] : [VERIFY_BIN, []];
 const CHECK_TIMEOUT_MS = 180_000;
+// Jev shadow: runs beside the GLM fact check and only logs (spec
+// docs/superpowers/specs/2026-10-30-verify-final-jev-shadow-design.md).
+const JEV_SHADOW_BIN =
+  process.env.JEV_SHADOW_BIN ?? pathJoin(homedir(), ".agents", "bin", "jev-shadow");
+const [JEV_SHADOW_EXE, JEV_SHADOW_ARGS]: readonly [string, readonly string[]] =
+  process.platform === "win32" ? ["python", [JEV_SHADOW_BIN]] : [JEV_SHADOW_BIN, []];
+const JEV_SHADOW_TIMEOUT_MS = 120_000;
+const JEV_LOG_DIR = pathJoin(homedir(), ".cache", "verify-final-jev");
+const JEV_LOG_KEEP_DAYS = 60;
 // The script's own limit is VERIFY_RECOMMEND_TIMEOUT (300 s); this is a backstop.
 const REC_TIMEOUT_MS = 330_000;
 const REC_HEADER =
@@ -209,6 +227,18 @@ let cleanupPendingSeq = -1;
 let continuationsThisPrompt = 0;
 // Cleanup state. tracked: real path -> repo root, for code files this session
 // changed through edit/write since the cleanup last ran.
+// This session's tool results, newest last, capped so the shadow script's input stays bounded.
+interface ShadowRecordItem {
+  tool: string;
+  call: string;
+  result: string;
+}
+const RECORD_CHAR_CAP = 40_000;
+const RECORD_ITEM_CALL_CAP = 1_200;
+const RECORD_ITEM_RESULT_CAP = 3_000;
+const sessionRecord: ShadowRecordItem[] = [];
+let sessionRecordChars = 0;
+
 const tracked = new Map<string, string>();
 let cleanupRanSeq = -1;
 let gateHeldSeq = -1;
@@ -598,6 +628,157 @@ function runRecommendCheck(cwd: string, text: string): Promise<RunResult> {
   return runChecker(cwd, ["--harness", "pi", "--recommend", "-"], input, REC_TIMEOUT_MS);
 }
 
+/** One tool result into the bounded shadow record. */
+function sessionRecordPush(event: {
+  toolName: string;
+  input: Record<string, unknown>;
+  content: unknown;
+}): void {
+  let result = "";
+  if (Array.isArray(event.content)) {
+    result = event.content
+      .map((b) =>
+        b && typeof b === "object" && (b as { type?: string }).type === "text"
+          ? String((b as { text?: unknown }).text ?? "")
+          : "",
+      )
+      .join("\n");
+  }
+  if (result.length > RECORD_ITEM_RESULT_CAP) {
+    result =
+      result.slice(0, RECORD_ITEM_RESULT_CAP / 2) +
+      "\n[...cut...]\n" +
+      result.slice(-RECORD_ITEM_RESULT_CAP / 2);
+  }
+  const call = JSON.stringify(event.input).slice(0, RECORD_ITEM_CALL_CAP);
+  sessionRecord.push({ tool: event.toolName, call, result });
+  sessionRecordChars += call.length + result.length;
+  while (
+    sessionRecord.length > 1 &&
+    sessionRecordChars - (sessionRecord[0].call.length + sessionRecord[0].result.length) >=
+      RECORD_CHAR_CAP
+  ) {
+    const dropped = sessionRecord.shift();
+    if (!dropped) break;
+    sessionRecordChars -= dropped.call.length + dropped.result.length;
+  }
+}
+
+interface ShadowRunResult {
+  stdout: string;
+  timedOut: boolean;
+  errored: boolean;
+}
+
+/** Run the Jev shadow script beside the GLM check; it never blocks or talks to the agent. */
+function runShadow(cwd: string, text: string): Promise<ShadowRunResult> {
+  return new Promise((resolve) => {
+    if (!existsSync(JEV_SHADOW_BIN)) {
+      resolve({ stdout: "", timedOut: false, errored: true });
+      return;
+    }
+    const input = JSON.stringify({
+      cwd,
+      sessionId: process.env.PI_SESSION_ID ?? "",
+      answer: text,
+      record: sessionRecord,
+    });
+    let stdout = "";
+    let timedOut = false;
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = spawn(JEV_SHADOW_EXE, [...JEV_SHADOW_ARGS], { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    } catch {
+      resolve({ stdout: "", timedOut: false, errored: true });
+      return;
+    }
+    activeChildren.add(child);
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        child.kill();
+      } catch {
+        // Already exited.
+      }
+    }, JEV_SHADOW_TIMEOUT_MS);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      activeChildren.delete(child);
+      resolve({ stdout: "", timedOut: false, errored: true });
+    });
+    child.on("close", () => {
+      clearTimeout(timer);
+      activeChildren.delete(child);
+      resolve({ stdout, timedOut, errored: false });
+    });
+    child.stdin.on("error", () => {});
+    child.stdin.end(input);
+  });
+}
+
+/** The GLM finding lines (FALSE/UNSURE/UNGROUNDED) from a check result. */
+function glmFindingLines(grounding: RunResult | null): string[] {
+  if (!grounding) return [];
+  return grounding.stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /^(?:FALSE|UNSURE|UNGROUNDED)\s*\|/.test(l));
+}
+
+/** One row beside GLM's verdict: the only output of the whole shadow side. */
+function appendShadowRow(
+  text: string,
+  grounding: RunResult | null,
+  shadow: ShadowRunResult | null,
+): void {
+  try {
+    let jev: unknown = { status: "jev_error", error: "script did not run" };
+    if (shadow && !shadow.errored && !shadow.timedOut && shadow.stdout.trim()) {
+      try {
+        jev = JSON.parse(shadow.stdout);
+      } catch {
+        jev = { status: "jev_error", error: "unparsable script output" };
+      }
+    } else if (shadow?.timedOut) {
+      jev = { status: "jev_timeout" };
+    }
+    const row = {
+      t: new Date().toISOString(),
+      session_id: process.env.PI_SESSION_ID ?? "",
+      answer_len: text.length,
+      answer_sha256: createHash("sha256").update(text).digest("hex").slice(0, 16),
+      glm: { cached: false, lines: glmFindingLines(grounding) },
+      jev,
+      record_chars: sessionRecordChars,
+    };
+    mkdirSync(JEV_LOG_DIR, { recursive: true });
+    const day = new Date().toISOString().slice(0, 10);
+    appendFileSync(pathJoin(JEV_LOG_DIR, `${day}.jsonl`), JSON.stringify(row) + "\n");
+  } catch {
+    // The log is best-effort; a full disk must never reach the agent.
+  }
+}
+
+/** Delete shadow logs older than the retention window (files are day-named). */
+function pruneJevLogs(): void {
+  try {
+    const cutoff = Date.now() - JEV_LOG_KEEP_DAYS * 24 * 3600 * 1000;
+    for (const name of readdirSync(JEV_LOG_DIR)) {
+      const m = /^(\d{4}-\d{2}-\d{2})\.jsonl$/.exec(name);
+      if (!m) continue;
+      const when = Date.parse(m[1]);
+      if (Number.isFinite(when) && when < cutoff)
+        rmSync(pathJoin(JEV_LOG_DIR, name), { force: true });
+    }
+  } catch {
+    // No directory yet, or unreadable: nothing to prune.
+  }
+}
+
 /** True when this prompt's run did work the completion check can judge. */
 function shouldCheckDone(): boolean {
   return (
@@ -755,6 +936,9 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
   pi.on("session_start", () => {
     tracked.clear();
     recentRequests.length = 0;
+    sessionRecord.length = 0;
+    sessionRecordChars = 0;
+    pruneJevLogs();
   });
 
   pi.on("tool_call", (event) => {
@@ -790,6 +974,11 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       block: true,
       reason: gateReason(shown, cleanupSkillAvailable(cwd)),
     };
+  });
+
+  // Shadow record: keep every tool result for the Jev script, bounded.
+  pi.on("tool_result", (event) => {
+    sessionRecordPush(event);
   });
 
   // A successful read of the cleanup skill means it is running now. Track code
@@ -905,6 +1094,16 @@ export default function verifyFinalHook(pi: ExtensionAPI): void {
       runCheck(cwd, text),
       shouldCheckDone() ? runDoneCheck(cwd, text) : Promise.resolve(null),
     ]);
+    // Jev shadow: log only. Started beside the checks, awaited separately, and
+    // never part of the follow-up decision above.
+    if (process.env.VERIFY_JEV_SHADOW !== "0" && existsSync(JEV_SHADOW_BIN)) {
+      const shadow = runShadow(cwd, text);
+      void Promise.allSettled([checks, shadow]).then(([c, s]) => {
+        if (aborted) return;
+        const grounding = c.status === "fulfilled" ? (c.value[0] ?? null) : null;
+        appendShadowRow(text, grounding, s.status === "fulfilled" ? s.value : null);
+      });
+    }
     if (process.env.VERIFY_RECOMMEND !== "0" && recStartedSeq !== userPromptSeq) {
       recStartedSeq = userPromptSeq;
       // No stale-result rule: a late finding is still delivered. It waits for this

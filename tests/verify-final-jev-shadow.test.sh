@@ -6,6 +6,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$ROOT/.agents/bin/jev-shadow"
+EXT="$ROOT/.pi/agent/extensions/verify-final.ts"
 
 command -v python3 >/dev/null || {
   echo "SKIP: python3 not installed"
@@ -42,8 +43,11 @@ class H(BaseHTTPRequestHandler):
                 answers[qid] = {"type": "choice", "choice": "contradicted",
                                 "probabilities": {"contradicted": 0.7, "supported": 0.2, "not_addressed": 0.1}}
         out = json.dumps({"answers": answers, "usage": {"input_tokens": 123, "output_tokens": 4}}).encode()
-        self.send_response(200); self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(out))); self.end_headers(); self.wfile.write(out)
+        try:
+            self.send_response(200); self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out))); self.end_headers(); self.wfile.write(out)
+        except BrokenPipeError:
+            pass
 port_file = os.path.join(tmp, "port")
 srv = HTTPServer(("127.0.0.1", 0), H)
 with open(port_file, "w") as f: f.write(str(srv.server_address[1]))
@@ -127,6 +131,186 @@ out="$(
   rm -f "$TMP/sleep"
 )"
 check "timeout: status jev_timeout" "$(contains "$(jq_get "d['status']" <<<"$out")" jev_timeout)"
+
+# Extension half: the extension starts jev-shadow beside the GLM check and writes one row.
+command -v node >/dev/null || {
+  echo "SKIP: node not installed (extension half)"
+  for f in "${failures[@]+"${failures[@]}"}"; do echo "FAIL: $f" >&2; done
+  echo "verify-final-jev-shadow: $pass passed, ${#failures[@]} failed"
+  [ "${#failures[@]}" -eq 0 ]
+  exit
+}
+
+mkdir -p "$TMP/home/.agents/bin"
+cat >"$TMP/home/.agents/bin/verify-final" <<'PYEOF'
+#!/usr/bin/env python3
+import json, os, sys, time
+data = sys.stdin.read()
+mode = "done" if "--done" in sys.argv else "recommend" if "--recommend" in sys.argv else "check"
+with open(os.environ["FAKE_CALLS"], "a") as f:
+    f.write(json.dumps({"mode": mode, "input": data}) + "\n")
+delay = {"recommend": "FAKE_REC_DELAY_MS", "check": "FAKE_CHECK_DELAY_MS"}.get(mode)
+if delay:
+    time.sleep(int(os.environ.get(delay, "0")) / 1000)
+print(os.environ.get({"done": "FAKE_DONE", "recommend": "FAKE_REC", "check": "FAKE_CHECK"}[mode], ""))
+PYEOF
+chmod +x "$TMP/home/.agents/bin/verify-final"
+
+cat >"$TMP/jev-shadow" <<'PYEOF'
+#!/usr/bin/env python3
+import os, sys, time
+data = sys.stdin.read()
+with open(os.environ["JEV_STDIN"], "a") as f:
+    f.write(data + "\n")
+time.sleep(int(os.environ.get("JEV_FAKE_DELAY_MS", "0")) / 1000)
+print('{"status": "jev_ok", "model": "jev-1.14.0", "requests": 2, "input_tokens": 99, "seconds": 0.01, "claims": [], "risk_session": 0.42, "risk_files": 0.42}')
+PYEOF
+chmod +x "$TMP/jev-shadow"
+
+export EXT TMP
+node_out="$(
+  HOME="$TMP/home" FAKE_CALLS="$TMP/calls" JEV_SHADOW_BIN="$TMP/jev-shadow" JEV_STDIN="$TMP/jev-stdin" node --input-type=module - <<'NODEEOF' 2>&1
+import { readFileSync, rmSync, existsSync, readdirSync } from "node:fs"
+import cp from "node:child_process"
+import { syncBuiltinESMExports } from "node:module"
+const tmp = process.env.TMP
+let pass = 0
+const failures = []
+const check = (name, cond, detail = "") => { if (cond) pass += 1; else failures.push(`${name}${detail ? `\n  ${detail}` : ""}`) }
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+let running = 0
+const realSpawn = cp.spawn
+cp.spawn = (...args) => {
+  const child = realSpawn(...args)
+  running += 1
+  let counted = true
+  const done = () => { if (counted) { counted = false; running -= 1 } }
+  child.once("close", done); child.once("error", done)
+  return child
+}
+syncBuiltinESMExports()
+const waitFor = async (what, cond, ms = 30000) => {
+  const end = Date.now() + ms
+  while (!cond()) {
+    if (Date.now() > end) { check(`timed out waiting for ${what}`, false); return false }
+    await wait(10)
+  }
+  return true
+}
+const drained = () => waitFor("the checkers to finish", () => running === 0)
+const clearRows = () => rmSync(`${tmp}/home/.cache/verify-final-jev`, { recursive: true, force: true })
+const rows = () => {
+  const dir = `${tmp}/home/.cache/verify-final-jev`
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).flatMap((f) => readFileSync(`${dir}/${f}`, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)))
+}
+const FALSE_LINE = "An independent fact-check of your final answer found claims that do not match the files:\nFALSE | a:1 | claim -- fix"
+const LONG = "A factual answer. " + "x".repeat(600)
+const quiet = () => {
+  process.env.FAKE_CHECK = "verify-final: no findings"
+  process.env.FAKE_DONE = "verify-final: work done"
+  process.env.FAKE_REC = "verify-final: recommendations hold"
+  process.env.FAKE_CHECK_DELAY_MS = "0"
+  delete process.env.VERIFY_RECOMMEND
+  delete process.env.VERIFY_JEV_SHADOW
+}
+let instance = 0
+async function session(mode = "tui") {
+  instance += 1
+  const mod = await import(`${process.env.EXT}?i=${instance}`)
+  const handlers = new Map()
+  const sent = []
+  mod.default({
+    on: (n, fn) => handlers.set(n, [...(handlers.get(n) ?? []), fn]),
+    sendUserMessage: (m, o) => sent.push({ m, o }),
+  })
+  const notices = []
+  let idle = true
+  const ctx = { cwd: tmp, mode, isIdle: () => idle, ui: { notify: (m, level) => notices.push({ m, level }) } }
+  const emit = async (name, event) => {
+    let last
+    for (const fn of handlers.get(name) ?? []) { const r = await fn(event, ctx); if (r) last = r }
+    return last
+  }
+  return {
+    sent, notices,
+    prompt: (text) => emit("before_agent_start", { messageType: "user", prompt: text }),
+    answer: (text) => emit("agent_end", { messages: [{ role: "assistant", content: [{ type: "text", text }] }] }),
+    toolResult: (tool, call, result) => emit("tool_result", { toolName: tool, toolCallId: "t", input: { command: call }, content: [{ type: "text", text: result }], isError: false }),
+    fire: () => emit("agent_settled", { aborted: false }),
+    settled: async () => { await emit("agent_settled", { aborted: false }); await drained() },
+    shutdown: () => emit("session_shutdown", {}),
+  }
+}
+
+// (a) One settled answer -> one row with GLM's lines and Jev's result.
+{
+  clearRows(); quiet(); process.env.FAKE_CHECK = FALSE_LINE
+  const s = await session()
+  await s.prompt("do a thing"); await s.answer(LONG); await s.settled()
+  const rs = rows()
+  check("row: exactly one row", rs.length === 1, JSON.stringify(rs.length))
+  check("row: glm lines recorded", rs[0]?.glm?.lines?.[0]?.includes("FALSE | a:1") === true, JSON.stringify(rs[0]?.glm))
+  check("row: jev result recorded", rs[0]?.jev?.status === "jev_ok" && rs[0]?.jev?.risk_session === 0.42, JSON.stringify(rs[0]?.jev))
+  check("row: answer length recorded", rs[0]?.answer_len === LONG.length, JSON.stringify(rs[0]?.answer_len))
+  check("row: no second message to the agent", s.sent.length === 1 && s.sent[0].m === FALSE_LINE, JSON.stringify(s.sent))
+}
+
+// (b) The follow-up the agent receives is identical with the shadow on and off.
+{
+  clearRows(); quiet(); process.env.FAKE_CHECK = FALSE_LINE
+  const on = await session()
+  await on.prompt("same thing"); await on.answer(LONG); await on.settled()
+  const withShadow = rows().length
+  process.env.VERIFY_JEV_SHADOW = "0"
+  rmSync(`${tmp}/jev-stdin`, { force: true })
+  const off = await session()
+  await off.prompt("same thing"); await off.answer(LONG); await off.settled()
+  check("row: shadow off sends no row", rows().length === withShadow, JSON.stringify([withShadow, rows().length]))
+  check("row: shadow off never invokes the script", !existsSync(`${tmp}/jev-stdin`))
+  check("row: identical follow-up text", on.sent[0]?.m === off.sent[0]?.m && on.sent.length === off.sent.length, JSON.stringify([on.sent, off.sent]))
+  delete process.env.VERIFY_JEV_SHADOW
+}
+
+// (d) A slow script never delays GLM's follow-up; the row lands afterwards.
+{
+  clearRows(); quiet(); process.env.FAKE_CHECK = FALSE_LINE; process.env.JEV_FAKE_DELAY_MS = "600"
+  const s = await session()
+  await s.prompt("slow jev"); await s.answer(LONG); await s.fire()
+  await waitFor("GLM follow-up", () => s.sent.length === 1)
+  check("row: follow-up not delayed by Jev", s.sent.length === 1 && rows().length === 0, JSON.stringify([s.sent.length, rows().length]))
+  await drained()
+  check("row: written after the script finishes", rows().length === 1 && rows()[0].jev.status === "jev_ok", JSON.stringify(rows()))
+  process.env.JEV_FAKE_DELAY_MS = "0"
+}
+
+// (e) The record handed to the script is capped at 40,000 characters, oldest first.
+{
+  clearRows(); quiet()
+  const s = await session()
+  await s.prompt("big tools")
+  await s.toolResult("bash", "cat one", "A".repeat(30000))
+  await s.toolResult("bash", "cat two", "B".repeat(30000))
+  await s.answer(LONG); await s.settled()
+  if (!existsSync(`${tmp}/jev-stdin`)) {
+    check("row: record capped at 40k chars", false, "script never invoked")
+    check("row: newest result kept whole", false, "script never invoked")
+  } else {
+  const stdin = readFileSync(`${tmp}/jev-stdin`, "utf8")
+  const payload = JSON.parse(stdin.trim().split("\n").at(-1))
+  const chars = payload.record.reduce((n, r) => n + r.call.length + r.result.length, 0)
+  check("row: record capped at 40k chars", chars <= 40000, String(chars))
+  check("row: newest result kept whole", payload.record.at(-1).result.includes("B".repeat(100)), String(payload.record.at(-1).result.length))
+  }
+}
+
+console.log(JSON.stringify({ pass, failures }))
+NODEEOF
+)"
+result="$(printf '%s\n' "$node_out" | tail -1)"
+ext_pass="$(printf '%s' "$result" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pass"])' 2>/dev/null || echo 0)"
+while IFS= read -r f; do [ -n "$f" ] && failures+=("extension: $f"); done < <(printf '%s' "$result" | python3 -c 'import json,sys; [print(f.replace("\n", " ")) for f in json.load(sys.stdin)["failures"]]' 2>/dev/null || echo "node run failed: $node_out")
+pass=$((pass + ext_pass))
 
 for f in "${failures[@]+"${failures[@]}"]}"; do echo "FAIL: $f" >&2; done
 echo "verify-final-jev-shadow: $pass passed, ${#failures[@]} failed"
