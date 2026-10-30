@@ -29,7 +29,6 @@
     "modelOverrides": {
       "cliproxy/claude-opus-5-5": { "reserveTokens": 800000 },
       "cliproxy/claude-sonnet-5-5": { "reserveTokens": 800000 },
-      "cliproxy/deepseek-v4-flash": { "reserveTokens": 800000 },
       "cliproxy/deepseek-v4.1-flash": { "reserveTokens": 800000 },
       "cliproxy/glm-5.3": { "reserveTokens": 800000 },
       "cliproxy/glm-5.3-flash": { "reserveTokens": 800000 },
@@ -44,6 +43,7 @@
     "cliproxy/claude-opus-5-5",
     "cliproxy/claude-sonnet-5-5",
     "cliproxy/gpt-6.1-sol",
+    "cliproxy/gpt-6.1-terra",
     "cliproxy/gpt-6-luna",
     "cliproxy/glm-5.3",
     "cliproxy/glm-5.3-flash",
