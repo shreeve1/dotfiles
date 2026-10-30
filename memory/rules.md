@@ -28,4 +28,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | The owner starts defining a procedure ("let's define a procedure for …") | skill `personal-memory` | `memory/TEMPLATES.md`, `memory/workflows/index.md` | Steps: personal-memory reference.md "Procedures". |
 | A task a saved procedure or workflow covers | | `memory/workflows/index.md` | Open the matching file and follow it. |
 | Reviewing verify-final usage, its logs or its hit rate | | `memory/docs/verify-final-logs.md` | |
+| Finding where an OpenRouter key lives or which app uses it | | `memory/docs/openrouter-key-inventory.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |
