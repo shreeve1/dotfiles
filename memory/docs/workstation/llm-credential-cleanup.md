@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-30
 updated: 2026-10-30
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory

@@ -20,7 +20,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Adding a cliproxy model to pi, or a model missing from pi's list | | `memory/docs/workstation/pi-cliproxy-model-fleet.md` | |
 | Work touching the itastack workspace or its sync | | `memory/docs/projects/itastack-workspace-sync.md` | |
 | Editing or testing an OpenCode plugin | | `memory/docs/knowledge/opencode-plugin-reload.md` | |
-| Editing the personal-memory or memory-setup skill | | `memory/docs/projects/starter-agent-skill-source.md` | |
+| Editing the personal-memory or memory-setup skill | | `memory/docs/knowledge/starter-agent-skill-source.md` | |
 | Dispatching a subagent or changing fabric child models | | `memory/docs/knowledge/fabric-child-model-tiers.md` | |
 | OpenCode/Codex servers or ssh between machines | | `memory/docs/workstation/remote-agent-servers.md` | |
 | Starting, restarting or re-enabling a service on aidev or itan8n | | `memory/decisions/workstation/decision-retired-agent-services.md` | |
