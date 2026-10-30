@@ -30,4 +30,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | A task a saved procedure or workflow covers | | `memory/workflows/index.md` | Open the matching file and follow it. |
 | Reviewing verify-final usage, its logs or its hit rate | | `memory/docs/verify-final-logs.md` | |
 | Finding where an OpenRouter key lives or which app uses it | | `memory/docs/openrouter-key-inventory.md` | |
+| Scanning git history or a public repo for leaked credentials | | `memory/docs/public-repo-secret-exposure.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |

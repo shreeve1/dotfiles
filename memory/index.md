@@ -24,6 +24,7 @@
 | [Jev as a verify-final Checker: Test Results](memory/docs/jev-verify-final-tests.md) | doc | Jev tested 2026-10-29/30 to replace or gate verify-final's GLM checks; too inaccurate so far. Tuning run and ledger in ~/jev-tune. | 2026-10-30 |
 | [Remote Agent Servers per Machine](memory/docs/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
 | [Claude Code CLIProxy Fleet](memory/docs/claude-code-cliproxy-fleet.md) | doc | Claude Code uses CLIProxy in five environments; explicit modelPicker entries expose all served models, and Haiku 5.5 is enabled on both proxies. | 2026-10-30 |
+| [Public GitHub Secret Exposure in dotfiles](memory/docs/public-repo-secret-exposure.md) | doc | Credentials that leaked into the public dotfiles repo history; the Telegram bot token and z.ai key were still live, the PostHog key is still in HEAD. | 2026-10-30 |
 
 ## Client Hubs
 
