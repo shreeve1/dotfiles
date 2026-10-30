@@ -23,6 +23,7 @@
 | [verify-final Logs and How to Measure It](memory/docs/verify-final-logs.md) | doc | Every verify-final check appends to ~/.cache/verify-final.log per machine; pi logs as "pi" since 2026-10-28, other --check callers as "manual". | 2026-10-28 |
 | [Jev as a verify-final Checker: Test Results](memory/docs/jev-verify-final-tests.md) | doc | Jev tested 2026-10-29/30 to replace or gate verify-final's GLM checks; too inaccurate so far. Tuning run and ledger in ~/jev-tune. | 2026-10-30 |
 | [Remote Agent Servers per Machine](memory/docs/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
+| [Claude Code CLIProxy Fleet](memory/docs/claude-code-cliproxy-fleet.md) | doc | Claude Code uses CLIProxy in five environments; explicit modelPicker entries expose all served models, and Haiku 5.5 is enabled on both proxies. | 2026-10-30 |
 
 ## Client Hubs
 
