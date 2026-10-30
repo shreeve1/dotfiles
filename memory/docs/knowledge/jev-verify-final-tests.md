@@ -22,7 +22,7 @@ topics: [knowledge]
 - The 90% catch-keep share is a provisional call; James has not set the accuracy bar.
 - `~/jev-tune/data/` holds redacted session excerpts and cached Jev answers; delete it when the work ends.
 
-- Approved follow-up: shadow mode in verify-final, design `docs/superpowers/specs/2026-10-30-verify-final-jev-shadow-design.md`, plan `docs/superpowers/plans/2026-10-30-verify-final-jev-shadow.md` (James approved TypeSafe data sharing, no folder exclusions).
+- Shadow mode shipped to main 2026-10-30 (merge `6fa88881`): `.agents/bin/jev-shadow` runs beside the GLM check in TUI sessions and logs one row per check to `~/.cache/verify-final-jev/<day>.jsonl` with GLM status and redacted lines, Jev risk, and a replay payload. `VERIFY_JEV_SHADOW=0` turns it off. Design `docs/superpowers/specs/2026-10-30-verify-final-jev-shadow-design.md`; the six Important findings from a fresh whole-branch review were fixed before merge. Next: tuning run 4 from the log after about two weeks of rows.
 
 ## Related
 
