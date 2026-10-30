@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-25
 updated: 2026-10-26
-topics: []
+topics: [projects]
 ---
 
 ## Active memory
@@ -18,4 +18,4 @@ topics: []
 
 ## Related
 
-- [pi footer git polling](memory/docs/pi-footer-git-polling.md) - the `/mnt/c` slowdown that moved agents to the WSL copy.
+- [pi footer git polling](memory/docs/workstation/pi-footer-git-polling.md) - the `/mnt/c` slowdown that moved agents to the WSL copy.

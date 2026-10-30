@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-26
 updated: 2026-10-26
-topics: []
+topics: [knowledge]
 ---
 
 ## Active memory
@@ -16,4 +16,4 @@ topics: []
 
 ## Related
 
-- [pi Default Model Is Per Machine](memory/docs/pi-default-model-per-machine.md): Main's model, which an unnamed child inherits, is set per machine.
+- [pi Default Model Is Per Machine](memory/docs/workstation/pi-default-model-per-machine.md): Main's model, which an unnamed child inherits, is set per machine.

@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-28
 updated: 2026-10-30
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -21,4 +21,4 @@ topics: []
 
 ## Related
 
-- [pi Default Model Is Per Machine](memory/docs/pi-default-model-per-machine.md) - the default model lives in the same per-machine files this changes.
+- [pi Default Model Is Per Machine](memory/docs/workstation/pi-default-model-per-machine.md) - the default model lives in the same per-machine files this changes.

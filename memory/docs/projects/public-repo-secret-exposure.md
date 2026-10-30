@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-30
 updated: 2026-10-30
-topics: []
+topics: [projects]
 ---
 
 ## Active memory
@@ -22,4 +22,4 @@ topics: []
 
 ## Related
 
-- [OpenRouter Key Inventory Across Machines](memory/docs/openrouter-key-inventory.md)
+- [OpenRouter Key Inventory Across Machines](memory/docs/workstation/openrouter-key-inventory.md)

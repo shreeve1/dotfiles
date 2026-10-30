@@ -25,4 +25,4 @@ He named those four fast models himself; all four exist through cliproxy. Quick 
 
 ## Related
 
-- [Fabric Child Model Tiers](memory/docs/fabric-child-model-tiers.md): an unnamed child inherits Main's model, which is why quick mode names a model per reviewer.
+- [Fabric Child Model Tiers](memory/docs/knowledge/fabric-child-model-tiers.md): an unnamed child inherits Main's model, which is why quick mode names a model per reviewer.

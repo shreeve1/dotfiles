@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-30
 updated: 2026-10-30
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -22,5 +22,5 @@ topics: []
 
 ## Related
 
-- [Adding a CLIProxy Model to the pi Fleet](memory/docs/pi-cliproxy-model-fleet.md) - the proxy's openrouter provider block and itan8n's config template plus launcher are where these keys are read.
-- [Public GitHub Secret Exposure in dotfiles](memory/docs/public-repo-secret-exposure.md) - the full leak scan: which credentials went public, which are still live, and the commits that carried them.
+- [Adding a CLIProxy Model to the pi Fleet](memory/docs/workstation/pi-cliproxy-model-fleet.md) - the proxy's openrouter provider block and itan8n's config template plus launcher are where these keys are read.
+- [Public GitHub Secret Exposure in dotfiles](memory/docs/projects/public-repo-secret-exposure.md) - the full leak scan: which credentials went public, which are still live, and the commits that carried them.

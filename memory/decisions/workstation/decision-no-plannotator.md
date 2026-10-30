@@ -14,4 +14,4 @@ On 2026-10-26 James trialled Plannotator on wrk: its pi extension, a draft `plan
 
 ## Notes
 
-- What the trial established, in case he comes back to it: remote mode pages on wrk are reachable from NetBird peers ([wrk WSL port exposure](memory/docs/wrk-wsl-port-exposure.md)); the Inbox listens on loopback only and can't be reached over NetBird; its per-session switch is machine-wide (env var or `~/.plannotator/config.json`), not per project.
+- What the trial established, in case he comes back to it: remote mode pages on wrk are reachable from NetBird peers ([wrk WSL port exposure](memory/docs/workstation/wrk-wsl-port-exposure.md)); the Inbox listens on loopback only and can't be reached over NetBird; its per-session switch is machine-wide (env var or `~/.plannotator/config.json`), not per project.

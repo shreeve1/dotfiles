@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-30
 updated: 2026-10-30
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -18,4 +18,4 @@ topics: []
 
 ## Related
 
-- [pi Default Model Is Per Machine](memory/docs/pi-default-model-per-machine.md) - same per-machine settings file and template rule
+- [pi Default Model Is Per Machine](memory/docs/workstation/pi-default-model-per-machine.md) - same per-machine settings file and template rule

@@ -20,6 +20,6 @@ topics: [workstation]
 
 ## Related
 
-- [CLIProxy model fleet](memory/docs/pi-cliproxy-model-fleet.md)
+- [CLIProxy model fleet](memory/docs/workstation/pi-cliproxy-model-fleet.md)
 - Official gateway settings: `https://code.claude.com/docs/en/llm-gateway-connect`
 - Model picker schema: `https://code.claude.com/docs/en/settings-reference#modelpicker`

@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-26
 updated: 2026-10-26
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -21,4 +21,4 @@ If a peer can't reach a WSL port, check first whether the server bound `127.0.0.
 ## Related
 
 - Machine IPs and ssh users: dotfiles `AGENTS.md` "Machine topology".
-- Shares the WSL networking context of [pi footer git polling](memory/docs/pi-footer-git-polling.md): both are about wrk's WSL-Windows bridge.
+- Shares the WSL networking context of [pi footer git polling](memory/docs/workstation/pi-footer-git-polling.md): both are about wrk's WSL-Windows bridge.

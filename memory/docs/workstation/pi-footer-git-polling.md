@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-25
 updated: 2026-10-25
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -15,4 +15,4 @@ topics: []
 
 ## Related
 
-- [itastack workspace sync](memory/docs/itastack-workspace-sync.md) - why itastack moved to the WSL disk.
+- [itastack workspace sync](memory/docs/projects/itastack-workspace-sync.md) - why itastack moved to the WSL disk.

@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-28
 updated: 2026-10-29
-topics: []
+topics: [knowledge]
 ---
 
 ## Active memory
@@ -23,4 +23,4 @@ topics: []
 
 ## Related
 
-- `memory/docs/pi-tool-call-blocks.md` - the message shape to parse when reading pi session files for these counts.
+- `memory/docs/knowledge/pi-tool-call-blocks.md` - the message shape to parse when reading pi session files for these counts.

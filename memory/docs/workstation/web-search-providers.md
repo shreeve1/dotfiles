@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-29
 updated: 2026-10-29
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -17,4 +17,4 @@ topics: []
 
 ## Related
 
-- [verify-final Logs and How to Measure It](memory/docs/verify-final-logs.md) - the checker this provider choice serves, and where its runs are logged.
+- [verify-final Logs and How to Measure It](memory/docs/knowledge/verify-final-logs.md) - the checker this provider choice serves, and where its runs are logged.

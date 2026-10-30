@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-26
 updated: 2026-10-26
-topics: []
+topics: [workstation]
 ---
 
 ## Active memory
@@ -18,7 +18,7 @@ State since 2026-10-26 (James asked for everything stopped, disabled, reversible
 
 Turn back on:
 - aidev, itan8n: `systemctl --user enable --now opencode-server`
-- surftop: `opencode-cli service start` from a one-off scheduled task with `/it` so it survives the ssh session (see [OpenCode plugin reload](memory/docs/opencode-plugin-reload.md)).
+- surftop: `opencode-cli service start` from a one-off scheduled task with `/it` so it survives the ssh session (see [OpenCode plugin reload](memory/docs/knowledge/opencode-plugin-reload.md)).
 - codex helpers: nothing to re-enable; they spawn when codex is next used.
 
 Gotchas:
@@ -28,5 +28,5 @@ Gotchas:
 
 ## Related
 
-- Shares restart mechanics with [OpenCode plugin reload](memory/docs/opencode-plugin-reload.md).
+- Shares restart mechanics with [OpenCode plugin reload](memory/docs/knowledge/opencode-plugin-reload.md).
 - Policy: [Retired agent services](memory/decisions/workstation/decision-retired-agent-services.md) — these stay off unless James asks.

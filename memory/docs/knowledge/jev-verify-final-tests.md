@@ -5,7 +5,7 @@ type: doc
 status: promoted
 created: 2026-10-30
 updated: 2026-10-30
-topics: []
+topics: [knowledge]
 ---
 
 ## Active memory
@@ -24,4 +24,4 @@ topics: []
 
 ## Related
 
-- [verify-final Logs and How to Measure It](memory/docs/verify-final-logs.md) - the checker model, the GLM plan and the log statuses these tests used as labels.
+- [verify-final Logs and How to Measure It](memory/docs/knowledge/verify-final-logs.md) - the checker model, the GLM plan and the log statuses these tests used as labels.

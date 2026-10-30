@@ -50,7 +50,7 @@ For things the project keeps coming back to (hosts, services, customers). Notes 
 
 ## Naming
 
-Lowercase hyphenated slugs. `docs/<slug>.md` one subject per file; `workflows/<topic>/<slug>.md`; `decisions/<topic>/decision-<slug>.md`. Topics come from `schema.json` (a new topic only with the owner's OK). 15-file rule: a folder with more than 15 `.md` files directly gets topic subfolders; `gate.py crowded` reports it.
+Lowercase hyphenated slugs. `docs/<slug>.md` one subject per file (`docs/<topic>/<slug>.md` past the 15-file rule); `workflows/<topic>/<slug>.md`; `decisions/<topic>/decision-<slug>.md`. Topics come from `schema.json` (a new topic only with the owner's OK). 15-file rule: a folder with more than 15 `.md` files directly gets topic subfolders; `gate.py crowded` reports it.
 
 `glossary.md` answers "who/what is this?"; `CONTEXT.md` at the project root answers "which meaning?" for contested terms.
 
