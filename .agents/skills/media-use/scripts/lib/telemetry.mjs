@@ -9,7 +9,6 @@ import { dirname, join } from "node:path";
 import { withFileLock } from "./config-lock.mjs";
 import { globalMediaDir } from "./media-home.mjs";
 
-const POSTHOG_API_KEY = "***REMOVED-POSTHOG-KEY***";
 const POSTHOG_HOST = "https://us.i.posthog.com";
 const TIMEOUT_MS = 1500;
 let identifiedAccount = false;
@@ -65,6 +64,15 @@ function readSharedConfig() {
     // unreadable config → treat as empty; never throw
   }
   return {};
+}
+
+// The PostHog project key is not in the repo: it lives in the shared config
+// (~/.hyperframes/config.json) or in MEDIA_USE_POSTHOG_KEY.
+function posthogApiKey() {
+  const fromEnv = process.env.MEDIA_USE_POSTHOG_KEY;
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  const config = readSharedConfig();
+  return typeof config.posthogApiKey === "string" ? config.posthogApiKey.trim() : "";
 }
 
 // Best effort: skipped when the lock cannot be taken or the file cannot be read, never written unlocked.
@@ -159,11 +167,13 @@ function showTelemetryNotice() {
 }
 
 async function postBatch(batch) {
+  const apiKey = posthogApiKey();
+  if (!apiKey) return;
   try {
     await fetch(`${posthogHost()}/batch/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Connection: "close" },
-      body: JSON.stringify({ api_key: POSTHOG_API_KEY, batch }),
+      body: JSON.stringify({ api_key: apiKey, batch }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
