@@ -48,6 +48,7 @@ explains the task:
 <anything already checked or ruled out>
 ## Constraints
 <scope limits, things not to touch, the user's stated preferences>
+<the files this session is changing: leave them alone, and commit only your own files>
 ## Verify
 <how to prove it is done>
 ```
@@ -78,16 +79,27 @@ session can search it if it needs more:
 - pi in a herdr pane: `herdr pane current --current | jq -r '.result.pane.agent_session.value'`
 - Codex: `ls ~/.codex/sessions/*/*/*/*"$CODEX_THREAD_ID"*.jsonl`
 
-## 3. Spawn
+## 3. Pick the model
+
+Pick the new session's model from the brief. If the user named one of these four, use it.
+
+| Model | Fits |
+| --- | --- |
+| `glm-5.3` | small, clear work: config or doc edits, lookups, simple fixes. Text only: never for a brief that needs images |
+| `claude-sonnet-5-5` | the usual pick: ordinary coding, debugging, carrying on current work |
+| `gpt-6.1-sol` | hard reasoning: stubborn bugs, design decisions, careful review |
+| `claude-opus-5-5` | large or high-stakes work: long multi-file builds, writing where quality matters most |
+
+## 4. Spawn
 
 ```bash
-~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug>
+~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug> <model>
 ```
 
 Run it from the directory the new session should work in, which is normally the current
 one. The script opens the tab (in the background for `task`, with focus for `handoff`),
-starts pi there, gives it the brief, and waits until pi starts working. It prints
-the agent name, pane ID and status.
+starts pi there on `cliproxy/<model>`, gives it the brief, and waits until pi starts working.
+It prints the agent name, pane ID, status and model.
 
 - Exit 2 (`status=blocked`): the new pi stopped at a question or approval. Run
   `herdr agent read <agent>`, tell the user what it is asking, and do not offer to close
@@ -95,9 +107,9 @@ the agent name, pane ID and status.
 - Any other failure: show the error and the brief path; the brief is still useful by hand.
   A tab may have opened without an agent in it; say so, so the user can close it.
 
-## 4. Report
+## 5. Report
 
-In one or two lines: the tab label, the agent name, and the brief's absolute path
+In one or two lines: the tab label, the agent name, the model and why it fits, and the brief's absolute path
 as plain text in a codespan. From outside herdr, also name the workspace from the script's
 `workspace=` output: the tab opened there without taking focus.
 
