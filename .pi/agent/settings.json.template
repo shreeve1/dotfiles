@@ -25,6 +25,12 @@
       "timeoutMs": 600000
     }
   },
+  "compaction": {
+    "modelOverrides": {
+      "cliproxy/claude-opus-5-5": { "reserveTokens": 800000 },
+      "cliproxy/minimax-m3": { "reserveTokens": 800000 }
+    }
+  },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [],
