@@ -26,6 +26,7 @@
 | [Jev as a verify-final Checker: Test Results](memory/docs/knowledge/jev-verify-final-tests.md) | doc | Jev tested 2026-10-29/30 to replace or gate verify-final's GLM checks; too inaccurate so far. Tuning run and ledger in ~/jev-tune. | 2026-10-30 |
 | [Remote Agent Servers per Machine](memory/docs/workstation/remote-agent-servers.md) | doc | opencode/codex remote servers stopped and disabled on all machines 2026-10-26; reversible - re-enable commands inside. | 2026-10-26 |
 | [Dotfiles Git Sync Across Machines](memory/docs/workstation/dotfiles-git-sync.md) | doc | Pull --rebase --autostash before committing; committing first rewrites origin/main and forces the other machines to rebase. | 2026-10-31 |
+| [Codex CLI CLIProxy Fleet](memory/docs/workstation/codex-cliproxy-fleet.md) | doc | Codex CLI uses CLIProxy in five environments; command-backed auth reuses pi credentials, with per-machine default models preserved. | 2026-10-30 |
 | [Claude Code CLIProxy Fleet](memory/docs/workstation/claude-code-cliproxy-fleet.md) | doc | Claude Code uses CLIProxy in five environments; explicit modelPicker entries expose all served models, and Haiku 5.5 is enabled on both proxies. | 2026-10-30 |
 | [Public GitHub Secret Exposure in dotfiles](memory/docs/projects/public-repo-secret-exposure.md) | doc | Credentials that leaked into the public dotfiles repo, the 2026-10-30 history rewrite that purged them, and what still needs rotating. | 2026-10-30 |
 

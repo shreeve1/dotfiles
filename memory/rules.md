@@ -16,6 +16,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/workstation/pi-footer-git-polling.md` | |
 | Changing pi's default model or settings.json | | `memory/docs/workstation/pi-default-model-per-machine.md` | |
 | Changing pi's compaction reserve tokens or per-model compaction overrides | | `memory/docs/workstation/pi-compaction-model-overrides.md` | |
+| Installing/updating Codex CLI or changing its CLIProxy provider | | `memory/docs/workstation/codex-cliproxy-fleet.md` | |
 | Claude Code provider settings, model menu, or CLIProxy Haiku availability | | `memory/docs/workstation/claude-code-cliproxy-fleet.md` | |
 | Adding a cliproxy model to pi, or a model missing from pi's list | | `memory/docs/workstation/pi-cliproxy-model-fleet.md` | |
 | Work touching the itastack workspace or its sync | | `memory/docs/projects/itastack-workspace-sync.md` | |
