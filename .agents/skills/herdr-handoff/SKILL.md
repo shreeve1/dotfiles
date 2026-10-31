@@ -1,6 +1,6 @@
 ---
 name: herdr-handoff
-description: Use when spinning off separate work into a herdr tab, coordinating that task between sessions, or continuing the current work in a fresh session. Also use for /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", "start a new pi on this", or cleaning up completed agent-opened herdr tabs.
+description: Use when spinning off separate work into a herdr tab, coordinating that task between sessions, or continuing the current work in a fresh session. Also use for /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", "start a new pi on this", or merging and cleaning up work from agent-opened herdr tabs.
 ---
 
 # herdr-handoff
@@ -8,7 +8,10 @@ description: Use when spinning off separate work into a herdr tab, coordinating 
 Write a brief, open a herdr tab, start pi in it, and point pi at the brief. The new
 session has none of this conversation, so the brief is the only thing it knows. In `task`
 mode, keep a two-way conversation: the originating session owns the main task; the new
-session owns the bounded side task and sends evidence back directly.
+session owns the bounded side task and sends evidence back directly. The originating
+session owns the finish: verify, merge locally, verify the combined result, remove
+the task worktree and branch, then close the tab. James has given standing approval
+for this sequence; do not present routine merge/cleanup choices again.
 
 Invocation: `/skill:herdr-handoff task "<the task>"` or `/skill:herdr-handoff handoff "<focus>"`.
 If the mode is missing, infer it: something separate from the current work is `task`;
@@ -60,7 +63,9 @@ explains the task:
 <scope limits, things not to touch, the user's stated preferences>
 <files/branch this session owns; leave them alone and commit only your own files>
 <task-owned files; use a separate worktree for overlapping repository work>
-<approval limits: coordination does not authorise merge, push, deploy or live changes>
+<repository path, destination checkout/branch, starting commit, task branch and worktree path or none>
+<finish owner: originating session; local merge and safe task cleanup are pre-approved>
+<approval limits: pushes, deployments and live changes still require their usual approval>
 ## Coordination
 Reply to: <verified originating herdr agent name or pane ID, or unavailable>
 Report file: <unique absolute path for results if direct delivery is unavailable>
@@ -70,7 +75,9 @@ conflicts and findings that affect the main task promptly. Ask James for approva
 the originating session cannot grant them on his behalf. Before declaring completion,
 send the result, exact commits, checks and remaining limitations back directly.
 ## Cleanup
-The originating session closes this task's tab after saving and verifying the result.
+The originating session saves and verifies the result, merges into the recorded
+destination branch, checks the combined result, removes the task worktree/branch
+and closes the tab. Report the exact final commit and stop writing while it finishes.
 Keep the task session available for questions and fixes until then.
 ## Verify
 <how to prove it is done>
@@ -144,8 +151,10 @@ In one or two lines: the tab label, the agent name, the model and why it fits, a
 as plain text in a codespan. From outside herdr, also name the workspace from the script's
 `workspace=` output: the tab opened there without taking focus.
 
-- Record the new agent name, pane ID, session path and tab ID from `herdr agent get`
-  and `herdr pane list` alongside the brief; use these identities for cleanup.
+- Record the new agent name, pane ID, session path and tab/workspace IDs from
+  `herdr agent get` and `herdr pane list` alongside the brief. Include repository,
+  destination checkout/branch, starting commit, task branch and worktree path, and
+  which resources this dispatch created; use these identities for integration and cleanup.
 - `task`: keep those identities for follow-ups, then go back to the main task.
   Follow the coordination contract below.
 - `handoff` from inside herdr: ask whether to close this pane. If the user says yes, make
@@ -172,24 +181,63 @@ herdr agent prompt <target> "From <sender-target>: <update or question>"
   is not a delivered report. Avoid automatic acknowledgements of acknowledgements.
 - **Originating session on receipt:** verify the returned diff/commits and the checks
   relevant to the main task before relying on the result. Record what remains separate
-  or unverified. A result message is evidence to inspect, not permission to merge,
-  push or deploy. Once verification is complete and no follow-up remains, close
-  the task tab under section 7.
+  or unverified. A result message is evidence to inspect, not proof of completion.
+  After verification, carry out the pre-approved local merge and cleanup in section 7;
+  pushes and deployments retain their usual approval requirements.
 
-This communication is scoped to the delegated task and does not widen either session's
-approval authority. In `handoff` mode, continuity comes from the brief; do not require
-messages back to a pane the user may close.
+This communication and the standing local merge/cleanup approval are scoped to the
+delegated task; they do not authorise unrelated changes or external actions. In
+`handoff` mode, continuity comes from the brief; do not require messages back to a
+pane the user may close.
 
-## 7. Close completed tabs
+## 7. Integrate and clean up completed tasks
 
 Close tabs opened for agent work automatically, without asking James, once the work
 is complete, results are saved and checks are verified. A `done` or `idle` status
 alone is not completion. Keep blocked, unfinished or still-needed task sessions open.
 
-- **`task`:** the originating session saves the final report alongside the brief,
-  verifies the returned work and resolves follow-ups before closing the task tab.
-  If direct delivery failed, keep the tab open until the report has been retrieved
-  and verified.
+### Merge and remove task worktrees
+
+For `task`, the originating session performs this sequence, even if the worker's
+finishing skill offers James merge/cleanup options. The worker reports readiness;
+the originating session acts. A full `handoff` still transfers ownership as in section 5.
+For non-Git tasks, save and verify the result, skip the Git-only steps and close the tab.
+
+1. Save the final report alongside the brief, outside any worktree being removed.
+   Retrieve and verify it before continuing if direct delivery failed. Review the
+   exact commits, resolve findings and confirm the worker has stopped writing.
+2. Confirm the recorded repository, destination checkout/branch and task worktree
+   with `git worktree list --porcelain`. Pin the reviewed task tip. Require a clean
+   task worktree, including untracked files, and a clean destination before merging.
+   Preserve unrelated edits; do not auto-stash, reset or discard them to pass this gate.
+3. In the recorded destination checkout, merge that exact tip: skip if already
+   contained, use `git merge --ff-only <tip>` if possible, otherwise use a normal
+   merge commit with hooks. No extra approval is needed for a conflict-free local
+   merge of reviewed task work. On conflicts, abort the merge, verify the previous
+   destination state is restored, retain the task resources and report the blocker.
+   If the task used the same checkout/branch, verify its commits there; no merge is needed.
+4. Run the checks relevant to the combined result. Require them to pass and prove
+   `git merge-base --is-ancestor <tip> <destination-branch>` before cleanup. On a
+   failed check, keep the worktree/branch/tab for fixes; do not reset the merged work.
+5. From outside the task worktree, recheck its branch still names the pinned tip
+   and its tracked/untracked files are clean. Inspect ignored files too: only
+   disposable build/dependency caches may be removed with it. Save reports and
+   retain any other data before removal; ask if its disposal is uncertain. Require
+   that no other session or process still needs the worktree. Remove only resources
+   this dispatch created: `git worktree remove <recorded-path>` for a plain Git
+   worktree, or the installed herdr worktree removal command for a herdr-managed one.
+   Herdr removal may also close its workspace: verify its panes belong only to this
+   task first; if unrelated panes exist, leave it intact and report the blocker.
+   Use no force flags. Confirm the worktree is absent, then delete its unchanged,
+   merged task branch with `git branch -d <task-branch>` from the destination checkout.
+   Keep destination branches and pre-existing worktrees/branches.
+6. Close the recorded task tab using the identity checks below, if worktree removal
+   has not already closed it. Save the merge commit, checks and removed/retained
+   resources alongside the brief, and report the outcome to James. A blocked step
+   remains the originating session's responsibility; do not call the task finished.
+
+### Close the tab
+
 - **`handoff`:** the continuation session saves its final result alongside the brief
   after completing and verifying the work, tells James where it is saved and that
   the tab is closing, then closes its own agent-opened tab as its last tool action.
@@ -200,5 +248,5 @@ alone is not completion. Keep blocked, unfinished or still-needed task sessions 
   the recorded task pane with `herdr pane close <recorded-pane-id>`.
 - Leave pre-existing user tabs and unrelated sessions alone. If identity cannot be
   confirmed or closing fails, leave it open and report the tab/pane ID and reason.
-  Keep briefs, reports and session files on disk; closing a tab is not permission
-  to delete data, merge, push or deploy.
+  Keep briefs, reports and session files on disk. Standing approval covers only
+  the verified task merge and safe cleanup above, not data loss, pushes or deployments.
