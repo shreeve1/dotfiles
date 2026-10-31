@@ -10,6 +10,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | When | Lead | Also load | Note |
 |---|---|---|---|
 | Always | | | |
+| Delegating work into herdr tabs or coordinating separate herdr sessions | | `memory/preferences/herdr-two-way-collaboration.md` | |
 | Shorthand name of a host, service, person or system | | `memory/glossary.md` | |
 | A word that sounds like a defined term | | `CONTEXT.md` | |
 | Writing a pi extension or script that reads pi sessions | | `memory/docs/knowledge/pi-tool-call-blocks.md` | |

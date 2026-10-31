@@ -30,6 +30,12 @@
 | [Claude Code CLIProxy Fleet](memory/docs/workstation/claude-code-cliproxy-fleet.md) | doc | Claude Code uses CLIProxy in five environments; explicit modelPicker entries expose all served models, and Haiku 5.5 is enabled on both proxies. | 2026-10-30 |
 | [Public GitHub Secret Exposure in dotfiles](memory/docs/projects/public-repo-secret-exposure.md) | doc | Credentials that leaked into the public dotfiles repo, the 2026-10-30 history rewrite that purged them, and what still needs rotating. | 2026-10-30 |
 
+## Preferences
+
+| Page | Type | Summary | Updated |
+|------|------|---------|---------|
+| [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | James likes visible herdr task tabs that communicate directly with the originating session, rather than a one-way handoff. | 2026-10-31 |
+
 ## Client Hubs
 
 | Page | Type | Summary | Updated |
