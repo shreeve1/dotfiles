@@ -116,5 +116,9 @@ if [ -f "$fanout" ] && [ -f "$contracts" ]; then
     check "ledger-contract $anchor" grep -Fq "$anchor" "$contracts"
   done
 fi
+check finding-id-never-reused grep -Fq 'IDs are never reused' "$ROOT/.agents/skills/independent-review/references/herdr.md"
+check replacement-findings-continue grep -Fq 'highest reserved number' "$ROOT/.agents/skills/independent-review/references/herdr.md"
+check final-merge-fast-forward-only grep -Fq 'Final destination integration uses only `git merge --ff-only <candidate-tip>`' "$contracts"
+check destination-race-blocks grep -Fq 'A failed fast-forward returns to candidate reassembly' "$contracts"
 printf 'herdr-fanout: %s passed, %s failed\n' "$PASS" "$FAIL"
 test "$FAIL" -eq 0

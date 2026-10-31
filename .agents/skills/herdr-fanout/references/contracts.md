@@ -134,7 +134,9 @@ IDs, old/new tips, fix diff and test evidence; judge actual interactions in the 
 not an unrestricted review of unchanged code. Findings keep ID, severity, lens/model,
 file:line or source location, reachable failure, evidence, parent accept/reject reason,
 fix tip and reviewer disposition. Deduplicate without losing provenance. Do not bias
-the prompt with instructions not to flag particular issues.
+the prompt with instructions not to flag particular issues. For all new findings,
+including fix checks and replacements, follow the review reference's parent-approved,
+never-reused allocation above the highest reserved number in saved reports/ledger.
 
 An initial review and at most three fix/re-review rounds per review unit. Increment
 and persist the used round before sending fixes; group its open findings in that
@@ -179,6 +181,11 @@ the destination branch and cleanliness under `herdr-handoff`. If destination mov
 assemble the new combined candidate and review/test its changed integration surface
 under the existing unit/count. If the review budget or scope no longer fits, stop
 and report the blocker; never silently merge an unreviewed destination movement.
+Final destination integration uses only `git merge --ff-only <candidate-tip>`;
+this overrides handoff's normal-merge fallback for fanout's final integration.
+A failed fast-forward returns to candidate reassembly and the existing review/count;
+it never authorizes a normal merge with unreviewed destination movement. Internal
+integration-branch merges still assemble the candidate before review.
 If the destination is dirty, leave it untouched: continue checks in the isolated
 candidate, but retain resources until safe integration is possible. No auto-stash.
 

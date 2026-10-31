@@ -45,6 +45,12 @@ conversation or persuasive rationale into the commission.
    not. Parent validates findings, preserves lens/model provenance when deduplicating,
    and records accept/reject reasons under Steps 4–5.
 
+For every new finding, including fix checks and replacement sessions, the parent
+approves its ID before disposition. Continue above the highest reserved number
+for that unit/lens across the ledger and all saved partial/final reports; import
+partial IDs before replacement. IDs are never reused, including closed or rejected
+findings. Existing findings retain their IDs; reserve new IDs before routing fixes.
+
 Provider/quota/rate failures use the next eligible policy model for the same lens.
 Inspect live identities and partial reports before relaunching; a timeout is not
 proof of failure. Unknown IDs are resolved against installed exact IDs, retaining
