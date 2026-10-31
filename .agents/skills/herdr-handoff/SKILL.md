@@ -1,12 +1,14 @@
 ---
 name: herdr-handoff
-description: Open a new herdr tab with a fresh pi session that starts from a written brief. Two modes - `task` spins off a separate task found mid-session into a background tab; `handoff` continues the current work in a fresh session and switches to it. Use when the user says /herdr-handoff, or, inside herdr, "hand this off", "continue in a fresh session", "spin this off into a new tab", or "start a new pi on this".
+description: Use when spinning off separate work into a herdr tab, coordinating that task between sessions, or continuing the current work in a fresh session. Also use for /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", or "start a new pi on this".
 ---
 
 # herdr-handoff
 
 Write a brief, open a herdr tab, start pi in it, and point pi at the brief. The new
-session has none of this conversation, so the brief is the only thing it knows.
+session has none of this conversation, so the brief is the only thing it knows. In `task`
+mode, keep a two-way conversation: the originating session owns the main task; the new
+session owns the bounded side task and sends evidence back directly.
 
 Invocation: `/skill:herdr-handoff task "<the task>"` or `/skill:herdr-handoff handoff "<focus>"`.
 If the mode is missing, infer it: something separate from the current work is `task`;
@@ -26,6 +28,14 @@ in the background, so `handoff` behaves like `task`. If neither check passes, sa
 reachable and stop.
 
 ## 2. Write the brief
+
+For `task`, first establish a verified reply address on the same herdr server. Inside
+herdr, use `herdr pane current --current` to get the originating pane ID and session
+path, then confirm that `herdr agent get <pane-id>` resolves to that session. A pane ID
+works even when the agent has no name; never derive an agent name from the tab label.
+Outside herdr, use `herdr agent list` only if its session path identifies the originating
+session unambiguously. Otherwise state that no direct reply target is available and
+choose a unique report-file path alongside the brief for the originating session to read.
 
 Write it to `~/.local/state/herdr-handoff/<YYYYMMDD-HHMMSS>-<slug>.md`, where `<slug>`
 is 2-4 lowercase words joined by hyphens (`fix-sync-timeout`). Keep it out of the repo.
@@ -48,7 +58,17 @@ explains the task:
 <anything already checked or ruled out>
 ## Constraints
 <scope limits, things not to touch, the user's stated preferences>
-<the files this session is changing: leave them alone, and commit only your own files>
+<files/branch this session owns; leave them alone and commit only your own files>
+<task-owned files; use a separate worktree for overlapping repository work>
+<approval limits: coordination does not authorise merge, push, deploy or live changes>
+## Coordination
+Reply to: <verified originating herdr agent name or pane ID, or unavailable>
+Report file: <unique absolute path for results if direct delivery is unavailable>
+Send with `herdr agent prompt <reply-target> "From <your-target>: <message>"`.
+Acknowledge the task and your ownership via the reply target. Send blockers, scope
+conflicts and findings that affect the main task promptly. Ask James for approvals;
+the originating session cannot grant them on his behalf. Before declaring completion,
+send the result, exact commits, checks and remaining limitations back directly.
 ## Verify
 <how to prove it is done>
 ```
@@ -104,8 +124,13 @@ It prints the agent name, pane ID, status and model.
 - Exit 2 (`status=blocked`): the new pi stopped at a question or approval. Run
   `herdr agent read <agent>`, tell the user what it is asking, and do not offer to close
   this pane. Do not answer the question for them.
-- Any other failure: show the error and the brief path; the brief is still useful by hand.
-  A tab may have opened without an agent in it; say so, so the user can close it.
+- On any other failure, inspect `herdr agent list`, `herdr tab list` and the candidate
+  agent's output before retrying. A timeout is not proof that creation failed. Match the
+  new tab/pane and brief, then reuse that session: if it is already working, leave it
+  running; if the brief is visibly unsubmitted, submit it there. The script already
+  retries Enter for `agent_prompt_stalled`; inspect before sending another Enter or
+  prompt. Create a replacement only after confirming no usable task session exists.
+  If recovery fails, show the error, brief path and any tab left open.
 
 ## 5. Report
 
@@ -113,7 +138,35 @@ In one or two lines: the tab label, the agent name, the model and why it fits, a
 as plain text in a codespan. From outside herdr, also name the workspace from the script's
 `workspace=` output: the tab opened there without taking focus.
 
-- `task`: then go back to what you were doing.
+- `task`: keep the returned agent name and pane ID for follow-ups, then go back to the
+  main task. Follow the coordination contract below.
 - `handoff` from inside herdr: ask whether to close this pane. If the user says yes, make
   `herdr pane close "$HERDR_PANE_ID"` your last action, because it ends this session.
   The session file stays on disk.
+
+## 6. Coordinate `task` work
+
+Use the verified targets, not tab labels:
+
+```bash
+herdr agent prompt <target> "From <sender-target>: <update or question>"
+```
+
+- **Originating session:** send relevant new evidence or constraints directly to the
+  task session and continue independent work. Read a returned question before acting;
+  relay approval requests to James instead of answering for him. Use `herdr agent read`
+  for a needed status check, not repeated status polling.
+- **Task session:** acknowledge scope and ownership, report blockers or conflicts
+  promptly, and send the final evidence and exact commits before saying the task is
+  complete. Include branch/worktree, checks actually run, failures and anything not
+  merged or deployed. If the reply target disappears or submission is rejected, save
+  the report at the agreed path and state delivery failed; a local final answer alone
+  is not a delivered report. Avoid automatic acknowledgements of acknowledgements.
+- **Originating session on receipt:** verify the returned diff/commits and the checks
+  relevant to the main task before relying on the result. Record what remains separate
+  or unverified. A result message is evidence to inspect, not permission to merge,
+  push, deploy or close the task tab.
+
+This communication is scoped to the delegated task and does not widen either session's
+approval authority. In `handoff` mode, continuity comes from the brief; do not require
+messages back to a pane the user may close.

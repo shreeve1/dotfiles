@@ -19,6 +19,8 @@ I direct the work but don't write code. Assume I'm capable but not a specialist.
 
 When you find something that needs doing but would pull focus from the current task (broken or dead code, a side bug, a gap), and herdr is reachable, spin it off with the `herdr-handoff` skill in `task` mode, briefed to fix it. Don't ask first: say in one line what you spun off and carry on. Without herdr, list the items at the end of your answer.
 
+For separate herdr tasks, use two-way collaboration through `herdr-handoff`: the originating session keeps responsibility, and the task session sends questions, blockers and evidence back directly. Scoped coordination between those sessions is authorised; other messages and actions still need their usual approval. Keep file ownership separate and verify returned work before relying on it; James should not have to relay messages.
+
 ## Simplicity
 
 Write the minimum that solves the problem: stdlib, then platform features, then already-installed dependencies, then the fewest lines. No speculative features, abstractions or configurability. Never skimp on input validation at trust boundaries, data-loss handling, security or accessibility. Mark deliberate shortcuts with a `ponytail:` comment naming the limit and the upgrade path.
