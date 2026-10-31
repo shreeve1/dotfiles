@@ -21,6 +21,7 @@ topics: [workstation]
 - Name traps in homelab service config: /etc/homelab-stack's james-owned env is langgraph.env (not langfuse.env); ~/.config/homelab-stack holds ops-agent.env — the paperclip.env named in the alert-dispatch unit comment does not exist.
 - /etc/homelab-stack was observed changing during staging (other actors); root-owned key material there (router/temporal-worker envs, HMAC keys, mtls/, ssh/) was NOT staged — service-owner cutover owns it. wrk has no sqlite3 CLI.
 - Round 3 (w3:pX request, James-approved): 28 more reference files — unit-definitions/ now 34 (24 system+user units incl. dpi-backend, cliproxyapi, herdr-web-tls), system-config/ (netconsole logrotate, podium-backup cron), liveness-scripts/ (apt-update-check.sh, wan_failover_state_exporter.py; the other four liveness scripts are already byte-identical in the staged homelab repo's scripts/monitoring/).
+- Quiesced re-sync after w3:pX's 15:38 UTC service freeze (verified independently): every previously-live tree re-verified first-pass clean, so all staging copies are now consistent quiesced snapshots, not running-state ones. Fresh durable-bot sqlite .backup (integrity ok). aidev services remain stopped per the shutdown log at ~/.local/state/herdr-handoff/20261031-1538-aidev-shutdown-log.md (rollback commands inside; cliproxyapi/herdr/NetBird deliberately kept running).
 
 ## Reference
 
