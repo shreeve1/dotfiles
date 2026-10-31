@@ -24,6 +24,7 @@ topics: [workstation]
 - Quiesced re-sync after w3:pX's 15:38 UTC service freeze (verified independently): every previously-live tree re-verified first-pass clean, so all staging copies are now consistent quiesced snapshots, not running-state ones. Fresh durable-bot sqlite .backup (integrity ok). aidev services remain stopped per the shutdown log at ~/.local/state/herdr-handoff/20261031-1538-aidev-shutdown-log.md (rollback commands inside; cliproxyapi/herdr/NetBird deliberately kept running).
 - Residual writer on aidev is five idle pi panes kept per the preserve-active-pi directive (3 in ~/homelab, 1 ~/pi-durable, 1 ~): they can still touch homelab .pi/fabric/mesh state.json. Homelab staging last refreshed+verified 15:44:09 UTC; run a drift re-check (or have James close the panes) before relying on homelab .pi state at cutover.
 - FINAL: panes closed 15:56 UTC (their exit flushed mesh state once); homelab refreshed and verified 15:58 UTC. All four previously-live trees now match staging exactly — staging is authoritative and immutable. agent-browser daemon (excluded from migration) still runs with cwd pi-durable but writes nothing there; flagged to w3:pX for later stop/retire.
+- Tattoo project: aidev ~/tatoo (ONE t — why searches missed it); tattoo-artist client site planned as Proxmox LXC at tattoo.testytech.net. James approved full-minus-caches; staged and verified 99 files MATCH post-netbird-restoration. No git, no credentials, no services, no wrk counterpart.
 
 ## Reference
 
