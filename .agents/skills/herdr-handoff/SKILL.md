@@ -182,7 +182,7 @@ herdr agent prompt <target> "From <sender-target>: <update or question>"
 - **Originating session on receipt:** verify the returned diff/commits and the checks
   relevant to the main task before relying on the result. Record what remains separate
   or unverified. A result message is evidence to inspect, not proof of completion.
-  After verification, carry out the pre-approved local merge and cleanup in section 7;
+  After verification and any commissioning parent acceptance, carry out the pre-approved local merge and cleanup in section 7;
   pushes and deployments retain their usual approval requirements.
 
 This communication and the standing local merge/cleanup approval are scoped to the
@@ -195,6 +195,9 @@ pane the user may close.
 Close tabs opened for agent work automatically, without asking James, once the work
 is complete, results are saved and checks are verified. A `done` or `idle` status
 alone is not completion. Keep blocked, unfinished or still-needed task sessions open.
+For fanout or commissioned review, the commissioning parent owns acceptance and
+release; a ready report or standalone PASS cannot bypass its remaining dependencies,
+review or integration checks. Reviewer-only tasks skip Git merge/removal steps.
 
 ### Merge and remove task worktrees
 

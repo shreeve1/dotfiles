@@ -94,5 +94,27 @@ check stalled-prompt-reuses-pane test "$RC" -eq 0
 check stalled-one-pane test "$(grep -c '^tab create ' "$MOCK_LOG")" -eq 1
 check stalled-enter grep -q '^agent send-keys .* enter$' "$MOCK_LOG"
 check stalled-wait grep -q '^agent wait ' "$MOCK_LOG"
+review_skill="$ROOT/.agents/skills/independent-review/SKILL.md"
+check herdr-mode-reference grep -Fq 'references/herdr.md' "$review_skill"
+check explicit-default-subagent grep -Fq 'Default: subagents' "$review_skill"
+check default-launch-preserved grep -Fq 'Make exactly one top-level' "$review_skill"
+check herdr-reference-exists test -f "$ROOT/.agents/skills/independent-review/references/herdr.md"
+if [ -f "$ROOT/.agents/skills/independent-review/references/herdr.md" ]; then
+  for anchor in 'Fresh initial review' 'Warm fix checks' 'standalone' 'parent releases' 'instruction-enforced' 'author families'; do
+    check "review-contract $anchor" grep -Fq "$anchor" "$ROOT/.agents/skills/independent-review/references/herdr.md"
+  done
+fi
+fanout="$ROOT/.agents/skills/herdr-fanout/SKILL.md"
+contracts="$ROOT/.agents/skills/herdr-fanout/references/contracts.md"
+check fanout-skill-exists test -f "$fanout"
+check fanout-contracts-exist test -f "$contracts"
+if [ -f "$fanout" ] && [ -f "$contracts" ]; then
+  for anchor in 'name: herdr-fanout' 'explicitly' 'references/contracts.md' 'independent-review' 'herdr-handoff' 'three' 'high/medium' 'integration'; do
+    check "fanout-contract $anchor" grep -Fq "$anchor" "$fanout"
+  done
+  for anchor in 'planned' 'working' 'ready' 'reviewing' 'fixing' 'blocked' 'accepted' 'released' 'handled IDs' 'session identity' 'separate worktrees' 'parent alone' 'round' 'replacement' 'not a sandbox'; do
+    check "ledger-contract $anchor" grep -Fq "$anchor" "$contracts"
+  done
+fi
 printf 'herdr-fanout: %s passed, %s failed\n' "$PASS" "$FAIL"
 test "$FAIL" -eq 0
