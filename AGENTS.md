@@ -18,8 +18,8 @@ Recorded 2026-10-21. Installed on aidev, itan8n, wrk's WSL, and native Windows c
 
 | Machine | Role | User | NetBird IP | NetBird DNS name |
 | --- | --- | --- | --- | --- |
-| `wrk` | desktop; herdr + pi in Ubuntu-24.04 WSL2 (sshd on 2222, Windows owns 22) | `james` | `100.95.235.60` | `wrk-235-60.netbird.selfhosted` |
-| `aidev` | always-on server; herdr web ui | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` |
+| `wrk` | desktop; NetBird server, herdr web and migrated services in Ubuntu-24.04 WSL2 (sshd 2222, Windows owns 22) | `james` | `100.95.235.60` | `wrk-235-60.netbird.selfhosted` |
+| `aidev` | migration source; some services remain, not retired | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` |
 | `itan8n` | server; n8n | `itadmin` | `100.95.224.218` | `n8n.netbird.selfhosted` |
 | `surftop` | Surface ARM64 thin client; native Windows herdr | `james` | `100.95.222.42` | `surftop.netbird.selfhosted` |
 
