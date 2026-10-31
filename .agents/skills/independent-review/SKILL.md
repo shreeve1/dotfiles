@@ -5,7 +5,7 @@ description: Independent review by fresh-context subagents on a different model 
 
 # Independent Review
 
-Spawn read-only reviewer subagents on a **different model family from yours**, each attacking the work from one lens. The deliverable is a synthesized verdict. Do NOT change anything; the user decides what to fix.
+Use a **different model family from yours** for each reviewer, each attacking the work from one lens. The deliverable is a synthesized verdict; the user decides what to fix. The default transport uses read-only subagents. Explicit herdr mode uses fresh reviewer tabs with writes restricted to assigned review artifacts, never the reviewed checkout.
 
 Reviewers get the intent and a way to read the change, not your reasoning. Same-model reviewers share your blind spots, so Step 3 forces a different family.
 
@@ -30,7 +30,7 @@ Write the **intent** in one paragraph: what the author is trying to achieve, dra
 Size the change and pick lenses (definitions in `references/lenses.md`):
 
 | Size | Threshold | Lenses |
-|------|-----------|--------|
+| --- | --- | --- |
 | Small | < 50 lines, 1-2 files | Gaps |
 | Medium | 50-200 lines, 3-5 files | Gaps + Skeptic |
 | Large | 200+ lines or 5+ files | Gaps + Skeptic + Architect + Minimalist |
@@ -42,7 +42,7 @@ Gaps is always included. It is the lens behind "did we miss anything".
 Check your own model (`PI_MODEL`) and give each lens a model from a different family. Spread lenses across different models when more than one is available.
 
 | You are | Reviewer models |
-|---------|-----------------|
+| --- | --- |
 | Claude | `cliproxy/gpt-6.1-sol`, `cliproxy/gpt-6-luna`, `cliproxy/minimax-m3`, `cliproxy/glm-5.3` |
 | GPT | `cliproxy/claude-opus-5-5`, `cliproxy/minimax-m3`, `cliproxy/glm-5.3` |
 | Anything else | `cliproxy/claude-opus-5-5`, `cliproxy/gpt-6.1-sol` |
@@ -52,6 +52,11 @@ Each row is an ordered fallback list. If a reviewer fails with a **quota, rate-l
 If a model id is unknown to the harness (an "unknown model" or not-listed error at launch, before any request is sent), run `subagent({ action: "models" })`, pick the closest id from another family, and say so in the verdict. Never fall back to your own family silently; if no other family works, tell the user the review is degraded.
 
 ## Step 3: Spawn reviewers
+
+**Default: subagents.** Only an explicit request for herdr reviewer tabs, or an
+approved `herdr-fanout` commission, selects [herdr mode](references/herdr.md).
+For that mode, follow the reference instead of the launch instructions below;
+then resume Steps 4–5 and this skill's verdict. Never launch both transports.
 
 Make exactly one top-level `subagent` call: write one ```` ```js workflow ```` block in your reply with `async: true`, then call `subagent({ workflow: true, async: true })`. Use the `reviewer` agent for every child, a distinct `model` per child, and `runs.all` so they run in parallel:
 
@@ -69,7 +74,7 @@ After launching, end your turn. The completion notification wakes you; do not po
 
 ### Reviewer prompt template
 
-```
+```text
 You are an adversarial reviewer with the {LENS} lens. Find real problems; do not validate the work. You are read-only: do not edit, write, or run anything that changes files or state.
 
 ## Intent
@@ -106,7 +111,7 @@ Reviewers saw a slice; you have the session. For each finding, verify it against
 
 ## Verdict format
 
-```
+```text
 ## Intent
 <one paragraph>
 
@@ -133,4 +138,6 @@ Numbered, high to low. For each:
 
 Quick mode drops **What Went Well** and reports only high and medium findings.
 
-End by offering to fix the accepted findings. Wait for the user's go-ahead.
+Standalone review ends by offering to fix accepted findings and waiting for the
+user's go-ahead. A commissioning `herdr-fanout` parent owns its already-approved
+in-scope fix cycle; this review does not start a second loop or widen that authority.
