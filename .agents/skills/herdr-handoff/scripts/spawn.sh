@@ -17,12 +17,17 @@ handoff) focus=--focus ;;
 *) die "mode must be task or handoff" ;;
 esac
 # pi starts on an unknown model id and fails only at the first prompt, so check it here.
-case $model in
-glm-5.3 | gpt-6.1-sol | claude-opus-5-5 | claude-sonnet-5-5) ;;
-*) die "model must be glm-5.3, gpt-6.1-sol, claude-opus-5-5 or claude-sonnet-5-5" ;;
-esac
-jq -e --arg m "$model" 'any(.providers.cliproxy.models[]?; .id == $m)' ~/.pi/agent/models.json >/dev/null 2>&1 ||
-  die "cliproxy/$model is not in ~/.pi/agent/models.json on this machine"
+model_file="$HOME/.pi/agent/models.json"
+[ -e "$model_file" ] || die "model file missing: $model_file"
+model_json=$(cat "$model_file" 2>/dev/null) || die "model file unreadable: $model_file"
+printf '%s' "$model_json" | jq -s -e 'length == 1' >/dev/null 2>&1 ||
+  die "model file has malformed JSON: $model_file"
+printf '%s' "$model_json" | jq -e '
+  .providers.cliproxy.models | type == "array" and all(.[]; type == "object" and (.id | type == "string"))
+' >/dev/null 2>&1 || die "model file has invalid cliproxy model list: $model_file"
+printf '%s' "$model_json" | jq -e --arg m "$model" 'any(.providers.cliproxy.models[]; .id == $m)' >/dev/null 2>&1 ||
+  die "cliproxy/$model is not in $model_file on this machine"
+unset model_json
 
 # Outside a herdr pane (e.g. Codex) a reachable herdr server still works: open the tab in the
 # workspace that has a pane in this directory, else the focused one. It cannot take focus there.
