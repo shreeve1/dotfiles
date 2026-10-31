@@ -1,6 +1,6 @@
 ---
 name: herdr-handoff
-description: Use when spinning off separate work into a herdr tab, coordinating that task between sessions, or continuing the current work in a fresh session. Also use for /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", or "start a new pi on this".
+description: Use when spinning off separate work into a herdr tab, coordinating that task between sessions, or continuing the current work in a fresh session. Also use for /herdr-handoff, "hand this off", "continue in a fresh session", "spin this off into a new tab", "start a new pi on this", or cleaning up completed agent-opened herdr tabs.
 ---
 
 # herdr-handoff
@@ -69,6 +69,9 @@ Acknowledge the task and your ownership via the reply target. Send blockers, sco
 conflicts and findings that affect the main task promptly. Ask James for approvals;
 the originating session cannot grant them on his behalf. Before declaring completion,
 send the result, exact commits, checks and remaining limitations back directly.
+## Cleanup
+The originating session closes this task's tab after saving and verifying the result.
+Keep the task session available for questions and fixes until then.
 ## Verify
 <how to prove it is done>
 ```
@@ -90,6 +93,9 @@ first and what can be cut:
 ## Gotchas
 <traps already hit>
 ## Key files
+## Cleanup
+This is an agent-opened continuation tab. Once the work is complete and verified,
+save the final result and close this tab as your last action (skill section 7).
 ```
 
 At the end of either brief, add a line with the previous session file so the new
@@ -138,8 +144,10 @@ In one or two lines: the tab label, the agent name, the model and why it fits, a
 as plain text in a codespan. From outside herdr, also name the workspace from the script's
 `workspace=` output: the tab opened there without taking focus.
 
-- `task`: keep the returned agent name and pane ID for follow-ups, then go back to the
-  main task. Follow the coordination contract below.
+- Record the new agent name, pane ID, session path and tab ID from `herdr agent get`
+  and `herdr pane list` alongside the brief; use these identities for cleanup.
+- `task`: keep those identities for follow-ups, then go back to the main task.
+  Follow the coordination contract below.
 - `handoff` from inside herdr: ask whether to close this pane. If the user says yes, make
   `herdr pane close "$HERDR_PANE_ID"` your last action, because it ends this session.
   The session file stays on disk.
@@ -165,8 +173,32 @@ herdr agent prompt <target> "From <sender-target>: <update or question>"
 - **Originating session on receipt:** verify the returned diff/commits and the checks
   relevant to the main task before relying on the result. Record what remains separate
   or unverified. A result message is evidence to inspect, not permission to merge,
-  push, deploy or close the task tab.
+  push or deploy. Once verification is complete and no follow-up remains, close
+  the task tab under section 7.
 
 This communication is scoped to the delegated task and does not widen either session's
 approval authority. In `handoff` mode, continuity comes from the brief; do not require
 messages back to a pane the user may close.
+
+## 7. Close completed tabs
+
+Close tabs opened for agent work automatically, without asking James, once the work
+is complete, results are saved and checks are verified. A `done` or `idle` status
+alone is not completion. Keep blocked, unfinished or still-needed task sessions open.
+
+- **`task`:** the originating session saves the final report alongside the brief,
+  verifies the returned work and resolves follow-ups before closing the task tab.
+  If direct delivery failed, keep the tab open until the report has been retrieved
+  and verified.
+- **`handoff`:** the continuation session saves its final result alongside the brief
+  after completing and verifying the work, tells James where it is saved and that
+  the tab is closing, then closes its own agent-opened tab as its last tool action.
+  Closing the original pane at handoff time still requires the consent in section 5.
+- Before closing, use `herdr agent get <recorded-pane-id>` and `herdr pane list` to
+  confirm the recorded session still occupies the recorded tab. Close it with
+  `herdr tab close <recorded-tab-id>`. If other panes have been added, close only
+  the recorded task pane with `herdr pane close <recorded-pane-id>`.
+- Leave pre-existing user tabs and unrelated sessions alone. If identity cannot be
+  confirmed or closing fails, leave it open and report the tab/pane ID and reason.
+  Keep briefs, reports and session files on disk; closing a tab is not permission
+  to delete data, merge, push or deploy.
