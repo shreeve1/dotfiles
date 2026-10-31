@@ -388,35 +388,24 @@ else
   printf 'skip: style tools (INSTALL_STYLE_TOOLS=0)\n'
 fi
 
-# ─── graphify (knowledge-graph skill + global commit hook) ─
-# graphify is the codebase knowledge-graph tool. The skill is synced with the
-# other skills (~/.agents/skills/graphify). The graphify CLI itself is machine-local
-# (install with: uv tool install graphifyy) and must be on PATH via ~/.local/bin.
-#
-# The synced global git hook (~/.config/git/hooks/post-commit) auto-refreshes
-# graphify-out/ after each commit in ANY repo set up with graphify, and is a
-# silent no-op in repos that are not (or on machines without the CLI). Wiring it
-# needs git's global core.hooksPath to point at the synced dir. We only set it
-# when unset (fresh machine) or already ours — never clobber a machine-local
-# choice you made deliberately.
+# ─── global git hooks (repo check hook) ─
+# The synced global git hook dir (~/.config/git/hooks) holds the pre-push hook
+# that runs a repo's own check command. Wiring it needs git's global
+# core.hooksPath to point at the synced dir. We only set it when unset (fresh
+# machine) or already ours — never clobber a machine-local choice you made
+# deliberately.
 link_path ".config/git/hooks" ".config/git/hooks"
 if command -v git >/dev/null 2>&1; then
-  _gfy_hookdir="$HOME/.config/git/hooks"
+  _hookdir="$HOME/.config/git/hooks"
   _cur_hookpath="$(git config --global core.hooksPath 2>/dev/null || true)"
   if [ -z "$_cur_hookpath" ]; then
-    git config --global core.hooksPath "$_gfy_hookdir"
-    printf 'ok: set git core.hooksPath -> %s (graphify auto-refresh)\n' "$_gfy_hookdir"
-  elif [ "$_cur_hookpath" = "$_gfy_hookdir" ]; then
-    printf 'ok: git core.hooksPath already -> %s\n' "$_gfy_hookdir"
+    git config --global core.hooksPath "$_hookdir"
+    printf 'ok: set git core.hooksPath -> %s (global git hooks)\n' "$_hookdir"
+  elif [ "$_cur_hookpath" = "$_hookdir" ]; then
+    printf 'ok: git core.hooksPath already -> %s\n' "$_hookdir"
   else
-    printf 'warn: git core.hooksPath is %s (not the synced graphify dir).\n' "$_cur_hookpath"
-    printf '      graphify auto-refresh disabled. To enable: git config --global core.hooksPath %s\n' "$_gfy_hookdir"
-  fi
-  # Check PATH and the canonical uv-tool bin dir: install.sh often runs in a
-  # non-interactive shell where ~/.local/bin is not yet on PATH, so a bare
-  # `command -v graphify` would false-warn even when it is installed.
-  if ! command -v graphify >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/graphify" ]; then
-    printf 'warn: graphify CLI not found; hook is a no-op until installed: uv tool install graphifyy\n'
+    printf 'warn: git core.hooksPath is %s (not the synced hooks dir).\n' "$_cur_hookpath"
+    printf '      global git hooks disabled. To enable: git config --global core.hooksPath %s\n' "$_hookdir"
   fi
 fi
 

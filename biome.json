@@ -21,7 +21,6 @@
       "!.pi/agent/extensions/moshi-hooks.ts",
       "!.pi/agent/extensions/herdr-agent-state.ts",
       "!archive",
-      "!graphify-out",
       "!**/*.map"
     ]
   },

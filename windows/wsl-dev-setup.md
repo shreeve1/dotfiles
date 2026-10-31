@@ -74,7 +74,7 @@ phases 2-4; do those first. Commands assume x86_64 or aarch64 Ubuntu 24.04.
    the filtered pi-fabric entry.
 5. `uv` (`curl -LsSf https://astral.sh/uv/install.sh | sh`), then re-run
    `install.sh`: with `uv` present it pins `ruff`, which the pre-push hook
-   requires. Also `uv tool install graphifyy`.
+   requires.
 
 - Pass: `install.sh` prints `ok: pi-fabric installed, Coral Bricks filtered`;
   `pi --list-models | grep -c coralbricks` is 0; from a project folder

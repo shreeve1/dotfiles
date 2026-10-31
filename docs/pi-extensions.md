@@ -61,7 +61,7 @@ here.
   from `.pi/agent/extensions/` to `.pi/agent/extensions-archive/` (outside
   Pi's discovery tree; plain move, git history intact):
   @juicesharp/{rpiv-args,rpiv-i18n}, background-terminals, cross-agent.ts,
-  fusion, gap-review, graphify-guard, harness-gates, hub-kit, model-info,
+  fusion, gap-review, harness-gates, hub-kit, model-info,
   ponytail, pi-retry, rtk.ts, session-log, shared, subagent-bridge,
   summaries, ui-customization, web-fetch, workflows (fusion was restored to
   `extensions/` the same day at user request; it boots with mode OFF — the
@@ -82,7 +82,7 @@ here.
   `hub-kit/` moved with their consumers (subagent-bridge, ui-customization,
   workflows, model-info). To restore one: move its folder back into
   `extensions/` and restart Pi — no settings change needed. Pi-side
-  `gap-review`, `graphify-guard` etc. remain archived; restore the same way
+  `gap-review` etc. remain archived; restore the same way
   if needed (`.pi/fusion.json` was left in place; it is only a stale
   allowedCommands list; the ADR 0002/0003 docs describe the design).
 - **Sync gotcha (learned 2026-10-12):** enablement lives in the machine-local,
@@ -326,38 +326,11 @@ here.
       hook files are vendored under the extension dir). Do not `pi install`.
   To repair on another machine: `bash install.sh` from the repo root.
 - `graphify` (codebase knowledge-graph tool, `github.com/Graphify-Labs/graphify`)
-  is split between a synced skill and a machine-local CLI. Surfaces:
-  - Skill: vendored (not `graphify install`-generated per machine) at
-      `.claude/skills/graphify/` (synced → Claude Code + OpenCode). The parent
-      dir is already symlinked by `install.sh`, so the skill needs no extra
-      link. Refresh the vendored copy after a CLI upgrade by re-running
-      `graphify install` into a throwaway `HOME` and copying the generated
-      `graphify/` dir back over the vendored location (avoids the installer
-      editing your real `~/.claude/CLAUDE.md`).
-  - CLI: machine-local, NOT synced. Install with `uv tool install graphifyy`
-      (PyPI package is `graphifyy` double-y; command stays `graphify`). Lands in
-      `~/.local/bin`, already on PATH via the shell rc files.
-  - Auto-refresh hook: synced global git hook
-      `.config/git/hooks/post-commit`, wired by `install.sh` pointing git's
-      global `core.hooksPath` at `~/.config/git/hooks` (only when unset or
-      already ours — it will not clobber a deliberate machine-local hooksPath).
-      Because a global `core.hooksPath` overrides every repo's `.git/hooks`, the
-      hook first delegates to any repo-local `post-commit`, then runs
-      `graphify update .` in the background — but only when the repo has a
-      `graphify-out/` graph AND the CLI is on PATH; otherwise it is a silent
-      no-op. Set up a project's graph once with `/graphify .`. To repair wiring
-      on another machine: `bash install.sh`.
-  - Pi "query-first" guard: `graphify claude install` registers a Claude Code
-      PreToolUse hook that injects a "query the graph before you grep/read" nudge
-      whenever `graphify-out/graph.json` exists. Pi has no per-tool
-      context-injection channel (its `ToolCallEventResult` only carries
-      block/reason), so the equivalent is a synced auto-discovered extension
-      `.pi/agent/extensions/graphify-guard/` that injects the same guidance into
-      the system prompt via `before_agent_start` (the always-on pattern ponytail
-      uses), gated on a graph existing — silent no-op otherwise. Registered
-      explicitly in `.pi/agent/settings.json{,.template}` `extensions`. Do not
-      `pi install`; it is vendored. Smoke test:
-      `bash .pi/agent/extensions/graphify-guard/tests/graphify-guard-smoke.sh`.
+  was removed fleet-wide on 2026-10-31: the vendored skill, the machine-local
+  CLI (`uv tool install graphifyy`) and the global `post-commit` refresh hook
+  are gone, together with the archived Pi `graphify-guard` extension. The
+  global `core.hooksPath` wiring stays (it serves the pre-push repo check
+  hook). Nothing to restore.
 - `my-pi-setup` UI/tooling is vendored under `.pi/agent/extensions/`: `ui-customization`,
   `summaries`, `model-info`, `git-info`, `background-terminals`, `file-search`, and
   `workflows`, with their shared modules under `extensions/shared/`. The
@@ -388,7 +361,7 @@ here.
   can still kill it (the `.md` is the durable artifact). Always-on; env knobs:
   `PI_GAP_REVIEW=0` (disable), `PI_GAP_MODEL`, `PI_GAP_THINKING`,
   `PI_GAP_MIN_CHARS`, `PI_GAP_RETAIN_DAYS` (default 14; prunes notified
-  reviews). Zero-dependency plain JS (auto-discovered, like graphify-guard); no
+  reviews). Zero-dependency plain JS (auto-discovered); no
   `pi install`, no install.sh step. Gotcha: files created/modified via `bash`
   are invisible (only read/write/edit tool calls contribute paths), and pi fires
   `turn_end`/`before_agent_start` per agent-STEP so per-turn accumulators must

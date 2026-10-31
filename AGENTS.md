@@ -35,7 +35,7 @@ When one machine "can't find" another, it's a name, not the network:
 - **pi-fabric** is the one npm-installed extension, pinned at `0.117.1` (last for Pi 1.2.0) with its Coral Bricks provider filtered in `settings.json` `packages`. Role models: `.pi/agent/fabric.json`. Rollback: `docs/pi-extensions.md` § pi-fabric.
 - **Formatting and linting:** run `style-check`, not a formatter with your own flags (`docs/adr/0022-one-style-contract.md`). Tool versions are pinned in `.config/style/tools.env`; after a bump re-run `install.sh` (surftop: `install-win.ps1`) on every machine.
 - **Checks:** `bash tests/run-all.sh`. The pre-push hook runs only `--fast`, so run the full suite before pushing.
-- **graphify CLI** is machine-local (`uv tool install graphifyy`); only its skill and guard extension sync.
+- **graphify** was removed fleet-wide on 2026-10-31 (skill, CLI, global commit hook and guard extension); there is nothing to install on any machine.
 
 ## DO THIS FIRST: read memory before your first reply
 

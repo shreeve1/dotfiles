@@ -74,8 +74,8 @@ const REVIEW_DIRNAME = ".gap-reviews";
 const MAX_PENDING = 3; // backpressure: don't pile up detached reviewers
 const FILE_TOOLS = new Set(["read", "write", "edit"]);
 
-// Walk up to the nearest .git; fall back to cwd. Mirrors graphify-guard so the
-// review dir lands at the project root even from subdirs.
+// Walk up to the nearest .git; fall back to cwd, so the review dir lands at
+// the project root even from subdirs.
 export function findProjectRoot(cwd) {
 	let dir = resolve(cwd || process.cwd());
 	const stop = dirname(dir);

@@ -68,8 +68,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 2. Install local runtime prerequisites you want on this machine.
 3. Run installer.
 4. Seed Pi settings: `cp ~/.pi/agent/settings.json.template ~/.pi/agent/settings.json` then edit provider/model per machine if needed.
-5. Install the graphify CLI (machine-local, needed for the codebase knowledge-graph skill + auto-refresh hook): `uv tool install graphifyy` (the command stays `graphify`). Then `uv tool update-shell` if `~/.local/bin` is not yet on PATH.
-6. herdr's config and its saved remote machine list both come from the repo on install; if you add or remove machines, copy the live list back over `herdr/endpoints.json`. SSH aliases and keys stay machine-local. See [`docs/herdr.md`](docs/herdr.md).
+5. herdr's config and its saved remote machine list both come from the repo on install; if you add or remove machines, copy the live list back over `herdr/endpoints.json`. SSH aliases and keys stay machine-local. See [`docs/herdr.md`](docs/herdr.md).
 
 ```bash
 git clone <dotfiles> ~/dotfiles
@@ -130,12 +129,12 @@ See `docs/pi-extensions.md` § pi-fabric.
 - links app-level directories under `~/.config` instead of replacing entire `~/.config`
 - links selected files and directories under `~/.codex` instead of replacing entire `~/.codex`
 - links the AGENTS-standard lane (`~/.agents/AGENTS.md` + `~/.agents/skills` + `~/.dsh/AGENTS.md`) and the codex per-skill bridge
-- links the synced global git hooks dir (`~/.config/git/hooks`) and points git's global `core.hooksPath` at it (only when unset or already ours) so the graphify commit hook fires in every repo
+- links the synced global git hooks dir (`~/.config/git/hooks`) and points git's global `core.hooksPath` at it (only when unset or already ours) so the repo check hook fires in every repo
 - keeps auth, history, sessions, logs, caches, and secrets machine-local
 
 ## Notes
 
-- graphify (codebase knowledge graph): the skill is synced (`~/.agents/skills/graphify`); the CLI is machine-local (`uv tool install graphifyy`). The synced global git hook `~/.config/git/hooks/post-commit` runs `graphify update .` in the background after each commit, but **only** in repos that already have a `graphify-out/` graph and only when the CLI is on PATH — it is a silent no-op everywhere else. Set up a project's graph once with `/graphify .` in your assistant. Verify wiring with `git config --global core.hooksPath` and `command -v graphify`.
+- graphify (codebase knowledge graph): removed fleet-wide on 2026-10-31 — the synced skill, the machine-local CLI (`uv tool install graphifyy`) and the global `post-commit` refresh hook are gone, together with the archived Pi `graphify-guard` extension. Nothing to install or wire up; see `docs/pi-extensions.md`.
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
 
