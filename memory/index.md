@@ -35,13 +35,13 @@
 | [Codex CLI CLIProxy Fleet](memory/docs/workstation/codex-cliproxy-fleet.md) | doc | Codex CLI uses CLIProxy in five environments; command-backed auth reuses pi credentials, with per-machine default models preserved. | 2026-10-30 |
 | [Claude Code CLIProxy Fleet](memory/docs/workstation/claude-code-cliproxy-fleet.md) | doc | Claude Code uses CLIProxy in five environments; explicit modelPicker entries expose all served models, and Haiku 5.5 is enabled on both proxies. | 2026-10-30 |
 | [Public GitHub Secret Exposure in dotfiles](memory/docs/projects/public-repo-secret-exposure.md) | doc | Credentials that leaked into the public dotfiles repo, the 2026-10-30 history rewrite that purged them, and what still needs rotating. | 2026-10-30 |
-| [Aidev Project Preservation Staging](memory/docs/workstation/aidev-migration-staging.md) | doc | ~/migration-aidev on wrk holds verified copies of six aidev projects (2026-10-31); pi-durable integration and 3cx fast-forward still open. | 2026-10-31 |
+| [Aidev Project Preservation Staging](memory/docs/workstation/aidev-migration-staging.md) | doc | ~/migration-aidev on wrk holds verified copies of eight aidev projects + state stores + unit definitions (2026-10-31); pi-durable integration and 3cx fast-forward still open. | 2026-10-31 |
 
 ## Preferences
 
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
-| [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | James likes visible herdr task tabs that communicate directly with the originating session, rather than a one-way handoff. | 2026-10-31 |
+| [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | James wants visible two-way herdr tasks; the originating session owns verification, local merge, worktree cleanup and tab closure. | 2026-10-31 |
 
 ## Client Hubs
 
