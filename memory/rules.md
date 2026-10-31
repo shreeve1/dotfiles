@@ -13,6 +13,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Delegating work into herdr tabs or coordinating separate herdr sessions | | `memory/preferences/herdr-two-way-collaboration.md` | |
 | Shorthand name of a host, service, person or system | | `memory/glossary.md` | |
 | A word that sounds like a defined term | | `CONTEXT.md` | |
+| A task needs the graphify knowledge graph | | `memory/decisions/workstation/decision-graphify-removed.md` | Removed fleet-wide 2026-10-31; do not reinstall. |
 | Writing a pi extension or script that reads pi sessions | | `memory/docs/knowledge/pi-tool-call-blocks.md` | |
 | herdr disconnects between Windows and WSL | | `memory/docs/workstation/herdr-wsl-direct-attach.md` | |
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/workstation/pi-footer-git-polling.md` | |
