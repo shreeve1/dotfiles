@@ -60,10 +60,14 @@ only dependency-ready work; never have two writers own the same worktree/resourc
 Use existing handoff launches from the intended working directory.
 
 Messages identify run, sender, workstream, kind (`question`, `blocked`, `ready`,
-`finding`, `update`) and a sender-local sequence. Persist the last handled sequence,
-ignore duplicates and avoid acknowledgement loops. Cross-worker dependency updates
-copy the parent. Messages carry compact evidence and artifact paths, not entire
-history. Questions outside delegated approval go to James; ordinary clarifications
+`finding`, `update`) and a sender-local sequence. A message ID is the tuple of run,
+recorded sender session identity and sequence. Persist individually handled IDs;
+ignore only exact duplicates, not every sequence below the highest seen. A replacement
+session has a new identity even if its sequence restarts. If 4 arrives before 3,
+handle both once; reconcile delayed state updates against current artifacts before
+changing status so an older message cannot undo a newer accepted state. Avoid
+acknowledgement loops. Cross-worker dependency updates copy the parent. Messages
+carry compact evidence and artifact paths, not entire history. Questions outside delegated approval go to James; ordinary clarifications
 go to the parent. Detect missing result delivery before relaunching a worker.
 
 On resume, reconcile the ledger against live identities, reports and Git before
@@ -154,14 +158,21 @@ where its task finish contract needs to defer closure to the commissioning paren
 The current launcher accepts only four model IDs, while review policy names more.
 Replace the hardcoded four-ID validation with exact installed cliproxy model lookup,
 retaining explicit model choice, no unknown-model fallback, and all launch recovery.
+For this launcher, `~/.pi/agent/models.json` is the authoritative source and
+`.providers.cliproxy.models` must be an array of model entries with string IDs.
+Before tab creation, distinguish missing/unreadable files, malformed JSON or invalid
+model-list structure, and an absent requested model. Name the path and cause without
+printing configuration contents. Fail closed; do not try another discovery source.
 This is the only planned executable change; no new dependency or generic framework.
 
 ## Verification and builder-owned choices
 
-Add mocked CLI regression tests for installed/unknown reviewer models and existing
-launch behavior. Add structural checks for mode routing and required safety
+Add mocked CLI regression tests for installed/unknown reviewer models, missing or
+unreadable model files, malformed JSON, invalid model-list structure and existing
+launch behavior. Each configuration failure must create no tab. Add structural checks for mode routing and required safety
 contracts. Use fresh-context behavioral scenarios before and after the guidance:
-workers prematurely done, late missing dependency, duplicate message, overlapping
+workers prematurely done, late missing dependency, duplicate/out-of-order messages,
+replacement-session sequence reuse, overlapping
 writers, review PASS with medium findings, repeated third-round failure, missing
 reviewer and dirty destination. Deterministic tests alone cannot prove model behavior.
 Run style-check and the full repository suite and report unrelated failures honestly.
