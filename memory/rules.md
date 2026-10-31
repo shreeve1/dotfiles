@@ -10,7 +10,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | When | Lead | Also load | Note |
 |---|---|---|---|
 | Always | | | |
-| Delegating work into herdr tabs or coordinating separate herdr sessions | | `memory/preferences/herdr-two-way-collaboration.md` | |
+| Delegating work into herdr tabs, coordinating separate herdr sessions or selecting warm review | | `memory/preferences/herdr-two-way-collaboration.md` | |
 | Shorthand name of a host, service, person or system | | `memory/glossary.md` | |
 | A word that sounds like a defined term | | `CONTEXT.md` | |
 | A task needs the graphify knowledge graph | | `memory/decisions/workstation/decision-graphify-removed.md` | Removed fleet-wide 2026-10-31; do not reinstall. |
