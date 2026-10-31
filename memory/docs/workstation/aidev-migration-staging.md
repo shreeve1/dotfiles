@@ -25,6 +25,7 @@ topics: [workstation]
 - Residual writer on aidev is five idle pi panes kept per the preserve-active-pi directive (3 in ~/homelab, 1 ~/pi-durable, 1 ~): they can still touch homelab .pi/fabric/mesh state.json. Homelab staging last refreshed+verified 15:44:09 UTC; run a drift re-check (or have James close the panes) before relying on homelab .pi state at cutover.
 - FINAL: panes closed 15:56 UTC (their exit flushed mesh state once); homelab refreshed and verified 15:58 UTC. All four previously-live trees now match staging exactly — staging is authoritative and immutable. agent-browser daemon (excluded from migration) still runs with cwd pi-durable but writes nothing there; flagged to w3:pX for later stop/retire.
 - Tattoo project: aidev ~/tatoo (ONE t — why searches missed it); tattoo-artist client site planned as Proxmox LXC at tattoo.testytech.net. James approved full-minus-caches; staged and verified 99 files MATCH post-netbird-restoration. No git, no credentials, no services, no wrk counterpart.
+- Placement round 1 (James-approved): metarig+transcripts, starter-agent, testy-bot, pi-durable-template + re-attached web-ui worktree (identical /home/james paths made .git pointers resolve), tatoo, durable-bot files, ops-integrator state now live in wrk home — all manifest-verified, fsck clean, no services started. ~/homelab repo + ~/.config/homelab-stack were placed by another workstream mid-round (not me). Still staged-only: pi-durable + 3cx-web-chat (merge decisions pending).
 
 ## Reference
 
