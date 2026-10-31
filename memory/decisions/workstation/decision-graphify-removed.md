@@ -12,7 +12,7 @@ topics: [workstation]
 
 On 2026-10-31 James asked to remove graphify from all systems. Removed the same day:
 
-- **Repo** (commit `008e2278`, pushed to `origin/main`): deleted the skill `.agents/skills/graphify/`, the global git hook `.config/git/hooks/post-commit`, the archived pi extension `.pi/agent/extensions-archive/graphify-guard/` and the graphify block in `install.sh`. README, `AGENTS.md`, `docs/pi-extensions.md` and `windows/wsl-dev-setup.md` carry a dated removal note; the `graphify-out` ignore rules went from `.gitignore`, `biome.json` and `.styleignore`.
+- **Repo** (commit `008e2278`, pushed to `origin/main`): deleted the skill `.agents/skills/graphify/`, the global git hook `.config/git/hooks/post-commit`, the archived pi extension `.pi/agent/extensions-archive/graphify-guard/` and the graphify block in `install.sh`. README, `AGENTS.md` and `docs/pi-extensions.md` carry a dated removal note; `windows/wsl-dev-setup.md` had its graphify install step dropped without a note; the `graphify-out` ignore rules went from `.gitignore`, `biome.json` and `.styleignore`.
 - **CLI**: `uv tool uninstall graphifyy` on wrk (v0.9.93) and itan8n (v0.9.17), which removes `graphify` and `graphify-mcp`. aidev and surftop never had it.
 - **Data**: every `graphify-out/` graph folder deleted — about 1.7 GB on aidev (dotfiles, dotfiles/docs, symphony, homelab, homelab/automation/homelab-stack, pi-rmm) and three under `~/itastack` on itan8n.
 - **Kept**: git's global `core.hooksPath` still points at `~/.config/git/hooks`, which now serves only the pre-push repo check hook.
