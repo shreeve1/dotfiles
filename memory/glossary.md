@@ -11,8 +11,10 @@ Maps shorthand labels (nicknames, acronyms, codenames, host names) to their full
 ## Systems
 | Shorthand | Identity |
 |---|---|
+| wrk | Windows host; physical machine running wsl |
+| wsl | Ubuntu WSL2 environment on wrk; separate operating environment, same physical machine and network addresses |
 | herdr | Terminal multiplexer pi runs in on each machine (`docs/herdr.md`) |
-| cliproxy | OpenAI-compatible model proxy on aidev port 8317 |
+| cliproxy | Model proxy on wsl port 8317 |
 | itastack | James's IT client workspace (`~/Documents/itastack`), no git |
 | omarchy | Arch/Hyprland desktop setup; config under `omarchy/` |
 | style-check | The one formatter/linter entry point (`bin/style-check`, ADR 0022) |
