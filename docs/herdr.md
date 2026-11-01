@@ -82,9 +82,10 @@ herdr machine add --label "n8n" --remote-session default itan8n
 Wrk's Ubuntu WSL now hosts the production NetBird server/dashboard, CLIProxy,
 Durable Pi, durable-bot, Hermes media, chat API, Mallory and the homelab alert
 router/dispatcher. Windows still runs wrk's NetBird client. NetBird's public
-hostname goes through NPMplus to wrk LAN `10.20.20.176`; the integrated relay
-works, but external STUN replies currently take the USB tether route and time out.
-Do not change routes without approval. Details and recovery hazards are in
+hostname goes through NPMplus to wrk LAN `10.20.20.176`; integrated relay and
+external STUN passed after James disabled the USB tether. Re-enabling it can
+restore competing default routes; dual-WAN routing is not yet solved. Do not
+change routes without approval. Details and recovery hazards are in
 `memory/docs/workstation/wrk-wsl-port-exposure.md`.
 
 Aidev is not retired: `security_watch`, some proxy clients and other dependencies
