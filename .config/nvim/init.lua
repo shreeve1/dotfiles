@@ -38,10 +38,10 @@ vim.o.tabstop = 4             -- Tab width
 vim.o.shiftwidth = 4          -- Indent width
 vim.o.expandtab = true        -- Use spaces not tabs
 
--- Sync clipboard with OS. Over SSH, use OSC52 so yanks land in the local
--- terminal clipboard instead of looking for xclip/wl-copy on the remote host.
+-- Sync clipboard with OS. Over SSH or herdr, use OSC52 so yanks land in the
+-- local terminal clipboard instead of looking for xclip/wl-copy on the host.
 vim.o.clipboard = 'unnamedplus'
-if vim.env.SSH_TTY or vim.env.SSH_CONNECTION then
+if vim.env.SSH_TTY or vim.env.SSH_CONNECTION or vim.env.HERDR_ENV == '1' then
   local osc52 = require 'vim.ui.clipboard.osc52'
   vim.g.clipboard = {
     name = 'OSC52',
