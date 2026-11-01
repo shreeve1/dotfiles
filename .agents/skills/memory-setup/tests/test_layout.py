@@ -1,4 +1,6 @@
 import re
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,7 @@ class LayoutTests(unittest.TestCase):
         description = fields["description"].lower()
         self.assertIn("set up memory", description)
         self.assertIn("migrate", description)
+        self.assertIn("add saved tasks to an existing project", description)
         self.assertNotIn("remember this", description)
 
     def test_every_reference_linked(self):
@@ -51,6 +54,22 @@ class LayoutTests(unittest.TestCase):
                 relative = match.removeprefix("<skills>/").rstrip(".,)/")
                 with self.subTest(file=path.name, target=relative):
                     self.assertTrue((SKILLS / relative).exists(), relative)
+
+    def test_personal_memory_copy_includes_task_formats(self):
+        source = SKILLS / "personal-memory"
+        with tempfile.TemporaryDirectory() as td:
+            copied = Path(td) / "personal-memory"
+            shutil.copytree(source, copied, ignore=shutil.ignore_patterns("tests", "__pycache__"))
+            self.assertFalse((copied / "tests").exists())
+            for name in ("SKILL.md", "tasks.md", "task-templates.md", "supporting-templates.md"):
+                self.assertTrue((copied / name).is_file(), name)
+            for path in copied.glob("*.md"):
+                text = re.sub(
+                    r"^```.*?^```", "", path.read_text(encoding="utf-8"), flags=re.M | re.S
+                )
+                for target in re.findall(r"\]\(([^)]+\.md)\)", text):
+                    if "/" not in target:
+                        self.assertTrue((copied / target).is_file(), target)
 
     def test_sorting_verdicts(self):
         text = self.read_required("sorting.md")
