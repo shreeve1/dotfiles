@@ -19,8 +19,10 @@ If this is a standalone review, create a unique directory under
 `~/.local/state/herdr-handoff/` and use this session as the release owner.
 
 Use Steps 1–2 and `lenses.md` from the owning skill to size the review and choose
-models; quick mode is explicit, not inferred from herdr. The prompt template still
-applies, narrowed to the quick read when selected. Do not copy the implementer's
+models; quick mode is explicit, not inferred from herdr. Use the prompt template,
+narrowed to the quick read when selected. Replace the template's blanket read-only sentence
+with: "You may write only the assigned review-report artifact; the reviewed checkout,
+Git state and external systems remain read-only." Do not copy the implementer's
 conversation or persuasive rationale into the commission.
 
 ## Fresh initial review

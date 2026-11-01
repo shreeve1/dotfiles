@@ -94,6 +94,8 @@ run=<run> sender=<session-identity> stream=<ID> seq=<N> kind=<question|blocked|r
 <short evidence, request and artifact path>
 ```
 
+Use one increasing counter per sender session across all workstreams and message
+kinds; `stream` identifies the workstream, not a separate sequence namespace.
 The message ID is `(run, recorded sender session identity, sequence)`. Persist
 individually handled IDs, not only a highest sequence. Handle S:4 then unseen S:3
 once each, ignore exact S:4 repeats, and treat replacement T:1 as distinct from S:1.
