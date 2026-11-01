@@ -82,7 +82,7 @@ herdr machine add --label "n8n" --remote-session default itan8n
 Wrk's Ubuntu WSL now hosts the production NetBird server/dashboard, CLIProxy,
 Durable Pi, durable-bot, Hermes media, chat API, Mallory and the homelab alert
 router/dispatcher. Windows still runs wrk's NetBird client. NetBird's public
-hostname goes through NPMplus to wrk LAN `10.20.20.176`; integrated relay and
+hostname goes through NPMplus to wrk LAN `10.20.20.10`; integrated relay and
 external STUN passed after James disabled the USB tether. Re-enabling it can
 restore competing default routes; dual-WAN routing is not yet solved. Do not
 change routes without approval. Details and recovery hazards are in
@@ -162,7 +162,7 @@ Installed 2026-10-31: `devswha.ovis` serves wrk's existing WSL herdr on
 
 URL: `https://100.95.235.60:7443`. Aidev reached it over NetBird and got a
 health response; an unauthenticated sessions request returned 401. LAN probes to
-wrk's `10.20.20.176` on 7443 and 7317 failed. Browser use and WSL startup before
+wrk's then-address `10.20.20.176` on 7443 and 7317 failed. Browser use and WSL startup before
 Windows sign-in remain untested. No NPMplus or firewall changes were needed for
 the tested mesh path.
 
