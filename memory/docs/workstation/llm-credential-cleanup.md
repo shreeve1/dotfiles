@@ -10,6 +10,8 @@ topics: [workstation]
 
 ## Active memory
 
+- Claude Code and Codex use wrk WSL CLIProxy: `127.0.0.1:8317` on wrk WSL and `100.95.235.60:8317` on wrk Windows, itan8n and surftop. Both clients returned live responses on all four environments on 2026-11-01. Existing sessions may need restarting to load settings. Aidev was offline and not changed. Client authentication on the proxy is disabled; requests from remote hosts use HTTP over NetBird.
+
 - Cleanup ran 2026-10-30 on wrk WSL, aidev and itan8n. Credential values are omitted. Wrk WSL now also runs CLIProxy; client-key enforcement is disabled there and on aidev per James. Upstream provider credentials are separate. Check current proxy models before repointing clients.
 - Credentials:
   - OpenRouter "main" `sha=75280a04ed` (73): DEAD (401 "User not found" at `https://openrouter.ai/api/v1/auth/key`, 2026-10-30). Every on-disk copy is gone except the Jev ones in `~/pi-durable/.env`.
