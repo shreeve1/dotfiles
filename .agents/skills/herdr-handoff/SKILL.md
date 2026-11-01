@@ -26,9 +26,11 @@ carrying on the current work is `handoff`. Ask only if it is truly unclear.
 
 Inside a herdr pane, `test "${HERDR_ENV:-}" = 1` passes. Outside one (Codex, a plain shell),
 a running herdr server still works: `herdr workspace list` must answer. The script then opens
-the tab in the workspace with a pane in the current directory, else the focused one, and always
-in the background, so `handoff` behaves like `task`. If neither check passes, say herdr is not
-reachable and stop.
+the tab in `HERDR_HANDOFF_WORKSPACE` if set, else the workspace with a pane in the current
+directory, else a new background workspace labelled with the slug. It never uses the focused
+workspace, which is James's. Always in the background, so `handoff` behaves like `task`. A
+caller that owns a workspace (a Rakazo bot over ssh, say) sets `HERDR_HANDOFF_WORKSPACE` to
+it. If neither check passes, say herdr is not reachable and stop.
 
 ## 2. Write the brief
 
@@ -226,7 +228,11 @@ For non-Git tasks, save and verify the result, skip the Git-only steps and close
    and its tracked/untracked files are clean. Inspect ignored files too: only
    disposable build/dependency caches may be removed with it. Save reports and
    retain any other data before removal; ask if its disposal is uncertain. Require
-   that no other session or process still needs the worktree. Remove only resources
+   that no other session or process still needs the worktree. pi's runtime cache
+   `.pi/fabric/` (pi-fabric mesh state and MCP cache), created in the worktree by the
+   task's own session, is disposable: delete only that folder, and `.pi/` if it is
+   then empty. Any other `.pi/` content (memory, todos, settings) is data: save it or ask.
+   Remove only resources
    this dispatch created: `git worktree remove <recorded-path>` for a plain Git
    worktree, or the installed herdr worktree removal command for a herdr-managed one.
    Herdr removal may also close its workspace: verify its panes belong only to this
@@ -248,7 +254,8 @@ For non-Git tasks, save and verify the result, skip the Git-only steps and close
 - Before closing, use `herdr agent get <recorded-pane-id>` and `herdr pane list` to
   confirm the recorded session still occupies the recorded tab. Close it with
   `herdr tab close <recorded-tab-id>`. If other panes have been added, close only
-  the recorded task pane with `herdr pane close <recorded-pane-id>`.
+  the recorded task pane with `herdr pane close <recorded-pane-id>`. If the script
+  created a workspace for the task, closing its last tab also closes that workspace.
 - Leave pre-existing user tabs and unrelated sessions alone. If identity cannot be
   confirmed or closing fails, leave it open and report the tab/pane ID and reason.
   Keep briefs, reports and session files on disk. Standing approval covers only

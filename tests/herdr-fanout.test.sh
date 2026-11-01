@@ -18,7 +18,9 @@ case "$1 $2" in
   if [ "$MOCK_STALLED" = 1 ]; then echo agent_prompt_stalled; exit 1; fi
   ;;
 "agent get") printf '{"result":{"agent":{"agent_status":"%s"}}}\n' "$MOCK_STATUS" ;;
-"workspace list") printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w1","number":1,"label":"test"}]}}' ;;
+"workspace list") printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w1","number":1,"label":"test","focused":true},{"workspace_id":"w5","number":2,"label":"bot","focused":false}]}}' ;;
+"pane list") printf '{"result":{"panes":[{"workspace_id":"w5","cwd":"%s"}]}}\n' "${MOCK_PANE_CWD:-/nowhere}" ;;
+"workspace create") printf '%s\n' '{"result":{"root_pane":{"pane_id":"w9:p1","workspace_id":"w9"}}}' ;;
 "agent start" | "agent send-keys" | "agent wait") ;;
 *) echo "unexpected mock herdr call: $*" >&2; exit 1 ;;
 esac
@@ -94,6 +96,23 @@ check stalled-prompt-reuses-pane test "$RC" -eq 0
 check stalled-one-pane test "$(grep -c '^tab create ' "$MOCK_LOG")" -eq 1
 check stalled-enter grep -q '^agent send-keys .* enter$' "$MOCK_LOG"
 check stalled-wait grep -q '^agent wait ' "$MOCK_LOG"
+# Outside herdr: never the focused workspace; pane cwd match, explicit override, else a new workspace.
+outside_spawn() {
+  : >"$MOCK_LOG"
+  RC=0
+  OUT=$(cd "$TMP" && env -u HERDR_ENV -u HERDR_WORKSPACE_ID "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" task "$TMP/brief with spaces.md" probe glm-5.3 2>&1) || RC=$?
+}
+outside_spawn
+check outside-new-workspace test "$RC" -eq 0
+check outside-new-workspace-created grep -q '^workspace create .*--no-focus' "$MOCK_LOG"
+check outside-not-focused no_tab
+outside_spawn MOCK_PANE_CWD="$TMP"
+check outside-pane-cwd grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
+outside_spawn HERDR_HANDOFF_WORKSPACE=w5
+check outside-override grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
+outside_spawn HERDR_HANDOFF_WORKSPACE=w404
+check outside-override-missing test "$RC" -ne 0
+check outside-override-missing-no-tab no_tab
 review_skill="$ROOT/.agents/skills/independent-review/SKILL.md"
 check herdr-mode-reference grep -Fq 'references/herdr.md' "$review_skill"
 check explicit-default-subagent grep -Fq 'Default: subagents' "$review_skill"

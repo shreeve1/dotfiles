@@ -202,5 +202,6 @@ archived reports and identity-safe cleanup. Reviewer-only tasks have no source
 merge/worktree deletion. Save final verdict, findings/rulings, check output, merged
 tips, and exact removed/retained IDs before closing tabs. Verify no other process
 needs a worktree and inspect ignored data as well as tracked/untracked files.
+A worker's `.pi/fabric/` runtime cache is disposable, as in `herdr-handoff` section 7.
 Failed cleanup remains explicit; it never grants force/delete authority. A blocked
 run retains relevant workers/reviewers for further work and reports the next action.

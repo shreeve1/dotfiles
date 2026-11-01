@@ -29,25 +29,36 @@ printf '%s' "$model_json" | jq -e --arg m "$model" 'any(.providers.cliproxy.mode
   die "cliproxy/$model is not in $model_file on this machine"
 unset model_json
 
-# Outside a herdr pane (e.g. Codex) a reachable herdr server still works: open the tab in the
-# workspace that has a pane in this directory, else the focused one. It cannot take focus there.
+# Outside a herdr pane (e.g. Codex, a Rakazo bot over ssh) a reachable herdr server still works.
+# Tab placement: HERDR_HANDOFF_WORKSPACE if set, else the workspace with a pane in this directory,
+# else a new background workspace for this task. Never the focused one: that is James's.
 workspace=${HERDR_WORKSPACE_ID:-}
 if [ "${HERDR_ENV:-}" != 1 ]; then
   herdr workspace list >/dev/null 2>&1 || die "not inside herdr and no herdr server answers"
   [ "$mode" = task ] || printf 'outside herdr: opening in the background, like task\n' >&2
   focus=--no-focus
-  workspace=$(herdr pane list | jq -r --arg d "$PWD" \
-    '[.result.panes[] | select(.cwd == $d or (.cwd | startswith($d + "/")))][0].workspace_id // empty')
-  [ -n "$workspace" ] || workspace=$(herdr workspace list |
-    jq -r '[.result.workspaces[] | select(.focused)][0].workspace_id // .result.workspaces[0].workspace_id // empty')
-  [ -n "$workspace" ] || die "no herdr workspace to open the tab in"
+  workspace=${HERDR_HANDOFF_WORKSPACE:-}
+  if [ -n "$workspace" ]; then
+    herdr workspace list | jq -e --arg w "$workspace" 'any(.result.workspaces[]; .workspace_id == $w)' >/dev/null ||
+      die "HERDR_HANDOFF_WORKSPACE $workspace not found"
+  else
+    workspace=$(herdr pane list | jq -r --arg d "$PWD" \
+      '[.result.panes[] | select(.cwd == $d or (.cwd | startswith($d + "/")))][0].workspace_id // empty')
+  fi
 fi
 
 # Agent names: [a-z][a-z0-9_-]{0,31}, unique among live agents.
 name=$(printf 'ho-%s' "$slug" | tr -c 'a-z0-9_-' '-' | cut -c1-26)-$(date +%H%M%S | cut -c3-)
 
-pane=$(herdr tab create --workspace "$workspace" --cwd "$PWD" --label "$slug" "$focus" |
-  jq -r '.result.root_pane.pane_id')
+if [ -n "$workspace" ]; then
+  pane=$(herdr tab create --workspace "$workspace" --cwd "$PWD" --label "$slug" "$focus" |
+    jq -r '.result.root_pane.pane_id')
+else
+  # Its only tab is this task's, so closing that tab later also closes the workspace.
+  created=$(herdr workspace create --cwd "$PWD" --label "$slug" --no-focus)
+  pane=$(printf '%s' "$created" | jq -r '.result.root_pane.pane_id')
+  workspace=$(printf '%s' "$created" | jq -r '.result.root_pane.workspace_id')
+fi
 herdr agent start "$name" --kind pi --pane "$pane" -- --model "cliproxy/$model" >/dev/null
 # Since 2026-10-28 a prompt sent right after pi starts is typed but not submitted (agent_prompt_stalled).
 # ponytail: one extra Enter submits it; drop this when herdr or pi fixes the startup race.
