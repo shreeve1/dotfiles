@@ -10,7 +10,7 @@ topics: [workstation]
 
 ## Active memory
 
-- Cleanup ran 2026-10-30 on wrk (WSL), aidev and itan8n (n8n). No key value is stored here; every credential is named by a sha256 prefix. Goal: every LLM call goes through `~/cliproxyapi/config.yaml` on aidev or itan8n. Both serve the same 10 models (listed in the Claude Code CLIProxy Fleet doc) and hold the upstream keys for z.ai, MiniMax and OpenRouter. No gpt-4o, so an app pinned to gpt-4o cannot be repointed.
+- Cleanup ran 2026-10-30 on wrk WSL, aidev and itan8n. Credential values are omitted. Wrk WSL now also runs CLIProxy; client-key enforcement is disabled there and on aidev per James. Upstream provider credentials are separate. Check current proxy models before repointing clients.
 - Credentials:
   - OpenRouter "main" `sha=75280a04ed` (73): DEAD (401 "User not found" at `https://openrouter.ai/api/v1/auth/key`, 2026-10-30). Every on-disk copy is gone except the Jev ones in `~/pi-durable/.env`.
   - OpenRouter "proxy" `sha=9d297bc8ac`: aidev live `~/cliproxyapi/config.yaml` openrouter block, and itan8n's since 2026-10-30 through `OPENROUTER_PROXY_API_KEY` in `~/.zshrc.secrets` (launcher substitutes it). LIVE: deepseek-v4.1-flash returns OK through both proxies. Keep. The two aidev backups that held it were deleted in the second sweep, so the live config is the only copy.
