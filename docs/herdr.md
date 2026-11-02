@@ -129,7 +129,7 @@ this machine currently has no herdr-managed entries there.
 
 Installed 2026-10-16: the [herdr-web-ui](https://github.com/devswha/herdr-web-ui)
 plugin on aidev, which serves aidev's own herdr plus the machines in
-aidev's `herdr machine list` (omarchy, itan8n) as Remote PCs over SSH. Nothing
+aidev's `herdr machine list` (itan8n) as Remote PCs over SSH. Nothing
 for it lives in this repo; all of it is machine-local on aidev.
 
 - **URL:** `https://100.95.230.15:7443` (NetBird). Type the `https://`: a bare
@@ -148,7 +148,7 @@ for it lives in this repo; all of it is machine-local on aidev.
   (`herdr plugin config-dir devswha.herdr-web-ui`, mode 600) along with
   `HERDR_WEB_TELEMETRY=0` and `HERDR_WEB_APP_NAME=aidev`.
 - **Prerequisite:** Bun 1.4+ (`~/.bun/bin/bun upgrade`; `/usr/local/bin/bun` links to it).
-- **Remote PCs:** omarchy and itan8n each need **Connect** in the UI once, which
+- **Remote PCs:** itan8n needs **Connect** in the UI once, which
   installs a loopback bridge there under `~/.config/herdr-web-ui`.
 - Collie (the earlier phone UI) was unlinked and its `collie.service` removed.
 
@@ -166,7 +166,7 @@ wrk's then-address `10.20.20.176` on 7443 and 7317 failed. Browser use and WSL s
 Windows sign-in remain untested. No NPMplus or firewall changes were needed for
 the tested mesh path.
 
-## ccgram Telegram bridge on aidev and omarchy
+## ccgram Telegram bridge on aidev
 
 Installed 2026-10-17: [ccgram](https://github.com/alexei-led/ccgram) 4.16.0, a
 Telegram bot that maps each herdr pi agent to one Telegram topic. Messages typed
@@ -177,7 +177,6 @@ this repo.
 | Machine | Bot | Starts new topics in |
 | --- | --- | --- |
 | aidev | `@testywmLt2nDl0Qf2Q3bot` | `/home/james/testy-bot` |
-| omarchy | `@itastackwmLt2nDl0Qf2Q3bot` | `/home/james/Documents/itastack` |
 
 - **Install:** `uv tool install --python 3.14 ccgram` (uv fetches its own
   Python 3.14; aidev's system Python is 3.12). Binary: `~/.local/bin/ccgram`.
@@ -188,8 +187,7 @@ this repo.
 - **Service:** user unit `~/.config/systemd/user/ccgram.service` runs
   `ccgram run` with `Restart=always`. Its `WorkingDirectory` is where the
   folder picker for a new topic opens. The unit sets `PATH` so herdr, pi
-  and ccgram are found. Linger is on for both machines. omarchy's bot answers
-  only while the laptop is awake.
+  and ccgram are found. Linger is on for aidev.
 - **One bot per machine.** Telegram allows one poller per token, and a bot
   with a webhook cannot be polled at all. The first bot tried
   (`@testytechn8n_bot`) has a webhook (likely n8n) and was left alone.

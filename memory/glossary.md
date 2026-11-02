@@ -16,5 +16,5 @@ Maps shorthand labels (nicknames, acronyms, codenames, host names) to their full
 | herdr | Terminal multiplexer pi runs in on each machine (`docs/herdr.md`) |
 | cliproxy | Model proxy on wsl port 8317 |
 | itastack | James's IT client workspace (`~/Documents/itastack`), no git |
-| omarchy | Arch/Hyprland desktop setup; config under `omarchy/` |
+| omarchy | retired 2026-11-01 laptop (Arch/Hyprland); its config still lives under `omarchy/` |
 | style-check | The one formatter/linter entry point (`bin/style-check`, ADR 0022) |
