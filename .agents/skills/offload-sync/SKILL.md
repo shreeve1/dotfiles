@@ -5,7 +5,7 @@ description: Use when bringing a project's default branch level on the user's ma
 
 # Offload sync
 
-Read [the shared contract](../_shared/offload/contract.md). Sync keeps the project copies on omarchy, aidev and itan8n on the same default-branch commit, so the next Offload's Snapshot carries only fresh dirty work. It only fast-forwards. It never merges, rebases, resets or stashes, and it never pushes to a checked-out branch.
+Read [the shared contract](../_shared/offload/contract.md). Sync keeps the project copies on the live machines (wrk's WSL and Windows sides, itan8n, surftop) on the same default-branch commit, so the next Offload's Snapshot carries only fresh dirty work. It only fast-forwards. It never merges, rebases, resets or stashes, and it never pushes to a checked-out branch.
 
 Use [commands.md](../_shared/offload/commands.md) for the [push fast-forward](../_shared/offload/commands.md#push-fast-forward), [pull fast-forward](../_shared/offload/commands.md#pull-fast-forward) and [history scan](../_shared/offload/commands.md#prep-and-history-scan). Copies are the ones this project has on each machine. A machine without a copy is skipped unless the user asks for [offload-prep](../offload-prep/SKILL.md) to create one.
 
@@ -28,7 +28,7 @@ Finish when every machine has a state. When reached from offload-task, return th
 
 Pick the **newest tip**, the one every other reachable tip is an ancestor of. If none exists, some copies diverged; go to [Diverged](#diverged) first.
 
-1. If this copy is behind the newest tip, run the pull fast-forward from that peer. This is the only way a machine catches up from a peer that cannot reach it, such as a laptop waking after work finished on aidev.
+1. If this copy is behind the newest tip, run the pull fast-forward from that peer. This is the only way a machine catches up from a peer that cannot reach it, such as wrk catching up after the workstation was powered on.
 2. For each peer that is behind, run the push fast-forward from this copy once it holds the newest tip. Ask once for the set of machines to advance and use that approval for this run. Uncommitted edits on a peer are fine unless they overlap incoming changes; then `merge --ff-only` refuses with nothing changed, so report the overlapping filenames.
 3. Re-read each advanced copy's `HEAD` and require it to equal the newest tip.
 
@@ -42,4 +42,4 @@ Two copies each have commits the other lacks. Show both lists. Offer [offload-me
 
 ## Report
 
-List each machine with its old and new `HEAD` and final state. For every machine that is still not level, say what to run and from where: for example `offload-sync from omarchy when it wakes` for an offline laptop, since the pull fast-forward lets it catch up by itself. A machine left behind makes the next Offload from it carry an old base.
+List each machine with its old and new `HEAD` and final state. For every machine that is still not level, say what to run and from where: for example `offload-sync from wrk when it is powered on` for an offline workstation, since the pull fast-forward lets it catch up by itself. A machine left behind makes the next Offload from it carry an old base.

@@ -1,6 +1,6 @@
 ---
 name: browser-cdp
-description: "Default browser automation on James's machines (wrk and surftop on Windows, and the old omarchy laptop): agent-browser attaches to persistent chrome-cdp on port 9222 with saved logins. Use for browsing, portal sign-in, scraping, and browser interaction."
+description: "Default browser automation on James's machines (wrk and surftop on Windows): agent-browser attaches to persistent chrome-cdp on port 9222 with saved logins. Use for browsing, portal sign-in, scraping, and browser interaction."
 ---
 
 # Drive James's persistent Chrome with agent-browser
@@ -9,7 +9,7 @@ Use agent-browser for normal omp browser work. Preserve the existing Chrome wind
 
 ## The setup (already built)
 
-- `~/dotfiles/bin/chrome-cdp` (linked to `~/.local/bin/chrome-cdp`, wired into install.sh): launches `/opt/google/chrome/chrome` on the dedicated profile `~/.config/chrome-cdp` with `--remote-debugging-port=9222`, Wayland flags, gnome-libsecret password store, and the omarchy extensions (copy-url, yt-dlp, whatsapp-slim). Idempotent: exits 0 with "already running" if 9222 answers.
+- `~/dotfiles/bin/chrome-cdp` (Linux build, linked to `~/.local/bin/chrome-cdp`, wired into install.sh; omarchy was its only host until retirement 2026-11-01, so it is dormant now): launches `/opt/google/chrome/chrome` on the dedicated profile `~/.config/chrome-cdp` with `--remote-debugging-port=9222`, Wayland flags, gnome-libsecret password store, and the omarchy extensions (copy-url, yt-dlp, whatsapp-slim). Idempotent: exits 0 with "already running" if 9222 answers.
 - The profile was seeded 2026-09-30 by copying james's real `Default` profile (rsync minus caches) — site logins/cookies live there and persist. Local logins were re-verified (HaloPSA etc. restored logged-in).
 - Port 9222 = full control of that profile to any local process. Do not put banking/primary email logins there unless james asks; remind once if he does.
 
@@ -19,7 +19,7 @@ The agent Chrome is a Windows Chrome, not a Linux one. Everything else in this s
 
 - `chrome-cdp` hands off to `~/dotfiles/windows/bin/chrome-cdp.ps1`, which starts `C:\Program Files\Google\Chrome\Application\chrome.exe` minimized on profile `%LOCALAPPDATA%\chrome-cdp`. There is no workspace 5: the window sits minimized on the Windows taskbar.
 - Profile refresh (the OPTIONAL section below) is `chrome-cdp -Seed` with every Chrome window closed, in place of steps 2-3. On surftop (2026-10-21) site logins did not survive the copy (Google and GitHub came up signed out): expect James to sign in once by hand in the agent Chrome.
-- `agent-open` is omarchy-only; give James the URL in your reply.
+- `agent-open` existed only on omarchy (retired 2026-11-01); give James the URL in your reply.
 
 The rest depends on whether the machine has agent-browser in WSL:
 

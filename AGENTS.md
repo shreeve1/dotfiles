@@ -8,18 +8,18 @@ Config synced across the user's machines; `install.sh` symlinks it into place (f
 - `.agents/skills/`: all skills (`~/.agents/skills`, `~/.claude/skills`). `disable-model-invocation: true` is deliberate; don't "fix" it.
 - `.pi/agent/APPEND_SYSTEM.md`: pi-fabric delegation policy; `install.sh` checks for its heading.
 - herdr (pi runs in herdr panes on each machine): `docs/herdr.md`. `plans/` is gitignored scratch.
-- dsh is retired; leave `~/.dsh/dsh-tls.{crt,key}` on aidev, the herdr web ui uses them.
+- dsh is retired; its `~/.dsh/dsh-tls.{crt,key}` lived on aidev (decommissioned 2026-11-01). The herdr web ui's TLS front now runs on wsl as the user unit `herdr-web-tls` (caddy, `~/.config/herdr-web-tls/`).
 
 ## Machine topology (NetBird)
 
-Recorded 2026-10-21. Installed on aidev, itan8n, wrk's WSL, and native Windows checkouts on wrk and surftop (`C:/Users/james/dotfiles`; cmd over ssh, no `head`/pipes; git is not on PATH there, use `"C:\Program Files\Git\cmd\git.exe"`). wrk's Windows side is `ssh -p 22 james@100.95.235.60` and has its own pi with its own gitignored settings, so a per-machine change must be made there too. Homelab servers (`pve1`, `pve4`, `jellyfin`, ...) never get these dotfiles.
+Recorded 2026-10-21; aidev decommissioned 2026-11-01. Installed on wrk's WSL, itan8n, and native Windows checkouts on wrk and surftop (`C:/Users/james/dotfiles`; cmd over ssh, no `head`/pipes; git is not on PATH there, use `"C:\Program Files\Git\cmd\git.exe"`). wrk's Windows side is `ssh -p 22 james@100.95.235.60` and has its own pi with its own gitignored settings, so a per-machine change must be made there too. Homelab servers (`pve1`, `pve4`, `jellyfin`, ...) never get these dotfiles.
 
 `origin/main` is the sync point and any machine may commit: `git pull --rebase` before work, push after, `git pull --ff-only` on the others. Keep machine-specific edits out of commits.
 
 | Machine | Role | User | NetBird IP | NetBird DNS name |
 | --- | --- | --- | --- | --- |
 | `wrk` | desktop; NetBird server, herdr web and migrated services in Ubuntu-24.04 WSL2 (sshd 2222, Windows owns 22) | `james` | `100.95.235.60` | `wrk-235-60.netbird.selfhosted` |
-| `aidev` | migration source; some services remain, not retired | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` |
+| `aidev` | decommissioned 2026-11-01; powered off — do not route to it (NetBird peer removal still pending) | `james` | `100.95.230.15` | `aidev.netbird.selfhosted` |
 | `itan8n` | server; n8n | `itadmin` | `100.95.224.218` | `n8n.netbird.selfhosted` |
 | `surftop` | Surface ARM64 thin client; native Windows herdr | `james` | `100.95.222.42` | `surftop.netbird.selfhosted` |
 

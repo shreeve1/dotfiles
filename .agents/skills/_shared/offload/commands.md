@@ -466,7 +466,7 @@ The peer copy may have uncommitted edits. `merge --ff-only` refuses before chang
 
 ## Pull fast-forward
 
-Advance the current copy from a peer that it can reach but that cannot reach it, for example a laptop catching up from aidev after waking. Nothing is pushed.
+Advance the current copy from a peer that it can reach but that cannot reach it, for example wrk catching up from itan8n after being powered on. Nothing is pushed.
 
 ```sh
 git -C "$COPY" fetch --no-tags "$PEER_URL" "refs/heads/$DEFAULT:refs/offload-sync/peer"
