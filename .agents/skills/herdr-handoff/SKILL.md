@@ -78,9 +78,11 @@ the originating session cannot grant them on his behalf. Before declaring comple
 send the result, exact commits, checks and remaining limitations back directly.
 ## Cleanup
 The originating session saves and verifies the result, merges into the recorded
-destination branch, checks the combined result, removes the task worktree/branch
-and closes the tab. Report the exact final commit and stop writing while it finishes.
-Keep the task session available for questions and fixes until then.
+destination branch, checks the combined result and removes the task worktree/branch.
+That sequence does not close the tab: it closes only when the item is finished - every
+criterion in skill section 7 cumulatively, or James says done. Report the exact final
+commit and stop writing while it finishes. Stay warm in this tab for follow-ups, fixes
+and clarifications; it does not close on reporting.
 ## Verify
 <how to prove it is done>
 ```
@@ -127,6 +129,11 @@ Pick the new session's model from the brief. If the user named one of these four
 
 ## 4. Spawn
 
+Before opening a tab, look for one already covering the same item - a task, ticket or
+review - in `herdr agent list` / `herdr tab list` and the identities recorded under
+section 5, and reuse that tab for the follow-up instead of spawning another. Only
+spawn when no such tab exists.
+
 ```bash
 ~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug> <model>
 ```
@@ -158,7 +165,11 @@ as plain text in a codespan. From outside herdr, also name the workspace from th
   destination checkout/branch, starting commit, task branch and worktree path, and
   which resources this dispatch created; use these identities for integration and cleanup.
 - `task`: keep those identities for follow-ups, then go back to the main task.
-  Follow the coordination contract below.
+  One warm tab per task, ticket or review: it stays open until the item is
+  checked, approved by James where his approval applies (diff review, push,
+  live change) and reported, so send follow-ups, fixes and clarifications to
+  the same tab instead of opening another. Follow the coordination contract
+  below.
 - `handoff` from inside herdr: ask whether to close this pane. If the user says yes, make
   `herdr pane close "$HERDR_PANE_ID"` your last action, because it ends this session.
   The session file stays on disk.
@@ -194,9 +205,14 @@ pane the user may close.
 
 ## 7. Integrate and clean up completed tasks
 
-Close tabs opened for agent work automatically, without asking James, once the work
-is complete, results are saved and checks are verified. A `done` or `idle` status
-alone is not completion. Keep blocked, unfinished or still-needed task sessions open.
+A task tab stays warm until its item is finished, and finished is cumulative: the
+work is complete, the results are saved, the checks are verified, the originating
+session has reviewed the result, James has approved where his approval applies (diff
+review, push, live change) and the outcome is reported - or James says done. Do not
+close one on turn completion or on reporting; reuse it for follow-ups, fixes and
+clarifications. Once every criterion holds, close tabs opened for agent work
+automatically, without asking James; a `done` or `idle` status alone is not completion.
+Keep blocked, unfinished or still-needed task sessions open.
 For fanout or commissioned review, the commissioning parent owns acceptance and
 release; a ready report or standalone PASS cannot bypass its remaining dependencies,
 review or integration checks. Reviewer-only tasks skip Git merge/removal steps.
