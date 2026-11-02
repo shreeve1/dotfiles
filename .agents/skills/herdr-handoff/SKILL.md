@@ -17,20 +17,27 @@ Invocation: `/skill:herdr-handoff task "<the task>"` or `/skill:herdr-handoff ha
 If the mode is missing, infer it: something separate from the current work is `task`;
 carrying on the current work is `handoff`. Ask only if it is truly unclear.
 
-| Mode | Brief covers | New tab | Afterwards |
+| Mode | Brief covers | Opens | Afterwards |
 | --- | --- | --- | --- |
-| `task` | only the named task | background, you stay here | carry on with the current work |
-| `handoff` | the current work, steered by the focus | opens and takes focus | offer to close this pane |
+| `task` | only the named task | in a git repo: its own worktree and workspace, in the background; otherwise a background tab | carry on with the current work |
+| `handoff` | the current work, steered by the focus | a tab that takes focus | offer to close this pane |
+
+One feature = one worktree = one workspace. A `task` in a git repo gets a worktree
+(`herdr worktree create`) and pi starts in that worktree's root pane, so there is no
+empty shell tab. Do not create a worktree yourself first; the script does it.
 
 ## 1. Check herdr
 
 Inside a herdr pane, `test "${HERDR_ENV:-}" = 1` passes. Outside one (Codex, a plain shell),
 a running herdr server still works: `herdr workspace list` must answer. The script then opens
-the tab in `HERDR_HANDOFF_WORKSPACE` if set, else the workspace with a pane in the current
-directory, else a new background workspace labelled with the slug. It never uses the focused
-workspace, which is James's. Always in the background, so `handoff` behaves like `task`. A
-caller that owns a workspace (a Rakazo bot over ssh, say) sets `HERDR_HANDOFF_WORKSPACE` to
-it. If neither check passes, say herdr is not reachable and stop.
+a git task opens its own worktree workspace in the background. For a handoff or a non-git
+task it opens the tab in `HERDR_HANDOFF_WORKSPACE` if set, else the workspace with a pane in
+the current directory, else a new background workspace. It never uses the focused workspace,
+which is James's. Always in the background, so `handoff` behaves like `task`.
+`HERDR_HANDOFF_WORKSPACE` is refused for a git task, whose worktree opens its own workspace.
+A caller that wants its name in the labels (a Rakazo bot over ssh, say) sets
+`HERDR_HANDOFF_BOT`; for a remote machine run the script there (`ssh <host> ...`), as
+`herdr --machine <label>` forwards only herdr commands and cannot run it. If neither check passes, say herdr is not reachable and stop.
 
 ## 2. Write the brief
 
@@ -79,10 +86,11 @@ send the result, exact commits, checks and remaining limitations back directly.
 ## Cleanup
 The originating session saves and verifies the result, merges into the recorded
 destination branch, checks the combined result and removes the task worktree/branch.
-That sequence does not close the tab: it closes only when the item is finished - every
-criterion in skill section 7 cumulatively, or James says done. Report the exact final
-commit and stop writing while it finishes. Stay warm in this tab for follow-ups, fixes
-and clarifications; it does not close on reporting.
+That sequence runs only when the item is finished - every criterion in skill section 7
+cumulatively, or James says done. Removing the task worktree closes this workspace and
+your session with it, so you stay warm for follow-ups, fixes and clarifications until
+then; it does not close on reporting. Report the exact final commit and stop writing
+while it finishes. You were started inside this worktree: do not create another.
 ## Verify
 <how to prove it is done>
 ```
@@ -138,10 +146,22 @@ spawn when no such tab exists.
 ~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug> <model>
 ```
 
-Run it from the directory the new session should work in, which is normally the current
-one. The script opens the tab (in the background for `task`, with focus for `handoff`),
-starts pi there on `cliproxy/<model>`, gives it the brief, and waits until pi starts working.
-It prints the agent name, pane ID, status and model.
+Run it from the repo (any checkout of it, including a linked worktree) or the directory the
+new session should work in. For a git `task` the script runs
+`herdr worktree create --label <bot>-<slug> --branch task/<slug> --cwd <repo> --no-focus`,
+starts pi in the worktree's root pane on `cliproxy/<model>`, and gives it the brief plus a
+line saying it is already in that worktree and must not create another. The worktree starts
+from the caller's HEAD (`--base`); uncommitted changes do not carry over. A `handoff`
+or non-git task opens a tab instead, with focus for `handoff`. It waits until pi starts
+working and prints the agent name, pane ID, status, model, workspace and tab IDs, worktree
+and branch.
+
+Naming: the workspace, tab and agent share one name, `<bot>-<slug>`, cut to 32 characters
+(herdr's agent-name limit). `<bot>` is `HERDR_HANDOFF_BOT` or the repo directory's name; it is
+never cut (a bot name over 24 characters is refused), and the slug is, so a watcher that
+lists workspaces by the `<bot>-` prefix finds every feature, one workspace each. The agent
+name must be free: if `<bot>-<slug>` is already live, the script refuses and you send the
+follow-up there. Use a distinct slug per feature.
 
 - Exit 2 (`status=blocked`): the new pi stopped at a question or approval. Run
   `herdr agent read <agent>`, tell the user what it is asking, and do not offer to close
@@ -156,9 +176,9 @@ It prints the agent name, pane ID, status and model.
 
 ## 5. Report
 
-In one or two lines: the tab label, the agent name, the model and why it fits, and the brief's absolute path
+In one or two lines: the workspace/tab label (also the agent name), the model and why it fits, and the brief's absolute path
 as plain text in a codespan. From outside herdr, also name the workspace from the script's
-`workspace=` output: the tab opened there without taking focus.
+`workspace=` output: it opened there without taking focus.
 
 - Record the new agent name, pane ID, session path and tab/workspace IDs from
   `herdr agent get` and `herdr pane list` alongside the brief. Include repository,
@@ -251,13 +271,16 @@ For non-Git tasks, save and verify the result, skip the Git-only steps and close
    Remove only resources
    this dispatch created: `git worktree remove <recorded-path>` for a plain Git
    worktree, or the installed herdr worktree removal command for a herdr-managed one.
-   Herdr removal may also close its workspace: verify its panes belong only to this
-   task first; if unrelated panes exist, leave it intact and report the blocker.
+   For a worktree the script created, use `herdr worktree remove --workspace <workspace-id>`
+   (the recorded `workspace_id`; from a remote machine `herdr --machine <label> worktree remove ...`).
+   Removing the worktree closes its workspace and every pane in it, including the task's
+   pi session. Verify first that its panes belong only to this task; if unrelated panes
+   exist, leave it intact and report the blocker. It refuses an untracked or modified tree.
    Use no force flags. Confirm the worktree is absent, then delete its unchanged,
    merged task branch with `git branch -d <task-branch>` from the destination checkout.
    Keep destination branches and pre-existing worktrees/branches.
 6. Close the recorded task tab using the identity checks below, if worktree removal
-   has not already closed it. Save the merge commit, checks and removed/retained
+   has not already closed it (a script-created worktree's removal always does). Save the merge commit, checks and removed/retained
    resources alongside the brief, and report the outcome to James. A blocked step
    remains the originating session's responsibility; do not call the task finished.
 
@@ -272,6 +295,9 @@ For non-Git tasks, save and verify the result, skip the Git-only steps and close
   `herdr tab close <recorded-tab-id>`. If other panes have been added, close only
   the recorded task pane with `herdr pane close <recorded-pane-id>`. If the script
   created a workspace for the task, closing its last tab also closes that workspace.
+  A task worktree's workspace is closed by the worktree removal in section 7, which
+  leaves nothing to close; do not close its tab first, as that would leave the worktree
+  without its workspace.
 - Leave pre-existing user tabs and unrelated sessions alone. If identity cannot be
   confirmed or closing fails, leave it open and report the tab/pane ID and reason.
   Keep briefs, reports and session files on disk. Standing approval covers only
