@@ -378,6 +378,16 @@ link_path "bin/ab-input" ".local/bin/ab-input"
 link_path "bin/style-check" ".local/bin/style-check"
 link_path "bin/style-init" ".local/bin/style-init"
 
+# WSL: put powershell.exe on PATH. herdr runs as a systemd user unit whose PATH
+# omits /mnt/c, so panes can't find it and pi's clipboard image paste (Alt+V)
+# silently fails.
+_wsl_ps=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+if grep -qi microsoft /proc/version 2>/dev/null && [ -x "$_wsl_ps" ]; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$_wsl_ps" "$HOME/.local/bin/powershell.exe"
+  printf 'linked: ~/.local/bin/powershell.exe -> %s\n' "$_wsl_ps"
+fi
+
 # ─── Style tools (one pinned formatter/linter set, every machine) ─
 # pi-lens, style-check, the pre-push hook and post-work-cleanup must all run the
 # same binaries. Versions live in .config/style/tools.env; see
