@@ -5,7 +5,10 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/home/.pi/agent"
 export HOME="$TMP/home" PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_WORKSPACE_ID=w1
-export MOCK_LOG="$TMP/calls" MOCK_STATUS=working MOCK_STALLED=0 MOCK_UNREADABLE=0
+export MOCK_LOG="$TMP/calls" MOCK_STARTED="$TMP/started" MOCK_STATUS=working MOCK_STALLED=0 MOCK_UNREADABLE=0 MOCK_WT_FAIL=0
+mkdir -p "$TMP/plain" "$TMP/Dotfiles"
+git -C "$TMP/Dotfiles" init -q
+git -C "$TMP/Dotfiles" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
 REAL_CAT=$(command -v cat)
 export REAL_CAT
 printf 'A bounded task\n' >"$TMP/brief with spaces.md"
@@ -14,14 +17,22 @@ cat >"$TMP/bin/herdr" <<'MOCK'
 printf '%s\n' "$*" >>"$MOCK_LOG"
 case "$1 $2" in
 "tab create") printf '%s\n' '{"result":{"root_pane":{"pane_id":"w1:p2"}}}' ;;
+"tab rename") ;;
+"worktree create")
+  [ "$MOCK_WT_FAIL" != 1 ] || { echo '{"error":{"code":"worktree_create_failed"}}'; exit 1; }
+  printf '%s\n' '{"result":{"root_pane":{"pane_id":"wQ:p1","tab_id":"wQ:t1","workspace_id":"wQ"},"workspace":{"workspace_id":"wQ"},"worktree":{"path":"/wt/task-probe"}}}' ;;
 "agent prompt")
   if [ "$MOCK_STALLED" = 1 ]; then echo agent_prompt_stalled; exit 1; fi
   ;;
-"agent get") printf '{"result":{"agent":{"agent_status":"%s"}}}\n' "$MOCK_STATUS" ;;
+"agent get")
+  # Not found until started, unless MOCK_EXISTING names a live agent (as in herdr).
+  [ -e "$MOCK_STARTED" ] || [ "${MOCK_EXISTING:-}" = "$3" ] || { echo '{"error":{"code":"agent_not_found"}}'; exit 1; }
+  printf '{"result":{"agent":{"agent_status":"%s"}}}\n' "$MOCK_STATUS" ;;
 "workspace list") printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w1","number":1,"label":"test","focused":true},{"workspace_id":"w5","number":2,"label":"bot","focused":false}]}}' ;;
 "pane list") printf '{"result":{"panes":[{"workspace_id":"w5","cwd":"%s"}]}}\n' "${MOCK_PANE_CWD:-/nowhere}" ;;
 "workspace create") printf '%s\n' '{"result":{"root_pane":{"pane_id":"w9:p1","workspace_id":"w9"}}}' ;;
-"agent start" | "agent send-keys" | "agent wait") ;;
+"agent start") : >"$MOCK_STARTED" ;;
+"agent send-keys" | "agent wait") ;;
 *) echo "unexpected mock herdr call: $*" >&2; exit 1 ;;
 esac
 MOCK
@@ -43,10 +54,13 @@ check() {
 models() { printf '%s\n' '{"providers":{"cliproxy":{"models":[{"id":"gpt-6-luna"},{"id":"glm-5.3"}]}}}' >"$HOME/.pi/agent/models.json"; }
 run_spawn() {
   : >"$MOCK_LOG"
+  rm -f "$MOCK_STARTED"
   RC=0
-  OUT=$(bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" "${1:-task}" "$TMP/brief with spaces.md" probe "${2:-glm-5.3}" 2>&1) || RC=$?
+  OUT=$(cd "$TMP/plain" && bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" "${1:-task}" "$TMP/brief with spaces.md" probe "${2:-glm-5.3}" 2>&1) || RC=$?
 }
 no_tab() { ! grep -q '^tab create ' "$MOCK_LOG"; }
+no_wt() { ! grep -q '^worktree create ' "$MOCK_LOG"; }
+no_agent_start() { ! grep -q '^agent start ' "$MOCK_LOG"; }
 error_case() {
   local name=$1 message=$2
   run_spawn task glm-5.3
@@ -99,20 +113,55 @@ check stalled-wait grep -q '^agent wait ' "$MOCK_LOG"
 # Outside herdr: never the focused workspace; pane cwd match, explicit override, else a new workspace.
 outside_spawn() {
   : >"$MOCK_LOG"
+  rm -f "$MOCK_STARTED"
   RC=0
-  OUT=$(cd "$TMP" && env -u HERDR_ENV -u HERDR_WORKSPACE_ID "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" task "$TMP/brief with spaces.md" probe glm-5.3 2>&1) || RC=$?
+  OUT=$(cd "$TMP/plain" && env -u HERDR_ENV -u HERDR_WORKSPACE_ID "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" task "$TMP/brief with spaces.md" probe glm-5.3 2>&1) || RC=$?
 }
 outside_spawn
 check outside-new-workspace test "$RC" -eq 0
 check outside-new-workspace-created grep -q '^workspace create .*--no-focus' "$MOCK_LOG"
 check outside-not-focused no_tab
-outside_spawn MOCK_PANE_CWD="$TMP"
+outside_spawn MOCK_PANE_CWD="$TMP/plain"
 check outside-pane-cwd grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
 outside_spawn HERDR_HANDOFF_WORKSPACE=w5
 check outside-override grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
 outside_spawn HERDR_HANDOFF_WORKSPACE=w404
 check outside-override-missing test "$RC" -ne 0
 check outside-override-missing-no-tab no_tab
+# Git task: one feature = one worktree = one workspace, pi in its root pane, no shell tab.
+git_spawn() {
+  : >"$MOCK_LOG"
+  rm -f "$MOCK_STARTED"
+  RC=0
+  OUT=$(cd "$TMP/Dotfiles" && env "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" task "$TMP/brief with spaces.md" fix-sync-timeout glm-5.3 2>&1) || RC=$?
+}
+git_spawn
+check wt-ok test "$RC" -eq 0
+check wt-create-args grep -Fxq "worktree create --label dotfiles-fix-sync-timeout --branch task/fix-sync-timeout --cwd $TMP/Dotfiles --base $(git -C "$TMP/Dotfiles" rev-parse HEAD) --no-focus" "$MOCK_LOG"
+check wt-pi-in-root-pane grep -Fq 'agent start dotfiles-fix-sync-timeout --kind pi --pane wQ:p1 -- --model cliproxy/glm-5.3' "$MOCK_LOG"
+check wt-no-extra-tab no_tab
+check wt-no-extra-workspace test "$(grep -c '^workspace create ' "$MOCK_LOG")" -eq 0
+check wt-tab-renamed grep -Fxq 'tab rename wQ:t1 dotfiles-fix-sync-timeout' "$MOCK_LOG"
+check wt-prompt-says-in-worktree grep -Fq 'already in a dedicated git worktree at /wt/task-probe on branch task/fix-sync-timeout' "$MOCK_LOG"
+check wt-prompt-forbids-new grep -Fq 'Do not create another worktree' "$MOCK_LOG"
+check wt-output-ids grep -Fq 'workspace_id=wQ tab_id=wQ:t1 worktree=/wt/task-probe branch=task/fix-sync-timeout' <<<"$OUT"
+git_spawn HERDR_HANDOFF_BOT=Dotfiles-Bot
+check wt-bot-override grep -Fq -- '--label dotfiles-bot-fix-sync-timeout ' "$MOCK_LOG"
+git_spawn HERDR_HANDOFF_BOT=averyveryveryverylongbotnameX
+check wt-bot-too-long test "$RC" -ne 0
+check wt-bot-too-long-no-worktree no_wt
+git_spawn HERDR_HANDOFF_WORKSPACE=w5
+check wt-workspace-env-refused test "$RC" -ne 0
+check wt-workspace-env-no-worktree no_wt
+git_spawn MOCK_EXISTING=dotfiles-fix-sync-timeout
+check wt-existing-agent-reused test "$RC" -ne 0
+check wt-existing-agent-no-worktree no_wt
+git_spawn MOCK_WT_FAIL=1
+check wt-create-failure test "$RC" -ne 0
+check wt-create-failure-no-agent no_agent_start
+# A bot whose name leaves only a 32-character label still gets one that keeps the "<bot>-" prefix tab-watch greps.
+git_spawn HERDR_HANDOFF_BOT=itastack-dev
+check wt-prefix-kept grep -Fq -- '--label itastack-dev-fix-sync-timeout ' "$MOCK_LOG"
 review_skill="$ROOT/.agents/skills/independent-review/SKILL.md"
 check herdr-mode-reference grep -Fq 'references/herdr.md' "$review_skill"
 check explicit-default-subagent grep -Fq 'Default: subagents' "$review_skill"
