@@ -276,3 +276,7 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 .pi/agent/git/
 
 .superpowers/
+
+# Recovery copies are not used here (git is the undo); never commit any that appear
+/.memory-recovery/
+/.task-recovery/
