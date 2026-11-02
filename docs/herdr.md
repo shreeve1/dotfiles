@@ -55,7 +55,7 @@ deliberately live outside this repo.
 On a new system:
 
 1. Prerequisite: the SSH aliases resolve and keys are in place (set up outside
-   this repo). Confirm with `ssh -G aidev | head -3`, which prints the resolved
+   this repo). Confirm with `ssh -G itan8n | head -3`, which prints the resolved
    host/user/hostname. A seeded list whose aliases do not resolve is useless.
 2. Run `install.sh`; it seeds the list if `client/endpoints.json` is absent.
 3. Verify with `herdr machine list --json` (authoritative: separates label,
@@ -73,7 +73,6 @@ only when you want a specific herdr session on the remote; `machine add` also
 prepares the remote herdr server:
 
 ```bash
-herdr machine add --label "aidev · default" --remote-session default aidev
 herdr machine add --label "n8n" --remote-session default itan8n
 ```
 
@@ -88,16 +87,15 @@ restore competing default routes; dual-WAN routing is not yet solved. Do not
 change routes without approval. Details and recovery hazards are in
 `memory/docs/workstation/wrk-wsl-port-exposure.md`.
 
-Aidev is not retired: `security_watch`, some proxy clients and other dependencies
-remain. Coturn is stopped with a reversible retirement guard; its data remains.
+Aidev was decommissioned on 2026-11-01 and is powered off; do not route to it.
 Wrk's unattended pre-sign-in WSL startup and independent backup/restore are
-unproven. The migration plan and reboot checklist live in gitignored
+unproven. The old migration plan lives in gitignored
 `plans/2026-10-31-aidev-to-wrk-migration.md`; verify live state before changes.
 
-## How the machines connect (snapshot 2026-10-21)
+## How the machines connect
 
-Every Linux-side machine runs its own `herdr server` (aidev's since 2026-09-21,
-itan8n's since 2026-09-22, both herdr-managed, not systemd; the wrk desktop's
+Every Linux-side machine runs its own `herdr server` (itan8n's since
+2026-09-22, herdr-managed, not systemd; the wrk desktop's
 since 2026-10-21, a systemd user service inside Ubuntu-24.04 WSL2, reachable
 at the host's NetBird IP on ssh port 2222), holding that machine's workspaces
 and pi agents. A herdr client on any machine reaches the others through its
@@ -112,10 +110,12 @@ The live machine lists differ per machine; the repo seed is the baseline:
 
 | Machine | herdr | Saved machines (label → alias) |
 | --- | --- | --- |
-| wrk (WSL2) | 0.9.5 | none yet (server role; entries seeded on demand) |
-| aidev | 0.9.5 | `n8n` → `itan8n`, `wrk wsl` → `wsl-wrk` |
-| itan8n | 0.9.5 | `aidev · default` → `aidev`; disabled `n8n` self-entry remains |
-| surftop | 0.9.5 (Windows) | `Desktop WSL` → `desktop-wsl`, `aidev · default` → `aidev`, `n8n` → `n8n` |
+| wrk (WSL2) | 0.9.5 | `n8n` → `itan8n` (checked 2026-11-01) |
+| itan8n | 0.9.5 | stale `aidev · default` → `aidev`; disabled `n8n` self-entry (checked 2026-11-01) |
+| surftop | 0.9.5 (Windows) | `Desktop WSL` → `desktop-wsl`, `aidev · default` → `aidev`, `n8n` → `n8n` (snapshot 2026-10-21; surftop offline 2026-11-01) |
+
+The `aidev` entries on itan8n and surftop point at the retired machine; remove
+them with `herdr machine` on each machine when convenient.
 
 All sessions are `default`. Agents are pi panes; pi reports state and session to
 herdr through `~/.pi/agent/extensions/herdr-agent-state.ts` (synced, so present
@@ -125,34 +125,7 @@ on all Linux machines).
 (true), which lets herdr add `ServerAliveInterval` fallbacks to `~/.ssh/config`;
 this machine currently has no herdr-managed entries there.
 
-## herdr web ui on aidev (browser/phone client)
-
-Installed 2026-10-16: the [herdr-web-ui](https://github.com/devswha/herdr-web-ui)
-plugin on aidev, which serves aidev's own herdr plus the machines in
-aidev's `herdr machine list` (itan8n) as Remote PCs over SSH. Nothing
-for it lives in this repo; all of it is machine-local on aidev.
-
-- **URL:** `https://100.95.230.15:7443` (NetBird). Type the `https://`: a bare
-  `100.95.230.15:7443` makes the browser try plain HTTP, which the TLS port drops.
-  The self-signed cert was made for dsh (retired) and still lives at
-  `~/.dsh/dsh-tls.{crt,key}` (SAN `IP:100.95.230.15`, `CA:TRUE`). Keep those files
-  or repoint the Caddyfile before removing `~/.dsh`.
-- **TLS front:** user unit `~/.config/systemd/user/herdr-web-tls.service` runs
-  Caddy (`~/.local/bin/caddy`, config `~/.config/herdr-web-tls/Caddyfile`) from
-  `100.95.230.15:7443` to the app on `127.0.0.1:7317`. The app itself stays bound to
-  loopback. It has to be a real HTTP proxy: a raw TLS tunnel (`socat`, tried first)
-  sends no `X-Forwarded-Proto`, so the app's same-origin check rejects every
-  browser POST, sign-in included, with `403 Use controls from this app`.
-- **Auth:** `HERDR_WEB_TOKEN` is required for every client (loopback included), or
-  pair a device in Settings → Phone & devices. The token lives in the plugin `env` file
-  (`herdr plugin config-dir devswha.herdr-web-ui`, mode 600) along with
-  `HERDR_WEB_TELEMETRY=0` and `HERDR_WEB_APP_NAME=aidev`.
-- **Prerequisite:** Bun 1.4+ (`~/.bun/bin/bun upgrade`; `/usr/local/bin/bun` links to it).
-- **Remote PCs:** itan8n needs **Connect** in the UI once, which
-  installs a loopback bridge there under `~/.config/herdr-web-ui`.
-- Collie (the earlier phone UI) was unlinked and its `collie.service` removed.
-
-## herdr web UI on wrk WSL
+## herdr web UI (wrk WSL)
 
 Installed 2026-10-31: `devswha.ovis` serves wrk's existing WSL herdr on
 `127.0.0.1:7317`; its token is in the mode-600 plugin env at
@@ -160,71 +133,10 @@ Installed 2026-10-31: `devswha.ovis` serves wrk's existing WSL herdr on
 `herdr-web-tls.service` proxies HTTPS on `100.95.235.60:7443` to loopback using
 `~/.config/herdr-web-tls/Caddyfile` and a self-signed certificate for that IP.
 
-URL: `https://100.95.235.60:7443`. Aidev reached it over NetBird and got a
-health response; an unauthenticated sessions request returned 401. LAN probes to
-wrk's then-address `10.20.20.176` on 7443 and 7317 failed. Browser use and WSL startup before
-Windows sign-in remain untested. No NPMplus or firewall changes were needed for
-the tested mesh path.
-
-## ccgram Telegram bridge on aidev
-
-Installed 2026-10-17: [ccgram](https://github.com/alexei-led/ccgram) 4.16.0, a
-Telegram bot that maps each herdr pi agent to one Telegram topic. Messages typed
-in a topic go into that agent's pane, like typing in the TUI; pi's replies come
-back from its session file. Everything is machine-local; nothing for it lives in
-this repo.
-
-| Machine | Bot | Starts new topics in |
-| --- | --- | --- |
-| aidev | `@testywmLt2nDl0Qf2Q3bot` | `/home/james/testy-bot` |
-
-- **Install:** `uv tool install --python 3.14 ccgram` (uv fetches its own
-  Python 3.14; aidev's system Python is 3.12). Binary: `~/.local/bin/ccgram`.
-- **Config:** `~/.ccgram/.env` (mode 600): `TELEGRAM_BOT_TOKEN`, `ALLOWED_USERS`
-  (numeric Telegram ID only; a username fails), `CCGRAM_MULTIPLEXER=herdr`,
-  `CCGRAM_PROVIDER=pi`, `CCGRAM_INSTANCE_NAME`, `CCGRAM_HIDE_TOOL_CALLS=true`,
-  `CCGRAM_AUTODELETE_DEAD_TOPICS=false`.
-- **Service:** user unit `~/.config/systemd/user/ccgram.service` runs
-  `ccgram run` with `Restart=always`. Its `WorkingDirectory` is where the
-  folder picker for a new topic opens. The unit sets `PATH` so herdr, pi
-  and ccgram are found. Linger is on for aidev.
-- **One bot per machine.** Telegram allows one poller per token, and a bot
-  with a webhook cannot be polled at all. The first bot tried
-  (`@testytechn8n_bot`) has a webhook (likely n8n) and was left alone.
-- **Topics:** the bot needs Threaded Mode, which exists only in the BotFather
-  Mini App (search BotFather, tap **Open** → bot → Bot Settings), not in the
-  `/mybots` text menu. Check it with `getMe` → `has_topics_enabled`.
-- **pi needs no ccgram hook.** herdr reports `herdr-agent-state.ts` as its pi
-  integration (`herdr integration status`), and ccgram reads the session
-  through herdr. Don't run `herdr integration install pi` over it. The
-  doctor's "Claude hook missing" line is irrelevant.
-- **Topic names** are `Pi ▸ <workspace> ▸ <tab> ▸ <pane>` from herdr labels;
-  rename the herdr workspace/tab to change them (`herdr workspace rename`,
-  `herdr tab rename`). Skipping the workspace step in `/new` creates a
-  workspace named after the folder.
-- **`ccgram status` always says `(unbound)` on herdr.** It reads only the
-  legacy `thread_bindings` key in `~/.ccgram/state.json`; bindings live in
-  `chat_thread_bindings`. Display bug in 4.16.0, not a broken binding.
-- **Topics are kept when a session looks dead.** With the default
-  auto-delete, ccgram deleted topics (and their history) whenever a herdr
-  session briefly vanished or reappeared under a second target ID. On
-  2026-10-17 one omarchy pi session got two IDs with the same session file,
-  and its topics were deleted and recreated. Ended agents' topics now stay
-  until deleted by hand or via `/sync`; the `/sessions` **Kill** button still
-  deletes its topic.
-
-### Delivery stall (upstream issue #302)
-
-On aidev, replies stopped reaching Telegram at 03:43 on 2026-10-17 while input
-still reached pi. Topic icons kept updating. The log showed `Delivery wedge
-suspected: transcript growing, watermark frozen`. A restart did not clear it:
-ccgram re-parsed and queued the backlog but sent nothing and logged no error.
-Telegram accepted a direct `sendMessage` to the topic, so the stall was inside
-ccgram. This matches the open upstream issue
-[#302](https://github.com/alexei-led/ccgram/issues/302) (root cause unknown).
-
-Recovery, from upstream [#245](https://github.com/alexei-led/ccgram/issues/245):
-stop the service, back up `~/.ccgram/monitor_state.json`, set each stuck
-session's `last_byte_offset` to its transcript's file size, start the service.
-The skipped output never reaches Telegram but stays in the pane and session
-file. Tool calls are now hidden on both machines to cut the traffic.
+URL: `https://100.95.235.60:7443` (type the `https://`; the TLS port drops plain
+HTTP). This is the only herdr web UI. The earlier one on aidev and the ccgram
+Telegram bridge were retired with aidev on 2026-11-01. Checked 2026-11-01: the
+unit is active, Caddy listens on `100.95.235.60:7443`, the app on
+`127.0.0.1:7317`, and the URL answers HTTP 200. LAN access and WSL startup
+before Windows sign-in remain untested. No NPMplus or firewall changes were
+needed for the mesh path.
