@@ -22,8 +22,8 @@ Invocation: `/skill:herdr-fanout <plan-path or bounded goal>`.
 2. **Divide.** Record workstream dependencies, owned resources, models, verification
    and review requirements. Parallel Git writers need separate worktrees/branches;
    shared external resources are serialized. Launch only dependency-ready work via
-   `herdr-handoff task`, from its recorded directory; each git task gets its own worktree,
-   branch and workspace from the script. No nested delegation/reviews.
+   `herdr-handoff task`, from its recorded directory; explicitly append `--worktree`
+   to the spawn command for Git writers to get their own worktree, branch and workspace. No nested delegation/reviews.
 3. **Coordinate.** Persist identities and reports under the contracts. Handle messages
    once by full ID, reconcile delayed state, and copy the parent on dependency
    updates. Reuse warm sessions for clarifications and fixes. On resume reconcile

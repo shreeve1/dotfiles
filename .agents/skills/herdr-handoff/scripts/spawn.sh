@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Start pi on a brief in herdr. A task in a git repo gets its own worktree and workspace
-# (herdr worktree create, one feature = one worktree = one workspace) and pi starts in the
-# worktree's root pane. A handoff, or a task outside git, gets a tab instead.
-# Usage: spawn.sh <task|handoff> <brief.md> <slug> <model>
+# Start pi on a brief in herdr, in the current directory.
+# Usage: spawn.sh <task|handoff> <brief.md> <slug> <model> [--worktree]
+# --worktree explicitly isolates a git task in its own worktree and workspace.
 # Env: HERDR_HANDOFF_BOT names the caller (default: the repo's directory name); workspace, tab
 # and agent are all labelled <bot>-<slug>, cut to herdr's 32-character agent-name limit.
-# HERDR_HANDOFF_WORKSPACE places a handoff or non-git tab; it is refused for a git task.
+# HERDR_HANDOFF_WORKSPACE places a shared-directory tab; it is refused with --worktree.
 set -euo pipefail
 mode=${1:?mode} brief=${2:?brief path} slug=${3:?slug} model=${4:?model}
 
@@ -15,6 +14,17 @@ die() {
   [ -z "$ctx" ] || printf '%s\n' "$ctx" >&2
   exit 1
 }
+
+worktree=0
+case ${5:-} in
+'') [ "$#" -eq 4 ] || die "usage: spawn.sh <task|handoff> <brief.md> <slug> <model> [--worktree]" ;;
+--worktree)
+  [ "$#" -eq 5 ] || die "--worktree must be the only optional argument"
+  [ "$mode" = task ] || die "--worktree is only for task mode; handoff continues in the current directory"
+  worktree=1
+  ;;
+*) die "unknown option: $5" ;;
+esac
 
 [ -s "$brief" ] || die "brief missing or empty: $brief"
 brief=$(realpath "$brief")
@@ -45,9 +55,13 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
   common=$(git rev-parse --path-format=absolute --git-common-dir)
   case $common in
   */.git) repo=${common%/.git} ;;
-  *) die "unsupported git layout (no <repo>/.git): $common" ;;
+  *)
+    [ "$worktree" -eq 0 ] || die "unsupported git layout (no <repo>/.git): $common"
+    repo=$(git rev-parse --show-toplevel)
+    ;;
   esac
 fi
+[ "$worktree" -eq 0 ] || [ -n "$repo" ] || die "--worktree requires a git repository"
 # The bot name is never cut: tab-watch finds a bot's workspaces by their "<bot>-" label prefix.
 bot=$(printf '%s' "${HERDR_HANDOFF_BOT:-$(basename "${repo:-$PWD}")}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | sed 's/^[^a-z]*//')
 bot=${bot:-task}
@@ -58,16 +72,18 @@ name=$label
 # Outside a herdr pane (e.g. Codex, a Rakazo bot over ssh) a reachable herdr server still works.
 # Tab placement: HERDR_HANDOFF_WORKSPACE if set, else the workspace with a pane in this directory,
 # else a new background workspace for this task. Never the focused one: that is James's.
-workspace=${HERDR_WORKSPACE_ID:-}
+workspace=${HERDR_HANDOFF_WORKSPACE:-${HERDR_WORKSPACE_ID:-}}
+if [ -n "${HERDR_HANDOFF_WORKSPACE:-}" ]; then
+  [ "$worktree" -eq 0 ] || die "HERDR_HANDOFF_WORKSPACE does not apply with --worktree: its worktree opens its own workspace; unset it"
+  herdr workspace list | jq -e --arg w "$workspace" 'any(.result.workspaces[]; .workspace_id == $w)' >/dev/null ||
+    die "HERDR_HANDOFF_WORKSPACE $workspace not found"
+fi
 if [ "${HERDR_ENV:-}" != 1 ]; then
   herdr workspace list >/dev/null 2>&1 || die "not inside herdr and no herdr server answers"
   [ "$mode" = task ] || printf 'outside herdr: opening in the background, like task\n' >&2
   focus=--no-focus
   workspace=${HERDR_HANDOFF_WORKSPACE:-}
-  if [ -n "$workspace" ]; then
-    herdr workspace list | jq -e --arg w "$workspace" 'any(.result.workspaces[]; .workspace_id == $w)' >/dev/null ||
-      die "HERDR_HANDOFF_WORKSPACE $workspace not found"
-  else
+  if [ -z "$workspace" ]; then
     workspace=$(herdr pane list | jq -r --arg d "$PWD" \
       '[.result.panes[] | select(.cwd == $d or (.cwd | startswith($d + "/")))][0].workspace_id // empty')
   fi
@@ -79,10 +95,7 @@ if herdr agent get "$name" >/dev/null 2>&1; then
 fi
 
 wt='' branch=''
-if [ "$mode" = task ] && [ -n "$repo" ]; then
-  # The worktree gets its own workspace, so a caller-supplied one would be left empty.
-  [ -z "${HERDR_HANDOFF_WORKSPACE:-}" ] ||
-    die "HERDR_HANDOFF_WORKSPACE does not apply to a git task: its worktree opens its own workspace; unset it"
+if [ "$worktree" -eq 1 ]; then
   # --cwd must be the main checkout: herdr refuses a linked worktree as the source.
   # --base keeps the task on the caller's commit, also when run from a linked worktree;
   # uncommitted changes do not carry over.
@@ -118,6 +131,8 @@ herdr agent start "$name" --kind pi --pane "$pane" -- --model "cliproxy/$model" 
 prompt="Read $brief. It is your full brief, written by a previous session that you cannot see. Start the work now."
 if [ -n "$wt" ]; then
   prompt="$prompt You are already in a dedicated git worktree at $wt on branch $branch, created for this task. Do not create another worktree or branch."
+else
+  prompt="$prompt Work in the current directory ($PWD). Do not create a worktree or switch branches. Respect the brief's file ownership and preserve other sessions' changes."
 fi
 # Since 2026-10-28 a prompt sent right after pi starts is typed but not submitted (agent_prompt_stalled).
 # ponytail: one extra Enter submits it; drop this when herdr or pi fixes the startup race.

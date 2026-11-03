@@ -46,7 +46,7 @@
 
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
-| [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | Optional herdr-fanout and warm reviewer tabs are implemented; parent owns acceptance, verified local integration and cleanup. | 2026-10-31 |
+| [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | Herdr handoff/task worktrees are opt-in; parent owns verification and cleanup. Fanout retains its separate isolation policy. | 2026-11-03 |
 
 ## Client Hubs
 

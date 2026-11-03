@@ -9,8 +9,9 @@ Write a brief, open a herdr tab, start pi in it, and point pi at the brief. The 
 session has none of this conversation, so the brief is the only thing it knows. In `task`
 mode, keep a two-way conversation: the originating session owns the main task; the new
 session owns the bounded side task and sends evidence back directly. The originating
-session owns the finish: verify, merge locally, verify the combined result, remove
-the task worktree and branch, then close the tab. James has given standing approval
+session owns the finish: verify the result in the shared checkout, then close the
+tab. For an explicitly isolated task, merge locally, verify the combined result and
+remove only the worktree and branch created for it. James has given standing approval
 for this sequence; do not present routine merge/cleanup choices again.
 
 Invocation: `/skill:herdr-handoff task "<the task>"` or `/skill:herdr-handoff handoff "<focus>"`.
@@ -19,22 +20,26 @@ carrying on the current work is `handoff`. Ask only if it is truly unclear.
 
 | Mode | Brief covers | Opens | Afterwards |
 | --- | --- | --- | --- |
-| `task` | only the named task | in a git repo: its own worktree and workspace, in the background; otherwise a background tab | carry on with the current work |
+| `task` | only the named task | a background tab in the current directory; a worktree only when explicitly requested | carry on with the current work |
 | `handoff` | the current work, steered by the focus | a tab that takes focus | offer to close this pane |
 
-One feature = one worktree = one workspace. A `task` in a git repo gets a worktree
-(`herdr worktree create`) and pi starts in that worktree's root pane, so there is no
-empty shell tab. Do not create a worktree yourself first; the script does it.
+Both modes use the current directory by default, including in a Git repo or an
+existing worktree. For shared-checkout tasks, record disjoint file ownership in the
+brief; serialize overlapping edits rather than letting sessions overwrite each other.
+Keep the current branch and commit only task-owned files; never stage other sessions'
+changes. A worktree is optional: append `--worktree` for a Git `task` only when James
+or the explicitly selected workflow requests isolation. The script creates it and
+starts pi in its root pane; do not create another first. A `handoff` continues in place.
 
 ## 1. Check herdr
 
 Inside a herdr pane, `test "${HERDR_ENV:-}" = 1` passes. Outside one (Codex, a plain shell),
-a running herdr server still works: `herdr workspace list` must answer. The script then opens
-a git task opens its own worktree workspace in the background. For a handoff or a non-git
-task it opens the tab in `HERDR_HANDOFF_WORKSPACE` if set, else the workspace with a pane in
-the current directory, else a new background workspace. It never uses the focused workspace,
+a running herdr server still works: `herdr workspace list` must answer. Outside herdr,
+the script opens the tab in `HERDR_HANDOFF_WORKSPACE` if set, else the workspace with
+a pane in the current directory, else a new background workspace. It never uses the focused workspace,
 which is James's. Always in the background, so `handoff` behaves like `task`.
-`HERDR_HANDOFF_WORKSPACE` is refused for a git task, whose worktree opens its own workspace.
+Inside herdr, tabs use `HERDR_HANDOFF_WORKSPACE` if set, else the current workspace.
+`HERDR_HANDOFF_WORKSPACE` is refused with `--worktree`, which opens its own workspace.
 A caller that wants its name in the labels (a Rakazo bot over ssh, say) sets
 `HERDR_HANDOFF_BOT`; for a remote machine run the script there (`ssh <host> ...`), as
 `herdr --machine <label>` forwards only herdr commands and cannot run it. If neither check passes, say herdr is not reachable and stop.
@@ -71,7 +76,7 @@ explains the task:
 ## Constraints
 <scope limits, things not to touch, the user's stated preferences>
 <files/branch this session owns; leave them alone and commit only your own files>
-<task-owned files; use a separate worktree for overlapping repository work>
+<task-owned files; coordinate or serialize overlapping edits in a shared checkout>
 <repository path, destination checkout/branch, starting commit, task branch and worktree path or none>
 <finish owner: originating session; local merge and safe task cleanup are pre-approved>
 <approval limits: pushes, deployments and live changes still require their usual approval>
@@ -82,15 +87,16 @@ Send with `herdr agent prompt <reply-target> "From <your-target>: <message>"`.
 Acknowledge the task and your ownership via the reply target. Send blockers, scope
 conflicts and findings that affect the main task promptly. Ask James for approvals;
 the originating session cannot grant them on his behalf. Before declaring completion,
-send the result, exact commits, checks and remaining limitations back directly.
+send the result, exact commits (or owned diff), checks and remaining limitations back directly.
 ## Cleanup
-The originating session saves and verifies the result, merges into the recorded
-destination branch, checks the combined result and removes the task worktree/branch.
-That sequence runs only when the item is finished - every criterion in skill section 7
-cumulatively, or James says done. Removing the task worktree closes this workspace and
-your session with it, so you stay warm for follow-ups, fixes and clarifications until
-then; it does not close on reporting. Report the exact final commit and stop writing
-while it finishes. You were started inside this worktree: do not create another.
+The originating session saves and verifies the result and checks the combined result
+before closing your task tab. In a shared checkout, no merge or worktree/branch removal
+is needed; preserve all pre-existing resources and other sessions' changes. Only an
+explicitly isolated task needs the merge/removal sequence in skill section 7. Stay
+warm for follow-ups, fixes and clarifications until the item is finished under every
+criterion there, or James says done; reporting alone does not close the session.
+Report the exact final commit (or owned diff if uncommitted) and stop writing while
+the originating session verifies. Keep the assigned checkout and branch.
 ## Verify
 <how to prove it is done>
 ```
@@ -143,23 +149,28 @@ section 5, and reuse that tab for the follow-up instead of spawning another. Onl
 spawn when no such tab exists.
 
 ```bash
-~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug> <model>
+~/.agents/skills/herdr-handoff/scripts/spawn.sh <task|handoff> <brief-path> <slug> <model> [--worktree]
 ```
 
 Run it from the repo (any checkout of it, including a linked worktree) or the directory the
-new session should work in. For a git `task` the script runs
+new session should work in. By default both modes open a tab there: background for
+`task`, focused for `handoff` inside herdr. The prompt tells the new session to keep
+that directory and branch and respect the brief's file ownership.
+
+For an explicitly isolated Git `task`, append `--worktree`. The script runs
 `herdr worktree create --label <bot>-<slug> --branch task/<slug> --cwd <repo> --no-focus`,
 starts pi in the worktree's root pane on `cliproxy/<model>`, and gives it the brief plus a
 line saying it is already in that worktree and must not create another. The worktree starts
-from the caller's HEAD (`--base`); uncommitted changes do not carry over. A `handoff`
-or non-git task opens a tab instead, with focus for `handoff`. It waits until pi starts
-working and prints the agent name, pane ID, status, model, workspace and tab IDs, worktree
-and branch.
+from the caller's HEAD (`--base`); uncommitted changes do not carry over. `--worktree`
+is rejected for handoffs and non-Git directories. It waits until pi starts working
+and prints the agent name, pane ID, status, model, workspace and tab IDs, plus worktree
+and branch (`-` when it created neither).
 
-Naming: the workspace, tab and agent share one name, `<bot>-<slug>`, cut to 32 characters
+Naming: created workspaces, tabs and agents use `<bot>-<slug>`, cut to 32 characters
 (herdr's agent-name limit). `<bot>` is `HERDR_HANDOFF_BOT` or the repo directory's name; it is
 never cut (a bot name over 24 characters is refused), and the slug is, so a watcher that
-lists workspaces by the `<bot>-` prefix finds every feature, one workspace each. The agent
+lists workspaces by the `<bot>-` prefix finds each explicitly isolated feature.
+Shared-directory tasks label their tab and agent, not a pre-existing workspace. The agent
 name must be free: if `<bot>-<slug>` is already live, the script refuses and you send the
 follow-up there. Use a distinct slug per feature.
 
@@ -237,12 +248,22 @@ For fanout or commissioned review, the commissioning parent owns acceptance and
 release; a ready report or standalone PASS cannot bypass its remaining dependencies,
 review or integration checks. Reviewer-only tasks skip Git merge/removal steps.
 
-### Merge and remove task worktrees
+### Shared-checkout tasks
 
-For `task`, the originating session performs this sequence, even if the worker's
+Save the report alongside the brief, verify the task-owned diff/commits and confirm
+the worker has stopped writing. Check that it kept the recorded checkout and branch,
+then run the checks relevant to the combined result. Unrelated dirty files do not
+require stashing or a clean-checkout gate: preserve them and verify only the agreed
+task changes. If checks fail or ownership is unclear, keep the tab warm and resolve
+the blocker. Once the completion criteria above hold, close only the recorded task
+tab/pane. Skip merge, branch deletion and worktree removal entirely; an existing
+worktree is not a dispatch-created resource.
+
+### Merge and remove explicitly created task worktrees
+
+For an explicitly isolated `task`, the originating session performs this sequence, even if the worker's
 finishing skill offers James merge/cleanup options. The worker reports readiness;
 the originating session acts. A full `handoff` still transfers ownership as in section 5.
-For non-Git tasks, save and verify the result, skip the Git-only steps and close the tab.
 
 1. Save the final report alongside the brief, outside any worktree being removed.
    Retrieve and verify it before continuing if direct delivery failed. Review the
@@ -295,7 +316,7 @@ For non-Git tasks, save and verify the result, skip the Git-only steps and close
   `herdr tab close <recorded-tab-id>`. If other panes have been added, close only
   the recorded task pane with `herdr pane close <recorded-pane-id>`. If the script
   created a workspace for the task, closing its last tab also closes that workspace.
-  A task worktree's workspace is closed by the worktree removal in section 7, which
+  An explicitly created task worktree's workspace is closed by its removal in section 7, which
   leaves nothing to close; do not close its tab first, as that would leave the worktree
   without its workspace.
 - Leave pre-existing user tabs and unrelated sessions alone. If identity cannot be

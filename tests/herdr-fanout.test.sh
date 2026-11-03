@@ -56,7 +56,10 @@ run_spawn() {
   : >"$MOCK_LOG"
   rm -f "$MOCK_STARTED"
   RC=0
-  OUT=$(cd "$TMP/plain" && bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" "${1:-task}" "$TMP/brief with spaces.md" probe "${2:-glm-5.3}" 2>&1) || RC=$?
+  local mode=${1:-task} model=${2:-glm-5.3}
+  [ "$#" -eq 0 ] || shift
+  [ "$#" -eq 0 ] || shift
+  OUT=$(cd "$TMP/plain" && bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" "$mode" "$TMP/brief with spaces.md" probe "$model" "$@" 2>&1) || RC=$?
 }
 no_tab() { ! grep -q '^tab create ' "$MOCK_LOG"; }
 no_wt() { ! grep -q '^worktree create ' "$MOCK_LOG"; }
@@ -128,14 +131,58 @@ check outside-override grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
 outside_spawn HERDR_HANDOFF_WORKSPACE=w404
 check outside-override-missing test "$RC" -ne 0
 check outside-override-missing-no-tab no_tab
-# Git task: one feature = one worktree = one workspace, pi in its root pane, no shell tab.
-git_spawn() {
+# Git tasks share the current checkout unless isolation was explicitly requested.
+repo_spawn() {
+  local mode=$1
+  shift
+  local args=()
+  if [ "${1:-}" = --worktree ]; then
+    args=(--worktree)
+    shift
+  fi
   : >"$MOCK_LOG"
   rm -f "$MOCK_STARTED"
   RC=0
-  OUT=$(cd "$TMP/Dotfiles" && env "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" task "$TMP/brief with spaces.md" fix-sync-timeout glm-5.3 2>&1) || RC=$?
+  OUT=$(cd "${MOCK_REPO_DIR:-$TMP/Dotfiles}" && env "$@" bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" "$mode" "$TMP/brief with spaces.md" fix-sync-timeout glm-5.3 "${args[@]}" 2>&1) || RC=$?
 }
+git_spawn() { repo_spawn task "$@"; }
 git_spawn
+check git-default-ok test "$RC" -eq 0
+check git-default-no-worktree no_wt
+check git-default-cwd grep -Fq -- "--cwd $TMP/Dotfiles" "$MOCK_LOG"
+check git-default-output grep -Fq 'worktree=- branch=-' <<<"$OUT"
+check git-default-prompt grep -Fq 'Do not create a worktree or switch branches' "$MOCK_LOG"
+printf 'parent work\n' >"$TMP/Dotfiles/uncommitted.txt"
+git_spawn HERDR_HANDOFF_WORKSPACE=w5
+check git-shared-workspace test "$RC" -eq 0
+check git-shared-workspace-placement grep -Fq 'tab create --workspace w5 ' "$MOCK_LOG"
+check git-shared-preserves-files grep -Fxq 'parent work' "$TMP/Dotfiles/uncommitted.txt"
+repo_spawn handoff
+check git-handoff-ok test "$RC" -eq 0
+check git-handoff-no-worktree no_wt
+check git-handoff-cwd grep -Fq -- "--cwd $TMP/Dotfiles" "$MOCK_LOG"
+check git-handoff-focus grep -Fq -- '--focus' "$MOCK_LOG"
+git -C "$TMP/Dotfiles" worktree add -q -b existing-task "$TMP/existing-task"
+MOCK_REPO_DIR="$TMP/existing-task" git_spawn
+check linked-checkout-ok test "$RC" -eq 0
+check linked-checkout-no-new-worktree no_wt
+check linked-checkout-cwd grep -Fq -- "--cwd $TMP/existing-task" "$MOCK_LOG"
+for option in --worktree --unknown; do
+  run_spawn task glm-5.3 "$option"
+  check "invalid-option-$option" test "$RC" -ne 0
+  check "invalid-option-no-tab-$option" no_tab
+  check "invalid-option-no-worktree-$option" no_wt
+done
+repo_spawn handoff --worktree
+check handoff-worktree-refused test "$RC" -ne 0
+check handoff-worktree-no-tab no_tab
+check handoff-worktree-no-worktree no_wt
+run_spawn task glm-5.3 --worktree --extra
+check extra-option-refused test "$RC" -ne 0
+check extra-option-no-tab no_tab
+# Explicit task isolation keeps the existing worktree launch and recovery contract.
+git_worktree_spawn() { git_spawn --worktree "$@"; }
+git_worktree_spawn
 check wt-ok test "$RC" -eq 0
 check wt-create-args grep -Fxq "worktree create --label dotfiles-fix-sync-timeout --branch task/fix-sync-timeout --cwd $TMP/Dotfiles --base $(git -C "$TMP/Dotfiles" rev-parse HEAD) --no-focus" "$MOCK_LOG"
 check wt-pi-in-root-pane grep -Fq 'agent start dotfiles-fix-sync-timeout --kind pi --pane wQ:p1 -- --model cliproxy/glm-5.3' "$MOCK_LOG"
@@ -145,22 +192,22 @@ check wt-tab-renamed grep -Fxq 'tab rename wQ:t1 dotfiles-fix-sync-timeout' "$MO
 check wt-prompt-says-in-worktree grep -Fq 'already in a dedicated git worktree at /wt/task-probe on branch task/fix-sync-timeout' "$MOCK_LOG"
 check wt-prompt-forbids-new grep -Fq 'Do not create another worktree' "$MOCK_LOG"
 check wt-output-ids grep -Fq 'workspace_id=wQ tab_id=wQ:t1 worktree=/wt/task-probe branch=task/fix-sync-timeout' <<<"$OUT"
-git_spawn HERDR_HANDOFF_BOT=Dotfiles-Bot
+git_worktree_spawn HERDR_HANDOFF_BOT=Dotfiles-Bot
 check wt-bot-override grep -Fq -- '--label dotfiles-bot-fix-sync-timeout ' "$MOCK_LOG"
-git_spawn HERDR_HANDOFF_BOT=averyveryveryverylongbotnameX
+git_worktree_spawn HERDR_HANDOFF_BOT=averyveryveryverylongbotnameX
 check wt-bot-too-long test "$RC" -ne 0
 check wt-bot-too-long-no-worktree no_wt
-git_spawn HERDR_HANDOFF_WORKSPACE=w5
+git_worktree_spawn HERDR_HANDOFF_WORKSPACE=w5
 check wt-workspace-env-refused test "$RC" -ne 0
 check wt-workspace-env-no-worktree no_wt
-git_spawn MOCK_EXISTING=dotfiles-fix-sync-timeout
+git_worktree_spawn MOCK_EXISTING=dotfiles-fix-sync-timeout
 check wt-existing-agent-reused test "$RC" -ne 0
 check wt-existing-agent-no-worktree no_wt
-git_spawn MOCK_WT_FAIL=1
+git_worktree_spawn MOCK_WT_FAIL=1
 check wt-create-failure test "$RC" -ne 0
 check wt-create-failure-no-agent no_agent_start
 # A bot whose name leaves only a 32-character label still gets one that keeps the "<bot>-" prefix tab-watch greps.
-git_spawn HERDR_HANDOFF_BOT=itastack-dev
+git_worktree_spawn HERDR_HANDOFF_BOT=itastack-dev
 check wt-prefix-kept grep -Fq -- '--label itastack-dev-fix-sync-timeout ' "$MOCK_LOG"
 review_skill="$ROOT/.agents/skills/independent-review/SKILL.md"
 check herdr-mode-reference grep -Fq 'references/herdr.md' "$review_skill"
