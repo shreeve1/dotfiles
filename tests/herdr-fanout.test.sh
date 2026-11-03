@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Hooks export repository-local variables; fixture Git commands must use their own repos.
+while IFS= read -r name; do unset "$name"; done < <(git rev-parse --local-env-vars)
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
