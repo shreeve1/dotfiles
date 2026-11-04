@@ -15,10 +15,9 @@
 .agents/skills/mermaid/**
 .agents/skills/langfuse/**
 .agents/skills/professional-guidance/**
-# ego-browser page snippets: bare `async function(args) {...}` bodies the
-# ego tool evaluates in a page; not parseable as modules, and reformatting
-# them risks breaking the tool.
-.agents/skills/ego-browser/learnings/**
+# ego-browser is ego's upstream skill; its learnings/ are bare page snippets
+# (`async function(args) {...}`) that are not parseable as modules.
+.agents/skills/ego-browser/**
 # Third-party omarchy plugins (shreeve1.* and surface-battery are ours)
 omarchy/config/omarchy/plugins/io.github.boomdev.voxtype-meeting-transcriber/**
 omarchy/config/omarchy/plugins/meviusisback.agent-orchestr/**
