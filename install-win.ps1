@@ -182,7 +182,6 @@ Link-Path ".config/yazi" ".config/yazi"
 Link-Path ".config/zellij" ".config/zellij"
 
 # Helper scripts on PATH when ~/.local/bin is added by the user or shell profile.
-Link-Path "bin/rralph" ".local/bin/rralph"
 Link-Path "bin/osc52" ".local/bin/osc52"
 
 # Agent browser (windows/agent-browser.md): chrome-cdp, ab and ab-input for Git Bash, pi's shell.

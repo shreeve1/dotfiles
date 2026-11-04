@@ -21,9 +21,8 @@ plans/
 youtube/
 !.agents/skills/youtube/
 
-# Machine-local helper binaries (sync rralph; keep the rest machine-local)
+# Machine-local helper binaries (sync the ones listed; keep the rest machine-local)
 bin/*
-!bin/rralph
 !bin/pi-delegate
 !bin/claude-fusion
 !bin/herdr-fork

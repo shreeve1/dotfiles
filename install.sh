@@ -368,7 +368,6 @@ if [ "$(uname -s)" = "Linux" ]; then
 fi
 
 # ─── bin scripts (onto PATH via ~/.local/bin) ──────────────
-link_path "bin/rralph" ".local/bin/rralph"
 link_path "bin/osc52" ".local/bin/osc52"
 link_path "bin/herdr-fork" ".local/bin/herdr-fork"
 link_path "bin/chrome-cdp" ".local/bin/chrome-cdp"
