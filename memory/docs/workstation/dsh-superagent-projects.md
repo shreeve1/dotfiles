@@ -16,6 +16,7 @@ topics: [workstation]
 - Project channels follow names such as `#rce---network-modernization-2026` and `#cpti-bss-transition-2026` (mostly public). James approved Nathan joining them (Slack shows one "joined" message).
 - Autonomy: everything is a draft to start (client emails, Halo updates, appointments). James's existing instructions in `~/Documents/itastack` (`AGENTS.md`, `memory/rules.md`, including the email and Halo client-reply drafting row) define how drafts are made; superagent should follow those, not new rules.
 - How James talks to it (2026-11-04): Slack only for now, not a DSH session, a herdr/pi tab or a Slack DM. Every Slack message goes through the router.
+- Questions (2026-11-04, option A): the router can't answer by itself, so a question becomes a small ticket that a worker answers through itastack. Added as text in the team "Ticket scope" prompt (prompt revision 2), with no code change. Routing a message to a project's existing ticket by name (option B) waits for option C. A ticket ends when its worker reports ready (completed); a later reply in its thread reopens it. `stop` in the thread ends it early.
 - Reachable through itastack MCP (checked 2026-11-04, read-only): Halo (tickets, actions, appointments including `find_free_slot`, ticket email), M365 (tenant `ita`, among others), 3CX (tenant `ita`), Exchange (tenant `omep` only). Whether M365 reads James's own mailbox, and what 3CX exposes for call logs, is not yet verified. The Slack bot's scopes include channel history, join and DMs (`im:history`).
 
 ## Related
