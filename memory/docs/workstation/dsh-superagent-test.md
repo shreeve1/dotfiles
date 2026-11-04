@@ -15,6 +15,7 @@ topics: [workstation]
 - GitHub setup (agent account, repo, allowed list) is on hold at James's request; the service runs and waits with setup problem `repositoryUnset`.
 - Install gotchas: `npm install -g @deepseek-ai/dsh` skips install scripts under npm's allow-scripts policy; rerun with `--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs` (dsh's own native parts). pnpm comes from `corepack enable --install-directory ~/.local/bin pnpm`.
 - Upstream `scripts/dsh-superagent` matched only `ps` ucomm `node`/`dsh`, but dsh on Node 24.22 shows as `MainThread`, so `status` said "not running". The local clone carries an uncommitted patch adding `MainThread` (a `git pull` may conflict with it); its service-script tests pass and `status` then exits 3 while waiting for setup.
+- Model provider: route `cliproxy` (`http://127.0.0.1:8317/v1`, the same 9 models as pi's `models.json`) is set in the profile's `cordis.patch.yml` under entry `llm-pi-ai`, with `agent-default-model` = `cliproxy`/`minimax-m3`. The key reference `CLIPROXY_API_KEY` resolves from `~/.dsh/.env` (mode 600, copied from pi's cliproxy key). Adding a model to pi's list means adding it here too.
 - Runs in tmux session `dsh-superagent`; the panel URL with its login token is the first line of the newest `~/src/dsh-superagent/.artifacts/dsh-superagent-superagent-*.log`. State dir `~/.dsh/state/superagent`.
 
 ## Related
