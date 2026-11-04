@@ -25,6 +25,8 @@ topics: [workstation]
 
 - Project channel to Halo project mapping (James, 2026-11-04): set by hand per channel when Nathan is invited, as a `Halo project #` field on the Slack channel row in superagent settings; a channel set to listen to all posts must name one. After the plan review James chose to revise the watcher plan rather than drop superagent.
 
+- Watcher installed 2026-11-04 (fork `ita-slack` at `21c13a0`): user timer `ita-watch.timer` (units symlinked from `~/src/dsh-superagent/scripts/ita-watch/`, weekdays 07:00-16:45 every 15 min) writes `~/.dsh/state/superagent/ita-{watch.json,spool.jsonl,watch-status.json}`. The `ita` Source is enabled in the profile patch (`dsh-superagent-ita`) with home `C09L1QNKKDF`, acting for `UC7150R96`, `statusFile` set, and `dryRun: true` (watching only: nothing is posted). Pause: `systemctl --user stop ita-watch.timer`, or the `ita` Source off. Going live is plan Task 4 (worker prompts) then `dryRun: false`.
+
 ## Related
 
 - [dsh-superagent Test Install on wsl](memory/docs/workstation/dsh-superagent-test.md): the install, the Slack app, the fork branch and the James-only scope.
