@@ -15,6 +15,7 @@ topics: [workstation]
 - Team boundary: superagent must not bother the team. It watches project channels silently and replies only in `#ai-james`. It works only on James's projects: the assigned technician shows in Halo and in each project's Slack channel. All projects are currently James's, but a project may be assigned to a teammate.
 - Project channels follow names such as `#rce---network-modernization-2026` and `#cpti-bss-transition-2026` (mostly public). James approved Nathan joining them (Slack shows one "joined" message).
 - Autonomy: everything is a draft to start (client emails, Halo updates, appointments). James's existing instructions in `~/Documents/itastack` (`AGENTS.md`, `memory/rules.md`, including the email and Halo client-reply drafting row) define how drafts are made; superagent should follow those, not new rules.
+- How James talks to it (2026-11-04): Slack only for now, not a DSH session, a herdr/pi tab or a Slack DM. Every Slack message goes through the router.
 - Reachable through itastack MCP (checked 2026-11-04, read-only): Halo (tickets, actions, appointments including `find_free_slot`, ticket email), M365 (tenant `ita`, among others), 3CX (tenant `ita`), Exchange (tenant `omep` only). Whether M365 reads James's own mailbox, and what 3CX exposes for call logs, is not yet verified. The Slack bot's scopes include channel history, join and DMs (`im:history`).
 
 ## Related
