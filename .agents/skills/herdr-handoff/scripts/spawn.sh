@@ -69,6 +69,8 @@ bot=${bot:-task}
 label=$(printf '%s-%s' "$bot" "$slug" | cut -c1-32 | sed 's/[-_]*$//')
 name=$label
 
+# A dsh session inherits HERDR_* from whatever pane started dsh, so it is never inside herdr.
+if [ -n "${DSH_SESSION_ID:-}" ]; then unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID; fi
 # Outside a herdr pane (e.g. Codex, a Rakazo bot over ssh) a reachable herdr server still works.
 # Tab placement: HERDR_HANDOFF_WORKSPACE if set, else the workspace with a pane in this directory,
 # else a new background workspace for this task. Never the focused one: that is James's.

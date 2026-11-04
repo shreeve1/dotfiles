@@ -44,6 +44,13 @@ A caller that wants its name in the labels (a Rakazo bot over ssh, say) sets
 `HERDR_HANDOFF_BOT`; for a remote machine run the script there (`ssh <host> ...`), as
 `herdr --machine <label>` forwards only herdr commands and cannot run it. If neither check passes, say herdr is not reachable and stop.
 
+A dsh session (`$DSH_SESSION_ID` set, or dsh's `sentinel_watch` tool present) is always
+outside herdr, even when `HERDR_ENV=1`: it inherits `HERDR_*` from the pane that started
+dsh, and `herdr pane current --current` then names that pane or James's focused one,
+never this session. The script ignores those variables under dsh. In a dsh `ssh://`
+workspace, bash already runs on the remote host, so run the script there directly.
+The worker is still pi; dsh only writes the brief, starts the tab and owns the finish.
+
 ## 2. Write the brief
 
 For `task`, first establish a verified reply address on the same herdr server. Inside
@@ -53,6 +60,16 @@ works even when the agent has no name; never derive an agent name from the tab l
 Outside herdr, use `herdr agent list` only if its session path identifies the originating
 session unambiguously. Otherwise state that no direct reply target is available and
 choose a unique report-file path alongside the brief for the originating session to read.
+From dsh there is never a herdr reply target: write `Reply to: unavailable (dsh session
+<$DSH_SESSION_ID>)` and a report file `<brief-without-.md>.report.md`, so the hub and
+check-my-tabs can attribute the tab to its dsh owner. After spawning, register a
+`sentinel_watch` so dsh wakes when the report lands instead of polling: kind `file` on
+the report path for a local task, or kind `command` with
+`ssh -o BatchMode=yes <host> 'test -s <report> && echo ready || echo waiting'`, pattern
+`^ready$`, for a remote one. Its note names the brief, the recorded tab identities and
+"read the report, verify, then finish per herdr-handoff section 7". Skip the watch for a
+worker handed to the orchestration hub (tracked as Drive): the hub owns its finish, and
+a second owner would double-drive it.
 
 Write it to `~/.local/state/herdr-handoff/<YYYYMMDD-HHMMSS>-<slug>.md`, where `<slug>`
 is 2-4 lowercase words joined by hyphens (`fix-sync-timeout`). Keep it out of the repo.
@@ -129,6 +146,7 @@ session can search it if it needs more:
 
 - pi in a herdr pane: `herdr pane current --current | jq -r '.result.pane.agent_session.value'`
 - Codex: `ls ~/.codex/sessions/*/*/*/*"$CODEX_THREAD_ID"*.jsonl`
+- dsh: `ls -d ~/.dsh/sessions/*/"$DSH_SESSION_ID"` (on wsl, also for an `ssh://` workspace)
 
 ## 3. Pick the model
 
@@ -228,6 +246,12 @@ herdr agent prompt <target> "From <sender-target>: <update or question>"
   or unverified. A result message is evidence to inspect, not proof of completion.
   After verification and any commissioning parent acceptance, carry out the pre-approved local merge and cleanup in section 7;
   pushes and deployments retain their usual approval requirements.
+
+- **dsh as originating session:** `herdr agent prompt` still works from dsh, so
+  follow-ups go to the recorded pane as usual; replies arrive only through the report
+  file and its sentinel wake. A worker that needs an answer writes its question to the
+  report file and stops; dsh answers in the tab. Re-register the watch after each wake
+  while the task is open, and cancel it at close.
 
 This communication and the standing local merge/cleanup approval are scoped to the
 delegated task; they do not authorise unrelated changes or external actions. In

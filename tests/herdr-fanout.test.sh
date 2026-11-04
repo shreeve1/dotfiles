@@ -7,6 +7,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/home/.pi/agent"
 export HOME="$TMP/home" PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_WORKSPACE_ID=w1
+unset DSH_SESSION_ID # only the dsh case below sets it
 export MOCK_LOG="$TMP/calls" MOCK_STARTED="$TMP/started" MOCK_STATUS=working MOCK_STALLED=0 MOCK_UNREADABLE=0 MOCK_WT_FAIL=0
 mkdir -p "$TMP/plain" "$TMP/Dotfiles"
 git -C "$TMP/Dotfiles" init -q
@@ -133,6 +134,17 @@ check outside-override grep -q '^tab create --workspace w5 ' "$MOCK_LOG"
 outside_spawn HERDR_HANDOFF_WORKSPACE=w404
 check outside-override-missing test "$RC" -ne 0
 check outside-override-missing-no-tab no_tab
+# A dsh session inherits HERDR_ENV from the pane that started dsh; it still counts as outside herdr.
+run_spawn_dsh() {
+  : >"$MOCK_LOG"
+  rm -f "$MOCK_STARTED"
+  RC=0
+  OUT=$(cd "$TMP/plain" && DSH_SESSION_ID=session-x HERDR_PANE_ID=w1:p9 bash "$ROOT/.agents/skills/herdr-handoff/scripts/spawn.sh" handoff "$TMP/brief with spaces.md" probe glm-5.3 2>&1) || RC=$?
+}
+run_spawn_dsh
+check dsh-ok test "$RC" -eq 0
+check dsh-new-workspace grep -q '^workspace create .*--no-focus' "$MOCK_LOG"
+check dsh-not-current-workspace no_tab
 # Git tasks share the current checkout unless isolation was explicitly requested.
 repo_spawn() {
   local mode=$1
