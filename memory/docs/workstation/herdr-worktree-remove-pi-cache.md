@@ -1,6 +1,6 @@
 ---
 title: herdr worktree remove and the live pi mesh cache
-summary: A task pane's live pi session rewrites .pi/fabric/mesh/state.json, so herdr worktree remove refuses a "clean" worktree; delete .pi and remove in one command, then clear the dir it leaves.
+summary: A live task pi rewrites .pi/fabric/mesh/state.json, so herdr worktree remove refuses; delete .pi and remove in one command.
 type: doc
 status: promoted
 created: 2026-11-04
