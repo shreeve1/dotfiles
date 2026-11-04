@@ -5,9 +5,6 @@
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
 | [Ego Browser Access from WSL](memory/docs/workstation/ego-browser-wsl-access.md) | doc | WSL can call wrk's bundled Windows ego-browser.exe directly even when ego-browser is absent from PATH. | 2026-11-04 |
-
-| Page | Type | Summary | Updated |
-|------|------|---------|---------|
 | [Team Computer GitHub SSH](memory/docs/workstation/team-computer-github-ssh.md) | doc | Use the mounted SSH config for GitHub; verify clone-specific pre-push hooks. | 2026-11-02 |
 | [WSL Clipboard Image Paste in pi](memory/docs/workstation/wsl-clipboard-image-paste.md) | doc | pi pastes images on WSL via powershell.exe (Alt+V); herdr's systemd PATH omits /mnt/c, so install.sh links it into ~/.local/bin. | 2026-11-02 |
 | [Hermes Media SQLite Runtime](memory/docs/workstation/hermes-media-sqlite.md) | doc | Wrk Hermes uses fixed SQLite; cold backup includes root databases and runtime rollback does not undo data writes. | 2026-11-01 |
