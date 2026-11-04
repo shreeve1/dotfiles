@@ -120,7 +120,7 @@ the conversation instead of inside it.
    `strict: true` → `dsh-plugin-dev check --strict --json` →
    `dsh-plugin-dev verify`.
 5. **Install** — `dsh plugin --profile web add <spec>`, one plugin per restart,
-   then the deps==bundled cross-check from `docs/deepseek-harness.md`.
+   then the deps==bundled cross-check from `archive/docs/deepseek-harness.md`.
 6. **Teach-side** — add a row to `quiz-ui.md`'s tool table so the skill recognises
    the panel as a valid question surface. **Without this the skill will not use it.**
 

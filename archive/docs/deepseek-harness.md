@@ -1,5 +1,8 @@
 # DeepSeek Harness (dsh) — homelab deployment on `aidev`
 
+> **Archived 2026-11-03.** This records the retired `aidev` dsh 0.1.x deployment (aidev was decommissioned 2026-11-01). Several of its plugins do not support dsh 0.2.x (`dsh-full-remote`, `@tecfancy/dsh-mobile` and `dsh-file-review-tab` require 0.1.x), so do not install from it. Paths below are from before the move to `archive/`. The current dsh test install is described in `memory/docs/workstation/dsh-superagent-test.md`.
+
+
 Reference for the self-hosted DeepSeek Harness web UI running on `aidev`
 (`10.20.20.16`), reachable over the netbird tailnet at
 `https://100.95.230.15:3080`. Written after the initial install so future-me can

@@ -224,7 +224,7 @@ here.
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
   `extensions` settings, to keep Pi's prompt-token load down — Pi asks inline in
   chat instead. This is a Pi-only choice and says nothing about dsh, where
-  `ask_user_question` IS mounted and used (see `docs/deepseek-harness.md`).
+  `ask_user_question` IS mounted and used (see `archive/docs/deepseek-harness.md`).
   Removing only a `packages` entry is insufficient because Pi auto-discovers
   `extensions/*/index.ts`.
 - Pi `pi-advisor-flow` (npm `pi-advisor-flow@0.13.1`, by philipbrembeck;

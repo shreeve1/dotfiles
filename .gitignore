@@ -28,7 +28,6 @@ bin/*
 !bin/claude-fusion
 !bin/herdr-fork
 !bin/prune-dead-links
-!bin/dsh-browser-control-english
 !bin/chrome-cdp
 !bin/ab
 !bin/ab-input

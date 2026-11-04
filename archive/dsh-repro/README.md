@@ -1,5 +1,8 @@
 # dsh-repro — captured portable dsh web profile
 
+> **Archived 2026-11-03.** This records the retired `aidev` dsh 0.1.x deployment (aidev was decommissioned 2026-11-01). Several of its plugins do not support dsh 0.2.x (`dsh-full-remote`, `@tecfancy/dsh-mobile` and `dsh-file-review-tab` require 0.1.x), so do not install from it. Paths below are from before the move to `archive/`. The current dsh test install is described in `memory/docs/workstation/dsh-superagent-test.md`.
+
+
 Snapshot of the live `~/.dsh/profiles/web` manifest, made portable for a
 reproducible install on another machine. Captured by this session.
 
