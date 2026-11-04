@@ -23,6 +23,8 @@ topics: [workstation]
 
 - Fork internals that shape any watcher build (verified 2026-11-04 in a 4-model plan review): the router accepts only candidates whose assessment says an implementation was requested with a settled target (`src/policy.ts` `directionAllowed`), so watcher news is ignored unless a rule or the admission prompt says it counts; `bindThread` adds a followed thread that keeps a ticket from ending until the thread closes, so it is not a reply-routing tool; workers have no Slack posting tool (only `orchestrator_report`, relayed by the router session); `commands.run` kills a subprocess after 90 s; a Slack thread is one top-level message, so each channel post is its own thread unless mapped; an ended ticket stays subscribed and a person's reply in its thread resumes it.
 
+- Project channel to Halo project mapping (James, 2026-11-04): set by hand per channel when Nathan is invited, as a `Halo project #` field on the Slack channel row in superagent settings; a channel set to listen to all posts must name one. After the plan review James chose to revise the watcher plan rather than drop superagent.
+
 ## Related
 
 - [dsh-superagent Test Install on wsl](memory/docs/workstation/dsh-superagent-test.md): the install, the Slack app, the fork branch and the James-only scope.
