@@ -1,6 +1,6 @@
 ---
 name: antislop
-description: "Anti Slop: Rules for AI Coding Agents. The core filter. Load always to stop generic AI slop."
+description: "Anti Slop core rules for user-facing work. Use when building or editing an interface or writing prose people will read; load before any antislop-* skill."
 allowed-tools: Read Write Edit Glob Grep
 ---
 # antislop
