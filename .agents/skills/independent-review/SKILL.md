@@ -1,6 +1,6 @@
 ---
 name: independent-review
-description: Independent review by fresh-context subagents on a different model family, to find gaps in finished or planned work. Use when the user asks for an independent review, a gap check, a second opinion from a subagent, "look for any gaps", or adds "quick" for a single fast reviewer.
+description: Independent review by fresh-context subagents on a different model family, to find gaps in finished or planned work. Use when the user asks for an independent review, a gap check, a second opinion from a subagent, "look for any gaps", or adds "quick" for a single fast reviewer, or "eval" to judge a tool or approach without the current setup.
 ---
 
 # Independent Review
@@ -20,6 +20,41 @@ When the user says "quick" (or "fast"), run one reviewer on a fast model. Steps 
 - **Judgment:** verify each high finding against the code; triage the mediums. Skip the cross-reviewer deduplication pass.
 
 Quick mode has no Architect or Minimalist lens: expect it to miss design-level findings and "this is more than the goal needs". Say so in one line of the verdict.
+
+## Eval mode
+
+When the user says "eval" (or "evaluate"), run one reviewer that judges a candidate (a tool, product, method or design) against the user's goal with no knowledge of what they run today. The point is a view free of the incumbent's anchor, so the brief is the whole lever. Step 2's model rules, Step 3's single-subagent call and Step 4 still apply; Step 1, Step 5 and the verdict change as below.
+
+- **Brief:** the goal in outcome terms, the real constraints (team size, platforms, security, budget, integrations that must stay), and where to read the candidate: its URL, its docs, or a clone in a scratch folder such as `/tmp`. Write the goal without naming the tools the user runs now; an incumbent that is a hard requirement becomes a constraint ("must read Halo tickets"), not a product name. Leave out memory, the session's leaning and your own view. If you cannot state the goal without the incumbent, ask the user.
+- **Prompt:** the template below with `{LENS}` = Eval, the brief under Intent, and the Eval lens text. Swap its first line for `You are an independent evaluator with the Eval lens. Give a fair, evidence-based judgment; neither sell nor dismiss.` Drop the severity rule; the output is the Fit, Strongest case, Costs and Deciding test sections of the eval verdict.
+- **Model:** the first model in Step 2's row for your family, with its fallback rules. Judgment matters more than speed here.
+- **Read:** the candidate's own material only: the scratch copy or URLs. Keep the user's working repos out of the brief.
+- **Judgment:** set the reviewer's verdict beside the incumbent. Name where its read differs from yours earlier in the session; that gap is the anchor showing. Switching cost goes in once, as its own row. The user decides; offer no fix loop.
+
+Eval verdict:
+
+```text
+## Goal
+<one paragraph, as briefed>
+
+## Reviewer
+<model>
+
+## Fit
+Per goal requirement: meets | partly | no, with evidence (doc section, file or URL)
+
+## Strongest case for adopting
+<what this candidate does well for this goal>
+
+## Costs and risks
+<setup, upkeep, maturity, lock-in, security; with evidence>
+
+## Deciding test
+<the smallest trial that would settle it>
+
+## Lead comparison
+Candidate vs incumbent per requirement, switching cost as one row, and where the reviewer's view differed from the session's.
+```
 
 ## Step 1: Scope and intent
 

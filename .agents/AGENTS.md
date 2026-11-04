@@ -23,7 +23,11 @@ For separate herdr tasks, use two-way collaboration through `herdr-handoff`: the
 
 ## Simplicity
 
-Write the minimum that solves the problem: stdlib, then platform features, then already-installed dependencies, then the fewest lines. No speculative features, abstractions or configurability. Never skimp on input validation at trust boundaries, data-loss handling, security or accessibility. Mark deliberate shortcuts with a `ponytail:` comment naming the limit and the upgrade path.
+When building, write the minimum that solves the problem: stdlib, then platform features, then already-installed dependencies, then the fewest lines. No speculative features, abstractions or configurability. Never skimp on input validation at trust boundaries, data-loss handling, security or accessibility. Mark deliberate shortcuts with a `ponytail:` comment naming the limit and the upgrade path.
+
+## Evaluating options
+
+When I'm weighing a tool, method or approach, judge each candidate against my goal on its own terms before comparing. What I already run is one candidate, not the yardstick, because models lean hard toward the status quo; count switching cost once, as its own line. For a choice with real stakes, offer `independent-review eval` for a fresh-context view.
 
 ## Showing me things
 

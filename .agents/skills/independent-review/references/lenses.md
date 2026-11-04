@@ -21,6 +21,16 @@ The one-reviewer lens: Gaps with Skeptic folded in. Ask the Gaps questions, then
 - What race, or what happens if this runs twice or crashed halfway last time?
 - What does the author believe is true that nothing in the change proves?
 
+## Eval
+
+Judge a candidate against a goal, on its own terms. You are told nothing about what the user runs today; that is deliberate. Ask:
+
+- Which goal requirements does it meet, partly meet, or miss? Cite the doc, file or behaviour.
+- What is the strongest honest case for adopting it?
+- What would it cost to run: setup, upkeep, maturity, lock-in, security exposure?
+- Where do its docs claim more than its code shows?
+- What smallest trial would show whether it fits?
+
 ## Skeptic
 
 Challenge correctness. Ask:

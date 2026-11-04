@@ -4,6 +4,10 @@
 
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
+| [Ego Browser Access from WSL](memory/docs/workstation/ego-browser-wsl-access.md) | doc | WSL can call wrk's bundled Windows ego-browser.exe directly even when ego-browser is absent from PATH. | 2026-11-04 |
+
+| Page | Type | Summary | Updated |
+|------|------|---------|---------|
 | [Team Computer GitHub SSH](memory/docs/workstation/team-computer-github-ssh.md) | doc | Use the mounted SSH config for GitHub; verify clone-specific pre-push hooks. | 2026-11-02 |
 | [WSL Clipboard Image Paste in pi](memory/docs/workstation/wsl-clipboard-image-paste.md) | doc | pi pastes images on WSL via powershell.exe (Alt+V); herdr's systemd PATH omits /mnt/c, so install.sh links it into ~/.local/bin. | 2026-11-02 |
 | [Hermes Media SQLite Runtime](memory/docs/workstation/hermes-media-sqlite.md) | doc | Wrk Hermes uses fixed SQLite; cold backup includes root databases and runtime rollback does not undo data writes. | 2026-11-01 |
@@ -15,6 +19,7 @@
 | [Alerting Stack Runs on wrk](memory/docs/projects/alerting-stack-wrk.md) | doc | Wazuh->router->alertmanager->dispatch->ops-board serves from wrk; OpsAgentSink needs the unit drop-in env, inbound answers only on the NetBird IP. | 2026-10-31 |
 | [SURFTOP Sleep and RustDesk Power Requests](memory/docs/surftop-sleep-rustdesk.md) | doc | RustDesk's disconnected remote session can hold a DISPLAY request; SURFTOP's Qualcomm SoC also spends most Modern Standby time outside hardware DRIPS. | 2026-10-30 |
 | [Independent Review Quick Mode](memory/decisions/workstation/decision-independent-review-quick-mode.md) | decision | Quick review mode: one fast reviewer covering gaps and breakage, diff plus call sites, max 5 findings; the full review is unchanged. | 2026-10-29 |
+| [Independent Review Eval Mode](memory/decisions/workstation/decision-independent-review-eval-mode.md) | decision | "eval" runs one reviewer blind to the current setup to judge a tool or approach; global AGENTS.md says the incumbent is a candidate, not the yardstick. | 2026-11-04 |
 | [Herdr Projects Board Removed](memory/decisions/workstation/decision-herdr-projects-removed.md) | decision | The herdr-projects board was uninstalled and deleted on all machines on 2026-10-31; skill, pi extension, docs and config blocks are gone from dotfiles. | 2026-10-31 |
 | [Graphify Removed Fleet-Wide](memory/decisions/workstation/decision-graphify-removed.md) | decision | graphify was removed fleet-wide on 2026-10-31: skill, CLI, global commit hook and pi guard are gone; surftop's Windows skill copy is still to delete. | 2026-10-31 |
 | [pi Tool-Call Content Blocks](memory/docs/knowledge/pi-tool-call-blocks.md) | doc | In pi messages a tool call is a toolCall block (name, arguments), not Anthropic's tool_use/input; parsing tool_use silently finds nothing. | 2026-10-25 |
