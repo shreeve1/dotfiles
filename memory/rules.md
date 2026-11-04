@@ -20,7 +20,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/workstation/pi-footer-git-polling.md` | |
 | Setting up or enabling REA MCP, or reducing Pi helper memory | | `memory/decisions/workstation/decision-rea-disabled-by-default.md` | |
 | A [pi-fabric-program-run] block shows in pi, or an extension runs Fabric host programs | | `memory/docs/knowledge/fabric-host-program-run-messages.md` | |
-| Changing Pi Fabric mesh or peer notices | | `memory/docs/workstation/pi-fabric-mesh-preference.md` | |
+| Changing Pi Fabric automatic helpers, mesh or peer notices | | `memory/docs/workstation/pi-fabric-mesh-preference.md` | |
 | Changing pi's default model or settings.json | | `memory/docs/workstation/pi-default-model-per-machine.md` | |
 | Changing pi's compaction reserve tokens or per-model compaction overrides | | `memory/docs/workstation/pi-compaction-model-overrides.md` | |
 | Installing/updating Codex CLI or changing its CLIProxy provider | | `memory/docs/workstation/codex-cliproxy-fleet.md` | |

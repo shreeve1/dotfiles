@@ -10,7 +10,7 @@ topics: [workstation]
 
 ## Decision
 
-James chose REA-only disabling across all active systems on 2026-11-04. Keep REA installed but do not automatically start its MCP reverse-engineering server in Pi. Code-analysis helpers and Fabric session actors are outside this decision and remain enabled. Re-enable REA only for an explicitly requested need.
+James chose REA-only disabling across all active systems on 2026-11-04. Keep REA installed but do not automatically start its MCP reverse-engineering server in Pi. Code-analysis helpers remain enabled. Fabric session actors are governed by the separate [automatic-helper policy](memory/docs/workstation/pi-fabric-mesh-preference.md). Re-enable REA only for an explicitly requested need.
 
 ## Applied state
 
