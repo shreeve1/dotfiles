@@ -4,14 +4,14 @@ summary: dsh 0.2.1-rc.3 reinstalled on wsl 2026-11-03 only to test dsh-superagen
 type: doc
 status: promoted
 created: 2026-11-03
-updated: 2026-11-03
+updated: 2026-11-04
 topics: [workstation]
 ---
 
 ## Active memory
 
 - James approved reinstalling dsh on wsl on 2026-11-03, as a test only, to try `deepseek-ai/dsh-superagent-prototype`. The fleet note "dsh is retired" still describes the long-term state; update it if James keeps dsh.
-- James asked for no extra dsh plugins: only `dsh-superagent` (linked from `~/src/dsh-superagent`) is in profile `~/.dsh/profiles/superagent`. dsh's 12 `dsh-experimental-*` bundles ship switched off; leave them off. Don't reinstall the old aidev plugin set from `archive/docs/deepseek-harness.md`.
+- James asked for no extra dsh plugins: only `dsh-superagent` (linked from `~/src/dsh-superagent`) is in profile `~/.dsh/profiles/superagent`. dsh's 12 `dsh-experimental-*` bundles ship switched off; leave them off. Exception approved 2026-11-04: `@clxzl/dsh-mobile-adapt` 1.1.0 (phone layout; stops the page scrolling past the end in Android Chrome). It loads live without a restart; remove with `dsh plugin --profile superagent remove @clxzl/dsh-mobile-adapt`. Don't reinstall the old aidev plugin set from `archive/docs/deepseek-harness.md`.
 - Superpowers (`obra/superpowers`, 15 skills) installed 2026-11-03 at James's request: cloned to `~/src/superpowers`, and `~/.dsh/skills` is a symlink to its `skills/` folder, so every dsh profile sees them (dsh's user skill folder, ranked ahead of `~/.agents/skills`). Not a dsh plugin, and not in pi or Claude Code. dsh has no session-start hook, so `using-superpowers` is only listed, not auto-injected as it is in other harnesses. Update with `git -C ~/src/superpowers pull`; remove by deleting the symlink.
 - GitHub is not used: the GitHub Source is switched off, and the fork lets setup finish without a repository then (workers get a `gh` that fails).
 - Install gotchas: `npm install -g @deepseek-ai/dsh` skips install scripts under npm's allow-scripts policy; rerun with `--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs` (dsh's own native parts). pnpm comes from `corepack enable --install-directory ~/.local/bin pnpm`.
