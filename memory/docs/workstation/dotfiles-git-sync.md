@@ -20,6 +20,7 @@ topics: [workstation]
 - On both machines the inner file was backed up next to itself as `AGENTS.md.herdr-sync-<timestamp>.bak` and replaced with a real symbolic link to the checkout's `.agents/AGENTS.md`. Verify installed content (or its hash), not just repository HEAD. Keep this a machine-local repair; Git may show `.pi/agent/AGENTS.md` modified while `core.symlinks=false`. Do not commit that local representation change.
 - Reaching the Windows checkouts: from wsl, drive wrk Windows through interop (`"/mnt/c/Program Files/Git/cmd/git.exe" -C C:/Users/james/dotfiles ...`); wsl has no known_hosts entry for wrk Windows sshd, so `ssh james@100.95.235.60` fails host-key verification. Over ssh to surftop, write the git.exe path with forward slashes: backslashes are stripped in the ssh-to-cmd hop (`C:Program`).
 - A pull blocked by an uncommitted root `AGENTS.md` edit (the same pi-fabric pin line on every machine, 2026-11-04): `git stash push -- AGENTS.md`, `git pull --ff-only`, `git stash pop`; check the edit applies on origin/main first.
+- `.agents/skills/ego-browser` is tracked in dotfiles since 2026-11-03 (`d71fda81`, v2.1.0), but on wrk Windows and surftop that path is a junction to ego's installed skill (`C:\Users\james\.local\share\ego\ego-skills`). Git then shows every ego-browser file as modified, and a pull that touches them fails with `Invalid argument`. On surftop (2026-11-04) the junction chain was already broken: ego 0.5.2.12 is installed and `active_version_dir\ego-skills\ego-browser` does not exist.
 
 ## Related
 
