@@ -11,7 +11,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 |---|---|---|---|
 | Always | | | |
 | Delegating work into herdr tabs, coordinating separate herdr sessions or selecting warm review | | `memory/preferences/herdr-two-way-collaboration.md` | |
-| Working in a dsh session and dsh needs a restart, e.g. after installing a dsh plugin | herdr-handoff | `memory/preferences/dsh-restart-via-herdr.md` | |
+| Working in a dsh session and dsh needs a restart, e.g. after installing a dsh plugin | skill `herdr-handoff` | `memory/preferences/dsh-restart-via-herdr.md` | |
 | Shorthand name of a host, service, person or system | | `memory/glossary.md` | |
 | A word that sounds like a defined term | | `CONTEXT.md` | |
 | A task needs the graphify knowledge graph | | `memory/decisions/workstation/decision-graphify-removed.md` | Removed fleet-wide 2026-10-31; do not reinstall. |
