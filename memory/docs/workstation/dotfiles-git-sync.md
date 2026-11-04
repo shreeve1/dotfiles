@@ -4,7 +4,7 @@ summary: Any machine may commit to dotfiles, so pull --rebase --autostash before
 type: doc
 status: promoted
 created: 2026-10-31
-updated: 2026-10-31
+updated: 2026-11-04
 topics: [workstation]
 ---
 
@@ -18,6 +18,8 @@ topics: [workstation]
 
 - wrk Windows and surftop have `~/.pi/agent` and `~/.agents/skills` linked into their native dotfiles checkout. With `core.symlinks=false`, the tracked inner `.pi/agent/AGENTS.md` can be a plain file containing only `../../.agents/AGENTS.md`; pi then reads a path instead of the global guidance. A successful pull alone does not verify installation.
 - On both machines the inner file was backed up next to itself as `AGENTS.md.herdr-sync-<timestamp>.bak` and replaced with a real symbolic link to the checkout's `.agents/AGENTS.md`. Verify installed content (or its hash), not just repository HEAD. Keep this a machine-local repair; Git may show `.pi/agent/AGENTS.md` modified while `core.symlinks=false`. Do not commit that local representation change.
+- Reaching the Windows checkouts: from wsl, drive wrk Windows through interop (`"/mnt/c/Program Files/Git/cmd/git.exe" -C C:/Users/james/dotfiles ...`); wsl has no known_hosts entry for wrk Windows sshd, so `ssh james@100.95.235.60` fails host-key verification. Over ssh to surftop, write the git.exe path with forward slashes: backslashes are stripped in the ssh-to-cmd hop (`C:Program`).
+- A pull blocked by an uncommitted root `AGENTS.md` edit (the same pi-fabric pin line on every machine, 2026-11-04): `git stash push -- AGENTS.md`, `git pull --ff-only`, `git stash pop`; check the edit applies on origin/main first.
 
 ## Related
 
