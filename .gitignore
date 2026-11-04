@@ -262,6 +262,9 @@ omarchy/config/omarchy/plugins/evindor.keystroke/
 # Skill tooling machine-local state (trash + sync cache)
 .agents/skills/.trash/
 .agents/skills/synced/
+# ego installs and updates its own ego-browser skill; on Windows this path is a
+# junction to ego's copy, so tracking it fights every ego update.
+.agents/skills/ego-browser/
 
 # offload transport scratch + pi loop-run state (machine-local)
 .offload/
