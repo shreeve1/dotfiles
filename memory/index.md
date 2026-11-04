@@ -52,6 +52,7 @@
 
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
+| [dsh Restarts via herdr-handoff](memory/preferences/dsh-restart-via-herdr.md) | preference | From a dsh session, hand dsh restarts (e.g. after a plugin install) to a herdr-handoff task. | 2026-11-04 |
 | [Herdr Two-Way Collaboration](memory/preferences/herdr-two-way-collaboration.md) | preference | Herdr handoff/task worktrees are opt-in; parent owns verification and cleanup. Fanout retains its separate isolation policy. | 2026-11-03 |
 
 ## Client Hubs
