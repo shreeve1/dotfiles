@@ -37,7 +37,9 @@
   },
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
-  "extensions": [],
+  "extensions": [
+    "pi-lens-project-off.ts"
+  ],
   "enabledModels": [
     "cliproxy/minimax-m3",
     "cliproxy/claude-opus-5-5",

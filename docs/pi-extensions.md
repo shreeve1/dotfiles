@@ -219,6 +219,14 @@ here.
   (skipped in the generic extension loop). Skills resolve at runtime via the
   package's own `skills/` (`resolvePackagePath`), not the manifest's
   `skills: ["../../skills"]`.
+- **pi-lens off per project (2026-11-05):** pi-lens's `lens.enabled` is
+  machine-wide only. `.pi/agent/pi-lens-project-off.ts` (listed first in the
+  global `settings.json` `extensions`, so it loads before auto-discovered
+  pi-lens) points `PI_LENS_CONFIG_PATH` at the nearest `.pi/pi-lens.json` up
+  from the cwd. A project holding `{"lens": {"enabled": false}}` there runs
+  without pi-lens; others keep `~/.pi-lens/config.json`. itastack uses it:
+  pi-lens scanned its ~11k files before every bash call (~1.3 s each). Only the
+  global `extensions` list loads it; a project-level extension loads too late.
 - Pi `ask_user_question` remains vendored at
   `.pi/agent/extensions/rpiv-ask-user-question`, but is intentionally disabled by
   the exact `-extensions/rpiv-ask-user-question/index.ts` exclusion in Pi's
