@@ -116,6 +116,15 @@ Report the exact final commit (or owned diff if uncommitted) and stop writing wh
 the originating session verifies. Keep the assigned checkout and branch.
 ## Verify
 <how to prove it is done>
+## Final report
+End the final result (message and report file) with these headings, in this order:
+`## Status` ready | partial | blocked; `## Commits` exact commits or owned diff, or (none);
+`## What I did`; `## Checked by` one label, then the commands run and their results;
+`## Notes and concerns`; `## Suggested follow-ups`.
+Checked by labels: `live` (ran it for real and saw it work), `test` (a targeted test
+exercises the change and passes), `build-only` (only builds or type-checks),
+`not-checked`, `blocked-from-checking` (the environment stopped the check; say why).
+Pick the strongest label your evidence supports; never round a blocked check up.
 ```
 
 **`handoff` brief** - everything needed to carry on. The focus decides what comes

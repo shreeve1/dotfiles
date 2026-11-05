@@ -82,7 +82,8 @@ snapshots or cleanup. Serialize shared resources and external actions.
 
 A worker's report names ready/blocked/needs-context, actual source tip or snapshot,
 files changed, commands/results (RED/GREEN when required), concerns, remaining
-limitations and consumer dependencies. Never require shared memory edits to finish.
+limitations and consumer dependencies. It uses the headings and `Checked by` labels
+of the `herdr-handoff` task brief's Final report, with these Status values. Never require shared memory edits to finish.
 Reports are evidence for the parent to inspect, not delegated acceptance authority.
 
 ## Messages and recovery
