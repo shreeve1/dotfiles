@@ -11,6 +11,7 @@
 | [Hermes Media SQLite Runtime](memory/docs/workstation/hermes-media-sqlite.md) | doc | Wrk Hermes uses fixed SQLite; cold backup includes root databases and runtime rollback does not undo data writes. | 2026-11-01 |
 | [dsh-superagent Halo Project Watching](memory/docs/workstation/dsh-superagent-projects.md) | doc | Superagent Halo project watching: live per-project tickets, silent in project channels, drafts only. | 2026-11-04 |
 | [dsh Permanent Browser Login](memory/docs/workstation/dsh-browser-login.md) | doc | Private permanent login bookmark; local dsh auth patch needs reapplying after upgrades. | 2026-11-04 |
+| [dsh ssh-workspace picker patch](memory/docs/workstation/dsh-ssh-workspace-picker-patch.md) | doc | Local plugin patch; verify served plugin clients via the plugins/ rev URL. | 2026-11-04 |
 | [dsh-superagent Test Install on wsl](memory/docs/workstation/dsh-superagent-test.md) | doc | dsh test install on wsl for dsh-superagent; console down → `status`, a recovery timer restarts it. | 2026-11-04 |
 | [herdr Worktree Remove vs Live pi Cache](memory/docs/workstation/herdr-worktree-remove-pi-cache.md) | doc | A live task pi rewrites .pi/fabric/mesh/state.json, so herdr worktree remove refuses; delete .pi and remove in one command, then clear the leftover dir. | 2026-11-04 |
 | [Rakazo Stopped](memory/docs/workstation/rakazo-stopped.md) | doc | Stopped, not removed; stale Chromium sessions had used ~2 cores. | 2026-11-02 |
