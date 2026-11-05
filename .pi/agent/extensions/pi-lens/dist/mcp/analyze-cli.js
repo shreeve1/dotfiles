@@ -2,28 +2,28 @@
 import { createRequire as __pilensCreateRequire } from "node:module"; const require = __pilensCreateRequire(import.meta.url);
 import {
   AUTOMATION_FRAMING
-} from "../chunk-KBG47GHP.js";
+} from "../chunk-6GMGEKQN.js";
 import {
   recordTurnEndOutcome,
   requestWarmAnalyze,
   requestWarmTurnEnd
-} from "../chunk-L3BLXZG7.js";
+} from "../chunk-CZL44WFN.js";
+import "../chunk-VPLBLWFO.js";
 import {
   setProjectTrustState
-} from "../chunk-ZANLILYD.js";
-import "../chunk-2EECBNC5.js";
-import "../chunk-JAU72XNY.js";
+} from "../chunk-JE6HKLC7.js";
+import "../chunk-2453RRJ2.js";
 import {
   flushExtensionLog,
   logExtension
-} from "../chunk-XTMJ7XDT.js";
-import "../chunk-JMYYOTQG.js";
-import "../chunk-QQNQ7SJW.js";
+} from "../chunk-WQV6BI4Q.js";
+import "../chunk-S26LC76R.js";
+import "../chunk-565VRUP4.js";
 import {
   redactSecrets
-} from "../chunk-AOHZU2BM.js";
+} from "../chunk-VLQ7UKZH.js";
 import "../chunk-LJDODBBZ.js";
-import "../chunk-N2H3ZPZY.js";
+import "../chunk-GMROJJRN.js";
 import "../chunk-NXL4FFQQ.js";
 
 // dist/mcp/analyze-cli.js
@@ -199,7 +199,7 @@ async function main() {
       process.exit(0);
     let result = await requestWarmAnalyze(cwd, file);
     if (!result) {
-      const { analyzeFile } = await import("../chunk-3YN6V5TV.js");
+      const { analyzeFile } = await import("../chunk-OFNMHPBT.js");
       result = await analyzeFile(file, cwd, {
         flags: withLsp ? {} : { "no-lsp": true },
         record: false,

@@ -20,6 +20,18 @@ the deliverable is the recorded refutation (which invariant covers it, with the
 probe) and, where cheap, an assertion that pins it, not machinery for a
 collision that cannot occur.
 
+**Speculative robustness needs buy-in.** Before adding mechanism for a race,
+security edge case or failure nobody has reproduced, state the trigger path
+(which inputs, in what order, through which production caller), the evidence
+that it can happen, and the cost (new state, seams, tests to maintain). Without
+a reproduction the default is no new mechanism: record the case as a hypothesis
+or an accepted residual for the maintainer to decide. Workers flag it in the
+hand-back and do not build it; reviewers file an unproven race as a hypothesis,
+not a high-severity finding. This never waives validation, error handling or
+security at a real trust boundary; it bounds new mechanism, not hygiene.
+Screen: can the author name the production sequence that triggers it, with
+evidence?
+
 **Climb the minimalism ladder before writing code.** Be lazy about the
 solution, never about reading. Trace the real flow, then ask in order: does this
 need to exist at all; does the codebase already do it (reuse the seam); does the
@@ -54,6 +66,16 @@ state. A resource bounded along one axis and unbounded along another is a leak.
 event per session, never one per occurrence in a loop; repeated degradations go
 through a once-only or counted record. A discriminator nothing can observe is a
 vacuous guard and does not ship.
+
+**Gates fail closed on what they do not recognize.** When code decides a
+verdict (a trust check, a lint, a census, a body check), it admits a short list
+of known-good forms and refuses everything else. It never enumerates known-bad
+spellings. Each review of an enumerated gate finds the next spelling it missed;
+one gate took sixteen rounds that way. Once a second round finds a new
+spelling, stop patching and redesign. A value the gate cannot resolve to a
+known-good literal (computed, concatenated, aliased, templated, reached through
+an indirection) is unrecognized: it counts as a hit, never a pass. Screen: can
+an input nobody planned for pass the gate?
 
 **Blast radius as a call-tree diff.** For any change to a shared seam, list the
 changed symbol, its callers above, its callees below, with plus and minus on the
@@ -95,6 +117,13 @@ it, and paste the red. A checked box with no transcript is treated as false. A
 mutation that fails to compile proves nothing about the test; redo it as a
 compile-valid change. A guard that cannot be made to red does not need to exist.
 
+**A precision figure names its judgement and an outside sample.** A claim that
+a rule, check or heuristic is N% precise states what counts as a true positive,
+and someone other than its author judges a random sample. "The pattern matched"
+is not "the finding is worth acting on": one rule reported 611 of 611 hits real
+on a type check, and an independent sample of 58 found none worth the rewrite.
+Below the stated bar, the rule ships disabled with the count recorded.
+
 **Tautological tests are harmful.** A test observes behaviour through the real
 seam and asserts an independent effect. It never restates the implementation,
 never asserts a value its own setup supplied, and never swaps a real in-process
@@ -117,6 +146,19 @@ timer, or wall-clock assertion is admitted with a header stating why the real
 thing is required, a registry entry, a baseline row and lane membership. A
 mocked seam is not a real spawn and gets an exemption with its reason, never an
 admission.
+
+**A gate judges the actor's delta, not inherited state.** A check run on an
+artifact someone edits (a tracker body, a shared file, a long-lived record)
+judges only what that edit adds or changes. Inherited violations belong in a
+baseline that shrinks on purpose. Refusing an honest edit for debt it did not
+create blocks the work or invites routing around the gate. If the gate cannot
+compute the delta, it checks the whole artifact, failing closed.
+
+**A new ratchet sweeps the open changes before it lands.** A governance test
+that rejects a new pattern fails every open change that already adds one, and
+none of them conflict textually, so nothing warns. Before merging a ratchet,
+run it against each open change merged with the base, and fix or notify each
+one it fails. Screen: which open change would fail this test after the merge?
 
 **Run targeted files while iterating; the full suite runs once.** Build before
 testing when tests execute compiled output, and rebuild between mutations. A red
@@ -156,6 +198,13 @@ literal, a changelog line) are applied by the orchestrator as trailing commits
 and never re-verified; anything that changes what code means goes through a
 round, however small it looks.
 
+**A round does what its brief prescribes, and flags anything more.** A worker
+that changes something outside its brief lists that change as scope growth at
+the top of its hand-off; one round widened a shared detector while asked to add
+a single admission. Routing then re-classifies the round, because a silent extra
+mechanism turns a merge-on-green round into one that needs a verify. Screen:
+does the hand-off name every change the brief did not ask for?
+
 **Merge gate.** Merge only when the verdict is merge-ready, every gating check
 genuinely executed and passed on the exact head, and every failing check was
 read and judged. Absent is not green. Read exit codes directly, never after a
@@ -170,10 +219,30 @@ at the worktree root; the orchestrator commits. Implementation and review are
 never mixed in one delegation. Scope changes are mirrored on the tracking issue
 before they are sent, so the worker can verify them.
 
+**Work in progress survives a cut.** A worker with Git authority commits at
+each green step; one without it leaves its tree and names it in the hand-off.
+A backend outage, a quota stop or a crash then costs one step, not the round,
+and the next round ports the tree instead of redoing it. Screen: how much is
+lost if this process dies now?
+
 **No manufactured work.** An idle worker is cheaper than fake work. Delegate
 when a real producer, consumer, probe or diagnosis is unresolved, never to keep
 a pool busy. The same applies to status artifacts: they exist for coordination
 someone consumes.
+
+**A step done by hand twice becomes a script with a test.** That includes
+cleanup, triage and status upkeep. The script surfaces unfinished work and
+never hides it: stalled work is restarted, not unassigned, archived or deleted.
+Screen: is this the second time this step was done by hand?
+
+**Process carries the net-count rule too.** A new guard, hook, script, lint
+rule, ratchet or scheduled routine retires one of the same kind in the same
+change, or it cites fire data showing what the existing ones miss. Each rule
+must also earn its keep: count how often it fired, and what each fire led to
+(a real fix, a wording edit, or a route-around). One that never fired in its
+window and names no recurrence is demoted or deleted. Process cost is paid on
+every change, while the bug a rule prevents may never arrive. Screen: what
+does this rule retire, and when did the last one like it fire?
 
 ## 4. Honesty and records
 

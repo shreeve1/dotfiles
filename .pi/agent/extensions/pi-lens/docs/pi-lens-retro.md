@@ -8,7 +8,8 @@ output of this role. Source of truth for every rule here is this file and
 
 Read first: the engineering principles (`docs/engineering-principles.md`),
 then `AGENTS.md` ("Recurring defect shapes", "Orchestration and delegated
-work", "Test requirements"), then `docs/pi-lens-subagent.md` when delegated,
+work", "Test requirements"), the shape entries it indexes
+(`docs/defect-shapes.md`), then `docs/pi-lens-subagent.md` when delegated,
 then this contract and `docs/pi-lens-merge-policy.md` ("Common mistakes"),
 which is where mistake rows land.
 
@@ -25,8 +26,8 @@ which is where mistake rows land.
 ## Inputs (primary sources, never memory)
 
 The lane ledger, the session transcripts, PR bodies and review verdicts, CI
-job logs on the exact head, `~/.pi-lens/latency.log` when runtime behaviour
-is involved. Every finding cites the source it came from.
+job logs on the exact head, `latency.log` under the resolved log root (`docs/pi-lens-monitor.md`
+"Inputs") when runtime behaviour is involved. Every finding cites the source it came from.
 
 ## Procedure
 
@@ -61,8 +62,11 @@ is involved. Every finding cites the source it came from.
    exactly as a regression test would; a check without a red is a proposal and
    is filed as an issue naming the incident as its recurrence, not merged.
 4. **Judgement candidates become one line in the right place.** A defect shape
-   goes into the `AGENTS.md` catalog as a lean screen, and its issues, PRs and
-   examples go to `HISTORY.md`; a reviewer duty goes
+   goes into the catalog (`docs/defect-shapes.md`) as a lean screen, and its issues, PRs and
+   examples go to `HISTORY.md`, under a heading that names the shape, such as
+   `## 2026-10-14 - title (shape N)`: a lean entry cites no issue, and
+   `tests/config/shape-history-governance.test.ts` finds the record by that
+   heading or by one of the entry's own issue numbers. A reviewer duty goes
    into `docs/pi-lens-reviewer.md`; a fixer duty goes into `docs/pi-lens-fixer.md`
    only when the fixer is the sole actor who can honour it. Standards are
    enforced by the reviewer, whose context pressure is lowest; fixers get

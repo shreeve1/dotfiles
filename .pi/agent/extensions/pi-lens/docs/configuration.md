@@ -21,9 +21,14 @@ The editor-facing JSON Schema is published at
 [`docs/schema/pi-lens-config-v1.json`](schema/pi-lens-config-v1.json). LSP
 server entries also accept canonical argv arrays, optional `name` (defaulting
 to the map id), `enabled`, `role` (`language` or `auxiliary`), `args`, and
-`rootMarkers`. These new fields are experimental; reserved role, root-policy,
-and timing semantics are inert until their planned catalog slices land, so this
-schema slice does not change server launch behavior.
+`rootMarkers`. A `command` is either a bare string (launched with `args`,
+default `["--stdio"]`) or an argv array whose first element is the program;
+the array's remaining elements come before `args`, and no `--stdio` is added to
+it. A `command` that is neither, or an empty or non-string array, fails at
+launch with a message naming the field. These new fields are experimental;
+reserved role, root-policy, and timing semantics are inert until their planned
+catalog slices land, so this schema slice does not change server launch
+behavior.
 
 ```jsonc
 {
@@ -51,6 +56,14 @@ schema slice does not change server launch behavior.
 }
 ```
 
+`initializationOptions` take the shape the server itself reads. rust-analyzer
+reads them flat (`check`, `cargo`), as above. pyright and basedpyright read
+only their pulled settings, so nest the override under the section they ask
+for: `{ "python": { "analysis": { "typeCheckingMode": "strict" } } }`. pi-lens
+answers each
+`workspace/configuration` request from that section of the merged options and
+returns `{}` for a section the options do not carry.
+
 An override may also provide an experimental launcher `command` and `env`.
 The built-in server ID and strategy remain in force; only the launcher is
 replaced, and project-sourced launcher fields follow the same pi trust gate.
@@ -62,7 +75,9 @@ names include `ast_grep_search`, `ast_grep_replace`, `ast_grep_outline`,
 `read_symbol`, `read_enclosing`, `effective_config`, `analyze`, `health`,
 `latency`, `project_scan`, and `rebuild`. The activation loader and MCP
 lifecycle tools `session_start`, `turn_end`, and `session_end` remain enabled
-because their host protocols require them.
+because their host protocols require them. A `tools.<name>` key that
+names no tool (`tools.lazy` aside), or names a required one, is dropped with
+`PILENS_CFG_0009`.
 
 To see the resolved tool surface, use `/lens-health`; the `effective_config`
 tool provides the full configuration provenance. Bundled skills are managed by
@@ -221,6 +236,17 @@ once no matter which spelling each file uses. Migrating does not change the
 answer, staying un-migrated is not a way around the denial, and a half-migrated
 pair of files merges rather than one clobbering the other.
 
+Denying a file's **language server** (its primary, such as `json` or
+`typescript`) leaves that file unchecked for the language itself. Every
+diagnostics route then reports a file with no findings as **unconfirmed**, not
+clean, with a "Primary LSP (…): not available" note that says it is disabled in
+config. On write-time checks the note appears once per server per session, and
+a later write of such a file shows a one-line "unconfirmed" status instead of
+"clean". When the denied server has a fallback (`deno` for `typescript`) that
+cannot start either, the note says so. Cross-file (cascade) checks name the
+server once per session. Auxiliary scanners such as `typos` still run and
+report their own findings.
+
 Two rules make the rest of the table unambiguous:
 
 - **The search stops at `$HOME`.** pi-lens never reads a config file in your
@@ -230,6 +256,97 @@ Two rules make the rest of the table unambiguous:
 - **The canonical spelling wins.** Where a legacy file or a legacy key means the
   same thing as the canonical one, the canonical one is used — otherwise the
   migration below could never be completed.
+
+### `dispatch.disabledRunners` — turning a dispatch runner off
+
+`lsp.disabledServers` switches off a language server. A dispatch **runner**
+(a linter, type-checker, or build such as `dotnet-build`, `javac`, or
+`rust-clippy`) has its own denial list, with the same semantics:
+
+```jsonc
+// ~/.pi-lens/config.json (or a project .pi-lens.json)
+{ "dispatch": { "disabledRunners": ["dotnet-build"] } }
+```
+
+- **Union across tiers.** Like `lsp.disabledServers`, the list is the union of
+  `~/.pi-lens/config.json`, the project `.pi-lens.json`, and any nested
+  `.pi-lens.json`. A project can add a runner and can never re-enable one a
+  farther tier denied.
+- **The tool never spawns.** The dispatcher skips a disabled runner before its
+  precondition and before it runs, so no availability probe, no `dotnet build`,
+  nothing. The skip is recorded with the reason `disabled-by-config`
+  (`latency.log`, `skipReason`). It is an operator decision, not a failure: it
+  raises no blocker and no "tool failed" notice, and a `fallback` group (such as
+  C#'s `lsp`, then `dotnet-build`) simply moves on to its next member. The other
+  runners of the group, the language server included, run as before.
+- **Unknown ids are dropped, not ignored silently.** An entry that names no
+  registered runner is dropped with a `PILENS_CFG_0005` warning that quotes the
+  entry, so a typo does not read as a runner that was turned off.
+- **Edits apply on the next dispatch.** The list is resolved for each dispatch,
+  so a change to the file needs no restart.
+- **The nearest config owns the file.** A nested `.pi-lens.json` governs the
+  files under it, so a denial there applies to those files only. `rules` reads
+  the same per-file resolution (see below).
+- **Disabling the only checker leaves the file unconfirmed.** Turning off a
+  runner that was the sole check for a file kind produces a notice that names
+  `dispatch.disabledRunners` (once per session, then the status line alone)
+  rather than a clean result. When another runner of the file is missing,
+  timed out, or failed as well, the notice says so and names the denial beside
+  it.
+
+`pilens_effective_config file=Program.cs` reports the runner as denied, with the
+tier and file that denied it, while the language server stays selected:
+
+```console
+$ pilens_effective_config file=src/Program.cs
+  tools:
+    lsp          selected
+    dotnet-build ✗ disabled-by-config (global ~/.pi-lens/config.json → /dispatch/disabledRunners/0)
+```
+
+`dispatch.runnerTimeoutFloorMs`, the other `dispatch` key, stays global-only.
+Putting it in a project `.pi-lens.json` logs the usual one-time "global-only"
+notice.
+
+### `rules.<id>` — read from each file's own config
+
+`rules.<id>.disable`, `select`, and `ignorePaths` are resolved for each file
+from the nearest directory at or above it that holds a `.pi-lens.json`, up to
+the workspace root. That resolution layers the global file, the workspace
+root's file, and every nested file between, by the field-wise order above. So a
+nested `.pi-lens.json` governs the files under it and no others, and the
+workspace root's policy still reaches them. Every surface that filters by rule
+policy reads it this way: the per-edit dispatch, `lens_diagnostics`,
+`lsp_diagnostics`, and the turn-end advisories.
+
+`ignorePaths` entries follow the same gitignore rules as the `ignore` field. Each entry is
+relative to the directory of the file that declares it: a global entry, and an entry in the
+workspace root's own file, match against the workspace root, and an entry in `pkg/.pi-lens.json`
+matches under `pkg/`:
+
+```jsonc
+// pkg/.pi-lens.json — carves out pkg/legacy/** except pkg/legacy/keep.ts; nothing at the root
+{ "rules": { "no-eval": { "ignorePaths": ["legacy/**", "!legacy/keep.ts"] } } }
+```
+
+- The last matching entry wins, so `!` re-includes a file an earlier entry carved out, and an
+  entry placed after a `!` ignores it again.
+- A leading `/` roots the entry at the declaring file's directory: `/legacy/**` is `legacy/**`
+  there and nowhere deeper.
+- A trailing `/` names a directory: `legacy/` carves out every directory named `legacy` at any
+  depth below the file, and everything in it.
+- An entry with no slash matches at any depth below the file: `*.gen.ts` carves out
+  `pkg/a.gen.ts` and `pkg/src/b.gen.ts`. To carve out a whole directory, end the entry with `/` or
+  `/**`: a bare `legacy` names a file called `legacy`, not the files inside a directory of that name.
+- An entry that climbs out of the declaring directory, such as `../other/**`, matches nothing.
+  A file outside the workspace root is never carved out.
+- A line starting with `#` is a comment, as in `.gitignore`, and is dropped.
+
+The files are a union: a path is carved out when any file's entries carve it out. A nearer file
+adds carve-outs and never lifts one, so a `!` entry re-includes only against the entries of its
+own file, and a project `!` cannot clear a carve-out the global config declared. Unlike the
+`ignore` field, `ignorePaths` has no cross-file lift: a nearer file's `!` can lift a path that a
+parent file's `ignore` line hid, but never a path that a parent file's `ignorePaths` entry carves out.
 
 ## Legacy locations (still read; being removed)
 
@@ -336,5 +453,6 @@ produced — so a session's config posture is visible without the detail.
 - `docs/globalconfig.md` — every key of `~/.pi-lens/config.json`, in detail.
 - `docs/settings.md` — the CLI flags and what they map to.
 - `docs/environment-variables.md` — the `PI_LENS_*` tier.
+- `docs/features.md` — the Python interpreter and syntax-level declarations pi-lens reads from a project (`VIRTUAL_ENV`, `requires-python`, `target-version`, `.python-version`).
 - `docs/public-api-stability.md` — what `x-stability`, the `PILENS_CFG_*` codes,
   and the deprecation windows commit pi-lens to.

@@ -1,6 +1,6 @@
 {
 	"name": "pi-lens",
-	"version": "4.4.3",
+	"version": "4.4.8",
 	"type": "module",
 	"description": "Real-time code feedback for pi — LSP, linters, formatters, type-checking, structural analysis & booboo",
 	"repository": {
@@ -20,10 +20,11 @@
 		"prepare": "npm run build:dist && node scripts/download-grammars.js --core --dest grammars && node scripts/setup-git-hooks.mjs && node scripts/stamp-package-lock.mjs && node scripts/warm-loader-cache.mjs",
 		"prepack": "node scripts/strip-dev-deps-for-pack.mjs --strip",
 		"postpack": "node scripts/strip-dev-deps-for-pack.mjs --restore",
-		"lint": "tsc --project tsconfig.json && npm run lint:js && npm run lint:js:tests",
+		"lint": "tsc --project tsconfig.json && npm run lint:js && npm run lint:js:tests && npm run lint:js:promises",
 		"lint:js": "oxlint --deny-warnings --import-plugin --promise-plugin -D block-scoped-var -D import/default -D import/namespace -D import/no-absolute-path -D import/no-empty-named-blocks -D import/no-named-as-default -D import/no-self-import -D no-extend-native -D no-extra-bind -D no-implied-eval -D no-new -D no-unexpected-multiline -D no-useless-constructor -D oxc/approx-constant -D oxc/misrefactored-assign-op -D oxc/no-accumulating-spread -D oxc/no-async-endpoint-handlers -D oxc/no-this-in-exported-function -D promise/no-callback-in-promise -D promise/no-multiple-resolved -D promise/no-new-statics -D promise/valid-params -D typescript/no-confusing-non-null-assertion -D typescript/no-extraneous-class -D typescript/no-unnecessary-type-constraint -D typescript/no-unsafe-enum-comparison -D unicorn/no-accessor-recursion -D unicorn/no-array-fill-with-reference-type -D unicorn/no-confusing-array-with -D unicorn/no-instanceof-builtins -D unicorn/prefer-array-flat-map -D unicorn/require-module-specifiers --ignore-pattern \"tests/**/*.ts\" --ignore-pattern \"tests/**/*.tsx\" --ignore-pattern \"**/*.d.mts\" --ignore-pattern \"tests/fixtures/autofix-smoke/**\" --ignore-pattern \"tests/fixtures/format-smoke/**\" --ignore-pattern \"tests/fixtures/tool-smoke/**\" --ignore-pattern \"tests/fixtures/call-graph/javascript/**\" --ignore-pattern \"tests/fixtures/function-facts/javascript-parameter.js\" .",
 		"lint:js:advisory": "node scripts/lint-js-advisory.mjs --deny-warnings --format unix -D correctness -D suspicious -D perf --import-plugin --promise-plugin --type-aware -A no-underscore-dangle -A no-await-in-loop -A unicorn/no-array-sort -A unicorn/consistent-function-scoping -A promise/no-promise-in-callback -A no-useless-call -A import/no-unassigned-import -A no-unmodified-loop-condition --ignore-pattern \"**/*.d.mts\" --ignore-pattern \"tests/fixtures/autofix-smoke/**\" --ignore-pattern \"tests/fixtures/format-smoke/**\" --ignore-pattern \"tests/fixtures/tool-smoke/**\" --ignore-pattern \"tests/fixtures/call-graph/javascript/**\" --ignore-pattern \"tests/fixtures/function-facts/javascript-parameter.js\" .",
 		"lint:js:tests": "node scripts/lint-js-advisory.mjs --deny-warnings --format unix --type-aware -A correctness -A suspicious -A perf --ignore-pattern \"tests/fixtures/**\" tests",
+		"lint:js:promises": "node scripts/lint-js-advisory.mjs --deny-warnings --format unix --type-aware -A all -D typescript/await-thenable -D typescript/no-floating-promises -D typescript/no-misused-promises clients mcp tools index.ts",
 		"depcruise:check": "depcruise --validate --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json --output-type err index.ts \"clients/**/*.ts\"",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
@@ -48,7 +49,9 @@
 		"audit:tree-sitter": "node scripts/audit-tree-sitter-rules.mjs",
 		"audit:rule-catalog": "node scripts/validate-rule-catalog.mjs",
 		"audit:astgrep-rule-pairs": "node scripts/audit-astgrep-rule-pairs.mjs",
-		"astgrep:self-scan": "node scripts/run-astgrep-pi-lens.mjs",
+		"astgrep:self-scan": "node scripts/run-astgrep-pi-lens.mjs && node scripts/run-astgrep-pi-lens.mjs --suite governance",
+		"astgrep:governance": "node scripts/run-astgrep-pi-lens.mjs --suite governance",
+		"astgrep:governance:update-baseline": "node scripts/run-astgrep-pi-lens.mjs --suite governance --update-baseline",
 		"lane:check": "node scripts/lane-check.mjs",
 		"astgrep:self-scan:update-baseline": "node scripts/run-astgrep-pi-lens.mjs --update-baseline",
 		"audit:playground": "node scripts/playground-verify-rule.mjs",
@@ -113,6 +116,9 @@
 		"scripts/analyze-pi-lens-logs.mjs",
 		"scripts/install-selftest.mjs",
 		"scripts/lib/host-provided-deps.mjs",
+		"scripts/lib/is-main-module.mjs",
+		"scripts/lib/latency-log-phases.mjs",
+		"scripts/lib/scratch-home-env.mjs",
 		"scripts/lib/skills-predicate.mjs",
 		"scripts/lib/web-tree-sitter-dir.mjs",
 		"scripts/lib/warm-loader-cache.mjs",
@@ -124,10 +130,10 @@
 		"banner.png"
 	],
 	"dependencies": {
-		"@ast-grep/cli": "0.45.3",
-		"@ast-grep/napi": "^0.45.0",
+		"@ast-grep/cli": "0.51.0",
+		"@ast-grep/napi": "^0.51.0",
 		"js-yaml": "^5.2.2",
-		"minimatch": "^10.2.6",
+		"minimatch": "^11.0.1",
 		"pidusage": "^4.0.1",
 		"vscode-jsonrpc": "^9.0.0"
 	},
@@ -160,13 +166,14 @@
 		]
 	},
 	"allowScripts": {
-		"@ast-grep/cli@0.45.3": true,
+		"@ast-grep/cli@0.51.0": true,
 		"@google/genai@2.21.0": true,
 		"esbuild@0.28.2": true,
 		"fsevents@2.3.3": false,
 		"protobufjs@7.6.6": true
 	},
 	"overrides": {
-		"qs": "^6.15.4"
+		"qs": "^6.15.4",
+		"undici": "^8.12.2"
 	}
 }

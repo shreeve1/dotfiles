@@ -1,24 +1,28 @@
 #!/usr/bin/env node
 import { createRequire as __pilensCreateRequire } from "node:module"; const require = __pilensCreateRequire(import.meta.url);
 import {
+  GitleaksClient,
+  classifyAndFilterFindings
+} from "../chunk-VN3L2JWZ.js";
+import {
   DEAD_CODE_DELTA_MAX_SHOWN,
   deadCodeIssueCount,
   deadCodeIssueKey,
   deadCodeIssues,
   formatDeadCodeDelta,
   stableFindingKey
-} from "../chunk-OCAGUNBC.js";
+} from "../chunk-2ZE3AUJQ.js";
 import {
   clearFormatterCache
-} from "../chunk-3W7IEVVL.js";
+} from "../chunk-4LL2VRNY.js";
 import {
   findNearestProjectRoot,
   isStartupScanVerdictFresh,
   resolveStartupScanContext
-} from "../chunk-3VPVG5SU.js";
+} from "../chunk-OY7WZI7Q.js";
 import {
   loadCallGraph
-} from "../chunk-WOA4LN2R.js";
+} from "../chunk-L3CLUGDY.js";
 import {
   isHardFailureSummary
 } from "../chunk-7U2IDNXN.js";
@@ -27,15 +31,11 @@ import {
   formatRunDurationMs,
   isExcludedTestTarget,
   isRunnerErrorResult
-} from "../chunk-VCO24T4L.js";
+} from "../chunk-OWTG6UMO.js";
 import {
   GovulncheckClient
-} from "../chunk-SQ4TVJBR.js";
-import {
-  GitleaksClient,
-  classifyAndFilterFindings
-} from "../chunk-SS36ZX4J.js";
-import "../chunk-ZGDGW2V3.js";
+} from "../chunk-SFLHSL5R.js";
+import "../chunk-OZWXLJMX.js";
 import {
   resetManagedToolRefreshSession
 } from "../chunk-UXVNL3D7.js";
@@ -53,32 +53,39 @@ import {
   peekTurnEndFindings,
   snapshotAdvisoryProvenance,
   validateAdvisoryProvenance
-} from "../chunk-KBG47GHP.js";
+} from "../chunk-6GMGEKQN.js";
 import {
   CacheManager,
+  DEFAULT_MAX_AGE_MS,
   DELTA_UNUSED_PROMOTION_NOTE,
   MCP_TURN_STATE_OWNER_ID,
   acquireWarmWordIndex,
   admitsProjectWideFindings,
   analyzeFile,
   applyFindingPolicy,
+  applyFindingPolicyByOwner,
   applyLspFindingPolicy,
   applyPushedFindingPolicy,
+  applyPushedFindingPolicyByFile,
   applyRulePolicy,
   canHandle,
   cascadeCarrySuffix,
   cascadeSettleWaitMs,
+  cascadeStillPresentSince,
+  composeCascadeSection,
   convertLspDiagnostics,
   createDispatchContext,
   createMcpHost,
-  demoteInferredProjectDiagnostics,
-  demoteInferredProjectSweepResults,
+  disabledRunnersOf,
+  dispositionSuppressedLine,
   drainPendingRunnerFindings,
   dropStaleRunnerFindings,
   evaluateAstGrepRules,
   evaluateRules,
   filterFindingsByDisposition,
+  forgetCascadePendingNeighbor,
   formatCacheAgeLabel,
+  formatCascadeNeighborDiagnostics,
   formatDiagnostics,
   getAvailableRunners,
   getDiagnosticTracker,
@@ -86,75 +93,87 @@ import {
   getLatencyReports,
   getToolPlan,
   inlineBlockerIdentities,
-  loadProjectRulePolicyMap,
+  laneCopyStandsFor,
+  listCascadePendingNeighbors,
+  loadProjectRulePolicy,
   loadSg,
   logCascade,
+  markCascadeUnansweredPrimariesDelivered,
   markUnreconciledFindings,
   normalizeRuleId,
+  owedByContentOnly,
+  peekOutstandingCascadeTouches,
   pendingRunnerFindingsSize,
+  readFileContent,
+  recordDeliveredCascadeNeighbor,
+  renderCascadeResult,
   requeueRunnerFindings,
   resetCascadeTierSessionState,
   resetDispatchBaselines,
   resetObservedRunnerLatency,
   resetPendingRunnerFindings,
   resetPsScriptAnalyzerAvailability,
-  runProviders
-} from "../chunk-H6MF6EVN.js";
+  runProviders,
+  stampLineHashes
+} from "../chunk-LSFXZLPW.js";
 import {
   resetLazyInstallAttempts
-} from "../chunk-OXXKQCSV.js";
+} from "../chunk-MC6VB2E5.js";
 import {
   isTestRoleCollateral
-} from "../chunk-EJIUXPBX.js";
-import {
-  findingsResult,
-  hasUsableResult
-} from "../chunk-2CD5RS6M.js";
-import "../chunk-FC4RP4I2.js";
-import "../chunk-UZ3TUTRV.js";
+} from "../chunk-AGGUWKRK.js";
+import "../chunk-PKSUMEPT.js";
 import {
   resetGoAvailability
-} from "../chunk-XMSXXAHW.js";
+} from "../chunk-3O5EII3W.js";
 import {
-  TrivyClient
-} from "../chunk-77M37OKR.js";
-import "../chunk-CSHFH5IN.js";
-import "../chunk-VCHXCQFG.js";
-import "../chunk-3EFKIGZN.js";
+  TrivyClient,
+  trivyEvidenceFiles
+} from "../chunk-ZKLTNLAW.js";
+import "../chunk-KZ4ALBCH.js";
+import "../chunk-JPRDTY5S.js";
+import {
+  scannerReportParentDir
+} from "../chunk-RGGH6M34.js";
+import {
+  findingsResult,
+  hasUsableResult,
+  reachedNoVerdict
+} from "../chunk-RZG472YW.js";
 import {
   resetRustAvailability
-} from "../chunk-MRXKYPCS.js";
-import "../chunk-7DYBLXYA.js";
-import "../chunk-AB3YYG6N.js";
+} from "../chunk-4W52ZKZX.js";
+import "../chunk-BUZIQDFS.js";
+import "../chunk-DIWK3LBC.js";
 import {
   getSgCommand,
   resetDispatchAvailabilityState,
   resolveManagedToolClient
-} from "../chunk-YSZNHOBY.js";
-import "../chunk-RPLINGVB.js";
-import "../chunk-XCJN5IJU.js";
-import "../chunk-76MWC2K6.js";
-import "../chunk-GXW6K4YJ.js";
-import "../chunk-2B73ZPOK.js";
+} from "../chunk-ZFORSIED.js";
+import "../chunk-5F3XF3SX.js";
+import "../chunk-FRLAUP2B.js";
+import "../chunk-6YUNI7B5.js";
+import "../chunk-7TNILKGY.js";
 import {
   SYMBOL_KIND_NAMES,
   captureReviewGraphStructuralIr,
   formatReviewGraphRevisionDriftNote,
   publishReviewGraphFileIr,
   reviewGraphIrContentHash
-} from "../chunk-YYOIQFRS.js";
+} from "../chunk-4B2YFN4U.js";
 import {
   buildSymbolId
 } from "../chunk-3MED75HT.js";
+import "../chunk-PKLB2XJL.js";
 import {
-  DEPENDENCY_DRIFT_MAX_DELIVERIES,
   MAX_LATE_AUX_REARMS,
   PAST_EOF_STALE_MARKER,
-  RUNTIME_CONFIG,
+  PRIMARY_UNAVAILABLE_CAUSE,
+  PartialApplyRecordStore,
   ReadGuard,
+  SERVER_CONFIG_FILE_NAMES,
   STALE_LINE_MARKER,
   Text,
-  TreeSitterSymbolExtractor,
   WriteOrderingGuard,
   anchorsForDiagnostic,
   applyAuxiliarySuppressions,
@@ -165,20 +184,25 @@ import {
   armDeferredLspWork,
   attemptTsserverSyncDiagnostics,
   beginScope,
-  buildScopeKey,
+  buildProbeScopeKey,
   canRearmPendingAuxiliary,
+  captureRenameExpectedContent,
   classifyDiagnosticTier,
   clearAllSessions,
+  combinePrimaryUnavailableCauses,
+  configDisabledAuxiliaryLspServerIds,
   countRetainedSuppressedRows,
-  createFileTime,
   createLazyImport,
   createLiveBusEmitter,
   createWorkspaceDiagnosticsCacheContext,
+  demoteInferredProjectSweepResults,
+  demoteLanguageServerRows,
   demotePastEofDiagnostics,
   drainPendingAuxCapEvictedCount,
   drainPendingAuxiliaryCoverage,
   drainRenderedDependencyDriftFilePaths,
-  exceedsLspSyncLimits,
+  dropExcludedServers,
+  enabledOptInAuxiliaryLspServerIds,
   findAuxiliaryProfileForSource,
   getActiveSessionId,
   getDisposition,
@@ -186,14 +210,18 @@ import {
   getLSPService,
   getLspBudgetIdleTimeoutMs,
   getMutationBridge,
+  getSuppressedDiagnostics,
   getWidgetBlockingFilesForSweep,
+  goPackageFilesToAnnounce,
   groupFilesByPrimaryServer,
   hasAnyDispositionMarks,
   hasStrictDispositionMarks,
   hashDiagnosticContent,
+  importTargetsToAnnounce,
   incrementWidgetDependencyDriftDelivery,
   isAuxBacklogPublished,
   isBlocking,
+  isOptInAuxiliaryServerId,
   isPendingAuxiliaryPastRearmTtl,
   isWarmAttached,
   loadLspService,
@@ -201,7 +229,11 @@ import {
   markWidgetFileBlockersStale,
   newLspMutationCorrelationId,
   nextOrderTurn,
+  noteWorkspaceDependenciesChanged,
+  noteWorkspaceFilesChangedOnDisk,
+  peekLSPService,
   pendingAuxiliaryCoverageSize,
+  primaryUnavailableCause,
   rearmPendingAuxiliaryCoverage,
   reconcileCorrelatedScanDiagnostics,
   reconcileScanDiagnostics,
@@ -210,15 +242,14 @@ import {
   recordLspMutationOutcome,
   recordRunner,
   recordStaleBusFailure,
-  refuseStaleWorkspaceEdit,
   registerDeferredLspWork,
+  resetDeferredDispositions,
   resetLSPService,
   resetLspMutationNoBridgeDbgLatch,
   resetObservedMutationNet,
   resetOpaqueMutationState,
   resetPendingAuxiliaryCoverage,
   resetWorkspaceDiagnosticsCacheSession,
-  resolveImportToFiles,
   resolveLiveBusEmitter,
   resyncDocumentOnPastEof,
   retagAuxiliaryDiagnostics,
@@ -226,25 +257,27 @@ import {
   retireWidgetDependencyDriftBlockers,
   runPerServerGroups,
   scopeCell,
+  sessionCell,
   setSessionLanguages,
   shouldShortenLspIdleTimeout,
   summarizeWorkspaceEdit,
-  sweepInlineBlockerFreshness,
-  symbolExtractionGrammar,
   touchCompletedConfirmationPolicy,
   touchCoverageGap,
   tryWarmAttachedDiagnostics,
+  warmAnswerBinding,
   widgetDiagnosticUri,
-  workspaceEditTextPaths,
   writeOrderToken
-} from "../chunk-M6HSLBWY.js";
+} from "../chunk-2BKUFQKR.js";
 import {
+  ANY_POSITION,
+  foldedFindingIdentity,
   hashText,
   normalizeMessage,
   primePersistedMutationAttribution,
   resetMutationAttribution,
+  retainRecordedFindings,
   stableFindingId
-} from "../chunk-IBGIOBEE.js";
+} from "../chunk-GIRBSBGL.js";
 import {
   mapWithConcurrency
 } from "../chunk-XIMYZ3JA.js";
@@ -253,6 +286,7 @@ import {
   classifyCascadeWaitTier,
   customServerSpecsOf,
   describeRootFallback,
+  disabledPrimaries,
   explainServersForFile,
   getAstGrepRuleFingerprint,
   getServersForFileWithConfig,
@@ -267,17 +301,20 @@ import {
   resetLSPCaseSensitivityState,
   resolveLspCwdForFile,
   shouldInitializeSessionRoot
-} from "../chunk-EU63SDCG.js";
-import "../chunk-VWCXW2E7.js";
+} from "../chunk-XYLC35E4.js";
+import "../chunk-DYRZGUMA.js";
 import {
+  PROJECT_VENV_DIR_NAMES,
+  PYTHON_DECLARATION_CONCURRENCY,
+  describePythonCompileWithheld,
+  detectPythonTargetVersion,
   emitBounded,
   hasAmbientPythonEnvironment,
+  isJediCompileVerdict,
+  partitionOutrankedPythonCompileVerdicts,
+  recordPythonCompileVerdictDrop,
   resetBoundedTelemetry
-} from "../chunk-FCSOVF55.js";
-import {
-  resolveGitCheckout,
-  resolveLinkedWorktreeOwner
-} from "../chunk-PNQDPDRC.js";
+} from "../chunk-FHEV6T4L.js";
 import {
   PROJECT_SNAPSHOT_VERSION,
   getProjectSnapshotLegacyPath,
@@ -292,8 +329,27 @@ import {
   readJsonCache,
   readProjectSnapshotMeta,
   saveRuntimeProjectSnapshot
-} from "../chunk-ZXYDQ3TZ.js";
+} from "../chunk-ZZDIOAAJ.js";
+import {
+  SWEEP_IDLE_SAFETY_MARGIN_MS,
+  getFullScanWallClockMs,
+  isWorkspaceSweepActive,
+  runWhenWorkspaceSweepIdle
+} from "../chunk-VOXTCULR.js";
 import "../chunk-5W3R6LFT.js";
+import {
+  DEPENDENCY_DRIFT_MAX_DELIVERIES,
+  RUNTIME_CONFIG,
+  SELF_DRIFT_MAX_DELIVERIES,
+  TreeSitterSymbolExtractor,
+  exceedsLspSyncLimits,
+  resolveImportToFiles,
+  sweepInlineBlockerFreshness,
+  symbolExtractionGrammar
+} from "../chunk-35WKJWO5.js";
+import "../chunk-CUDD35TW.js";
+import "../chunk-7ANZ7XDD.js";
+import "../chunk-WC6WRNQT.js";
 import {
   EXT_TO_LANG,
   classifyTreeSitterWasmError,
@@ -306,76 +362,77 @@ import {
   queryLoader,
   reportBundledResourceDirHealth,
   resolveTreeSitterLanguage
-} from "../chunk-QHJ6DQ2R.js";
+} from "../chunk-BHWW6FAX.js";
 import "../chunk-Z54ZSOBZ.js";
+import {
+  getUserRuleRoot
+} from "../chunk-HHR7WGCI.js";
+import {
+  dump,
+  resolvePackagePath
+} from "../chunk-HKIL6DCL.js";
 import {
   SCAN_LANGUAGE_PRIORITY,
   extensionsForLanguage,
   extensionsForLanguageToken,
-  getUserRuleRoot,
   resolveLanguage
-} from "../chunk-724UL2TJ.js";
+} from "../chunk-PPKECBPP.js";
+import "../chunk-6HWVI6MI.js";
+import "../chunk-5RNB4HVK.js";
 import {
-  dump,
-  resolvePackagePath
-} from "../chunk-QOZXJ4NA.js";
-import "../chunk-GBPP5P7X.js";
-import "../chunk-P7266HLM.js";
+  HOOK_WALL_BUDGET_MS
+} from "../chunk-CKEQFGLT.js";
 import {
-  SWEEP_IDLE_SAFETY_MARGIN_MS,
-  getFullScanWallClockMs,
-  isWorkspaceSweepActive,
-  runWhenWorkspaceSweepIdle
-} from "../chunk-MQLUAEOC.js";
-import {
-  HOOK_WALL_BUDGET_MS,
   bounded,
   combineAbortSignals,
+  untilAborted,
   withDeadline
-} from "../chunk-52FUZI6K.js";
+} from "../chunk-JYLOYTZD.js";
 import {
   centralityFromReverseDeps,
   getWordIndexBuildStatus,
   logWordIndex,
   searchWordIndex,
   triggerBackgroundWordIndexBuild
-} from "../chunk-SAEFPSB6.js";
+} from "../chunk-HUAM7QG3.js";
 import {
   getProjectDiagnosticsScannerMaxFiles
-} from "../chunk-GAEGEPOC.js";
-import {
-  PathKeyedMap
-} from "../chunk-Z3CCVDUB.js";
+} from "../chunk-HXFUTMX2.js";
 import {
   WARM_TURN_END_SCHEMA_VERSION,
   createWarmIpcLineReader,
   createWarmIpcRequestQueue,
-  freshnessFromMtime,
   ipcPathForCwd,
   readTurnEndStatus,
+  unlinkStaleUnixSocket
+} from "../chunk-CZL44WFN.js";
+import {
+  hashContentBytes,
   resolveRunnerPath,
   toRunnerDisplayPath
-} from "../chunk-L3BLXZG7.js";
+} from "../chunk-VPLBLWFO.js";
 import "../chunk-2BEMIWEW.js";
+import "../chunk-IJYGIDF4.js";
 import {
   commitDurableStore,
   resetResolvedPathCache,
   resetZizmorTokenAvailability
-} from "../chunk-ACXEQZOU.js";
+} from "../chunk-BQG2QFVO.js";
 import {
   resolveToolCwd
-} from "../chunk-Q7DUK4LX.js";
+} from "../chunk-IYVYZQRL.js";
 import {
   _resetPackageManagerCache,
   findGlobalBinary,
   pmBinary,
   resolveNodePackageManager,
   runScriptArgs
-} from "../chunk-AW7R2GWG.js";
+} from "../chunk-VOP4PJKA.js";
 import {
   getIsolatedNpxSpawnOptions,
   probeToolAsync
-} from "../chunk-RWWYJ623.js";
+} from "../chunk-JBP7KESM.js";
+import "../chunk-UYXV5NIS.js";
 import {
   classifyProbeFailure,
   createAvailabilityLatch,
@@ -383,20 +440,20 @@ import {
   logAvailabilityDecision,
   resetInstallRetryLatches,
   startHostStallSampler
-} from "../chunk-VRZP76YM.js";
+} from "../chunk-JZRP4DGP.js";
 import {
   canRunStartupHeavyScans,
   detectProjectLanguageProfile,
   getDefaultStartupTools
-} from "../chunk-QOBUHWHX.js";
-import "../chunk-QILIYSJF.js";
+} from "../chunk-SDFKOLSF.js";
+import "../chunk-BBET6HD6.js";
 import {
   collectSourceFilesWithBudgetAsync,
   getSlowFsVerdict,
   isSlowFs,
   slowFsDegradationNotice
-} from "../chunk-6C7JWPCP.js";
-import "../chunk-5NGR67U5.js";
+} from "../chunk-G6JKM4O7.js";
+import "../chunk-O2ARHQKF.js";
 import {
   displayProjectDataPath,
   drainProjectDataDirMigrations,
@@ -412,29 +469,33 @@ import {
   isRecordableProjectPath,
   isSubagentSession,
   isTestFile,
+  isWithinPathForm,
   loadPiLensGlobalConfig,
   realIsPidAlive,
   resetProjectDataDirSessionState,
   resetSafeSpawnWindowsCommandCache,
   resetSpawnTimeoutCooldowns,
+  resolveGitCheckout,
+  resolveLinkedWorktreeOwner,
   safeSpawnAsync,
   subagentLightModeNotice,
   sweepAtomicWriteStages,
   sweepDeadEphemeralDataDirs,
   updateHeartbeat,
   withGenerationLockSync
-} from "../chunk-C34ZXZ7O.js";
+} from "../chunk-WMDUT4KH.js";
 import {
   createSingleFlight
-} from "../chunk-BW5KFIQC.js";
+} from "../chunk-AWQWXSW4.js";
 import {
   createDeadline,
   yieldIfOverBudget
 } from "../chunk-QYF5S6P6.js";
 import {
   detectFileKind
-} from "../chunk-PHDMFAKM.js";
+} from "../chunk-G5GV2Q7K.js";
 import {
+  PathKeyedMap,
   compareKeys,
   detectFileRole,
   loadPiLensProjectConfig,
@@ -443,24 +504,22 @@ import {
   provenanceView,
   resolvePiLensConfig,
   summarizeConfigResolution
-} from "../chunk-2BBLFX75.js";
+} from "../chunk-X35S7HSB.js";
 import {
   LSP_NAMESPACE_KEY,
   getPiLensGlobalConfigPath,
   resetWorkspaceTopology
-} from "../chunk-XVF2VVXP.js";
-import {
-  getProjectTrustState,
-  isToolInstallAllowedByTrust,
-  projectTrustDenialReason,
-  setProjectTrustState
-} from "../chunk-ZANLILYD.js";
+} from "../chunk-SQC7K3SP.js";
 import {
   DEFAULT_MAX_OUTPUT_BYTES,
   createBoundedOutputSink,
+  getProjectTrustState,
+  isToolInstallAllowedByTrust,
+  projectTrustDenialReason,
+  setProjectTrustState,
   truncatedByOutputCap,
   writeFileAtomic
-} from "../chunk-2EECBNC5.js";
+} from "../chunk-JE6HKLC7.js";
 import {
   LENS_TOOL_NAMES,
   TOOL_REGISTRY,
@@ -474,18 +533,21 @@ import {
   resetDegradationLedger,
   resolveLensToolEnabled,
   resolveLensToolName,
-  toolRegistryEntryForMcp
-} from "../chunk-JAU72XNY.js";
+  toolRegistryEntryForMcp,
+  translateGuidanceToolNames
+} from "../chunk-2453RRJ2.js";
 import {
   createSubsystemLogger,
   flushExtensionLog,
   logExtension
-} from "../chunk-XTMJ7XDT.js";
-import "../chunk-JMYYOTQG.js";
+} from "../chunk-WQV6BI4Q.js";
+import {
+  freshnessFromMtime
+} from "../chunk-S26LC76R.js";
 import {
   claimPhaseOncePerSession,
   logLatency
-} from "../chunk-QQNQ7SJW.js";
+} from "../chunk-565VRUP4.js";
 import {
   beginTurnContext,
   createNdjsonLogger,
@@ -494,16 +556,14 @@ import {
   isTestMode,
   runLogCleanup,
   setTurnContextSession
-} from "../chunk-AOHZU2BM.js";
+} from "../chunk-VLQ7UKZH.js";
 import "../chunk-LJDODBBZ.js";
 import {
   FactStore
-} from "../chunk-CHOW74WE.js";
+} from "../chunk-4BKU7PV3.js";
 import {
   BoundedFifoMap,
-  BoundedLruCache
-} from "../chunk-ABBOA7UD.js";
-import {
+  BoundedLruCache,
   homeRelativePath,
   isAtOrAboveHomeDir,
   isUnderDir,
@@ -513,16 +573,19 @@ import {
   normalizeMapKey,
   pathsEqual,
   realpathOrResolve,
+  relativeInside,
   resolveHostToolPath,
+  toPosix,
   toProjectRelativePath,
-  uriToPath
-} from "../chunk-N2H3ZPZY.js";
+  uriToPath,
+  walkUpDirs
+} from "../chunk-GMROJJRN.js";
 import "../chunk-NXL4FFQQ.js";
 
 // dist/mcp/server.js
-import * as fs25 from "node:fs";
+import * as fs24 from "node:fs";
 import * as net from "node:net";
-import * as path39 from "node:path";
+import * as path40 from "node:path";
 import { fileURLToPath as fileURLToPath3 } from "node:url";
 
 // dist/tools/render-compact.js
@@ -787,7 +850,6 @@ function compactRenderResult(summarize) {
 
 // dist/clients/ast-grep-client.js
 import * as fs4 from "node:fs";
-import * as os2 from "node:os";
 import * as path4 from "node:path";
 
 // dist/clients/ast-grep-rule-manager.js
@@ -835,14 +897,14 @@ var AstGrepRuleManager = class {
   fingerprint;
   ruleDescriptions = null;
   ruleFingerprint = null;
-  constructor(ruleDir, log, fingerprint = () => getAstGrepRuleFingerprint()) {
+  constructor(ruleDir, log, fingerprint2 = () => getAstGrepRuleFingerprint()) {
     this.ruleDir = ruleDir;
     this.log = log;
-    this.fingerprint = fingerprint;
+    this.fingerprint = fingerprint2;
   }
   loadRuleDescriptions() {
-    const fingerprint = this.fingerprint();
-    if (this.ruleDescriptions !== null && this.ruleFingerprint === fingerprint)
+    const fingerprint2 = this.fingerprint();
+    if (this.ruleDescriptions !== null && this.ruleFingerprint === fingerprint2)
       return this.ruleDescriptions;
     const descriptions = /* @__PURE__ */ new Map();
     const roots = Array.isArray(this.ruleDir) ? this.ruleDir : [this.ruleDir];
@@ -865,7 +927,7 @@ var AstGrepRuleManager = class {
     if (!rulesPath) {
       this.log(`Rule descriptions: no rules directory found in ${possiblePaths.join(", ")}`);
       this.ruleDescriptions = descriptions;
-      this.ruleFingerprint = fingerprint;
+      this.ruleFingerprint = fingerprint2;
       return descriptions;
     }
     try {
@@ -884,7 +946,7 @@ var AstGrepRuleManager = class {
       this.log(`Failed to load rule descriptions: ${err.message}`);
     }
     this.ruleDescriptions = descriptions;
-    this.ruleFingerprint = fingerprint;
+    this.ruleFingerprint = fingerprint2;
     return descriptions;
   }
   parseRuleYaml(content) {
@@ -928,7 +990,6 @@ var AstGrepRuleManager = class {
 
 // dist/clients/sg-runner.js
 import * as fs3 from "node:fs";
-import * as os from "node:os";
 import * as path3 from "node:path";
 function buildBashRunArgs(cmd, allArgs) {
   return ["-c", '"$0" "$@"', cmd, ...allArgs];
@@ -1235,13 +1296,8 @@ var SgRunner = class {
     if (platform === "win32" && arch === "arm64")
       pkgSuffixes.push("win32-arm64-msvc");
     const searchRoots = [];
-    let dir = process.cwd();
-    for (let depth = 0; depth < 5; depth++) {
+    for (const dir of walkUpDirs(process.cwd(), { maxDepth: 5 })) {
       searchRoots.push(path3.join(dir, "node_modules"));
-      const parent = path3.dirname(dir);
-      if (parent === dir)
-        break;
-      dir = parent;
     }
     for (const suffix of pkgSuffixes) {
       const pkgName = `@ast-grep/cli-${suffix}`;
@@ -1357,6 +1413,7 @@ ${result.stderr}`)) {
       case "cwd-unresolvable":
       case "permission-denied":
       case "spawn-failed":
+      case "trust-refused":
       case void 0:
         return result.error ? "cli-failure" : void 0;
     }
@@ -1474,7 +1531,7 @@ Original error: ${stderr}`;
   }
   // --- Shared helpers for temp-dir rule scans ---
   prepareTempScan(ruleId, ruleYaml) {
-    const sessionDir = fs3.mkdtempSync(path3.join(os.tmpdir(), `pi-lens-temp-${ruleId}-`));
+    const sessionDir = fs3.mkdtempSync(path3.join(scannerReportParentDir(), `pi-lens-temp-${ruleId}-`));
     try {
       const rulesSubdir = path3.join(sessionDir, "rules");
       const configFile = path3.join(sessionDir, ".sgconfig.yml");
@@ -1691,7 +1748,7 @@ function reportAstGrepRulesHealth(bundledRuleDir) {
   });
   reportBundledResourceDirHealth("ast-grep-rules-dir-missing", bundledRuleDir, health, "ast-grep rule descriptions");
 }
-function recordAstGrepApply(matches, lineage, toolCallId) {
+function recordAstGrepApply(matches, { lineage, toolCallId, sessionId } = {}) {
   const bridge = getMutationBridge();
   if (!bridge || matches.length === 0)
     return;
@@ -1722,7 +1779,9 @@ function recordAstGrepApply(matches, lineage, toolCallId) {
       // `ast_grep_replace` call names only when its `paths` are files. The
       // call's own id lets the guard advance exactly the paths that call
       // checked, and end the authorship of every other file it rewrote.
-      ...toolCallId !== void 0 && { toolCallId }
+      ...toolCallId !== void 0 && { toolCallId },
+      // #4943: the calling session owns the deferred pass of what it rewrote.
+      ...sessionId !== void 0 && { sessionId }
     });
   }
 }
@@ -1906,7 +1965,7 @@ var AstGrepClient = class {
       allMatches.push(...result.matches);
     }
     if (apply)
-      recordAstGrepApply(allMatches, options?.lineage, options?.toolCallId);
+      recordAstGrepApply(allMatches, options);
     return {
       matches: allMatches,
       totalMatches: allMatches.length,
@@ -1953,7 +2012,7 @@ var AstGrepClient = class {
    * Dump the parsed tree-sitter AST for a snippet using ast-grep CLI.
    */
   async dumpAst(source, lang, options = {}) {
-    const tmpDir = fs4.mkdtempSync(path4.join(os2.tmpdir(), "pi-lens-ast-dump-"));
+    const tmpDir = fs4.mkdtempSync(path4.join(scannerReportParentDir(), "pi-lens-ast-dump-"));
     const tmpFile = path4.join(tmpDir, `snippet.${lang.replace(/[^a-z0-9_-]/gi, "") || "txt"}`);
     try {
       fs4.writeFileSync(tmpFile, source, "utf-8");
@@ -1983,7 +2042,7 @@ var AstGrepClient = class {
     if (shapeError)
       return { valid: false, error: shapeError };
     const snippet = validationSnippetFor(lang);
-    const tmpDir = fs4.mkdtempSync(path4.join(os2.tmpdir(), "pi-lens-sg-validate-"));
+    const tmpDir = fs4.mkdtempSync(path4.join(scannerReportParentDir(), "pi-lens-sg-validate-"));
     const tmpFile = path4.join(tmpDir, `snippet.${snippet.ext}`);
     try {
       fs4.writeFileSync(tmpFile, snippet.source, "utf-8");
@@ -2030,7 +2089,7 @@ var AstGrepClient = class {
       return { valid: false, error: shapeError };
     const language = extractRuleLanguage(ruleYaml) ?? "typescript";
     const snippet = validationSnippetFor(language);
-    const tmpDir = fs4.mkdtempSync(path4.join(os2.tmpdir(), "pi-lens-sg-rule-"));
+    const tmpDir = fs4.mkdtempSync(path4.join(scannerReportParentDir(), "pi-lens-sg-rule-"));
     try {
       fs4.writeFileSync(path4.join(tmpDir, `snippet.${snippet.ext}`), snippet.source, "utf-8");
       const result = await this.tempScanDetailed(tmpDir, ruleYaml, options);
@@ -2173,7 +2232,7 @@ var AstGrepClient = class {
         error: applyResult.error
       };
     }
-    recordAstGrepApply(preCheck.matches, options?.lineage, options?.toolCallId);
+    recordAstGrepApply(preCheck.matches, options);
     return {
       matches: preCheck.matches,
       totalMatches: preCheck.totalMatches,
@@ -2307,6 +2366,7 @@ import * as path29 from "node:path";
 
 // dist/clients/project-diagnostics/scanner.js
 import * as fs6 from "node:fs";
+import * as os from "node:os";
 import * as path6 from "node:path";
 
 // dist/clients/project-diagnostics/cache.js
@@ -2368,12 +2428,12 @@ function reconcileProjectDiagnosticsSnapshot(snapshot) {
     } catch {
       stat = void 0;
     }
-    const fingerprint = snapshot.fileFingerprints?.[filePath];
-    if (fingerprint && stat) {
+    const fingerprint2 = snapshot.fileFingerprints?.[filePath];
+    if (fingerprint2 && stat) {
       stale = true;
-      if (stat.size === fingerprint.sizeBytes) {
+      if (stat.size === fingerprint2.sizeBytes) {
         try {
-          stale = hashDiagnosticContent(fs5.readFileSync(filePath, "utf-8")) !== fingerprint.contentHash;
+          stale = hashDiagnosticContent(fs5.readFileSync(filePath, "utf-8")) !== fingerprint2.contentHash;
         } catch {
           stale = true;
         }
@@ -2607,6 +2667,7 @@ async function scanFileMajorRules(cwd, files, signal) {
       } finally {
         facts.dropFileFacts(filePath);
       }
+      await new Promise((resolve32) => setImmediate(resolve32));
     }
     if (wasmAborted) {
       astGrep.length = 0;
@@ -2659,7 +2720,7 @@ async function scanFileMajorRules(cwd, files, signal) {
 async function scanProjectDiagnostics(options) {
   const cwd = path6.resolve(options.cwd);
   const { signal } = options;
-  if (!options.files && isAtOrAboveHomeDir(cwd, options.homeDir)) {
+  if (!options.files && isAtOrAboveHomeDir(realpathOrResolve(cwd), realpathOrResolve(options.homeDir ?? os.homedir()))) {
     return {
       version: PROJECT_DIAGNOSTICS_CACHE_VERSION,
       cwd,
@@ -2747,7 +2808,7 @@ import { spawn } from "node:child_process";
 import { existsSync as existsSync4 } from "node:fs";
 import { join as join6 } from "node:path";
 function resolveRebuildScript(serverFilePath) {
-  return serverFilePath.replace(/\\/g, "/").includes("/dist/") ? "build:dist" : "build";
+  return toPosix(serverFilePath).includes("/dist/") ? "build:dist" : "build";
 }
 function analyzeFileFresh(workerPath, file, cwd, options = {}, timeoutMs = 12e4) {
   return new Promise((resolve32) => {
@@ -2880,7 +2941,7 @@ function summarizeScan(diagnostics) {
 
 // dist/clients/mcp/session.js
 import * as crypto from "node:crypto";
-import * as fs18 from "node:fs";
+import * as fs17 from "node:fs";
 import * as path25 from "node:path";
 
 // dist/clients/bootstrap.js
@@ -2938,29 +2999,29 @@ async function buildBootstrapClients() {
     }
   }
   const [ruffClient, biomeClient, knipClient, todoScanner, jscpdClient, depChecker, testRunnerClient, metricsClient, complexityClient, goClient, govulncheckClient, gitleaksClient, trivyClient, opengrepClient, rustClient, agentBehaviorClient2, deadCodeClients] = await Promise.all([
-    load("ruff", async () => new (await import("../chunk-T6CPIZNT.js")).RuffClient()),
-    load("biome", async () => new (await import("../chunk-ZWFS3OEF.js")).BiomeClient()),
-    load("knip", async () => new (await import("../chunk-YIUAVF7E.js")).KnipClient()),
-    load("todo", async () => new (await import("../chunk-JSQFTSC6.js")).TodoScanner()),
-    load("jscpd", async () => new (await import("../chunk-CMMHNUZ2.js")).JscpdClient()),
-    load("dependency-checker", async () => new (await import("../chunk-EC47DWFA.js")).DependencyChecker()),
-    load("test-runner", async () => new (await import("../chunk-XAGLWMJ4.js")).TestRunnerClient()),
-    load("metrics", async () => new (await import("../chunk-N3X6Q4YT.js")).MetricsClient()),
-    load("complexity", async () => new (await import("../chunk-VSSBEUFT.js")).ComplexityClient()),
+    load("ruff", async () => new (await import("../chunk-X66YJ2SS.js")).RuffClient()),
+    load("biome", async () => new (await import("../chunk-5T5A6YAJ.js")).BiomeClient()),
+    load("knip", async () => new (await import("../chunk-OC7VWJBZ.js")).KnipClient()),
+    load("todo", async () => new (await import("../chunk-6FIRFP6A.js")).TodoScanner()),
+    load("jscpd", async () => new (await import("../chunk-UHHLR2VY.js")).JscpdClient()),
+    load("dependency-checker", async () => new (await import("../chunk-IE5D3RA5.js")).DependencyChecker()),
+    load("test-runner", async () => new (await import("../chunk-57X2CDRX.js")).TestRunnerClient()),
+    load("metrics", async () => new (await import("../chunk-U3AS2FR6.js")).MetricsClient()),
+    load("complexity", async () => new (await import("../chunk-YHGYAEFH.js")).ComplexityClient()),
     // The process-wide singleton, NOT a fresh instance (#2455 fix round 4,
     // F2). `handleSessionStart` reads this object for its "Active tools"
     // line while `resetGoAvailability` re-arms the singleton's latch; a
     // second instance here meant the reset never reached the surface a
     // user actually sees.
-    load("go", async () => (await import("../chunk-Z527N6YQ.js")).goClient),
-    load("govulncheck", async () => new (await import("../chunk-KDERNTCQ.js")).GovulncheckClient()),
-    load("gitleaks", async () => new (await import("../chunk-XIJZVPD5.js")).GitleaksClient()),
-    load("trivy", async () => new (await import("../chunk-FMSO6RDZ.js")).TrivyClient()),
-    load("opengrep", async () => new (await import("../chunk-MXGY6KPT.js")).OpengrepClient()),
+    load("go", async () => (await import("../chunk-GGYOZWHW.js")).goClient),
+    load("govulncheck", async () => new (await import("../chunk-W3BGKBBK.js")).GovulncheckClient()),
+    load("gitleaks", async () => new (await import("../chunk-7CGIDRIK.js")).GitleaksClient()),
+    load("trivy", async () => new (await import("../chunk-6LJOJ6EO.js")).TrivyClient()),
+    load("opengrep", async () => new (await import("../chunk-NSPVR3FN.js")).OpengrepClient()),
     // The process-wide singleton, for the same reason as "go" above.
-    load("rust", async () => (await import("../chunk-BRGDSBJE.js")).rustClient),
-    load("agent-behavior", async () => (await import("../chunk-23WOO7TX.js")).agentBehaviorClient),
-    loadList("dead-code", async () => (await import("../chunk-6STA6Z7I.js")).getDeadCodeClients())
+    load("rust", async () => (await import("../chunk-3JAHQBSY.js")).rustClient),
+    load("agent-behavior", async () => (await import("../chunk-LPYTPNOJ.js")).agentBehaviorClient),
+    loadList("dead-code", async () => (await import("../chunk-7MAD5ZAY.js")).getDeadCodeClients())
   ]);
   if (failures.length > 0)
     await logBootstrapFailures(failures);
@@ -3047,7 +3108,7 @@ function resetAnalyzerBootstrapSessionState() {
 }
 
 // dist/clients/formatters-lazy.js
-var lazyFormatters = createLazyImport(() => import("../chunk-RXCOMYPY.js"));
+var lazyFormatters = createLazyImport(() => import("../chunk-L4NEVZ4T.js"));
 function warmFormatters() {
   return lazyFormatters.get();
 }
@@ -3066,7 +3127,7 @@ function resetFormatService() {
 
 // dist/clients/runtime-coordinator.js
 import { randomBytes } from "node:crypto";
-import * as fs9 from "node:fs";
+import * as fs8 from "node:fs";
 import * as path8 from "node:path";
 
 // dist/clients/project-changes.js
@@ -3201,13 +3262,18 @@ function readChangeLogMaxSeq(logPath) {
 }
 var CHANGE_LOG_LOCK = { staleMs: 5e3, waitMs: 500 };
 function appendProjectChangeAllocated(cwd, build) {
+  appendProjectChangesAllocated(cwd, (logMaxSeq) => [build(logMaxSeq)]);
+}
+function appendProjectChangesAllocated(cwd, buildAll) {
   const logPath = getProjectChangeLogPath(cwd);
   fs7.mkdirSync(path7.dirname(logPath), { recursive: true });
   readChangeLogMaxSeq(logPath);
   const append = (locked) => {
-    const entry = build(readChangeLogMaxSeq(logPath));
-    const line = locked ? entry : { ...entry, unlocked: true };
-    fs7.appendFileSync(logPath, `${JSON.stringify(line)}
+    const entries = buildAll(readChangeLogMaxSeq(logPath));
+    if (entries.length === 0)
+      return;
+    const payload = entries.map((entry) => JSON.stringify(locked ? entry : { ...entry, unlocked: true })).join("\n");
+    fs7.appendFileSync(logPath, `${payload}
 `, "utf-8");
   };
   const result = withGenerationLockSync(`${logPath}.locks`, CHANGE_LOG_LOCK, () => append(true));
@@ -3223,79 +3289,45 @@ function appendProjectChangeAllocated(cwd, build) {
 }
 
 // dist/clients/inline-blocker-fields.js
+function inlineBlockerSourceOf(diagnostic) {
+  return diagnostic.tool?.trim() || "unknown";
+}
 function inlineBlockerSources(blockers) {
-  return [...new Set(blockers.map((d) => d.tool?.trim() || "unknown"))];
+  return [...new Set(blockers.map(inlineBlockerSourceOf))];
 }
 function inlineBlockerLines(blockers, filePath) {
-  const own = normalizeEphemeralMapKey(filePath);
-  return blockers.filter((d) => normalizeEphemeralMapKey(d.filePath) === own).map((d) => d.line).filter((line) => typeof line === "number");
+  return inlineBlockerPlaces(blockers, filePath).map((place) => place.line);
 }
-
-// dist/clients/partial-edit-apply.js
-import { createHash } from "node:crypto";
-import * as fs8 from "node:fs";
-var MAX_APPLIED_RECORDS_PER_FILE = 8;
-var MAX_APPLIED_RECORD_FILES = 64;
-function editPairDigest(oldText, newText) {
-  return createHash("sha256").update(JSON.stringify([oldText, newText ?? ""]), "utf8").digest("hex");
+function isCrossFileBlocker(d, filePath) {
+  return !!d.filePath && normalizeEphemeralMapKey(d.filePath) !== normalizeEphemeralMapKey(filePath);
 }
-var PartialApplyRecordStore = class {
-  // Bounded on the PathKeyedMap itself (#2442): the file axis used to
-  // hand-roll `keys().next().value` here, which also evicted an unrelated
-  // file when a path ALREADY in the map was re-recorded at capacity.
-  files = new PathKeyedMap(normalizeMapKey, MAX_APPLIED_RECORD_FILES);
-  find(filePath, oldText, newText) {
-    if (!oldText)
-      return void 0;
-    const pairDigest = editPairDigest(oldText, newText);
-    const records = this.files.get(filePath) ?? [];
-    return records.find((r) => r.pairDigest === pairDigest);
+function inlineBlockerPlacement(blockers, filePath) {
+  const places = [];
+  let movedLine = 0;
+  for (const d of blockers) {
+    if (isCrossFileBlocker(d, filePath))
+      continue;
+    if (typeof d.line !== "number")
+      continue;
+    if (d.positionStale) {
+      movedLine += 1;
+      continue;
+    }
+    places.push({
+      line: d.line,
+      rule: d.rule?.trim() || inlineBlockerSourceOf(d)
+    });
   }
-  record(filePath, oldText, newText, contentHash) {
-    if (!oldText)
-      return;
-    const pairDigest = editPairDigest(oldText, newText);
-    const records = this.files.get(filePath) ?? [];
-    const existing = records.findIndex((r) => r.pairDigest === pairDigest);
-    if (existing >= 0)
-      records.splice(existing, 1);
-    const entry = {
-      pairDigest,
-      contentHash: contentHash ?? hashFile(filePath),
-      appliedAtMs: Date.now()
-    };
-    if (records.length >= MAX_APPLIED_RECORDS_PER_FILE)
-      records.shift();
-    records.push(entry);
-    this.files.set(filePath, records);
-  }
-  /**
-   * Stamps the post-afterWrite file hash onto an existing record so a later
-   * identical retry against the formatter-rewritten file is still recognized as
-   * already-applied (#2402). No-op when the pair was never recorded.
-   */
-  noteAfterWriteHash(filePath, oldText, newText, afterWriteContentHash) {
-    if (!oldText)
-      return;
-    const pairDigest = editPairDigest(oldText, newText);
-    const record = this.files.get(filePath)?.find((r) => r.pairDigest === pairDigest);
-    if (record)
-      record.afterWriteContentHash = afterWriteContentHash;
-  }
-  clear() {
-    this.files.clear();
-  }
-  get fileCount() {
-    return this.files.size;
-  }
-};
-var fileLock = createFileTime("partial-edit-apply");
-function hashFile(filePath) {
-  try {
-    return createHash("sha256").update(fs8.readFileSync(filePath)).digest("hex");
-  } catch {
-    return void 0;
-  }
+  return {
+    places,
+    unplaced: {
+      movedLine,
+      noLineInThisFile: blockers.length - places.length - movedLine
+    }
+  };
+}
+function inlineBlockerPlaces(blockers, filePath) {
+  return inlineBlockerPlacement(blockers, filePath).places;
 }
 
 // dist/clients/turn-summary.js
@@ -3413,27 +3445,28 @@ function recordViewIncomplete(cwd, cause) {
     reason: `snapshots are stamped incomplete (never fresh) until the next seed from the change log: ${why}`
   });
 }
+var EMPTY_GIT_GUARD_MEMO = {
+  entries: [],
+  verdict: void 0,
+  firstLine: void 0
+};
 var MAX_RESOLVED_BLOCKER_FILES = 10;
+var MAX_OWED_ANCHORS = 16;
 var TOOL_CALL_ATTRIBUTION_CAPACITY = 256;
 var TOOL_CALL_ATTRIBUTION_TTL_MS = 5 * 6e4;
-var TurnWarningsBySession = class {
-  bySession = /* @__PURE__ */ new Map();
-  add(sessionId, items) {
-    let partition = this.bySession.get(sessionId);
-    if (!partition) {
-      partition = /* @__PURE__ */ new Map();
-      this.bySession.set(sessionId, partition);
-    }
-    for (const item of items)
-      partition.set(item.id, item);
-  }
-  peek(sessionId) {
-    return [...this.bySession.get(sessionId)?.values() ?? []];
-  }
-  clear(sessionId) {
-    this.bySession.delete(sessionId);
-  }
-};
+function narrowedRecord(existing, kept) {
+  return {
+    ...existing,
+    summary: formatDiagnostics(kept, "blocking").trim(),
+    diagnostics: kept,
+    sources: inlineBlockerSources(kept),
+    lines: inlineBlockerLines(kept, existing.filePath)
+  };
+}
+var TURN_WARNINGS_CELL = "turn-warnings";
+function newTurnWarningsCell() {
+  return { actionable: /* @__PURE__ */ new Map(), codeQuality: /* @__PURE__ */ new Map() };
+}
 var RuntimeCoordinator = class {
   _projectRoot = normalizeMapKey(process.cwd());
   // #3611: the session generation is this scope's ticket, drawn from one
@@ -3463,7 +3496,7 @@ var RuntimeCoordinator = class {
     diagnosticsSurfaced: 0,
     coldSnapshotTouches: 0
   };
-  _complexityBaselines = /* @__PURE__ */ new Map();
+  _complexityBaselines = /* @__PURE__ */ new Set();
   _fixedThisTurn = new PathKeyedMap(normalizeMapKey);
   _writtenThisTurn = new PathKeyedMap(normalizeMapKey);
   _autofixDemotedThisTurn = new PathKeyedMap(normalizeMapKey);
@@ -3534,12 +3567,38 @@ var RuntimeCoordinator = class {
   // skip its per-build O(project) walk+stat sweep when only pi-observed edits
   // occurred. Keyed identically to _fileSeq (normalizeMapKey + path.resolve).
   _fileLastProjectSeq = /* @__PURE__ */ new Map();
-  _gitGuardHasBlockers = false;
-  _gitGuardSummary = "";
-  _gitGuardCacheUnknownReason;
+  /**
+   * The commit gate's memo of the last {@link updateGitGuardStatus}: the
+   * unsuppressed blocker records it counted, each with its file, so the gate
+   * can answer for one repository's tree (#4941) and the turn-end readers
+   * for all of them.
+   */
+  _gitGuardMemo = EMPTY_GIT_GUARD_MEMO;
+  /**
+   * Per project (the `cwd` whose stored record the reason is about), the
+   * reason that record cannot be confirmed (#4941 r2 F1). One record per
+   * repository: a failure about B must not replace, and a write about B must
+   * not clear, the uncertainty about A.
+   */
+  _gitGuardCacheUnknown = new PathKeyedMap(normalizeMapKey);
+  /**
+   * #4733 r2 F12: per file, a dispatch that never answered
+   * (`pipeline_crash`, `pipeline_error`). It is about that file, not the
+   * persisted record, so it lives apart from the record's latch above: only
+   * that file's own dispatch returning removes it, and no record write or
+   * delete does. Cleared per session.
+   */
+  _gitGuardUnansweredDispatches = new PathKeyedMap(normalizeMapKey);
   callGraph = null;
   wordIndex = null;
   _readGuard = null;
+  /**
+   * #4942: the read guard of each concurrent in-process session, keyed by the
+   * owner `recordSession` names (its session id, opaque here). Entries go at
+   * the session's shutdown (`forgetTurnSession`) and with the coordinator's
+   * own reset.
+   */
+  _foreignReadGuards = /* @__PURE__ */ new Map();
   _pendingDeferredMutations = new PathKeyedMap(normalizeMapKey);
   /** tool_call → tool_result path-attribution correlation (#1642). */
   _toolCallAttributions = new BoundedLruCache(TOOL_CALL_ATTRIBUTION_CAPACITY);
@@ -3552,6 +3611,26 @@ var RuntimeCoordinator = class {
   _readWidenings = new BoundedLruCache(TOOL_CALL_ATTRIBUTION_CAPACITY);
   _lspReadWarmState = /* @__PURE__ */ new Map();
   _pendingInlineBlockers = new PathKeyedMap(normalizeMapKey);
+  /**
+   * #4484 round 4: per file, what its last applied inline verdict left owed
+   * (`setAnalysisAnchor`), for a file whose record is gone or has no anchor.
+   * The positions live on the blocker record
+   * (`InlineBlockerRecord.analysisAnchor`). Round 5: this keeps each owing
+   * runner's owed line texts (`owedByContentOnly`, at most
+   * `MAX_OWED_LINE_TEXTS` hashes per runner, 16 KB), not only its id, so
+   * the next write owes it only the lines with those texts, never the whole
+   * file for a skip. Replaced by every applied verdict of the file and
+   * cleared per session.
+   */
+  _owedRunners = new PathKeyedMap(normalizeMapKey);
+  /**
+   * #4484 round 5: for a file with no blocker record, its last verdict's
+   * whole anchor (line hashes too), so the next write still remaps owed
+   * positions exactly (verify probe P23). At most `MAX_OWED_ANCHORS` files,
+   * 400 KB each; an evicted file falls back to `_owedRunners`' owed line
+   * texts, a superset. Cleared per session.
+   */
+  _owedAnchors = new PathKeyedMap(normalizeMapKey, MAX_OWED_ANCHORS);
   /**
    * #3507: one per-path order for BOTH verbs on `_pendingInlineBlockers`,
    * the widget store's guard shape (`widget-state.ts` diagnosticsWriteGuard).
@@ -3572,8 +3651,6 @@ var RuntimeCoordinator = class {
    */
   _resolvedBlockerFilesThisTurn = new PathKeyedMap(normalizeMapKey);
   _resolvedBlockerFilesDropped = 0;
-  _actionableWarningsThisTurn = new TurnWarningsBySession();
-  _codeQualityWarningsThisTurn = new TurnWarningsBySession();
   // #484: opt-in per-RUN summary of diagnostics/autofixes/formats,
   // accumulated across the run's turns and consumed once at the
   // agent_settled quiet window. The collector itself is always constructed
@@ -3614,8 +3691,6 @@ var RuntimeCoordinator = class {
     this._reportedThisTurn.clear();
     this._mutationReceipts = [];
     this._droppedMutationReceipts = 0;
-    this._actionableWarningsThisTurn.clear(this._telemetrySessionId);
-    this._codeQualityWarningsThisTurn.clear(this._telemetrySessionId);
     this._telemetrySessionId = nextTelemetrySessionId();
     this._hasStableSessionId = false;
     this._telemetryModel = "unknown";
@@ -3631,15 +3706,18 @@ var RuntimeCoordinator = class {
     this._turnStartProjectSeq = 0;
     this._fileSeq.clear();
     this._fileLastProjectSeq.clear();
-    this._gitGuardHasBlockers = false;
-    this._gitGuardSummary = "";
-    this._gitGuardCacheUnknownReason = void 0;
+    this._gitGuardMemo = EMPTY_GIT_GUARD_MEMO;
+    this._gitGuardCacheUnknown.clear();
+    this._gitGuardUnansweredDispatches.clear();
     this._readGuard = null;
+    this._foreignReadGuards.clear();
     this._pendingDeferredMutations.clear();
     this._toolCallAttributions.clear();
     this._readWidenings.clear();
     this._lspReadWarmState.clear();
     this._pendingInlineBlockers.clear();
+    this._owedRunners.clear();
+    this._owedAnchors.clear();
     this._inlineBlockerWriteOrder.clear();
     this._resolvedBlockerFilesThisTurn.clear();
     this._resolvedBlockerFilesDropped = 0;
@@ -3669,13 +3747,18 @@ var RuntimeCoordinator = class {
    * dispatch replaces the record wholesale (`recordInlineBlockers`), so a NEW
    * blocker is never born pre-suppressed (#1198 ordering).
    *
+   * #4921: `of` names the turn session whose pass this is; it rewrites only
+   * that session's records, the ones its pass judged. Omitted: every record.
+   *
    * @returns how many records this call CHANGED — 0 means the gate's view of
    * the map is already what the policy just decided.
    */
-  applyInlineBlockerPolicyVerdicts(suppressedFilePaths) {
+  applyInlineBlockerPolicyVerdicts(suppressedFilePaths, of) {
     const suppressed = new Set(suppressedFilePaths.map((filePath) => path8.resolve(filePath)));
     let changed = 0;
     for (const [key, entry] of this._pendingInlineBlockers.entries()) {
+      if (of && !this.ownedBy(entry, of.sessionId))
+        continue;
       const policySuppressed = suppressed.has(path8.resolve(entry.filePath));
       if ((entry.policySuppressed ?? false) === policySuppressed)
         continue;
@@ -3684,31 +3767,103 @@ var RuntimeCoordinator = class {
     }
     return changed;
   }
-  updateGitGuardStatus(hasBlockers, output) {
-    const blocking = this.getInlineBlockersSnapshot().filter((entry) => !entry.policySuppressed);
-    this._gitGuardHasBlockers = hasBlockers || blocking.length > 0;
-    if (!this._gitGuardHasBlockers) {
-      this._gitGuardSummary = "";
-      return;
+  /**
+   * `blockerFile` is the file `hasBlockers` speaks for (the write's own); a
+   * verdict with no file is a repository-less blocker, which every tree's
+   * commit gate counts (#4941).
+   */
+  updateGitGuardStatus(hasBlockers, output, blockerFile) {
+    this._gitGuardMemo = {
+      entries: this.getInlineBlockersSnapshot().filter((entry) => !entry.policySuppressed).map((entry) => ({
+        filePath: entry.filePath,
+        summary: entry.summary.trim()
+      })),
+      verdict: hasBlockers ? { filePath: blockerFile } : void 0,
+      firstLine: output.split("\n").map((line) => line.trim()).find((line) => line.length > 0)
+    };
+  }
+  /**
+   * The commit gate's status over the blockers `inScope` admits (every one
+   * when omitted): whether any counts, and the first one's summary. #4941:
+   * the gate asks for the tree being committed, so a blocker in another
+   * repository neither refuses the commit nor names its file.
+   */
+  gitGuardStatus(inScope) {
+    const { entries, verdict, firstLine: firstLine2 } = this._gitGuardMemo;
+    const counted = inScope ? entries.filter((entry) => inScope(entry.filePath)) : entries;
+    const verdictCounts = verdict !== void 0 && (!inScope || verdict.filePath === void 0 || inScope(verdict.filePath));
+    if (!verdictCounts && counted.length === 0) {
+      return { hasBlockers: false, summary: "" };
     }
-    const firstLine2 = output.split("\n").map((line) => line.trim()).find((line) => line.length > 0);
-    const summaries = blocking.map((entry) => entry.summary.trim()).filter(Boolean);
-    this._gitGuardSummary = (summaries[0] ?? firstLine2 ?? "Unresolved blockers detected").slice(0, 160);
+    return {
+      hasBlockers: true,
+      summary: (counted.map((entry) => entry.summary).find(Boolean) ?? firstLine2 ?? "Unresolved blockers detected").slice(0, 160)
+    };
   }
   get gitGuardHasBlockers() {
-    return this._gitGuardHasBlockers;
+    return this.gitGuardStatus().hasBlockers;
   }
   get gitGuardSummary() {
-    return this._gitGuardSummary;
+    return this.gitGuardStatus().summary;
   }
-  markGitGuardCacheUnknown(reason) {
-    this._gitGuardCacheUnknownReason = reason;
+  /** `cwd` is the project whose stored record the reason is about (#4941). */
+  markGitGuardCacheUnknown(reason, cwd) {
+    this._gitGuardCacheUnknown.set(cwd, reason);
   }
-  clearGitGuardCacheUnknown() {
-    this._gitGuardCacheUnknownReason = void 0;
+  /** A write or retirement of `cwd`'s record answers that project's reason only. */
+  clearGitGuardCacheUnknown(cwd) {
+    this._gitGuardCacheUnknown.delete(cwd);
   }
-  get gitGuardCacheUnknownReason() {
-    return this._gitGuardCacheUnknownReason;
+  /**
+   * The first latched reason about a project `inScope` accepts, or the first
+   * of all when `inScope` is absent (a command the gate cannot place in a
+   * tree is judged by every project's reason).
+   */
+  gitGuardCacheUnknownFor(inScope) {
+    for (const [cwd, reason] of this._gitGuardCacheUnknown) {
+      if (!inScope || inScope(cwd))
+        return reason;
+    }
+    return void 0;
+  }
+  markGitGuardDispatchUnanswered(filePath, reason) {
+    this._gitGuardUnansweredDispatches.set(filePath, reason);
+  }
+  /** The file's dispatch returned: it answers its own latch, and only that. */
+  answerGitGuardDispatch(filePath) {
+    this._gitGuardUnansweredDispatches.delete(filePath);
+  }
+  /** Every file whose dispatch has not answered, with its reason, in order. */
+  get gitGuardUnansweredDispatches() {
+    return [...this._gitGuardUnansweredDispatches].map(([filePath, reason]) => ({ filePath, reason }));
+  }
+  /** Whether this session holds an inline-blocker entry for the file. */
+  hasInlineBlocker(filePath) {
+    return this._pendingInlineBlockers.has(filePath);
+  }
+  /**
+   * #4921: the turn session that owns the file's inline-blocker record, or
+   * undefined when the file has none.
+   */
+  inlineBlockerOwner(filePath) {
+    const entry = this._pendingInlineBlockers.get(filePath);
+    return entry ? entry.session ?? this._telemetrySessionId : void 0;
+  }
+  /**
+   * #4921: whether `sessionId`'s turn is this coordinator's own session, the
+   * rule {@link beginTurn} applies: a turn with no session id of its own is
+   * the coordinator's. A concurrent in-process secondary's is not.
+   */
+  isCoordinatorSession(sessionId) {
+    return this.turnSession(sessionId) === this._telemetrySessionId;
+  }
+  /** #4921: the `session` a record written by `sessionId`'s turn carries. */
+  recordSession(sessionId) {
+    return sessionId === void 0 || this.isCoordinatorSession(sessionId) ? {} : { session: sessionId };
+  }
+  /** #4921: whether a record (or its Resolved note) is `sessionId`'s turn's. */
+  ownedBy(entry, sessionId) {
+    return (entry.session ?? this._telemetrySessionId) === this.turnSession(sessionId);
   }
   /**
    * Start a turn. `sessionId` is the turn's own session (its ctx's stable id);
@@ -3725,8 +3880,7 @@ var RuntimeCoordinator = class {
       beginTurnContext(turnSession);
       this._foreignTurns += 1;
       this._foreignTurnKeys.set(turnSession, this._turnIndex + this._foreignTurns / (this._foreignTurns + 1));
-      this._actionableWarningsThisTurn.clear(turnSession);
-      this._codeQualityWarningsThisTurn.clear(turnSession);
+      this.clearTurnWarnings(turnSession);
       return;
     }
     this._cascadeRuns = this._cascadeRuns.flatMap((run) => {
@@ -3743,8 +3897,7 @@ var RuntimeCoordinator = class {
       }
       return [{ ...run, carriedTurns }];
     });
-    this._actionableWarningsThisTurn.clear(turnSession);
-    this._codeQualityWarningsThisTurn.clear(turnSession);
+    this.clearTurnWarnings(turnSession);
     this._turnStartProjectSeq = this._projectSeq;
     this._turnIndex += 1;
     this._writeOrderTurn = nextOrderTurn();
@@ -3780,7 +3933,7 @@ var RuntimeCoordinator = class {
           return {
             seq: logged.projectSeq,
             timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            sessionId: this.telemetrySessionId,
+            sessionId: this.turnSession(args.sessionId),
             turnIndex: this.turnIndex,
             source: args.source,
             filePath: path8.resolve(args.filePath),
@@ -3793,20 +3946,79 @@ var RuntimeCoordinator = class {
       }
     }
     const { projectSeq, fileSeq, key } = logged ?? this.bumpFileSeq(args.filePath);
+    this.recordMutationReceipt({ projectSeq, fileSeq, key }, args.source);
+    return { projectSeq, fileSeq };
+  }
+  /**
+   * #4535: the bulk form of {@link recordProjectMutation}, for a disk change
+   * pi-lens did not author that spans many paths (a publisher's recorded
+   * population). It allocates from the SAME sequence, in ONE locked append:
+   * `appendProjectChangesAllocated` takes the change-log lock once and writes
+   * every line under it, so a 400-path HEAD move costs one lock round-trip
+   * inside a hook budget instead of 400. The lock-failure semantics are the
+   * single writer's: when the lock is unavailable every appended line is
+   * tagged `unlocked` and one `change-log-lock-unavailable` degradation is
+   * recorded for the batch. Receipts are appended per path with the same ring
+   * cap and drop counter as a single mutation.
+   *
+   * Returns the batch's last allocated `projectSeq` (the record's seq after
+   * the batch) and each path's `fileSeq` keyed by the bump's normalized key.
+   * Duplicate paths are the caller's to collapse: each entry bumps.
+   */
+  recordProjectMutations(args) {
+    let logged;
+    if (args.cwd !== void 0 && args.paths.length > 0) {
+      try {
+        const cwd = args.cwd;
+        const paths = args.paths;
+        appendProjectChangesAllocated(cwd, (logMaxSeq) => {
+          const ownSeq = this._projectSeq;
+          const bumps2 = paths.map((filePath) => this.bumpFileSeq(filePath, logMaxSeq));
+          logged = bumps2;
+          if (this._viewMissingThrough > 0) {
+            recordViewIncomplete(cwd, { ownSeq, logMaxSeq });
+          }
+          return bumps2.map((bump, index) => ({
+            seq: bump.projectSeq,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            sessionId: this.telemetrySessionId,
+            turnIndex: this.turnIndex,
+            source: args.source,
+            filePath: path8.resolve(paths[index]),
+            fileSeq: bump.fileSeq
+          }));
+        });
+      } catch (err) {
+        args.onAppendError?.(err);
+      }
+    }
+    const bumps = logged ?? args.paths.map((filePath) => this.bumpFileSeq(filePath));
+    const fileSeqs = /* @__PURE__ */ new Map();
+    for (const bump of bumps) {
+      this.recordMutationReceipt({ projectSeq: bump.projectSeq, fileSeq: bump.fileSeq, key: bump.key }, args.source);
+      fileSeqs.set(bump.key, bump.fileSeq);
+    }
+    return { projectSeq: this._projectSeq, fileSeqs };
+  }
+  /**
+   * The receipt ring (§ {@link MutationReceipt}): one entry per bump, oldest
+   * evicted at the cap and counted, never silently incomplete. One writer, so
+   * the single and bulk mutation paths cannot drift apart on attribution.
+   */
+  recordMutationReceipt(bump, source) {
     if (this._mutationReceipts.length >= MAX_MUTATION_RECEIPTS) {
       this._mutationReceipts.shift();
       this._droppedMutationReceipts += 1;
     }
     this._mutationReceipts.push({
-      seq: projectSeq,
+      seq: bump.projectSeq,
       // Reuse the bump's normalized key (a realpath syscall: ~200us on
       // Windows, ~1.8us on POSIX since #3098) — never re-derive it here.
-      filePath: key,
-      source: args.source,
+      filePath: bump.key,
+      source,
       turnIndex: this._turnIndex,
       ts: Date.now()
     });
-    return { projectSeq, fileSeq };
   }
   /**
    * Attributed mutations whose seq is strictly after `seq` — the receipt-level
@@ -4227,12 +4439,12 @@ var RuntimeCoordinator = class {
    * cleared it (#3507). `recordedAtMs` is the pipeline's analysis read time
    * (#3503); a caller without one stamps now.
    */
-  recordInlineBlockers(filePath, summary, writeIndex, sources, lines, contentBaseline, diagnostics, orderTurn = this._writeOrderTurn, recordedAtMs = Date.now()) {
+  recordInlineBlockers(filePath, summary, writeIndex, sources, lines, contentBaseline, diagnostics, orderTurn = this._writeOrderTurn, recordedAtMs = Date.now(), sessionId) {
     const writeOrder = writeOrderToken(orderTurn, writeIndex);
     if (!this._inlineBlockerWriteOrder.shouldWrite(normalizeMapKey(filePath), writeOrder))
       return void 0;
     this._resolvedBlockerFilesThisTurn.delete(filePath);
-    this._pendingInlineBlockers.set(path8.resolve(filePath), {
+    this._pendingInlineBlockers.set(filePath, {
       filePath,
       summary,
       writeIndex,
@@ -4245,7 +4457,8 @@ var RuntimeCoordinator = class {
       ...contentBaseline ? {
         recordedSize: contentBaseline.size,
         recordedHash: contentBaseline.sha256
-      } : {}
+      } : {},
+      ...this.recordSession(sessionId)
     });
     return recordedAtMs;
   }
@@ -4270,12 +4483,12 @@ var RuntimeCoordinator = class {
    *
    * @returns how many findings were new to the record (0 = a replay).
    */
-  recordDeferredInlineBlockers(filePath, blocking, analysed) {
-    const key = path8.resolve(filePath);
+  recordDeferredInlineBlockers(filePath, blocking, analysed, sessionId) {
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (existing && !existing.diagnostics)
       return 0;
-    const identity = (d) => JSON.stringify([d.tool, d.id, d.line, d.message]);
+    const identity = (d) => JSON.stringify([foldedFindingIdentity(d), d.line, d.column]);
     const known = new Set((existing?.diagnostics ?? []).map(identity));
     const added = blocking.flatMap((d) => known.has(identity(d)) ? [] : [d]);
     if (added.length === 0)
@@ -4289,7 +4502,8 @@ var RuntimeCoordinator = class {
         ...analysed.contentBaseline ? {
           recordedSize: analysed.contentBaseline.size,
           recordedHash: analysed.contentBaseline.sha256
-        } : {}
+        } : {},
+        ...this.recordSession(sessionId)
       },
       summary: formatDiagnostics(diagnostics, "blocking").trim(),
       diagnostics,
@@ -4312,6 +4526,85 @@ var RuntimeCoordinator = class {
     return added.length;
   }
   /**
+   * #4484 round 2: the file's recorded blocking diagnostics, which the next
+   * write's pipeline carries forward unless a conclusive observation from
+   * their own source shows them gone. Undefined when nothing is recorded or
+   * the record holds text only.
+   */
+  getInlineBlockerDiagnostics(filePath) {
+    return this._pendingInlineBlockers.get(filePath)?.diagnostics;
+  }
+  /**
+   * #4484 round 3: the anchor the next write's pipeline aligns to: the line
+   * hashes of the bytes the file's blocker record is about, and the lines
+   * still owed. Round 4: it is the record's own anchor. A file without one
+   * (no record, or a record a collect-later settle started) gets no hashes,
+   * so the pipeline cannot align. Round 5: it gets the owed line texts.
+   */
+  getAnalysisAnchor(filePath) {
+    return this._pendingInlineBlockers.get(filePath)?.analysisAnchor ?? this._owedAnchors.get(filePath) ?? this._owedRunners.get(filePath);
+  }
+  /**
+   * #4484 round 3: store the anchor of an inline verdict that just applied
+   * (`recordInlineBlockers` or `clearInlineBlockers` returned applied), so it
+   * always describes the bytes the record is about. Round 4: it goes on the
+   * record, and lives as long as the record; what is owed goes apart
+   * (`_owedRunners`, by content since round 5), so it outlives a record that
+   * a later retire drops. Round 5: a file with no record keeps its whole
+   * anchor too (`_owedAnchors`, bounded).
+   */
+  setAnalysisAnchor(filePath, anchor) {
+    const existing = this._pendingInlineBlockers.get(filePath);
+    if (existing) {
+      const key = filePath;
+      const { analysisAnchor: _dropped, ...rest } = existing;
+      this._pendingInlineBlockers.set(key, anchor ? { ...rest, analysisAnchor: anchor } : rest);
+    }
+    const owed = owedByContentOnly(anchor);
+    if (owed)
+      this._owedRunners.set(filePath, owed);
+    else
+      this._owedRunners.delete(filePath);
+    if (owed && anchor?.lineHashes && !existing)
+      this._owedAnchors.set(filePath, anchor);
+    else
+      this._owedAnchors.delete(filePath);
+  }
+  /**
+   * #4484 round 2: a settled collect-later run is the observation that can
+   * retire the blockers its runner left pending while it was in flight. Its
+   * runner's recorded blockers that the run no longer observes leave the
+   * record; blockers from other runners, and from a server the run left
+   * unconfirmed, stay. A blocker is still observed only at its own line, in
+   * range or withheld by the run's edit-range gate (#4484 round 3). The run
+   * must be about the recorded bytes: marked after
+   * they were read (`recordedAtMs`), with the file still holding them
+   * (`recordedHash`). An emptied record is deleted and its file is noted
+   * Resolved for turn end, as a clean write's clear does.
+   *
+   * @returns how many recorded blockers the run retired.
+   */
+  retireUnobservedRunnerBlockers(filePath, run) {
+    const key = filePath;
+    const existing = this._pendingInlineBlockers.get(key);
+    if (!existing?.diagnostics || run.sha256 === void 0 || existing.recordedHash !== run.sha256 || existing.recordedAtMs === void 0 || run.markedAtMs < existing.recordedAtMs)
+      return 0;
+    const unconfirmed = new Set(run.unconfirmedServerIds);
+    const { kept, retired } = retainRecordedFindings(existing.diagnostics, run.observed, {
+      positionOf: (d) => d.positionStale ? ANY_POSITION : d.line,
+      keepUnobserved: (d) => d.runnerId !== run.runnerId || d.serverId !== void 0 && unconfirmed.has(d.serverId)
+    });
+    if (retired.length === 0)
+      return 0;
+    if (kept.length === 0) {
+      this.noteResolvedBlockerFile(existing, void 0, false);
+      this._pendingInlineBlockers.delete(key);
+      return retired.length;
+    }
+    this._pendingInlineBlockers.set(key, narrowedRecord(existing, kept));
+    return retired.length;
+  }
+  /**
    * #3218 criterion 2: remember one file whose blocker a clean verdict just
    * retired, for the turn-end "Resolved" line. Called from the two retire
    * seams (`clearInlineBlockers` and `retireInlineBlockerOnConfirmedClean`)
@@ -4332,7 +4625,8 @@ var RuntimeCoordinator = class {
       // (`writeOrderToken`); the line names only the write.
       writeIndex: confirmedClean || retiringWriteOrder === void 0 ? void 0 : retiringWriteOrder % 2 ** 32,
       confirmedClean,
-      turnIndex: this._turnIndex
+      turnIndex: this._turnIndex,
+      ...record.session === void 0 ? {} : { session: record.session }
     });
   }
   /**
@@ -4348,9 +4642,22 @@ var RuntimeCoordinator = class {
    * counted as `blocker-clear-refused` per file key. A record with no
    * `recordedHash` (#2982: the file was unreadable or over the baseline cap at
    * record time) cannot be matched and is cleared as before.
+   *
+   * #4484: a blocker is pending until a fresh observation no longer holds it,
+   * so a run whose own observation still holds `analysis.blocking` blockers
+   * never clears the record, whatever its authorship or its delta said; it
+   * is refused and counted the same way.
    */
   clearInlineBlockers(filePath, writeIndex, orderTurn = this._writeOrderTurn, analysis) {
-    const existing = this._pendingInlineBlockers.get(path8.resolve(filePath));
+    const existing = this._pendingInlineBlockers.get(filePath);
+    if (existing && (analysis?.blocking ?? 0) > 0) {
+      incrementDegradationCount({
+        kind: "blocker-clear-refused",
+        subject: normalizeMapKey(filePath),
+        reason: "the clearing run still observed a blocker on the file; the record stays until an observation holds none (#4484)"
+      });
+      return false;
+    }
     if (existing && analysis && !analysis.authored && analysis.sha256 !== void 0 && existing.recordedHash === analysis.sha256) {
       incrementDegradationCount({
         kind: "blocker-clear-refused",
@@ -4364,7 +4671,7 @@ var RuntimeCoordinator = class {
     if (existing) {
       this.noteResolvedBlockerFile(existing, writeOrderToken(orderTurn, writeIndex), false);
     }
-    this._pendingInlineBlockers.delete(path8.resolve(filePath));
+    this._pendingInlineBlockers.delete(filePath);
     return true;
   }
   /**
@@ -4378,7 +4685,7 @@ var RuntimeCoordinator = class {
    * entry to stale, so a caller can log the demotion exactly once.
    */
   markInlineBlockerStale(filePath, reason = "dependency-drift") {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing || existing.stale)
       return false;
@@ -4401,7 +4708,7 @@ var RuntimeCoordinator = class {
    * transition, so the caller logs/resyncs exactly once per edge.
    */
   setInlineBlockerPastEofStale(filePath, isPastEof) {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return false;
@@ -4424,11 +4731,12 @@ var RuntimeCoordinator = class {
    * {@link markInlineBlockerStale}: it RE-ARMS rather than latching, so a
    * file whose bytes drift and then come back (a checkout, a revert, an
    * editor writing the original content) un-demotes on the next sweep
-   * instead of staying demoted for the session. That re-arm is what lets
-   * this axis skip the #1950 delivery cap entirely — a record that can heal
-   * needs no bounded-noise retirement, and applying the cap here would walk
-   * an ast-grep or tree-sitter security finding out of turn-end rendering
-   * permanently (#2982 review).
+   * instead of staying demoted for the session. That re-arm covers a file whose
+   * bytes COME BACK; it does not cover an agent rewrite that never returns to
+   * them, which is why this axis carries its own delivery cap
+   * (`SELF_DRIFT_MAX_DELIVERIES`, #4990) — a record that heals before the cap
+   * un-demotes and is never retired, so the security-provenance concern
+   * (#2982 review) still holds.
    *
    * Composes with the sibling gates the same way they compose with each
    * other: it never touches a record another gate demoted, and never heals a
@@ -4436,7 +4744,7 @@ var RuntimeCoordinator = class {
    * the caller counts exactly one edge.
    */
   setInlineBlockerSelfDriftStale(filePath, isSelfDrift) {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return false;
@@ -4445,7 +4753,7 @@ var RuntimeCoordinator = class {
     const currentlySelfDrift = !!existing.stale && existing.staleReason === "self-drift";
     if (currentlySelfDrift === isSelfDrift)
       return false;
-    const { staleReason: _cleared, ...rest } = existing;
+    const { staleReason: _cleared, staleDeliveryCount: _clearedCount, ...rest } = existing;
     this._pendingInlineBlockers.set(key, {
       ...rest,
       stale: isSelfDrift,
@@ -4500,7 +4808,7 @@ var RuntimeCoordinator = class {
   pastEofRetireKey(filePath, deadLines) {
     if (deadLines.length === 0)
       return void 0;
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return void 0;
@@ -4520,23 +4828,23 @@ var RuntimeCoordinator = class {
    * content is NOT being suppressed.
    */
   peekInlineBlockerStaleDeliveryCount(filePath) {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     return this._pendingInlineBlockers.get(key)?.staleDeliveryCount ?? 0;
   }
   /**
    * #1950: commit one more turn end that re-served this record while
    * `stale`. The caller (`runtime-turn.ts`) only calls this for a
-   * `"dependency-drift"` demotion — a `"past-eof"` demotion retires after
-   * its own single delivery (#1944, `retireDemotedPastEofBlocker`) and
-   * never accumulates a count — and only AFTER confirming the turn's
-   * content will not be suppressed by the signature dedupe (see
-   * {@link peekInlineBlockerStaleDeliveryCount}), so this counts ACTUAL
-   * deliveries the agent saw, not turn-end loop iterations. Returns the new
-   * count, or 0 when there is no entry to count against (already retired,
-   * or never recorded).
+   * `"dependency-drift"` or `"self-drift"` demotion — a `"past-eof"`
+   * demotion retires after its own single delivery (#1944,
+   * `retireDemotedPastEofBlocker`) and never accumulates a count — and only
+   * AFTER confirming the turn's content will not be suppressed by the
+   * signature dedupe (see {@link peekInlineBlockerStaleDeliveryCount}), so
+   * this counts ACTUAL deliveries the agent saw, not turn-end loop
+   * iterations. Returns the new count, or 0 when there is no entry to count
+   * against (already retired, or never recorded).
    */
   incrementInlineBlockerStaleDelivery(filePath) {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return 0;
@@ -4548,30 +4856,33 @@ var RuntimeCoordinator = class {
     return next;
   }
   /**
-   * #1950: retire a dependency-drift demotion once it has been delivered
-   * `DEPENDENCY_DRIFT_MAX_DELIVERIES` times with no re-run confirming or
-   * clearing it. Unlike {@link retireDemotedPastEofBlocker}, the record is
-   * NOT provably unrecoverable — its coordinates are still in bounds, and a
-   * fresh dispatch of the file could still confirm or clear it. This is a
-   * bounded-noise cap, not a "this can never resolve" verdict, and the
-   * caller's ledger reason must say so (`demoted-finding-retired`'s "capped,
-   * re-run can still confirm" vs. past-EOF's "retired, unrecoverable").
+   * #1950/#4990: retire a drift demotion once it has been delivered its axis's
+   * cap with no re-run confirming or clearing it.
+   * `"dependency-drift"` retires at `DEPENDENCY_DRIFT_MAX_DELIVERIES` and
+   * `"self-drift"` at `SELF_DRIFT_MAX_DELIVERIES` (both decided by the caller,
+   * `runtime-turn.ts`, which also owns the count). Unlike
+   * {@link retireDemotedPastEofBlocker}, the record is NOT provably
+   * unrecoverable — its coordinates are still in bounds, and a fresh dispatch
+   * of the file could still confirm or clear it. This is a bounded-noise cap,
+   * not a "this can never resolve" verdict, and the caller's ledger reason must
+   * say so (`demoted-finding-retired`'s "capped, re-run can still confirm" vs.
+   * past-EOF's "retired, unrecoverable").
    *
-   * Only ever touches this gate's OWN demotion (`staleReason ===
-   * "dependency-drift"`) — a past-EOF demotion on the same file is that
-   * gate's own record to retire, not this one's.
+   * Only ever touches the named axis's OWN demotion: a record demoted by a
+   * sibling gate on the same file is that gate's record to retire, not this
+   * one's.
    *
    * @returns true when an entry was retired — the caller records it, so the
    * suppression is never silent (#1432 Gap 1).
    */
-  retireDemotedDependencyDriftBlocker(filePath) {
-    const key = path8.resolve(filePath);
+  retireDemotedDriftBlocker(filePath, reason) {
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return false;
     if (!existing.stale)
       return false;
-    if (existing.staleReason !== "dependency-drift")
+    if (existing.staleReason !== reason)
       return false;
     this._pendingInlineBlockers.delete(key);
     return true;
@@ -4609,16 +4920,25 @@ var RuntimeCoordinator = class {
    * `semantic === "blocking"` diagnostic across all runners, so eslint,
    * biome-check, actionlint, elixir/gleam-check and ast-grep security rules all
    * land in this map. A language-server check knows nothing about any of them,
-   * so `coveredSources` must be a SUPERSET of the recorded sources or the entry
-   * stands. This is a commit gate: a record whose provenance is unknown (no
-   * `sources`) fails CLOSED and is never retired, because "we don't know what
-   * raised this" must not resolve to "an LSP check can clear it".
+   * so the coverage test is per ROW (#4990 gap 1): the diagnostics whose source
+   * the verdict covered leave the record, the rest stay, and a record with no
+   * structured rows fails CLOSED and is never retired, because "we don't know
+   * what raised this" must not resolve to "an LSP check can clear it".
    *
-   * @returns true when an entry was retired — the caller logs it, so an
-   * eviction is never silent (#1432 Gap 1).
+   * Before #4990 the test was all-or-nothing on `record.sources`, so a record
+   * with `["lsp", "oxlint"]` outlived a confirmed-clean typescript verdict
+   * forever: one server cannot speak for the oxlint row, and the oxlint row was
+   * never re-dispatched either. Per-source row retirement is the same filter
+   * the record's own builder already applies (`inlineBlockerSources`), so a
+   * partly-covered record narrows to what the verdict did not speak for and
+   * keeps gating only on those rows.
+   *
+   * @returns true when the record was retired OR narrowed (at least one source
+   * row left it). The caller records either, so a drop is never silent
+   * (#1432 Gap 1).
    */
   retireInlineBlockerOnConfirmedClean(filePath, confirmedAtWriteOrder, coveredSources) {
-    const key = path8.resolve(filePath);
+    const key = filePath;
     const existing = this._pendingInlineBlockers.get(key);
     if (!existing)
       return false;
@@ -4628,11 +4948,105 @@ var RuntimeCoordinator = class {
     if (!existing.sources || existing.sources.length === 0)
       return false;
     const covered = new Set(coveredSources ?? []);
-    if (!existing.sources.every((source) => covered.has(source)))
+    if (existing.sources.every((source) => covered.has(source))) {
+      this.noteResolvedBlockerFile(existing, void 0, true);
+      this._pendingInlineBlockers.delete(key);
+      return true;
+    }
+    const diagnostics = existing.diagnostics;
+    if (!diagnostics || diagnostics.length === 0)
       return false;
-    this.noteResolvedBlockerFile(existing, void 0, true);
-    this._pendingInlineBlockers.delete(key);
+    const kept = diagnostics.filter((diagnostic) => !covered.has(inlineBlockerSourceOf(diagnostic)));
+    if (kept.length === diagnostics.length)
+      return false;
+    if (kept.length === 0) {
+      this.noteResolvedBlockerFile(existing, void 0, true);
+      this._pendingInlineBlockers.delete(key);
+      return true;
+    }
+    this._pendingInlineBlockers.set(key, narrowedRecord(existing, kept));
     return true;
+  }
+  /**
+   * #5020: retire the rows of other files' records that cite a file a fresh
+   * observation has settled. A chart-wide runner (helm-lint, helm-render) or an
+   * import-following one (mypy, phpstan) reports a blocking row against a file
+   * it did not dispatch for, so the row lands in the WRITTEN file's record
+   * (#1641). That record is re-taken only by a dispatch of the written file,
+   * which the agent has no reason to make once the cited file is fixed or gone:
+   * `clearInlineBlockers` never ran for it, and the commit gate stayed shut with
+   * nothing left to fix.
+   *
+   * The row is another file's claim, so the cited file's own state retires it
+   * (`why`), and only two states do. `"cited-file-clean"`: the cited file was
+   * dispatched and the runner that raised the row answered with no blocker of
+   * its own on it (the caller proves that; `shouldRetire` is its verdict per
+   * row). `"cited-file-missing"`: the cited file no longer exists, which the
+   * #1245 reconcile already decides for a record's OWN file. Everything else
+   * stays, rows with no structured diagnostics included (fail closed), and so
+   * does a row that cites no file (`isCrossFileBlocker` is total).
+   *
+   * A clean verdict retires only a record it is strictly newer than
+   * (`confirmedAtWriteOrder`, turn first), as `retireInlineBlockerOnConfirmedClean`
+   * orders its own: a slow old clean must not erase a newer observation.
+   *
+   * `of` limits the retire to one session's records, the partition
+   * `getInlineBlockersSnapshot` reads. Omitted, every session's record is
+   * judged.
+   *
+   * @returns one entry per record that lost rows, with the session that owns
+   * it, so the caller can bring the commit gate (the latch and the persisted
+   * record) back in line. Counted once per file in the degradation ledger.
+   */
+  retireForeignRows(why, shouldRetire, confirmedAtWriteOrder, of) {
+    const changed = [];
+    for (const existing of this.getInlineBlockersSnapshot(of)) {
+      const key = existing.filePath;
+      if (confirmedAtWriteOrder !== void 0 && existing.writeOrder !== void 0 && confirmedAtWriteOrder <= existing.writeOrder)
+        continue;
+      const diagnostics = existing.diagnostics;
+      if (!diagnostics)
+        continue;
+      const kept = diagnostics.filter((row) => !(isCrossFileBlocker(row, existing.filePath) && shouldRetire(row)));
+      if (kept.length === diagnostics.length)
+        continue;
+      changed.push({
+        filePath: existing.filePath,
+        owner: existing.session ?? this._telemetrySessionId
+      });
+      incrementDegradationCount({
+        kind: "cross-file-row-retired",
+        subject: normalizeMapKey(existing.filePath),
+        reason: why === "cited-file-clean" ? "a row naming another file left the record: that file was dispatched and its runner reported nothing on it (#5020)" : "a row naming another file left the record: that file no longer exists (#5020)"
+      });
+      if (kept.length === 0) {
+        if (why === "cited-file-clean")
+          this.noteResolvedBlockerFile(existing, void 0, true);
+        this._pendingInlineBlockers.delete(key);
+      } else {
+        this._pendingInlineBlockers.set(key, narrowedRecord(existing, kept));
+      }
+    }
+    return changed;
+  }
+  /**
+   * #5020: the rows whose cited file is gone, for the two reads the commit gate
+   * depends on (the turn end and the gate's own evaluation). Only an ABSOLUTE
+   * cite is judged: a relative one is relative to whatever the runner ran in,
+   * which the record does not keep, so a row that cannot be placed stays
+   * (fail closed) rather than being resolved against a guess.
+   *
+   * Both reads persist what they retire into the caller's own cwd cache, and
+   * each caller retires only its OWN session's records (`of`, required): the
+   * acting session's own records, whose cache is the coordinator root's cache
+   * or the session cwd's, whichever wrote them. A sweep by another session at
+   * another cwd would write the wrong project's cache and leave the owner's
+   * record refusing its next commit (PR #5033 round 3, F1 and item 4).
+   * Another session's dead cite is that session's own turn end or commit gate
+   * to retire.
+   */
+  retireForeignRowsOfMissingFiles(of) {
+    return this.retireForeignRows("cited-file-missing", (row) => path8.isAbsolute(row.filePath) && !fs8.existsSync(row.filePath), void 0, of);
   }
   /**
    * #3218 criterion 2: a retirement no turn_end has delivered yet. The
@@ -4651,12 +5065,18 @@ var RuntimeCoordinator = class {
    * and a line that would not fit the message cap (called in list order).
    * The "… and N more" overflow count rides with a batch that lists files and
    * is otherwise kept, so a bare tail is never delivered.
+   *
+   * #4921: `of` names the consuming turn session; another session's note
+   * stays for that session's turn end, unseen by `holdBack`.
    */
-  consumeResolvedBlockerFiles(holdBack) {
+  consumeResolvedBlockerFiles(holdBack, of) {
     const files = [];
     const held = [];
     for (const entry of this._resolvedBlockerFilesThisTurn.values()) {
-      (holdBack(entry) ? held : files).push(entry);
+      if (of && !this.ownedBy(entry, of.sessionId))
+        held.push(entry);
+      else
+        (holdBack(entry) ? held : files).push(entry);
     }
     this._resolvedBlockerFilesThisTurn.clear();
     for (const entry of held) {
@@ -4671,7 +5091,7 @@ var RuntimeCoordinator = class {
   reconcileInlineBlockers() {
     const survivors = [];
     for (const [displayPath, value] of this._pendingInlineBlockers.entries()) {
-      if (fs9.existsSync(displayPath))
+      if (fs8.existsSync(displayPath))
         survivors.push([displayPath, value]);
     }
     if (survivors.length !== this._pendingInlineBlockers.size) {
@@ -4692,10 +5112,16 @@ var RuntimeCoordinator = class {
    * turn or gate a commit. The map is tiny (per-turn blockers) and reads are
    * bounded (once per turn_end / tool_result), so the probe cost is
    * negligible.
+   *
+   * #4921: `of` names a turn session, and the snapshot holds only that
+   * session's records: what its turn end may deliver, sweep or re-judge.
+   * Omitted, every record: the commit gate's view, which answers for the
+   * tree whichever session wrote the blocker.
    */
-  getInlineBlockersSnapshot() {
+  getInlineBlockersSnapshot(of) {
     this.reconcileInlineBlockers();
-    return [...this._pendingInlineBlockers.values()];
+    const records2 = [...this._pendingInlineBlockers.values()];
+    return of ? records2.filter((entry) => this.ownedBy(entry, of.sessionId)) : records2;
   }
   consumeInlineBlockers() {
     const entries = this.getInlineBlockersSnapshot();
@@ -4710,23 +5136,49 @@ var RuntimeCoordinator = class {
   turnSession(sessionId) {
     return sessionId ?? this._telemetrySessionId;
   }
+  /**
+   * The cell holding `sessionId`'s turn's warnings. The coordinator's own turn
+   * is its scope's; a concurrent session's is found by id. `create` builds it
+   * on first write; without it a missing cell is `undefined`.
+   */
+  turnWarnings(sessionId, create) {
+    const turnSession = this.turnSession(sessionId);
+    const init = create ? newTurnWarningsCell : void 0;
+    return turnSession === this._telemetrySessionId ? scopeCell(this._scope, TURN_WARNINGS_CELL, init) : sessionCell(turnSession, TURN_WARNINGS_CELL, init);
+  }
+  /** Drain both warning maps of `turnSession`; other sessions' cells are theirs. */
+  clearTurnWarnings(turnSession) {
+    const cell = this.turnWarnings(turnSession, false);
+    cell?.actionable.clear();
+    cell?.codeQuality.clear();
+  }
   recordActionableWarnings(warnings, sessionId) {
-    this._actionableWarningsThisTurn.add(this.turnSession(sessionId), warnings);
+    const cell = this.turnWarnings(sessionId, true);
+    if (cell)
+      for (const item of warnings)
+        cell.actionable.set(item.id, item);
   }
   peekActionableWarnings(sessionId) {
-    return this._actionableWarningsThisTurn.peek(this.turnSession(sessionId));
+    return [
+      ...this.turnWarnings(sessionId, false)?.actionable.values() ?? []
+    ];
   }
   clearActionableWarnings(sessionId) {
-    this._actionableWarningsThisTurn.clear(this.turnSession(sessionId));
+    this.turnWarnings(sessionId, false)?.actionable.clear();
   }
   recordCodeQualityWarnings(warnings, sessionId) {
-    this._codeQualityWarningsThisTurn.add(this.turnSession(sessionId), warnings);
+    const cell = this.turnWarnings(sessionId, true);
+    if (cell)
+      for (const item of warnings)
+        cell.codeQuality.set(item.id, item);
   }
   peekCodeQualityWarnings(sessionId) {
-    return this._codeQualityWarningsThisTurn.peek(this.turnSession(sessionId));
+    return [
+      ...this.turnWarnings(sessionId, false)?.codeQuality.values() ?? []
+    ];
   }
   clearCodeQualityWarnings(sessionId) {
-    this._codeQualityWarningsThisTurn.clear(this.turnSession(sessionId));
+    this.turnWarnings(sessionId, false)?.codeQuality.clear();
   }
   /**
    * #3613 F2: the key a per-turn cap (the observed-mutation budget, a
@@ -4763,8 +5215,9 @@ var RuntimeCoordinator = class {
     if (turnSession === this._telemetrySessionId)
       return;
     this._foreignTurnKeys.delete(turnSession);
-    this._actionableWarningsThisTurn.clear(turnSession);
-    this._codeQualityWarningsThisTurn.clear(turnSession);
+    this._foreignReadGuards.get(turnSession)?.releaseFileTime();
+    this._foreignReadGuards.delete(turnSession);
+    this.clearTurnWarnings(turnSession);
   }
   /** #484: the per-run diagnostics/autofix/format collector (accumulates
    * across turns; consumed once at the agent_settled quiet window). Always
@@ -4797,6 +5250,24 @@ var RuntimeCoordinator = class {
   get readGuard() {
     this._readGuard ??= new ReadGuard(this._telemetrySessionId, {}, this._scope);
     return this._readGuard;
+  }
+  /**
+   * #4942: the read guard of `sessionId`'s turn, so an edit is judged by the
+   * reads of the session that edits. The owner is the one `recordSession`
+   * names for the inline blockers (#4921): a turn with no session id of its
+   * own is the coordinator's, whose guard is {@link readGuard}; a concurrent
+   * in-process secondary's is its own, built on first use.
+   */
+  readGuardFor(sessionId) {
+    const owner = this.recordSession(sessionId).session;
+    if (owner === void 0)
+      return this.readGuard;
+    let guard = this._foreignReadGuards.get(owner);
+    if (guard === void 0) {
+      guard = new ReadGuard(owner, {}, this._scope);
+      this._foreignReadGuards.set(owner, guard);
+    }
+    return guard;
   }
   /**
    * Record the canonical target `tool_call` resolved for `toolCallId`
@@ -4860,7 +5331,7 @@ var RuntimeCoordinator = class {
   deferMutation(filePath, cwd, toolName, turnStateCwd, kind, ownerSessionId, originCwd, readGuardBranchEpoch = this.readGuard.currentBranchEpoch, analysisRootMode = "session") {
     if (!canWriteAnalysisRoot(analysisRootMode))
       return false;
-    const key = path8.resolve(filePath);
+    const key = realpathOrResolve(filePath);
     const now = Date.now();
     const resolvedOriginCwd = originCwd ?? turnStateCwd;
     const existing = this._pendingDeferredMutations.get(key);
@@ -4899,7 +5370,7 @@ var RuntimeCoordinator = class {
   }
   /** Return the ownership identity of a queued format record for bus events. */
   deferredFormatIdentity(filePath) {
-    const record = this._pendingDeferredMutations.get(path8.resolve(filePath));
+    const record = this._pendingDeferredMutations.get(filePath);
     if (!record || !record.kinds.has("format"))
       return void 0;
     return {
@@ -4920,9 +5391,9 @@ var RuntimeCoordinator = class {
    * flush call sites should prefer {@link claimDeferredFormatFiles}.
    */
   consumeDeferredFormatFiles() {
-    const records = [...this._pendingDeferredMutations.values()];
+    const records2 = [...this._pendingDeferredMutations.values()];
     this._pendingDeferredMutations.clear();
-    return records;
+    return records2;
   }
   /**
    * Ownership-filtered drain (#791). Claims and removes only the records
@@ -4949,21 +5420,30 @@ var RuntimeCoordinator = class {
    *    observability — deleting it here would drop it forever with no
    *    origin ever able to reclaim it.
    *
+   * `ownedOnly` is a concurrent secondary's drain (#4943): it claims exactly
+   * the records its own known session id owns. An ownerless record, another
+   * session's and a stale orphan are all left for the primary, so a
+   * secondary with no stable id claims nothing.
+   *
    * Returns the claimed records, the left-queued mismatched-origin records,
    * and per-skipped record why it was left behind — callers use this for
    * `agent_end`'s latency-log provenance and for the "stale fallback
    * fired"/"orphan mismatch" log lines.
    */
-  claimDeferredFormatFiles(currentSessionId, now, staleAfterMs, currentOriginCwd) {
+  claimDeferredFormatFiles(currentSessionId, now, staleAfterMs, currentOriginCwd, ownedOnly = false) {
     const claimed = [];
     const staleClaimed = [];
     const deferredToOwner = [];
     const droppedOrphans = [];
     for (const [key, record] of this._pendingDeferredMutations) {
-      const sameSession = record.ownerSessionId === void 0 || currentSessionId === void 0 || record.ownerSessionId === currentSessionId;
+      const sameSession = ownedOnly ? currentSessionId !== void 0 && record.ownerSessionId === currentSessionId : record.ownerSessionId === void 0 || currentSessionId === void 0 || record.ownerSessionId === currentSessionId;
       if (sameSession) {
         claimed.push(record);
         this._pendingDeferredMutations.delete(key);
+        continue;
+      }
+      if (ownedOnly) {
+        deferredToOwner.push(record);
         continue;
       }
       const age = now - record.lastTouchedAt;
@@ -4982,9 +5462,9 @@ var RuntimeCoordinator = class {
     return { claimed, staleClaimed, deferredToOwner, droppedOrphans };
   }
   /** Return claimed records that were never started by an aborted drain. */
-  requeueDeferredFormatFiles(records) {
-    for (const record of records) {
-      const key = path8.resolve(record.filePath);
+  requeueDeferredFormatFiles(records2) {
+    for (const record of records2) {
+      const key = record.filePath;
       const existing = this._pendingDeferredMutations.get(key);
       if (existing) {
         for (const kind of record.kinds)
@@ -5001,11 +5481,11 @@ var RuntimeCoordinator = class {
       });
     }
   }
-  claimDeferredMutations(currentSessionId, now, staleAfterMs, currentOriginCwd) {
-    return this.claimDeferredFormatFiles(currentSessionId, now, staleAfterMs, currentOriginCwd);
+  claimDeferredMutations(currentSessionId, now, staleAfterMs, currentOriginCwd, ownedOnly = false) {
+    return this.claimDeferredFormatFiles(currentSessionId, now, staleAfterMs, currentOriginCwd, ownedOnly);
   }
-  requeueDeferredMutations(records) {
-    this.requeueDeferredFormatFiles(records);
+  requeueDeferredMutations(records2) {
+    this.requeueDeferredFormatFiles(records2);
   }
   shouldWarmLspOnRead(filePath, maxAgeMs = 12e4) {
     const state = this._lspReadWarmState.get(path8.resolve(filePath));
@@ -5034,6 +5514,7 @@ var RuntimeCoordinator = class {
 
 // dist/clients/runtime-session.js
 import * as nodeFs from "node:fs";
+import * as os2 from "node:os";
 import * as path13 from "node:path";
 
 // dist/clients/message-end-attribution.js
@@ -5069,7 +5550,7 @@ function isPrintMode(argv = process.argv) {
 }
 
 // dist/clients/rules-scanner.js
-import * as fs10 from "node:fs";
+import * as fs9 from "node:fs";
 import * as path10 from "node:path";
 var RULE_DIRS = [
   { dir: ".claude/rules", source: ".claude/rules" },
@@ -5086,9 +5567,9 @@ function findMarkdownFiles(dir, baseDir, depth = 0, collected = { count: 0 }) {
   const results = [];
   if (depth > RULES_SCAN_MAX_DEPTH)
     return results;
-  if (!fs10.existsSync(dir))
+  if (!fs9.existsSync(dir))
     return results;
-  const entries = fs10.readdirSync(dir, { withFileTypes: true });
+  const entries = fs9.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (collected.count >= RULES_SCAN_MAX_FILES)
       break;
@@ -5101,7 +5582,7 @@ function findMarkdownFiles(dir, baseDir, depth = 0, collected = { count: 0 }) {
         source: path10.relative(baseDir, dir) || path10.basename(baseDir),
         name: entry.name,
         filePath: fullPath,
-        relativePath: path10.relative(baseDir, fullPath).replace(/\\/g, "/")
+        relativePath: toPosix(path10.relative(baseDir, fullPath))
       });
     }
   }
@@ -5111,7 +5592,7 @@ function scanProjectRules(cwd) {
   const rules = [];
   for (const { dir, source } of RULE_DIRS) {
     const dirPath = path10.join(cwd, dir);
-    if (fs10.existsSync(dirPath)) {
+    if (fs9.existsSync(dirPath)) {
       const found = findMarkdownFiles(dirPath, path10.join(cwd, dir));
       for (const rule of found) {
         rules.push({
@@ -5125,7 +5606,7 @@ function scanProjectRules(cwd) {
   }
   for (const { file, source } of RULE_FILES) {
     const filePath = path10.join(cwd, file);
-    if (fs10.existsSync(filePath)) {
+    if (fs9.existsSync(filePath)) {
       rules.push({
         source,
         name: file,
@@ -5141,7 +5622,7 @@ function scanProjectRules(cwd) {
 }
 
 // dist/clients/smells-rollup.js
-import * as fs11 from "node:fs";
+import * as fs10 from "node:fs";
 import * as path11 from "node:path";
 var SMELLS_TAIL_BYTES_PER_FILE = 64 * 1024;
 var SMELLS_ROLLING_WINDOW_MS = 24 * 60 * 6e4;
@@ -5157,18 +5638,18 @@ var SMELL_KEYS = ["staleCtxEmitFailed", "opengrepRespawn"];
 function tailReadText(filePath, maxBytes) {
   let fd;
   try {
-    fd = fs11.openSync(filePath, "r");
+    fd = fs10.openSync(filePath, "r");
   } catch {
     return "";
   }
   try {
-    const size = fs11.fstatSync(fd).size;
+    const size = fs10.fstatSync(fd).size;
     const readBytes2 = Math.min(size, maxBytes);
     if (readBytes2 <= 0)
       return "";
     const start = size - readBytes2;
     const buf = Buffer.alloc(readBytes2);
-    fs11.readSync(fd, buf, 0, readBytes2, start);
+    fs10.readSync(fd, buf, 0, readBytes2, start);
     const text = buf.toString("utf8");
     if (start <= 0)
       return text;
@@ -5178,7 +5659,7 @@ function tailReadText(filePath, maxBytes) {
     return "";
   } finally {
     try {
-      fs11.closeSync(fd);
+      fs10.closeSync(fd);
     } catch {
     }
   }
@@ -5345,9 +5826,15 @@ function boundDeferredTargets(entries, max, isOwn) {
 }
 
 // dist/clients/test-runner-delivery.js
-var pending = /* @__PURE__ */ new Map();
+var MAX_PENDING_DELIVERIES = 32;
+var pending = new BoundedFifoMap(MAX_PENDING_DELIVERIES);
 function resetTestRunnerDelivery() {
   pending.clear();
+}
+
+// dist/clients/session-event-guard.js
+function isStaleExtensionCtxError(err) {
+  return err instanceof Error && err.message.includes("stale after session replacement or reload");
 }
 
 // dist/clients/runtime-session.js
@@ -5402,7 +5889,7 @@ function logHostReadyDelay(deps, cwd) {
 function resolveSnapshotRoot(cwd) {
   const resolvedCwd = path13.resolve(cwd);
   const nearest = findNearestProjectRoot(resolvedCwd);
-  if (!nearest || isAtOrAboveHomeDir(nearest)) {
+  if (!nearest || isAtOrAboveHomeDir(realpathOrResolve(nearest), realpathOrResolve(os2.homedir()))) {
     return resolvedCwd;
   }
   return nearest;
@@ -5481,6 +5968,91 @@ function logProjectSnapshotProbe(args) {
     args.dbg(`project_snapshot: miss reason=${args.missReason}`);
   }
 }
+async function readSequenceAndHydrateFreshSnapshot(args) {
+  const { snapshotRoot, cwd, runtime, sessionGeneration, dbg, onDeferredSequenceResolved } = args;
+  const sequenceReadStartedAt = Date.now();
+  const { latestSeq, timedOut } = await bounded(readSequenceWithBudget({
+    snapshotRoot,
+    base: snapshotSequenceBase(snapshotRoot),
+    cwd,
+    runtime,
+    sessionGeneration,
+    dbg,
+    onDeferredSequenceResolved
+  }), {
+    ms: HOOK_WALL_BUDGET_MS.session_start,
+    signal: void 0,
+    hook: "session_start",
+    label: "readSequenceWithBudget"
+  }) ?? coldSequenceRead();
+  logLatency({
+    type: "phase",
+    phase: "session_start_sequence_read",
+    filePath: cwd,
+    startedAt: new Date(sequenceReadStartedAt).toISOString(),
+    durationMs: Date.now() - sequenceReadStartedAt,
+    metadata: { entries: latestSeq.fileSeqByPath.size, timedOut }
+  });
+  if (timedOut) {
+    recordSnapshotSequenceTimeout({
+      snapshotRoot,
+      snapshotPath: getProjectSnapshotPath(snapshotRoot)
+    });
+  }
+  runtime.seedProjectSequence?.(latestSeq.projectSeq, latestSeq.fileSeqByPath, latestSeq.logEntries);
+  const effectiveSeq = runtime.projectSeq ?? latestSeq.projectSeq;
+  dbg(`session_start sequence: projectSeq=${effectiveSeq} fileSeqEntries=${latestSeq.fileSeqByPath.size}`);
+  const freshnessSeq = timedOut ? UNKNOWN_PROJECT_SEQ : effectiveSeq;
+  const snapshotLoadStartedAt = Date.now();
+  const snapshotPath = getProjectSnapshotPath(snapshotRoot);
+  let snapshotBytes = 0;
+  try {
+    snapshotBytes = nodeFs.statSync(snapshotPath).size;
+  } catch {
+  }
+  const snapshotBodyPresent = nodeFs.existsSync(snapshotPath) || nodeFs.existsSync(getProjectSnapshotLegacyPath(snapshotRoot));
+  const snapshotGate = loadSnapshotBodyUnlessStale({
+    root: snapshotRoot,
+    currentProjectSeq: freshnessSeq,
+    unlockedThrough: latestSeq.unlockedThrough ?? 0,
+    dbg
+  });
+  const snapshot = snapshotGate.snapshot;
+  const snapshotFresh = isProjectSnapshotFresh(snapshot, freshnessSeq, latestSeq.unlockedThrough);
+  const snapshotMissReason = describeSnapshotMiss(snapshot, freshnessSeq, {
+    skippedStale: snapshotGate.skippedStale,
+    bodyPresent: snapshotBodyPresent,
+    unlockedThrough: latestSeq.unlockedThrough ?? 0
+  });
+  logLatency({
+    type: "phase",
+    phase: "session_start_snapshot_load",
+    filePath: cwd,
+    startedAt: new Date(snapshotLoadStartedAt).toISOString(),
+    durationMs: Date.now() - snapshotLoadStartedAt,
+    metadata: {
+      bytes: snapshotBytes,
+      fresh: snapshotFresh,
+      seq: snapshot?.seq ?? null,
+      reason: snapshotFresh ? void 0 : snapshotMissReason,
+      ...snapshotGate.skippedStale ? { skippedStale: true } : {},
+      ...timedOut ? { sequenceUnknown: true } : {}
+    }
+  });
+  logProjectSnapshotProbe({
+    dbg,
+    root: snapshotRoot,
+    currentProjectSeq: freshnessSeq,
+    unlockedThrough: latestSeq.unlockedThrough ?? 0,
+    snapshot,
+    missReason: snapshotMissReason
+  });
+  const freshSnapshot = snapshotFresh ? snapshot : null;
+  if (freshSnapshot) {
+    hydrateRuntimeFromProjectSnapshot(runtime, freshSnapshot);
+  }
+  return freshSnapshot;
+}
 function resolveStartupMode(projectConfig, globalConfig) {
   const envMode = (process.env.PI_LENS_STARTUP_MODE ?? "").trim().toLowerCase();
   if (envMode === "full" || envMode === "minimal" || envMode === "quick") {
@@ -5496,7 +6068,8 @@ function resolveStartupMode(projectConfig, globalConfig) {
 }
 function sequenceReadBudgetMs() {
   const raw = Number(process.env.PI_LENS_SEQUENCE_READ_BUDGET_MS ?? 250);
-  return Number.isFinite(raw) && raw > 0 ? raw : 250;
+  const budget = Number.isFinite(raw) && raw > 0 ? raw : 250;
+  return Math.min(budget, HOOK_WALL_BUDGET_MS.session_start);
 }
 var UNKNOWN_PROJECT_SEQ = -1;
 async function readSequenceWithBudget(args) {
@@ -5555,6 +6128,9 @@ async function readSequenceWithBudget(args) {
       dbg(`session_start: deferred sequence read failed: ${err}`);
     });
   }
+  return coldSequenceRead();
+}
+function coldSequenceRead() {
   return {
     latestSeq: { projectSeq: 0, fileSeqByPath: /* @__PURE__ */ new Map() },
     timedOut: true
@@ -5604,8 +6180,8 @@ async function igniteDominantLanguageWarm(cwd, runtime, sessionGeneration, dbg) 
     if (!runtime.isCurrentSession(sessionGeneration))
       return;
     const lspService = (await loadLspService()).getLSPService();
-    const { collectSourceFilesAsync } = await import("../chunk-4W4VLAPJ.js");
-    const { CODE_KINDS, detectFileKind: detectFileKind2 } = await import("../chunk-FLKWCIZH.js");
+    const { collectSourceFilesAsync } = await import("../chunk-I22THIHI.js");
+    const { CODE_KINDS, detectFileKind: detectFileKind2 } = await import("../chunk-NM2NWH55.js");
     const files = await collectSourceFilesAsync(cwd, {
       inspectGeneratedHeaders: false
     });
@@ -5666,13 +6242,23 @@ function firePreinstallDefaults(ensureTool, dbg, startupDefaults) {
   }
 }
 var MANAGED_TOOL_REFRESH_DELAY_MS = 3e4;
-function scheduleManagedToolRefresh(dbg) {
+var managedToolRefreshTimer;
+function cancelScheduledManagedToolRefresh() {
+  if (managedToolRefreshTimer === void 0)
+    return;
+  clearTimeout(managedToolRefreshTimer);
+  managedToolRefreshTimer = void 0;
+}
+function scheduleManagedToolRefresh(dbg, rulePack) {
   const delayMs = Number(process.env.PI_LENS_TOOL_REFRESH_DELAY_MS ?? MANAGED_TOOL_REFRESH_DELAY_MS);
   const timer = setTimeout(() => {
+    managedToolRefreshTimer = void 0;
     void (async () => {
       try {
-        const refresh = await import("../chunk-5UCAH366.js");
-        const outcome = await refresh.runManagedToolRefresh();
+        const refresh = await import("../chunk-XOMGO63G.js");
+        const outcome = await refresh.runManagedToolRefresh(void 0, {
+          rulePack
+        });
         if (outcome.skipped) {
           dbg(`session_start tool-refresh: skipped (${outcome.skipped})`);
           return;
@@ -5686,6 +6272,7 @@ function scheduleManagedToolRefresh(dbg) {
     })();
   }, Number.isFinite(delayMs) ? delayMs : MANAGED_TOOL_REFRESH_DELAY_MS);
   timer.unref?.();
+  managedToolRefreshTimer = timer;
 }
 async function probePrettierInstall(ensureTool, dbg, analysisRoot) {
   const pkgPath = path13.join(analysisRoot, "package.json");
@@ -5718,7 +6305,7 @@ function scanOneTodoFile(scanner, filePath, items) {
 async function collectTodoBaselineItems(scanner, analysisRoot, stillCurrent) {
   const items = [];
   try {
-    const { getSourceFilesAsync } = await import("../chunk-IZSHAIJ7.js");
+    const { getSourceFilesAsync } = await import("../chunk-447YZL4S.js");
     const files = await getSourceFilesAsync(analysisRoot, true);
     if (!stillCurrent())
       return items;
@@ -5747,7 +6334,7 @@ async function buildOrRefreshWordIndex(args) {
   const snapshot = loadProjectSnapshot(snapshotRoot);
   const snapshotLoadMs = Date.now() - snapshotLoadStartMs;
   if (snapshot?.wordIndex) {
-    const { deserializeWordIndex, refreshWordIndexIncrementally, countWordIndexPostingEntries: countWordIndexPostingEntries2, estimateWordIndexResidentBytes: estimateWordIndexResidentBytes2 } = await import("../chunk-WU567RSC.js");
+    const { deserializeWordIndex, refreshWordIndexIncrementally, countWordIndexPostingEntries: countWordIndexPostingEntries2, estimateWordIndexResidentBytes: estimateWordIndexResidentBytes2, notifyWordIndexPublished: notifyWordIndexPublished2 } = await import("../chunk-O4N5BQ3T.js");
     const deserializeStartMs = Date.now();
     const index = deserializeWordIndex(snapshot.wordIndex);
     const deserializeMs = Date.now() - deserializeStartMs;
@@ -5772,6 +6359,7 @@ async function buildOrRefreshWordIndex(args) {
           });
         } else {
           runtime.wordIndex = index;
+          notifyWordIndexPublished2(snapshotRoot, index, "session_start");
           let snapshotSaveSyncMs = 0;
           if (!isProjectSnapshotFresh(snapshot, effectiveSeq, latestSeq.unlockedThrough) || result.refreshed > 0 || result.dropped > 0 || snapshot.wordIndex.truncated !== index.truncated) {
             const serializeSaveEnqueueStartMs = Date.now();
@@ -5819,7 +6407,7 @@ async function buildOrRefreshWordIndex(args) {
       }
     }
   }
-  const { buildWordIndexAsync, collectWordIndexDocs, countWordIndexPostingEntries, estimateWordIndexResidentBytes } = await import("../chunk-WU567RSC.js");
+  const { buildWordIndexAsync, collectWordIndexDocs, countWordIndexPostingEntries, estimateWordIndexResidentBytes, notifyWordIndexPublished } = await import("../chunk-O4N5BQ3T.js");
   const docs = await collectWordIndexDocs(analysisRoot, () => runtime.isCurrentSession(sessionGeneration), rebuildPreflightFiles);
   if (!runtime.isCurrentSession(sessionGeneration))
     return;
@@ -5836,6 +6424,7 @@ async function buildOrRefreshWordIndex(args) {
   if (!runtime.isCurrentSession(sessionGeneration))
     return;
   runtime.wordIndex = rebuiltIndex;
+  notifyWordIndexPublished(snapshotRoot, rebuiltIndex, "session_start");
   saveRuntimeProjectSnapshot({ cwd: snapshotRoot, runtime, dbg });
   dbg(`session_start word-index: rebuilt (absent/stale, seq=${effectiveSeq}) ${runtime.wordIndex.docCount} files, ${runtime.wordIndex.postings.size} tokens (${Date.now() - startMs}ms)`);
   logWordIndex({
@@ -5858,6 +6447,21 @@ async function buildOrRefreshWordIndex(args) {
     reused: 0
   };
 }
+var STARTUP_TASK_DEFER_MS = {
+  "call-graph": 5e3,
+  "codebase-model": 5200,
+  "ast-grep-exports": 5400
+};
+function recordStaleScanSkip(err, dbg) {
+  if (!isStaleExtensionCtxError(err))
+    throw err;
+  dbg("session_start scans: extension ctx went stale \u2014 skipped");
+  recordDegradationOnce({
+    kind: "extension-ctx-stale",
+    subject: "session-start-scans",
+    reason: "session-start scans skipped: the session was replaced while the analyzer bootstrap was pending"
+  });
+}
 function scheduleStartupScans(deps, runtime, sessionGeneration, analysisRoot, snapshotRoot, languageProfile, dbg) {
   void (async () => {
     const resolved = await demandBootstrapDeps(deps, "session-start-scans");
@@ -5865,7 +6469,11 @@ function scheduleStartupScans(deps, runtime, sessionGeneration, analysisRoot, sn
       dbg("session_start scans: analyzer bootstrap unavailable \u2014 skipped");
       return;
     }
-    scheduleStartupScansWithClients(resolved, runtime, sessionGeneration, analysisRoot, snapshotRoot, languageProfile, dbg);
+    try {
+      scheduleStartupScansWithClients(resolved, runtime, sessionGeneration, analysisRoot, snapshotRoot, languageProfile, dbg);
+    } catch (err) {
+      recordStaleScanSkip(err, dbg);
+    }
   })();
 }
 function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analysisRoot, snapshotRoot, languageProfile, dbg) {
@@ -5879,15 +6487,10 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
       reason: "skipped (disabled by config)"
     });
   }
-  const taskDeferMsByName = {
-    "call-graph": 5e3,
-    "codebase-model": 5200,
-    "ast-grep exports": 5400,
-    "project index": 5400
-  };
   const runTask = (name, task) => {
     const queuedAt = Date.now();
-    dbg(`session_start task ${name}: scheduled`);
+    const delay = STARTUP_TASK_DEFER_MS[name] ?? 0;
+    dbg(`session_start task ${name}: scheduled deferMs=${delay}`);
     runtime.markStartupScanInFlight(name, sessionGeneration);
     const completion = new Promise((resolve32) => {
       const fire = () => {
@@ -5904,7 +6507,6 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
           resolve32();
         });
       };
-      const delay = taskDeferMsByName[name] ?? 0;
       if (delay > 0) {
         setTimeout(fire, delay).unref?.();
       } else {
@@ -5916,7 +6518,7 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
   const canRunJsTsHeavyScans = canRunStartupHeavyScans(languageProfile, "jsts");
   const scanNames = ["todo", "dead-code"];
   if (canRunJsTsHeavyScans) {
-    scanNames.push("knip", "jscpd", "ast-grep exports", "project index");
+    scanNames.push("knip", "jscpd", "ast-grep-exports");
   }
   dbg(`session_start: launching background scans (${scanNames.join(", ")})`);
   void runTask("todo", async () => {
@@ -6184,9 +6786,9 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
   });
   let callGraphIdentity;
   const callGraphTask = runTask("call-graph", async () => {
-    const { FactStore: FactStore2 } = await import("../chunk-QGQ5CCCG.js");
-    const { buildOrUpdateGraph, extractSymbolsAndRefsFromGraph, getReviewGraphCacheIdentity } = await import("../chunk-2VUQMUMT.js");
-    const { buildCallGraph, saveCallGraph, loadCallGraph: loadCallGraph2 } = await import("../chunk-BKE7E7TC.js");
+    const { FactStore: FactStore2 } = await import("../chunk-PIQQM32Y.js");
+    const { buildOrUpdateGraph, extractSymbolsAndRefsFromGraph, getReviewGraphCacheIdentity } = await import("../chunk-T2S3FNNJ.js");
+    const { buildCallGraph, saveCallGraph, loadCallGraph: loadCallGraph2 } = await import("../chunk-TV6RXRYH.js");
     if (!runtime.isCurrentSession(sessionGeneration))
       return;
     const startMs = Date.now();
@@ -6227,7 +6829,7 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
       return;
     if (!runtime.callGraph)
       return;
-    const { buildCodebaseModel, saveCodebaseModel, DEFAULT_CODEBASE_MODEL_TOKEN_BUDGET } = await import("../chunk-TYM6OUIT.js");
+    const { buildCodebaseModel, saveCodebaseModel, DEFAULT_CODEBASE_MODEL_TOKEN_BUDGET } = await import("../chunk-XWIME22V.js");
     if (!callGraphIdentity)
       return;
     const model = buildCodebaseModel(runtime.callGraph, analysisRoot, DEFAULT_CODEBASE_MODEL_TOKEN_BUDGET, callGraphIdentity);
@@ -6259,18 +6861,18 @@ function scheduleStartupScansWithClients(deps, runtime, sessionGeneration, analy
     });
   });
 }
-function scheduleDeferredToolProbes(deps, languageProfile, startupDefaults, startupScansWillRun, dbg) {
+function scheduleDeferredToolProbes(deps, languageProfile, startupDefaults, dbg) {
   void (async () => {
     const resolved = await demandBootstrapDeps(deps, "session-start-tool-probes");
     if (!resolved) {
       dbg("session_start tools: analyzer bootstrap unavailable \u2014 no probes");
       return;
     }
-    scheduleDeferredToolProbesWithClients(resolved, languageProfile, startupDefaults, startupScansWillRun, dbg);
+    scheduleDeferredToolProbesWithClients(resolved, languageProfile, startupDefaults, dbg);
   })();
 }
-function scheduleDeferredToolProbesWithClients(deps, languageProfile, startupDefaults, startupScansWillRun, dbg) {
-  const { biomeClient, ruffClient, depChecker } = deps;
+function scheduleDeferredToolProbesWithClients(deps, languageProfile, startupDefaults, dbg) {
+  const { biomeClient, ruffClient } = deps;
   const defaultTools = new Set(startupDefaults);
   const probes = [];
   if (languageProfile.present.jsts && !defaultTools.has("biome")) {
@@ -6278,9 +6880,6 @@ function scheduleDeferredToolProbesWithClients(deps, languageProfile, startupDef
   }
   if (languageProfile.present.python && !defaultTools.has("ruff")) {
     probes.push(["ruff", () => ruffClient.ensureAvailable()]);
-  }
-  if (startupScansWillRun) {
-    probes.push(["madge", () => depChecker.ensureAvailable()]);
   }
   if (probes.length === 0) {
     dbg("session_start tools: no deferred availability probes needed");
@@ -6299,6 +6898,36 @@ function scheduleDeferredToolProbesWithClients(deps, languageProfile, startupDef
     const summary = results.map(([name, ready]) => `${name}=${ready}`).join(" ");
     dbg(`session_start tools (deferred probes complete, ${Date.now() - warmStart}ms): ${summary}`);
   })();
+}
+function resetSessionScopedState(cwd, sessionStartMs = Date.now()) {
+  resetWorkspaceTopology();
+  resetOpaqueMutationState();
+  resetObservedMutationNet();
+  resetMutationAttribution();
+  primePersistedMutationAttribution(cwd);
+  resetPendingAuxiliaryCoverage();
+  resetDeferredDispositions();
+  resetSafeSpawnWindowsCommandCache();
+  resetDispatchAvailabilityState();
+  resetObservedRunnerLatency();
+  resetPendingRunnerFindings();
+  resetSpawnTimeoutCooldowns();
+  clearFormatterCache();
+  resetZizmorTokenAvailability();
+  resetGoAvailability();
+  resetRustAvailability();
+  resetPsScriptAnalyzerAvailability();
+  resetInstallRetryLatches();
+  resetLazyInstallAttempts();
+  resetDirectLspCommandAvailability();
+  resetLSPCaseSensitivityState();
+  resetResolvedPathCache();
+  _resetPackageManagerCache();
+  resetManagedToolRefreshSession();
+  resetSmellsSessionState();
+  resetSituationalToolTelemetry();
+  resetWorkspaceDiagnosticsCacheSession(sessionStartMs);
+  cancelScheduledManagedToolRefresh();
 }
 function readSubstituteGuidance(isEnabled) {
   const units = [];
@@ -6331,19 +6960,17 @@ function readSubstituteGuidance(isEnabled) {
 }
 function situationalGuidance(isEnabled) {
   const active = [];
-  for (const name of [
-    "lsp_navigation",
-    "ast_grep_search",
-    "ast_grep_replace"
-  ]) {
-    if (isEnabled(name))
-      active.push(name);
+  for (const entry of TOOL_REGISTRY) {
+    if (!entry.situational)
+      continue;
+    if (isEnabled(entry.name))
+      active.push(entry.name);
   }
   if (active.length === 0)
     return void 0;
-  let text = `\u2022 Situational (activate via pi_lens_activate_tools): ${active.join(", ")}.`;
+  let text = `\u2022 Situational (activate via pi_lens_activate_tools if unlisted): ${active.join(", ")}.`;
   if (isEnabled("ast_grep_search")) {
-    text += " Use ast_grep_search with dump=true to inspect AST nodes.";
+    text += " Use ast_grep_search dump=true to inspect AST.";
   }
   return text;
 }
@@ -6411,8 +7038,8 @@ async function handleSessionStart(deps) {
         try {
           warmupDbg("warmup: starting background warmup");
           const scanContextStartedAt = Date.now();
-          const startupScanModule = await import("../chunk-ZHFZWTZV.js");
-          const languageProfileModule = await import("../chunk-R3PCY3YS.js");
+          const startupScanModule = await import("../chunk-4QG55RRC.js");
+          const languageProfileModule = await import("../chunk-R2QQC33W.js");
           const warmupSnapshotRoot = resolveSnapshotRoot(warmupCwd);
           const cachedSnapshot = loadProjectSnapshot(warmupSnapshotRoot);
           warmupOwnSnapshotRead = cachedSnapshot ? {
@@ -6493,6 +7120,8 @@ async function handleSessionStart(deps) {
           const lspPrewarmStartedAt = Date.now();
           if (deps.getFlag("no-lsp")) {
             warmupDbg("warmup: skipping LSP pre-warm (no-lsp)");
+          } else if (deps.getFlag("no-lens")) {
+            warmupDbg("warmup: skipping LSP pre-warm (no-lens)");
           } else if (isSubagentSession()) {
             warmupDbg("warmup: skipping LSP pre-warm (subagent session)");
           } else if (isWarmAttached()) {
@@ -6546,32 +7175,7 @@ async function handleSessionStart(deps) {
   clearAllSessions();
   runtime.complexityBaselines.clear();
   resetDispatchBaselines2(ctxCwd);
-  resetWorkspaceTopology();
-  resetOpaqueMutationState();
-  resetObservedMutationNet();
-  resetMutationAttribution();
-  primePersistedMutationAttribution(ctxCwd);
-  resetPendingAuxiliaryCoverage();
-  resetSafeSpawnWindowsCommandCache();
-  resetDispatchAvailabilityState();
-  resetObservedRunnerLatency();
-  resetPendingRunnerFindings();
-  resetSpawnTimeoutCooldowns();
-  clearFormatterCache();
-  resetZizmorTokenAvailability();
-  resetGoAvailability();
-  resetRustAvailability();
-  resetPsScriptAnalyzerAvailability();
-  resetInstallRetryLatches();
-  resetLazyInstallAttempts();
-  resetDirectLspCommandAvailability();
-  resetLSPCaseSensitivityState();
-  resetResolvedPathCache();
-  _resetPackageManagerCache();
-  resetManagedToolRefreshSession();
-  resetSmellsSessionState();
-  resetSituationalToolTelemetry();
-  resetWorkspaceDiagnosticsCacheSession(sessionStartMs);
+  resetSessionScopedState(ctxCwd, sessionStartMs);
   deps.bootstrap.peek()?.knipClient.resetSessionState?.();
   resetCascadeTierSessionState();
   runtime.resetForSession(sessionStartMs);
@@ -6582,7 +7186,12 @@ async function handleSessionStart(deps) {
     filePath: ctxCwd ?? process.cwd(),
     startedAt: new Date(handlerEnteredAt).toISOString(),
     durationMs: Date.now() - handlerEnteredAt,
-    metadata: { mode: startupMode, reason: deps.sessionReason }
+    metadata: {
+      mode: startupMode,
+      reason: deps.sessionReason,
+      // #4704: true when another live session keeps the shared LSP fleet.
+      sharedLspKept: deps.keepSharedLsp === true
+    }
   });
   const cleanupCwd = ctxCwd ?? process.cwd();
   setImmediate(() => {
@@ -6609,7 +7218,9 @@ async function handleSessionStart(deps) {
     }
   });
   dbg(`session_start startup mode: ${startupMode}`);
-  if (!getFlag("no-lsp")) {
+  if (deps.keepSharedLsp) {
+    dbg("session_start: LSP service kept for a live in-process session");
+  } else if (!getFlag("no-lsp")) {
     resetLSPService2({ fast: true, reason: "session_start" });
     dbg("session_start: LSP service reset");
     dbg("session_start: phase0 workspace diagnostics observation enabled (capability probe only)");
@@ -6631,7 +7242,7 @@ async function handleSessionStart(deps) {
     recordDegradationOnce({
       kind: "data_dir_migrated",
       subject: hash,
-      reason: migration.outcome === "renamed" ? "using hashed directory after renaming legacy directory" : migration.outcome === "coexisting" ? "using hashed directory because legacy and hashed directories both exist" : migration.outcome === "rename-failed" ? "using legacy directory after hashed-directory rename failure" : "using resolved directory after realpath fallback"
+      reason: migration.outcome === "renamed" ? "using hashed directory after renaming legacy directory" : migration.outcome === "coexisting" ? "using hashed directory because legacy and hashed directories both exist" : migration.outcome === "rename-failed" ? "using legacy directory after hashed-directory rename failure" : migration.outcome === "adopted" ? "copied the data an earlier version stored under the root's link spelling into the real path's directory; the old directory is kept" : migration.outcome === "adopt-failed" ? "some data an earlier version stored under the root's link spelling could not be copied and stays in the old directory" : "using resolved directory after realpath fallback"
     });
   }
   const globalDir = getGlobalPiLensDir();
@@ -6648,11 +7259,9 @@ async function handleSessionStart(deps) {
   });
   if (quickMode) {
     runtime.projectRoot = cwd;
-    const sequenceReadStartedAt2 = Date.now();
     const snapshotRoot2 = resolveSnapshotRoot(cwd);
-    const { latestSeq: latestSeq2, timedOut: timedOut2 } = await readSequenceWithBudget({
+    await readSequenceAndHydrateFreshSnapshot({
       snapshotRoot: snapshotRoot2,
-      base: snapshotSequenceBase(snapshotRoot2),
       cwd,
       runtime,
       sessionGeneration: runtime.sessionGeneration,
@@ -6664,71 +7273,6 @@ async function handleSessionStart(deps) {
         dbg
       })
     });
-    logLatency({
-      type: "phase",
-      phase: "session_start_sequence_read",
-      filePath: cwd,
-      startedAt: new Date(sequenceReadStartedAt2).toISOString(),
-      durationMs: Date.now() - sequenceReadStartedAt2,
-      metadata: { entries: latestSeq2.fileSeqByPath.size, timedOut: timedOut2 }
-    });
-    if (timedOut2) {
-      recordSnapshotSequenceTimeout({
-        snapshotRoot: snapshotRoot2,
-        snapshotPath: getProjectSnapshotPath(snapshotRoot2)
-      });
-    }
-    runtime.seedProjectSequence?.(latestSeq2.projectSeq, latestSeq2.fileSeqByPath, latestSeq2.logEntries);
-    const effectiveSeq2 = runtime.projectSeq ?? latestSeq2.projectSeq;
-    dbg(`session_start sequence: projectSeq=${effectiveSeq2} fileSeqEntries=${latestSeq2.fileSeqByPath.size}`);
-    const freshnessSeq2 = timedOut2 ? UNKNOWN_PROJECT_SEQ : effectiveSeq2;
-    const snapshotLoadStartedAt2 = Date.now();
-    const snapshotPath2 = getProjectSnapshotPath(snapshotRoot2);
-    let snapshotBytes2 = 0;
-    try {
-      snapshotBytes2 = nodeFs.statSync(snapshotPath2).size;
-    } catch {
-    }
-    const snapshotBodyPresent2 = nodeFs.existsSync(snapshotPath2) || nodeFs.existsSync(getProjectSnapshotLegacyPath(snapshotRoot2));
-    const snapshotGate2 = loadSnapshotBodyUnlessStale({
-      root: snapshotRoot2,
-      currentProjectSeq: freshnessSeq2,
-      unlockedThrough: latestSeq2.unlockedThrough ?? 0,
-      dbg
-    });
-    const snapshot2 = snapshotGate2.snapshot;
-    const snapshotFresh2 = isProjectSnapshotFresh(snapshot2, freshnessSeq2, latestSeq2.unlockedThrough);
-    const snapshotMissReason2 = describeSnapshotMiss(snapshot2, freshnessSeq2, {
-      skippedStale: snapshotGate2.skippedStale,
-      bodyPresent: snapshotBodyPresent2,
-      unlockedThrough: latestSeq2.unlockedThrough ?? 0
-    });
-    logLatency({
-      type: "phase",
-      phase: "session_start_snapshot_load",
-      filePath: cwd,
-      startedAt: new Date(snapshotLoadStartedAt2).toISOString(),
-      durationMs: Date.now() - snapshotLoadStartedAt2,
-      metadata: {
-        bytes: snapshotBytes2,
-        fresh: snapshotFresh2,
-        seq: snapshot2?.seq ?? null,
-        reason: snapshotFresh2 ? void 0 : snapshotMissReason2,
-        ...snapshotGate2.skippedStale ? { skippedStale: true } : {},
-        ...timedOut2 ? { sequenceUnknown: true } : {}
-      }
-    });
-    logProjectSnapshotProbe({
-      dbg,
-      root: snapshotRoot2,
-      currentProjectSeq: freshnessSeq2,
-      unlockedThrough: latestSeq2.unlockedThrough ?? 0,
-      snapshot: snapshot2,
-      missReason: snapshotMissReason2
-    });
-    if (snapshotFresh2) {
-      hydrateRuntimeFromProjectSnapshot(runtime, snapshot2);
-    }
     const quickTools = [];
     if (!getFlag("no-lsp")) {
       quickTools.push("LSP Service");
@@ -6795,82 +7339,14 @@ async function handleSessionStart(deps) {
     }
   }
   const sessionGeneration = runtime.sessionGeneration;
-  const sequenceReadStartedAt = Date.now();
   const snapshotRoot = resolveSnapshotRoot(cwd);
-  const { latestSeq, timedOut } = await readSequenceWithBudget({
+  const freshSnapshot = await readSequenceAndHydrateFreshSnapshot({
     snapshotRoot,
-    base: snapshotSequenceBase(snapshotRoot),
     cwd,
     runtime,
     sessionGeneration,
     dbg
   });
-  logLatency({
-    type: "phase",
-    phase: "session_start_sequence_read",
-    filePath: cwd,
-    startedAt: new Date(sequenceReadStartedAt).toISOString(),
-    durationMs: Date.now() - sequenceReadStartedAt,
-    metadata: { entries: latestSeq.fileSeqByPath.size, timedOut }
-  });
-  if (timedOut) {
-    recordSnapshotSequenceTimeout({
-      snapshotRoot,
-      snapshotPath: getProjectSnapshotPath(snapshotRoot)
-    });
-  }
-  runtime.seedProjectSequence?.(latestSeq.projectSeq, latestSeq.fileSeqByPath, latestSeq.logEntries);
-  const effectiveSeq = runtime.projectSeq ?? latestSeq.projectSeq;
-  dbg(`session_start sequence: projectSeq=${effectiveSeq} fileSeqEntries=${latestSeq.fileSeqByPath.size}`);
-  const freshnessSeq = timedOut ? UNKNOWN_PROJECT_SEQ : effectiveSeq;
-  const snapshotLoadStartedAt = Date.now();
-  const snapshotPath = getProjectSnapshotPath(snapshotRoot);
-  let snapshotBytes = 0;
-  try {
-    snapshotBytes = nodeFs.statSync(snapshotPath).size;
-  } catch {
-  }
-  const snapshotBodyPresent = nodeFs.existsSync(snapshotPath) || nodeFs.existsSync(getProjectSnapshotLegacyPath(snapshotRoot));
-  const snapshotGate = loadSnapshotBodyUnlessStale({
-    root: snapshotRoot,
-    currentProjectSeq: freshnessSeq,
-    unlockedThrough: latestSeq.unlockedThrough ?? 0,
-    dbg
-  });
-  const snapshot = snapshotGate.snapshot;
-  const snapshotFresh = isProjectSnapshotFresh(snapshot, freshnessSeq, latestSeq.unlockedThrough);
-  const snapshotMissReason = describeSnapshotMiss(snapshot, freshnessSeq, {
-    skippedStale: snapshotGate.skippedStale,
-    bodyPresent: snapshotBodyPresent,
-    unlockedThrough: latestSeq.unlockedThrough ?? 0
-  });
-  logLatency({
-    type: "phase",
-    phase: "session_start_snapshot_load",
-    filePath: cwd,
-    startedAt: new Date(snapshotLoadStartedAt).toISOString(),
-    durationMs: Date.now() - snapshotLoadStartedAt,
-    metadata: {
-      bytes: snapshotBytes,
-      fresh: snapshotFresh,
-      seq: snapshot?.seq ?? null,
-      reason: snapshotFresh ? void 0 : snapshotMissReason,
-      ...snapshotGate.skippedStale ? { skippedStale: true } : {},
-      ...timedOut ? { sequenceUnknown: true } : {}
-    }
-  });
-  logProjectSnapshotProbe({
-    dbg,
-    root: snapshotRoot,
-    currentProjectSeq: freshnessSeq,
-    unlockedThrough: latestSeq.unlockedThrough ?? 0,
-    snapshot,
-    missReason: snapshotMissReason
-  });
-  const freshSnapshot = snapshotFresh ? snapshot : null;
-  if (freshSnapshot) {
-    hydrateRuntimeFromProjectSnapshot(runtime, freshSnapshot);
-  }
   const cachedStartupScan = freshSnapshot?.startupScan && isStartupScanVerdictFresh(freshSnapshot.startupScan) ? freshSnapshot.startupScan : void 0;
   const startupScanSource = cachedStartupScan ? "snapshot" : "computed";
   let startupScan;
@@ -6958,11 +7434,9 @@ async function handleSessionStart(deps) {
     dbg("session_start: no language defaults selected for pre-install");
   }
   const startupScansEnabled = deps.projectConfig?.startup?.scans?.enabled ?? deps.globalConfig?.startup?.scans?.enabled ?? true;
-  const startupScansWillRun = allowBootstrapTasks && startupScan.canWarmCaches && startupScansEnabled;
-  const jstsHeavyScansWillRun = startupScansWillRun && canRunStartupHeavyScans(languageProfile, "jsts");
   if (allowBootstrapTasks) {
-    scheduleDeferredToolProbes(deps, languageProfile, startupDefaults, jstsHeavyScansWillRun, dbg);
-    scheduleManagedToolRefresh(dbg);
+    scheduleDeferredToolProbes(deps, languageProfile, startupDefaults, dbg);
+    scheduleManagedToolRefresh(dbg, !deps.getFlag("no-opengrep"));
   }
   if (allowBootstrapTasks) {
     void probePrettierInstall(ensureTool, dbg, analysisRoot);
@@ -7027,6 +7501,8 @@ async function handleSessionStart(deps) {
   }
   if (subagentSession) {
     dbg("session_start lsp-warm: skipping pre-warm (subagent session)");
+  } else if (getFlag("no-lens")) {
+    dbg("session_start lsp-warm: skipping pre-warm (no-lens)");
   } else if (!getFlag("no-lsp") && allowBootstrapTasks) {
     setImmediate(() => {
       void loadLSPConfig(cwd).then((lspConfig) => {
@@ -7082,12 +7558,12 @@ function emitSmellsSessionStartLine(dbg, sessionStartMs) {
 }
 
 // dist/clients/runtime-turn.js
-import * as fs17 from "node:fs";
+import * as fs16 from "node:fs";
 import * as path24 from "node:path";
 
 // dist/clients/actionable-warnings.js
-import { createHash as createHash2 } from "node:crypto";
-import * as fs12 from "node:fs";
+import { createHash } from "node:crypto";
+import * as fs11 from "node:fs";
 import * as path15 from "node:path";
 
 // dist/clients/actionable-warnings-logger.js
@@ -7129,7 +7605,7 @@ function createActionableWarningId(args) {
   });
 }
 function legacyActionableWarningId(args) {
-  const rel = path15.relative(args.cwd, args.filePath).replace(/\\/g, "/");
+  const rel = toPosix(path15.relative(args.cwd, args.filePath));
   const legacyRelativeFile = rel && !rel.startsWith("..") ? rel : normalizeMapKey(args.filePath);
   const parts = [
     legacyRelativeFile,
@@ -7177,14 +7653,14 @@ function deserializeSuppressionState(contents) {
 function readSuppressionState(cwd) {
   const statePath = path15.join(getProjectDataDir(cwd), "cache", "actionable-warning-state.json");
   try {
-    return deserializeSuppressionState(fs12.readFileSync(statePath, "utf8"));
+    return deserializeSuppressionState(fs11.readFileSync(statePath, "utf8"));
   } catch {
     return {};
   }
 }
 function updateWarningState(cwd, warnings) {
   const statePath = path15.join(getProjectDataDir(cwd), "cache", "actionable-warning-state.json");
-  fs12.mkdirSync(path15.dirname(statePath), { recursive: true });
+  fs11.mkdirSync(path15.dirname(statePath), { recursive: true });
   const hook = beforeWarningStateLockForTests;
   beforeWarningStateLockForTests = null;
   hook?.();
@@ -7273,9 +7749,9 @@ function recordFromLspDiagnostic(diag, filePath, cwd) {
     origin: "lsp"
   };
 }
-function mergeWarnings(records) {
+function mergeWarnings(records2) {
   const byId = /* @__PURE__ */ new Map();
-  for (const record of records) {
+  for (const record of records2) {
     const existing = byId.get(record.id);
     if (!existing) {
       byId.set(record.id, { ...record, actions: [...record.actions] });
@@ -7330,8 +7806,9 @@ function boundedNumber(value, fallback) {
 }
 async function buildActionableWarningsReport(args) {
   const cwd = path15.resolve(args.cwd);
-  const records = [...args.dispatchWarnings];
+  const records2 = [...args.dispatchWarnings];
   const lspService = getLSPService();
+  const excludeServerIds = args.getFlag ? configDisabledAuxiliaryLspServerIds(args.getFlag) : void 0;
   const observedAtByPath = /* @__PURE__ */ new Map();
   const buildStartedAt = (/* @__PURE__ */ new Date()).toISOString();
   logActionableWarningsEvent({
@@ -7387,8 +7864,8 @@ async function buildActionableWarningsReport(args) {
     const primed = [];
     const cold = [];
     for (const filePath of capped) {
-      const content = fs12.existsSync(filePath) ? fs12.readFileSync(filePath, "utf-8") : void 0;
-      const contentHash = content !== void 0 ? createHash2("sha256").update(content).digest("hex") : void 0;
+      const content = fs11.existsSync(filePath) ? fs11.readFileSync(filePath, "utf-8") : void 0;
+      const contentHash = content !== void 0 ? createHash("sha256").update(content).digest("hex") : void 0;
       const cached = contentHash !== void 0 ? lspService.getLastKnownDiagnostics(filePath, contentHash) : void 0;
       (cached !== void 0 ? primed : cold).push({
         filePath,
@@ -7401,6 +7878,7 @@ async function buildActionableWarningsReport(args) {
     const pullTimeoutMs = boundedNumber(args.lspPullTimeoutMs, ACTIONABLE_WARNINGS_LSP_PULL_TIMEOUT_MS);
     const inBandDeps = {
       lspService,
+      excludeServerIds,
       pullTimeoutMs,
       // #2504 review round 4 (F2). This is the AWAITED hook: the batch
       // budget has to bound what happens INSIDE a file, not only how many
@@ -7417,7 +7895,7 @@ async function buildActionableWarningsReport(args) {
           unchecked += targets.length - targets.indexOf(target);
           break;
         }
-        records.push(...await enrichFileFromLsp(cwd, args, target, inBandDeps));
+        records2.push(...await enrichFileFromLsp(cwd, args, target, inBandDeps));
         observedAtByPath.set(normalizeMapKey(target.filePath), (/* @__PURE__ */ new Date()).toISOString());
       }
     };
@@ -7443,11 +7921,12 @@ async function buildActionableWarningsReport(args) {
         });
         args.dbg?.(`actionable_warnings: an earlier deferred LSP pull still holds the slot \u2014 skipping ${cold.length} fresh pull(s) this turn`);
       } else {
-        const carried = [...records];
+        const carried = [...records2];
         const deferredArgs = args;
         const loopSignal = combineAbortSignals(args.signal, deferredSignal) ?? deferredSignal;
         const deferredDeps = {
           lspService,
+          excludeServerIds,
           pullTimeoutMs,
           signal: loopSignal,
           // OFF the hook by construction: this loop is the answer to
@@ -7520,7 +7999,7 @@ async function buildActionableWarningsReport(args) {
       });
     }
   }
-  return assembleReport(cwd, args, records, {
+  return assembleReport(cwd, args, records2, {
     observedAtByPath,
     fallbackObservedAt: buildStartedAt
   });
@@ -7562,7 +8041,7 @@ async function enrichFileFromLsp(cwd, args, target, deps) {
           return out;
         }
       }
-      const pulled = await boundedLspCall(() => lspService.getDiagnostics(filePath), deps);
+      const pulled = await boundedLspCall(() => lspService.getDiagnostics(filePath, "full", deps.excludeServerIds), deps);
       if (pulled === void 0) {
         logActionableWarningsEvent({
           event: "lsp_file_skipped",
@@ -7658,8 +8137,8 @@ async function enrichFileFromLsp(cwd, args, target, deps) {
   });
   return out;
 }
-function assembleReport(cwd, args, records, stamps) {
-  const merged = mergeWarnings(records);
+function assembleReport(cwd, args, records2, stamps) {
+  const merged = mergeWarnings(records2);
   updateWarningState(cwd, merged);
   const reportWarnings = merged.map(({ legacyId: _legacyId, ...rest }) => rest);
   const byFile = /* @__PURE__ */ new Map();
@@ -7938,8 +8417,8 @@ function appendActionableWarningsHistory(cwd, report) {
     return;
   const historyPath = getActionableWarningsHistoryPath(cwd);
   try {
-    fs12.mkdirSync(path15.dirname(historyPath), { recursive: true });
-    fs12.appendFileSync(historyPath, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}
+    fs11.mkdirSync(path15.dirname(historyPath), { recursive: true });
+    fs11.appendFileSync(historyPath, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}
 `, "utf8");
   } catch {
   }
@@ -7976,7 +8455,7 @@ ${fileList}${more}` : void 0,
 }
 
 // dist/clients/code-quality-warnings.js
-import * as fs13 from "node:fs";
+import * as fs12 from "node:fs";
 import * as path16 from "node:path";
 var TIER_BUDGET_ORDER = [
   "warning",
@@ -8080,8 +8559,8 @@ function appendCodeQualityWarningsHistory(cwd, report) {
     return;
   const historyPath = getCodeQualityWarningsHistoryPath(cwd);
   try {
-    fs13.mkdirSync(path16.dirname(historyPath), { recursive: true });
-    fs13.appendFileSync(historyPath, `${warnings.map((entry) => JSON.stringify(entry)).join("\n")}
+    fs12.mkdirSync(path16.dirname(historyPath), { recursive: true });
+    fs12.appendFileSync(historyPath, `${warnings.map((entry) => JSON.stringify(entry)).join("\n")}
 `, "utf8");
   } catch {
   }
@@ -8112,17 +8591,14 @@ function formatCodeQualityWarningsAdvisory(report, cwd, host = "pi") {
 }
 
 // dist/clients/git-guard.js
+import * as nodeFs2 from "node:fs";
 import * as path17 from "node:path";
 
-// dist/clients/read-guard-tool-lines.js
-var MAX_FAILURE_TRACKER_SIZE = 200;
-var recentOldTextFailures = new BoundedFifoMap(MAX_FAILURE_TRACKER_SIZE);
-
 // dist/clients/deferred-runner-blockers.js
-import { createHash as createHash3 } from "node:crypto";
-import * as fs14 from "node:fs";
+import * as fs13 from "node:fs";
+import { resolve as resolve9 } from "node:path";
 function judgeDeferredRunnerFindings(pending2, cwd, options = {}) {
-  const findings = pending2.result?.diagnostics ?? [];
+  const findings = (pending2.result?.diagnostics ?? []).flatMap((d) => d.runnerFault === true ? [] : [d]);
   if (findings.length === 0) {
     return { stale: 0, live: 0, kept: [], suppressed: 0, bytes: void 0 };
   }
@@ -8161,25 +8637,61 @@ function judgeDeferredRunnerFindings(pending2, cwd, options = {}) {
   };
 }
 function recordDeferredRunnerBlockers(runtime, pending2, survivors, bytes) {
-  const blocking = survivors.flatMap((d) => d.semantic === "blocking" ? [d] : []);
+  const blocking = stampLineHashes(withoutLaneCopies(runtime, pending2, survivors).flatMap((d) => d.semantic === "blocking" ? [{ ...d, runnerId: d.runnerId ?? pending2.runnerId }] : []), bytes?.toString("utf-8"), (d) => !d.filePath || resolve9(d.filePath) === resolve9(pending2.filePath));
   if (blocking.length === 0)
     return 0;
-  const recorded = runtime.recordDeferredInlineBlockers(pending2.filePath, blocking, {
-    recordedAtMs: pending2.markedAtMs,
-    ...bytes ? {
-      contentBaseline: {
-        size: bytes.byteLength,
-        sha256: createHash3("sha256").update(bytes).digest("hex")
-      }
-    } : {}
-  });
+  const recorded = runtime.recordDeferredInlineBlockers(
+    pending2.filePath,
+    blocking,
+    {
+      recordedAtMs: pending2.markedAtMs,
+      ...bytes ? {
+        contentBaseline: {
+          size: bytes.byteLength,
+          sha256: hashContentBytes(bytes)
+        }
+      } : {}
+    },
+    // #4943: the producing write's session, stamped by the dispatch.
+    pending2.sessionId
+  );
   if (recorded > 0)
     runtime.updateGitGuardStatus(false, "");
   return recorded;
 }
+function retireSettledRunnerBlockers(runtime, pending2, verdict) {
+  const result = pending2.result;
+  if (!result || reachedNoVerdict(result) || result.coveredBy !== void 0 && result.skipReason === "covered-by-primary")
+    return 0;
+  const bytes = readBytes(pending2.filePath);
+  const retired = runtime.retireUnobservedRunnerBlockers(pending2.filePath, {
+    runnerId: pending2.runnerId,
+    // #4484 round 3: what the run's edit-range gate withheld is still
+    // observed, at its own line.
+    observed: [
+      ...withoutLaneCopies(runtime, pending2, verdict.kept),
+      ...result.outOfEditScope ?? []
+    ].flatMap((d) => d.semantic === "blocking" ? [d] : []),
+    markedAtMs: pending2.markedAtMs,
+    sha256: bytes ? hashContentBytes(bytes) : void 0,
+    ...result.unconfirmedServerIds !== void 0 && {
+      unconfirmedServerIds: result.unconfirmedServerIds
+    }
+  });
+  if (retired > 0)
+    runtime.updateGitGuardStatus(false, "");
+  return retired;
+}
+function withoutLaneCopies(runtime, pending2, findings) {
+  const lane = pending2.result?.coveredBy;
+  if (lane === void 0)
+    return findings;
+  const standsFor = laneCopyStandsFor((runtime.getInlineBlockerDiagnostics(pending2.filePath) ?? []).flatMap((d) => d.runnerId === lane.runnerId && (lane.serverId === void 0 || d.serverId === lane.serverId) ? [d] : []));
+  return findings.flatMap((d) => standsFor(d) ? [] : [d]);
+}
 function readBytes(filePath) {
   try {
-    return fs14.readFileSync(filePath);
+    return fs13.readFileSync(filePath);
   } catch {
     return void 0;
   }
@@ -8219,39 +8731,284 @@ function blockingProvenance(blockerContent, blockingFiles, cwd) {
   if (blockingFiles.some((file) => typeof file !== "string" || file.trim().length === 0)) {
     return void 0;
   }
-  const provenanceKeys = blockingFiles.map((file) => guardPathKey(file, cwd));
-  const sectionKeys = [];
-  let inSection = false;
+  const { sections, unowned } = splitBlockerSections(blockerContent, blockingFiles, cwd);
+  if (unowned || sections.length === 0)
+    return void 0;
+  return sections;
+}
+function splitBlockerSections(blockerContent, blockingFiles, cwd) {
+  const provenanceKeys = new Set(blockingFiles.map((file) => guardPathKey(file, cwd)));
+  const sections = [];
+  let unowned = false;
+  let open;
   for (const line of blockerContent.split("\n")) {
     if (line.length === 0) {
-      inSection = false;
+      open = void 0;
       continue;
     }
     const file = blockerSectionFile(line);
     if (file === void 0) {
-      if (!inSection)
-        return void 0;
+      if (open)
+        open.lines.push(line);
+      else
+        unowned = true;
       continue;
     }
-    sectionKeys.push(guardPathKey(file, cwd));
-    inSection = true;
+    open = { key: guardPathKey(file, cwd), file, lines: [line] };
+    if (provenanceKeys.has(open.key))
+      sections.push(open);
+    else
+      unowned = true;
   }
-  if (sectionKeys.length === 0)
-    return void 0;
-  return sectionKeys.every((key) => provenanceKeys.includes(key)) ? sectionKeys : void 0;
+  return { sections, unowned };
 }
 function isTurnEndFindingsCache(value) {
   if (!value || typeof value !== "object")
     return false;
   const record = value;
-  return typeof record.content === "string" && typeof record.hasBlockers === "boolean" && Array.isArray(record.affectedFiles) && record.affectedFiles.every((file) => typeof file === "string") && typeof record.sessionId === "string" && typeof record.projectSeqStart === "number" && typeof record.projectSeqEnd === "number" && Number.isFinite(record.projectSeqStart) && Number.isFinite(record.projectSeqEnd) && !!record.fileSeqByPath && typeof record.fileSeqByPath === "object" && Object.values(record.fileSeqByPath).every((seq) => typeof seq === "number" && Number.isFinite(seq)) && !!record.fileContentHashes && typeof record.fileContentHashes === "object" && Object.values(record.fileContentHashes).every((hash) => typeof hash === "string") && (record.affectedFilesTruncated === void 0 || typeof record.affectedFilesTruncated === "boolean") && (record.blockingFiles === void 0 || Array.isArray(record.blockingFiles));
+  return typeof record.content === "string" && typeof record.hasBlockers === "boolean" && Array.isArray(record.affectedFiles) && record.affectedFiles.every((file) => typeof file === "string") && typeof record.sessionId === "string" && typeof record.projectSeqStart === "number" && typeof record.projectSeqEnd === "number" && Number.isFinite(record.projectSeqStart) && Number.isFinite(record.projectSeqEnd) && !!record.fileSeqByPath && typeof record.fileSeqByPath === "object" && Object.values(record.fileSeqByPath).every((seq) => typeof seq === "number" && Number.isFinite(seq)) && !!record.fileContentHashes && typeof record.fileContentHashes === "object" && Object.values(record.fileContentHashes).every((hash) => typeof hash === "string") && (record.affectedFilesTruncated === void 0 || typeof record.affectedFilesTruncated === "boolean") && (record.blockingFiles === void 0 || Array.isArray(record.blockingFiles)) && wellFormedStamp(record.blockerWrittenAt) && carriesWellFormedBlockers(record);
+}
+function carriesWellFormedBlockers(record) {
+  const carried = record.carriedBlockers;
+  if (carried === void 0)
+    return true;
+  if (!Array.isArray(carried) || carried.length === 0)
+    return false;
+  if (typeof record.blockerContent !== "string" || !record.blockerContent)
+    return false;
+  const owners = /* @__PURE__ */ new Set([String(record.sessionId)]);
+  return carried.every((partition) => {
+    const ok = !!partition && typeof partition.sessionId === "string" && !owners.has(partition.sessionId) && typeof partition.blockerContent === "string" && partition.blockerContent.length > 0 && Array.isArray(partition.blockingFiles) && partition.blockingFiles.every((file) => typeof file === "string") && wellFormedStamp(partition.blockerWrittenAt);
+    if (ok)
+      owners.add(partition.sessionId);
+    return ok;
+  });
+}
+function wellFormedStamp(stamp) {
+  return stamp === void 0 || Number.isFinite(stamp);
+}
+function storedRecord(cacheManager2, cwd) {
+  const read = cacheManager2.readCache("turn-end-findings", cwd, Number.POSITIVE_INFINITY);
+  if (!read)
+    return void 0;
+  const { data } = read;
+  return {
+    fields: data && typeof data === "object" ? data : void 0
+  };
 }
 function cacheRecord(cacheManager2, cwd) {
-  const entry = cacheManager2.readCache("turn-end-findings", cwd);
-  return entry && isTurnEndFindingsCache(entry.data) ? entry.data : void 0;
+  const fields = storedRecord(cacheManager2, cwd)?.fields;
+  return isTurnEndFindingsCache(fields) ? fields : void 0;
 }
-function markCacheUnknown(runtime, reason) {
-  runtime.markGitGuardCacheUnknown(reason);
+function claimsNoBlocker(fields) {
+  if (!fields)
+    return false;
+  return fields.hasBlockers === false && (fields.testFailures === void 0 || fields.testFailures === false) && (fields.blockerContent === void 0 || fields.blockerContent === "") && // #4733 r1 F7: a test failure's text or files contradict the claim too.
+  (fields.testFailureContent === void 0 || fields.testFailureContent === "") && (fields.testFailureFiles === void 0 || Array.isArray(fields.testFailureFiles) && fields.testFailureFiles.length === 0) && // #4738: another session's carried blocker contradicts it too.
+  fields.carriedBlockers === void 0;
+}
+function recordPartitions(record) {
+  const top = record.blockerContent ? [
+    {
+      sessionId: record.sessionId,
+      blockerContent: record.blockerContent,
+      blockingFiles: record.blockingFiles ?? [],
+      blockerWrittenAt: record.blockerWrittenAt
+    }
+  ] : [];
+  return [...top, ...record.carriedBlockers ?? []];
+}
+function blockerPartitionFields(partitions) {
+  const [top, ...carried] = partitions;
+  return {
+    owner: top?.sessionId,
+    blockerContent: top?.blockerContent,
+    blockingFiles: top?.blockingFiles,
+    carriedBlockers: carried.length > 0 ? carried : void 0,
+    blockerWrittenAt: top?.blockerWrittenAt
+  };
+}
+function sectionFileGone(section, cwd) {
+  try {
+    return nodeFs2.statSync(resolveGuardPath(section.file, cwd), {
+      throwIfNoEntry: false
+    }) === void 0;
+  } catch {
+    return false;
+  }
+}
+function trimPartition(partition, cwd, dropKeys, leaves) {
+  const sections = blockingProvenance(partition.blockerContent, partition.blockingFiles, cwd);
+  if (!sections)
+    return { kept: partition, dropped: 0 };
+  const blockingFiles = partition.blockingFiles.filter((file) => !dropKeys.has(guardPathKey(file, cwd)));
+  const keptSections = sections.filter((section) => !leaves(section));
+  const dropped = sections.length - keptSections.length;
+  if (keptSections.length === 0)
+    return { kept: void 0, dropped };
+  return {
+    kept: {
+      sessionId: partition.sessionId,
+      blockerContent: dropped > 0 ? keptSections.map((section) => section.lines.join("\n")).join("\n\n") : partition.blockerContent,
+      blockingFiles,
+      blockerWrittenAt: partition.blockerWrittenAt
+    },
+    dropped
+  };
+}
+function logSectionsDropped(cwd, by, basis) {
+  logLatency({
+    type: "phase",
+    toolName: "git-guard",
+    filePath: cwd,
+    phase: "sections_dropped",
+    durationMs: 0,
+    result: basis,
+    metadata: { by, basis }
+  });
+}
+function logCarriedDrops(cwd, dropped) {
+  if (dropped.noFile)
+    logSectionsDropped(cwd, "turn_end", "no_file");
+  if (dropped.gone)
+    logSectionsDropped(cwd, "turn_end", "file_gone");
+}
+function pastFreshnessWindow(partition, now) {
+  const writtenAt = partition.blockerWrittenAt;
+  return writtenAt !== void 0 && now - writtenAt > DEFAULT_MAX_AGE_MS;
+}
+function readTurnEndGuardRecord(cacheManager2, runtime, cwd, sessionId) {
+  const stored = storedRecord(cacheManager2, cwd)?.fields;
+  const { carried, dropped } = carriedTurnEndBlockers(stored, cwd, sessionId ?? runtime.telemetrySessionId);
+  return { stored, carried, dropped };
+}
+function carriedTurnEndBlockers(stored, cwd, me) {
+  const dropped = { gone: false, noFile: false };
+  if (!isTurnEndFindingsCache(stored))
+    return { carried: [], dropped, stamped: false };
+  const now = Date.now();
+  const carried = [];
+  let stamped = false;
+  for (const partition of recordPartitions(stored)) {
+    if (partition.sessionId === me)
+      continue;
+    if (!blockingProvenance(partition.blockerContent, partition.blockingFiles, cwd) && !pastFreshnessWindow(partition, now)) {
+      if (partition.blockerWrittenAt === void 0)
+        stamped = true;
+      carried.push({
+        ...partition,
+        blockerWrittenAt: partition.blockerWrittenAt ?? now
+      });
+      continue;
+    }
+    const split = splitBlockerSections(partition.blockerContent, partition.blockingFiles.filter((file) => typeof file === "string" && file.trim().length > 0), cwd);
+    if (split.unowned)
+      dropped.noFile = true;
+    const live = split.sections.filter((section) => !sectionFileGone(section, cwd));
+    if (live.length < split.sections.length)
+      dropped.gone = true;
+    if (live.length === 0)
+      continue;
+    carried.push({
+      sessionId: partition.sessionId,
+      blockerContent: live.length === split.sections.length && !split.unowned ? partition.blockerContent : live.map((section) => section.lines.join("\n")).join("\n\n"),
+      blockingFiles: partition.blockingFiles,
+      blockerWrittenAt: partition.blockerWrittenAt
+    });
+  }
+  return { carried, dropped, stamped };
+}
+var NO_CLAIM_FIELDS = [
+  "content",
+  "affectedFiles",
+  "affectedFilesTruncated",
+  "provenance",
+  "deliverTo"
+];
+function makesNoClaim(fields) {
+  return !!fields && typeof fields.content === "string" && Object.keys(fields).every((key) => NO_CLAIM_FIELDS.some((field) => field === key));
+}
+function logRecordRetired(cwd, by, basis) {
+  logLatency({
+    type: "phase",
+    toolName: "git-guard",
+    filePath: cwd,
+    phase: "record_retired",
+    durationMs: 0,
+    result: basis,
+    metadata: { by, basis }
+  });
+}
+function retireSettledGitGuardRecord(runtime, cacheManager2, cwd, sessionId) {
+  const stored = storedRecord(cacheManager2, cwd)?.fields;
+  if (!stored)
+    return false;
+  const me = sessionId ?? runtime.telemetrySessionId;
+  const own = stored.sessionId === me && stored.testFailures !== true && stored.carriedBlockers === void 0;
+  const basis = own ? "own_session" : claimsNoBlocker(stored) ? "no_blocker" : makesNoClaim(stored) ? "no_claim" : void 0;
+  if (basis) {
+    cacheManager2.clearCache("turn-end-findings", cwd);
+    runtime.clearGitGuardCacheUnknown(cwd);
+    logRecordRetired(cwd, "turn_end", basis);
+    return true;
+  }
+  return retireOwnPartition(runtime, cacheManager2, cwd, stored, me);
+}
+function retireOwnPartition(runtime, cacheManager2, cwd, stored, me) {
+  if (!isTurnEndFindingsCache(stored))
+    return false;
+  if (stored.sessionId === me && stored.carriedBlockers === void 0)
+    return false;
+  const ownDropped = recordPartitions(stored).some((partition) => partition.sessionId === me);
+  const { carried: kept, dropped, stamped } = carriedTurnEndBlockers(stored, cwd, me);
+  if (!ownDropped && !dropped.gone && !dropped.noFile) {
+    if (stamped) {
+      const fields2 = blockerPartitionFields(kept);
+      writeGitGuardRecord(cacheManager2, runtime, cwd, {
+        ...stored,
+        carriedBlockers: fields2.carriedBlockers,
+        blockerWrittenAt: fields2.blockerWrittenAt
+      });
+    }
+    return false;
+  }
+  const testFailures = stored.testFailures === true;
+  if (kept.length === 0 && !testFailures) {
+    cacheManager2.clearCache("turn-end-findings", cwd);
+    runtime.clearGitGuardCacheUnknown(cwd);
+    logRecordRetired(cwd, "turn_end", dropped.noFile ? "no_file" : "file_gone");
+    return true;
+  }
+  if (ownDropped)
+    logSectionsDropped(cwd, "turn_end", "own_session");
+  logCarriedDrops(cwd, dropped);
+  const fields = blockerPartitionFields(kept);
+  const owner = fields.owner ?? stored.sessionId;
+  writeGitGuardRecord(cacheManager2, runtime, cwd, {
+    ...stored,
+    content: [
+      fields.blockerContent,
+      testFailures ? stored.testFailureContent : void 0
+    ].filter((value) => !!value).join("\n\n"),
+    blockerContent: fields.blockerContent,
+    blockingFiles: fields.blockingFiles,
+    carriedBlockers: fields.carriedBlockers,
+    blockerWrittenAt: fields.blockerWrittenAt,
+    hasBlockers: kept.length > 0 || testFailures,
+    sessionId: owner,
+    // Nothing new to deliver: the sections kept were already in the record.
+    consumed: stored.consumed === true,
+    // #4943: the content is now the owner's blocker text, not the message
+    // the composer addressed.
+    deliverTo: void 0
+  });
+  return false;
+}
+function markCacheUnknown(runtime, reason, cwd) {
+  runtime.markGitGuardCacheUnknown(reason, cwd);
+}
+function recordOwner(existing, runtime, storedSectionSurvives) {
+  return existing && storedSectionSurvives ? existing.sessionId : runtime.telemetrySessionId;
 }
 function writeGitGuardRecord(cacheManager2, runtime, cwd, record) {
   const capped = capAffectedFiles(Array.isArray(record.affectedFiles) ? record.affectedFiles : [], cwd);
@@ -8287,90 +9044,151 @@ function writeGitGuardRecord(cacheManager2, runtime, cwd, record) {
   };
   try {
     cacheManager2.writeCache("turn-end-findings", data, cwd);
-    runtime.clearGitGuardCacheUnknown();
+    runtime.clearGitGuardCacheUnknown(cwd);
     return true;
   } catch {
-    markCacheUnknown(runtime, "cache_write_failed");
+    markCacheUnknown(runtime, "cache_write_failed", cwd);
     return false;
   }
 }
 function retireInlineBlockerAndResyncGuard(args) {
+  const owner = args.runtime.inlineBlockerOwner(args.filePath);
   const retired = args.runtime.retireInlineBlockerOnConfirmedClean(args.filePath, args.writeIndex, args.coveredSources);
   if (!retired)
     return false;
-  args.runtime.updateGitGuardStatus(false, "");
-  if (args.lensGuardEnabled) {
-    syncGitGuardRecord(args.runtime, args.cacheManager, args.cwd, args.filePath);
-  }
+  resyncGitGuardAfterRetire({ ...args, owner });
   return true;
 }
+function resyncGitGuardAfterRetire(args) {
+  args.runtime.updateGitGuardStatus(false, "");
+  if (args.lensGuardEnabled) {
+    syncGitGuardRecord(args.runtime, args.cacheManager, args.cwd, args.filePath, args.analysisRootMode, void 0, args.owner, args.inCheckout);
+  }
+}
 function resyncGitGuardAfterInlinePolicy(args) {
-  const changed = args.runtime.applyInlineBlockerPolicyVerdicts(args.suppressedFilePaths);
+  const changed = args.runtime.applyInlineBlockerPolicyVerdicts(args.suppressedFilePaths, { sessionId: args.sessionId });
   if (args.suppressedFilePaths.length === 0 && changed === 0)
     return;
   args.runtime.updateGitGuardStatus(false, "");
 }
-function syncGitGuardRecord(runtime, cacheManager2, cwd, editedFilePath, analysisRootMode = "session") {
+function syncGitGuardRecord(runtime, cacheManager2, cwd, editedFilePath, analysisRootMode = "session", editedCleanVerdict = false, sessionId, inCheckout) {
   if (!canWriteAnalysisRoot(analysisRootMode))
     return;
-  const entries = (runtime.getInlineBlockersSnapshot?.() ?? []).filter((entry) => !entry.policySuppressed);
-  const inspection = cacheManager2.inspectCache("turn-end-findings", cwd);
-  const existing = cacheRecord(cacheManager2, cwd);
-  if (existing && existing.sessionId !== runtime.telemetrySessionId && entries.length === 0) {
-    markCacheUnknown(runtime, "session_mismatch");
+  const entries = (runtime.getInlineBlockersSnapshot?.({ sessionId }) ?? []).filter((entry) => !entry.policySuppressed && (!inCheckout || inCheckout(entry.filePath)));
+  const stored = storedRecord(cacheManager2, cwd)?.fields;
+  if (entries.length === 0 && claimsNoBlocker(stored)) {
+    cacheManager2.clearCache("turn-end-findings", cwd);
+    runtime.clearGitGuardCacheUnknown(cwd);
+    logRecordRetired(cwd, "write", "no_blocker");
     return;
   }
-  if (!existing && inspection !== "missing" && entries.length === 0) {
-    markCacheUnknown(runtime, `cache_${inspection}`);
+  const existing = isTurnEndFindingsCache(stored) ? stored : void 0;
+  const editedKey = editedFilePath ? guardPathKey(editedFilePath, cwd) : void 0;
+  const me = sessionId ?? runtime.telemetrySessionId;
+  const blockerSections = existing?.blockerContent ? blockingProvenance(existing.blockerContent, existing.blockingFiles ?? [], cwd) : void 0;
+  const dropKey = new Set(editedKey ? [editedKey] : []);
+  let droppedForeign = 0;
+  let droppedOwn = 0;
+  let goneForeign = 0;
+  const trimmed = [];
+  for (const partition of existing ? recordPartitions(existing) : []) {
+    const own = partition.sessionId === me;
+    const speaksForFile = !!editedKey && (own || editedCleanVerdict);
+    const result = trimPartition(partition, cwd, speaksForFile ? dropKey : /* @__PURE__ */ new Set(), (section) => {
+      if (speaksForFile && section.key === editedKey)
+        return true;
+      if (own || !sectionFileGone(section, cwd))
+        return false;
+      goneForeign += 1;
+      return true;
+    });
+    if (own)
+      droppedOwn += result.dropped;
+    else
+      droppedForeign += result.dropped;
+    if (result.kept)
+      trimmed.push(result.kept);
+  }
+  const foreign = !!existing && existing.sessionId !== me;
+  if (foreign && entries.length === 0 && droppedForeign === 0 && droppedOwn === 0) {
+    if (sessionId !== void 0 && !runtime.isCoordinatorSession(sessionId)) {
+      recordDegradationOnce({
+        kind: "git-guard-non-owner-write",
+        subject: sessionId,
+        reason: "a concurrent session's write left another session's commit-gate record and latch untouched"
+      });
+      return;
+    }
+    markCacheUnknown(runtime, "session_mismatch", cwd);
     return;
+  }
+  if (!existing && entries.length === 0) {
+    const inspection = cacheManager2.inspectCache("turn-end-findings", cwd);
+    if (inspection !== "missing") {
+      markCacheUnknown(runtime, `cache_${inspection}`, cwd);
+      return;
+    }
   }
   const fileSeqByPath = {};
   for (const [filePath, seq] of runtime.getFileSeqEntries?.() ?? []) {
     fileSeqByPath[guardPathKey(filePath, cwd)] = seq;
   }
   const inlineFiles = entries.map((entry) => resolveGuardPath(entry.filePath, cwd));
-  const existingBlockingFiles = existing?.blockingFiles ?? [];
-  const blockerSections = existing?.blockerContent ? blockingProvenance(existing.blockerContent, existingBlockingFiles, cwd) : void 0;
   if (existing?.blockerContent && !blockerSections) {
-    markCacheUnknown(runtime, "blocking_provenance_untrusted");
+    markCacheUnknown(runtime, "blocking_provenance_untrusted", cwd);
     return;
   }
-  const editedKey = editedFilePath ? guardPathKey(editedFilePath, cwd) : void 0;
+  const partitions = entries.length > 0 ? [
+    {
+      sessionId: me,
+      blockerContent: entries.map((entry) => `${entry.filePath}: ${entry.summary}`).join("\n"),
+      blockingFiles: inlineFiles
+    },
+    ...trimmed.filter((partition) => partition.sessionId !== me)
+  ] : trimmed;
+  const fields = blockerPartitionFields(partitions);
   const testFiles = existing?.testFailureFiles ?? [];
-  const remainingBlockingFiles = editedKey && existingBlockingFiles.length > 0 ? existingBlockingFiles.filter((file) => guardPathKey(file, cwd) !== editedKey) : existingBlockingFiles;
   let affectedFiles = [...existing?.affectedFiles ?? [], ...inlineFiles];
   if (!entries.length && editedKey && existing) {
     const isStillTestFailure = testFiles.some((file) => guardPathKey(file, cwd) === editedKey);
-    const isUnknownBlockingPath = existingBlockingFiles.length === 0 && !!existing.blockerContent;
-    if (!isStillTestFailure && !isUnknownBlockingPath) {
+    const stillRecorded = partitions.some((partition) => !!blockingProvenance(partition.blockerContent, partition.blockingFiles, cwd)?.some((section) => section.key === editedKey));
+    if (!isStillTestFailure && !stillRecorded) {
       affectedFiles = affectedFiles.filter((file) => guardPathKey(file, cwd) !== editedKey);
     }
   }
-  const clearedLastKnownBlocker = !entries.length && !!editedKey && !!blockerSections && blockerSections.every((key) => key === editedKey);
-  const blockerContent = entries.length > 0 ? entries.map((entry) => `${entry.filePath}: ${entry.summary}`).join("\n") : clearedLastKnownBlocker ? void 0 : existing?.blockerContent;
+  const blockerContent = fields.blockerContent;
   const hasTestFailures = existing?.testFailures === true;
-  const hasBlockers = !!blockerContent || hasTestFailures;
+  const hasBlockers = partitions.length > 0 || hasTestFailures;
   const content = [
     blockerContent,
     hasTestFailures ? existing?.testFailureContent : void 0
   ].filter((value) => !!value).join("\n\n");
   if (!hasBlockers && !content) {
     cacheManager2.clearCache("turn-end-findings", cwd);
-    runtime.clearGitGuardCacheUnknown();
+    runtime.clearGitGuardCacheUnknown(cwd);
+    if (droppedForeign > goneForeign)
+      logRecordRetired(cwd, "write", "rechecked");
+    else if (goneForeign > 0)
+      logRecordRetired(cwd, "write", "file_gone");
     return;
   }
+  if (goneForeign > 0)
+    logSectionsDropped(cwd, "write", "file_gone");
+  const owner = fields.owner ?? existing?.sessionId ?? me;
   writeGitGuardRecord(cacheManager2, runtime, cwd, {
     content: content || existing?.content || "",
     blockerContent,
-    blockingFiles: entries.length > 0 ? inlineFiles : remainingBlockingFiles,
+    blockingFiles: fields.blockingFiles ?? [],
+    carriedBlockers: fields.carriedBlockers,
+    blockerWrittenAt: fields.blockerWrittenAt,
     hasBlockers,
     affectedFiles,
-    sessionId: runtime.telemetrySessionId,
+    sessionId: owner,
     projectSeqStart: runtime.turnStartProjectSeq,
     projectSeqEnd: runtime.projectSeq,
     fileSeqByPath,
     fileContentHashes: {},
-    consumed: false,
+    consumed: owner !== me && existing?.consumed === true,
     testFailures: existing?.testFailures,
     testFailureContent: existing?.testFailureContent,
     testFailureFiles: existing?.testFailureFiles
@@ -8384,6 +9202,7 @@ function mergeGitGuardTestFailure(cacheManager2, cwd, runtime, content, files) {
   }
   const failedFiles = files.map((file) => resolveGuardPath(file, cwd));
   const blockerContent = existing?.blockerContent;
+  const sessionId = recordOwner(existing, runtime, !!blockerContent);
   const testFailureFiles = [
     ...existing?.testFailureFiles ?? [],
     ...failedFiles
@@ -8392,11 +9211,14 @@ function mergeGitGuardTestFailure(cacheManager2, cwd, runtime, content, files) {
     content: [blockerContent, content].filter(Boolean).join("\n\n"),
     blockerContent,
     blockingFiles: existing?.blockingFiles ?? [],
+    // #4738: other sessions' sections ride along with their owners.
+    carriedBlockers: existing?.carriedBlockers,
+    blockerWrittenAt: existing?.blockerWrittenAt,
     testFailureContent: content,
     testFailureFiles,
     hasBlockers: true,
     affectedFiles: [...existing?.affectedFiles ?? [], ...failedFiles],
-    sessionId: runtime.telemetrySessionId,
+    sessionId,
     projectSeqStart: runtime.turnStartProjectSeq,
     projectSeqEnd: runtime.projectSeq,
     fileSeqByPath,
@@ -8414,9 +9236,13 @@ function clearGitGuardTestFailure(cacheManager2, cwd, runtime, passedFiles = [])
   const blockerContent = existing.blockerContent ?? "";
   if (!blockerContent && remainingFiles.length === 0) {
     cacheManager2.clearCache("turn-end-findings", cwd);
+    runtime.clearGitGuardCacheUnknown(cwd);
     return;
   }
-  const blockingKeys = new Set((existing.blockingFiles ?? []).map((file) => guardPathKey(file, cwd)));
+  const blockingKeys = new Set([
+    ...existing.blockingFiles ?? [],
+    ...(existing.carriedBlockers ?? []).flatMap((partition) => partition.blockingFiles)
+  ].map((file) => guardPathKey(file, cwd)));
   const affectedFiles = existing.affectedFiles.filter((file) => blockingKeys.has(guardPathKey(file, cwd)) || remainingFiles.some((testFile) => guardPathKey(testFile, cwd) === guardPathKey(file, cwd)));
   writeGitGuardRecord(cacheManager2, runtime, cwd, {
     ...existing,
@@ -8427,11 +9253,15 @@ function clearGitGuardTestFailure(cacheManager2, cwd, runtime, passedFiles = [])
     testFailureContent: remainingFiles.length > 0 ? existing.testFailureContent : void 0,
     testFailureFiles: remainingFiles.length > 0 ? remainingFiles : void 0,
     hasBlockers: !!blockerContent || remainingFiles.length > 0,
-    sessionId: runtime.telemetrySessionId,
+    // #4733 r1 F1: a passing run re-checks its tests, not the stored
+    // sections, so they keep their owner.
+    sessionId: recordOwner(existing, runtime, !!blockerContent),
     projectSeqStart: runtime.turnStartProjectSeq,
     projectSeqEnd: runtime.projectSeq,
     fileSeqByPath: Object.fromEntries(runtime.getFileSeqEntries().map(([filePath, seq]) => [guardPathKey(filePath, cwd), seq])),
-    fileContentHashes: {}
+    fileContentHashes: {},
+    // #4943: the content is now the owner's blocker text.
+    deliverTo: void 0
   });
 }
 
@@ -8568,7 +9398,15 @@ function render(kept, ctx) {
       report += `  \u2026 and ${kept.findings.length - findings.length} more
 `;
     }
-    advisorySections.push(report);
+    advisorySections.push({
+      part: report,
+      cites: [
+        ...new Set(kept.findings.flatMap((f) => {
+          const callSite = f.trace.find((t) => t.filename)?.filename;
+          return callSite === void 0 ? [] : [callSite];
+        }))
+      ]
+    });
   }
   return {
     advisoryParts: advisorySections,
@@ -8730,16 +9568,18 @@ function render2(kept, ctx) {
       report += `  \u2026 and ${enriched.length - shown2.length} more
 `;
     }
-    blockerSections.push(report);
+    blockerSections.push({ part: report, cites: enriched.map((f) => f.file) });
   }
   const staleSecretEntries = [
     ...kept.gitleaksStale.map((f) => ({
       file: toRunnerDisplayPath(ctx.cwd, f.file),
+      filePath: f.file,
       rule: f.ruleId,
       source: "gitleaks"
     })),
     ...kept.trivyStale.map((f) => ({
       file: toRunnerDisplayPath(ctx.cwd, f.file),
+      filePath: f.file,
       rule: f.ruleId,
       source: "trivy"
     }))
@@ -8761,7 +9601,10 @@ The cached line numbers are no longer trustworthy, so they are withheld. Re-run 
       report += `  \u2026 and ${staleSecrets.length - shown2.length} more
 `;
     }
-    staleSections.push(report);
+    staleSections.push({
+      part: report,
+      cites: [...new Set(staleSecrets.map((entry) => entry.filePath))]
+    });
   }
   return {
     blockerParts: blockerSections,
@@ -8787,14 +9630,17 @@ function planDeliveryHolds(args) {
       byPart.set(hold.part, [hold]);
   }
   const settled = [];
+  const reachedParts = [];
   let start = 0;
   for (const part of args.parts) {
     const end = start + part.text.length;
+    const whole = end <= args.keptChars;
+    const leadsOversized = start === 0;
+    const reached = whole || leadsOversized;
+    if (reached)
+      reachedParts.push(part);
     const hold = byPart.get(part.raw)?.shift();
     if (hold) {
-      const whole = end <= args.keptChars;
-      const leadsOversized = start === 0;
-      const reached = whole || leadsOversized;
       settled.push({
         hold,
         reached,
@@ -8804,6 +9650,7 @@ function planDeliveryHolds(args) {
     start = end + args.separatorLength;
   }
   return {
+    reachedParts,
     heldCount: settled.reduce((n, entry) => n + (entry.reached || !entry.keeps ? 0 : 1), 0),
     settle: ({ suppressed, isCurrentSession, onFault }) => {
       let delivered = 0;
@@ -8838,7 +9685,7 @@ function stillReportedParked(parked, current, keyOf, offeredKeys) {
 }
 
 // dist/clients/knip-scan-roots.js
-import { resolve as resolve13 } from "node:path";
+import { resolve as resolve14 } from "node:path";
 var MAX_KNIP_ROOTS_PER_TURN = 3;
 function resolveKnipScanRoots(sessionCwd, modifiedFiles) {
   const session = resolveGitCheckout(sessionCwd);
@@ -8848,7 +9695,7 @@ function resolveKnipScanRoots(sessionCwd, modifiedFiles) {
   let sessionOwnsEdit = false;
   const linked = [];
   for (const file of modifiedFiles) {
-    const owner = resolveLinkedWorktreeOwner(session, resolve13(sessionCwd, file));
+    const owner = resolveLinkedWorktreeOwner(session, resolve14(sessionCwd, file));
     if (owner === null) {
       sessionOwnsEdit = true;
     } else if (!linked.some((known) => pathsEqual(known.root, owner.root))) {
@@ -9019,14 +9866,14 @@ function emitLensTurnFindings(payload) {
 }
 
 // dist/clients/test-target-roots.js
-import { dirname as dirname7 } from "node:path";
+import { dirname as dirname6 } from "node:path";
 function createTurnEndTestRoots(sessionCwd) {
   const session = resolveGitCheckout(sessionCwd);
   const ownerByDir = /* @__PURE__ */ new Map();
   return (absoluteFile) => {
     if (session === null)
       return sessionCwd;
-    const dir = dirname7(absoluteFile);
+    const dir = dirname6(absoluteFile);
     let owner = ownerByDir.get(dir);
     if (owner === void 0) {
       owner = resolveLinkedWorktreeOwner(session, absoluteFile);
@@ -9047,7 +9894,9 @@ function sweepInlineBlockerPastEof(runtime, cwd, options) {
   const resync = options?.resync ?? resyncDocumentOnPastEof;
   let entries;
   try {
-    entries = runtime.getInlineBlockersSnapshot();
+    entries = runtime.getInlineBlockersSnapshot({
+      sessionId: options?.sessionId
+    });
   } catch {
     return counts;
   }
@@ -9088,7 +9937,7 @@ function sweepInlineBlockerPastEof(runtime, cwd, options) {
 }
 
 // dist/clients/persistent-reverify.js
-import * as fs15 from "node:fs";
+import * as fs14 from "node:fs";
 var MAX_REVERIFY_FILES = 4;
 var REVERIFY_BUDGET_MS = 3e3;
 var TOUCH_SOURCE = "persistent_reverify";
@@ -9106,11 +9955,11 @@ function selectPersistentReverifyFiles(report, nowMs = Date.now()) {
       continue;
     let mtimeMs;
     try {
-      mtimeMs = fs15.statSync(entry.filePath).mtimeMs;
+      mtimeMs = fs14.statSync(entry.filePath).mtimeMs;
     } catch {
       continue;
     }
-    if (mtimeMs > stamp) {
+    if (freshnessFromMtime({ mtimeMs, referenceMs: stamp, toleranceMs: 0 }).verdict === "stale") {
       skippedChanged += 1;
       continue;
     }
@@ -9148,7 +9997,7 @@ async function runPersistentReverify(args) {
     processed += 1;
     let content;
     try {
-      content = fs15.readFileSync(entry.filePath, "utf-8");
+      content = fs14.readFileSync(entry.filePath, "utf-8");
     } catch {
       outcomes.push({
         filePath: entry.filePath,
@@ -9176,7 +10025,7 @@ async function runPersistentReverify(args) {
     } catch {
       touchedResult = void 0;
     }
-    if (touchedResult === void 0 || touchedResult.inconclusive === true || touchedResult.skipReason !== void 0 || (touchedResult.diagnosticsUnsupportedServerIds ?? []).length > 0 || !touchCompletedConfirmationPolicy(touchedResult)) {
+    if (touchedResult === void 0 || touchedResult.inconclusive === true || touchedResult.binding?.boundToCurrentDisk === false || touchedResult.skipReason !== void 0 || (touchedResult.diagnosticsUnsupportedServerIds ?? []).length > 0 || !touchCompletedConfirmationPolicy(touchedResult)) {
       outcomes.push({
         filePath: entry.filePath,
         displayPath: entry.displayPath,
@@ -9252,22 +10101,22 @@ async function runPersistentReverify(args) {
 }
 
 // dist/clients/inline-blocker-dispositions.js
-import * as fs16 from "node:fs";
+import * as fs15 from "node:fs";
 import * as path23 from "node:path";
 function readCurrentContent(filePath) {
   try {
-    return fs16.readFileSync(filePath, "utf-8");
+    return fs15.readFileSync(filePath, "utf-8");
   } catch {
     return "";
   }
 }
 function applyInlineBlockerPolicy(record, cwd) {
-  const diagnostics = record.diagnostics;
+  const { diagnostics, filePath } = record;
   if (!diagnostics || diagnostics.length === 0) {
     if (hasAnyDispositionMarks(cwd)) {
       recordDegradationOnce({
         kind: "inline-blocker-unstructured",
-        subject: `inline-blocker:${toRunnerDisplayPath(cwd, record.filePath)}`,
+        subject: `inline-blocker:${toRunnerDisplayPath(cwd, filePath)}`,
         reason: "record carries no structured diagnostics; disposition marks cannot be applied to its rendered summary"
       });
     }
@@ -9279,37 +10128,30 @@ function applyInlineBlockerPolicy(record, cwd) {
       unstructured: true
     };
   }
-  const byFile = /* @__PURE__ */ new Map();
-  for (const diagnostic of diagnostics) {
-    const owner = path23.resolve(cwd, diagnostic.filePath);
-    const group = byFile.get(owner);
-    if (group)
-      group.push(diagnostic);
-    else
-      byFile.set(owner, [diagnostic]);
-  }
-  const policyMap = loadProjectRulePolicyMap(cwd);
-  const dropped = /* @__PURE__ */ new Set();
-  for (const [filePath, group] of byFile) {
-    const { kept: kept2 } = applyFindingPolicy(group, {
-      cwd,
-      filePath,
-      content: readCurrentContent(filePath),
-      policyMap,
-      identities: inlineBlockerIdentities
-    });
-    const survivors = new Set(kept2);
-    for (const diagnostic of group) {
-      if (!survivors.has(diagnostic))
-        dropped.add(diagnostic);
-    }
-  }
-  const kept = dropped.size === 0 ? [...diagnostics] : diagnostics.filter((diagnostic) => !dropped.has(diagnostic));
+  const inProject = (file) => path23.resolve(cwd, file);
+  const resolved = diagnostics.map((diagnostic) => ({
+    ...diagnostic,
+    filePath: inProject(diagnostic.filePath)
+  }));
+  const recordPath = inProject(filePath);
+  const survivors = new Set(applyFindingPolicyByOwner(resolved, {
+    cwd,
+    filePath: recordPath,
+    content: readCurrentContent(recordPath),
+    // One policy for every file: each config owner resolves once.
+    policyMap: loadProjectRulePolicy(cwd),
+    identities: inlineBlockerIdentities
+  }).kept);
+  const kept = diagnostics.filter((_, index) => {
+    const twin = resolved[index];
+    return twin !== void 0 && survivors.has(twin);
+  });
+  const dropped = diagnostics.length - kept.length;
   return {
     body: kept.length === 0 ? void 0 : formatDiagnostics(kept, "blocking").trim(),
     candidates: diagnostics.length,
     kept: kept.length,
-    suppressed: dropped.size,
+    suppressed: dropped,
     unstructured: false
   };
 }
@@ -9501,6 +10343,10 @@ function lateDeadCodeScansOf(scope) {
 function joinedEarlierScan(result, askedAt) {
   return result.scannedAt !== void 0 && Date.parse(result.scannedAt) < askedAt;
 }
+var KNIP_CARRIED_FILES = "knip-carried-files";
+function knipCarriedFilesOf(scope) {
+  return scopeCell(scope, KNIP_CARRIED_FILES, () => /* @__PURE__ */ new Map());
+}
 function withRowForFailureWrite(scan, cacheManager2, cacheKey, cwd, startRow) {
   return scan.then((result) => result.success || startRow?.data.success === true ? { result, row: startRow } : cacheManager2.readCacheAsync(cacheKey, cwd).then((row) => ({ result, row })));
 }
@@ -9524,8 +10370,9 @@ function deadCodeScanEvent(client, cwd, result, durationMs) {
     ...!result.success && { reason: result.summary }
   };
 }
-function dropLateDeadCodeScan(scans, key, client, reason) {
-  scans.delete(key);
+function dropLateDeadCodeScan(scans, key, entry, client, reason) {
+  if (scans.get(key) === entry)
+    scans.delete(key);
   incrementDegradationCount({
     kind: "dead-code-late-scan-dropped",
     subject: client.id,
@@ -9544,28 +10391,39 @@ function parkLateDeadCodeScan(args) {
     askedAt: startedAt
   };
   scans.set(key, entry);
-  void withRowForFailureWrite(args.scan, cacheManager2, cacheKey, cwd, entry.previousScan ? { data: entry.previousScan } : null).then(({ result, row }) => {
+  const watch = withRowForFailureWrite(args.scan, cacheManager2, cacheKey, cwd, entry.previousScan ? { data: entry.previousScan } : null).then(({ result, row }) => {
     if (!scope.isLive()) {
-      dropLateDeadCodeScan(scans, key, client, "session-ended");
+      dropLateDeadCodeScan(scans, key, entry, client, "session-ended");
       return;
     }
     const durationMs = Date.now() - startedAt;
     const cacheKept = wouldPoisonCache(row, result);
     if (!cacheKept) {
-      cacheManager2.writeCache(cacheKey, result, cwd, {
-        scanDurationMs: durationMs
-      });
+      try {
+        cacheManager2.writeCache(cacheKey, result, cwd, {
+          scanDurationMs: durationMs
+        });
+      } catch (err) {
+        incrementDegradationCount({
+          kind: "dead-code-baseline-write-failed",
+          subject: client.id,
+          reason: String(err)
+        });
+      }
     }
     logDeadCodeScan({
       ...deadCodeScanEvent(client, cwd, result, durationMs),
       ...cacheKept && { cacheKept }
     });
     if (!result.success) {
-      dropLateDeadCodeScan(scans, key, client, `scan-failed: ${result.summary}`);
+      dropLateDeadCodeScan(scans, key, entry, client, `scan-failed: ${result.summary}`);
       return;
     }
     entry.settled = result;
-  }, (err) => dropLateDeadCodeScan(scans, key, client, `scan-threw: ${err}`));
+  }, (err) => dropLateDeadCodeScan(scans, key, entry, client, `scan-threw: ${err}`));
+  void watch.catch((err) => {
+    dropLateDeadCodeScan(scans, key, entry, client, `scan-settle-threw: ${err}`);
+  });
 }
 var lspIdleResetTimeout = null;
 var pendingSweepRearm = null;
@@ -9700,6 +10558,64 @@ function formatWriteOrdinal(n) {
       return `${n}th`;
   }
 }
+function resyncCommitGateForReadOnlyTurn(args) {
+  if (!args.lensGuardEnabled)
+    return;
+  if (!args.runtime.gitGuardHasBlockers)
+    return;
+  if (!hasAnyDispositionMarks(args.cwd))
+    return;
+  const inlinePolicyEntries = [];
+  const policySuppressedPaths = [];
+  const inlinePolicyStart = Date.now();
+  for (const entry of args.runtime.getInlineBlockersSnapshot({
+    sessionId: args.sessionId
+  })) {
+    const tally = {
+      displayPath: toRunnerDisplayPath(args.cwd, entry.filePath),
+      sources: entry.sources
+    };
+    const policy = applyInlineBlockerPolicy(entry, args.cwd);
+    inlinePolicyEntries.push({
+      ...tally,
+      stale: entry.stale === true,
+      outcome: policy
+    });
+    if (policy.body === void 0)
+      policySuppressedPaths.push(entry.filePath);
+  }
+  if (inlinePolicyEntries.length === 0)
+    return;
+  const guardLatchBefore = args.runtime.gitGuardHasBlockers;
+  resyncGitGuardAfterInlinePolicy({
+    runtime: args.runtime,
+    suppressedFilePaths: policySuppressedPaths,
+    sessionId: args.sessionId
+  });
+  logLatency({
+    type: "phase",
+    toolName: "turn_end",
+    filePath: args.cwd,
+    phase: "inline_blocker_policy",
+    durationMs: Date.now() - inlinePolicyStart,
+    metadata: {
+      ...summarizeInlineBlockerPolicy(inlinePolicyEntries),
+      guardFilesSuppressed: policySuppressedPaths.length,
+      guardLatchCleared: guardLatchBefore && !args.runtime.gitGuardHasBlockers
+    }
+  });
+}
+function driftDeliveryCap(staleReason) {
+  if (staleReason !== "dependency-drift" && staleReason !== "self-drift")
+    return void 0;
+  return {
+    axis: staleReason,
+    cap: staleReason === "self-drift" ? SELF_DRIFT_MAX_DELIVERIES : DEPENDENCY_DRIFT_MAX_DELIVERIES
+  };
+}
+function suppressedByDispositionNote(suppressed) {
+  return suppressed > 0 ? ` (suppressed by disposition: ${suppressed} finding(s))` : "";
+}
 async function handleTurnEnd(deps) {
   const { ctxCwd, getFlag, dbg, runtime, cacheManager: cacheManager2, knipClient, deadCodeClients, depChecker, testRunnerClient, sessionId, host = "pi", owner, resetLSPService: resetLSPService2, resetFormatService: resetFormatService2 } = deps;
   const turnIndexAtDispatch = runtime.turnIndex;
@@ -9757,11 +10673,14 @@ async function handleTurnEnd(deps) {
     }
   }
   if (files.length === 0 && !runtime.hasCascadeRuns() && !isSecondarySession) {
+    resyncCommitGateForReadOnlyTurn({
+      runtime,
+      cwd,
+      lensGuardEnabled: Boolean(getFlag("lens-guard")),
+      sessionId
+    });
     if (getFlag("lens-guard") && !runtime.gitGuardHasBlockers) {
-      const guardRecord = cacheManager2.readCache("turn-end-findings", cwd)?.data;
-      if (guardRecord?.sessionId === runtime.telemetrySessionId && guardRecord.testFailures !== true) {
-        cacheManager2.clearCache("turn-end-findings", cwd);
-      }
+      retireSettledGitGuardRecord(runtime, cacheManager2, cwd, sessionId);
     }
     const idleResetMs = getEffectiveLspIdleResetMs();
     dbg(`turn_end: no modified files, scheduling LSP idle reset (${idleResetMs / 1e3}s)`);
@@ -9799,6 +10718,25 @@ async function handleTurnEnd(deps) {
   const blockerParts = [];
   const staleSecretParts = [];
   const advisoryParts = [];
+  const provenanceCitations = /* @__PURE__ */ new Map();
+  const citePart = (part, files2) => {
+    provenanceCitations.set(part, [...files2]);
+  };
+  const filelessParts = /* @__PURE__ */ new Map();
+  const markFilelessPart = (part) => {
+    if (filelessParts.get(part) === "carried")
+      return;
+    filelessParts.set(part, "this-turn");
+  };
+  const markCarriedPart = (part) => {
+    filelessParts.set(part, "carried");
+  };
+  const registerLanePart = (entry) => {
+    if ("filelessThisTurn" in entry)
+      markFilelessPart(entry.part);
+    else
+      citePart(entry.part, entry.cites);
+  };
   const deliveryHolds = [];
   const turnScope = deps.sessionScope ?? runtime.sessionScope;
   const holdScope = runtime.captureSessionGeneration();
@@ -9833,7 +10771,15 @@ async function handleTurnEnd(deps) {
   const runnerFindingsStart = Date.now();
   const runnerDrainSignal = deps.signal;
   const deliverySessionId = sessionId ?? runtime.telemetrySessionId;
-  const pendingRunnerFindings = await bounded(drainPendingRunnerFindings(0, runtime.sessionScope.capture(), deliverySessionId), {
+  const deliveryTurnKey = runtime.turnKey(deliverySessionId);
+  const pendingRunnerFindings = await bounded(drainPendingRunnerFindings(
+    0,
+    runtime.sessionScope.capture(),
+    deliverySessionId,
+    // #4617 review F2: the boundary that leaves a run waiting, so the note
+    // a later turn renders reads carried, not this-turn.
+    deliveryTurnKey
+  ), {
     ms: HOOK_WALL_BUDGET_MS.turn_end,
     signal: runnerDrainSignal,
     hook: "turn_end",
@@ -9844,6 +10790,7 @@ async function handleTurnEnd(deps) {
   let runnerFindingsFailed = 0;
   let runnerFindingsDropped = 0;
   let runnerBlockersRecorded = 0;
+  let runnerBlockersRetired = 0;
   let runnerFindingsDispositionSuppressed = 0;
   const runnerFindingsDeliveredIds = [];
   for (const pending2 of pendingRunnerFindings) {
@@ -9859,9 +10806,15 @@ async function handleTurnEnd(deps) {
         part: failedNote,
         onHeld: () => requeueRunnerFindings({
           ...pending2,
-          result: { ...result, diagnostics: [] }
+          result: { ...result, diagnostics: [] },
+          carriedFromTurnKey: deliveryTurnKey
         })
       });
+      const carriedFailure = pending2.carriedFromTurnKey !== void 0 && pending2.carriedFromTurnKey < deliveryTurnKey;
+      if (carriedFailure)
+        markCarriedPart(failedNote);
+      else
+        markFilelessPart(failedNote);
       advisoryParts.push(failedNote);
     }
     const verdict = judgeDeferredRunnerFindings(pending2, cwd);
@@ -9870,6 +10823,7 @@ async function handleTurnEnd(deps) {
       dropStaleRunnerFindings(pending2);
       runnerFindingsDropped += 1;
     }
+    runnerBlockersRetired += retireSettledRunnerBlockers(runtime, pending2, verdict);
     if (verdict.live === 0)
       continue;
     const displayPath = toRunnerDisplayPath(cwd, pending2.filePath);
@@ -9901,6 +10855,9 @@ ${lines.join("\n")}`;
       })
     });
     advisoryParts.push(lateRunnerPart);
+    citePart(lateRunnerPart, [
+      ...new Set(advisoryKept.map((f) => f.filePath ?? pending2.filePath))
+    ]);
   }
   logLatency({
     type: "phase",
@@ -9915,12 +10872,18 @@ ${lines.join("\n")}`;
       failed: runnerFindingsFailed,
       dropped: runnerFindingsDropped,
       blockersRecorded: runnerBlockersRecorded,
+      blockersRetired: runnerBlockersRetired,
       dispositionSuppressed: runnerFindingsDispositionSuppressed,
       deliveredIds: runnerFindingsDeliveredIds
     }
   });
+  if (runtime.retireForeignRowsOfMissingFiles({ sessionId }).length > 0) {
+    runtime.updateGitGuardStatus(false, "");
+  }
   const blockerPastEofStart = Date.now();
-  const blockerPastEof = sweepInlineBlockerPastEof(runtime, cwd);
+  const blockerPastEof = sweepInlineBlockerPastEof(runtime, cwd, {
+    sessionId
+  });
   logLatency({
     type: "phase",
     toolName: "turn_end",
@@ -9948,18 +10911,18 @@ ${lines.join("\n")}`;
       reason: `file shrank past cited line(s) ${deadLines.join(", ")}; retired after one degraded delivery`
     });
   };
-  const countDriftDeliveryOnDelivery = (bPath, displayPath) => () => {
+  const countDriftDeliveryOnDelivery = (bPath, displayPath, reason, cap) => () => {
     const deliveryCount = runtime.incrementInlineBlockerStaleDelivery(bPath);
-    if (deliveryCount < DEPENDENCY_DRIFT_MAX_DELIVERIES)
+    if (deliveryCount < cap)
       return;
-    if (!runtime.retireDemotedDependencyDriftBlocker(bPath))
+    if (!runtime.retireDemotedDriftBlocker(bPath, reason))
       return;
     runtime.updateGitGuardStatus(false, "");
     demotedFindingsRetired += 1;
     incrementDegradationCount({
       kind: "demoted-finding-retired",
       subject: `inline-blocker:${displayPath}`,
-      reason: `capped after ${deliveryCount} deliveries with no re-run; re-run can still confirm`
+      reason: `capped after ${deliveryCount} deliveries of a ${reason} advisory with no re-run; re-run can still confirm`
     });
   };
   const blockerFreshnessStart = Date.now();
@@ -9967,6 +10930,7 @@ ${lines.join("\n")}`;
     // #2982: the hook's own signal, so the self axis's filesystem work is
     // bounded by the same abort everything else in this handler honours.
     ...deps.signal === void 0 ? {} : { signal: deps.signal },
+    sessionId,
     additionalEntries: getWidgetBlockingFilesForSweep().map((row) => ({
       filePath: row.filePath,
       recordedAtMs: row.recordedAtMs,
@@ -9990,41 +10954,48 @@ ${lines.join("\n")}`;
       hashBudgetExhausted: blockerFreshness.hashBudgetExhausted
     }
   });
-  const unresolvedBlockers = runtime.getInlineBlockersSnapshot();
+  const unresolvedBlockers = runtime.getInlineBlockersSnapshot({ sessionId });
   const inlinePolicyEntries = [];
   const policySuppressedPaths = [];
   const inlinePolicyStart = Date.now();
   for (const record of unresolvedBlockers) {
-    const { filePath: bPath, summary, stale, staleReason } = record;
+    const { filePath: bPath, stale, staleReason } = record;
     const displayPath = toRunnerDisplayPath(cwd, bPath);
     const tally = { displayPath, sources: record.sources };
     if (stale) {
-      inlinePolicyEntries.push({ ...tally, stale: true });
+      const policy = applyInlineBlockerPolicy(record, cwd);
+      inlinePolicyEntries.push({ ...tally, stale: true, outcome: policy });
+      if (policy.body === void 0) {
+        policySuppressedPaths.push(bPath);
+        continue;
+      }
       const deadLines = blockerPastEof.deadLinesByPath.get(bPath) ?? [];
-      const degraded = degradeDemotedFindingBody(summary, { deadLines });
+      const degraded = degradeDemotedFindingBody(policy.body, { deadLines });
       const retires = runtime.wouldRetireDemotedPastEofBlocker(bPath, deadLines);
+      const drift = driftDeliveryCap(staleReason);
       let retirementNote;
       if (retires) {
         retirementNote = formatRetirementNote(deadLines);
-      } else if (staleReason === "dependency-drift") {
+      } else if (drift !== void 0) {
         const tentativeCount = runtime.peekInlineBlockerStaleDeliveryCount(bPath) + 1;
-        if (tentativeCount >= DEPENDENCY_DRIFT_MAX_DELIVERIES) {
+        if (tentativeCount >= drift.cap) {
           retirementNote = formatDeliveryCapNote(tentativeCount);
         }
       }
-      const advisoryPart = `${STALE_LINE_MARKER} ${displayPath}:
+      const advisoryPart = `${STALE_LINE_MARKER} ${displayPath}${suppressedByDispositionNote(policy.suppressed)}:
 ${degraded.body}` + (retirementNote ? `
 ${retirementNote}` : "");
       advisoryParts.push(advisoryPart);
+      citePart(advisoryPart, [bPath]);
       if (retires) {
         deliveryHolds.push({
           part: advisoryPart,
           onDelivered: retirePastEofOnDelivery(bPath, deadLines, displayPath)
         });
-      } else if (staleReason === "dependency-drift") {
+      } else if (drift !== void 0) {
         deliveryHolds.push({
           part: advisoryPart,
-          onDelivered: countDriftDeliveryOnDelivery(bPath, displayPath),
+          onDelivered: countDriftDeliveryOnDelivery(bPath, displayPath, drift.axis, drift.cap),
           skipOnSuppressed: true
         });
       }
@@ -10035,15 +11006,17 @@ ${retirementNote}` : "");
         policySuppressedPaths.push(bPath);
         continue;
       }
-      const suppressedNote = policy.suppressed > 0 ? ` (suppressed by disposition: ${policy.suppressed} finding(s))` : "";
-      blockerParts.push(`Unresolved from this turn \u2014 ${displayPath}${suppressedNote}:
-${policy.body}`);
+      const replayPart = `Unresolved from this turn \u2014 ${displayPath}${suppressedByDispositionNote(policy.suppressed)}:
+${policy.body}`;
+      blockerParts.push(replayPart);
+      citePart(replayPart, [bPath]);
     }
   }
   const guardLatchBefore = runtime.gitGuardHasBlockers;
   resyncGitGuardAfterInlinePolicy({
     runtime,
-    suppressedFilePaths: policySuppressedPaths
+    suppressedFilePaths: policySuppressedPaths,
+    sessionId
   });
   if (inlinePolicyEntries.length > 0) {
     logLatency({
@@ -10081,6 +11054,7 @@ ${policy.body}`);
     durationMs: Date.now() - cascadeSettleStart,
     metadata: { settled, timedOut }
   });
+  peekOutstandingCascadeTouches(holdScope);
   const t0 = Date.now();
   const cascadeRuns = (holdScope.guardedWrite("turn-end:cascade-runs", () => runtime.consumeCascadeRuns()) ?? []).filter((run) => {
     const originSeq = run.origin?.projectSeq;
@@ -10133,40 +11107,100 @@ ${policy.body}`);
     }
   }
   const cascadeLogFilePath = cascadeResults[0]?.filePath ?? files[0] ?? cwd;
+  const cascadeTurn = runtime.turnIndex;
+  const editedKeys = /* @__PURE__ */ new Set();
+  for (const file of files) {
+    const absolute = path24.resolve(cwd, file);
+    editedKeys.add(normalizeMapKey(absolute));
+    forgetCascadePendingNeighbor(absolute);
+  }
+  const seen = /* @__PURE__ */ new Map();
+  for (const result of cascadeResults) {
+    seen.set(normalizeMapKey(result.filePath), result);
+  }
+  const keptResults = new Set(seen.values());
+  const lastObserver = /* @__PURE__ */ new Map();
+  for (const run of [...cascadeRuns].reverse()) {
+    if (run.result && !keptResults.has(run.result))
+      continue;
+    for (const neighborPath of [
+      ...(run.result?.neighbors ?? []).map((n) => n.filePath),
+      ...run.observedNeighborPaths ?? []
+    ]) {
+      const nk = normalizeMapKey(neighborPath);
+      if (!lastObserver.has(nk))
+        lastObserver.set(nk, { run, filePath: neighborPath });
+    }
+  }
+  const primaryUnanswered = /* @__PURE__ */ new Set();
+  for (const [nk, { run }] of lastObserver) {
+    if (run.result?.neighbors.some((n) => normalizeMapKey(n.filePath) === nk && n.primaryUnavailable !== void 0))
+      primaryUnanswered.add(nk);
+  }
+  for (const [nk, { run, filePath }] of lastObserver) {
+    const observedClean = run.observedNeighborPaths?.some((p) => normalizeMapKey(p) === nk) && !run.result?.neighbors.some((n) => normalizeMapKey(n.filePath) === nk && n.diagnostics.length > 0);
+    if (observedClean)
+      forgetCascadePendingNeighbor(filePath);
+  }
   if (cascadeResults.length > 0) {
-    const seen = /* @__PURE__ */ new Map();
-    for (const result of cascadeResults) {
-      seen.set(normalizeMapKey(result.filePath), result);
-    }
-    const neighborOwner = /* @__PURE__ */ new Map();
-    for (const result of [...seen.values()].reverse()) {
-      const pk = normalizeMapKey(result.filePath);
-      for (const n of result.neighbors) {
-        const nk = normalizeMapKey(n.filePath);
-        if (!neighborOwner.has(nk))
-          neighborOwner.set(nk, pk);
-      }
-    }
     const parts = [];
     const sectionRuns = [];
     let injectedNeighborCount = 0;
     let injectedDiagnosticCount = 0;
     let suppressedByOwnership = 0;
+    const sectionObservations = [];
+    const shownUnansweredServerIds = /* @__PURE__ */ new Set();
+    const sectionPrimaries = [];
+    const unansweredLines = [];
     for (const result of seen.values()) {
-      const pk = normalizeMapKey(result.filePath);
-      const ownsAny = result.neighbors.some((n) => neighborOwner.get(normalizeMapKey(n.filePath)) === pk);
-      if (ownsAny && result.formatted) {
-        const carryMeta = carriedMetaByResult.get(result);
-        const carrySuffix = cascadeCarrySuffix(carryMeta?.carriedTurns, carryMeta?.observedAt);
-        parts.push(carrySuffix ? `${result.formatted}
-${carrySuffix}` : result.formatted);
-        if (carrySuffix)
-          carriedRunsRendered += 1;
+      const ownedNeighbors = result.neighbors.filter((n) => lastObserver.get(normalizeMapKey(n.filePath))?.run.result === result);
+      const ownsAny = ownedNeighbors.length > 0;
+      let rendered = ownsAny && result.formatted ? renderCascadeResult(result, shownUnansweredServerIds) : void 0;
+      const layout = result.layout;
+      if (rendered && layout) {
+        const since = (n, d) => cascadeStillPresentSince(n.filePath, d, cascadeTurn);
+        const relabel = ownedNeighbors.some((n) => n.diagnostics.some((d) => since(n, d) !== void 0));
+        if (relabel || ownedNeighbors.length < result.neighbors.length) {
+          const block = formatCascadeNeighborDiagnostics(layout.cwd, ownedNeighbors, {
+            noun: layout.noun,
+            includeReason: layout.includeReason,
+            stillPresentSince: since
+          });
+          rendered = {
+            ...rendered,
+            text: composeCascadeSection(block, layout)
+          };
+        }
+      }
+      if (rendered && (rendered.text || rendered.lines.length > 0)) {
+        unansweredLines.push(...rendered.lines);
+        if (rendered.text) {
+          const carryMeta = carriedMetaByResult.get(result);
+          const carrySuffix = cascadeCarrySuffix(carryMeta?.carriedTurns, carryMeta?.observedAt);
+          parts.push(carrySuffix ? `${rendered.text}
+${carrySuffix}` : rendered.text);
+          if (carrySuffix)
+            carriedRunsRendered += 1;
+        }
         const sectionRun = runByResult.get(result);
         if (sectionRun)
           sectionRuns.push(sectionRun);
-        injectedNeighborCount += result.neighbors.length;
-        injectedDiagnosticCount += result.neighbors.reduce((s, n) => s + n.diagnostics.length, 0);
+        sectionPrimaries.push(result.filePath);
+        for (const n of ownedNeighbors) {
+          if (n.diagnostics.length === 0)
+            continue;
+          if (editedKeys.has(normalizeMapKey(n.filePath)))
+            continue;
+          if (primaryUnanswered.has(normalizeMapKey(n.filePath)))
+            continue;
+          sectionObservations.push({
+            filePath: n.filePath,
+            diagnostics: n.diagnostics,
+            checkedAt: sectionRun?.checkedAt
+          });
+        }
+        injectedNeighborCount += ownedNeighbors.length;
+        injectedDiagnosticCount += ownedNeighbors.reduce((s, n) => s + n.diagnostics.length, 0);
       } else if (!ownsAny && result.formatted) {
         suppressedByOwnership++;
       }
@@ -10198,13 +11232,24 @@ ${testLines.join("\n")}`;
   ... and ${testSuggestions.length - 5} more`;
         }
         parts.push(testSection);
+        sectionPrimaries.push(...testSuggestions.map((s) => s.testFile));
       }
     }
+    if (unansweredLines.length > 0)
+      parts.unshift(unansweredLines.join("\n"));
     if (parts.length > 0) {
       const section = parts.join("\n\n");
       blockerParts.push(section);
+      citePart(section, sectionPrimaries);
+      const shownServerIds = [...shownUnansweredServerIds];
       deliveryHolds.push({
         part: section,
+        onDelivered: () => {
+          markCascadeUnansweredPrimariesDelivered(shownServerIds);
+          for (const o of sectionObservations) {
+            recordDeliveredCascadeNeighbor(o.filePath, o.diagnostics, cascadeTurn, o.checkedAt ?? 0);
+          }
+        },
         onHeld: () => {
           for (const run of sectionRuns)
             runtime.appendCascadeRun(run);
@@ -10233,21 +11278,151 @@ ${testLines.join("\n")}`;
       }
     });
   }
+  const pendingCandidates = listCascadePendingNeighbors().filter((entry) => {
+    const key = normalizeMapKey(entry.filePath);
+    if (editedKeys.has(key))
+      return false;
+    if (lastObserver.has(key) && !primaryUnanswered.has(key))
+      return false;
+    return isUnderDir(entry.filePath, cwd);
+  });
+  const { "cascade-pending-neighbors": pendingGate } = gateFindingsByPathFreshness({
+    cwd,
+    quiet: true,
+    sources: {
+      "cascade-pending-neighbors": {
+        findings: pendingCandidates,
+        citedPath: (entry) => entry.filePath,
+        scannedAtOf: (entry) => entry.checkedAt
+      }
+    }
+  });
+  const unresolvedNeighbors = pendingGate.live;
+  const changedNeighbors = pendingGate.stale;
+  const gateKept = /* @__PURE__ */ new Set([...unresolvedNeighbors, ...changedNeighbors]);
+  const deletedNeighbors = [];
+  for (const entry of pendingCandidates) {
+    if (gateKept.has(entry))
+      continue;
+    deletedNeighbors.push(entry);
+    forgetCascadePendingNeighbor(entry.filePath);
+  }
+  const maxShown = RUNTIME_CONFIG.pipeline.cascadeMaxFiles;
+  const pendingAge = (checkedAt) => formatCacheAgeLabel(checkedAt > 0 ? checkedAt : void 0);
+  const pendingBlocks = [];
+  let unresolvedShown = 0;
+  if (unresolvedNeighbors.length > 0) {
+    const lines = unresolvedNeighbors.slice(-maxShown).reverse().map((entry) => `  \u2022 ${toRunnerDisplayPath(cwd, entry.filePath)}: ${entry.errorCount} error(s) unresolved (${pendingAge(entry.checkedAt)})`);
+    unresolvedShown = lines.length;
+    const more = unresolvedNeighbors.length - lines.length;
+    if (more > 0)
+      lines.push(`  ... and ${more} more neighbor file(s)`);
+    pendingBlocks.push(`\u{1F4D0} Cascade errors from an earlier turn, not re-checked this turn \u2014 still unresolved until a cascade or an edit shows them gone:
+${lines.join("\n")}`);
+  }
+  const changedShown = changedNeighbors.slice(-maxShown).reverse();
+  if (changedShown.length > 0) {
+    const lines = changedShown.map((entry) => `  \u2022 ${toRunnerDisplayPath(cwd, entry.filePath)}: ${entry.errorCount} error(s) changed since checked (${pendingAge(entry.checkedAt)}), not re-checked`);
+    const more = changedNeighbors.length - changedShown.length;
+    if (more > 0)
+      lines.push(`  ... and ${more} more neighbor file(s)`);
+    pendingBlocks.push(`\u{1F4D0} Cascade errors from an earlier turn whose file changed outside pi since they were checked \u2014 not re-checked, named this once:
+${lines.join("\n")}`);
+  }
+  if (pendingBlocks.length > 0) {
+    const pendingSection = pendingBlocks.join("\n");
+    blockerParts.push(pendingSection);
+    citePart(pendingSection, [
+      ...unresolvedNeighbors.slice(-maxShown).map((entry) => entry.filePath),
+      ...changedShown.map((entry) => entry.filePath)
+    ]);
+    if (changedShown.length > 0) {
+      deliveryHolds.push({
+        part: pendingSection,
+        onDelivered: () => {
+          for (const entry of changedShown) {
+            forgetCascadePendingNeighbor(entry.filePath);
+          }
+        }
+      });
+    }
+    logCascade({
+      phase: "cascade_pending_rendered",
+      filePath: cascadeLogFilePath,
+      metadata: {
+        neighbors: unresolvedNeighbors.length,
+        shown: unresolvedShown,
+        changed: changedShown.length
+      }
+    });
+  }
+  if (changedNeighbors.length + deletedNeighbors.length > 0) {
+    logCascade({
+      phase: "cascade_pending_gated",
+      filePath: cascadeLogFilePath,
+      metadata: {
+        changed: changedNeighbors.length,
+        deleted: deletedNeighbors.length,
+        changedPaths: changedNeighbors.slice(0, 10).map((e) => e.filePath),
+        deletedPaths: deletedNeighbors.slice(0, 10).map((e) => e.filePath)
+      }
+    });
+  }
+  const withCarryLabel = (advisory, runs) => {
+    if (advisory === void 0)
+      return void 0;
+    const carried = runs.filter((r) => (r.carriedTurns ?? 0) > 0);
+    if (carried.length === 0 || carried.length !== runs.length) {
+      return advisory;
+    }
+    const stamps = carried.map((r) => r.observedAt);
+    const observedAt = stamps.every((s) => s !== void 0) ? Math.min(...stamps) : void 0;
+    const suffix = cascadeCarrySuffix(carried[0]?.carriedTurns, observedAt);
+    if (!suffix)
+      return advisory;
+    labeledAdvisories += 1;
+    return `${advisory}
+${suffix}`;
+  };
+  const holdAdvisory = (advisory, runs, keep) => {
+    if (advisory === void 0)
+      return;
+    deliveryHolds.push({
+      part: advisory,
+      onHeld: () => {
+        for (const run of runs) {
+          const restored = { ...run, result: void 0 };
+          delete restored.observedNeighborPaths;
+          if (keep !== "indeterminate")
+            delete restored.indeterminate;
+          if (keep !== "unconfirmed")
+            delete restored.unconfirmed;
+          runtime.appendCascadeRun(restored);
+        }
+      }
+    });
+  };
   const indeterminateRuns = cascadeRuns.filter((r) => r.indeterminate);
   if (indeterminateRuns.length > 0) {
-    const buildAdvisory = (runs, frame) => {
+    const buildAdvisory = (runs, frame, named) => {
       if (runs.length === 0)
         return void 0;
       const byDetail = /* @__PURE__ */ new Map();
+      const runPathOf = /* @__PURE__ */ new Map();
       for (const r of runs) {
         const detail = r.indeterminate?.detail ?? frame.fallbackDetail(r);
         const files2 = byDetail.get(detail) ?? [];
-        files2.push(toRunnerDisplayPath(cwd, r.filePath));
+        const display = toRunnerDisplayPath(cwd, r.filePath);
+        files2.push(display);
+        runPathOf.set(display, r.filePath);
         byDetail.set(detail, files2);
       }
       const lines = [];
       for (const [detail, filesRaw] of byDetail) {
         const files2 = [...new Set(filesRaw)];
+        for (const display of files2.slice(0, 5)) {
+          named.push(runPathOf.get(display) ?? display);
+        }
         const shown2 = files2.slice(0, 5).join(", ");
         const more = files2.length > 5 ? ` (+${files2.length - 5} more)` : "";
         lines.push(`  \u2022 ${detail}: ${shown2}${more}`);
@@ -10257,50 +11432,43 @@ ${testLines.join("\n")}`;
       return `${frame.lead(fileCount2, reasons)}
 ${lines.join("\n")}`;
     };
-    const graphRuns = indeterminateRuns.filter((r) => r.indeterminate?.reason !== "lsp_binding_rejected" && r.indeterminate?.reason !== "excluded_by_role" && r.indeterminate?.reason !== "budget_truncated" && r.indeterminate?.budget === void 0);
+    const graphRuns = indeterminateRuns.filter((r) => r.indeterminate?.reason !== "lsp_binding_rejected" && r.indeterminate?.reason !== "excluded_by_role" && r.indeterminate?.reason !== "budget_truncated" && r.indeterminate?.reason !== "unresolved_reference" && r.indeterminate?.budget === void 0);
+    const referenceRuns = indeterminateRuns.filter((r) => r.indeterminate?.reason === "unresolved_reference" && r.indeterminate?.budget === void 0);
     const bindingRuns = indeterminateRuns.filter((r) => r.indeterminate?.reason === "lsp_binding_rejected" && r.indeterminate?.budget === void 0);
     const budgetRuns = indeterminateRuns.filter((r) => r.indeterminate?.reason === "budget_truncated" || r.indeterminate?.budget !== void 0);
-    const withCarryLabel = (advisory, runs) => {
-      if (advisory === void 0)
-        return void 0;
-      const carried = runs.filter((r) => (r.carriedTurns ?? 0) > 0);
-      if (carried.length === 0 || carried.length !== runs.length) {
-        return advisory;
-      }
-      const stamps = carried.map((r) => r.observedAt);
-      const observedAt = stamps.every((s) => s !== void 0) ? Math.min(...stamps) : void 0;
-      const suffix = cascadeCarrySuffix(carried[0]?.carriedTurns, observedAt);
-      if (!suffix)
-        return advisory;
-      labeledAdvisories += 1;
-      return `${advisory}
-${suffix}`;
-    };
-    const holdAdvisory = (advisory, runs) => {
-      if (advisory === void 0)
-        return;
-      deliveryHolds.push({
-        part: advisory,
-        onHeld: () => {
-          for (const run of runs)
-            runtime.appendCascadeRun({ ...run, result: void 0 });
-        }
-      });
-    };
+    const graphNamed = [];
     const graphAdvisory = withCarryLabel(buildAdvisory(graphRuns, {
       lead: (fileCount2, reasons) => `Cascade could not compute downstream impact for ${fileCount2} edited file(s) this turn \u2014 the review graph was unavailable (${reasons}), so their dependents were not cascade-checked and a clean cascade result does not cover them.`,
       fallbackDetail: (r) => r.indeterminate?.reason === "missing_node" ? "changed file not in the review graph" : "review graph unavailable"
-    }), graphRuns);
+    }, graphNamed), graphRuns);
     if (graphAdvisory)
       advisoryParts.push(graphAdvisory);
-    holdAdvisory(graphAdvisory, graphRuns);
+    if (graphAdvisory)
+      citePart(graphAdvisory, graphNamed);
+    holdAdvisory(graphAdvisory, graphRuns, "indeterminate");
+    const referenceNamed = [];
+    const referenceAdvisory = withCarryLabel(buildAdvisory(referenceRuns, {
+      // The bullet below carries the cause and the files, so the lead
+      // does not say it again.
+      lead: (fileCount2) => `Cascade could not place every dependent of ${fileCount2} edited file(s) this turn, so a clean cascade result does not cover them.`,
+      fallbackDetail: () => "some files reference a changed symbol by an ambiguous name"
+    }, referenceNamed), referenceRuns);
+    if (referenceAdvisory)
+      advisoryParts.push(referenceAdvisory);
+    if (referenceAdvisory)
+      citePart(referenceAdvisory, referenceNamed);
+    holdAdvisory(referenceAdvisory, referenceRuns, "indeterminate");
+    const bindingNamed = [];
     const bindingAdvisory = withCarryLabel(buildAdvisory(bindingRuns, {
       lead: (fileCount2, reasons) => `Cascade identified dependents for ${fileCount2} edited file(s) this turn, but their diagnostics could not be freshly confirmed (${reasons}) and were withheld \u2014 a clean cascade result does not cover them.`,
       fallbackDetail: () => "cascade diagnostics withheld (binding rejected)"
-    }), bindingRuns);
+    }, bindingNamed), bindingRuns);
     if (bindingAdvisory)
       advisoryParts.push(bindingAdvisory);
-    holdAdvisory(bindingAdvisory, bindingRuns);
+    if (bindingAdvisory)
+      citePart(bindingAdvisory, bindingNamed);
+    holdAdvisory(bindingAdvisory, bindingRuns, "indeterminate");
+    const budgetNamed = [];
     const budgetAdvisory = withCarryLabel(buildAdvisory(budgetRuns, {
       lead: (fileCount2, reasons) => `Cascade checked the selected neighbors for ${fileCount2} edited file(s) this turn, but some eligible dependents were not checked because the cascade budget was exhausted (${reasons}); a clean cascade result does not cover them.`,
       fallbackDetail: (r) => {
@@ -10310,10 +11478,12 @@ ${suffix}`;
         const detail = `cascade budget checked ${budget.selectedCount} of ${budget.eligibleCount} eligible dependents (${budget.truncatedCount} omitted)`;
         return budget.transitiveTruncated ? `${detail}; transitive expansion was capped before all eligible dependents were enumerated` : detail;
       }
-    }), budgetRuns);
+    }, budgetNamed), budgetRuns);
     if (budgetAdvisory)
       advisoryParts.push(budgetAdvisory);
-    holdAdvisory(budgetAdvisory, budgetRuns);
+    if (budgetAdvisory)
+      citePart(budgetAdvisory, budgetNamed);
+    holdAdvisory(budgetAdvisory, budgetRuns, "indeterminate");
     const fileCount = new Set(indeterminateRuns.map((r) => normalizeMapKey(r.filePath))).size;
     const byFile = indeterminateRuns.map((r) => ({
       file: toRunnerDisplayPath(cwd, r.filePath),
@@ -10322,6 +11492,9 @@ ${suffix}`;
       ...r.indeterminate?.budget && { budget: r.indeterminate.budget },
       ...r.indeterminate?.diagnostic && {
         diagnostic: r.indeterminate.diagnostic
+      },
+      ...r.indeterminate?.unplacedReferrerCount !== void 0 && {
+        unplacedReferrerCount: r.indeterminate.unplacedReferrerCount
       }
     }));
     logCascade({
@@ -10336,6 +11509,81 @@ ${suffix}`;
         ...byFile.length > 20 && { byFileTruncated: byFile.length - 20 }
       }
     });
+  }
+  const unconfirmedRuns = cascadeRuns.filter((r) => r.unconfirmed);
+  if (unconfirmedRuns.length > 0) {
+    const runOrder = new Map(cascadeRuns.map((r, i) => [r, i]));
+    const byServer = /* @__PURE__ */ new Map();
+    for (const run of unconfirmedRuns) {
+      for (const group of run.unconfirmed?.servers ?? []) {
+        for (const neighborPath of group.paths) {
+          const nk = normalizeMapKey(neighborPath);
+          if (editedKeys.has(nk))
+            continue;
+          const observer = lastObserver.get(nk)?.run;
+          if (observer && (runOrder.get(observer) ?? -1) > (runOrder.get(run) ?? -1))
+            continue;
+          const reason = group.reason ?? "no-answer";
+          const bucketKey = `${reason}:${group.serverId}`;
+          const bucket = byServer.get(bucketKey) ?? {
+            serverId: group.serverId,
+            reason,
+            waitMs: group.waitMs,
+            primaries: /* @__PURE__ */ new Set(),
+            paths: /* @__PURE__ */ new Map(),
+            raw: /* @__PURE__ */ new Map()
+          };
+          bucket.waitMs = Math.max(bucket.waitMs, group.waitMs);
+          const primaryDisplay = toRunnerDisplayPath(cwd, run.filePath);
+          const neighborDisplay = toRunnerDisplayPath(cwd, neighborPath);
+          bucket.primaries.add(primaryDisplay);
+          bucket.paths.set(nk, neighborDisplay);
+          bucket.raw.set(primaryDisplay, run.filePath);
+          bucket.raw.set(neighborDisplay, neighborPath);
+          byServer.set(bucketKey, bucket);
+        }
+      }
+    }
+    const capped = (items, max) => items.length > max ? `${items.slice(0, max).join(", ")} (+${items.length - max} more)` : items.join(", ");
+    const blocks = [];
+    const unconfirmedNamed = [];
+    let pathCount = 0;
+    for (const bucket of byServer.values()) {
+      const serverId = bucket.serverId;
+      const paths = [...bucket.paths.values()];
+      for (const display of [
+        ...[...bucket.primaries].slice(0, 3),
+        ...paths.slice(0, 5)
+      ]) {
+        unconfirmedNamed.push(bucket.raw.get(display) ?? display);
+      }
+      pathCount += paths.length;
+      const within = bucket.waitMs > 0 ? ` within ${bucket.waitMs} ms` : "";
+      const dependents = capped([...bucket.primaries], 3);
+      const cause = bucket.reason === "pre-edit-answer" ? `Cascade asked ${serverId} about ${paths.length} dependent(s) of ${dependents}, but its cached answer predates this edit; a clean cascade result does not cover them.` : `Cascade sent ${paths.length} dependent(s) of ${dependents} to ${serverId}, but no answer arrived${within}; a clean cascade result does not cover them.`;
+      blocks.push(`${cause}
+  \u2022 ${serverId}: ${capped(paths, 5)}`);
+    }
+    if (blocks.length > 0) {
+      const pendingAdvisory = withCarryLabel(blocks.join("\n"), unconfirmedRuns);
+      if (pendingAdvisory)
+        advisoryParts.push(pendingAdvisory);
+      if (pendingAdvisory)
+        citePart(pendingAdvisory, unconfirmedNamed);
+      holdAdvisory(pendingAdvisory, unconfirmedRuns, "unconfirmed");
+      logCascade({
+        phase: "cascade_unconfirmed_rendered",
+        filePath: cascadeLogFilePath,
+        metadata: {
+          // `servers` stays the distinct server count it was before the
+          // buckets were keyed by cause; `groups` counts the cause buckets.
+          servers: new Set([...byServer.values()].map((b) => b.serverId)).size,
+          groups: byServer.size,
+          paths: pathCount,
+          runs: unconfirmedRuns.length
+        }
+      });
+    }
   }
   if (carriedRunsRendered > 0 || labeledAdvisories > 0) {
     logCascade({
@@ -10370,6 +11618,7 @@ ${suffix}`;
       skipped: cascadeSkipped
     }
   });
+  const knipCarried = knipCarriedFilesOf(turnScope);
   const knipScan = resolveKnipScanRoots(cwd, files);
   for (const root of knipScan.overCap) {
     incrementDegradationCount({
@@ -10380,7 +11629,7 @@ ${suffix}`;
   }
   const KNOWN_SLOW_KNIP_GRACE_MS = 1;
   const KNIP_MAX_SHOWN = 5;
-  const applyKnipResult = (scanRoot, prevKnip, knipResult, rowNow) => {
+  const applyKnipResult = (scanRoot, prevKnip, knipResult, rowNow, joined) => {
     const knipWouldPoison = wouldPoisonCache(rowNow, knipResult);
     if (knipWouldPoison) {
       dbg(`turn_end: keeping last good knip cache; this run failed: ${knipResult.summary}`);
@@ -10413,7 +11662,7 @@ ${suffix}`;
     if (knipResult.success && knipResult.issues.length > 0) {
       const issueKey = (i) => stableFindingKey(i.type, i.file, i.name, i.package);
       const prevKeys = new Set((prevKnip?.data?.issues ?? []).map(issueKey));
-      const modifiedSet = new Set(files.map((f) => resolveRunnerPath(cwd, f)));
+      const modifiedSet = new Set([...files, ...knipCarried.get(scanRoot) ?? []].map((f) => resolveRunnerPath(cwd, f)));
       const newIssues = knipResult.issues.filter((issue) => {
         if (prevKeys.has(issueKey(issue)))
           return false;
@@ -10459,6 +11708,7 @@ ${suffix}`;
 `;
         }
         blockerParts.push(report);
+        citePart(report, blockerIssues.flatMap((issue) => issue.file ? [resolveRunnerPath(scanRoot, issue.file)] : []));
         deliveryHolds.push(cutAdvisoryHold("knip", knipBlockerLane, report, blockerIssues.slice(0, KNIP_MAX_SHOWN), (issue) => reOfferedKeys.has(issueKey(issue))));
       }
       const unusedExportDelta = knipDeliverable.kept.filter((i) => i.type === "export" || i.type === "enumMember");
@@ -10470,9 +11720,17 @@ ${suffix}`;
 `;
         }
         advisoryParts.push(report);
+        citePart(report, unusedExportDelta.flatMap((issue) => issue.file ? [resolveRunnerPath(scanRoot, issue.file)] : []));
         deliveryHolds.push(cutAdvisoryHold("knip", knipAdvisoryLane, report, unusedExportDelta.slice(0, KNIP_MAX_SHOWN), (issue) => reOfferedKeys.has(issueKey(issue))));
       }
     }
+    if (joined) {
+      const carry = new Set(files);
+      knipCarried.set(scanRoot, carry);
+      knipMeta.joined = true;
+      knipMeta.carried = carry.size;
+    } else if (knipResult.success)
+      knipCarried.delete(scanRoot);
     return knipMeta;
   };
   const logKnipRow = (root, startedAt, metadata) => logLatency({
@@ -10539,7 +11797,8 @@ ${suffix}`;
             });
           }
         } else {
-          metadata = applyKnipResult(scanRoot, prevKnip, scanned.result, scanned.row);
+          const joined = scanned.result.success && scanned.result.execution !== "cache" && joinedEarlierScan(scanned.result, startedAt);
+          metadata = applyKnipResult(scanRoot, prevKnip, scanned.result, scanned.row, joined);
         }
       }
       budgetSpent = metadata.execution === "deferred" && (metadata.scanFloorMs === void 0 || metadata.aborted === true);
@@ -10603,6 +11862,7 @@ ${suffix}`;
       }
       const deadCodePart = formatDeadCodeDelta(deadCodeDeliverable.kept, result.language);
       advisoryParts.push(deadCodePart);
+      citePart(deadCodePart, deadCodeDeliverable.kept.flatMap((issue) => issue.file ? [resolveRunnerPath(cwd, issue.file)] : []));
       const reOfferedKeys = new Set(reOffered.map(deadCodeIssueKey));
       deliveryHolds.push(cutAdvisoryHold("dead-code", deadCodeLane, deadCodePart, deadCodeDeliverable.kept.slice(0, DEAD_CODE_DELTA_MAX_SHOWN), (issue) => reOfferedKeys.has(deadCodeIssueKey(issue))));
     };
@@ -10803,7 +12063,10 @@ ${suffix}`;
   for (const [store, count] of Object.entries(govDelivery.dispositionSuppressed ?? {})) {
     recordDispositionSuppressed(store, count);
   }
-  advisoryParts.push(...govDelivery.advisoryParts ?? []);
+  for (const lanePart of govDelivery.advisoryParts ?? []) {
+    registerLanePart(lanePart);
+    advisoryParts.push(lanePart.part);
+  }
   const secretsDelivery = allowProjectWideFindings ? secretsLane.render(secretsLane.gate({
     gitleaks: gitleaksGate,
     "trivy-secrets": trivySecretsGate
@@ -10812,8 +12075,14 @@ ${suffix}`;
     recordDispositionSuppressed(store, count);
   }
   const secretBlockedLocations = secretsDelivery.deliveredLocationKeys ?? /* @__PURE__ */ new Set();
-  blockerParts.push(...secretsDelivery.blockerParts ?? []);
-  staleSecretParts.push(...secretsDelivery.staleSecretParts ?? []);
+  for (const lanePart of secretsDelivery.blockerParts ?? []) {
+    registerLanePart(lanePart);
+    blockerParts.push(lanePart.part);
+  }
+  for (const lanePart of secretsDelivery.staleSecretParts ?? []) {
+    registerLanePart(lanePart);
+    staleSecretParts.push(lanePart.part);
+  }
   const trivyAgeLabel = formatCacheAgeLabel(trivyCacheEntry?.data?.scannedAt);
   const trivyFindingsFiltered = filterFindingsByDisposition(trivyCacheEntry?.data?.findings ?? [], cwd, (f) => trivyFindingToProjectDiagnostic(cwd, f));
   recordDispositionSuppressed("trivy", trivyFindingsFiltered.suppressed);
@@ -10838,6 +12107,7 @@ ${suffix}`;
 `;
       }
       blockerParts.push(report);
+      citePart(report, trivyEvidenceFiles(cwd, shown2.map((f) => f.target)));
     }
     if (advisory.length) {
       const shown2 = advisory.slice(0, 5);
@@ -10850,6 +12120,7 @@ ${suffix}`;
 `;
       }
       advisoryParts.push(report);
+      citePart(report, trivyEvidenceFiles(cwd, shown2.map((f) => f.target)));
     }
   }
   const licenses = trivyCacheEntry?.data?.licenses ?? [];
@@ -10867,10 +12138,13 @@ ${suffix}`;
 `;
     }
     advisoryParts.push(report);
+    citePart(report, trivyEvidenceFiles(cwd, shown2.map((l) => l.filePath)));
   }
   if (dispositionSuppressedTotal > 0) {
     const byLane = Object.entries(dispositionSuppressedByLane).map(([lane, count]) => `${lane} ${count}`).join(", ");
-    advisoryParts.push(`suppressed by disposition: ${dispositionSuppressedTotal} finding(s) dropped from this turn's gitleaks/govulncheck/trivy sections (${byLane}) (marked false-positive or won't-fix).`);
+    const suppressedNotice = `suppressed by disposition: ${dispositionSuppressedTotal} finding(s) dropped from this turn's gitleaks/govulncheck/trivy sections (${byLane}) (marked false-positive or won't-fix).`;
+    advisoryParts.push(suppressedNotice);
+    markFilelessPart(suppressedNotice);
   }
   const t3 = Date.now();
   let madgeStats;
@@ -10910,7 +12184,7 @@ ${suffix}`;
     metadata: madgeStats ?? { skipped: true }
   });
   if (!getFlag("no-tests") && files.length > 0) {
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     const targets = [];
     const testRootFor = createTurnEndTestRoots(cwd);
     const candidates = [];
@@ -10977,7 +12251,7 @@ ${suffix}`;
         foreignDeferred++;
         continue;
       }
-      if (seen.has(carriedKey)) {
+      if (seen2.has(carriedKey)) {
         resolvedDeferralKeys.add(carriedKey);
         continue;
       }
@@ -10996,15 +12270,15 @@ ${suffix}`;
           incrementDegradationCount({
             kind: "test-runner-batch-capped",
             subject: `${cwd}:deferral-exhausted`,
-            reason: `test target was cut after ${attempts} turn(s) at the turn-end budget and is retired for this session \u2014 too slow for a per-turn batch; run it explicitly (target: ${path24.relative(cwd, testFile)})`
+            reason: `test target was cut after ${attempts} turn(s) at the turn-end budget and is retired for this session \u2014 too slow for a per-turn batch; run it explicitly (target: ${toRunnerDisplayPath(cwd, testFile)})`
           });
-          dbg(`turn_end: retiring deferred test target ${path24.relative(cwd, testFile)} after ${attempts} cut batch(es) \u2014 too slow for the turn-end budget, run it explicitly`);
+          dbg(`turn_end: retiring deferred test target ${toRunnerDisplayPath(cwd, testFile)} after ${attempts} cut batch(es) \u2014 too slow for the turn-end budget, run it explicitly`);
         }
         continue;
       }
       const config = RUNNERS[carried.runner];
       const carriedRoot = testRootFor(testFile);
-      if (!config || isExcludedTestTarget(testFile, carriedRoot) || !fs17.existsSync(testFile)) {
+      if (!config || isExcludedTestTarget(testFile, carriedRoot) || !fs16.existsSync(testFile)) {
         resolvedDeferralKeys.add(carriedKey);
         deadDeferred++;
         continue;
@@ -11021,7 +12295,7 @@ ${suffix}`;
         continue;
       }
       resolvedDeferralKeys.add(carriedKey);
-      seen.add(carriedKey);
+      seen2.add(carriedKey);
       redispatchedDeferred++;
       targets.push({
         testFile,
@@ -11032,7 +12306,7 @@ ${suffix}`;
         testRoot: carriedRoot,
         deferralAttempts: attempts
       });
-      dbg(`turn_end: re-running deferred test target ${path24.relative(cwd, testFile)} (${carried.runner}) from the previous turn's cut batch`);
+      dbg(`turn_end: re-running deferred test target ${toRunnerDisplayPath(cwd, testFile)} (${carried.runner}) from the previous turn's cut batch`);
     }
     if (deadDeferred > 0) {
       dbg(`turn_end: dropped ${deadDeferred} deferred test target(s) that no longer resolve (missing file, excluded, or unknown runner)`);
@@ -11072,21 +12346,21 @@ ${suffix}`;
       candidatesByRoot.set(testRoot, (candidatesByRoot.get(testRoot) ?? 0) + 1);
       const target = testRunnerClient.getTestRunTarget(abs, testRoot, runtime.turnIndex);
       const targetKey = target ? normalizeMapKey(target.testFile) : "";
-      if (target && !seen.has(targetKey)) {
-        seen.add(targetKey);
+      if (target && !seen2.has(targetKey)) {
+        seen2.add(targetKey);
         if (retiredKeys.has(targetKey)) {
           retiredSkips++;
-          dbg(`turn_end: ${display} \u2192 test target retired earlier this session (outran the turn-end batch budget), skipping spawn (${path24.relative(cwd, target.testFile)})`);
+          dbg(`turn_end: ${display} \u2192 test target retired earlier this session (outran the turn-end batch budget), skipping spawn (${toRunnerDisplayPath(cwd, target.testFile)})`);
           continue;
         }
         if (isExcludedTestTarget(target.testFile, testRoot)) {
           excludedTargets++;
-          dbg(`turn_end: ${display} \u2192 test target excluded by the built-in turn-end policy, skipping spawn (${path24.relative(cwd, target.testFile)})`);
+          dbg(`turn_end: ${display} \u2192 test target excluded by the built-in turn-end policy, skipping spawn (${toRunnerDisplayPath(cwd, target.testFile)})`);
           continue;
         }
-        if (!fs17.existsSync(target.testFile)) {
+        if (!fs16.existsSync(target.testFile)) {
           missingTargetFiles++;
-          dbg(`turn_end: ${display} \u2192 test file missing, skipping spawn (${path24.relative(cwd, target.testFile)})`);
+          dbg(`turn_end: ${display} \u2192 test file missing, skipping spawn (${toRunnerDisplayPath(cwd, target.testFile)})`);
           continue;
         }
         if (targets.length >= TEST_RUNNER_MAX_TARGETS) {
@@ -11094,7 +12368,7 @@ ${suffix}`;
           continue;
         }
         targets.push({ ...target, sourceFile: abs, testRoot });
-        dbg(`turn_end: ${display} \u2192 test ${target.runner} ${path24.relative(cwd, target.testFile)} (${target.strategy}${isNeighbor ? ", cascade-neighbor" : ""})`);
+        dbg(`turn_end: ${display} \u2192 test ${target.runner} ${toRunnerDisplayPath(cwd, target.testFile)} (${target.strategy}${isNeighbor ? ", cascade-neighbor" : ""})`);
       } else if (!target) {
         noTestFile++;
         dbg(`turn_end: ${display} \u2192 no test file found${isNeighbor ? " (cascade-neighbor)" : ""}`);
@@ -11258,7 +12532,7 @@ ${suffix}`;
           });
           dbg(`turn_end: test batch stopped early (${stopReason ?? "incomplete"}), ${deferred.length} target(s) deferred to the next turn`);
         }
-        const deferralNote = deferred.length > 0 ? `${deferred.length} test target(s) did not finish within the turn-end batch budget and are deferred to the next turn (they run first): ${deferredTargets.map((t) => path24.relative(cwd, t.testFile)).join(", ")}` : "";
+        const deferralNote = deferred.length > 0 ? `${deferred.length} test target(s) did not finish within the turn-end batch budget and are deferred to the next turn (they run first): ${deferredTargets.map((t) => toRunnerDisplayPath(cwd, t.testFile)).join(", ")}` : "";
         const supersededByNewerGeneration = (label) => {
           const current = cacheManager2.readCache("test-runner-findings", cwd)?.data;
           const currentGeneration = current?.testRunGeneration;
@@ -11470,12 +12744,14 @@ ${suffix}`;
   if (runtime.callGraph && files.length > 0) {
     const coverage = runtime.callGraph.coverage;
     if (!coverage || coverage.complete !== true) {
-      advisoryParts.push("Call-graph impact was not emitted because call-graph extraction coverage is incomplete; the affected files may have unreported callers.");
+      const incompleteGraphNotice = "Call-graph impact was not emitted because call-graph extraction coverage is incomplete; the affected files may have unreported callers.";
+      advisoryParts.push(incompleteGraphNotice);
+      markFilelessPart(incompleteGraphNotice);
     } else {
       const callGraphStart = Date.now();
       try {
-        const { impact, formatImpact, parseSymbolKey } = await import("../chunk-BKE7E7TC.js");
-        const { callGraphImpactToProjectDiagnostics } = await import("../chunk-6GFRNVYR.js");
+        const { impact, formatImpact, parseSymbolKey } = await import("../chunk-TV6RXRYH.js");
+        const { callGraphImpactToProjectDiagnostics } = await import("../chunk-R4QWJQ2H.js");
         const impactLines = [];
         let callGraphDispositionSuppressed = 0;
         const impactFindings = [];
@@ -11517,6 +12793,7 @@ ${suffix}`;
           const impactPart = `\u{1F4CA} Call-graph impact (changed symbols have callers):
 ${impactLines.join("\n")}`;
           advisoryParts.push(impactPart);
+          citePart(impactPart, shownImpactFiles);
           deliveryHolds.push(cutAdvisoryHold("call-graph", carryLane("call-graph"), impactPart, shownImpactFiles, (file) => !impactFiles.includes(file)));
         }
         if (impactFindings.length > 0) {
@@ -11598,6 +12875,8 @@ ${impactLines.join("\n")}`;
         modifiedRangesByFile,
         dispatchWarnings: runtime.peekActionableWarnings(sessionId),
         includeLspCodeActions: !!getFlag("lens-actionable-warning-actions"),
+        // #4323: the cold LSP read leaves a switched-off Opengrep unstarted.
+        getFlag,
         projectSeqStart: runtime.turnStartProjectSeq,
         projectSeqEnd: runtime.projectSeq,
         // #3676: the quick fix credits its writes with this epoch.
@@ -11649,6 +12928,7 @@ ${impactLines.join("\n")}`;
         getFileSeq: getFileSeq ? (filePath) => getFileSeq.call(runtime, filePath) : void 0,
         dbg
       });
+      let actionableNamedFiles = [];
       const advisory = formatActionableWarningsAdvisory(publishResult.report, cwd, host, (report2) => {
         let dispositionSuppressed = 0;
         const files2 = report2.files.map((file) => {
@@ -11673,10 +12953,13 @@ ${impactLines.join("\n")}`;
           return kept.length > 0 ? { ...file, warnings: kept } : void 0;
         }).filter((file) => file !== void 0);
         recordDispositionSuppressed("actionable-warnings", dispositionSuppressed);
+        actionableNamedFiles = files2.map((file) => file.filePath);
         return { files: files2, suppressed: dispositionSuppressed };
       });
       if (advisory)
         advisoryParts.push(advisory);
+      if (advisory)
+        citePart(advisory, actionableNamedFiles);
       logActionableWarningsEvent({
         event: advisory ? "advisory_injected" : "advisory_skipped",
         sessionId: runtime.telemetrySessionId,
@@ -11716,31 +12999,7 @@ ${impactLines.join("\n")}`;
   }
   const t5 = Date.now();
   try {
-    const qualityWarningsByFile = /* @__PURE__ */ new Map();
-    for (const warning of runtime.peekCodeQualityWarnings(sessionId)) {
-      const group = qualityWarningsByFile.get(warning.filePath);
-      if (group)
-        group.push(warning);
-      else
-        qualityWarningsByFile.set(warning.filePath, [warning]);
-    }
-    const qualityWarnings = [];
-    let qualityDispositionSuppressed = 0;
-    for (const [filePath, group] of qualityWarningsByFile) {
-      let content;
-      try {
-        content = fs17.readFileSync(filePath, "utf-8");
-      } catch {
-        content = void 0;
-      }
-      const { kept, suppressed } = applyPushedFindingPolicy(group, {
-        cwd,
-        filePath,
-        content
-      });
-      qualityWarnings.push(...kept);
-      qualityDispositionSuppressed += suppressed;
-    }
+    const { kept: qualityWarnings, suppressed: qualityDispositionSuppressed } = applyPushedFindingPolicyByFile(runtime.peekCodeQualityWarnings(sessionId), cwd);
     const qualityReport = buildCodeQualityWarningsReport({
       cwd,
       sessionId: runtime.telemetrySessionId,
@@ -11756,6 +13015,8 @@ ${impactLines.join("\n")}`;
     const advisory = formatCodeQualityWarningsAdvisory(qualityReport, cwd, host);
     if (advisory)
       advisoryParts.push(advisory);
+    if (advisory)
+      citePart(advisory, qualityWarnings.map((warning) => warning.filePath));
     logLatency({
       type: "phase",
       toolName: "turn_end",
@@ -11858,7 +13119,7 @@ ${impactLines.join("\n")}`;
           if (!lateAuxContentRead) {
             lateAuxContentRead = true;
             try {
-              lateAuxContentValue = fs17.readFileSync(lateAuxPath, "utf-8");
+              lateAuxContentValue = fs16.readFileSync(lateAuxPath, "utf-8");
             } catch {
               lateAuxContentValue = void 0;
             }
@@ -11992,6 +13253,7 @@ ${impactLines.join("\n")}`;
           const lateAuxPart = `\u{1F550} Late auxiliary diagnostics (${pair.serverId} answered after its grace window${lateAuxSuppressedNote}):
 ${lines.join("\n")}`;
           advisoryParts.push(lateAuxPart);
+          citePart(lateAuxPart, [lateAuxPath]);
           deliveryHolds.push({
             part: lateAuxPart,
             canHold: () => canRearmPendingAuxiliary(pair),
@@ -12105,12 +13367,14 @@ ${lines.join("\n")}`;
     resolvedChars += cost;
     resolvedCount += 1;
     return false;
-  });
+  }, { sessionId });
   const resolvedLines = resolvedBlockerFileList.map(formatResolvedLine);
   if (resolvedBlockerFilesDropped > 0) {
     resolvedLines.push(formatResolvedTail(resolvedBlockerFilesDropped));
   }
   const resolvedParts = resolvedLines.length > 0 ? [resolvedLines.join("\n")] : [];
+  if (resolvedParts[0] !== void 0)
+    citePart(resolvedParts[0], resolvedBlockerFileList.map((entry) => entry.filePath));
   const asIs = (raw) => ({ raw, text: raw });
   const composedParts = [
     // #3218 criterion 2: the resolution lines ride FIRST, inside their
@@ -12133,6 +13397,48 @@ ${raw}`
   ];
   const findingParts = composedParts.map((part) => part.text);
   let heldSections = 0;
+  const logTurnEndRow = (deliverySuppressed) => {
+    let turnResult = "clean";
+    if (blockerParts.length > 0)
+      turnResult = "blockers_found";
+    else if (staleSecretParts.length > 0)
+      turnResult = "stale_secrets_pending";
+    logLatency({
+      type: "tool_result",
+      toolName: "turn_end",
+      filePath: cwd,
+      durationMs: Date.now() - turnEndStart,
+      result: turnResult,
+      metadata: {
+        fileCount: files.length,
+        blockerSections: blockerParts.length,
+        staleSecretSections: staleSecretParts.length,
+        advisorySections: advisoryParts.length,
+        // #3218 criterion 2: how many files this turn LISTED as resolved
+        // (held-back entries are not counted), and how many retire events
+        // fell past the cap. The line itself is in the delivered content;
+        // these make the feature visible in latency.log even when the block
+        // is suppressed or the agent reads only telemetry.
+        resolvedBlockerFiles: resolvedBlockerFileList.length,
+        resolvedBlockerFilesDropped,
+        // #3813: one-shot parts the cap cut that stay pending for the next turn.
+        heldSections,
+        // #1944 AC3: an empty advisory section on its own cannot say whether
+        // the turn had nothing to report or dropped something. This counter
+        // answers that from latency.log even when the payload is empty, and
+        // the payload itself carries the retirement note when it is not.
+        demotedFindingsRetired,
+        // #2275: the widget-footer store's own dependency-drift retirements —
+        // a separate surface/counter from `demotedFindingsRetired` above,
+        // since a widget retirement never touches `advisoryParts` or the
+        // `turn-end-findings-last` suppression cache the block below clears.
+        widgetDemotedFindingsRetired,
+        // #4921: a turn whose content the agent already received is not
+        // re-sent; this row, the turn's only one, is where that is visible.
+        ...deliverySuppressed ? { deliverySuppressed } : {}
+      }
+    });
+  };
   if (findingParts.length > 0) {
     dbg(`turn_end: ${blockerParts.length} blocker section(s), ${advisoryParts.length} advisory section(s) found, persisting for next context`);
     const joined = findingParts.join("\n\n");
@@ -12173,23 +13479,36 @@ ${raw}`
       }
     };
     const content = capTurnEndMessage(joined, holdPlan.heldCount);
-    const signature = `${files.slice().sort((a, b) => compareOrdinal(a, b)).join("|")}::${content}`;
+    const countDrivenFileSet = deliveryHolds.some((hold) => hold.skipOnSuppressed === true && holdPlan.reachedParts.some((part) => part.raw === hold.part)) ? files.slice().sort((a, b) => compareOrdinal(a, b)).join("|") : "";
+    const signature = `${countDrivenFileSet}::${content}`;
     const last = cacheManager2.readCache("turn-end-findings-last", cwd);
-    if (last?.data?.signature === signature && last?.data?.sessionId === runtime.telemetrySessionId && // #3813: a retirement is an event, not a persisting finding. The
+    if (last?.data?.signature === signature && last?.data?.sessionId === deliverySessionId && // #3813: a retirement is an event, not a persisting finding. The
     // coordinator already consumed these entries, so an identical
     // second retirement on consecutive turns (same file, count and
     // ordinal) would be consumed and never shown (#3776 verify r3 F6).
     resolvedBlockerFileList.length === 0) {
       dbg("turn_end: duplicate findings detected (same session), suppressing re-prompt");
       if (getFlag("lens-guard")) {
-        const existingGuard = cacheManager2.readCache("turn-end-findings", cwd)?.data;
-        if (existingGuard) {
+        const { stored: existingGuard2, carried: carried2, dropped: dropped2 } = readTurnEndGuardRecord(cacheManager2, runtime, cwd, sessionId);
+        if (existingGuard2) {
+          const own = blockerParts.length > 0 ? [
+            {
+              sessionId: deliverySessionId,
+              blockerContent: capTurnEndMessage(blockerParts.join("\n\n")),
+              blockingFiles: existingGuard2.affectedFiles ?? [],
+              blockerWrittenAt: Date.now()
+            }
+          ] : [];
+          const blockers = blockerPartitionFields([...own, ...carried2]);
           writeGitGuardRecord(cacheManager2, runtime, cwd, {
-            ...existingGuard,
+            ...existingGuard2,
+            sessionId: blockers.owner ?? deliverySessionId,
             content,
-            blockerContent: blockerParts.length > 0 ? capTurnEndMessage(blockerParts.join("\n\n")) : void 0,
-            hasBlockers: blockerParts.length > 0 || existingGuard.testFailures === true,
-            blockingFiles: blockerParts.length > 0 ? existingGuard.affectedFiles : void 0,
+            blockerContent: blockers.blockerContent,
+            carriedBlockers: blockers.carriedBlockers,
+            blockerWrittenAt: blockers.blockerWrittenAt,
+            hasBlockers: blockers.owner !== void 0 || existingGuard2.testFailures === true,
+            blockingFiles: blockers.blockingFiles,
             projectSeqStart: runtime.turnStartProjectSeq,
             projectSeqEnd: runtime.projectSeq,
             fileSeqByPath: Object.fromEntries(runtime.getFileSeqEntries().map(([filePath, seq]) => [
@@ -12197,13 +13516,18 @@ ${raw}`
               seq
             ])),
             fileContentHashes: {},
-            consumed: false
+            // #4921: this turn's content was already delivered (the signature
+            // matched), so the rewrite keeps the record current for the gate
+            // without handing the same text to the model again.
+            consumed: true
           });
+          logCarriedDrops(cwd, dropped2);
         }
       }
       settleHolds(true);
       clearOwnedTurnState();
       runtime.fixedThisTurn.clear();
+      logTurnEndRow("duplicate");
       resetFormatService2();
       return;
     }
@@ -12212,21 +13536,65 @@ ${raw}`
     for (const [filePath, seq] of runtime.getFileSeqEntries()) {
       fileSeqByPath2[normalizeMapKey(path24.resolve(filePath))] = seq;
     }
-    if (getFlag("lens-guard")) {
-      const existingGuard = cacheManager2.readCache("turn-end-findings", cwd)?.data;
-      const blockingContent = blockerParts.length > 0 ? capTurnEndMessage(blockerParts.join("\n\n")) : void 0;
+    const { stored: existingGuard, carried, dropped } = readTurnEndGuardRecord(cacheManager2, runtime, cwd, sessionId);
+    const deliveredCitedFiles = holdPlan.reachedParts.flatMap((part) => provenanceCitations.get(part.raw) ?? []);
+    const unaccountedPartReached = holdPlan.reachedParts.some((part) => (provenanceCitations.get(part.raw)?.length ?? 0) === 0 && !filelessParts.has(part.raw));
+    const carriedPartReached = holdPlan.reachedParts.some((part) => filelessParts.get(part.raw) === "carried");
+    const filelessPartReached = holdPlan.reachedParts.some((part) => filelessParts.get(part.raw) !== void 0);
+    const stampProvenance = (affectedFiles, affectedTruncated = false) => {
+      const byKey = /* @__PURE__ */ new Map();
+      const add = (file, role) => {
+        const resolved = resolveRunnerPath(cwd, file);
+        const key = advisoryPathKey(resolved, cwd);
+        if (!byKey.has(key))
+          byKey.set(key, { path: resolved, role });
+      };
+      for (const file of affectedFiles)
+        add(file, "affected");
+      for (const file of [
+        ...resolvedBlockerFileList.map((entry) => entry.filePath),
+        ...deliveredCitedFiles
+      ])
+        add(file, "cited");
+      const stamped = [...byKey.values()].slice(0, MAX_ADVISORY_AFFECTED_FILES);
+      return snapshotAdvisoryProvenance({
+        cwd,
+        runtime,
+        generation: 0,
+        files: stamped,
+        ...filelessPartReached ? { filelessParts: true } : {},
+        truncated: affectedTruncated || byKey.size > stamped.length || carriedPartReached || affectedFiles.length === 0 && unaccountedPartReached
+      });
+    };
+    if (getFlag("lens-guard") || carried.length > 0) {
+      const blockingContent = getFlag("lens-guard") && blockerParts.length > 0 ? capTurnEndMessage(blockerParts.join("\n\n")) : void 0;
       const affectedFiles = [
         ...existingGuard?.affectedFiles ?? [],
         ...files.map((file) => resolveRunnerPath(cwd, file)),
         ...cascadeResults.flatMap((result) => result.neighbors.filter((neighbor) => neighbor.diagnostics.length > 0).map((neighbor) => resolveRunnerPath(cwd, neighbor.filePath)))
       ];
+      const own = blockingContent ? [
+        {
+          sessionId: deliverySessionId,
+          blockerContent: blockingContent,
+          blockingFiles: affectedFiles,
+          blockerWrittenAt: Date.now()
+        }
+      ] : [];
+      const blockers = blockerPartitionFields([...own, ...carried]);
       writeGitGuardRecord(cacheManager2, runtime, cwd, {
         content: [content, existingGuard?.testFailureContent].filter((value) => !!value).join("\n\n"),
-        blockerContent: blockingContent,
-        blockingFiles: blockerParts.length > 0 ? affectedFiles : void 0,
-        hasBlockers: !!blockingContent || existingGuard?.testFailures === true,
+        blockerContent: blockers.blockerContent,
+        blockingFiles: blockers.blockingFiles,
+        carriedBlockers: blockers.carriedBlockers,
+        blockerWrittenAt: blockers.blockerWrittenAt,
+        hasBlockers: blockers.owner !== void 0 || existingGuard?.testFailures === true,
         affectedFiles,
-        sessionId: runtime.telemetrySessionId,
+        provenance: stampProvenance(affectedFiles),
+        sessionId: blockers.owner ?? deliverySessionId,
+        // #4943: only this turn's session's next request takes the message,
+        // whoever owns the blocker sections the record leads with.
+        deliverTo: deps.deliveryAddress ?? deliverySessionId,
         projectSeqStart: runtime.turnStartProjectSeq,
         projectSeqEnd: runtime.projectSeq,
         fileSeqByPath: fileSeqByPath2,
@@ -12247,28 +13615,23 @@ ${raw}`
         content,
         affectedFiles,
         affectedFilesTruncated,
-        provenance: snapshotAdvisoryProvenance({
-          cwd,
-          runtime,
-          generation: 0,
-          files: affectedFiles.map((file) => ({
-            path: file,
-            role: "affected"
-          })),
-          truncated: affectedFilesTruncated
-        })
+        provenance: stampProvenance(affectedFiles, affectedFilesTruncated),
+        // #4943: only this turn's session's next request takes it.
+        deliverTo: deps.deliveryAddress ?? deliverySessionId
       }, cwd);
     }
+    logCarriedDrops(cwd, dropped);
     cacheManager2.writeCache("turn-end-findings-last", {
       signature,
-      sessionId: runtime.telemetrySessionId,
+      // #4921: the dedupe is per turn session (`last.sessionId` above).
+      sessionId: deliverySessionId,
       projectSeqStart: runtime.turnStartProjectSeq,
       projectSeqEnd: runtime.projectSeq
     }, cwd);
     emitLensTurnFindings({
       cwd,
       filePaths: files.map((file) => resolveRunnerPath(cwd, file)),
-      sessionId: runtime.telemetrySessionId,
+      sessionId: deliverySessionId,
       turnIndex: runtime.turnIndex,
       blockerSections: blockerParts.length,
       advisorySections: advisoryParts.length,
@@ -12281,10 +13644,7 @@ ${raw}`
     // so it must not be erased by the no-blockers clean-up. The
     // reader clears it after delivery because `hasBlockers` is false.
     resolvedParts.length === 0 && !runtime.gitGuardHasBlockers) {
-      const guardRecord = cacheManager2.readCache("turn-end-findings", cwd)?.data;
-      if (guardRecord?.sessionId === runtime.telemetrySessionId && guardRecord.testFailures !== true) {
-        cacheManager2.clearCache("turn-end-findings", cwd);
-      }
+      retireSettledGitGuardRecord(runtime, cacheManager2, cwd, sessionId);
     }
   }
   runtime.fixedThisTurn.clear();
@@ -12293,41 +13653,7 @@ ${raw}`
   if (demotedFindingsRetired > 0) {
     cacheManager2.clearCache("turn-end-findings-last", cwd);
   }
-  logLatency({
-    type: "tool_result",
-    toolName: "turn_end",
-    filePath: cwd,
-    durationMs: Date.now() - turnEndStart,
-    // #1622 review M2: a pending stale secret is NOT a clean turn. It gets its
-    // own result rather than being promoted to `blockers_found`, which would
-    // undo the demotion the freshness gate just made.
-    result: blockerParts.length > 0 ? "blockers_found" : staleSecretParts.length > 0 ? "stale_secrets_pending" : "clean",
-    metadata: {
-      fileCount: files.length,
-      blockerSections: blockerParts.length,
-      staleSecretSections: staleSecretParts.length,
-      advisorySections: advisoryParts.length,
-      // #3218 criterion 2: how many files this turn LISTED as resolved
-      // (held-back entries are not counted), and how many retire events
-      // fell past the cap. The line itself is in the delivered content;
-      // these make the feature visible in latency.log even when the block
-      // is suppressed or the agent reads only telemetry.
-      resolvedBlockerFiles: resolvedBlockerFileList.length,
-      resolvedBlockerFilesDropped,
-      // #3813: one-shot parts the cap cut that stay pending for the next turn.
-      heldSections,
-      // #1944 AC3: an empty advisory section on its own cannot say whether
-      // the turn had nothing to report or dropped something. This counter
-      // answers that from latency.log even when the payload is empty, and
-      // the payload itself carries the retirement note when it is not.
-      demotedFindingsRetired,
-      // #2275: the widget-footer store's own dependency-drift retirements —
-      // a separate surface/counter from `demotedFindingsRetired` above,
-      // since a widget retirement never touches `advisoryParts` or the
-      // `turn-end-findings-last` suppression cache the block below clears.
-      widgetDemotedFindingsRetired
-    }
-  });
+  logTurnEndRow();
   resetFormatService2();
 }
 
@@ -12355,6 +13681,7 @@ function peekMcpSessionRuntime() {
 }
 var noop = () => {
 };
+var MCP_DELIVERY_ADDRESS = "mcp-host";
 function joinMessages(consumed) {
   if (!consumed?.messages?.length)
     return void 0;
@@ -12468,22 +13795,22 @@ var TurnEndQueue = class {
   }
 };
 var turnEndQueue = new TurnEndQueue();
-var pendingTurnEndDeliveries = /* @__PURE__ */ new Map();
+var pendingTurnEndDeliveries = new BoundedFifoMap(TURN_END_DELIVERY_MAX);
 var inFlightIpcTurnEnds = /* @__PURE__ */ new Map();
 async function runTurnEndNowImpl(cwd, files = [], deferredDelivery = false) {
   const ctx = await getMcpSessionContext();
   const host = createMcpHost(void 0, cwd);
-  let registered = 0;
+  let registered2 = 0;
   for (const file of files) {
     const abs = path25.isAbsolute(file) ? file : path25.resolve(cwd, file);
     let lineCount3 = 1;
     try {
-      lineCount3 = fs18.readFileSync(abs, "utf8").split("\n").length;
+      lineCount3 = fs17.readFileSync(abs, "utf8").split("\n").length;
     } catch {
       continue;
     }
     ctx.cacheManager.addModifiedRange(abs, { start: 1, end: lineCount3 }, true, cwd, MCP_TURN_STATE_OWNER_ID, "mcp");
-    registered++;
+    registered2++;
   }
   const owner = {
     kind: "mcp",
@@ -12505,23 +13832,25 @@ async function runTurnEndNowImpl(cwd, files = [], deferredDelivery = false) {
     host: "mcp",
     owner,
     resetLSPService,
-    resetFormatService
+    resetFormatService,
+    deliveryAddress: MCP_DELIVERY_ADDRESS
   });
+  const reader = ctx.runtime.telemetrySessionId;
   const outcome = deferredDelivery ? {
-    turnEnd: joinMessages(peekTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime, true)),
+    turnEnd: joinMessages(peekTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime, true, reader, MCP_DELIVERY_ADDRESS)),
     tests: joinMessages(peekTestFindings(ctx.cacheManager, cwd, ctx.runtime, true)),
-    filesRegistered: registered
+    filesRegistered: registered2
   } : {
-    turnEnd: joinMessages(consumeTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime)),
+    turnEnd: joinMessages(consumeTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime, reader, MCP_DELIVERY_ADDRESS)),
     tests: joinMessages(consumeTestFindings(ctx.cacheManager, cwd, ctx.runtime)),
-    filesRegistered: registered
+    filesRegistered: registered2
   };
   return {
     outcome,
     commit: () => {
       if (!deferredDelivery)
         return;
-      acknowledgeTurnEndFindings(ctx.cacheManager, cwd);
+      acknowledgeTurnEndFindings(ctx.cacheManager, cwd, reader, MCP_DELIVERY_ADDRESS);
       acknowledgeTestFindings(ctx.cacheManager, cwd);
     }
   };
@@ -12545,12 +13874,6 @@ function prunePendingTurnEndDeliveries(now = Date.now()) {
     if (now - delivery.createdAt >= TURN_END_DELIVERY_TTL_MS) {
       pendingTurnEndDeliveries.delete(deliveryId);
     }
-  }
-  while (pendingTurnEndDeliveries.size > TURN_END_DELIVERY_MAX) {
-    const oldest = pendingTurnEndDeliveries.keys().next();
-    if (oldest.done)
-      break;
-    pendingTurnEndDeliveries.delete(oldest.value);
   }
 }
 function pendingForCwd(cwd) {
@@ -12582,15 +13905,16 @@ function runTurnEndForIpcNow(cwd) {
       };
     }
     const ctx = await getMcpSessionContext();
+    const reader = ctx.runtime.telemetrySessionId;
     const cachedOutcome = {
-      turnEnd: joinMessages(peekTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime, true)),
+      turnEnd: joinMessages(peekTurnEndFindings(ctx.cacheManager, cwd, ctx.runtime, true, reader, MCP_DELIVERY_ADDRESS)),
       tests: joinMessages(peekTestFindings(ctx.cacheManager, cwd, ctx.runtime, true)),
       filesRegistered: 0
     };
     const transaction = hasTurnEndFindings(cachedOutcome) ? {
       outcome: cachedOutcome,
       commit: () => {
-        acknowledgeTurnEndFindings(ctx.cacheManager, cwd);
+        acknowledgeTurnEndFindings(ctx.cacheManager, cwd, reader, MCP_DELIVERY_ADDRESS);
         acknowledgeTestFindings(ctx.cacheManager, cwd);
       }
     } : await runTurnEndNow(cwd, [], true);
@@ -12618,7 +13942,7 @@ function acknowledgeTurnEnd(cwd, deliveryId) {
 }
 
 // dist/clients/module-report.js
-import * as fs19 from "node:fs";
+import * as fs18 from "node:fs";
 import * as path26 from "node:path";
 
 // dist/clients/middle-man-analysis.js
@@ -12816,6 +14140,7 @@ async function getExtractor(languageId) {
 function diagnosticMessage(err) {
   return err instanceof Error ? err.message : String(err);
 }
+var SYNTAX_ERRORS_WARNING = "tree-sitter could not parse part of this file; the symbol list may be incomplete.";
 async function extractFile(absPath, languageId, content) {
   try {
     const tsClient = getSharedTreeSitterClient();
@@ -12840,6 +14165,8 @@ async function extractFile(absPath, languageId, content) {
     const extracted = await tsClient.withParsedTree(absPath, languageId, content, (tree) => {
       const warnings = extractor ? [] : [`Symbol extractor not available for ${languageId}`];
       const result = extractor ? extractor.extract(tree, absPath, content) : { symbols: [], imports: [] };
+      if (result.syntaxErrors)
+        warnings.push(SYNTAX_ERRORS_WARNING);
       const owners = result.symbols.filter((candidate) => !candidate.local).map((candidate) => ({
         name: candidate.name,
         startLine: candidate.line,
@@ -13168,7 +14495,7 @@ function blastReadArgs(graph, normalizedFile) {
   return { path: normalizedFile, offset: 1, limit };
 }
 async function computeBlastRadius(graph, normalizedPath, projectRoot, maxDepth) {
-  const { computeTransitiveImpact } = await import("../chunk-4UNXBNE2.js");
+  const { computeTransitiveImpact } = await import("../chunk-WXUDRAG6.js");
   const result = computeTransitiveImpact(graph, normalizedPath, { maxDepth });
   const byFile = /* @__PURE__ */ new Map();
   for (const hit of result.hits) {
@@ -13762,7 +15089,7 @@ async function moduleReport(file, cwd, options) {
   const normalizedPath = normalizeMapKey(absPath);
   let content;
   try {
-    content = fs19.readFileSync(absPath, "utf-8");
+    content = fs18.readFileSync(absPath, "utf-8");
   } catch {
     return unavailableReport(toDisplayPath(absPath, cwd));
   }
@@ -13785,7 +15112,7 @@ async function moduleReport(file, cwd, options) {
   let callGraphIdentity;
   let revisionDriftNote;
   try {
-    const { getCachedReviewGraph, getReviewGraphCacheIdentity, getReviewGraphSizeSkipVerdict, getReviewGraphRevisionDrift, formatReviewGraphRevisionDriftNote: formatReviewGraphRevisionDriftNote2 } = await import("../chunk-2VUQMUMT.js");
+    const { getCachedReviewGraph, getReviewGraphCacheIdentity, getReviewGraphSizeSkipVerdict, getReviewGraphRevisionDrift, formatReviewGraphRevisionDriftNote: formatReviewGraphRevisionDriftNote2 } = await import("../chunk-T2S3FNNJ.js");
     graph = getCachedReviewGraph(cwd);
     graphFileCap = getReviewGraphSizeSkipVerdict(cwd)?.maxFileCount;
     const drift = graph ? getReviewGraphRevisionDrift(cwd) : void 0;
@@ -13950,7 +15277,10 @@ function compactCallbackLine(callback, width) {
 }
 function renderCompactModuleReport(report) {
   if (!report.available) {
-    return `${report.path} \u2014 unavailable${report.error ? `: ${report.error}` : ""}`;
+    return [
+      `${report.path} \u2014 unavailable${report.error ? `: ${report.error}` : ""}`,
+      ...(report.warnings ?? []).map((note) => `WARNING: ${note}`)
+    ].join("\n");
   }
   const allEntries = [...report.api, ...report.internal];
   const allRanges = allEntries.flatMap((e) => [e, ...e.members ?? []]);
@@ -14087,7 +15417,7 @@ async function readSymbol(file, symbolName, cwd, options = {}) {
   };
   let content;
   try {
-    content = fs19.readFileSync(absPath, "utf-8");
+    content = fs18.readFileSync(absPath, "utf-8");
   } catch {
     log(false);
     return { found: false, path: absPath, name: symbolName };
@@ -14140,7 +15470,13 @@ async function readSymbol(file, symbolName, cwd, options = {}) {
       metadata: { symbol: symbolName, error: message }
     });
     log(false);
-    return { found: false, path: absPath, name: symbolName, error: message };
+    return {
+      found: false,
+      path: absPath,
+      name: symbolName,
+      error: message,
+      ...extractionWarnings?.length ? { warnings: [...extractionWarnings] } : {}
+    };
   }
   const callbackWarnings = [...extractionWarnings ?? []];
   const callback = allCallbacks.find((candidate) => candidate.name === symbolName);
@@ -14263,7 +15599,7 @@ async function readEnclosing(file, line, cwd, options) {
   };
   let content;
   try {
-    content = fs19.readFileSync(absPath, "utf-8");
+    content = fs18.readFileSync(absPath, "utf-8");
   } catch {
     log(false);
     return { found: false, path: absPath, line: targetLine };
@@ -14451,7 +15787,7 @@ function focusScore2(text, terms) {
 }
 function buildFileDegrees(graph) {
   const fanIn = /* @__PURE__ */ new Map();
-  const fanOut = /* @__PURE__ */ new Map();
+  const fanOut2 = /* @__PURE__ */ new Map();
   for (const edge of graph.edges) {
     if (edge.kind !== "imports")
       continue;
@@ -14463,10 +15799,10 @@ function buildFileDegrees(graph) {
       continue;
     if (!toNode || toNode.kind !== "file")
       continue;
-    let outSet = fanOut.get(edge.from);
+    let outSet = fanOut2.get(edge.from);
     if (!outSet) {
       outSet = /* @__PURE__ */ new Set();
-      fanOut.set(edge.from, outSet);
+      fanOut2.set(edge.from, outSet);
     }
     outSet.add(edge.to);
     let inSet = fanIn.get(edge.to);
@@ -14476,7 +15812,7 @@ function buildFileDegrees(graph) {
     }
     inSet.add(edge.from);
   }
-  return { fanIn, fanOut };
+  return { fanIn, fanOut: fanOut2 };
 }
 function computeTrust(graph, cwd, drift) {
   const filesCovered = graph.fileNodes.size;
@@ -14569,7 +15905,7 @@ function roleFor(graph, filePath) {
   return top.length > 0 ? top.map((s) => s.name).join(", ") : void 0;
 }
 async function computeHubs(graph, degrees, cwd, limit, focusTerms) {
-  const { computeTransitiveImpact } = await import("../chunk-4UNXBNE2.js");
+  const { computeTransitiveImpact } = await import("../chunk-WXUDRAG6.js");
   const ranked = [...graph.fileNodes.entries()].map(([filePath, fileNodeId]) => ({
     filePath,
     fileNodeId,
@@ -14821,7 +16157,7 @@ async function projectReport(cwd, options) {
   const limit = clampLimit(options?.limit);
   const focusTerms = normalizeFocus2(options?.focus);
   const view = options?.view;
-  const { getCachedReviewGraph, getReviewGraphSizeSkipVerdict, getLastReviewGraphBuildAttempt, buildOrUpdateGraph, isGraphBuildInFlight, getReviewGraphRevisionDrift } = await import("../chunk-2VUQMUMT.js");
+  const { getCachedReviewGraph, getReviewGraphSizeSkipVerdict, getLastReviewGraphBuildAttempt, buildOrUpdateGraph, isGraphBuildInFlight, getReviewGraphRevisionDrift } = await import("../chunk-T2S3FNNJ.js");
   let graph;
   try {
     graph = getCachedReviewGraph(cwd);
@@ -14845,7 +16181,7 @@ async function projectReport(cwd, options) {
       };
     }
     const previousAttempt = getLastReviewGraphBuildAttempt(cwd);
-    const { FactStore: FactStore2 } = await import("../chunk-QGQ5CCCG.js");
+    const { FactStore: FactStore2 } = await import("../chunk-PIQQM32Y.js");
     const trigger = triggerBackgroundGraphBuild(cwd, {
       buildOrUpdateGraph,
       isGraphBuildInFlight,
@@ -14964,8 +16300,14 @@ function redactServerSpec(entry) {
     return void 0;
   }
   const record = entry;
-  const command = typeof record.command === "string" ? record.command : void 0;
-  const args = Array.isArray(record.args) ? record.args : [];
+  const rawCommand = record.command;
+  const commandArray = Array.isArray(rawCommand) ? rawCommand : void 0;
+  const head = commandArray ? commandArray[0] : rawCommand;
+  const command = typeof head === "string" ? head : void 0;
+  const args = [
+    ...commandArray?.slice(1) ?? [],
+    ...Array.isArray(record.args) ? record.args : []
+  ];
   const env = typeof record.env === "object" && record.env !== null ? Object.keys(record.env).sort(compareOrdinal) : [];
   const rawCovers = record.covers;
   let covers;
@@ -15036,7 +16378,10 @@ async function effectiveConfig(options = {}) {
     documents: summary.documents,
     provenance: provenanceView(resolved, homeDir).entries,
     provenanceCounts: summary.countsByTier,
-    recordCounts: countBy(resolution.records, (record) => record.code),
+    // The unknown `dispatch.disabledRunners` ids are records too: the pure
+    // `disabledRunnersOf` derives them without reporting (this query is not a
+    // dispatch), so a typo'd id shows here even where notifications are off.
+    recordCounts: countBy([...resolution.records, ...disabledRunnersOf(resolution).records], (record) => record.code),
     tools: LENS_TOOL_NAMES.map((name) => ({
       name,
       enabled: resolveLensToolEnabled(name, resolved.value, void 0, options.noTools)
@@ -15048,6 +16393,7 @@ async function effectiveConfig(options = {}) {
     } : absolute === void 0 ? {} : {
       file: await fileView(
         absolute,
+        resolution,
         resolved,
         homeDir,
         cwd,
@@ -15064,12 +16410,14 @@ async function effectiveConfig(options = {}) {
   };
   return view;
 }
-function toolReason(selected, kind) {
+function toolReason(selected, disabled, kind) {
+  if (disabled)
+    return "disabled-by-config";
   if (selected)
     return "selected";
   return kind === void 0 ? "no-dispatch-plan" : "not-registered-for-kind";
 }
-async function fileView(absolute, resolved, homeDir, workspaceCwd, lspConfig) {
+async function fileView(absolute, resolution, resolved, homeDir, workspaceCwd, lspConfig) {
   const language = resolveLanguage(absolute);
   const kind = detectFileKind(absolute);
   const section = lspSectionOf(resolved.value);
@@ -15098,11 +16446,13 @@ async function fileView(absolute, resolved, homeDir, workspaceCwd, lspConfig) {
   });
   const available = new Set(await getAvailableRunners(absolute));
   const planned = kind ? getToolPlan(kind)?.groups.flatMap((group) => group.runnerIds) ?? [] : [];
+  const disabledRunners = new Map(disabledRunnersOf(resolution).runners.map((runner) => [runner.id, runner]));
   const ids = [.../* @__PURE__ */ new Set([...planned, ...available])].sort(compareOrdinal);
   const tools = ids.map((id) => ({
     id,
-    selected: available.has(id),
-    reason: toolReason(available.has(id), kind),
+    selected: available.has(id) && !disabledRunners.has(id),
+    reason: toolReason(available.has(id), disabledRunners.has(id), kind),
+    ...decidedByOrNothing(viewOf(disabledRunners.get(id)?.decidedBy, homeDir)),
     resolvedCwd: homeRelativePath(resolveToolCwd("runner", id, absolute, {
       cwd: workspaceCwd,
       suppressTelemetry: true
@@ -15121,18 +16471,24 @@ async function fileView(absolute, resolved, homeDir, workspaceCwd, lspConfig) {
 function recentLatency(limit = 5, fileFilter) {
   let reports = getLatencyReports();
   if (fileFilter) {
-    const needle = fileFilter.replace(/\\/g, "/");
-    reports = reports.filter((report) => report.filePath.replace(/\\/g, "/").endsWith(needle));
+    const needle = toPosix(fileFilter);
+    reports = reports.filter((report) => toPosix(report.filePath).endsWith(needle));
   }
   return reports.slice(-limit).reverse();
 }
-function projectScan(cwd, maxFiles, includeGenerated) {
-  return scanProjectDiagnostics({
+async function projectScan(cwd, maxFiles, includeGenerated) {
+  const scan = await scanProjectDiagnostics({
     cwd,
     tier: "cheap",
     maxFiles,
     includeGenerated
   });
+  const policy = applyPushedFindingPolicyByFile(scan.diagnostics, cwd);
+  return {
+    ...scan,
+    diagnostics: policy.kept,
+    dispositionSuppressed: policy.suppressed
+  };
 }
 function scanTruncationNotice(snapshot) {
   if (!snapshot.scanTruncated)
@@ -15190,14 +16546,19 @@ function symbolSearchFileMatchesLang(file, lang) {
 }
 function fileMatchesPathGlobs(file, cwd, globs) {
   const rel = path29.relative(cwd, file).split(path29.sep).join("/");
+  const abs = path29.resolve(file).split(path29.sep).join("/");
   const options = { dot: true, nocase: process.platform === "win32" };
+  const matches = (candidate, pattern) => minimatch(candidate, pattern, options) || minimatch(candidate, `${pattern}/**`, options);
   return globs.some((raw) => {
-    const pattern = raw.split("\\").join("/");
-    return minimatch(rel, pattern, options) || minimatch(rel, `${pattern}/**`, options);
+    const within = path29.isAbsolute(raw) ? relativeInside(cwd, raw) : void 0;
+    if (within !== void 0)
+      return matches(rel, toPosix(within) || "**");
+    const pattern = toPosix(raw);
+    return matches(rel, pattern) || abs !== rel && matches(abs, pattern);
   });
 }
 function buildSymbolSearchFileFilter(cwd, options) {
-  const paths = options.paths?.filter((p) => p.trim().length > 0);
+  const paths = options.paths;
   const lang = options.lang?.trim();
   if (!paths?.length && !lang)
     return void 0;
@@ -15237,6 +16598,7 @@ function toSymbolSearchHit(result) {
   };
 }
 async function symbolSearch(query, cwd, limit = 20, options = {}) {
+  const effectiveLimit = Number.isFinite(limit) ? Math.max(1, Math.floor(limit)) : 20;
   const warmLease = acquireWarmWordIndex(cwd);
   const snapshot = loadProjectSnapshotWithoutWordIndex(cwd);
   const index = warmLease.index;
@@ -15259,12 +16621,16 @@ async function symbolSearch(query, cwd, limit = 20, options = {}) {
   try {
     centrality = centralityFromReverseDeps(index, snapshot?.reverseDeps, (file) => normalizeMapKey(path29.resolve(file)));
     const fileFilter = buildSymbolSearchFileFilter(cwd, options);
-    results = searchWordIndex(index, query, { limit, centrality, fileFilter });
+    results = searchWordIndex(index, query, {
+      limit: effectiveLimit,
+      centrality,
+      fileFilter
+    });
   } finally {
     warmLease.release();
   }
   const hits = results.map(toSymbolSearchHit);
-  const { getCachedReviewGraph } = await import("../chunk-2VUQMUMT.js");
+  const { getCachedReviewGraph } = await import("../chunk-T2S3FNNJ.js");
   const graph = getCachedReviewGraph(cwd);
   if (graph)
     annotateSymbolSearchHitsWithGraph(hits, centrality, graph);
@@ -15275,6 +16641,43 @@ async function symbolSearch(query, cwd, limit = 20, options = {}) {
     coverage: { files: index.docCount, truncated: index.truncated === true },
     snapshotGeneratedAt: snapshot?.generatedAt
   };
+}
+function coverageLine(coverage) {
+  if (!coverage)
+    return void 0;
+  return `Index covers ${coverage.files} files${coverage.truncated ? " (capped \u2014 results may be incomplete)" : ""}.`;
+}
+function formatSymbolSearchRow(hit, position, cwd) {
+  const annotations = hit.annotations;
+  const detail = [
+    `score ${hit.score.toFixed(2)}`,
+    `${hit.hits} hit(s)`,
+    ...typeof annotations?.fanIn === "number" ? [`fanIn ${annotations.fanIn}`] : [],
+    ...typeof annotations?.complexity === "number" ? [`complexity ${annotations.complexity}`] : []
+  ];
+  return `  ${position}. ${path29.relative(cwd, hit.file)} ${hit.startLine} (${detail.join(", ")})`;
+}
+function renderCompactSymbolSearch(result, options) {
+  const hits = result.results;
+  const sections = [
+    hits.length > 0 ? [
+      `Top ${hits.length} file(s) for "${result.query}":`,
+      ...hits.map((hit, index) => formatSymbolSearchRow(hit, index + 1, options.cwd))
+    ].join("\n") : `No files matched "${result.query}".`
+  ];
+  const footer = [];
+  const coverage = coverageLine(result.coverage);
+  if (coverage)
+    footer.push(coverage);
+  if (options.stalenessNote)
+    footer.push(options.stalenessNote);
+  const top = hits[0];
+  if (top) {
+    footer.push(`Next: ${options.reportTool ?? "module_report"} ${path29.relative(options.cwd, top.file)}`);
+  }
+  if (footer.length > 0)
+    sections.push(footer.join("\n"));
+  return sections.join("\n\n");
 }
 
 // dist/clients/deps/typebox.js
@@ -15461,10 +16864,86 @@ function canonicalLanguage(lang) {
 }
 
 // dist/tools/shared.js
-function resolveAstGrepPaths(paths, cwd) {
-  const base = cwd || ".";
-  const requested = paths?.length ? paths : [base];
-  return requested.map((p) => resolveHostToolPath(p, base));
+import * as os4 from "node:os";
+import * as path31 from "node:path";
+var MAX_PATHS_ENTRIES = 100;
+var FILE_PATH_KEYS = ["path", "file", "filePath"];
+function readFilePath(params) {
+  const sent = [];
+  const blanks = [];
+  for (const key of FILE_PATH_KEYS) {
+    const raw = params[key];
+    if (raw === void 0 || raw === null)
+      continue;
+    if (typeof raw !== "string")
+      return { path: "", key, refusal: `\`${key}\` must be a string path` };
+    if (!raw.trim()) {
+      blanks.push(key);
+      continue;
+    }
+    sent.push({ key, value: raw });
+  }
+  const first = sent[0];
+  if (!first) {
+    const blank = blanks[0];
+    return blank ? { path: "", key: blank, refusal: `\`${blank}\` is blank \u2014 name a file` } : { path: "" };
+  }
+  if (new Set(sent.map((entry) => entry.value)).size > 1) {
+    return {
+      path: "",
+      refusal: `${sent.map((entry) => `\`${entry.key}\`: ${entry.value}`).join(", ")} name different files \u2014 send one spelling`
+    };
+  }
+  return { path: first.value, key: first.key };
+}
+function describeEntryType(value) {
+  if (value === null)
+    return "null";
+  if (Array.isArray(value))
+    return "an array";
+  return typeof value;
+}
+function readPathsArgument(raw, options) {
+  const base = options.cwd || ".";
+  const absent = options.absent ?? "none";
+  if (raw === void 0 || raw === null) {
+    return { entries: absent === "cwd" ? [path31.resolve(base)] : [] };
+  }
+  if (!Array.isArray(raw))
+    return { entries: [], refusal: "paths must be an array of strings" };
+  if (raw.length === 0)
+    return {
+      entries: [],
+      refusal: "paths is empty: it names no entry, so the call would widen to the tool's default. Omit `paths` to use that default."
+    };
+  if (raw.length > MAX_PATHS_ENTRIES)
+    return {
+      entries: [],
+      refusal: `paths must contain at most ${MAX_PATHS_ENTRIES} string entries, got ${raw.length}`
+    };
+  const entries = [];
+  for (const [index, entry] of raw.entries()) {
+    if (typeof entry !== "string")
+      return {
+        entries: [],
+        refusal: `paths entry ${index + 1} must be a string, not ${describeEntryType(entry)}`
+      };
+    if (!entry.trim())
+      return { entries: [], refusal: `paths entry ${index + 1} is blank` };
+    entries.push(resolveHostToolPath(entry, base));
+  }
+  return { entries };
+}
+function defaultedCwdHomeRefusal(paths, cwd) {
+  if (paths?.length)
+    return void 0;
+  const spelling = cwd || ".";
+  if (!isAtOrAboveHomeDir(realpathOrResolve(spelling), realpathOrResolve(os4.homedir())))
+    return void 0;
+  return {
+    reason: "defaulted cwd resolves at or above home directory",
+    text: `Refused: no \`paths\` given and the working directory (${spelling}) resolves at or above the home directory \u2014 this would reach every unrelated tree under your home. Pass explicit \`paths\`, or run from a project directory.`
+  };
 }
 var LANGUAGES = [
   "bash",
@@ -15492,6 +16971,18 @@ var LANGUAGES = [
   "typescript",
   "yaml"
 ];
+function readAstGrepLang(rawArg, required) {
+  const raw = rawArg === null && !required ? void 0 : rawArg;
+  const lang = typeof raw === "string" ? raw.replace(/^"|"$/g, "") : "";
+  if (typeof raw === "string" && LANGUAGES.includes(lang))
+    return { lang };
+  const validIds = `valid ids: ${LANGUAGES.join(", ")}`;
+  if (raw !== void 0 && typeof raw !== "string")
+    return { lang, refusal: `lang must be a string; ${validIds}` };
+  if (!lang.trim())
+    return required ? { lang: "", refusal: "lang is required" } : { lang: "" };
+  return { lang, refusal: `unknown lang "${lang}"; ${validIds}` };
+}
 
 // dist/tools/ast-grep-replace.js
 function errorTextWithHint(raw) {
@@ -15535,36 +17026,36 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
         description: "Replacement using meta-variables from pattern"
       }),
       lang: Type.String({
-        enum: [...LANGUAGES],
-        description: "Target language"
+        description: "Language id, e.g. typescript, tsx, python, go."
       }),
       paths: Type.Optional(Type.Array(Type.String(), { description: "Specific files/folders" })),
       insideKind: Type.Optional(Type.String({
-        description: "Restrict matches to nodes inside an ancestor of this AST node kind. Synthesizes a YAML rule."
+        description: "Ancestor AST node kind filter."
       })),
       hasKind: Type.Optional(Type.String({
-        description: 'Restrict matches to nodes whose immediate child has this AST node kind (ast-grep default stopBy: neighbor). Example: `hasKind: "await_expression"`.'
+        description: "Immediate child AST node kind filter."
       })),
       hasDescendantKind: Type.Optional(Type.String({
-        description: "Restrict matches to nodes containing this AST node kind anywhere in their descendants. Explicit recursive form (`stopBy: end`); use this instead of `hasKind` when nesting is not immediate."
+        description: "Recursive descendant AST node kind filter."
       })),
       follows: Type.Optional(Type.String({
-        description: "Restrict matches to nodes that immediately follow a sibling matching this pattern."
+        description: "Preceding sibling pattern filter."
       })),
       precedes: Type.Optional(Type.String({
-        description: "Restrict matches to nodes that immediately precede a sibling matching this pattern."
+        description: "Following sibling pattern filter."
       })),
       apply: Type.Optional(Type.Boolean({ description: "Apply changes (default: false)" })),
       strictness: Type.Optional(Type.String({
         enum: ["smart", "relaxed", "ast", "cst", "signature", "template"],
-        description: "Pattern matching strictness. 'smart' (default) ignores comments and whitespace. 'relaxed' also ignores unnamed nodes like punctuation. 'ast' ignores all whitespace."
+        description: "Match strictness; default smart."
       }))
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const lineage = captureLineage?.();
+      const sessionId = ctx.sessionManager?.getSessionId?.();
       const startedAt = Date.now();
       const { pattern, rewrite, paths, apply, strictness, insideKind, hasKind, hasDescendantKind, follows, precedes } = params;
-      const lang = (params.lang ?? "").replace(/^"|"$/g, "");
+      const { lang, refusal: langError } = readAstGrepLang(params.lang, true);
       const pathsCount = paths?.length ?? 1;
       const applyFlag = apply ?? false;
       const resultMaxItems = ctx.resultMaxItems ?? 50;
@@ -15589,6 +17080,28 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
         } catch {
         }
       }
+      if (langError) {
+        logOutcome("error", { errorRaw: langError });
+        return {
+          content: [{ type: "text", text: `Error: ${langError}` }],
+          isError: true,
+          details: {}
+        };
+      }
+      const pathsRead = readPathsArgument(paths, {
+        cwd: ctx.cwd,
+        absent: "cwd"
+      });
+      if (pathsRead.refusal) {
+        logOutcome("error", { errorRaw: pathsRead.refusal });
+        return {
+          content: [
+            { type: "text", text: `Error: ${pathsRead.refusal}` }
+          ],
+          isError: true,
+          details: {}
+        };
+      }
       if (!await astGrepClient2.ensureAvailable()) {
         logOutcome("error", { errorRaw: "ast-grep CLI not found" });
         return {
@@ -15602,7 +17115,16 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
           details: {}
         };
       }
-      const searchPaths = resolveAstGrepPaths(paths, ctx.cwd);
+      const homeRefusal = defaultedCwdHomeRefusal(paths, ctx.cwd);
+      if (homeRefusal) {
+        logOutcome("error", { errorRaw: homeRefusal.reason });
+        return {
+          content: [{ type: "text", text: homeRefusal.text }],
+          isError: true,
+          details: {}
+        };
+      }
+      const searchPaths = pathsRead.entries;
       if (hasStructuralIntent({
         insideKind,
         hasKind,
@@ -15635,7 +17157,7 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
             details: {}
           };
         }
-        const ruleResult = await astGrepClient2.replaceWithRule(ruleYaml, searchPaths, applyFlag, { lineage, toolCallId: _toolCallId });
+        const ruleResult = await astGrepClient2.replaceWithRule(ruleYaml, searchPaths, applyFlag, { lineage, toolCallId: _toolCallId, sessionId });
         if (ruleResult.stalePreview) {
           logOutcome("error", { errorRaw: "stale_preview" });
           return {
@@ -15674,7 +17196,7 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
           }
         };
       }
-      const result = await astGrepClient2.replace(pattern, rewrite, lang, searchPaths, applyFlag, { strictness, lineage, toolCallId: _toolCallId });
+      const result = await astGrepClient2.replace(pattern, rewrite, lang, searchPaths, applyFlag, { strictness, lineage, toolCallId: _toolCallId, sessionId });
       if (result.stalePreview) {
         logOutcome("error", { errorRaw: "stale_preview" });
         return {
@@ -15724,11 +17246,11 @@ function createAstGrepReplaceTool(astGrepClient2, captureLineage) {
 }
 
 // dist/tools/ast-grep-search.js
-function errorTextWithHint2(raw) {
+function errorTextWithHint2(raw, host) {
   const hint = astGrepRemediationHint(classifyAstGrepError(raw));
   return hint ? `Error: ${raw}
 
-${hint}` : `Error: ${raw}`;
+${translateGuidanceToolNames(hint, host)}` : `Error: ${raw}`;
 }
 function _telemetryErrorForTest(raw) {
   if (!raw)
@@ -15754,7 +17276,6 @@ function toSearchReads(matches) {
 }
 var DEFAULT_PAGE_SIZE = 50;
 var MAX_PAGE_SIZE = 200;
-var MAX_PATHS = 200;
 var AST_GREP_SEARCH_TIMEOUT_MS = 3e4;
 function formatGroupedByFile(matches) {
   const byFile = /* @__PURE__ */ new Map();
@@ -15958,11 +17479,10 @@ function createAstGrepSearchTool(astGrepClient2) {
       dump: Type.Optional(Type.Boolean()),
       pattern: Type.Optional(Type.String({ description: "AST pattern." })),
       lang: Type.String({
-        enum: [...LANGUAGES],
-        description: "Target language"
+        description: "Language id, e.g. typescript, tsx, python, go."
       }),
       paths: Type.Optional(Type.Array(Type.String(), {
-        maxItems: MAX_PATHS,
+        maxItems: MAX_PATHS_ENTRIES,
         description: "Files or directories to search."
       })),
       selector: Type.Optional(Type.String({
@@ -15978,7 +17498,7 @@ function createAstGrepSearchTool(astGrepClient2) {
         description: "Ancestor AST node kind filter."
       })),
       hasKind: Type.Optional(Type.String({
-        description: "Immediate-child AST node kind filter."
+        description: "Immediate child AST node kind filter."
       })),
       hasDescendantKind: Type.Optional(Type.String({
         description: "Recursive descendant AST node kind filter."
@@ -16003,22 +17523,22 @@ function createAstGrepSearchTool(astGrepClient2) {
       })),
       strictness: Type.Optional(Type.String({
         enum: ["smart", "relaxed", "ast", "cst", "signature", "template"],
-        description: "Pattern matching strictness."
+        description: "Match strictness; default smart."
       })),
       validateOnly: Type.Optional(Type.Boolean({
         description: "Validate without scanning."
       }))
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const host = ctx.host ?? "pi";
       const abortSignal = combineAbortSignals(_signal, ctx.signal);
       const startedAt = Date.now();
       const deadlineAt = startedAt + AST_GREP_SEARCH_TIMEOUT_MS;
       const { paths, nodeKind, selector, context, skip, maxMatches, groupByFile, strictness, rule, insideKind, hasKind, hasDescendantKind, follows, precedes, validateOnly, dump: dump2 } = params;
       const pattern = typeof params.pattern === "string" ? params.pattern : "";
-      const rawLang = typeof params.lang === "string" ? params.lang : "";
       const normalizedNodeKind = typeof nodeKind === "string" ? nodeKind.trim() : "";
       const skipOffset = Math.max(0, Math.floor(skip ?? 0));
-      const lang = rawLang.replace(/^"|"$/g, "");
+      const { lang, refusal: langError } = readAstGrepLang(params.lang, true);
       const searchPathsCount = paths?.length ?? 1;
       const executionOptions = { signal: abortSignal, deadlineAt };
       const dumpMode = dump2 === true;
@@ -16065,8 +17585,12 @@ function createAstGrepSearchTool(astGrepClient2) {
         const hasPattern = Boolean(pattern.trim());
         const hasNodeKind = normalizedNodeKind.length > 0;
         const rawPaths = params.paths;
-        if (rawPaths !== void 0 && (!Array.isArray(rawPaths) || rawPaths.length > MAX_PATHS || rawPaths.some((value) => typeof value !== "string"))) {
-          const errorRaw = `paths must contain at most ${MAX_PATHS} string entries`;
+        const pathsRead = readPathsArgument(rawPaths, {
+          cwd: ctx.cwd,
+          absent: "cwd"
+        });
+        if (pathsRead.refusal) {
+          const errorRaw = pathsRead.refusal;
           logOutcome("error", { errorRaw });
           return {
             content: [{ type: "text", text: `Error: ${errorRaw}` }],
@@ -16111,12 +17635,10 @@ function createAstGrepSearchTool(astGrepClient2) {
             details: {}
           };
         }
-        if (!lang.trim()) {
-          logOutcome("error", { errorRaw: "lang is required" });
+        if (langError) {
+          logOutcome("error", { errorRaw: langError });
           return {
-            content: [
-              { type: "text", text: "Error: lang is required" }
-            ],
+            content: [{ type: "text", text: `Error: ${langError}` }],
             isError: true,
             details: {}
           };
@@ -16189,17 +17711,11 @@ function createAstGrepSearchTool(astGrepClient2) {
             details: {}
           };
         }
-        if (!paths?.length && isAtOrAboveHomeDir(ctx.cwd || ".")) {
-          logOutcome("error", {
-            errorRaw: "defaulted cwd resolves at or above home directory"
-          });
+        const homeRefusal = defaultedCwdHomeRefusal(paths, ctx.cwd);
+        if (homeRefusal) {
+          logOutcome("error", { errorRaw: homeRefusal.reason });
           return {
-            content: [
-              {
-                type: "text",
-                text: `Refused: no \`paths\` given and the working directory (${ctx.cwd || "."}) resolves at or above the home directory \u2014 searching it would scan every unrelated tree under your home. Pass explicit \`paths\`, or run from a project directory.`
-              }
-            ],
+            content: [{ type: "text", text: homeRefusal.text }],
             isError: true,
             details: {}
           };
@@ -16222,7 +17738,7 @@ function createAstGrepSearchTool(astGrepClient2) {
             details: {}
           };
         }
-        const searchPaths = resolveAstGrepPaths(paths, ctx.cwd);
+        const searchPaths = pathsRead.entries;
         const PAGE_SIZE = Math.max(1, Math.min(MAX_PAGE_SIZE, Number.isFinite(maxMatches) ? Math.floor(maxMatches) : DEFAULT_PAGE_SIZE));
         let effectiveRule = hasRawRule ? rawRule : void 0;
         if (!effectiveRule && (hasNodeKind || hasStructuralIntent({
@@ -16306,7 +17822,7 @@ function createAstGrepSearchTool(astGrepClient2) {
               content: [
                 {
                   type: "text",
-                  text: errorTextWithHint2(ruleResult.error)
+                  text: errorTextWithHint2(ruleResult.error, host)
                 }
               ],
               isError: true,
@@ -16359,7 +17875,10 @@ function createAstGrepSearchTool(astGrepClient2) {
           logOutcome("error", { errorRaw: result.error });
           return {
             content: [
-              { type: "text", text: errorTextWithHint2(result.error) }
+              {
+                type: "text",
+                text: errorTextWithHint2(result.error, host)
+              }
             ],
             isError: true,
             details: {}
@@ -16369,7 +17888,8 @@ function createAstGrepSearchTool(astGrepClient2) {
         const page = afterSkip.slice(0, PAGE_SIZE);
         const hasMore = afterSkip.length > PAGE_SIZE || result.truncated;
         const output = groupByFile ? formatGroupedByFile(page) : astGrepClient2.formatMatches(page, false, false, PAGE_SIZE);
-        const hint = page.length === 0 && !result.error ? getPatternHint(pattern, lang, selector) : void 0;
+        const rawHint = page.length === 0 && !result.error ? getPatternHint(pattern, lang, selector) : void 0;
+        const hint = rawHint ? translateGuidanceToolNames(rawHint, host) : void 0;
         const paginationNote = hasMore && page.length > 0 ? `
 
 (Showing ${page.length} of ${result.matches.length - skipOffset} remaining matches. Use skip=${skipOffset + PAGE_SIZE} for the next page.)` : "";
@@ -16412,9 +17932,10 @@ ${hint}` : `${output}${paginationNote}`;
 }
 
 // dist/tools/lens-diagnostics.js
-import { promises as fs23 } from "node:fs";
+import { promises as fs22 } from "node:fs";
 import * as fsSync from "node:fs";
-import * as path37 from "node:path";
+import * as os7 from "node:os";
+import * as path38 from "node:path";
 
 // dist/clients/project-diagnostics/extractors.js
 var WARM_TRIGGER = {
@@ -16472,14 +17993,14 @@ function reasonFromAvailabilityVerdict(tool, verdict) {
 }
 
 // dist/clients/project-diagnostics/fresh-fetch.js
-import * as fs21 from "node:fs";
-import * as os4 from "node:os";
-import * as path35 from "node:path";
+import * as fs20 from "node:fs";
+import * as os5 from "node:os";
+import * as path36 from "node:path";
 
 // dist/clients/project-diagnostics/runner-adapters/jscpd.js
-import * as path31 from "node:path";
+import * as path32 from "node:path";
 function resolveClonePath(cwd, file) {
-  return path31.isAbsolute(file) ? file : path31.resolve(cwd, file);
+  return path32.isAbsolute(file) ? file : path32.resolve(cwd, file);
 }
 function jscpdCloneToProjectDiagnostics(cwd, clone) {
   const a = resolveClonePath(cwd, clone.fileA);
@@ -16492,7 +18013,7 @@ function jscpdCloneToProjectDiagnostics(cwd, clone) {
     tool: "jscpd",
     runner: "jscpd",
     rule: "jscpd:duplicate",
-    message: `Duplicate code (${clone.lines} lines) \u2014 also at ${path31.relative(cwd, otherFile)}:${otherLine}`,
+    message: `Duplicate code (${clone.lines} lines) \u2014 also at ${path32.relative(cwd, otherFile)}:${otherLine}`,
     source: "project-scan"
   });
   return [
@@ -16507,16 +18028,16 @@ function jscpdResultToProjectDiagnostics(cwd, result) {
 }
 
 // dist/clients/project-diagnostics/runner-adapters/madge.js
-import * as path32 from "node:path";
+import * as path33 from "node:path";
 function resolveCyclePath(cwd, file) {
-  return path32.isAbsolute(file) ? file : path32.resolve(cwd, file);
+  return path33.isAbsolute(file) ? file : path33.resolve(cwd, file);
 }
 function cycleMembers(dep) {
   return dep.path.length > 0 ? dep.path : [dep.file];
 }
 function circularDepToProjectDiagnostics(cwd, dep) {
   const members = cycleMembers(dep);
-  const rendered = `${members.map((f) => path32.basename(f)).join(" \u2192 ")} \u2192 ${path32.basename(members[0] ?? "")}`;
+  const rendered = `${members.map((f) => path33.basename(f)).join(" \u2192 ")} \u2192 ${path33.basename(members[0] ?? "")}`;
   return members.map((file) => ({
     filePath: resolveCyclePath(cwd, file),
     severity: "warning",
@@ -16542,7 +18063,7 @@ function circularDepsToProjectDiagnostics(cwd, circular) {
 }
 
 // dist/clients/project-diagnostics/runner-adapters/opengrep.js
-import * as path33 from "node:path";
+import * as path34 from "node:path";
 function severityFor(raw) {
   switch (raw.toUpperCase()) {
     case "ERROR":
@@ -16557,7 +18078,7 @@ function opengrepFindingToProjectDiagnostic(cwd, finding) {
   const { severity, blocking } = severityFor(finding.severity);
   const cweSuffix = finding.cwe?.length ? ` (${finding.cwe[0]})` : "";
   return {
-    filePath: path33.isAbsolute(finding.path) ? finding.path : path33.resolve(cwd, finding.path),
+    filePath: path34.isAbsolute(finding.path) ? finding.path : path34.resolve(cwd, finding.path),
     line: finding.startLine,
     column: finding.startCol,
     severity,
@@ -16576,8 +18097,8 @@ function opengrepResultToProjectDiagnostics(cwd, result) {
 }
 
 // dist/clients/project-diagnostics/runner-adapters/runner-findings.js
-import * as fs20 from "node:fs";
-import * as path34 from "node:path";
+import * as fs19 from "node:fs";
+import * as path35 from "node:path";
 function failureMessage(failure) {
   const firstLine2 = failure.message.split("\n")[0]?.slice(0, 300) ?? "";
   return firstLine2 ? `${failure.name}: ${firstLine2}` : failure.name;
@@ -16643,7 +18164,7 @@ function testRunnerFindingsToProjectDiagnostics(cache, cwd, runtime) {
     return [];
   const validation = cwd ? validateAdvisoryProvenance(cache, cwd, runtime) : { status: "unknown", reasons: ["validation-context-missing"] };
   const root = cwd ?? process.cwd();
-  const missingKeys = new Set((cache.provenance?.files ?? []).filter((file) => !fs20.existsSync(path34.resolve(root, file.path))).map((file) => advisoryPathKey(file.path, root)));
+  const missingKeys = new Set((cache.provenance?.files ?? []).filter((file) => !fs19.existsSync(path35.resolve(root, file.path))).map((file) => advisoryPathKey(file.path, root)));
   const historical = cache.superseded === true || cache.stale === true || validation.status !== "current";
   return cache.results.filter((result) => !missingKeys.has(advisoryPathKey(result.file, root))).flatMap((result) => testResultToProjectDiagnostics(result, historical)).map((diagnostic) => historical ? {
     ...diagnostic,
@@ -16673,15 +18194,15 @@ function laneObservedAtMs(scannedAt, startedAtMs) {
   return parseScannedAtMs(scannedAt) ?? startedAtMs;
 }
 async function fetchFreshProjectDiagnostics(cacheManager2, cwd, clients, signal, options = {}) {
-  const requestedRoot = options.analysisRoot === void 0 ? cwd : path35.resolve(cwd, options.analysisRoot);
+  const requestedRoot = options.analysisRoot === void 0 ? cwd : path36.resolve(cwd, options.analysisRoot);
   let analysisRoot;
   let analysisRootValidation;
   if (options.analysisRoot !== void 0) {
     try {
-      if (!fs21.statSync(requestedRoot).isDirectory()) {
+      if (!fs20.statSync(requestedRoot).isDirectory()) {
         throw new Error("is not a directory");
       }
-      analysisRoot = fs21.realpathSync(requestedRoot);
+      analysisRoot = fs20.realpathSync(requestedRoot);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       const reason = `the explicit analysis root ${requestedRoot} is unavailable or ${detail}`;
@@ -16712,7 +18233,7 @@ async function fetchFreshProjectDiagnostics(cacheManager2, cwd, clients, signal,
     analysisRoot = realpathOrResolve(cwd);
   }
   const unsafeRootReason = "the analysis root resolves at or above the home directory; heavyweight analyzers refuse to walk from there (#747)";
-  const homeRoot = realpathOrResolve(options.homeDir ?? os4.homedir());
+  const homeRoot = realpathOrResolve(options.homeDir ?? os5.homedir());
   if (options.analysisRoot !== void 0) {
     const unsafeExplicitRoot = !isSameOrWithin(homeRoot, analysisRoot) || isSameOrWithin(analysisRoot, homeRoot);
     analysisRootValidation = unsafeExplicitRoot ? {
@@ -16720,7 +18241,7 @@ async function fetchFreshProjectDiagnostics(cacheManager2, cwd, clients, signal,
       root: analysisRoot,
       reason: "explicit analysis root must be strictly contained by the canonical home directory"
     } : { state: "safe", root: analysisRoot };
-  } else if (isAtOrAboveHomeDir(analysisRoot, options.homeDir)) {
+  } else if (isAtOrAboveHomeDir(analysisRoot, homeRoot)) {
     analysisRootValidation = {
       state: "unsafe",
       root: analysisRoot,
@@ -16840,7 +18361,7 @@ async function fetchFreshProjectDiagnostics(cacheManager2, cwd, clients, signal,
         markCold("jscpd", reasonFromAvailabilityVerdict("jscpd", clients.jscpdClient.getAvailabilityVerdict?.()));
         return;
       }
-      const isTsProject = fs21.existsSync(path35.join(analysisRoot, "tsconfig.json"));
+      const isTsProject = fs20.existsSync(path36.join(analysisRoot, "tsconfig.json"));
       const scannerKey = isTsProject ? "jscpd-ts" : "jscpd";
       const startMs = Date.now();
       const result = await clients.jscpdClient.scan(analysisRoot, void 0, void 0, isTsProject);
@@ -17069,18 +18590,7 @@ async function fetchFreshProjectDiagnostics(cacheManager2, cwd, clients, signal,
     })
   ];
   const allSettled = Promise.all(tasks).then(() => "completed").catch(() => "completed");
-  const outcome = signal ? await Promise.race([
-    allSettled,
-    new Promise((resolve32) => {
-      if (signal.aborted) {
-        resolve32("aborted");
-        return;
-      }
-      signal.addEventListener("abort", () => resolve32("aborted"), {
-        once: true
-      });
-    })
-  ]) : await allSettled;
+  const outcome = await untilAborted(allSettled, signal, "aborted");
   if (outcome === "aborted") {
     const abortedIds = ANALYZER_IDS.filter((id) => !settledIds.has(id));
     for (const id of abortedIds)
@@ -17156,8 +18666,700 @@ function makeProgressReporter(onUpdate, label, throttleMs = 250) {
 }
 
 // dist/tools/lsp-diagnostics.js
-import * as fs22 from "node:fs";
-import * as path36 from "node:path";
+import * as fs21 from "node:fs";
+import * as path37 from "node:path";
+
+// dist/clients/out-of-band-changes.js
+import { promises as fsp } from "node:fs";
+import * as os6 from "node:os";
+import { basename as basename7, join as join17 } from "node:path";
+
+// dist/clients/disk-changes.js
+var DISK_CHANGE_ORIGINS = [
+  "out-of-band",
+  "bash-recovery",
+  "head-move",
+  "settled-sweep",
+  "drift-heartbeat"
+];
+var DISK_CHANGE_MAX_RECORDED_PATHS = 64;
+var REGISTRY_FAMILY = "disk-changes.subscribers";
+var REGISTRY_VERSION = 1;
+function subscribers() {
+  return getProcessSingleton(REGISTRY_FAMILY, REGISTRY_VERSION, () => /* @__PURE__ */ new Map());
+}
+function subscribeDiskChange(id, handler, origins = DISK_CHANGE_ORIGINS) {
+  subscribers().set(id, { id, handler, origins });
+  return () => {
+    if (subscribers().get(id)?.handler === handler)
+      subscribers().delete(id);
+  };
+}
+function publishFailure(cause) {
+  return cause instanceof Error ? cause.message : String(cause);
+}
+async function publishDiskChange(input, runtime, onAppendError) {
+  const at = input.at ?? Date.now();
+  const root = normalizeMapKey(input.root);
+  const { recorded, truncated } = input.paths === "unknown" ? { recorded: [], truncated: false } : recordedPopulation(input.paths);
+  const { seq, fileSeqs } = allocateSequence(recorded, input, runtime, appendFailureHandler(root, onAppendError));
+  if (truncated) {
+    recordDegradationOnce({
+      kind: "disk-change-paths-truncated",
+      subject: root,
+      reason: `one publish carried more than ${DISK_CHANGE_MAX_RECORDED_PATHS} paths; the first ${DISK_CHANGE_MAX_RECORDED_PATHS} are named and the rest are reported as unenumerable${seq === 0 ? " (this publish allocated no sequence: it ran with no runtime)" : ""}`
+    });
+  }
+  const unknown = input.paths === "unknown" || truncated;
+  const change = {
+    seq,
+    fileSeqs,
+    root,
+    origin: input.origin,
+    sources: input.sources ?? [input.origin],
+    kind: input.kind ?? "inferred",
+    paths: unknown ? "unknown" : recorded,
+    ...input.pathChanges ? { pathChanges: input.pathChanges } : {},
+    ...input.after ? { after: input.after } : {},
+    at,
+    sessionScopeId: runtime?.sessionGeneration ?? 0
+  };
+  const started = Date.now();
+  const { results, failed } = await fanOut(change);
+  logLatency({
+    type: "phase",
+    phase: "disk_change_published",
+    filePath: root,
+    durationMs: Date.now() - started,
+    result: `${input.origin}:${recorded.length}`,
+    metadata: {
+      origin: input.origin,
+      sources: change.sources.join(","),
+      kind: change.kind,
+      recorded: recorded.length,
+      unknown: unknown ? 1 : 0,
+      truncated: truncated ? 1 : 0,
+      seq,
+      subscribers: [...subscribers().keys()].join(",").slice(0, 200)
+    }
+  });
+  return { change, results, failedSubscribers: failed };
+}
+function recordedPopulation(paths) {
+  const named = /* @__PURE__ */ new Set();
+  const raw = [];
+  let truncated = false;
+  for (const filePath of paths) {
+    if (named.has(filePath))
+      continue;
+    if (raw.length === DISK_CHANGE_MAX_RECORDED_PATHS) {
+      truncated = true;
+      break;
+    }
+    named.add(filePath);
+    raw.push(filePath);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const recorded = [];
+  for (const filePath of raw) {
+    const key = normalizeMapKey(filePath);
+    if (seen.has(key))
+      continue;
+    seen.add(key);
+    recorded.push(key);
+  }
+  return { recorded, truncated };
+}
+function appendFailureHandler(root, onAppendError) {
+  return (err) => {
+    incrementDegradationCount({
+      kind: "disk-change-append-failed",
+      subject: root,
+      reason: `the change log did not record this publish: ${publishFailure(err)}`
+    });
+    onAppendError?.(err);
+  };
+}
+function allocateSequence(recorded, input, runtime, onAppendError) {
+  if (recorded.length === 0)
+    return { seq: 0, fileSeqs: /* @__PURE__ */ new Map() };
+  const allocated = runtime?.recordProjectMutations?.({
+    paths: recorded,
+    source: "external",
+    cwd: input.root,
+    onAppendError
+  });
+  return {
+    seq: allocated?.projectSeq ?? 0,
+    fileSeqs: allocated?.fileSeqs ?? /* @__PURE__ */ new Map()
+  };
+}
+async function fanOut(change) {
+  const results = /* @__PURE__ */ new Map();
+  const failed = /* @__PURE__ */ new Set();
+  const registered2 = Array.from(subscribers().values());
+  for (const subscriber of registered2) {
+    if (subscriber.origins && !subscriber.origins.includes(change.origin))
+      continue;
+    try {
+      results.set(subscriber.id, await subscriber.handler(change));
+    } catch (cause) {
+      failed.add(subscriber.id);
+      recordDegradationOnce({
+        kind: "disk-change-subscriber-failed",
+        subject: `${subscriber.id}:${change.root}`,
+        reason: `subscriber threw: ${publishFailure(cause)}`
+      });
+    }
+  }
+  return { results, failed };
+}
+
+// dist/clients/disk-change-subscribers.js
+import * as nodeFs3 from "node:fs";
+var WATCHED_FILE_TYPE = {
+  created: 1,
+  changed: 2,
+  deleted: 3
+};
+function diagnosticsCacheSubscriber(change) {
+  if (change.sources.includes("install") || change.paths === "unknown")
+    noteWorkspaceDependenciesChanged(change.at);
+  if (change.paths === "unknown")
+    return;
+  if (change.paths.length === 0)
+    return;
+  noteWorkspaceFilesChangedOnDisk(change.root, change.paths, change.at);
+}
+var BASH_RECOVERY_DRIFT_SOURCE = "recovered-drift";
+var HELD_PRIMARY_CAP = 64;
+var HEAD_MOVE_RESYNC_MAX_PASSES = 16;
+var NO_HELD_DOCUMENTS = {
+  held: 0,
+  targets: [],
+  primary: 0,
+  unheld: 0,
+  failed: false,
+  drained: true
+};
+async function sendToHeldPrimaries(root, candidates, drainMs) {
+  const service = peekLSPService();
+  if (!service || candidates.length === 0)
+    return { targets: [], primary: 0, failed: false, drained: true };
+  const held = new Set(service.getOpenDocumentPaths(root));
+  const targets = (await Promise.all(candidates.map(async (filePath) => {
+    if (!held.has(filePath))
+      return void 0;
+    const sent = service.getTrackedContent(filePath, root)?.hash;
+    try {
+      const disk = await nodeFs3.promises.readFile(filePath, "utf8");
+      return sent === hashContentBytes(Buffer.from(disk, "utf8")) ? void 0 : filePath;
+    } catch {
+      return filePath;
+    }
+  }))).filter((filePath) => filePath !== void 0);
+  if (targets.length === 0)
+    return { targets, primary: 0, failed: false, drained: true };
+  try {
+    const { sent, drained } = await service.resyncHeldPrimaries(targets.slice(0, HELD_PRIMARY_CAP), drainMs);
+    return { targets, primary: sent, failed: false, drained };
+  } catch {
+    return { targets, primary: 0, failed: true, drained: false };
+  }
+}
+function notifyUnheldPaths(service, change, held) {
+  if (change.paths === "unknown")
+    return 0;
+  const unheld = change.paths.flatMap((filePath) => held.has(filePath) ? [] : [filePath]);
+  if (unheld.length === 0)
+    return 0;
+  try {
+    const events = unheld.map((filePath) => ({
+      filePath,
+      type: WATCHED_FILE_TYPE[nodeFs3.statSync(filePath, { throwIfNoEntry: false }) === void 0 ? "deleted" : "changed"]
+    }));
+    service.notifyOutOfBandFileChanges(events);
+    service.announceCreatedFiles(unheld);
+    return events.length;
+  } catch (cause) {
+    recordDegradationOnce({
+      kind: "disk-change-unheld-notify-failed",
+      subject: change.root,
+      reason: `the watched-files events for ${unheld.length} unheld path(s) were not delivered, so a closed module changed on disk may keep its old bytes in a live server: ${cause instanceof Error ? cause.message : String(cause)}`
+    });
+    return 0;
+  }
+}
+async function resyncHeldDocuments(change, options) {
+  const service = peekLSPService();
+  if (!service)
+    return NO_HELD_DOCUMENTS;
+  const held = new Set(service.getOpenDocumentPaths(change.root));
+  const candidates = change.paths === "unknown" ? [...held] : change.paths.filter((filePath) => held.has(filePath));
+  const unheld = notifyUnheldPaths(service, change, held);
+  const { targets, primary, failed, drained } = await sendToHeldPrimaries(change.root, candidates, options.drainMs);
+  const answer = {
+    held: candidates.length,
+    targets,
+    primary,
+    unheld,
+    failed,
+    drained
+  };
+  if (!options.drift || targets.length === 0 || failed)
+    return answer;
+  answer.drift = service.resyncGitChangedFiles(targets, options.maxPasses === void 0 ? {} : { maxPasses: options.maxPasses });
+  return answer;
+}
+function driftRecoveredFiles(change) {
+  const service = peekLSPService();
+  if (!service)
+    return NO_HELD_DOCUMENTS;
+  const population = change.paths === "unknown" ? service.getOpenDocumentPaths(change.root) : change.paths;
+  if (population.length === 0)
+    return NO_HELD_DOCUMENTS;
+  return {
+    ...NO_HELD_DOCUMENTS,
+    drift: service.resyncGitChangedFiles(population)
+  };
+}
+async function outOfBandLsp(change) {
+  const service = peekLSPService();
+  if (!service)
+    return { restarted: 0 };
+  let restarted = 0;
+  if (change.sources.includes("install"))
+    restarted = await service.restartPrimaryClientsUnder(change.root) ?? 0;
+  const events = change.pathChanges ?? [];
+  if (events.length === 0)
+    return { restarted };
+  service.notifyOutOfBandFileChanges(events.map((event) => ({
+    filePath: event.filePath,
+    type: WATCHED_FILE_TYPE[event.type]
+  })));
+  return { restarted };
+}
+async function lspSubscriber(change) {
+  switch (change.origin) {
+    case "out-of-band":
+      return outOfBandLsp(change);
+    case "head-move":
+      return resyncHeldDocuments(change, {
+        drift: true,
+        maxPasses: HEAD_MOVE_RESYNC_MAX_PASSES,
+        drainMs: HOOK_WALL_BUDGET_MS.tool_result_read_only
+      });
+    case "bash-recovery":
+      return change.sources.includes(BASH_RECOVERY_DRIFT_SOURCE) ? driftRecoveredFiles(change) : resyncHeldDocuments(change, {
+        drift: false,
+        drainMs: HOOK_WALL_BUDGET_MS.tool_result_edit
+      });
+    case "settled-sweep":
+      return resyncHeldDocuments(change, {
+        drift: true,
+        drainMs: HOOK_WALL_BUDGET_MS.agent_settled
+      });
+    case "drift-heartbeat":
+      return void 0;
+  }
+  const unreachable = change.origin;
+  return unreachable;
+}
+var DIAGNOSTICS_CACHE_CONSUMER = "diagnostics-cache";
+var LSP_CONSUMER = "lsp";
+var LSP_ORIGINS = DISK_CHANGE_ORIGINS.flatMap((origin) => origin === "drift-heartbeat" ? [] : [origin]);
+var registered = false;
+function ensureDiskChangeSubscribers() {
+  if (registered)
+    return;
+  registered = true;
+  subscribeDiskChange(DIAGNOSTICS_CACHE_CONSUMER, diagnosticsCacheSubscriber, DISK_CHANGE_ORIGINS);
+  subscribeDiskChange(LSP_CONSUMER, lspSubscriber, LSP_ORIGINS);
+}
+
+// dist/clients/out-of-band-changes.js
+var INSTALL_LOCKFILES = [
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "uv.lock",
+  "poetry.lock",
+  "Pipfile.lock",
+  "pdm.lock",
+  "go.sum",
+  "Cargo.lock"
+];
+var INSTALL_MARKERS = [
+  ".package-lock.json",
+  ".modules.yaml",
+  ".yarn-state.yml",
+  ".yarn-integrity"
+];
+var VENV_LIB_DIR = "lib";
+var VENV_WINDOWS_SITE_PACKAGES = join17("Lib", "site-packages");
+var VENV_INTERPRETER_DIRS_MAX = 4;
+var DECLARATION_WALK_MAX_DIRS = 4096;
+var DECLARATION_WALK_MAX_FILES = 2048;
+var DECLARATION_WALK_CONCURRENCY = 16;
+var DECLARATION_FILE = /(?:\.d\.[cm]?ts|\.pyi)$/i;
+var MAX_ROOTS = 64;
+function declarationLookIntervalMs() {
+  const raw = Number(process.env.PI_LENS_DECLARATION_LOOK_MS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 2e3;
+}
+var records = new BoundedFifoMap(MAX_ROOTS);
+var looks = createSingleFlight({ coalesceTrailing: true });
+var owedWalks = new BoundedFifoMap(MAX_ROOTS);
+function oweDeclarationWalk(root, trigger, walk = "trigger") {
+  if (demandsWalk(trigger, walk))
+    owedWalks.set(normalizeMapKey(root), true);
+}
+function demandsWalk(trigger, walk) {
+  return walk === "always" || trigger === "tool_result" && walk !== "interval";
+}
+var fingerprint = (stat) => `${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+function diffServerConfigs(root, before, after) {
+  return diffDeclarations(new Map([...before].map(([name, print]) => [join17(root, name), print])), new Map([...after].map(([name, print]) => [join17(root, name), print])));
+}
+async function readVenvInstallParts(root, listed) {
+  const targets = [];
+  for (const name of PROJECT_VENV_DIR_NAMES) {
+    if (!listed.has(name))
+      continue;
+    const venvRoot = join17(root, name);
+    targets.push({
+      label: `${name}/${VENV_WINDOWS_SITE_PACKAGES}`,
+      dir: join17(venvRoot, VENV_WINDOWS_SITE_PACKAGES)
+    });
+    let interpreters;
+    try {
+      interpreters = await fsp.readdir(join17(venvRoot, VENV_LIB_DIR), {
+        withFileTypes: true
+      });
+    } catch {
+      continue;
+    }
+    interpreters.sort((a, b) => compareOrdinal(a.name, b.name));
+    const interpreterDirs = interpreters.filter((entry) => entry.isDirectory() || entry.isSymbolicLink()).slice(0, VENV_INTERPRETER_DIRS_MAX);
+    for (const interpreter of interpreterDirs) {
+      targets.push({
+        label: `${name}/${VENV_LIB_DIR}/${interpreter.name}/site-packages`,
+        dir: join17(venvRoot, VENV_LIB_DIR, interpreter.name, "site-packages")
+      });
+    }
+  }
+  return Promise.all(targets.map(async (target) => {
+    try {
+      const stat = await fsp.stat(target.dir);
+      return {
+        part: `${target.label}=${fingerprint(stat)}`,
+        changedAt: stat.mtimeMs
+      };
+    } catch {
+      return { part: `${target.label}=-`, changedAt: 0 };
+    }
+  }));
+}
+async function readInstallStamp(root) {
+  let listed;
+  try {
+    listed = new Set(await fsp.readdir(root));
+  } catch {
+    return { stamp: "-", newestChangeMs: 0, configs: void 0 };
+  }
+  const names = [];
+  for (const name of INSTALL_LOCKFILES)
+    if (listed.has(name))
+      names.push(name);
+  let linkPrint;
+  let linkChangedAt = 0;
+  if (listed.has("node_modules")) {
+    for (const marker of INSTALL_MARKERS)
+      names.push(`node_modules/${marker}`);
+    let link;
+    try {
+      link = await fsp.lstat(join17(root, "node_modules"));
+    } catch {
+      link = void 0;
+    }
+    if (link?.isSymbolicLink()) {
+      linkPrint = `node_modules=${fingerprint(link)}`;
+      linkChangedAt = link.mtimeMs;
+    }
+  }
+  const configNames = [];
+  for (const name of SERVER_CONFIG_FILE_NAMES)
+    if (listed.has(name))
+      configNames.push(name);
+  const [statted, venvParts] = await Promise.all([
+    Promise.all([...names, ...configNames].map(async (name) => {
+      try {
+        const stat = await fsp.stat(join17(root, name));
+        return {
+          part: `${name}=${fingerprint(stat)}`,
+          changedAt: stat.mtimeMs
+        };
+      } catch {
+        return { part: `${name}=-`, changedAt: 0 };
+      }
+    })),
+    readVenvInstallParts(root, listed)
+  ]);
+  const parts = statted.slice(0, names.length);
+  const configs = /* @__PURE__ */ new Map();
+  for (const [index, name] of configNames.entries()) {
+    const print = statted[names.length + index].part.slice(name.length + 1);
+    if (print !== "-")
+      configs.set(name, print);
+  }
+  if (linkPrint !== void 0)
+    parts.push({ part: linkPrint, changedAt: linkChangedAt });
+  parts.push(...venvParts);
+  return {
+    configs,
+    stamp: parts.map((entry) => entry.part).join("|"),
+    newestChangeMs: parts.reduce((newest, entry) => Math.max(newest, entry.changedAt), 0)
+  };
+}
+var COARSE_MTIME_SLACK_MS = 1e3;
+function firstLookSawInstall(install, since) {
+  return since !== void 0 && since > 0 && install.newestChangeMs >= since - COARSE_MTIME_SLACK_MS;
+}
+async function walkDeclarations(root) {
+  const found = [];
+  const unreadable = [];
+  const unreadableFiles = [];
+  const queue = [root];
+  let next = 0;
+  let capped = false;
+  const worker = async () => {
+    while (!capped && next < queue.length) {
+      if (next >= DECLARATION_WALK_MAX_DIRS) {
+        capped = true;
+        return;
+      }
+      const dir = queue[next++];
+      let entries;
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        unreadable.push(dir);
+        continue;
+      }
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          if (!isExcludedDirName(entry.name))
+            queue.push(join17(dir, entry.name));
+        } else if (entry.isFile() && DECLARATION_FILE.test(entry.name)) {
+          found.push(join17(dir, entry.name));
+        }
+      }
+      if (found.length > DECLARATION_WALK_MAX_FILES)
+        capped = true;
+    }
+  };
+  while (!capped && next < queue.length)
+    await Promise.all(Array.from({ length: DECLARATION_WALK_CONCURRENCY }, worker));
+  if (capped)
+    return void 0;
+  found.sort(compareOrdinal);
+  const declarations = /* @__PURE__ */ new Map();
+  const prints = await Promise.all(found.map(async (filePath) => {
+    try {
+      return [filePath, fingerprint(await fsp.stat(filePath))];
+    } catch (err) {
+      const code = err?.code;
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        return void 0;
+      }
+      return [filePath, void 0];
+    }
+  }));
+  for (const print of prints) {
+    if (print === void 0)
+      continue;
+    if (print[1] === void 0)
+      unreadableFiles.push(print[0]);
+    else
+      declarations.set(print[0], print[1]);
+  }
+  return { declarations, unreadable, unreadableFiles };
+}
+function carryUnreadable(declarations, previous, walk) {
+  if (!declarations || !previous || !walk || walk.unreadable.length === 0 && walk.unreadableFiles.length === 0)
+    return { carried: 0, dropped: 0 };
+  const unreadableFiles = new Set(walk.unreadableFiles);
+  const carried = [];
+  for (const filePath of previous.keys()) {
+    if (declarations.has(filePath))
+      continue;
+    const underUnreadableDir = walk.unreadable.some((dir) => isUnderDir(filePath, dir));
+    if (!underUnreadableDir && !unreadableFiles.has(filePath))
+      continue;
+    carried.push(filePath);
+  }
+  carried.sort(compareOrdinal);
+  let dropped = 0;
+  for (const filePath of carried) {
+    if (declarations.size >= DECLARATION_WALK_MAX_FILES) {
+      dropped++;
+      continue;
+    }
+    declarations.set(filePath, previous.get(filePath));
+  }
+  return { carried: carried.length - dropped, dropped };
+}
+function diffDeclarations(before, after) {
+  const changes = [];
+  for (const [filePath, print] of after) {
+    const prior = before.get(filePath);
+    if (prior === void 0)
+      changes.push({ filePath, type: 1 });
+    else if (prior !== print)
+      changes.push({ filePath, type: 2 });
+  }
+  for (const filePath of before.keys())
+    if (!after.has(filePath))
+      changes.push({ filePath, type: 3 });
+  return changes;
+}
+function lookForOutOfBandChanges(root, trigger, runtime, options = {}) {
+  if (options.signal?.aborted)
+    return Promise.resolve();
+  const homeRoot = isAtOrAboveHomeDir(realpathOrResolve(root), realpathOrResolve(os6.homedir()));
+  if (homeRoot)
+    recordDegradationOnce({
+      kind: "lsp-declaration-look-capped",
+      subject: "home-root",
+      reason: "a session root that is the home folder or above it is not walked for declaration files changed outside pi-lens; such a change under it is not looked for (a dependency install still is)"
+    });
+  const key = normalizeMapKey(root);
+  oweDeclarationWalk(root, trigger, options.walk);
+  const look = looks.run(key, () => lookOnce(root, key, trigger, runtime, options, homeRoot));
+  return untilAborted(look, options.signal);
+}
+var CONFIG_SOURCE = "config";
+var CHANGE_TYPE = {
+  1: "created",
+  2: "changed",
+  3: "deleted"
+};
+function outOfBandChange(root, installed, changes, configChanges, at) {
+  const sources = [
+    ...installed ? ["install"] : [],
+    ...changes.length > 0 ? ["declarations"] : [],
+    ...configChanges.length > 0 ? [CONFIG_SOURCE] : []
+  ];
+  const pathChanges = [...changes, ...configChanges].map((change) => ({
+    filePath: change.filePath,
+    type: CHANGE_TYPE[change.type]
+  }));
+  return {
+    root,
+    origin: "out-of-band",
+    sources,
+    // A stat fingerprint, not the bytes: an `inferred` change may never by
+    // itself confirm that a finding was not reproduced.
+    kind: "inferred",
+    // A config file changes the analysis of every file under its root, so it
+    // cannot be enumerated any more than an install can: the cache refuses
+    // everything scanned before it (`"unknown"`), never just the config path.
+    paths: configChanges.length > 0 ? "unknown" : changes.length > 0 ? changes.map((change) => normalizeMapKey(change.filePath)) : installed ? "unknown" : [],
+    ...pathChanges.length > 0 ? { pathChanges } : {},
+    at
+  };
+}
+async function lookOnce(root, key, trigger, runtime, options, skipWalk) {
+  const walkOwed = owedWalks.delete(key);
+  const started = Date.now();
+  const prior = records.get(key);
+  const walkDue = !skipWalk && (walkOwed || prior === void 0 || started - prior.walkedAt >= declarationLookIntervalMs());
+  const [install, walked] = await Promise.all([
+    readInstallStamp(root),
+    walkDue ? walkDeclarations(root) : Promise.resolve(void 0)
+  ]);
+  const observed = walkDue ? walked : void 0;
+  const carry = carryUnreadable(observed?.declarations, prior?.declarations, observed);
+  const incomplete = carry.dropped > 0;
+  const declarations = incomplete ? prior?.declarations : observed?.declarations ?? prior?.declarations;
+  records.set(key, {
+    stamp: install.stamp,
+    // An unlistable root keeps the previous baseline: reading it as "no
+    // config files" would publish every one as created on the next look.
+    configs: install.configs ?? prior?.configs,
+    declarations,
+    walkedAt: walkDue && !incomplete ? started : prior?.walkedAt ?? started
+  });
+  if (walkDue && walked === void 0)
+    recordDegradationOnce({
+      kind: "lsp-declaration-look-capped",
+      subject: key,
+      reason: `the declaration-file walk passed ${DECLARATION_WALK_MAX_DIRS} directories or ${DECLARATION_WALK_MAX_FILES} files; declaration files created, edited or deleted outside pi-lens under this root reach no language server and no diagnostics-cache entry is refused for them`
+    });
+  const unreadableFiles = observed?.unreadableFiles ?? [];
+  if (observed && (observed.unreadable.length > 0 || unreadableFiles.length > 0)) {
+    const firstUnreadable = observed.unreadable[0] ?? unreadableFiles[0];
+    incrementDegradationCount({
+      kind: "lsp-declaration-walk-unreadable",
+      subject: key,
+      reason: `${incomplete ? `${carry.dropped} declaration file(s) could not be carried past the ${DECLARATION_WALK_MAX_FILES}-file cap, so the previous walk's map stands; ` : ""}${observed.unreadable.length} unreadable dir(s) and ${unreadableFiles.length} unreadable file(s) under this root, first \`${firstUnreadable}\`; ${carry.carried} declaration file(s) kept their previous fingerprint, so a change there is not read as a deletion`,
+      metadata: {
+        unreadableDirs: observed.unreadable.length,
+        firstUnreadableDir: observed.unreadable[0],
+        unreadableFiles: unreadableFiles.length,
+        firstUnreadableFile: unreadableFiles[0],
+        heldBackDeclarations: carry.carried,
+        carriedDropped: carry.dropped
+      }
+    });
+  }
+  const installed = prior === void 0 ? firstLookSawInstall(install, options.since) : install.stamp !== prior.stamp;
+  if (prior === void 0 && !installed)
+    return;
+  const changes = walkDue && !incomplete && declarations && prior?.declarations ? diffDeclarations(prior.declarations, declarations) : [];
+  const configChanges = install.configs && prior?.configs ? diffServerConfigs(root, prior.configs, install.configs) : [];
+  if (!installed && changes.length === 0 && configChanges.length === 0)
+    return;
+  const at = Date.now();
+  ensureDiskChangeSubscribers();
+  const { results, failedSubscribers } = await publishDiskChange(outOfBandChange(root, installed, changes, configChanges, at), runtime);
+  const restarted = failedSubscribers.has(LSP_CONSUMER) ? -1 : results.get(LSP_CONSUMER)?.restarted ?? 0;
+  const count = (type) => changes.reduce((n, change) => n + (change.type === type ? 1 : 0), 0);
+  logLatency({
+    type: "phase",
+    phase: "lsp_out_of_band_change",
+    filePath: root,
+    durationMs: Date.now() - started,
+    result: [
+      ...installed ? ["install"] : [],
+      ...changes.length > 0 ? ["declarations"] : [],
+      ...configChanges.length > 0 ? [CONFIG_SOURCE] : []
+    ].join("+"),
+    metadata: {
+      trigger,
+      restarted,
+      // Which look produced this row: the root's FIRST look (no record yet,
+      // so only `since` can make it publish — the #4532 live-client epoch)
+      // or a later look compared against the recorded stamp. Both the
+      // session-cwd root and a live client's root write the same record,
+      // so this names the look, not the caller.
+      scope: prior === void 0 ? "first-look" : "recorded",
+      // #4532 gap 6: the walk served a demand this row's own trigger did not
+      // make: a bash result that joined this flight (`owedWalks`).
+      joinedWalk: walkOwed && !demandsWalk(trigger, options.walk),
+      created: count(1),
+      changed: count(2),
+      deleted: count(3),
+      // The server config files this look forwarded (#4532), by name.
+      configs: configChanges.map((change) => `${CHANGE_TYPE[change.type]}:${basename7(change.filePath)}`)
+    }
+  });
+}
+
+// dist/tools/lsp-diagnostics.js
 var MAX_FILES = 100;
 var MAX_BATCH_FILES = 100;
 var MAX_DIAGNOSTICS = 200;
@@ -17174,6 +19376,37 @@ var LSP_SEVERITY_FILTERS = [
   ...Object.values(SEVERITY_NAMES),
   "all"
 ];
+function withheldCompileNote(withheld) {
+  if (!withheld)
+    return void 0;
+  if (!withheld.declarations) {
+    return describePythonCompileWithheld(withheld.count, withheld.declared);
+  }
+  const groups = withheld.declarations.map((group) => `${group.count} under Python ${group.declared.major}.${group.declared.minor} (${group.declared.source}) in ${group.declared.file}`);
+  return `${withheld.count} python-jedi compile finding${withheld.count === 1 ? "" : "s"} withheld across ${groups.length} declarations: ${groups.join("; ")}`;
+}
+function mergeWithheld(entries) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    if (!entry || entry.count <= 0)
+      continue;
+    for (const part of entry.declarations ?? [entry]) {
+      const { declared } = part;
+      const key = `${declared.file}\0${declared.source}\0${declared.major}.${declared.minor}`;
+      const group = groups.get(key);
+      if (group)
+        group.count += part.count;
+      else
+        groups.set(key, { count: part.count, declared });
+    }
+  }
+  const merged = [...groups.values()];
+  const first = merged[0];
+  if (!first)
+    return void 0;
+  const count = merged.reduce((sum, group) => sum + group.count, 0);
+  return merged.length === 1 ? { count, declared: first.declared } : { count, declared: first.declared, declarations: merged };
+}
 function assertNeverBatchFileOutcome(value) {
   throw new Error(`Unhandled batch file outcome: ${String(value)}`);
 }
@@ -17231,7 +19464,7 @@ async function collectFiles(dir, extensions, maxFiles, isIgnored = () => false) 
       return;
     let entries;
     try {
-      entries = await fs22.promises.readdir(current, { withFileTypes: true });
+      entries = await fs21.promises.readdir(current, { withFileTypes: true });
     } catch {
       return;
     }
@@ -17240,11 +19473,11 @@ async function collectFiles(dir, extensions, maxFiles, isIgnored = () => false) 
         return;
       if (entry.isSymbolicLink())
         continue;
-      const full = path36.join(current, entry.name);
+      const full = path37.join(current, entry.name);
       if (entry.isDirectory()) {
         if (!isExcludedDirName(entry.name) && !isIgnored(full, true))
           await walk(full);
-      } else if (entry.isFile() && extensions.includes(path36.extname(full))) {
+      } else if (entry.isFile() && extensions.includes(path37.extname(full))) {
         if (isIgnored(full, false))
           continue;
         files.push(full);
@@ -17254,7 +19487,7 @@ async function collectFiles(dir, extensions, maxFiles, isIgnored = () => false) 
   await walk(dir);
   return files;
 }
-function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getService = getLSPService) {
+function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getService = getLSPService, getFlag) {
   return {
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const signal = combineAbortSignals(_signal, ctx.signal);
@@ -17265,6 +19498,10 @@ function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getServ
       const concurrency = boundedPositiveInt(typedParams.concurrency, DEFAULT_BATCH_CONCURRENCY, 1, MAX_BATCH_CONCURRENCY);
       const waitMs = typeof typedParams.waitMs === "number" && typedParams.waitMs >= 0 ? Math.floor(typedParams.waitMs) : void 0;
       const serverScope = typedParams.serverScope === "primary" ? "primary" : "all";
+      const excludeServerIds = getFlag ? /* @__PURE__ */ new Set([
+        ...configDisabledAuxiliaryLspServerIds((name) => getFlag(name, cwd)),
+        ...enabledOptInAuxiliaryLspServerIds((name) => getFlag(name, cwd))
+      ]) : void 0;
       const lspService = getService();
       if (!lspService) {
         return {
@@ -17275,6 +19512,11 @@ function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getServ
           details: {}
         };
       }
+      await lookForOutOfBandChanges(cwd, "tool_call", void 0, {
+        walk: "always",
+        signal
+      });
+      await lspService.sweepDocumentDrift({ force: true, full: true });
       if (Array.isArray(typedParams.paths) && typedParams.paths.length > 0) {
         if (typedParams.paths.length > MAX_BATCH_FILES) {
           return {
@@ -17322,7 +19564,8 @@ function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getServ
           nextWriteIndex,
           serverScope,
           cwd,
-          onConfirmedNoBlockers
+          onConfirmedNoBlockers,
+          excludeServerIds
         }, expanded);
       }
       const rawPath = typedParams.path;
@@ -17338,10 +19581,10 @@ function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getServ
           details: {}
         };
       }
-      const absPath = normalizeMapKey(path36.resolve(cwd, rawPath));
+      const absPath = normalizeMapKey(typedParams.pathAlreadyResolved === true ? rawPath : resolveHostToolPath(rawPath, cwd));
       let stat;
       try {
-        stat = fs22.statSync(absPath);
+        stat = fs21.statSync(absPath);
       } catch {
         return {
           content: [
@@ -17360,19 +19603,20 @@ function createLspDiagnosticsTool(nextWriteIndex, onConfirmedNoBlockers, getServ
           nextWriteIndex,
           serverScope,
           cwd,
-          onConfirmedNoBlockers
+          onConfirmedNoBlockers,
+          excludeServerIds
         });
       }
-      return runFileDiagnostics(absPath, severity, lspService, waitMs, nextWriteIndex, serverScope, cwd, onConfirmedNoBlockers);
+      return runFileDiagnostics(absPath, severity, lspService, waitMs, nextWriteIndex, serverScope, cwd, onConfirmedNoBlockers, excludeServerIds);
     }
   };
 }
-async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, serverScope = "all") {
+async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, serverScope = "all", excludeServerIds) {
   let timedOut = false;
   let content;
   let touched;
   try {
-    content = fs22.readFileSync(absPath, "utf-8");
+    content = fs21.readFileSync(absPath, "utf-8");
     const contentLimit = exceedsLspSyncLimits(content);
     if (contentLimit.tooLarge) {
       const reason = `file too large for LSP diagnostics (${contentLimit.reason})`;
@@ -17395,7 +19639,8 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
       const attachedBudgetMs = waitMs ?? 15e3;
       const attached = await tryWarmAttachedDiagnostics(absPath, content, attachedBudgetMs, "sweep");
       if (attached?.available) {
-        const scopedDiagnostics = serverScope === "primary" ? attached.response.diagnostics.filter((item) => item.serverId === primaryServerId(absPath)) : attached.response.diagnostics;
+        const answer = dropExcludedServers(attached.response, excludeServerIds);
+        const scopedDiagnostics = serverScope === "primary" ? answer.diagnostics.filter((item) => item.serverId === primaryServerId(absPath)) : answer.diagnostics;
         const filtered2 = applyAuxiliarySuppressions(scopedDiagnostics, content, {
           fileRole: detectFileRole(absPath, content),
           filePath: absPath,
@@ -17420,9 +19665,16 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
           // #1470: the incumbent's narrowed verdict, carried as an explicit DTO
           // field across the socket. An older incumbent omits it → empty → the
           // pre-#1470 handling, unchanged.
-          unconfirmedServerIds: attached.response.unconfirmedServerIds ?? [],
+          unconfirmedServerIds: answer.unconfirmedServerIds ?? [],
           diagnosticsUnsupportedServerIds: [],
-          content
+          content,
+          ...attached.response.projectIdentity !== void 0 && {
+            projectIdentity: attached.response.projectIdentity
+          },
+          // #5030: the incumbent's content binding, so a stale-bound answer
+          // is demoted to unconfirmed (`boundMismatch`) like a local one. An
+          // incumbent that sends none reads as not current.
+          binding: warmAnswerBinding(answer)
         };
       }
     }
@@ -17432,6 +19684,7 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
       maxClientWaitMs: waitMs,
       source: "lsp_diagnostics",
       clientScope: serverScope,
+      excludeServerIds,
       // #3405: the caller asked whether THIS file is clean right now, and the
       // content above was just read from disk — so it is the file's saved
       // state. Without the save a save-triggered server answers zero
@@ -17439,10 +19692,11 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
       // as clean.
       saved: true
     });
-    timedOut = touched?.inconclusive === true;
+    timedOut = touched?.inconclusive === true && touched.inconclusiveReason !== "primary-unavailable";
   } catch {
   }
-  const diagnostics = touched !== void 0 ? touched.diags : await lspService.getDiagnostics(absPath, waitMs !== void 0 ? "document" : "full");
+  const diagnostics = touched !== void 0 ? touched.diags : await lspService.getDiagnostics(absPath, waitMs !== void 0 ? "document" : "full", excludeServerIds);
+  const fallbackHealth = touched === void 0 ? lspService.getDiagnosticsHealth?.(absPath) : void 0;
   const filtered = content !== void 0 ? applyAuxiliarySuppressions(diagnostics, content, {
     fileRole: detectFileRole(absPath, content),
     filePath: absPath,
@@ -17450,11 +19704,18 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
   }) : diagnostics;
   const binding = touched?.binding;
   const confirmedByTouch = touchCompletedConfirmationPolicy(touched);
+  const primaryUnavailable = describePrimaryUnavailable(touched, fallbackHealth);
+  const noClientAnswered = fallbackHealth !== void 0 && String(fallbackHealth.health ?? "").startsWith("no_clients");
   return {
     diagnostics: filtered,
     timedOut,
     skipReason: touched?.skipReason,
     confirmedByTouch,
+    ...noClientAnswered && { noClientAnswered: true },
+    ...primaryUnavailable !== void 0 && {
+      primaryUnavailable: primaryUnavailable.text,
+      primaryUnavailableCause: primaryUnavailable.cause
+    },
     // #1470: only a touch that resolved clients contributes a coverage gap;
     // the getDiagnostics fallback never reports one, which is honest — that
     // path claims no confirmation at all.
@@ -17462,6 +19723,27 @@ async function collectDiagnosticsForFile(absPath, lspService, scanRoot, waitMs, 
     diagnosticsUnsupportedServerIds: touched?.diagnosticsUnsupportedServerIds ?? [],
     content,
     binding
+  };
+}
+function describePrimaryUnavailable(touched, fallbackHealth) {
+  let serverIds;
+  let disabledServerIds;
+  let carriedCause;
+  if (touched?.inconclusiveReason === "primary-unavailable") {
+    serverIds = touched.inconclusiveServerIds ?? [];
+    disabledServerIds = touched.disabledPrimaryServerIds ?? [];
+    carriedCause = touched.primaryUnavailableCause;
+  } else if (fallbackHealth?.unavailablePrimaryServerIds?.length) {
+    serverIds = fallbackHealth.unavailablePrimaryServerIds;
+    disabledServerIds = fallbackHealth.disabledPrimaryServerIds ?? [];
+    carriedCause = fallbackHealth.primaryUnavailableCause;
+  } else {
+    return void 0;
+  }
+  const cause = carriedCause ?? primaryUnavailableCause(serverIds, disabledServerIds);
+  return {
+    text: `Primary LSP (${serverIds.join(", ")}): not available \u2014 no primary language server answered for this file (${PRIMARY_UNAVAILABLE_CAUSE[cause]}). NOT the same as 0 diagnostics; auxiliary scanners do not check the language itself.`,
+    cause
   };
 }
 function diagnosticsToFileDiags(file, diagnostics) {
@@ -17509,7 +19791,7 @@ async function resolveEmptyResult(file, lspService) {
 function canTrustTouchConfirmation(file, serverScope, confirmedByTouch) {
   return confirmedByTouch && (serverScope === "primary" || primaryServerId(file) !== "typescript");
 }
-function coveredSourcesForCheck(file, serverScope, unconfirmedServerIds) {
+function coveredSourcesForCheck(file, serverScope, unconfirmedServerIds, excludeServerIds) {
   const unconfirmed = new Set(unconfirmedServerIds);
   const covered = /* @__PURE__ */ new Set();
   let servers = [];
@@ -17524,33 +19806,34 @@ function coveredSourcesForCheck(file, serverScope, unconfirmedServerIds) {
       continue;
     if (unconfirmed.has(server.id))
       continue;
+    if (excludeServerIds?.has(server.id))
+      continue;
+    if (isOptInAuxiliaryServerId(server.id))
+      continue;
     covered.add(auxiliary ? server.id : "lsp");
   }
   return [...covered];
 }
-function demoteInferredForFile(file, diagnostics, cwd, lspService) {
-  return demoteInferredProjectDiagnostics(diagnostics, {
-    filePath: file,
-    cwd,
-    service: lspService
-  });
-}
-function applyProbeFindingPolicy(file, diagnostics, cwd, content, severity) {
+function applyProbeFindingPolicy(file, diagnostics, cwd, content, severity, toolName = "lsp_diagnostics", pythonCompileTarget) {
   const started = Date.now();
   try {
     const result = applyLspFindingPolicy(diagnostics, {
       cwd,
       filePath: file,
       content,
-      policyMap: loadProjectRulePolicyMap(cwd),
+      policyMap: loadProjectRulePolicy(cwd),
       fileRole: detectFileRole(file, content)
     });
+    const { kept: delivered, dropped } = partitionOutrankedPythonCompileVerdicts(result.kept, pythonCompileTarget);
+    if (dropped > 0 && pythonCompileTarget) {
+      recordPythonCompileVerdictDrop(file, pythonCompileTarget, dropped);
+    }
     const inScopeBefore = applySeverityFilter(diagnostics, severity).length;
     const suppressed = inScopeBefore - applySeverityFilter(result.kept, severity).length;
     if (suppressed > 0) {
       logLatency({
         type: "phase",
-        toolName: "lsp_diagnostics",
+        toolName,
         filePath: file,
         phase: "lsp_probe_disposition_filter",
         durationMs: Date.now() - started,
@@ -17561,7 +19844,17 @@ function applyProbeFindingPolicy(file, diagnostics, cwd, content, severity) {
         }
       });
     }
-    return { kept: result.kept, inlineKept: result.inlineKept, suppressed };
+    return {
+      kept: delivered,
+      inlineKept: result.inlineKept,
+      suppressed,
+      ...delivered.length !== result.kept.length && pythonCompileTarget && {
+        withheld: {
+          count: result.kept.length - delivered.length,
+          declared: pythonCompileTarget
+        }
+      }
+    };
   } catch (err) {
     recordDegradationOnce({
       kind: "lsp-probe-finding-policy",
@@ -17572,15 +19865,11 @@ function applyProbeFindingPolicy(file, diagnostics, cwd, content, severity) {
   }
 }
 function replayContentForStrictMarks(file, cwd) {
-  if (!hasStrictDispositionMarks(cwd))
-    return void 0;
-  try {
-    return fs22.readFileSync(file, "utf-8");
-  } catch {
-    return void 0;
-  }
+  return hasStrictDispositionMarks(cwd) ? readFileContent(file) : void 0;
 }
-function reconcileWidgetFromLspResult(file, rawDiags, confirmation, writeIndex, cwd, content, boundMismatch = false, observedAt) {
+function reconcileWidgetFromLspResult(file, rawDiags, confirmation, writeIndex, cwd, content, boundMismatch = false, observedAt, auxiliariesOnly = false) {
+  if (auxiliariesOnly)
+    return { confirmed: false, blocking: true };
   const confirmed = (rawDiags.length > 0 || confirmation !== "unconfirmed") && !boundMismatch;
   if (!confirmed)
     return { confirmed: false, blocking: true };
@@ -17597,24 +19886,29 @@ function reconcileWidgetFromLspResult(file, rawDiags, confirmation, writeIndex, 
     return { confirmed: false, blocking: true };
   }
 }
-async function collectFileDiagnosticResult(file, severity, lspService, waitMs, nextWriteIndex, serverScope = "all", cacheCtx, scopeKey, cwd = process.cwd(), onConfirmedNoBlockers) {
+async function collectFileDiagnosticResult(file, severity, lspService, waitMs, nextWriteIndex, serverScope = "all", cacheCtx, scopeKey, cwd = process.cwd(), onConfirmedNoBlockers, excludeServerIds) {
   const writeIndex = nextWriteIndex?.();
   const scannedAt = Date.now();
   let stat;
   try {
-    stat = fs22.statSync(file);
+    stat = fs21.statSync(file);
     if (!stat.isFile()) {
       return { file, diagnostics: [], error: `${file}: not a file` };
     }
   } catch {
     return { file, diagnostics: [], error: `${file}: path not found` };
   }
+  const pythonCompileTarget = await detectPythonTargetVersion(file);
   if (cacheCtx && scopeKey !== void 0) {
     const cached = cacheCtx.lookup(file, scopeKey);
     if (cached && cached.binding.boundToCurrentDisk !== false) {
       const confirmation2 = cached.diagnostics.length === 0 ? "clean" : void 0;
-      const demotedCached = await demoteInferredForFile(file, cached.diagnostics, cwd, lspService);
-      const cachedPolicy = applyProbeFindingPolicy(file, demotedCached, cwd, replayContentForStrictMarks(file, cwd), severity);
+      const demotedCached = (await demoteLanguageServerRows(cached.diagnostics, {
+        filePath: file,
+        cwd,
+        service: lspService
+      })).rows;
+      const cachedPolicy = applyProbeFindingPolicy(file, demotedCached, cwd, replayContentForStrictMarks(file, cwd), severity, void 0, pythonCompileTarget);
       const cachedDiags = cachedPolicy.kept;
       const filteredDiags2 = applySeverityFilter(cachedDiags, severity);
       reconcileWidgetFromLspResult(
@@ -17637,20 +19931,21 @@ async function collectFileDiagnosticResult(file, severity, lspService, waitMs, n
         primaryServerId: primaryServerId(file),
         ...cachedPolicy.suppressed > 0 && {
           dispositionSuppressed: cachedPolicy.suppressed
+        },
+        ...cachedPolicy.withheld && {
+          withheldCompile: cachedPolicy.withheld
         }
       };
     }
   }
-  const { diagnostics: rawDiags, timedOut, confirmedByTouch, unconfirmedServerIds, diagnosticsUnsupportedServerIds, content: collectedContent, binding, tooLargeReason, skipReason } = await collectDiagnosticsForFile(file, lspService, cwd, waitMs, serverScope);
+  const { diagnostics: rawDiags, timedOut, confirmedByTouch, unconfirmedServerIds, diagnosticsUnsupportedServerIds, content: collectedContent, binding, tooLargeReason, skipReason, primaryUnavailable, primaryUnavailableCause: primaryUnavailableCause2, noClientAnswered, projectIdentity } = await collectDiagnosticsForFile(file, lspService, cwd, waitMs, serverScope, excludeServerIds);
   if (tooLargeReason !== void 0) {
     return { file, diagnostics: [], outcome: "too_large", tooLargeReason };
   }
   const health = lspService.getDiagnosticsHealth?.(file);
   let effectiveRawDiags = rawDiags;
   let confirmation;
-  if (diagnosticsUnsupportedServerIds.length > 0) {
-    confirmation = void 0;
-  } else if (skipReason !== void 0) {
+  if (diagnosticsUnsupportedServerIds.length > 0 || skipReason !== void 0 || primaryUnavailable !== void 0) {
     confirmation = "unconfirmed";
   } else if (timedOut) {
     if (applySeverityFilter(rawDiags, severity).length === 0) {
@@ -17670,14 +19965,24 @@ async function collectFileDiagnosticResult(file, severity, lspService, waitMs, n
   const boundMismatch = binding?.boundToCurrentDisk === false;
   if (boundMismatch)
     confirmation = "unconfirmed";
-  const rootFallback = confirmation === "clean" ? await primaryRootFallback(file, cwd) : void 0;
+  const rootFallback = confirmation === "clean" || primaryUnavailable !== void 0 ? await primaryRootFallback(file, cwd) : void 0;
   if (rootFallback)
     confirmation = "unconfirmed";
   if (unconfirmedServerIds.length > 0 && confirmation === "clean") {
     confirmation = "unconfirmed";
   }
-  effectiveRawDiags = await demoteInferredForFile(file, effectiveRawDiags, cwd, lspService);
-  const policy = applyProbeFindingPolicy(file, effectiveRawDiags, cwd, collectedContent, severity);
+  const demotion = await demoteLanguageServerRows(effectiveRawDiags, {
+    filePath: file,
+    cwd,
+    service: lspService,
+    // #4645: the warm incumbent's answer stands in for this process's probe.
+    ...projectIdentity !== void 0 && {
+      identityCache: /* @__PURE__ */ new Map([[file, projectIdentity]])
+    }
+  });
+  const shownRows = demotion.rows;
+  effectiveRawDiags = shownRows;
+  const policy = applyProbeFindingPolicy(file, effectiveRawDiags, cwd, collectedContent, severity, void 0, pythonCompileTarget);
   effectiveRawDiags = policy.kept;
   const filteredDiags = applySeverityFilter(effectiveRawDiags, severity);
   const verdict = reconcileWidgetFromLspResult(
@@ -17690,18 +19995,26 @@ async function collectFileDiagnosticResult(file, severity, lspService, waitMs, n
     boundMismatch,
     // #3505 r1 F1: the widget row is observed at the read, as the cache
     // entry recorded below is.
-    scannedAt
+    scannedAt,
+    primaryUnavailable !== void 0
   );
   if (verdict.confirmed && !verdict.blocking) {
     onConfirmedNoBlockers?.({
       filePath: file,
       writeIndex,
-      coveredSources: coveredSourcesForCheck(file, serverScope, unconfirmedServerIds),
+      coveredSources: coveredSourcesForCheck(file, serverScope, unconfirmedServerIds, excludeServerIds),
       cwd
     });
   }
   if (cacheCtx && scopeKey !== void 0 && confirmation !== "unconfirmed" && diagnosticsUnsupportedServerIds.length === 0 && unconfirmedServerIds.length === 0) {
-    cacheCtx.record(file, scopeKey, policy.inlineKept, stat.mtimeMs, collectedContent !== void 0 ? hashDiagnosticContent(collectedContent) : void 0, stat.size, scannedAt);
+    const replayable = await demotion.replayable();
+    const replayRowOf = /* @__PURE__ */ new Map();
+    for (const [index, row] of shownRows.entries()) {
+      const stored = replayable[index];
+      if (stored !== void 0)
+        replayRowOf.set(row, stored);
+    }
+    cacheCtx.record(file, scopeKey, policy.inlineKept.map((row) => replayRowOf.get(row) ?? row), stat.mtimeMs, collectedContent !== void 0 ? hashDiagnosticContent(collectedContent) : void 0, stat.size, scannedAt);
   }
   return {
     file,
@@ -17711,17 +20024,26 @@ async function collectFileDiagnosticResult(file, severity, lspService, waitMs, n
     timedOut: confirmation === "unconfirmed" ? timedOut : void 0,
     ...rootFallback && { rootFallback },
     ...skipReason !== void 0 && { skipReason },
+    ...primaryUnavailable !== void 0 && {
+      primaryUnavailable,
+      primaryUnavailableCause: primaryUnavailableCause2
+    },
+    ...noClientAnswered && { noClientAnswered },
     primaryServerId: primaryServerId(file),
-    diagnosticsUnsupported: diagnosticsUnsupportedServerIds.length > 0,
     ...policy.suppressed > 0 && {
       dispositionSuppressed: policy.suppressed
+    },
+    ...policy.withheld && {
+      withheldCompile: policy.withheld
     }
   };
 }
-async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWriteIndex, serverScope = "all", cwd = process.cwd(), onConfirmedNoBlockers) {
+async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWriteIndex, serverScope = "all", cwd = process.cwd(), onConfirmedNoBlockers, excludeServerIds) {
   const writeIndex = nextWriteIndex?.();
+  const pythonCompileTarget = await detectPythonTargetVersion(absPath);
+  lspService.announceCreatedFiles(goPackageFilesToAnnounce([absPath]), await importTargetsToAnnounce(cwd, [absPath]));
   const observedAt = Date.now();
-  const { diagnostics: rawDiags, timedOut, confirmedByTouch, unconfirmedServerIds, diagnosticsUnsupportedServerIds, content: collectedContent, binding, tooLargeReason, skipReason } = await collectDiagnosticsForFile(absPath, lspService, cwd, waitMs, serverScope);
+  const { diagnostics: rawDiags, timedOut, confirmedByTouch, unconfirmedServerIds, diagnosticsUnsupportedServerIds, content: collectedContent, binding, tooLargeReason, skipReason, primaryUnavailable, projectIdentity } = await collectDiagnosticsForFile(absPath, lspService, cwd, waitMs, serverScope, excludeServerIds);
   if (tooLargeReason !== void 0) {
     return {
       content: [{ type: "text", text: tooLargeReason }],
@@ -17741,9 +20063,7 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
   const unavailable = lspUnavailableMessage(absPath, lspHealth);
   let effectiveRawDiags = rawDiags;
   let confirmation;
-  if (diagnosticsUnsupportedServerIds.length > 0) {
-    confirmation = void 0;
-  } else if (skipReason !== void 0) {
+  if (diagnosticsUnsupportedServerIds.length > 0 || skipReason !== void 0 || primaryUnavailable !== void 0) {
     confirmation = "unconfirmed";
   } else if (timedOut) {
     if (applySeverityFilter(rawDiags, severity).length === 0) {
@@ -17763,26 +20083,33 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
   const boundMismatch = binding?.boundToCurrentDisk === false;
   if (boundMismatch)
     confirmation = "unconfirmed";
-  const rootFallback = confirmation === "clean" ? await primaryRootFallback(absPath, cwd) : void 0;
+  const rootFallback = confirmation === "clean" || primaryUnavailable !== void 0 ? await primaryRootFallback(absPath, cwd) : void 0;
   if (rootFallback)
     confirmation = "unconfirmed";
   const primaryCoverageGapOnly = unconfirmedServerIds.length > 0 && confirmation === "clean";
   if (primaryCoverageGapOnly)
     confirmation = "unconfirmed";
-  effectiveRawDiags = await demoteInferredForFile(absPath, effectiveRawDiags, cwd, lspService);
-  const policy = applyProbeFindingPolicy(absPath, effectiveRawDiags, cwd, collectedContent, severity);
+  effectiveRawDiags = (await demoteLanguageServerRows(effectiveRawDiags, {
+    filePath: absPath,
+    cwd,
+    service: lspService,
+    ...projectIdentity !== void 0 && {
+      identityCache: /* @__PURE__ */ new Map([[absPath, projectIdentity]])
+    }
+  })).rows;
+  const policy = applyProbeFindingPolicy(absPath, effectiveRawDiags, cwd, collectedContent, severity, void 0, pythonCompileTarget);
   effectiveRawDiags = policy.kept;
   const filtered = applySeverityFilter(effectiveRawDiags, severity);
   const total = filtered.length;
   const truncated = total > MAX_DIAGNOSTICS;
   const limited = truncated ? filtered.slice(0, MAX_DIAGNOSTICS) : filtered;
   const unconfirmed = confirmation === "unconfirmed";
-  const verdict = reconcileWidgetFromLspResult(absPath, effectiveRawDiags, confirmation, writeIndex, cwd, collectedContent, boundMismatch, observedAt);
+  const verdict = reconcileWidgetFromLspResult(absPath, effectiveRawDiags, confirmation, writeIndex, cwd, collectedContent, boundMismatch, observedAt, primaryUnavailable !== void 0);
   if (verdict.confirmed && !verdict.blocking) {
     onConfirmedNoBlockers?.({
       filePath: absPath,
       writeIndex,
-      coveredSources: coveredSourcesForCheck(absPath, serverScope, unconfirmedServerIds),
+      coveredSources: coveredSourcesForCheck(absPath, serverScope, unconfirmedServerIds, excludeServerIds),
       cwd
     });
   }
@@ -17790,8 +20117,11 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
   const primaryDiags = limited.filter((d) => d.serverId === primaryId);
   const auxiliaryDiags = limited.filter((d) => d.serverId !== primaryId);
   const primaryLine = (() => {
+    if (primaryUnavailable !== void 0) {
+      return rootFallback ? `${primaryUnavailable} ${describeRootFallback(rootFallback, false)}.` : primaryUnavailable;
+    }
     if (diagnosticsUnsupportedServerIds.length > 0) {
-      return `Primary LSP${primaryId ? ` (${primaryId})` : ""}: navigation-only \u2014 diagnostics unsupported (no pull provider or publish evidence).`;
+      return `Primary LSP${primaryId ? ` (${primaryId})` : ""}: unconfirmed \u2014 a custom server with no pull provider has not published diagnostics yet. NOT the same as 0 diagnostics; it is checked again once the server publishes.`;
     }
     if (timedOut) {
       return "Primary LSP: check timed out \u2014 NOT the same as 0 diagnostics; the file may still have errors that just hadn't been reported yet. Re-check after the server settles, or increase waitMs.";
@@ -17807,16 +20137,26 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
     }
     return `Primary LSP${primaryId ? ` (${primaryId})` : ""}: ${primaryDiags.length} diagnostic${primaryDiags.length === 1 ? "" : "s"}.`;
   })();
-  const coverageLine = unconfirmedServerIds.length > 0 ? `Auxiliary coverage INCOMPLETE \u2014 ${[...unconfirmedServerIds].join(", ")} did not answer within the wait budget, so ${unconfirmedServerIds.length === 1 ? "its findings are" : "their findings are"} NOT included here. This is not a clean bill of health for ${unconfirmedServerIds.length === 1 ? "that scanner" : "those scanners"}; re-check after the next edit. waitMs can extend an ordinary wait, but it cannot override a session-demoted scanner.` : void 0;
+  const coverageLine2 = unconfirmedServerIds.length > 0 ? `Auxiliary coverage INCOMPLETE \u2014 ${[...unconfirmedServerIds].join(", ")} did not answer within the wait budget, so ${unconfirmedServerIds.length === 1 ? "its findings are" : "their findings are"} NOT included here. This is not a clean bill of health for ${unconfirmedServerIds.length === 1 ? "that scanner" : "those scanners"}; re-check after the next edit. waitMs can extend an ordinary wait, but it cannot override a session-demoted scanner.` : void 0;
   const suppressedLine = dispositionSuppressedLine(policy.suppressed);
+  const withheldLine = withheldCompileNote(policy.withheld);
+  const notRunServerIds = serverScope === "all" && excludeServerIds && excludeServerIds.size > 0 ? getServersForFileWithConfig(absPath).flatMap((server) => excludeServerIds.has(server.id) ? [server.id] : []) : [];
+  const switchedOffServerIds = notRunServerIds.flatMap((id) => isOptInAuxiliaryServerId(id) ? [] : [id]);
+  const optInNotRunServerIds = notRunServerIds.flatMap((id) => isOptInAuxiliaryServerId(id) ? [id] : []);
+  const noAuxiliaryLine = [
+    "No auxiliary findings.",
+    ...switchedOffServerIds.length > 0 ? [`Switched off, not run: ${switchedOffServerIds.join(", ")}.`] : [],
+    ...optInNotRunServerIds.length > 0 ? [`Opt-in, not run by this check: ${optInNotRunServerIds.join(", ")}.`] : []
+  ].join(" ");
   let text;
   if (total === 0) {
     text = [
       primaryLine,
       "",
-      unavailable ?? "No auxiliary findings.",
-      ...coverageLine ? [coverageLine] : [],
-      ...suppressedLine ? [suppressedLine] : []
+      unavailable ?? noAuxiliaryLine,
+      ...coverageLine2 ? [coverageLine2] : [],
+      ...suppressedLine ? [suppressedLine] : [],
+      ...withheldLine ? [withheldLine] : []
     ].join("\n");
   } else {
     const lines = [primaryLine, ""];
@@ -17827,10 +20167,12 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
       lines.push(`Auxiliary findings (${auxiliaryDiags.length}):`);
       lines.push(...auxiliaryDiags.map(formatDiag));
     }
-    if (coverageLine)
-      lines.push("", coverageLine);
+    if (coverageLine2)
+      lines.push("", coverageLine2);
     if (suppressedLine)
       lines.push("", suppressedLine);
+    if (withheldLine)
+      lines.push("", withheldLine);
     if (unavailable)
       lines.unshift(unavailable, "");
     if (truncated) {
@@ -17861,13 +20203,16 @@ async function runFileDiagnostics(absPath, severity, lspService, waitMs, nextWri
       ...policy.suppressed > 0 && {
         dispositionSuppressed: policy.suppressed
       },
+      ...policy.withheld && {
+        withheldCompile: policy.withheld
+      },
       truncated,
       unconfirmed,
       timedOut: unconfirmed ? timedOut : void 0,
-      navigationOnlyFiles: diagnosticsUnsupportedServerIds.length > 0 ? 1 : void 0,
       ...skipReason !== void 0 && { skipReason },
+      ...primaryUnavailable !== void 0 && { primaryUnavailable },
       ...rootFallback && {
-        rootFallbackReason: describeRootFallback(rootFallback)
+        rootFallbackReason: describeRootFallback(rootFallback, primaryUnavailable === void 0)
       },
       // #1470: which servers this result does NOT speak for. Absent when it
       // speaks for all of them.
@@ -17883,16 +20228,14 @@ function tallyConfirmation(results) {
   let clean = 0;
   let unconfirmed = 0;
   let timedOut = 0;
+  let primaryUnavailable = 0;
+  const primaryUnavailableCauses = [];
+  const primaryUnavailableRootReasons = /* @__PURE__ */ new Set();
   const rootFallbackReasons = /* @__PURE__ */ new Set();
-  let navigationOnly = 0;
   let tooLarge = 0;
   for (const result of results) {
     if (result.tooLargeReason) {
       tooLarge += 1;
-      continue;
-    }
-    if (result.diagnosticsUnsupported) {
-      navigationOnly += 1;
       continue;
     }
     if (result.diagnostics.length > 0)
@@ -17901,8 +20244,17 @@ function tallyConfirmation(results) {
       unconfirmed += 1;
       if (result.timedOut)
         timedOut += 1;
+      if (result.primaryUnavailable !== void 0) {
+        primaryUnavailable += 1;
+        if (result.primaryUnavailableCause !== void 0)
+          primaryUnavailableCauses.push(result.primaryUnavailableCause);
+      }
       if (result.rootFallback) {
-        rootFallbackReasons.add(describeRootFallback(result.rootFallback));
+        if (result.primaryUnavailable !== void 0) {
+          primaryUnavailableRootReasons.add(describeRootFallback(result.rootFallback, false));
+        } else {
+          rootFallbackReasons.add(describeRootFallback(result.rootFallback));
+        }
       }
     } else if (classifyBatchFileOutcome(result) === "clean") {
       clean += 1;
@@ -17912,8 +20264,12 @@ function tallyConfirmation(results) {
     clean,
     unconfirmed,
     timedOut,
+    primaryUnavailable: {
+      count: primaryUnavailable,
+      cause: combinePrimaryUnavailableCauses(primaryUnavailableCauses),
+      rootFallbackReasons: [...primaryUnavailableRootReasons]
+    },
     rootFallbackReasons: [...rootFallbackReasons],
-    navigationOnly,
     tooLarge
   };
 }
@@ -17922,8 +20278,9 @@ function classifyBatchFileOutcome(result) {
     return "failed";
   if (result.tooLargeReason)
     return "too_large";
-  if (result.diagnosticsUnsupported)
-    return "unsupported";
+  if (result.noClientAnswered && result.primaryUnavailable !== void 0) {
+    return "unavailable";
+  }
   if (result.timedOut || result.confirmation === "unconfirmed") {
     return "inconclusive";
   }
@@ -17946,7 +20303,28 @@ function inconclusiveBatchResult(file, reason) {
     inconclusiveReason: reason
   };
 }
-function unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons = []) {
+function batchOutcomeReason(result) {
+  return result.tooLargeReason ?? // #4322: a file only auxiliaries answered for names its language server.
+  result.primaryUnavailable ?? result.inconclusiveReason ?? result.error ?? result.unavailable;
+}
+function auxiliaryOnlyFindingsLine(results) {
+  const auxiliaryOnly = results.filter((result) => result.diagnostics.length > 0 && result.primaryUnavailable !== void 0 && result.noClientAnswered === void 0);
+  const count = auxiliaryOnly.length;
+  if (count === 0)
+    return void 0;
+  const cause = combinePrimaryUnavailableCauses(auxiliaryOnly.flatMap((result) => result.primaryUnavailableCause ?? [])) ?? "unstarted";
+  return `${count} file${count === 1 ? "" : "s"} with auxiliary or fallback findings only: no primary language server answered (${PRIMARY_UNAVAILABLE_CAUSE[cause]}), so the language itself was not confirmed.`;
+}
+function unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons = [], primaryUnavailable = {
+  count: 0,
+  cause: void 0,
+  rootFallbackReasons: []
+}) {
+  if (primaryUnavailable.count > 0) {
+    const head = `${primaryUnavailable.count} with no primary language server answer (${PRIMARY_UNAVAILABLE_CAUSE[primaryUnavailable.cause ?? "unstarted"]})` + (primaryUnavailable.rootFallbackReasons.length > 0 ? `: ${primaryUnavailable.rootFallbackReasons.join("; ")}` : "");
+    const rest = unconfirmed - primaryUnavailable.count;
+    return rest > 0 ? `${head}; the other ${rest}: ${unconfirmedReasonClause(rest, timedOut, rootFallbackReasons)}` : `${head}.`;
+  }
   if (rootFallbackReasons.length > 0) {
     return `${rootFallbackReasons.join("; ")} (${unconfirmed} unconfirmed in all).`;
   }
@@ -17962,7 +20340,8 @@ function unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons = []
 async function collectBatchDiagnostics(files, severity, lspService, options) {
   const resolvedCwd = options.cwd ?? process.cwd();
   const cacheCtx = createWorkspaceDiagnosticsCacheContext(resolvedCwd);
-  const scopeKey = buildScopeKey(options.serverScope ?? "all");
+  const serverScope = options.serverScope ?? "all";
+  const scopeKey = buildProbeScopeKey(serverScope, options.excludeServerIds);
   const resultsByIndex = /* @__PURE__ */ new Map();
   let completed = 0;
   const pendingIndices = /* @__PURE__ */ new Map();
@@ -17973,6 +20352,18 @@ async function collectBatchDiagnostics(files, severity, lspService, options) {
     else
       pendingIndices.set(file, [index]);
   });
+  const servedClean = [];
+  const unanswered = files.filter((file) => {
+    if (!cacheCtx.servesClean(file, scopeKey))
+      return true;
+    servedClean.push(file);
+    return false;
+  });
+  const noteScope = (file, scope) => cacheCtx.noteImportScope(file, scope);
+  lspService.announceCreatedFiles([...files, ...goPackageFilesToAnnounce(files)], [
+    ...await importTargetsToAnnounce(resolvedCwd, unanswered, noteScope),
+    ...await importTargetsToAnnounce(resolvedCwd, servedClean, noteScope)
+  ]);
   const groups = groupFilesByPrimaryServer(files);
   await runPerServerGroups(groups, options.concurrency, async (group) => {
     if (options.signal?.aborted)
@@ -17987,24 +20378,13 @@ async function collectBatchDiagnostics(files, severity, lspService, options) {
     }
     await mapWithConcurrency(group.files, 1, async (file) => {
       const index = pendingIndices.get(file).shift();
-      const work = collectFileDiagnosticResult(file, severity, lspService, options.waitMs, options.nextWriteIndex, options.serverScope, cacheCtx, scopeKey, resolvedCwd, options.onConfirmedNoBlockers);
+      const work = collectFileDiagnosticResult(file, severity, lspService, options.waitMs, options.nextWriteIndex, options.serverScope, cacheCtx, scopeKey, resolvedCwd, options.onConfirmedNoBlockers, options.excludeServerIds);
       const bounded2 = withDeadline(work, {
         ms: batchFileDeadlineMs(),
         onTimeout: "undefined",
         onReject: "undefined"
       });
-      const result = options.signal ? await Promise.race([
-        bounded2,
-        new Promise((resolve32) => {
-          if (options.signal?.aborted) {
-            resolve32(void 0);
-            return;
-          }
-          options.signal?.addEventListener("abort", () => resolve32(void 0), {
-            once: true
-          });
-        })
-      ]) : await bounded2;
+      const result = await untilAborted(bounded2, options.signal);
       resultsByIndex.set(index, result ?? inconclusiveBatchResult(file, options.signal?.aborted ? "Batch aborted before this file completed." : `File check exceeded ${batchFileDeadlineMs()}ms.`));
       completed += 1;
       options.onProgress?.(completed, files.length);
@@ -18018,7 +20398,7 @@ async function collectBatchDiagnostics(files, severity, lspService, options) {
   const total = allDiags.length;
   const truncated = total > MAX_DIAGNOSTICS;
   const display = truncated ? allDiags.slice(0, MAX_DIAGNOSTICS) : allDiags;
-  const { clean, unconfirmed, timedOut, rootFallbackReasons } = tallyConfirmation(results);
+  const { clean, unconfirmed, timedOut, primaryUnavailable, rootFallbackReasons } = tallyConfirmation(results);
   for (const result of results) {
     result.outcome = classifyBatchFileOutcome(result);
   }
@@ -18050,6 +20430,7 @@ async function collectBatchDiagnostics(files, severity, lspService, options) {
     unconfirmed,
     timedOut,
     rootFallbackReasons,
+    primaryUnavailable,
     outcomeCounts,
     incompleteFiles: Math.max(0, files.length - results.length)
   };
@@ -18059,10 +20440,10 @@ async function expandPathsToFiles(cwd, rawPaths) {
   const directories = [];
   const seenFileKeys = /* @__PURE__ */ new Set();
   for (const entry of rawPaths) {
-    const abs = normalizeMapKey(path36.resolve(cwd, entry));
+    const abs = normalizeMapKey(resolveHostToolPath(entry, cwd));
     let stat;
     try {
-      stat = fs22.statSync(abs);
+      stat = fs21.statSync(abs);
     } catch {
     }
     if (stat?.isDirectory()) {
@@ -18104,8 +20485,7 @@ async function runBatchFileDiagnostics(absPaths, severity, lspService, options, 
       details: { mode: "batch", severity, filesChecked: 0 }
     };
   }
-  const { results, fileErrors, lspHealthWarnings, total, truncated, display, primaryDisplay, auxiliaryDisplay, clean, unconfirmed, timedOut, rootFallbackReasons, outcomeCounts, incompleteFiles } = await collectBatchDiagnostics(absPaths, severity, lspService, options);
-  const navigationOnly = results.filter((result) => result.diagnosticsUnsupported).length;
+  const { results, fileErrors, lspHealthWarnings, total, truncated, display, primaryDisplay, auxiliaryDisplay, clean, unconfirmed, timedOut, rootFallbackReasons, primaryUnavailable, outcomeCounts, incompleteFiles } = await collectBatchDiagnostics(absPaths, severity, lspService, options);
   const dispositionSuppressed = results.reduce((sum, result) => sum + (result.dispositionSuppressed ?? 0), 0);
   const lines = [
     `Files checked: ${results.length}${capped ? ` (capped at ${MAX_FILES})` : ""}`,
@@ -18130,7 +20510,7 @@ async function runBatchFileDiagnostics(absPaths, severity, lspService, options, 
   const outcomeDetails = results.map((result) => ({
     file: result.file,
     outcome: result.outcome,
-    reason: result.tooLargeReason ?? result.inconclusiveReason ?? result.error ?? result.unavailable
+    reason: batchOutcomeReason(result)
   }));
   const tooLargeLines = renderBatchOutcomeLines(outcomeDetails);
   if (tooLargeLines.length > 0) {
@@ -18140,11 +20520,19 @@ async function runBatchFileDiagnostics(absPaths, severity, lspService, options, 
     lines.push("", "LSP health warnings:", ...lspHealthWarnings.slice(0, 10));
   }
   if (unconfirmed > 0) {
-    lines.push("", `${clean} file${clean === 1 ? "" : "s"} confirmed clean, ${unconfirmed} unconfirmed: ${unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons)} NOT the same as 0 diagnostics.`);
+    lines.push("", `${clean} file${clean === 1 ? "" : "s"} confirmed clean, ${unconfirmed} unconfirmed: ${unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons, primaryUnavailable)} NOT the same as 0 diagnostics.`);
   }
+  const auxiliaryOnlyLine = auxiliaryOnlyFindingsLine(results);
+  if (auxiliaryOnlyLine)
+    lines.push("", auxiliaryOnlyLine);
+  const withheldBatch = mergeWithheld(results.map((r) => r.withheldCompile));
+  const withheld = withheldCompileNote(withheldBatch);
+  const allClean = display.length === 0 && unconfirmed === 0 && outcomeCounts.clean === results.length;
+  if (withheld && !allClean)
+    lines.push("", withheld);
   if (display.length === 0) {
-    if (unconfirmed === 0 && outcomeCounts.clean === results.length) {
-      lines.push("", "No diagnostics found.");
+    if (allClean) {
+      lines.push("", withheld ? `No diagnostics found. ${withheld}` : "No diagnostics found.");
     }
   } else {
     if (primaryDisplay.length > 0) {
@@ -18178,15 +20566,15 @@ async function runBatchFileDiagnostics(absPaths, severity, lspService, options, 
       auxiliaryDiagnosticsCount: auxiliaryDisplay.length,
       totalDiagnostics: total,
       ...dispositionSuppressed > 0 && { dispositionSuppressed },
+      ...withheldBatch && { withheldCompile: withheldBatch },
       truncated,
       cleanFiles: clean,
       unconfirmedFiles: unconfirmed,
-      navigationOnlyFiles: navigationOnly > 0 ? navigationOnly : void 0,
       timedOutFiles: timedOut > 0 ? timedOut : void 0,
       outcomes: results.map((result) => ({
         file: result.file,
         outcome: result.outcome,
-        reason: result.tooLargeReason ?? result.inconclusiveReason ?? result.error ?? result.unavailable,
+        reason: batchOutcomeReason(result),
         primaryDiagnosticsCount: result.diagnostics.filter((diagnostic) => diagnostic.serverId === result.primaryServerId).length,
         auxiliaryDiagnosticsCount: result.diagnostics.filter((diagnostic) => diagnostic.serverId !== result.primaryServerId).length
       })),
@@ -18254,26 +20642,35 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
       }
     };
   }
-  const { results, fileErrors, lspHealthWarnings, total, truncated, display, primaryDisplay, auxiliaryDisplay, clean, unconfirmed, timedOut, rootFallbackReasons, outcomeCounts } = await collectBatchDiagnostics(filesToProcess, severity, lspService, options);
-  const navigationOnly = results.filter((result) => result.diagnosticsUnsupported).length;
+  const { results, fileErrors, lspHealthWarnings, total, truncated, display, primaryDisplay, auxiliaryDisplay, clean, unconfirmed, timedOut, rootFallbackReasons, primaryUnavailable, outcomeCounts } = await collectBatchDiagnostics(filesToProcess, severity, lspService, options);
   const dispositionSuppressed = results.reduce((sum, result) => sum + (result.dispositionSuppressed ?? 0), 0);
   const suppressedLine = dispositionSuppressedLine(dispositionSuppressed);
   const outcomeDetails = results.map((result) => ({
     file: result.file,
     outcome: result.outcome,
-    reason: result.tooLargeReason ?? result.inconclusiveReason ?? result.error ?? result.unavailable
+    reason: batchOutcomeReason(result)
   }));
-  const tooLargeLines = renderBatchOutcomeLines(outcomeDetails, (file) => path36.relative(absPath, file));
+  const auxiliaryOnlyLine = auxiliaryOnlyFindingsLine(results);
+  const tooLargeLines = renderBatchOutcomeLines(outcomeDetails, (file) => path37.relative(absPath, file));
+  const withheldDirectory = mergeWithheld(results.map((r) => r.withheldCompile));
+  const withheldDisclosure = withheldCompileNote(withheldDirectory);
   let text;
   if (total === 0) {
-    const cleanLine = unconfirmed > 0 ? `${clean} clean \xB7 ${unconfirmed} unconfirmed: ${unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons)} NOT the same as 0 diagnostics.` : "No diagnostics found.";
+    const cleanLine = unconfirmed > 0 ? `${clean} clean \xB7 ${unconfirmed} unconfirmed: ${unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons, primaryUnavailable)} NOT the same as 0 diagnostics.` : withheldDisclosure ? `No diagnostics found. ${withheldDisclosure}` : "No diagnostics found.";
+    const cleanLineShown = unconfirmed > 0 || lspHealthWarnings.length === 0 && outcomeCounts.clean === filesToProcess.length;
     text = [
       `Directory: ${absPath}`,
       `Files scanned: ${filesToProcess.length}${wasCapped ? ` (capped at ${MAX_FILES})` : ""}`,
       ...lspHealthWarnings.length > 0 ? [
         "LSP unavailable for one or more files:",
         ...lspHealthWarnings.slice(0, 10)
-      ] : unconfirmed > 0 || outcomeCounts.clean === filesToProcess.length ? [cleanLine] : [],
+      ] : [],
+      // #4403: an unconfirmed file says why even beside a health warning,
+      // which names what was missing but not that the file is unconfirmed.
+      ...cleanLineShown ? [cleanLine] : [],
+      // The clean sentence carries the disclosure only when nothing is
+      // unconfirmed; every other shape names it on its own line (#4638 r3 N2).
+      ...withheldDisclosure && !(cleanLineShown && unconfirmed === 0) ? ["", withheldDisclosure] : [],
       ...tooLargeLines.length > 0 ? ["", "Files too large for LSP diagnostics:", ...tooLargeLines] : [],
       ...suppressedLine ? ["", suppressedLine] : []
     ].join("\n");
@@ -18289,13 +20686,14 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
       // whole found diagnostics elsewhere.
       ...unconfirmed > 0 ? [
         "",
-        `${clean} other file${clean === 1 ? "" : "s"} confirmed clean, ${unconfirmed} unconfirmed: ` + unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons)
+        `${clean} other file${clean === 1 ? "" : "s"} confirmed clean, ${unconfirmed} unconfirmed: ` + unconfirmedReasonClause(unconfirmed, timedOut, rootFallbackReasons, primaryUnavailable)
       ] : [],
+      ...auxiliaryOnlyLine ? ["", auxiliaryOnlyLine] : [],
       ""
     ];
     const toRelative = (d) => ({
       ...d,
-      file: path36.relative(absPath, d.file)
+      file: path37.relative(absPath, d.file)
     });
     if (primaryDisplay.length > 0) {
       lines.push(`Primary findings (${primaryDisplay.length}):`);
@@ -18311,6 +20709,8 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
     }
     if (suppressedLine)
       lines.push("", suppressedLine);
+    if (withheldDisclosure)
+      lines.push("", withheldDisclosure);
     if (tooLargeLines.length > 0) {
       lines.push("", "Files too large for LSP diagnostics:", ...tooLargeLines);
     }
@@ -18326,7 +20726,7 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
       filesScanned: filesToProcess.length,
       capped: wasCapped,
       diagnostics: display.map((d) => ({
-        file: path36.relative(absPath, d.file),
+        file: path37.relative(absPath, d.file),
         line: d.line,
         character: d.character,
         severity: d.severity,
@@ -18338,12 +20738,12 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
       auxiliaryDiagnosticsCount: auxiliaryDisplay.length,
       totalDiagnostics: total,
       ...dispositionSuppressed > 0 && { dispositionSuppressed },
+      ...withheldDirectory && { withheldCompile: withheldDirectory },
       truncated,
       cleanFiles: clean,
       unconfirmedFiles: unconfirmed,
       outcomes: outcomeDetails,
       outcomeCounts,
-      navigationOnlyFiles: navigationOnly > 0 ? navigationOnly : void 0,
       timedOutFiles: timedOut > 0 ? timedOut : void 0,
       fileErrors: fileErrors.length > 0 ? fileErrors : void 0,
       lspHealthWarnings: lspHealthWarnings.length > 0 ? lspHealthWarnings : void 0,
@@ -18351,11 +20751,6 @@ async function runDirectoryDiagnostics(absPath, severity, lspService, options) {
       waitMs: options.waitMs
     }
   };
-}
-function dispositionSuppressedLine(suppressed) {
-  if (suppressed <= 0)
-    return void 0;
-  return `suppressed by disposition: ${suppressed} finding(s) dropped from this result because they're marked false-positive/won't-fix, disabled by \`.pi-lens.json\` rule policy, or suppressed by an inline \`pi-lens-ignore\` comment. Not a clean verdict for those locations \u2014 they were found, then intentionally hidden.`;
 }
 function applySeverityFilter(diags, severity) {
   if (severity === "all")
@@ -18388,7 +20783,6 @@ function formatDiag(diag) {
 
 // dist/tools/lens-diagnostics.js
 var MAX_DIAGNOSTICS_PER_FILE = 50;
-var MAX_PATHS_ENTRIES = MAX_BATCH_FILES;
 function notRequestedReason(host) {
   return `refreshRunners not requested this call (quick mode) \u2014 pass refreshRunners=cheap/all/cached to ${resolveLensToolName("lens_diagnostics", host) ?? "diagnostics"} mode=full to run it`;
 }
@@ -18407,7 +20801,7 @@ async function findFullScanBindingMismatches(results) {
       result.boundToCurrentDisk !== true && result.contentHash !== void 0
     ) {
       try {
-        const content = await fs23.readFile(result.filePath, "utf-8");
+        const content = await fs22.readFile(result.filePath, "utf-8");
         if (hashDiagnosticContent(content) !== result.contentHash) {
           mismatched.add(result);
         }
@@ -18422,8 +20816,19 @@ async function findFullScanBindingMismatches(results) {
   }
   return mismatched;
 }
+async function applyDeclarationRule(filePath, diagnostics) {
+  if (!diagnostics.some(isJediCompileVerdict)) {
+    return { kept: [...diagnostics], dropped: 0 };
+  }
+  const declared = await detectPythonTargetVersion(filePath);
+  const partition = partitionOutrankedPythonCompileVerdicts(diagnostics, declared);
+  if (partition.dropped > 0 && declared) {
+    recordPythonCompileVerdictDrop(filePath, declared, partition.dropped);
+  }
+  return declared ? { ...partition, declared } : partition;
+}
 function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSPService, flushPending = async () => {
-}, nextWriteIndex, captureLspStatusRepaint, getRuntime, isLensGuardEnabled2 = () => true) {
+}, nextWriteIndex, captureLspStatusRepaint, getRuntime, isLensGuardEnabled2 = () => true, getFlag) {
   const lspProbe = createLspDiagnosticsTool(nextWriteIndex, (info) => {
     const runtime = getRuntime?.();
     if (!runtime)
@@ -18441,10 +20846,10 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
       logExtension({
         subsystem: "git-guard",
         level: "debug",
-        message: `inline_blocker: retired for ${info.filePath}`
+        message: `inline_blocker: retired or narrowed to its uncovered source rows for ${info.filePath}`
       });
     }
-  }, getLspService);
+  }, getLspService, getFlag);
   return {
     name: "lens_diagnostics",
     label: "Project Diagnostics",
@@ -18456,12 +20861,10 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
         const files2 = details.filesChecked ?? details.filesScanned ?? 0;
         const noun = count === 1 ? "diagnostic" : "diagnostics";
         const filePath = typeof details?.filePath === "string" ? details.filePath : Array.isArray(args?.paths) && args.paths.length === 1 && typeof args.paths[0] === "string" ? args.paths[0] : void 0;
-        const singleFile = (details?.mode === "file" || files2 === 1) && typeof filePath === "string" ? ` ${path37.basename(filePath)}` : "";
+        const singleFile = (details?.mode === "file" || files2 === 1) && typeof filePath === "string" ? ` ${path38.basename(filePath)}` : "";
         const scope = files2 > 1 ? ` across ${files2} files` : singleFile;
         if (isError)
           return `lens_diagnostics lsp \u2014 ${text.split("\n")[0] ?? "error"}`;
-        if ((details.navigationOnlyFiles ?? 0) > 0)
-          return `lens_diagnostics${scope} \u2014 ${count} ${noun} \xB7 ${details.cleanFiles ?? 0} clean \xB7 ${details.navigationOnlyFiles} navigation-only`;
         if ((details.unconfirmedFiles ?? 0) > 0)
           return `lens_diagnostics${scope} \u2014 ${count} ${noun} \xB7 ${details.cleanFiles ?? 0} clean \xB7 ${details.unconfirmedFiles} unconfirmed${details.timedOutFiles ? ` (${details.timedOutFiles} timed out)` : ""}`;
         const outcomeCounts = details.outcomeCounts;
@@ -18474,7 +20877,10 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
         if ((details.incompleteFiles ?? 0) > 0)
           return `lens_diagnostics${scope} \u2014 incomplete (${details.incompleteFiles} files not confirmed)`;
         if (count === 0 && details.unconfirmed)
-          return details.timedOut ? `lens_diagnostics${scope} \u2014 timed out (result may be incomplete)` : `lens_diagnostics${scope} \u2014 unconfirmed (server cannot confirm clean)`;
+          return details.timedOut ? `lens_diagnostics${scope} \u2014 timed out (result may be incomplete)` : (
+            // #4322: no language server answered; it is not a silent server.
+            details.primaryUnavailable !== void 0 ? `lens_diagnostics${scope} \u2014 unconfirmed (no primary language server answered)` : `lens_diagnostics${scope} \u2014 unconfirmed (server cannot confirm clean)`
+          );
         return `lens_diagnostics${scope} \u2014 ${count} ${noun}`;
       }
       const scanning = scanningSummaryLine(details, text);
@@ -18499,15 +20905,16 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
       const w = details?.totalWarnings ?? 0;
       const adv = details?.totalAdvisories ?? 0;
       const files = details?.filesWithIssues ?? details?.filesChecked ?? 0;
+      const cacheVerdict = details?.validationStatus === "no-matching-findings" ? "no matching cached findings" : details?.validationStatus === "findings" ? void 0 : details?.validationStatus;
       if (b + e + w === 0) {
         const advisorySuffix = adv > 0 ? `, ${adv} hint${adv === 1 ? "" : "s"}` : "";
-        return `lens_diagnostics ${mode} \u2014 clean${advisorySuffix} (${files} files)${coldSuffix}${failedSuffix}`;
+        return `lens_diagnostics ${mode} \u2014 ${cacheVerdict ?? "clean"}${advisorySuffix} (${files} files)${coldSuffix}${failedSuffix}`;
       }
       const parts = [`${b} blocking`];
       if (b === 0 && e > 0)
         parts.push(`${e} errors`);
       parts.push(`${w} warnings`);
-      return `lens_diagnostics ${mode} \u2014 ${parts.join(" \xB7 ")} (${files} files)${coldSuffix}${failedSuffix}`;
+      return `lens_diagnostics ${mode} \u2014 ${parts.join(" \xB7 ")}${cacheVerdict === "inconclusive" || cacheVerdict === "unverified" ? ` \xB7 ${cacheVerdict}` : ""} (${files} files)${coldSuffix}${failedSuffix}`;
     }),
     parameters: Type.Object({
       source: Type.Optional(Type.String({
@@ -18532,6 +20939,8 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
       path: Type.Optional(Type.String({
         description: "One file or directory for source=lsp checks."
       })),
+      file: Type.Optional(Type.String({ description: "Alias for `path`." })),
+      filePath: Type.Optional(Type.String({ description: "Alias for `path`." })),
       concurrency: Type.Optional(Type.Number({
         description: "Source=lsp batch concurrency (maximum 16)."
       })),
@@ -18576,6 +20985,30 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
       const source = requestedSource ?? "session";
       const scope = requestedScope ?? (legacyMode === "delta" || legacyMode === void 0 ? source === "lsp" ? "paths" : "delta" : "workspace");
       const cwd = ctx.cwd ?? getCwd();
+      const singlePath = readFilePath(params);
+      if (singlePath.refusal) {
+        return {
+          content: [{ type: "text", text: singlePath.refusal }],
+          isError: true,
+          details: {}
+        };
+      }
+      const pathsRead = readPathsArgument(params.paths, { cwd });
+      if (pathsRead.refusal) {
+        return {
+          content: [{ type: "text", text: pathsRead.refusal }],
+          isError: true,
+          details: { mode: legacyMode ?? "delta", pathsError: true }
+        };
+      }
+      params = {
+        ...params,
+        ...singlePath.path ? { path: singlePath.path } : {}
+      };
+      const pathEntries = singlePath.path ? [
+        ...pathsRead.entries,
+        ...readPathsArgument([singlePath.path], { cwd }).entries
+      ] : pathsRead.entries;
       if (source === "lsp") {
         const lspParams = { ...params };
         delete lspParams.source;
@@ -18584,6 +21017,7 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
         const hasExplicitPaths = Array.isArray(lspParams.paths) && lspParams.paths.length > 0;
         if (scope === "workspace" && !hasExplicitPath && !hasExplicitPaths) {
           lspParams.path = cwd;
+          lspParams.pathAlreadyResolved = true;
         }
         const lspStart = Date.now();
         const result = await lspProbe.execute(_toolCallId, lspParams, signal, onUpdate, ctx.signal ? { cwd, signal: ctx.signal } : { cwd });
@@ -18620,24 +21054,11 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
       const maxProjectFiles = parsePositiveInt(params.maxProjectFiles);
       const maxLspFiles = parsePositiveInt(params.maxLspFiles);
       const includeGenerated = params.includeGenerated === true;
-      let pathsScope;
-      try {
-        pathsScope = resolvePathsScope(cwd, params.paths);
-      } catch (err) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: err instanceof Error ? err.message : String(err)
-            }
-          ],
-          isError: true,
-          details: { mode, pathsError: true }
-        };
-      }
+      const pathsScope = resolvePathsScope(pathEntries);
       const abortSignal = combineAbortSignals(signal, ctx.signal);
       await flushPending();
-      const staleDropped = await reconcileStaleWidgetFiles();
+      const stalePaths = [];
+      await reconcileStaleWidgetFiles((file) => stalePaths.push(file));
       if (mode === "all") {
         const dependencyGateStart = Date.now();
         const { demoted: dependencyDemoted, truncatedImports } = await reconcileStaleWidgetDependencyBlockers(cwd, getRuntime?.()?.turnIndex);
@@ -18653,7 +21074,8 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
             surface: "mode=all"
           }
         });
-        return formatAllMode(cwd, severity, void 0, void 0, staleDropped, pathsScope, dependencyDemoted);
+        const scopedStalePaths = stalePaths.filter(createScopedFileFilter(cwd, pathsScope));
+        return formatAllMode(cwd, severity, void 0, void 0, scopedStalePaths.length, pathsScope, void 0, { stalePaths: scopedStalePaths, host: ctx.host ?? "pi" });
       }
       if (mode === "full") {
         const ceiling = AbortSignal.timeout(FULL_SCAN_WALL_CLOCK_MS);
@@ -18672,7 +21094,13 @@ function createLensDiagnosticsTool(cacheManager2, getCwd, getLspService = getLSP
           nextWriteIndex,
           runtime: getRuntime?.(),
           analysisRoot: typeof params.analysisRoot === "string" ? params.analysisRoot : void 0,
-          host: ctx.host ?? "pi"
+          host: ctx.host ?? "pi",
+          // #4944: the sweep leaves an auxiliary the operator turned off
+          // (`--no-ast-grep`, `astGrep.enabled=false`) unstarted, as the
+          // `source=lsp` probe does.
+          ...getFlag && {
+            excludeServerIds: configDisabledAuxiliaryLspServerIds((name) => getFlag(name, cwd))
+          }
         });
       }
       return formatDeltaMode(cacheManager2, cwd, severity, pathsScope);
@@ -18702,7 +21130,7 @@ function appendProjectDiagnosticsDeltaLines(groups, cwd, report, severity, inclu
   const diagnostics = [...gated.live, ...gated.stale];
   const byFile = /* @__PURE__ */ new Map();
   for (const diagnostic of diagnostics) {
-    const filePath = path37.resolve(diagnostic.filePath);
+    const filePath = path38.resolve(diagnostic.filePath);
     const bucket = byFile.get(filePath) ?? [];
     bucket.push(diagnostic);
     byFile.set(filePath, bucket);
@@ -18829,17 +21257,17 @@ function applyDeltaFreshnessGate(files, cwd, generatedAt) {
   })).filter((file) => file.warnings.length > 0);
 }
 function getDeltaFileGroup(groups, cwd, filePath) {
-  const rel = path37.relative(cwd, filePath);
-  let group = groups.get(rel);
+  const key = normalizeMapKey(filePath);
+  let group = groups.get(key);
   if (!group) {
     group = {
-      rel,
+      rel: toProjectRelativePath(filePath, cwd),
       actionableLines: [],
       qualityLines: [],
       projectLines: [],
       incomplete: false
     };
-    groups.set(rel, group);
+    groups.set(key, group);
   }
   return group;
 }
@@ -18849,7 +21277,7 @@ function formatDeltaMode(cacheManager2, cwd, severity, pathsScope) {
   const reverifyIncompletePaths = new Set((actionableEntry?.data?.files ?? []).filter((file) => file.reVerifyIncomplete).map((file) => normalizeMapKey(file.filePath)));
   const actionable = actionableEntry?.data;
   const quality = qualityEntry?.data;
-  const policyMap = loadProjectRulePolicyMap(cwd);
+  const policyMap = loadProjectRulePolicy(cwd);
   const projectDelta = filterDeltaReportDispositions(loadProjectDiagnosticsDeltaReport(cwd), cwd, policyMap);
   const includeFile = createScopedFileFilter(cwd, pathsScope);
   const visibleWarningFiles = (files) => (files ?? []).filter((file) => includeFile(file.filePath)).map((file) => ({
@@ -18953,18 +21381,14 @@ Summary (turn delta): ${aw} actionable warning${aw === 1 ? "" : "s"} \xB7 ${cq} 
 function createCurrentIgnoreFilter(cwd) {
   try {
     const matcher = getProjectIgnoreMatcher(cwd);
-    return (filePath) => !matcher.isIgnored(path37.resolve(filePath), false);
+    return (filePath) => !matcher.isIgnored(path38.resolve(filePath), false);
   } catch {
     return () => true;
   }
 }
-function resolvePathsScope(cwd, rawPaths) {
-  if (!Array.isArray(rawPaths) || rawPaths.length === 0)
+function resolvePathsScope(entries) {
+  if (entries.length === 0)
     return void 0;
-  if (rawPaths.length > MAX_PATHS_ENTRIES) {
-    throw new Error(`paths has ${rawPaths.length} entries, over the ${MAX_PATHS_ENTRIES} cap. Narrow the list or omit paths to scan without a restriction.`);
-  }
-  const entries = rawPaths.filter((entry) => typeof entry === "string" && entry.trim().length > 0).map((entry) => path37.resolve(path37.isAbsolute(entry) ? entry : path37.resolve(cwd, entry)));
   const missing = [];
   const fileEntries = [];
   const existingEntries = [];
@@ -18987,9 +21411,9 @@ function resolvePathsScope(cwd, rawPaths) {
   }
   const fileKeys = new Set(fileEntries.map((f) => normalizeFilePath(f)));
   const dirPrefixes = dirEntries.map((d) => normalizeFilePath(d));
-  const includeExplicitFile = (filePath) => fileKeys.has(normalizeFilePath(path37.resolve(filePath)));
+  const includeExplicitFile = (filePath) => fileKeys.has(normalizeFilePath(path38.resolve(filePath)));
   const includeFile = (filePath) => {
-    const key = normalizeFilePath(path37.resolve(filePath));
+    const key = normalizeFilePath(path38.resolve(filePath));
     if (fileKeys.has(key))
       return true;
     return dirPrefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}/`));
@@ -19010,7 +21434,7 @@ function pathsScopeCacheOnlyNote(scope) {
 function pathsScopeMissingNote(scope) {
   if (!scope || scope.missing.length === 0)
     return "";
-  const shown2 = scope.missing.slice(0, 10).map((p) => path37.basename(p));
+  const shown2 = scope.missing.slice(0, 10).map((p) => path38.basename(p));
   const more = scope.missing.length > shown2.length ? ` (+${scope.missing.length - shown2.length} more)` : "";
   return `
 
@@ -19139,9 +21563,9 @@ function projectDiagnosticToWidget(diagnostic, filePath) {
     }
   };
 }
-function diagnosticDedupKey(filePath, diagnostic) {
+function diagnosticDedupKey(fileKey, diagnostic) {
   const ruleId = normalizeRuleId(diagnostic.rule ?? diagnostic.tool ?? "");
-  return [path37.resolve(filePath), diagnostic.line ?? "?", ruleId].join(":");
+  return [fileKey, diagnostic.line ?? "?", ruleId].join(":");
 }
 function runnerIdOf(diagnostic) {
   return diagnostic.tool ?? diagnostic.rule?.split(":", 1)[0] ?? "";
@@ -19154,10 +21578,7 @@ function runnerRetirementDecision(diagnostic, filePath, authoritativeRunnerIds, 
   }
   const realFilePath = realpathOrResolve(filePath);
   for (const entry of coverage) {
-    const root = entry.root;
-    const relative9 = path37.relative(root, realFilePath);
-    const underRoot = relative9 === "" || !relative9.startsWith("..") && !path37.isAbsolute(relative9);
-    if (!underRoot)
+    if (!isWithinPathForm(realFilePath, entry.root))
       continue;
     if (entry.files.has(realFilePath)) {
       return "retire";
@@ -19206,7 +21627,11 @@ var UNCONFIRMED_REASON_SENTENCE = {
   binding_mismatch: "the file changed on disk since this result was computed",
   // #2052: no server was asked. Say WHY and say it is permanent for this
   // path, so the reader does not read an empty result as "clean" or retry it.
-  outside_project_root: "the file is outside every initialized session project root, so no language server was asked"
+  outside_project_root: "the file is outside every initialized session project root, so no language server was asked",
+  // #4403: the per-file note's wording, one sentence per cause.
+  primary_unavailable: `no primary language server answered (${PRIMARY_UNAVAILABLE_CAUSE.unstarted})`,
+  primary_disabled: `no primary language server answered (${PRIMARY_UNAVAILABLE_CAUSE.disabled})`,
+  primary_disabled_fallback: `no primary language server answered (${PRIMARY_UNAVAILABLE_CAUSE.disabledFallback})`
 };
 var UNCONFIRMED_REASON_COUNT_LABEL = {
   budget: "timed out",
@@ -19215,7 +21640,10 @@ var UNCONFIRMED_REASON_COUNT_LABEL = {
   service_destroyed: "service reset mid-sweep",
   error: "errored",
   binding_mismatch: "stale binding",
-  outside_project_root: "outside project root"
+  outside_project_root: "outside project root",
+  primary_unavailable: "no primary started",
+  primary_disabled: "primary disabled in config",
+  primary_disabled_fallback: "primary disabled, fallback did not answer"
 };
 function classifyUnconfirmedReason(result, mismatched) {
   if (mismatched.has(result))
@@ -19279,14 +21707,36 @@ function tallyLspPrimaryVsAuxiliary(results) {
 function mergeDiagnosticsWithWidgetSummaries(widgetSummaries, lspResults, projectSnapshot, projectDelta, authoritativeLspFiles, authoritativeRunnerIds, authoritativeRunnerCoverage) {
   const byFile = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new Set();
+  const addDiagnostic = (filePath, widgetDiagnostic) => {
+    const fileKey = normalizeMapKey(filePath);
+    const existing = byFile.get(fileKey);
+    const diagnostics = existing ? [...existing.diagnostics] : [];
+    const key = diagnosticDedupKey(fileKey, widgetDiagnostic);
+    if (seen.has(key))
+      return;
+    seen.add(key);
+    diagnostics.push(widgetDiagnostic);
+    byFile.set(fileKey, summarizeDiagnostics(existing?.filePath ?? filePath, diagnostics, existing?.hasFinalSnapshot ?? true));
+  };
   for (const summary of widgetSummaries) {
-    const filePath = path37.resolve(summary.filePath);
-    if (authoritativeLspFiles?.has(filePath))
+    const filePath = path38.resolve(summary.filePath);
+    const fileKey = normalizeMapKey(summary.filePath);
+    if (authoritativeLspFiles?.has(fileKey))
       continue;
     const retained = summary.diagnostics ?? [];
     const diagnostics = retained.filter((diagnostic) => runnerRetirementDecision(diagnostic, filePath, authoritativeRunnerIds, authoritativeRunnerCoverage) !== "retire").map((d) => ({ ...d }));
+    const prior = byFile.get(fileKey);
+    if (prior) {
+      byFile.set(fileKey, {
+        ...prior,
+        hasFinalSnapshot: (prior.hasFinalSnapshot ?? true) && (summary.hasFinalSnapshot ?? true)
+      });
+      for (const diagnostic of diagnostics)
+        addDiagnostic(filePath, diagnostic);
+      continue;
+    }
     byFile.set(
-      filePath,
+      fileKey,
       // #2154 v4: when the filter retires rows, the stored tallies describe
       // diagnostics that are no longer delivered — full mode rendered
       // `main.go 1W … 1 warning` with no row under it. Recompute from what
@@ -19294,21 +21744,11 @@ function mergeDiagnosticsWithWidgetSummaries(widgetSummaries, lspResults, projec
       diagnostics.length === retained.length ? { ...summary, filePath, diagnostics } : summarizeDiagnostics(filePath, diagnostics, summary.hasFinalSnapshot ?? true)
     );
     for (const diagnostic of diagnostics) {
-      seen.add(diagnosticDedupKey(filePath, diagnostic));
+      seen.add(diagnosticDedupKey(fileKey, diagnostic));
     }
   }
-  const addDiagnostic = (filePath, widgetDiagnostic) => {
-    const existing = byFile.get(filePath);
-    const diagnostics = existing ? [...existing.diagnostics] : [];
-    const key = diagnosticDedupKey(filePath, widgetDiagnostic);
-    if (seen.has(key))
-      return;
-    seen.add(key);
-    diagnostics.push(widgetDiagnostic);
-    byFile.set(filePath, summarizeDiagnostics(filePath, diagnostics, existing?.hasFinalSnapshot ?? true));
-  };
   for (const result of lspResults) {
-    const filePath = path37.resolve(result.filePath);
+    const filePath = path38.resolve(result.filePath);
     for (const diagnostic of result.diagnostics ?? []) {
       addDiagnostic(filePath, {
         ...lspDiagnosticToWidget(diagnostic),
@@ -19328,25 +21768,25 @@ function mergeDiagnosticsWithWidgetSummaries(widgetSummaries, lspResults, projec
     });
   }
   for (const diagnostic of projectSnapshot?.diagnostics ?? []) {
-    addDiagnostic(path37.resolve(diagnostic.filePath), projectDiagnosticToWidget(diagnostic, diagnostic.filePath));
+    addDiagnostic(path38.resolve(diagnostic.filePath), projectDiagnosticToWidget(diagnostic, diagnostic.filePath));
   }
   for (const diagnostic of deltaDiagnostics) {
     const widget = projectDiagnosticToWidget(diagnostic, diagnostic.filePath);
     const observedAt = widget.observedAt ?? deltaObservedAt;
-    addDiagnostic(path37.resolve(diagnostic.filePath), {
+    addDiagnostic(path38.resolve(diagnostic.filePath), {
       ...widget,
       ...observedAt !== void 0 && { observedAt }
     });
   }
   return [...byFile.values()];
 }
-async function applyInlineSuppressionsToSummaries(summaries, cwd, policyMap) {
+async function applyInlineSuppressionsToSummaries(summaries, cwd, policyMap, dispositionDropped) {
   return Promise.all(summaries.map(async (summary) => {
     if (!summary.diagnostics.length)
       return summary;
     let content;
     try {
-      content = await fs23.readFile(summary.filePath, "utf8");
+      content = await fs22.readFile(summary.filePath, "utf8");
     } catch {
       const policyKept2 = applyRulePolicy(summary.diagnostics, policyMap, {
         root: cwd,
@@ -19354,21 +21794,30 @@ async function applyInlineSuppressionsToSummaries(summaries, cwd, policyMap) {
       });
       return policyKept2.length === summary.diagnostics.length ? summary : summarizeDiagnostics(summary.filePath, policyKept2, summary.hasFinalSnapshot);
     }
-    const { kept: policyKept } = applyFindingPolicy(summary.diagnostics, {
+    const { kept: policyKept, inlineKept, disposed } = applyFindingPolicy(summary.diagnostics, {
       cwd,
       filePath: summary.filePath,
       content,
       policyMap
     });
-    for (const d of policyKept) {
+    const pythonKept = await applyDeclarationRule(summary.filePath, policyKept);
+    if (disposed.length < inlineKept.length) {
+      const survivors = new Set(disposed);
+      for (const d of inlineKept) {
+        if (!survivors.has(d))
+          dispositionDropped.push(d);
+      }
+    }
+    for (const d of pythonKept.kept) {
       const { weak } = anchorsForDiagnostic(cwd, summary.filePath, d, content);
       if (getDisposition(cwd, weak)?.disposition === "flagged") {
         d.flagged = true;
       }
     }
-    if (policyKept.length === summary.diagnostics.length)
+    if (pythonKept.kept.length === summary.diagnostics.length) {
       return summary;
-    return summarizeDiagnostics(summary.filePath, policyKept, summary.hasFinalSnapshot);
+    }
+    return summarizeDiagnostics(summary.filePath, pythonKept.kept, summary.hasFinalSnapshot);
   }));
 }
 function shouldUseCachedProjectDiagnostics(value) {
@@ -19482,7 +21931,8 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
       onProgress: options.onProgress,
       onServerReady: options.onServerReady,
       nextWriteIndex: options.nextWriteIndex,
-      files: explicitFiles
+      files: explicitFiles,
+      excludeServerIds: options.excludeServerIds
     }),
     getProjectDiagnosticsSnapshotForFullMode(cwd, {
       ...options,
@@ -19502,7 +21952,7 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
     };
   }
   const aborted = signal?.aborted ?? false;
-  const lspResults = await demoteInferredProjectSweepResults(
+  let lspResults = await demoteInferredProjectSweepResults(
     rawLspResults.filter((result2) => includeFile(result2.filePath)),
     cwd,
     lspService,
@@ -19510,6 +21960,20 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
     // so the probe loop that post-processes them must be too.
     signal
   );
+  const pythonSweep = await mapWithConcurrency(lspResults, PYTHON_DECLARATION_CONCURRENCY, async (result2) => {
+    const pythonKept = await applyDeclarationRule(result2.filePath, result2.diagnostics);
+    if (pythonKept.dropped === 0)
+      return { result: result2 };
+    return {
+      result: { ...result2, diagnostics: pythonKept.kept },
+      withheld: pythonKept.declared && {
+        count: pythonKept.dropped,
+        declared: pythonKept.declared
+      }
+    };
+  });
+  lspResults = pythonSweep.map((entry) => entry.result);
+  const withheldCompile = mergeWithheld(pythonSweep.map((entry) => "withheld" in entry ? entry.withheld : void 0));
   const mismatchedLspResults = await findFullScanBindingMismatches(lspResults);
   const confirmedLspResults = lspResults.filter((result2) => !result2.timedOut && !result2.error && !mismatchedLspResults.has(result2));
   const fullyCoveredLspResults = confirmedLspResults.filter((result2) => (result2.unconfirmedServerIds?.length ?? 0) === 0);
@@ -19517,13 +21981,23 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
   const unconfirmedLspResults = lspResults.filter((result2) => result2.timedOut || result2.error || mismatchedLspResults.has(result2));
   const authoritativeLspFiles = /* @__PURE__ */ new Set();
   const unreconciledFiles = /* @__PURE__ */ new Set();
+  const policyMap = loadProjectRulePolicy(cwd);
   for (const result2 of fullyCoveredLspResults) {
+    const fileKey = normalizeMapKey(result2.filePath);
     try {
       const diagnostics = convertLspDiagnostics(result2.diagnostics, result2.filePath, { scanOrigin: "lens_diagnostics_full" });
       const retagged = retagAuxiliaryDiagnostics(diagnostics, result2.diagnostics, "", { cwd, fileRole: detectFileRole(result2.filePath) });
+      const content = readFileContent(result2.filePath);
+      const { kept: policyKept } = applyFindingPolicy(retagged, {
+        cwd,
+        filePath: result2.filePath,
+        content: content ?? "",
+        policyMap
+      });
+      const pythonKept = await applyDeclarationRule(result2.filePath, policyKept);
       const retired = reconcileScanDiagnostics(
         result2.filePath,
-        retagged,
+        pythonKept.kept,
         true,
         // The service reserves this token when the file enters the scan. The
         // fallback preserves compatibility with older test doubles/services.
@@ -19536,32 +22010,31 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
         result2.observedAt
       );
       if (retired === true) {
-        authoritativeLspFiles.add(path37.resolve(result2.filePath));
+        authoritativeLspFiles.add(fileKey);
       } else {
-        unreconciledFiles.add(path37.resolve(result2.filePath));
+        unreconciledFiles.add(fileKey);
         recordDegradationOnce({
           kind: "diagnostic-retained-unreconciled",
-          subject: `${path37.resolve(result2.filePath)}:lsp`,
+          subject: `${path38.resolve(result2.filePath)}:lsp`,
           reason: "confirmed diagnostic result could not replace retained widget state"
         });
       }
     } catch {
-      unreconciledFiles.add(path37.resolve(result2.filePath));
+      unreconciledFiles.add(fileKey);
       recordDegradationOnce({
         kind: "diagnostic-retained-unreconciled",
-        subject: `${path37.resolve(result2.filePath)}:lsp`,
+        subject: `${path38.resolve(result2.filePath)}:lsp`,
         reason: "confirmed diagnostic result failed during widget reconciliation"
       });
     }
   }
-  const policyMap = loadProjectRulePolicyMap(cwd);
   const scannedSnapshot = filterProjectDiagnosticsSnapshot(rawProjectSnapshot, includeFile);
   const authoritativeRunnerIds = new Set(extracted.analyzed ?? []);
   const authoritativeRunnerCoverage = extracted.authoritativeCoverage ?? [];
   const foldedProjectSnapshot = foldExtraDiagnosticsIntoSnapshot(scannedSnapshot, extracted.diagnostics.filter((d) => includeFile(d.filePath)), extracted.runners, cwd);
   const projectSnapshot = applyProjectRulePolicy(foldedProjectSnapshot, policyMap, cwd);
   const projectDelta = applyProjectRulePolicy(filterProjectDiagnosticsDeltaReport(loadProjectDiagnosticsDeltaReport(cwd), includeFile), policyMap, cwd);
-  const authoritativeRetiredCount = getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath) && authoritativeLspFiles.has(path37.resolve(summary.filePath)) && (summary.diagnostics?.length ?? 0) > 0).length;
+  const authoritativeRetiredCount = getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath) && authoritativeLspFiles.has(normalizeMapKey(summary.filePath)) && (summary.diagnostics?.length ?? 0) > 0).length;
   if (authoritativeRetiredCount > 0) {
     logLatency({
       type: "phase",
@@ -19614,16 +22087,17 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
       }
     });
   }
-  let summaries = await applyInlineSuppressionsToSummaries(mergeDiagnosticsWithWidgetSummaries(getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath)), confirmedLspResults, projectSnapshot, projectDelta, authoritativeLspFiles, authoritativeRunnerIds, authoritativeRunnerCoverage), cwd, policyMap);
+  const dispositionDropped = [];
+  let summaries = await applyInlineSuppressionsToSummaries(mergeDiagnosticsWithWidgetSummaries(getFileDiagnosticSummaries().filter((summary) => includeFile(summary.filePath)), confirmedLspResults, projectSnapshot, projectDelta, authoritativeLspFiles, authoritativeRunnerIds, authoritativeRunnerCoverage), cwd, policyMap, dispositionDropped);
   if (unreconciledFiles.size > 0) {
-    summaries = summaries.map((summary) => unreconciledFiles.has(path37.resolve(summary.filePath)) ? summarizeDiagnostics(summary.filePath, markUnreconciledFindings(summary.diagnostics), summary.hasFinalSnapshot) : summary);
+    summaries = summaries.map((summary) => unreconciledFiles.has(normalizeMapKey(summary.filePath)) ? summarizeDiagnostics(summary.filePath, markUnreconciledFindings(summary.diagnostics), summary.hasFinalSnapshot) : summary);
   }
   const parsedProjectScanObservedAt = projectSnapshot?.scannedAt ? Date.parse(projectSnapshot.scannedAt) : void 0;
   const projectScanObservedAt = parsedProjectScanObservedAt !== void 0 && Number.isFinite(parsedProjectScanObservedAt) ? parsedProjectScanObservedAt : void 0;
   for (const summary of summaries) {
     reconcileCorrelatedScanDiagnostics(summary.filePath, summary.diagnostics, nextWriteIndex?.(), projectScanObservedAt);
   }
-  const result = await formatAllMode(cwd, severity, summaries, {
+  const formatted = await formatAllMode(cwd, severity, summaries, {
     mode: "full",
     lspFilesChecked: rawLspResults.length,
     partial: aborted,
@@ -19638,20 +22112,49 @@ async function formatFullMode(cwd, severity, lspService, cacheManager2, options 
       sources: projectDelta.sources,
       turnIndex: projectDelta.turnIndex
     }
-  }, 0, pathsScope);
+  }, 0, pathsScope, {
+    dropped: dispositionDropped,
+    // #1617: the #1616 suppressed-bucket rule applied to the analyzers —
+    // a finding marked false-positive/won't-fix drops out of
+    // `diagnostics` (fresh-fetch.ts's `record()`), and the drop stays
+    // visible as a count. Review-round F4 (#1625): per-lane attribution
+    // ("gitleaks 2, knip 1") says WHICH analyzer's marks are doing the
+    // suppressing. A lane that's 100% suppressed still won't appear in
+    // `runners`/`cold` as distinct from "ran clean" — #1623's territory.
+    analyzers: extracted.dispositionSuppressed ?? 0,
+    analyzersByLane: extracted.dispositionSuppressedByLane ?? {}
+  });
+  const withheldText = withheldCompileNote(withheldCompile);
+  const result = withheldText ? {
+    ...formatted,
+    content: [
+      {
+        type: "text",
+        text: `${formatted.content[0].text}
+
+${withheldText}`
+      }
+    ],
+    details: { ...formatted.details, withheldCompile }
+  } : formatted;
   const missingNote = pathsScopeMissingNote(pathsScope);
   const unconfirmedByReason = tallyUnconfirmedReasons(unconfirmedLspResults, mismatchedLspResults);
   const lspServerBreakdown = tallyLspByPrimaryServer(confirmedLspResults, unconfirmedLspResults);
   const serverBreakdownClause = lspServerBreakdown.size > 1 ? ` \u2014 by server: ${formatLspServerBreakdown(lspServerBreakdown)}.` : "";
+  const retryClause = [...unconfirmedByReason.keys()].every((reason) => reason === "primary_disabled") ? "" : "; re-run mode=full to retry them";
   const unconfirmedLspNote = unconfirmedLspResults.length > 0 ? `
 
-\u26A0 LSP sweep: ${confirmedLspResults.length} file(s) confirmed via LSP, ${unconfirmedLspResults.length} unconfirmed (${formatUnconfirmedReasonClause(unconfirmedByReason)})${serverBreakdownClause} \u2014 NOT the same as 0 diagnostics for: ${unconfirmedLspResults.slice(0, 20).map((result2) => result2.filePath).join(", ")}${unconfirmedLspResults.length > 20 ? ", \u2026" : ""}. These files' LSP contribution is excluded from this result; re-run mode=full to retry them (they may still show findings above from cached/project-runner state).` : "";
+\u26A0 LSP sweep: ${confirmedLspResults.length} file(s) confirmed via LSP, ${unconfirmedLspResults.length} unconfirmed (${formatUnconfirmedReasonClause(unconfirmedByReason)})${serverBreakdownClause} \u2014 NOT the same as 0 diagnostics for: ${unconfirmedLspResults.slice(0, 20).map((result2) => result2.filePath).join(", ")}${unconfirmedLspResults.length > 20 ? ", \u2026" : ""}. These files' LSP contribution is excluded from this result${retryClause} (they may still show findings above from cached/project-runner state).` : "";
   const uncoveredScannerIds = [
     ...new Set(partiallyCoveredLspResults.flatMap((result2) => result2.unconfirmedServerIds ?? []))
   ].sort((a, b) => Number(a > b) - Number(a < b));
   const auxiliaryCoverageNote = uncoveredScannerIds.length > 0 ? `
 
 \u26A0 Auxiliary coverage incomplete: ${uncoveredScannerIds.join(", ")} did not answer for ${partiallyCoveredLspResults.length} file(s). Findings from answering servers are included; this is not a clean verdict for the named scanner lane(s).` : "";
+  const switchedOffServerIds = [...options.excludeServerIds ?? []].sort((a, b) => Number(a > b) - Number(a < b));
+  const switchedOffNote = switchedOffServerIds.length > 0 ? `
+
+Switched off, not run (auxiliary LSP): ${switchedOffServerIds.join(", ")}.` : "";
   const lspPrimaryVsAuxiliary = tallyLspPrimaryVsAuxiliary(confirmedLspResults);
   logExtension({
     subsystem: "lsp-diagnostics",
@@ -19693,11 +22196,7 @@ test-runner coverage is edit-scoped, NOT a full-project run: its findings only r
   const failedNote = failedAnalyzers.length > 0 ? `
 
 failed (ran, but no trustworthy result): ${failedAnalyzers.map(({ id, summary }) => `${id} \u2014 ${summary}`).join(", ")}. These analyzers were not cached and will be retried; absence of their findings is NOT a clean verdict.` : "";
-  const dispositionSuppressedByLaneText = Object.entries(extracted.dispositionSuppressedByLane ?? {}).map(([id, count]) => `${id} ${count}`).join(", ");
-  const dispositionSuppressedNote = (extracted.dispositionSuppressed ?? 0) > 0 ? `
-
-suppressed by disposition: ${extracted.dispositionSuppressed} finding(s) dropped from this result because they're marked false-positive or won't-fix (${dispositionSuppressedByLaneText}). Not a clean verdict for those locations \u2014 they were found, then intentionally hidden.` : "";
-  const walkUnsafeRoot = explicitFiles === void 0 && isAtOrAboveHomeDir(cwd);
+  const walkUnsafeRoot = explicitFiles === void 0 && isAtOrAboveHomeDir(realpathOrResolve(cwd), realpathOrResolve(os7.homedir()));
   const walkUnsafeRootNote = walkUnsafeRoot ? `
 
 project file walk skipped: the working directory resolves at or above the home directory, so the cheap project scan and the LSP workspace sweep would each enumerate every unrelated tree under it. Re-run from inside a project directory. Absence of their findings is NOT a clean verdict.` : "";
@@ -19744,7 +22243,9 @@ served from cache this call (not re-run): ${cachedAgeEntries.map(([id, ms]) => `
       coldReasons: extracted.coldReasons ?? {},
       failedAnalyzers,
       analyzerTimingsMs: extracted.timings,
-      dispositionSuppressed: extracted.dispositionSuppressed ?? 0,
+      // #1634: every lane the call filtered — the sweep's and the
+      // analyzers' — in one count, the one the text states.
+      dispositionSuppressed: result.details.dispositionSuppressed ?? 0,
       dispositionSuppressedByLane: extracted.dispositionSuppressedByLane ?? {},
       // #1623: ms-old each cache-read-by-design lane's data was (today, only
       // test-runner) — lets a caller distinguish "just ran" from "served
@@ -19799,18 +22300,18 @@ served from cache this call (not re-run): ${cachedAgeEntries.map(([id, ms]) => `
       content: [
         {
           type: "text",
-          text: result.content[0].text + note + unconfirmedLspNote + auxiliaryCoverageNote + lspPrimaryVsAuxiliaryNote + partialNote + coldNote + testRunnerEditScopedNote + failedNote + dispositionSuppressedNote + walkUnsafeRootNote + scanTruncatedNote + generatedSkipNote + abortedNote + freshNote + cachedAgeNote + cheapScanStatusNote + missingNote
+          text: result.content[0].text + note + unconfirmedLspNote + auxiliaryCoverageNote + switchedOffNote + lspPrimaryVsAuxiliaryNote + partialNote + coldNote + testRunnerEditScopedNote + failedNote + walkUnsafeRootNote + scanTruncatedNote + generatedSkipNote + abortedNote + freshNote + cachedAgeNote + cheapScanStatusNote + missingNote
         }
       ],
       details: { ...resultWithCold.details, timedOut }
     };
   }
-  if (missingNote || coldNote || partialNote || testRunnerEditScopedNote || failedNote || dispositionSuppressedNote || walkUnsafeRootNote || scanTruncatedNote || generatedSkipNote || abortedNote || freshNote || cachedAgeNote || cheapScanStatusNote || unconfirmedLspNote || auxiliaryCoverageNote || lspPrimaryVsAuxiliaryNote) {
+  if (missingNote || coldNote || partialNote || testRunnerEditScopedNote || failedNote || walkUnsafeRootNote || scanTruncatedNote || generatedSkipNote || abortedNote || freshNote || cachedAgeNote || cheapScanStatusNote || unconfirmedLspNote || auxiliaryCoverageNote || switchedOffNote || lspPrimaryVsAuxiliaryNote) {
     return {
       content: [
         {
           type: "text",
-          text: result.content[0].text + unconfirmedLspNote + auxiliaryCoverageNote + lspPrimaryVsAuxiliaryNote + partialNote + coldNote + testRunnerEditScopedNote + failedNote + dispositionSuppressedNote + walkUnsafeRootNote + scanTruncatedNote + generatedSkipNote + abortedNote + freshNote + cachedAgeNote + cheapScanStatusNote + missingNote
+          text: result.content[0].text + unconfirmedLspNote + auxiliaryCoverageNote + switchedOffNote + lspPrimaryVsAuxiliaryNote + partialNote + coldNote + testRunnerEditScopedNote + failedNote + walkUnsafeRootNote + scanTruncatedNote + generatedSkipNote + abortedNote + freshNote + cachedAgeNote + cheapScanStatusNote + missingNote
         }
       ],
       details: resultWithCold.details
@@ -19826,12 +22327,19 @@ async function projectResolvedCwd(summary, cwd) {
     diagnostics: summary.diagnostics ?? []
   };
 }
-async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummaries(), detailOverrides = { mode: "all" }, staleDropped = 0, pathsScope, dependencyDemoted = 0) {
-  const footerCapped = summaries.reduce((n, s) => n + (s.diagnostics ?? []).filter((d) => d.footerRetired === true).length, 0);
-  const staleNote = (staleDropped > 0 ? ` (${staleDropped} changed file${staleDropped === 1 ? "" : "s"} omitted as stale \u2014 use mode=full to rescan)` : "") + (dependencyDemoted > 0 ? ` (${dependencyDemoted} blocking finding${dependencyDemoted === 1 ? "" : "s"} demoted to [stale] \u2014 an imported file changed since; re-run to confirm)` : "") + (footerCapped > 0 ? ` (${footerCapped} demoted finding${footerCapped === 1 ? "" : "s"} capped after ${DEPENDENCY_DRIFT_MAX_DELIVERIES} unconfirmed deliveries \u2014 no longer shown in the pi-lens footer, still listed here; re-run to confirm)` : "");
+async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummaries(), detailOverrides = { mode: "all" }, staleDropped = 0, pathsScope, fullModeDisposition = { dropped: [], analyzers: 0, analyzersByLane: {} }, sessionEvidence) {
   const isFullMode = detailOverrides.mode === "full";
   const includeFile = createScopedFileFilter(cwd, pathsScope);
-  const policyMap = loadProjectRulePolicyMap(cwd);
+  const policyMap = loadProjectRulePolicy(cwd);
+  const inScope = (rows) => rows.reduce((n, d) => n + (matchesSeverity(d, severity) ? 1 : 0), 0);
+  const sweepSuppressed = isFullMode ? inScope(fullModeDisposition.dropped) : 0;
+  const lanes = [];
+  for (const [id, count] of Object.entries(fullModeDisposition.analyzersByLane)) {
+    if (count > 0)
+      lanes.push(`${id} ${count}`);
+  }
+  const suppressedBreakdown = lanes.length > 0 ? `analyzer lanes: ${lanes.join(", ")}` : void 0;
+  let dispositionSuppressed = sweepSuppressed + fullModeDisposition.analyzers;
   const dispositioned = isFullMode ? summaries : summaries.map((s) => {
     const diagnostics = s.diagnostics ?? [];
     const kept = applyCachedDispositions(diagnostics, cwd, s.filePath);
@@ -19839,6 +22347,9 @@ async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummari
       root: cwd,
       filePath: s.filePath
     });
+    if (includeFile(s.filePath)) {
+      dispositionSuppressed += inScope(getSuppressedDiagnostics(s.filePath)) + inScope(diagnostics) - inScope(kept);
+    }
     if (policyKept.length === kept.length && kept.length === diagnostics.length)
       return s;
     return summarizeDiagnostics(s.filePath, policyKept, s.hasFinalSnapshot);
@@ -19856,6 +22367,10 @@ async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummari
     return summarizeDiagnostics(s.filePath, diagnostics, s.hasFinalSnapshot);
   });
   const visibleSummaries = eofGated.filter((s) => includeFile(s.filePath));
+  const visibleDiagnostics = visibleSummaries.flatMap((s) => s.diagnostics ?? []);
+  const dependencyDemoted = visibleDiagnostics.filter((d) => d.stale && d.staleReason === "dependency-drift").length;
+  const footerCapped = visibleDiagnostics.filter((d) => d.footerRetired === true).length;
+  const staleNote = (dependencyDemoted > 0 ? ` (${dependencyDemoted} blocking finding${dependencyDemoted === 1 ? "" : "s"} demoted to [stale] \u2014 an imported file changed since; re-run to confirm)` : "") + (footerCapped > 0 ? ` (${footerCapped} demoted finding${footerCapped === 1 ? "" : "s"} capped after ${DEPENDENCY_DRIFT_MAX_DELIVERIES} unconfirmed deliveries \u2014 no longer shown in the pi-lens footer, still listed here; re-run to confirm)` : "");
   const withIssues = visibleSummaries.filter((s) => {
     if (severity === "error")
       return s.blocking > 0 || s.errors > 0;
@@ -19863,15 +22378,84 @@ async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummari
       return s.blocking > 0 || s.errors > 0 || s.warnings > 0;
     return s.blocking > 0 || s.errors > 0 || s.warnings > 0 || s.advisories > 0 || (s.diagnostics ?? []).some((d) => d.stale);
   });
-  const pathsNote = isFullMode ? "" : pathsScopeCacheOnlyNote(pathsScope);
+  let validationStatus;
+  let validationNote = "";
+  let evidenceDetails = {};
+  if (!isFullMode) {
+    const pending2 = visibleSummaries.filter((s) => !s.hasFinalSnapshot);
+    const stale = visibleSummaries.filter((s) => (s.diagnostics ?? []).some((d) => d.stale));
+    const staleDiagnosticCount = visibleDiagnostics.filter((d) => d.stale).length;
+    const requestedFiles = [
+      ...pathsScope?.existingEntries ?? [],
+      ...pathsScope?.missing ?? []
+    ];
+    const observed = requestedFiles.length > 0 ? new Set([
+      ...visibleSummaries.map((s) => s.filePath),
+      ...sessionEvidence?.stalePaths ?? []
+    ].map(normalizeFilePath)) : /* @__PURE__ */ new Set();
+    const unverified = requestedFiles.filter((file) => !observed.has(normalizeFilePath(file)));
+    const rescanPaths = [
+      .../* @__PURE__ */ new Set([
+        ...sessionEvidence?.stalePaths ?? [],
+        ...pending2.map((s) => s.filePath),
+        ...stale.map((s) => s.filePath),
+        ...unverified
+      ])
+    ];
+    validationStatus = staleDropped > 0 || staleDiagnosticCount > 0 || pending2.length > 0 ? "inconclusive" : visibleSummaries.length === 0 || unverified.length > 0 ? "unverified" : withIssues.length > 0 ? "findings" : "no-matching-findings";
+    const nextTool = resolveLensToolName("lens_diagnostics", sessionEvidence?.host ?? "pi");
+    const nextPaths = rescanPaths.slice(0, MAX_PATHS_ENTRIES);
+    const remainingRescanPathCount = rescanPaths.length - nextPaths.length;
+    evidenceDetails = {
+      validationStatus,
+      pendingFileCount: pending2.length,
+      staleDiagnosticCount,
+      unverifiedFileCount: unverified.length,
+      remainingRescanPathCount,
+      ...nextPaths.length > 0 ? {
+        nextCheck: {
+          tool: nextTool,
+          source: "lsp",
+          scope: "paths",
+          paths: nextPaths
+        }
+      } : {}
+    };
+    const omittedClause = staleDropped > 0 ? `, ${staleDropped} changed file${staleDropped === 1 ? "" : "s"} omitted as stale` : "";
+    validationNote = validationStatus === "inconclusive" || validationStatus === "unverified" ? `Session cache ${validationStatus} \u2014 not a clean verdict: ${pending2.length} pending file(s), ${staleDiagnosticCount} stale finding(s), ${unverified.length} requested file(s) without cached evidence${omittedClause}. Not active validation.
+Next check: ${nextTool ?? "diagnostics"} source=lsp scope=paths${nextPaths.length > 0 ? ` paths=${JSON.stringify(nextPaths)}` : " with the changed paths"}.` + (remainingRescanPathCount > 0 ? ` ${remainingRescanPathCount} more path(s) need a check; narrow or batch the remaining paths.` : "") + " LSP may not cover these files; use a file-appropriate validator for unsupported or missing files.\n" : "Session cache only; not active validation.\n";
+    logLatency({
+      type: "phase",
+      phase: "lens_diagnostics_session_evidence",
+      toolName: "lens_diagnostics",
+      filePath: cwd,
+      durationMs: 0,
+      metadata: {
+        validationStatus,
+        pendingFileCount: pending2.length,
+        staleDiagnosticCount,
+        staleDropped,
+        unverifiedFileCount: unverified.length,
+        remainingRescanPathCount
+      }
+    });
+  }
+  const pathsNote = isFullMode || evidenceDetails.nextCheck !== void 0 ? "" : pathsScopeCacheOnlyNote(pathsScope);
+  const suppressedLine = dispositionSuppressedLine(dispositionSuppressed, suppressedBreakdown);
+  const suppressedNote = suppressedLine ? `
+${suppressedLine}` : "";
+  const suppressedDetails = dispositionSuppressed > 0 ? { dispositionSuppressed } : {};
   if (withIssues.length === 0) {
-    const text = (visibleSummaries.length === 0 ? "No files diagnosed yet this session." : `No ${severity === "all" ? "" : severity + " "}issues across ${visibleSummaries.length} file${visibleSummaries.length === 1 ? "" : "s"} diagnosed this session. \u2713`) + staleNote + pathsNote;
+    const text = (visibleSummaries.length === 0 ? "No files diagnosed yet this session.\n" : validationStatus === "inconclusive" || validationStatus === "unverified" ? "" : `No ${severity === "all" ? "" : severity + " "}issues across ${visibleSummaries.length} file${visibleSummaries.length === 1 ? "" : "s"} diagnosed this session. \u2713
+`) + validationNote + staleNote + suppressedNote + pathsNote;
     return {
       content: [{ type: "text", text }],
       details: {
         ...detailOverrides,
+        ...evidenceDetails,
         filesChecked: visibleSummaries.length,
-        staleDropped
+        staleDropped,
+        ...suppressedDetails
       }
     };
   }
@@ -19883,7 +22467,7 @@ async function formatAllMode(cwd, severity, summaries = getFileDiagnosticSummari
   let totalWarnings = 0;
   let totalAdvisories = 0;
   for (const s of rendered) {
-    const rel = path37.relative(cwd, s.filePath);
+    const rel = toProjectRelativePath(s.filePath, cwd);
     const parts = [];
     if (s.blocking > 0)
       parts.push(`\u{1F534} ${s.blocking} blocking`);
@@ -19935,23 +22519,28 @@ Summary (${visibleSummaries.length} files diagnosed this session):`,
   ].filter(Boolean).join("\n");
   return {
     content: [
-      { type: "text", text: lines.join("\n") + summary + staleNote }
+      {
+        type: "text",
+        text: validationNote + lines.join("\n") + summary + staleNote + suppressedNote
+      }
     ],
     details: {
       ...detailOverrides,
+      ...evidenceDetails,
       filesWithIssues: withIssues.length,
       totalBlocking,
       totalErrors,
       totalWarnings,
       totalAdvisories,
-      staleDropped
+      staleDropped,
+      ...suppressedDetails
     }
   };
 }
 
 // dist/tools/lsp-navigation.js
-import * as nodeFs2 from "node:fs";
-import * as path38 from "node:path";
+import * as nodeFs4 from "node:fs";
+import * as path39 from "node:path";
 import { fileURLToPath as fileURLToPath2, pathToFileURL as pathToFileURL2 } from "node:url";
 
 // dist/tools/lsp-structured-output.js
@@ -20282,6 +22871,43 @@ function normalizeOperation(value) {
 function isValidOperation(value) {
   return VALID_OPERATIONS.includes(value);
 }
+function rangeProblem(value) {
+  if (!value || typeof value !== "object")
+    return " must be a range object";
+  for (const end of ["start", "end"]) {
+    const position = value[end];
+    if (!position || typeof position !== "object")
+      return `.${end} must be a position object`;
+    for (const axis of ["line", "character"]) {
+      if (typeof position[axis] !== "number")
+        return `.${end}.${axis} must be a number`;
+    }
+  }
+  return void 0;
+}
+function checkCallHierarchyItem(value) {
+  if (value === void 0 || value === null)
+    return { problem: "callHierarchyItem parameter required" };
+  if (typeof value !== "object" || Array.isArray(value))
+    return {
+      problem: "callHierarchyItem must be the object prepareCallHierarchy returned"
+    };
+  const item = value;
+  for (const [field, type] of [
+    ["name", "string"],
+    ["kind", "number"],
+    ["uri", "string"]
+  ]) {
+    if (typeof item[field] !== type)
+      return { problem: `callHierarchyItem.${field} must be a ${type}` };
+  }
+  for (const field of ["range", "selectionRange"]) {
+    const problem = rangeProblem(item[field]);
+    if (problem)
+      return { problem: `callHierarchyItem.${field}${problem}` };
+  }
+  return { item: value };
+}
 function operationSupportStatus(operation, support) {
   if (!support)
     return null;
@@ -20310,6 +22936,12 @@ function operationSupportStatus(operation, support) {
   if (operation === "prepareCallHierarchy" || operation === "incomingCalls" || operation === "outgoingCalls")
     return support.callHierarchy;
   return null;
+}
+function noServerAnsweredText(filePath) {
+  const { disabledServerIds, fallbackServerIds } = disabledPrimaries(filePath);
+  const cause = primaryUnavailableCause([...fallbackServerIds, ...disabledServerIds], disabledServerIds, fallbackServerIds);
+  const who = disabledServerIds.length > 0 ? `Primary LSP (${disabledServerIds.join(", ")}) did not answer` : "no language server answered";
+  return `No LSP server available for ${path39.basename(filePath)}: ${who} (${PRIMARY_UNAVAILABLE_CAUSE[cause]}).`;
 }
 function emptyReasonForOperation(operation) {
   if (operation === "signatureHelp")
@@ -20661,7 +23293,7 @@ function collectSearchReadsForOperation(operation, result, callHierarchyItem) {
 }
 function formatCapabilities(snapshots, filePath) {
   if (snapshots.length === 0) {
-    return filePath ? `No active LSP server for ${path38.basename(filePath)}. Open/touch the file first or run another LSP operation to start the server.` : "No active LSP servers in this session.";
+    return filePath ? `No active LSP server for ${path39.basename(filePath)}. Open/touch the file first or run another LSP operation to start the server.` : "No active LSP servers in this session.";
   }
   const rows = [
     ["definition", (s) => !!s.operationSupport.definition],
@@ -20691,7 +23323,7 @@ function formatCapabilities(snapshots, filePath) {
   ];
   const lines = [];
   for (const snapshot of snapshots) {
-    const label = filePath ? `${snapshot.serverId} (${path38.basename(filePath)})` : `${snapshot.serverId} (${snapshot.root})`;
+    const label = filePath ? `${snapshot.serverId} (${path39.basename(filePath)})` : `${snapshot.serverId} (${snapshot.root})`;
     lines.push(label);
     for (const [name, supported, note] of rows) {
       const suffix = note ? ` (${note})` : "";
@@ -20719,10 +23351,10 @@ function classifyCodeActions(actions) {
   }
   return { quickfix, refactor, other };
 }
-async function openFileBestEffort(lspService, filePath, waitForDiagnostics = false) {
+async function openFileBestEffort(lspService, filePath, waitForDiagnostics = false, excludeServerIds) {
   let fileContent;
   try {
-    fileContent = nodeFs2.readFileSync(filePath, "utf-8");
+    fileContent = nodeFs4.readFileSync(filePath, "utf-8");
   } catch {
     return void 0;
   }
@@ -20732,56 +23364,12 @@ async function openFileBestEffort(lspService, filePath, waitForDiagnostics = fal
     await lspService.touchFile(filePath, fileContent, {
       diagnostics: waitForDiagnostics ? "document" : "none",
       source: "lsp_navigation",
-      clientScope: waitForDiagnostics ? "all" : "primary"
+      clientScope: waitForDiagnostics ? "all" : "primary",
+      ...excludeServerIds !== void 0 && { excludeServerIds }
     });
   } catch {
   }
   return fileContent;
-}
-var RENAME_MTIME_MARGIN_MS = 2e3;
-function captureRenameExpectedContent(lspService, edit, cwd, targetFilePath, targetContent, requestedAtMs) {
-  const expected = /* @__PURE__ */ new Map();
-  let targetRealPath;
-  if (targetContent !== void 0) {
-    try {
-      targetRealPath = nodeFs2.realpathSync.native(targetFilePath);
-    } catch {
-      targetRealPath = void 0;
-    }
-  }
-  for (const diskPath of workspaceEditTextPaths(edit)) {
-    let realPath;
-    let content;
-    let mtimeMs;
-    try {
-      realPath = nodeFs2.realpathSync.native(diskPath);
-      content = nodeFs2.readFileSync(realPath, "utf-8");
-      mtimeMs = nodeFs2.statSync(realPath).mtimeMs;
-    } catch {
-      continue;
-    }
-    if (targetContent !== void 0 && realPath === targetRealPath) {
-      expected.set(realPath, targetContent);
-      continue;
-    }
-    const tracked = lspService.getTrackedContent(diskPath, cwd);
-    const firstOpenedAfterRequest = tracked !== void 0 && (tracked.openedAtMs ?? 0) >= requestedAtMs;
-    const quietSinceClientStart = tracked?.clientStartedAtMs !== void 0 && mtimeMs < tracked.clientStartedAtMs - RENAME_MTIME_MARGIN_MS;
-    const sent = firstOpenedAfterRequest && quietSinceClientStart ? void 0 : tracked;
-    if (sent !== void 0) {
-      if (sent.hash !== hashDiagnosticContent(content) || (sent.changedAtMs ?? requestedAtMs) >= requestedAtMs) {
-        refuseStaleWorkspaceEdit(diskPath, "it changed after the language server computed the rename from it");
-      }
-    } else if (tracked !== void 0 && (tracked.hash !== hashDiagnosticContent(content) || tracked.openedHash !== tracked.hash)) {
-      refuseStaleWorkspaceEdit(diskPath, "it changed after the language client first opened it, after the rename was requested");
-    } else if (mtimeMs >= requestedAtMs) {
-      refuseStaleWorkspaceEdit(diskPath, "it was written after the rename was requested and the language server has no open copy, so it may not have read these bytes");
-    } else if (mtimeMs >= requestedAtMs - RENAME_MTIME_MARGIN_MS) {
-      refuseStaleWorkspaceEdit(diskPath, `it was modified within ${RENAME_MTIME_MARGIN_MS / 1e3} s of the rename request; retry`);
-    }
-    expected.set(realPath, content);
-  }
-  return expected;
 }
 function createLspNavigationTool(getFlag, mutationDeps) {
   return {
@@ -20802,11 +23390,14 @@ function createLspNavigationTool(getFlag, mutationDeps) {
     }),
     parameters: Type.Object({
       operation: Type.String({
-        description: "LSP operation to perform. Valid values: definition, typeDefinition, declaration, references, hover, signatureHelp, documentSymbol, findSymbol, workspaceSymbol, codeAction, rename, rename_file, implementation, prepareCallHierarchy, incomingCalls, outgoingCalls, executeCommand, workspaceDiagnostics, capabilities."
+        enum: [...VALID_OPERATIONS],
+        description: "LSP operation."
       }),
       path: Type.Optional(Type.String({
         description: "Target file path."
       })),
+      file: Type.Optional(Type.String({ description: "Alias for `path`." })),
+      filePath: Type.Optional(Type.String({ description: "Alias for `path`." })),
       line: Type.Optional(Type.Number({
         description: "1-based line number."
       })),
@@ -20852,36 +23443,17 @@ function createLspNavigationTool(getFlag, mutationDeps) {
       maxResults: Type.Optional(Type.Number({
         description: "Maximum symbol matches."
       })),
-      callHierarchyItem: Type.Optional(Type.Object({
-        name: Type.String(),
-        kind: Type.Number(),
-        uri: Type.String(),
-        range: Type.Object({
-          start: Type.Object({
-            line: Type.Number(),
-            character: Type.Number()
-          }),
-          end: Type.Object({
-            line: Type.Number(),
-            character: Type.Number()
-          })
-        }),
-        selectionRange: Type.Object({
-          start: Type.Object({
-            line: Type.Number(),
-            character: Type.Number()
-          }),
-          end: Type.Object({
-            line: Type.Number(),
-            character: Type.Number()
-          })
-        })
-      }, {}))
+      // #4687: opaque on the wire (the nested schema was 817 bytes per
+      // request); `checkCallHierarchyItem` checks the shape at execute.
+      callHierarchyItem: Type.Optional(Type.Object({}, {
+        description: "An item prepareCallHierarchy returned, passed back unchanged."
+      }))
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const session = mutationDeps?.runtime?.captureSessionGeneration?.();
       const startedAt = Date.now();
       let supported = null;
+      let noFileClient = false;
       let diagnosticsMode = "unknown";
       let columnResolution;
       let openedFileContent;
@@ -20893,7 +23465,7 @@ function createLspNavigationTool(getFlag, mutationDeps) {
         if (payload.isError && requestedApply && mutationContext && ["rename", "rename_file", "executeCommand"].includes(meta.operation)) {
           recordLspMutationOutcome(mutationContext, "failed");
         }
-        const normalizedFilePath = meta.filePath.replace(/\\/g, "/");
+        const normalizedFilePath = toPosix(meta.filePath);
         logLatency({
           type: "phase",
           phase: "lsp_navigation_result",
@@ -20952,6 +23524,20 @@ function createLspNavigationTool(getFlag, mutationDeps) {
           resultCount: 0
         });
       }
+      const pathRead = readFilePath(params);
+      if (pathRead.refusal) {
+        return finalize({
+          content: [{ type: "text", text: pathRead.refusal }],
+          isError: true
+        }, {
+          operation: String(params.operation ?? "lsp"),
+          filePath: "(workspace)",
+          failureKind: "invalid_path",
+          resultCount: 0
+        });
+      }
+      if (pathRead.path)
+        params = { ...params, path: pathRead.path };
       const { operation: rawOperation, path: rawPath, line, character, symbol, endLine, endCharacter, newName, newFilePath, apply, command, commandArguments, query, kinds, exactMatch, topLevelOnly, maxResults, callHierarchyItem } = params;
       const normalizedOperation = normalizeOperation(rawOperation);
       if (!isValidOperation(normalizedOperation)) {
@@ -20992,7 +23578,7 @@ function createLspNavigationTool(getFlag, mutationDeps) {
           source: mutationSource,
           ...mutationDeps,
           session,
-          readGuard: getFlag("no-read-guard", cwd) ? void 0 : mutationDeps?.readGuard,
+          readGuard: getFlag("no-read-guard", cwd) ? void 0 : mutationDeps?.readGuardFor?.(ctx.sessionManager?.getSessionId?.()) ?? mutationDeps?.readGuard,
           // #2450 review round 2 (F4)/round 3 (F2, F4): the SAME gate
           // `registerMutationBridge` applies internally in `index.ts`, so
           // this directly-threaded path and the bridge fallback
@@ -21031,11 +23617,11 @@ function createLspNavigationTool(getFlag, mutationDeps) {
           resultCount: 0
         });
       }
-      const filePath = rawPath ? path38.isAbsolute(rawPath) ? rawPath : path38.resolve(ctx.cwd || ".", rawPath) : "";
+      const filePath = rawPath ? resolveHostToolPath(rawPath, ctx.cwd || ".") : "";
       let filePathIsDirectory = false;
       if (filePath) {
         try {
-          filePathIsDirectory = nodeFs2.statSync(filePath).isDirectory();
+          filePathIsDirectory = nodeFs4.statSync(filePath).isDirectory();
         } catch {
         }
       }
@@ -21058,16 +23644,17 @@ function createLspNavigationTool(getFlag, mutationDeps) {
         });
       }
       if (operation === "workspaceDiagnostics") {
+        const policyCwd = ctx.cwd || process.cwd();
         const wsDiagSupport = rawPath ? await lspService.getWorkspaceDiagnosticsSupport(filePath) : await lspService.getWorkspaceDiagnosticsSupport(void 0, workspaceScopeAttribution);
         diagnosticsMode = wsDiagSupport?.mode ?? "unknown";
         if (rawPath && !filePathIsDirectory) {
-          const hasLSP2 = lspService.supportsLSP(filePath);
+          const hasLSP2 = lspService.supportsLSP(filePath) || disabledPrimaries(filePath).disabledServerIds.length > 0;
           if (!hasLSP2) {
             return finalize({
               content: [
                 {
                   type: "text",
-                  text: `No LSP server available for ${path38.basename(filePath)}. Check that the language server is installed.`
+                  text: `No LSP server available for ${path39.basename(filePath)}. Check that the language server is installed.`
                 }
               ],
               isError: true
@@ -21078,8 +23665,15 @@ function createLspNavigationTool(getFlag, mutationDeps) {
               resultCount: 0
             });
           }
-          await openFileBestEffort(lspService, filePath, true);
-          const diagnostics = await lspService.getDiagnostics(filePath);
+          const excludeServerIds = configDisabledAuxiliaryLspServerIds((name) => getFlag(name, ctx.cwd));
+          await lspService.sweepDocumentDrift({ force: true, full: true });
+          const openedContent = await openFileBestEffort(lspService, filePath, true, excludeServerIds);
+          const pythonCompileTarget = await detectPythonTargetVersion(filePath);
+          const policy = applyProbeFindingPolicy(filePath, await lspService.getDiagnostics(filePath, void 0, excludeServerIds), policyCwd, openedContent, "all", "lsp_navigation", pythonCompileTarget);
+          const diagnostics = policy.kept;
+          const suppressedLine = dispositionSuppressedLine(policy.suppressed);
+          const withheldLine = withheldCompileNote(policy.withheld);
+          const primaryUnavailable = describePrimaryUnavailable(void 0, lspService.getDiagnosticsHealth(filePath))?.text;
           const result3 = [
             {
               filePath,
@@ -21098,14 +23692,27 @@ function createLspNavigationTool(getFlag, mutationDeps) {
               {
                 type: "text",
                 text: `${note2}
-${JSON.stringify(result3)}`
+${JSON.stringify(result3)}${primaryUnavailable ? `
+Note: ${primaryUnavailable}` : ""}${suppressedLine ? `
+Note: ${suppressedLine}` : ""}${withheldLine ? `
+Note: ${withheldLine}` : ""}`
               }
             ],
             details: {
               operation,
               resultCount: resultCount2,
               diagnosticsMode,
-              coverage: "requested-file"
+              coverage: "requested-file",
+              ...policy.suppressed > 0 && {
+                dispositionSuppressed: policy.suppressed
+              },
+              ...policy.withheld && {
+                withheldCompile: policy.withheld
+              },
+              ...primaryUnavailable !== void 0 && {
+                unconfirmed: true,
+                primaryUnavailable
+              }
             }
           }, {
             operation,
@@ -21114,12 +23721,38 @@ ${JSON.stringify(result3)}`
             resultCount: resultCount2
           });
         }
-        const allDiagnostics = await lspService.getAllDiagnostics();
-        const result2 = Array.from(allDiagnostics.entries()).map(([trackedFile, { diags }]) => ({
-          filePath: trackedFile,
-          diagnostics: diags,
-          count: diags.length
+        const allDiagnostics = await lspService.getAllDiagnostics(configDisabledAuxiliaryLspServerIds((name) => getFlag(name, ctx.cwd)));
+        const compileVerdictFiles = [];
+        for (const [trackedFile, entry] of allDiagnostics) {
+          if (entry.diags.some(isJediCompileVerdict)) {
+            compileVerdictFiles.push(trackedFile);
+          }
+        }
+        const compileVerdictTargets = await mapWithConcurrency(compileVerdictFiles, PYTHON_DECLARATION_CONCURRENCY, async (trackedFile) => ({
+          trackedFile,
+          target: await detectPythonTargetVersion(trackedFile)
         }));
+        const pythonCompileTargets = new Map(compileVerdictTargets.map((entry) => [entry.trackedFile, entry.target]));
+        let snapshotSuppressed = 0;
+        const snapshotWithheldEntries = [];
+        const result2 = Array.from(allDiagnostics.entries()).map(([trackedFile, { diags, ts }]) => {
+          let kept = diags;
+          if (diags.length > 0) {
+            const policy = applyProbeFindingPolicy(trackedFile, diags, policyCwd, readFileContent(trackedFile), "all", "lsp_navigation", pythonCompileTargets.get(trackedFile));
+            snapshotSuppressed += policy.suppressed;
+            snapshotWithheldEntries.push(policy.withheld);
+            kept = policy.kept;
+          }
+          return {
+            filePath: trackedFile,
+            diagnostics: kept,
+            count: kept.length,
+            lag: formatCacheAgeLabel(ts)
+          };
+        });
+        const snapshotSuppressedLine = dispositionSuppressedLine(snapshotSuppressed);
+        const snapshotWithheld = mergeWithheld(snapshotWithheldEntries);
+        const snapshotWithheldLine = withheldCompileNote(snapshotWithheld);
         const noteMap2 = {
           "push-only": "Note: push-only tracked diagnostics snapshot (not full workspace pull diagnostics).",
           pull: "Note: tracked diagnostics snapshot from active clients. Provide path to force file-level diagnostics collection"
@@ -21130,14 +23763,22 @@ ${JSON.stringify(result3)}`
             {
               type: "text",
               text: `${note}
-${JSON.stringify(result2)}`
+${JSON.stringify(result2)}${snapshotSuppressedLine ? `
+Note: ${snapshotSuppressedLine}` : ""}${snapshotWithheldLine ? `
+Note: ${snapshotWithheldLine}` : ""}`
             }
           ],
           details: {
             operation,
             resultCount: result2.length,
             diagnosticsMode,
-            coverage: "tracked-open-files"
+            coverage: "tracked-open-files",
+            ...snapshotSuppressed > 0 && {
+              dispositionSuppressed: snapshotSuppressed
+            },
+            ...snapshotWithheld && {
+              withheldCompile: snapshotWithheld
+            }
           }
         }, {
           operation,
@@ -21168,7 +23809,7 @@ ${JSON.stringify(result2)}`
           content: [
             {
               type: "text",
-              text: `No LSP server available for ${path38.basename(filePath)}. Check that the language server is installed.`
+              text: disabledPrimaries(filePath).disabledServerIds.length > 0 ? noServerAnsweredText(filePath) : `No LSP server available for ${path39.basename(filePath)}. Check that the language server is installed.`
             }
           ],
           isError: true
@@ -21181,13 +23822,14 @@ ${JSON.stringify(result2)}`
       }
       if (needsFilePath) {
         const support = await lspService.getOperationSupport(filePath);
+        noFileClient = support === null;
         supported = operationSupportStatus(operation, support);
         if (supported === false) {
           return finalize({
             content: [
               {
                 type: "text",
-                text: `LSP server for ${path38.basename(filePath)} does not advertise support for ${operation}`
+                text: `LSP server for ${path39.basename(filePath)} does not advertise support for ${operation}`
               }
             ],
             isError: true,
@@ -21213,7 +23855,7 @@ ${JSON.stringify(result2)}`
         "implementation",
         "prepareCallHierarchy"
       ].includes(operation);
-      const resolvedCharacter = needsPosition && filePath ? resolveSymbolColumn(nodeFs2.existsSync(filePath) ? nodeFs2.readFileSync(filePath, "utf-8") : "", line ?? 1, character, symbol) : {
+      const resolvedCharacter = needsPosition && filePath ? resolveSymbolColumn(nodeFs4.existsSync(filePath) ? nodeFs4.readFileSync(filePath, "utf-8") : "", line ?? 1, character, symbol) : {
         character: character ?? 1,
         strategy: "explicit"
       };
@@ -21302,7 +23944,7 @@ ${JSON.stringify(result2)}`
               // file held when it answered. A file that changed in between is
               // refused inside pi's queue, before any write, so the edit never
               // lands on text it was not computed for.
-              expectedContent: captureRenameExpectedContent(lspService, edit, ctx.cwd || ".", filePath, openedFileContent, renameRequestedAtMs)
+              expectedContent: captureRenameExpectedContent(edit, ctx.cwd || ".", renameRequestedAtMs, (filePath2, atCwd) => lspService.getTrackedContent(filePath2, atCwd), openedFileContent === void 0 ? void 0 : { filePath, content: openedFileContent })
             });
             for (const touchedFile of applied.files) {
               try {
@@ -21316,7 +23958,7 @@ ${JSON.stringify(result2)}`
             if (!newFilePath || newFilePath.trim().length === 0) {
               throw new Error("__BADINPUT__ newFilePath parameter required for rename_file");
             }
-            const resolvedNewFilePath = path38.isAbsolute(newFilePath) ? newFilePath : path38.resolve(ctx.cwd || ".", newFilePath);
+            const resolvedNewFilePath = resolveHostToolPath(newFilePath, ctx.cwd || ".");
             const result2 = await lspService.renameFile(filePath, resolvedNewFilePath, {
               cwd: ctx.cwd || ".",
               apply: apply ?? false,
@@ -21358,24 +24000,26 @@ ${JSON.stringify(result2)}`
             return rawPath ? lspService.executeCommand(filePath, command, commandArguments, mutationContext) : lspService.executeCommand(void 0, command, commandArguments, mutationContext, workspaceScopeAttribution);
           }
           case "incomingCalls": {
-            if (!callHierarchyItem) {
-              throw new Error("__BADINPUT__ callHierarchyItem parameter required for incomingCalls");
+            const checked = checkCallHierarchyItem(callHierarchyItem);
+            if ("problem" in checked) {
+              throw new Error(`__BADINPUT__ ${checked.problem} for incomingCalls`);
             }
-            supported = operationSupportStatus(operation, await lspService.getOperationSupport(uriToPath(callHierarchyItem.uri)));
+            supported = operationSupportStatus(operation, await lspService.getOperationSupport(uriToPath(checked.item.uri)));
             if (supported === false) {
               throw new Error("__UNSUPPORTED__ Active LSP server does not advertise support for incomingCalls");
             }
-            return lspService.incomingCalls(callHierarchyItem);
+            return lspService.incomingCalls(checked.item);
           }
           case "outgoingCalls": {
-            if (!callHierarchyItem) {
-              throw new Error("__BADINPUT__ callHierarchyItem parameter required for outgoingCalls");
+            const checked = checkCallHierarchyItem(callHierarchyItem);
+            if ("problem" in checked) {
+              throw new Error(`__BADINPUT__ ${checked.problem} for outgoingCalls`);
             }
-            supported = operationSupportStatus(operation, await lspService.getOperationSupport(uriToPath(callHierarchyItem.uri)));
+            supported = operationSupportStatus(operation, await lspService.getOperationSupport(uriToPath(checked.item.uri)));
             if (supported === false) {
               throw new Error("__UNSUPPORTED__ Active LSP server does not advertise support for outgoingCalls");
             }
-            return lspService.outgoingCalls(callHierarchyItem);
+            return lspService.outgoingCalls(checked.item);
           }
           default:
             return [];
@@ -21403,7 +24047,7 @@ ${JSON.stringify(result2)}`
         }
         const stillEmpty = !result || Array.isArray(result) && result.length === 0;
         if (stillEmpty && needsFilePath && operation === "definition") {
-          const content = nodeFs2.readFileSync(filePath, "utf-8");
+          const content = nodeFs4.readFileSync(filePath, "utf-8");
           const token = line && character ? tokenAtPosition(content, line, character) : void 0;
           if (token) {
             const docSymbols = await lspService.documentSymbol(filePath);
@@ -21460,7 +24104,15 @@ ${JSON.stringify(result2)}`
         }, { operation, filePath, failureKind: "lsp_error", resultCount: 0 });
       }
       const isEmpty = !result || Array.isArray(result) && result.length === 0;
-      const fileCtx = filePath ? " at " + path38.basename(filePath) : "";
+      if (isEmpty && noFileClient) {
+        return finalize({
+          content: [
+            { type: "text", text: noServerAnsweredText(filePath) }
+          ],
+          isError: true
+        }, { operation, filePath, failureKind: "no_server", resultCount: 0 });
+      }
+      const fileCtx = filePath ? " at " + path39.basename(filePath) : "";
       const lineCtx = line ? ":" + line + ":" + character : "";
       let output = isEmpty ? "No results for " + operation + fileCtx + lineCtx : JSON.stringify(result);
       if (isEmpty && operation === "workspaceSymbol" && !rawPath) {
@@ -21564,13 +24216,16 @@ function classifyKey(key, declared) {
   }
   return equal.length > 0 ? { matches: equal, retargeted: [] } : { matches: suffix, retargeted };
 }
+function spellingsOf(key) {
+  return FILE_PATH_KEYS.includes(key) ? FILE_PATH_KEYS : [key];
+}
 function findIgnoredArguments(schema, args) {
   const properties = schema.properties ?? {};
   const declared = Object.keys(properties);
   const unsentSuggestions = [];
   const ignored = Object.keys(args).filter((key) => !Object.hasOwn(properties, key)).map((key) => {
     const { matches, retargeted } = classifyKey(key, declared);
-    const unsent = matches.some((match) => Object.hasOwn(args, match)) ? void 0 : matches[0];
+    const unsent = matches.some((match) => spellingsOf(match).some((spelling) => Object.hasOwn(args, spelling) && Object.hasOwn(properties, spelling))) ? void 0 : matches[0];
     if (unsent !== void 0 && !unsentSuggestions.some((entry) => entry.suggestion === unsent))
       unsentSuggestions.push({ key, suggestion: unsent });
     const suggestion = matches[0] ?? nearestDeclaredKey(key, declared.filter((name) => !retargeted.includes(name)));
@@ -21635,10 +24290,10 @@ Not run: ${reasons.join("; ")}.`
 }
 
 // dist/mcp/build-staleness.js
-import * as fs24 from "node:fs";
+import * as fs23 from "node:fs";
 var realStat = (targetPath) => {
   try {
-    return fs24.statSync(targetPath);
+    return fs23.statSync(targetPath);
   } catch {
     return void 0;
   }
@@ -21702,11 +24357,11 @@ function resolveDefaultCwd() {
   const fromArg = process.argv.find((arg) => arg.startsWith("--cwd="))?.slice("--cwd=".length);
   return fromArg ?? process.env.PI_LENS_MCP_CWD ?? process.cwd();
 }
-var DEFAULT_CWD = path39.resolve(resolveDefaultCwd());
+var DEFAULT_CWD = path40.resolve(resolveDefaultCwd());
 var lspReadyCwds = /* @__PURE__ */ new Set();
 var SERVER_FILE = fileURLToPath3(import.meta.url);
-var SERVER_DIR = path39.dirname(SERVER_FILE);
-var WORKER_PATH = path39.join(SERVER_DIR, "worker.js");
+var SERVER_DIR = path40.dirname(SERVER_FILE);
+var WORKER_PATH = path40.join(SERVER_DIR, "worker.js");
 var REBUILD_SCRIPT = resolveRebuildScript(SERVER_FILE);
 var STALENESS_STAT_PATH = process.env.PI_LENS_MCP_STALENESS_STAT_PATH ?? SERVER_FILE;
 var BUILD_STAMP = computeBuildStamp(STALENESS_STAT_PATH);
@@ -21726,27 +24381,22 @@ function isWarmBuildStale() {
   return STALENESS_GATE.isStale();
 }
 function findRepoRoot(start) {
-  let dir = start;
-  for (let depth = 0; depth < 6; depth++) {
-    const pkgPath = path39.join(dir, "package.json");
-    if (fs25.existsSync(pkgPath)) {
+  for (const dir of walkUpDirs(start, { maxDepth: 6 })) {
+    const pkgPath = path40.join(dir, "package.json");
+    if (fs24.existsSync(pkgPath)) {
       try {
-        const pkg = JSON.parse(fs25.readFileSync(pkgPath, "utf8"));
+        const pkg = JSON.parse(fs24.readFileSync(pkgPath, "utf8"));
         if (pkg.name === "pi-lens")
           return dir;
       } catch {
       }
     }
-    const parent = path39.dirname(dir);
-    if (parent === dir)
-      break;
-    dir = parent;
   }
-  return path39.resolve(start, "..", "..");
+  return path40.resolve(start, "..", "..");
 }
-var REPO_ROOT = process.env.PI_LENS_MCP_REPO_ROOT ? path39.resolve(process.env.PI_LENS_MCP_REPO_ROOT) : findRepoRoot(SERVER_DIR);
+var REPO_ROOT = process.env.PI_LENS_MCP_REPO_ROOT ? path40.resolve(process.env.PI_LENS_MCP_REPO_ROOT) : findRepoRoot(SERVER_DIR);
 async function ensureReady(cwd) {
-  const normalized = path39.resolve(cwd);
+  const normalized = path40.resolve(cwd);
   if (!shouldInitializeSessionRoot(normalized, lspReadyCwds)) {
     return;
   }
@@ -21792,22 +24442,15 @@ function getAutoSessionStatus() {
 }
 var IPC_PATH = ipcPathForCwd(DEFAULT_CWD);
 function rejectForeignTurnCwd(route, cwd) {
-  const message = `${route} cwd outside this server's workspace: ${path39.resolve(cwd)} not within ${DEFAULT_CWD}`;
+  const message = `${route} cwd outside this server's workspace: ${path40.resolve(cwd)} not within ${DEFAULT_CWD}`;
   console.error(`[pi-lens-mcp] rejected ${message}`);
   return message;
 }
 function isWithinServerWorkspace(cwd) {
-  const target = path39.resolve(cwd);
-  const rel = path39.relative(DEFAULT_CWD, target);
-  return !rel.startsWith("..") && !path39.isAbsolute(rel);
+  return isUnderDir(path40.resolve(cwd), DEFAULT_CWD);
 }
 function startIpcServer() {
-  if (process.platform !== "win32") {
-    try {
-      fs25.unlinkSync(IPC_PATH);
-    } catch {
-    }
-  }
+  unlinkStaleUnixSocket(IPC_PATH);
   const requestQueue = createWarmIpcRequestQueue();
   const ipc = net.createServer((socket) => {
     socket.setEncoding("utf8");
@@ -21909,12 +24552,6 @@ function startIpcServer() {
       ipc.close();
     } catch {
     }
-    if (process.platform !== "win32") {
-      try {
-        fs25.unlinkSync(IPC_PATH);
-      } catch {
-      }
-    }
   };
   process.on("exit", cleanup);
 }
@@ -21975,7 +24612,11 @@ var lensDiagnosticsTool = createLensDiagnosticsTool(
   // `lens-guard` off — a config bypass on a durable cross-surface store.
   // Matches index.ts:1656 and the two sibling readers
   // (clients/runtime-tool-call.ts, clients/runtime-tool-result.ts).
-  () => isLensGuardEnabled()
+  () => isLensGuardEnabled(),
+  // #4323: `opengrep.enabled=false` keeps the explicit `source=lsp` probe from
+  // starting Opengrep, as it does for `pilens_analyze`. Resolved per call
+  // against the call's own project, like `lspNavigationTool` below (#792).
+  (name, cwd) => createMcpHost(void 0, cwd).getFlag(name)
 );
 var astGrepClient = new AstGrepClient();
 var astGrepSearchTool = createAstGrepSearchTool(astGrepClient);
@@ -22002,10 +24643,12 @@ var ALL_TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        file: {
+        path: {
           type: "string",
           description: "Path to the file to analyze (absolute, or relative to cwd)."
         },
+        file: { type: "string", description: "Alias for `path`." },
+        filePath: { type: "string", description: "Alias for `path`." },
         cwd: {
           type: "string",
           description: "Project root. Defaults to the server's workspace."
@@ -22019,8 +24662,7 @@ var ALL_TOOLS = [
           type: "object",
           description: 'Optional pi-lens flag overrides for this run, e.g. {"no-lsp": true} to bench the non-LSP path.'
         }
-      },
-      required: ["file"]
+      }
     }
   },
   {
@@ -22067,7 +24709,7 @@ var ALL_TOOLS = [
   },
   {
     name: "pilens_symbol_search",
-    description: "Find relevant files by ranked identifier search. On a cold cache, project_report and symbol_search return available: false with a retry hint and start a non-blocking background build; module_report degrades to outline-only with cache freshness explicit. Example: search `authenticate user` before pilens_module_report.",
+    description: "Find relevant files by ranked identifier search. On a cold cache, project_report and symbol_search return available: false with a retry hint and start a non-blocking background build; module_report degrades to outline-only with cache freshness explicit. Example: search `authenticate user` before pilens_module_report. Read a listed line with offset=<line>, limit=1.",
     inputSchema: {
       type: "object",
       properties: {
@@ -22103,6 +24745,11 @@ var ALL_TOOLS = [
           type: "string",
           description: "File to report on (absolute or relative to cwd)."
         },
+        path: {
+          type: "string",
+          description: "File to report on (the canonical spelling of `file`)."
+        },
+        filePath: { type: "string", description: "Alias for `path`." },
         cwd: { type: "string" },
         maxRefsPerSymbol: {
           type: "number",
@@ -22133,8 +24780,7 @@ var ALL_TOOLS = [
           type: "number",
           description: "Per-direction cap for call-graph relations (default 20)."
         }
-      },
-      required: ["file"]
+      }
     }
   },
   {
@@ -22167,6 +24813,11 @@ var ALL_TOOLS = [
       type: "object",
       properties: {
         file: { type: "string", description: "File containing the symbol." },
+        path: {
+          type: "string",
+          description: "File containing the symbol (the canonical spelling of `file`)."
+        },
+        filePath: { type: "string", description: "Alias for `path`." },
         symbol: {
           type: "string",
           description: "Exact symbol name to read, or a dotted `Class.method` to disambiguate a member."
@@ -22177,7 +24828,7 @@ var ALL_TOOLS = [
         },
         cwd: { type: "string" }
       },
-      required: ["file", "symbol"]
+      required: ["symbol"]
     }
   },
   {
@@ -22190,6 +24841,11 @@ var ALL_TOOLS = [
           type: "string",
           description: "Absolute or workspace-relative path to the source file."
         },
+        path: {
+          type: "string",
+          description: "Absolute or workspace-relative path to the source file (the canonical spelling of `file`)."
+        },
+        filePath: { type: "string", description: "Alias for `path`." },
         line: {
           type: "number",
           description: "1-based line number inside the desired symbol/callback."
@@ -22214,7 +24870,7 @@ var ALL_TOOLS = [
           description: "Maximum lines for onOversize=slice; defaults to maxLines, then 80."
         }
       },
-      required: ["file", "line"]
+      required: ["line"]
     }
   },
   {
@@ -22232,7 +24888,12 @@ var ALL_TOOLS = [
         file: {
           type: "string",
           description: "Path to explain: adds the resolved language plus the per-server and per-runner selection decisions for it. Must resolve inside `cwd` (a sibling package in the same monorepo does not count) \u2014 a file outside it is rejected with the `cwd` it was measured against; re-query with `cwd` set to that file's own workspace instead."
-        }
+        },
+        path: {
+          type: "string",
+          description: "Path to explain (the canonical spelling of `file`)."
+        },
+        filePath: { type: "string", description: "Alias for `path`." }
       }
     }
   },
@@ -22294,7 +24955,7 @@ function enabledToolsForCwd(cwd) {
 }
 function formatAnalyze(result, cwd, mode, servedBy) {
   const lspNote = result.lsp ? ` \xB7 lsp ${result.lsp.diagnosticCount} (${result.lsp.status}${result.lsp.failureKind ? `: ${result.lsp.failureKind}` : ""}, ${result.lsp.durationMs}ms)` : "";
-  const summary = `${path39.relative(cwd, result.filePath) || result.filePath} [${mode}] \u2014 ${result.counts.blockers} blocking, ${result.counts.warnings} warning(s), ${result.counts.advisories} advisory(ies), ${result.counts.diagnostics} total` + (result.latency ? ` \xB7 ${result.latency.totalDurationMs}ms` : "") + lspNote + (result.counts.fixed > 0 ? ` \xB7 ${result.counts.fixed} auto-fixed` : "") + (servedBy ? `
+  const summary = `${path40.relative(cwd, result.filePath) || result.filePath} [${mode}] \u2014 ${result.counts.blockers} blocking, ${result.counts.warnings} warning(s), ${result.counts.advisories} advisory(ies), ${result.counts.diagnostics} total` + (result.latency ? ` \xB7 ${result.latency.totalDurationMs}ms` : "") + lspNote + (result.counts.fixed > 0 ? ` \xB7 ${result.counts.fixed} auto-fixed` : "") + (servedBy ? `
 
 servedBy: ${servedBy}` : "");
   return renderToolText(summary, servedBy ? { ...result, servedBy } : result);
@@ -22360,10 +25021,13 @@ async function callTool(name, args) {
     return astGrepDumpCompatibilityResult(args, "mcp");
   }
   if (name === "pilens_analyze") {
-    const file = args.file;
-    if (typeof file !== "string" || file.length === 0) {
+    const fileRead = readFilePath(args);
+    if (fileRead.refusal)
+      return { ...renderToolText(fileRead.refusal), isError: true };
+    const file = fileRead.path;
+    if (!file) {
       return {
-        ...renderToolText("pilens_analyze requires a 'file' string."),
+        ...renderToolText("pilens_analyze requires a `path` string."),
         isError: true
       };
     }
@@ -22428,7 +25092,7 @@ ${outcome.output}`, {
     }
     const { deduped, byRule, byFile } = summarizeScan(snapshot.diagnostics);
     const topRules = Object.entries(byRule).sort((a, b) => b[1] - a[1]);
-    const topFiles = Object.entries(byFile).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([file, count]) => ({ file: path39.relative(cwd, file), count }));
+    const topFiles = Object.entries(byFile).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([file, count]) => ({ file: path40.relative(cwd, file), count }));
     const summaryLines = [
       `Scanned ${snapshot.filesScanned} file(s) [${snapshot.runners.join(", ")}] \u2192 ${deduped.length} unique diagnostic(s)` + (snapshot.diagnostics.length !== deduped.length ? ` (${snapshot.diagnostics.length} raw, ${snapshot.diagnostics.length - deduped.length} duplicate)` : ""),
       ...topRules.slice(0, 12).map(([rule, count]) => `  ${count}\xD7 ${rule}`)
@@ -22439,8 +25103,13 @@ ${outcome.output}`, {
     const skipNotice = generatedSkipNotice(snapshot, "mcp");
     if (skipNotice)
       summaryLines.push(skipNotice);
+    const { dispositionSuppressed } = snapshot;
+    const suppressedLine = dispositionSuppressedLine(dispositionSuppressed);
+    if (suppressedLine)
+      summaryLines.push(suppressedLine);
     return renderToolText(summaryLines.join("\n"), {
       filesScanned: snapshot.filesScanned,
+      ...dispositionSuppressed > 0 ? { dispositionSuppressed } : {},
       runners: snapshot.runners,
       uniqueDiagnostics: deduped.length,
       rawDiagnostics: snapshot.diagnostics.length,
@@ -22459,58 +25128,31 @@ ${outcome.output}`, {
     if (!query.trim())
       return renderToolText("Provide a non-empty `query`.");
     const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
-    const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.floor(args.limit)) : 20;
-    const paths = Array.isArray(args.paths) ? args.paths.filter((p) => typeof p === "string") : void 0;
+    const pathsRead = readPathsArgument(args.paths, { cwd });
+    if (pathsRead.refusal)
+      return { ...renderToolText(pathsRead.refusal), isError: true };
+    const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? args.limit : void 0;
+    const paths = pathsRead.entries.length > 0 ? pathsRead.entries : void 0;
     const lang = typeof args.lang === "string" ? args.lang : void 0;
-    const { available, results, hint, unavailableReason, coverage, snapshotGeneratedAt } = await symbolSearch(query, cwd, limit, { paths, lang });
-    if (!available) {
-      return renderToolText(hint ?? "No word index for this workspace yet \u2014 run pilens_session_start first.", { available: false, query, hint, unavailableReason }, true);
+    const result = await symbolSearch(query, cwd, limit, { paths, lang });
+    if (!result.available) {
+      return renderToolText(result.hint ?? "No word index for this workspace yet \u2014 run pilens_session_start first.");
     }
-    const stalenessNote = graphStalenessNote(snapshotGeneratedAt, "Project snapshot");
-    if (results.length === 0) {
-      return renderToolText(`No files matched "${query}".` + (coverage ? `
-Index covers ${coverage.files} files${coverage.truncated ? " (capped \u2014 results may be incomplete)" : ""}.` : "") + (stalenessNote ? `
-
-${stalenessNote}` : ""), {
-        available: true,
-        query,
-        results: [],
-        coverage,
-        ...stalenessNote ? { staleness: stalenessNote } : {}
-      }, true);
-    }
-    const lines = [
-      `Top ${results.length} file(s) for "${query}":`,
-      ...results.map((result, i) => `  ${i + 1}. ${path39.relative(cwd, result.file)} (score ${result.score.toFixed(2)}, ${result.hits} hit(s), line ${result.startLine})`),
-      ...stalenessNote ? ["", stalenessNote] : [],
-      ...coverage ? [
-        `Index covers ${coverage.files} files${coverage.truncated ? " (capped \u2014 results may be incomplete)" : ""}.`
-      ] : []
-    ];
-    return renderToolText(lines.join("\n"), {
-      query,
-      coverage,
-      results: results.map((result) => {
-        const relFile = path39.relative(cwd, result.file);
-        return {
-          file: relFile,
-          score: result.score,
-          hits: result.hits,
-          startLine: result.startLine,
-          endLine: result.endLine,
-          ...result.annotations ? { annotations: result.annotations } : {},
-          // #771: machine-actionable discovery-funnel hint, mirroring the
-          // pi-tool-surface's suggestedNext (tools/symbol-search.ts).
-          suggestedNext: { tool: "pilens_module_report", path: relFile }
-        };
-      }),
-      ...stalenessNote ? { staleness: stalenessNote } : {}
-    }, true);
+    const stalenessNote = graphStalenessNote(result.snapshotGeneratedAt, "Project snapshot");
+    return renderToolText(renderCompactSymbolSearch(result, {
+      cwd,
+      // exactOptionalPropertyTypes: an absent note is an absent key.
+      ...stalenessNote ? { stalenessNote } : {},
+      reportTool: "pilens_module_report"
+    }));
   }
   if (name === "pilens_module_report") {
-    const file = typeof args.file === "string" ? args.file : "";
-    if (!file.trim())
-      return { ...renderToolText("Provide a `file`."), isError: true };
+    const fileRead = readFilePath(args);
+    if (fileRead.refusal)
+      return { ...renderToolText(fileRead.refusal), isError: true };
+    const file = fileRead.path;
+    if (!file)
+      return { ...renderToolText("Provide a `path`."), isError: true };
     const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
     const maxRefsPerSymbol = typeof args.maxRefsPerSymbol === "number" && Number.isFinite(args.maxRefsPerSymbol) ? Math.max(1, Math.floor(args.maxRefsPerSymbol)) : void 0;
     const blastRadius = args.blastRadius === true;
@@ -22530,12 +25172,12 @@ ${stalenessNote}` : ""), {
     });
     if (!report.available) {
       return {
-        ...renderToolText(`No module report for ${path39.relative(cwd, path39.resolve(cwd, file))} \u2014 not a symbol-bearing file, or unreadable.`, report, true),
+        ...renderToolText(`No module report for ${path40.relative(cwd, path40.resolve(cwd, file))} \u2014 not a symbol-bearing file, or unreadable.`, report, true),
         isError: true
       };
     }
     const graphStaleness = graphStalenessNote(report.graphBuiltAt, "Review graph");
-    const summary = `${path39.relative(cwd, report.path) || report.path} [${report.staleness}] \u2014 ${report.summary.symbols} symbol(s), ${report.summary.exports} exported, ${report.api.length} in public API` + (graphStaleness ? `
+    const summary = `${path40.relative(cwd, report.path) || report.path} [${report.staleness}] \u2014 ${report.summary.symbols} symbol(s), ${report.summary.exports} exported, ${report.api.length} in public API` + (graphStaleness ? `
 
 ${graphStaleness}` : "");
     if (view === "compact") {
@@ -22585,10 +25227,13 @@ ${graphStaleness}` : "");
     return renderToolText(summary, graphStaleness ? { ...report, graphStalenessNote: graphStaleness } : report, true);
   }
   if (name === "pilens_read_symbol") {
-    const file = typeof args.file === "string" ? args.file : "";
+    const fileRead = readFilePath(args);
+    if (fileRead.refusal)
+      return { ...renderToolText(fileRead.refusal), isError: true };
+    const file = fileRead.path;
     const symbol = typeof args.symbol === "string" ? args.symbol : "";
-    if (!file.trim() || !symbol.trim()) {
-      return { ...renderToolText("Provide `file` and `symbol`."), isError: true };
+    if (!file || !symbol.trim()) {
+      return { ...renderToolText("Provide `path` and `symbol`."), isError: true };
     }
     const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
     const kind = typeof args.kind === "string" ? args.kind : void 0;
@@ -22596,16 +25241,17 @@ ${graphStaleness}` : "");
     if (!result.found) {
       const suggestionSuffix = result.suggestions?.length ? ` Did you mean: ${result.suggestions.join(", ")}?` : " Use pilens_module_report to list symbols.";
       return {
-        ...renderToolText(`Symbol "${symbol}" not found in ${path39.basename(file)}.${suggestionSuffix}`, {
+        ...renderToolText(`Symbol "${symbol}" not found in ${path40.basename(file)}.${suggestionSuffix}`, {
           found: false,
-          ...result.suggestions ? { suggestions: result.suggestions } : {}
+          ...result.suggestions ? { suggestions: result.suggestions } : {},
+          ...result.warnings ? { warnings: result.warnings } : {}
         }),
         isError: true
       };
     }
     const sigSuffix = result.signature ? `  ${result.signature}` : "";
     const ambiguityNote = result.ambiguous ? ` (${result.ambiguous.count} matches \u2014 returned the ${result.kind}; pass \`kind\` to disambiguate: ${result.ambiguous.kinds.join(", ")})` : "";
-    const header = `${result.kind} ${result.name}${ambiguityNote}${sigSuffix}  ${path39.relative(cwd, result.path)}:${result.startLine}-${result.endLine}`;
+    const header = `${result.kind} ${result.name}${ambiguityNote}${sigSuffix}  ${path40.relative(cwd, result.path)}:${result.startLine}-${result.endLine}`;
     return {
       content: [
         {
@@ -22618,11 +25264,14 @@ ${result.source ?? ""}`
     };
   }
   if (name === "pilens_read_enclosing") {
-    const file = typeof args.file === "string" ? args.file : "";
+    const fileRead = readFilePath(args);
+    if (fileRead.refusal)
+      return { ...renderToolText(fileRead.refusal), isError: true };
+    const file = fileRead.path;
     const line = typeof args.line === "number" ? args.line : Number.NaN;
-    if (!file.trim() || !Number.isFinite(line)) {
+    if (!file || !Number.isFinite(line)) {
       return {
-        ...renderToolText("Provide `file` and a numeric `line`."),
+        ...renderToolText("Provide `path` and a numeric `line`."),
         isError: true
       };
     }
@@ -22643,14 +25292,14 @@ ${result.source ?? ""}`
 
 Nested outline:
 ${JSON.stringify(result.outline)}` : "";
-      const text = result.error ? `Could not read enclosing range in ${path39.basename(file)}:${result.line}: ${result.error}${warningSuffix}${outlineSuffix}` : `No enclosing symbol/callback found in ${path39.basename(file)}:${result.line}.${warningSuffix}`;
+      const text = result.error ? `Could not read enclosing range in ${path40.basename(file)}:${result.line}: ${result.error}${warningSuffix}${outlineSuffix}` : `No enclosing symbol/callback found in ${path40.basename(file)}:${result.line}.${warningSuffix}`;
       return {
         ...renderToolText(text, { found: false, line: result.line }),
         isError: true
       };
     }
     const range = result.partial ? `${result.startLine}-${result.endLine} (partial of ${result.enclosingStartLine}-${result.enclosingEndLine})` : `${result.startLine}-${result.endLine}`;
-    const header = `${result.kind} ${result.name}  ${path39.relative(cwd, result.path)}:${range}`;
+    const header = `${result.kind} ${result.name}  ${path40.relative(cwd, result.path)}:${range}`;
     return {
       content: [
         {
@@ -22685,7 +25334,7 @@ ${result.source ?? ""}`
       ]),
       ...renderLspBrokenStatusLines(brokenServers),
       ...renderDegradationLines(degradations),
-      last ? `Last dispatch: ${path39.basename(last.filePath)} \u2014 ${last.totalDurationMs}ms, ${last.totalDiagnostics} diagnostic(s)` : "Last dispatch: none yet",
+      last ? `Last dispatch: ${path40.basename(last.filePath)} \u2014 ${last.totalDurationMs}ms, ${last.totalDiagnostics} diagnostic(s)` : "Last dispatch: none yet",
       `Diagnostics this session: ${stats.totalShown} shown \xB7 ${stats.totalAutoFixed} auto-fixed \xB7 ${stats.totalUnresolved} unresolved`,
       autoSession ? `Auto session_start: ${autoSession.succeeded ? "succeeded" : autoSession.error ? "FAILED" : autoSession.attempted ? "in progress" : "not yet attempted"}${autoSession.firedAt ? ` (fired ${autoSession.firedAt})` : ""}${autoSession.error ? ` \u2014 ${autoSession.error}` : ""}` : "Auto session_start: disabled (PI_LENS_MCP_AUTO_SESSION not set)",
       turnEnd ? `Stop-hook turn-end: ${turnEnd.ran} ran \xB7 ${turnEnd.skipped} skipped${turnEnd.lastRunAt ? ` (last ran ${turnEnd.lastRunAt})` : ""}${turnEnd.lastSkipReason ? ` \u2014 last skip: ${turnEnd.lastSkipReason}${turnEnd.lastSkipAt ? ` at ${turnEnd.lastSkipAt}` : ""}` : ""}` : "Stop-hook turn-end: no activity recorded (hook not installed, or no Stop yet)",
@@ -22717,9 +25366,12 @@ ${result.source ?? ""}`
   }
   if (name === "pilens_effective_config") {
     const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
+    const fileRead = readFilePath(args);
+    if (fileRead.refusal)
+      return { ...renderToolText(fileRead.refusal), isError: true };
     const view = await effectiveConfig({
       cwd,
-      ...typeof args.file === "string" ? { file: args.file } : {},
+      ...fileRead.path ? { file: fileRead.path } : {},
       redact: true
     });
     const fileLines = view.file === void 0 ? [] : isEffectiveFileViewError(view.file) ? [`File: ${view.file.error}`] : [
@@ -22751,7 +25403,7 @@ ${result.source ?? ""}`
     const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.floor(args.limit)) : 5;
     const fileFilter = typeof args.file === "string" ? args.file : void 0;
     const recent = recentLatency(limit, fileFilter);
-    const summary = recent.length === 0 ? "No dispatch latency reports yet." : recent.map((report) => `${path39.basename(report.filePath)}: ${report.totalDurationMs}ms (${report.totalDiagnostics} diag${report.stoppedEarly ? ", stopped early" : ""})`).join("\n");
+    const summary = recent.length === 0 ? "No dispatch latency reports yet." : recent.map((report) => `${path40.basename(report.filePath)}: ${report.totalDurationMs}ms (${report.totalDiagnostics} diag${report.stoppedEarly ? ", stopped early" : ""})`).join("\n");
     return renderToolText(summary, recent);
   }
   if (name === "pilens_session_start") {
@@ -22789,7 +25441,12 @@ ${outcome.tests}` : ""
   if (name === "pilens_ast_grep_search" || name === "pilens_ast_grep_replace") {
     const cwd = typeof args.cwd === "string" ? args.cwd : DEFAULT_CWD;
     const tool = name === "pilens_ast_grep_search" ? astGrepSearchTool : astGrepReplaceTool;
-    const out = await tool.execute("mcp", args, new AbortController().signal, void 0, { cwd, resultMaxItems: Number.POSITIVE_INFINITY });
+    const ctx = {
+      cwd,
+      resultMaxItems: Number.POSITIVE_INFINITY,
+      ...name === "pilens_ast_grep_search" ? { host: "mcp" } : {}
+    };
+    const out = await tool.execute("mcp", args, new AbortController().signal, void 0, ctx);
     return out;
   }
   if (name === "pilens_lsp_navigation") {
