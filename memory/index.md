@@ -4,6 +4,7 @@
 
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
+| [Pi Slash Command Dispatch](memory/docs/knowledge/pi-slash-command-input-order.md) | doc | Registered slash commands run before input events; handlers have no input-origin field. | 2026-11-05 |
 | [REA Off](memory/decisions/workstation/decision-rea-disabled-by-default.md) | decision | REA off; analysis on. | 2026-11-04 |
 | [Ego](memory/docs/workstation/ego-browser-wsl-access.md) | doc | Removed. | 2026-11-04 |
 | [GitHub SSH](memory/docs/workstation/team-computer-github-ssh.md) | doc | Mounted GitHub SSH config; check clone hooks. | 2026-11-02 |

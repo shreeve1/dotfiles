@@ -16,6 +16,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | A word that sounds like a defined term | | `CONTEXT.md` | |
 | A task needs the graphify knowledge graph | | `memory/decisions/workstation/decision-graphify-removed.md` | Removed fleet-wide 2026-10-31; do not reinstall. |
 | Writing a pi extension or script that reads pi sessions | | `memory/docs/knowledge/pi-tool-call-blocks.md` | |
+| Writing or reviewing a Pi slash command or input-event approval gate | | `memory/docs/knowledge/pi-slash-command-input-order.md` | |
 | herdr disconnects between Windows and WSL | | `memory/docs/workstation/herdr-wsl-direct-attach.md` | |
 | Pasting images into pi fails, or a Windows .exe is not found in a herdr pane on WSL | | `memory/docs/workstation/wsl-clipboard-image-paste.md` | |
 | pi feels slow, or a bash call in pi takes over a second | | `memory/docs/workstation/pi-lens-bash-prescan.md` | |
