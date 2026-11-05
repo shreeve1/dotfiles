@@ -135,7 +135,33 @@ See `docs/pi-extensions.md` § pi-fabric.
 - Machine-local or sensitive files should stay out of repo unless explicitly managed here.
 - `~/.codex` should be real directory; managed config inside it should point back to this repo.
 
-## Validation
+## Checking changes
+
+Run these commands from the repository root. These check repository changes;
+for post-install checks, see “Verify installation” below.
+
+| Check | Command | When to use it |
+| --- | --- | --- |
+| Structural checks | `bash check.sh` | Check install sources, shell/Python/JSON syntax, and installed symlinks without writing files. |
+| One test file | `bash tests/sync-starter-skills.test.sh` | Example: replace this with the test file relevant to your change. |
+| Style checks | `bin/style-check README.md` | Example: pass the changed file paths to check formatting and lint; add `--fix` to apply formatting and safe fixes. |
+| Fast pre-push checks | `bash tests/run-all.sh --fast` | Run formatting and tracked-test guards plus test files changed on this branch or in the working tree. |
+| Full verification | `bash tests/run-all.sh` | Run every test file and the formatting guard; required before pushing. |
+
+**`--fast` selects changed test files, not tests matched to changed source code.**
+If you changed only source files, it may run just the guards. Run the relevant
+test file explicitly during iteration, then the full suite before pushing.
+The pre-push hook runs only `--fast`; it is not a substitute for the full suite.
+
+Use `bin/style-check --doctor` to verify the installed style tools match the
+pinned versions. Without file arguments, `style-check` checks all tracked files;
+pass explicit paths for a small change. The test runner's formatting guard does
+not replace the separate lint check.
+
+See `AGENTS.md` for agent-specific working rules and `docs/adr/0022-one-style-contract.md`
+for the shared style contract.
+
+## Verify installation
 
 After install, verify the lanes are live:
 
