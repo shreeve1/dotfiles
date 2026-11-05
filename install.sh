@@ -612,8 +612,9 @@ fi
 # ─── AGENTS standard ──────────────────────────────────────
 # Canonical AGENTS-standard lane that dsh and codex consume natively.
 # ~/.agents/skills is a real (linked) directory of the canonical AGENTS skill
-# set; ~/.agents/AGENTS.md and ~/.dsh/AGENTS.md both resolve to the merged
-# canonical guidance. The prior shared-lane symlink (if any) at
+# set; ~/.agents/AGENTS.md resolves to the merged canonical guidance.
+# ~/.dsh/AGENTS.md is a separate dsh-only add-on (.dsh/AGENTS.md): dsh loads
+# it before ~/.agents/AGENTS.md and would collapse an identical copy. The prior shared-lane symlink (if any) at
 # ~/.agents/skills -> dotfiles/.claude/skills is replaced here, severing the
 # Claude ↔ AGENTS cross-link. ~/.agents/engram/ (learning memory) is left
 # untouched.
@@ -631,7 +632,7 @@ if [ "${INSTALL_AGENTS:-1}" = "1" ]; then
     link_path ".omp/agent/agents/$_persona.md" ".claude/agents/$_persona.md"
   done
   unset _persona
-  link_path ".agents/AGENTS.md" ".dsh/AGENTS.md"
+  link_path ".dsh/AGENTS.md" ".dsh/AGENTS.md"
   # The hooks call ~/.agents/bin/verify-final; ~/.agents is a real dir on some machines.
   link_path ".agents/bin" ".agents/bin"
   # End-of-turn fact-check hook for Claude Code + Codex (omp loads its own

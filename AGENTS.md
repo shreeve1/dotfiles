@@ -5,6 +5,7 @@ Config synced across the user's machines; `install.sh` symlinks it into place (f
 ## Layout
 
 - `.agents/AGENTS.md`: global guidance, loaded by every pi session through the relative symlink `.pi/agent/AGENTS.md` (also `~/.codex/AGENTS.md`, `~/.claude/CLAUDE.md`). Paid on every turn: keep it small. A Windows checkout without symlink support gets a plain text file there instead, so pi on that machine gets no global guidance.
+- `.dsh/AGENTS.md`: dsh-only add-on, linked to `~/.dsh/AGENTS.md`; dsh loads it plus the shared global file. Additions only.
 - `.agents/skills/`: all skills (`~/.agents/skills`, `~/.claude/skills`). `disable-model-invocation: true` is deliberate; don't "fix" it.
 - `.pi/agent/APPEND_SYSTEM.md`: pi-fabric delegation policy; `install.sh` checks for its heading.
 - herdr (pi runs in herdr panes on each machine): `docs/herdr.md`. `plans/` is gitignored scratch.
@@ -32,7 +33,7 @@ When one machine "can't find" another, it's a name, not the network:
 ## Non-obvious requirements
 
 - **Read `docs/pi-extensions.md` before touching, upgrading or re-syncing any vendored pi extension.** Don't `pi install` vendored extensions; pi-lens needs `--ignore-scripts`; disabling needs a `-extensions/<name>/index.ts` exclusion and the `packages` entry removed; don't fight pi-lens autoformat.
-- **pi-fabric** is the one npm-installed extension, pinned at `0.117.1` (last for Pi 1.2.0) with its Coral Bricks provider filtered in `settings.json` `packages`. Role models: `.pi/agent/fabric.json`. Rollback: `docs/pi-extensions.md` § pi-fabric.
+- **pi-fabric** is pinned at `0.131.4` with Pi `1.5.0`; preserve package filters in each machine's `settings.json`. Role models: `.pi/agent/fabric.json`. Upgrade and rollback: `docs/pi-extensions.md`.
 - **Formatting and linting:** run `style-check`, not a formatter with your own flags (`docs/adr/0022-one-style-contract.md`). Tool versions are pinned in `.config/style/tools.env`; after a bump re-run `install.sh` (surftop: `install-win.ps1`) on every machine.
 - **Checks:** `bash tests/run-all.sh`. The pre-push hook runs only `--fast`, so run the full suite before pushing.
 - **graphify** was removed fleet-wide on 2026-10-31 (skill, CLI, global commit hook and guard extension); there is nothing to install on any machine.

@@ -15,7 +15,7 @@ This repo stores config files and folders synced across machines.
   `~/.config/chromium-flags.conf`, and `~/.config/mimeapps.list`
   (stored under `omarchy/`; linked only when Omarchy is installed)
 - `~/.config/opencode` (retired remnants; the OpenCode binary is gone)
-- `~/.agents` + `~/.dsh/AGENTS.md` (AGENTS-standard lane — the canonical agent context)
+- `~/.agents` (AGENTS-standard lane — the canonical agent context) + `~/.dsh/AGENTS.md` (dsh-only add-on)
 - selected Codex config under `~/.codex`
 - `~/.pi/agent`
 - The Claude Code lane is **retired**; `archive/claude/` is preserved as a historical snapshot only.
@@ -54,7 +54,7 @@ Repo mirrors home-directory structure so symlink targets stay obvious:
 
 | Concern | Canonical Home | Why |
 | --- | --- | --- |
-| Global agent guidance | `~/.agents/AGENTS.md` (→ `~/.dsh/AGENTS.md` for dsh) | The AGENTS standard is read natively by dsh, codex (bridged), and pi. |
+| Global agent guidance | `~/.agents/AGENTS.md`, plus `~/.dsh/AGENTS.md` (from `.dsh/AGENTS.md`) as a dsh-only add-on | The AGENTS standard is read natively by dsh, codex (bridged), and pi. |
 | Reusable skills | `~/.agents/skills/` | dsh loads them natively (rank-500 `user-agents`); codex via per-skill links. Skills with `disable-model-invocation: true` are user-invocable only and never enter the model catalog — that is deliberate. |
 | Repo-level context | `AGENTS.md` at repo root | dsh loads `AGENTS.md`/`CLAUDE.md` from project root down to cwd; Claude Code (2.1.220) reads only `CLAUDE.md`, so Claude-flavored repos keep that name. |
 | Slash commands / subagents / hooks | retired (`archive/claude/`) | Claude Code lane, dark since 2026-09-10; preserved only as a historical snapshot. |
