@@ -7,10 +7,10 @@
   "hideThinkingBlock": true,
   "transport": "sse",
   "packages": [
-    "npm:pi-cc-extensions",
-    "npm:pi-btw",
+    "npm:pi-cc-extensions@1.0.13",
+    "npm:pi-btw@0.8.0",
     {
-      "source": "npm:pi-fabric@0.117.1",
+      "source": "npm:pi-fabric@0.131.4",
       "extensions": [
         "!node_modules/pi-coralbricks-provider/**"
       ]
@@ -38,7 +38,9 @@
   "collapseChangelog": true,
   "doubleEscapeAction": "tree",
   "extensions": [
-    "pi-lens-project-off.ts"
+    "pi-lens-project-off.ts",
+    "-extensions/verify-final.ts",
+    "-extensions/fabric-auto-start.ts"
   ],
   "enabledModels": [
     "cliproxy/minimax-m3",

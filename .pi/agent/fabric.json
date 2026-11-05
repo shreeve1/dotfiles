@@ -14,14 +14,21 @@
         "thinking": "high"
       },
       "reviewer": {
-        "model": "cliproxy/gpt-6-luna",
+        "model": "cliproxy/glm-5.3",
         "thinking": "high"
       },
       "planner": {
         "model": "cliproxy/claude-sonnet-5-5",
         "thinking": "high"
       },
-      "oracle": "cliproxy/gpt-6.1-sol",
+      "oracle": {
+        "model": "cliproxy/glm-5.3",
+        "thinking": "high"
+      },
+      "session-advisor": {
+        "model": "cliproxy/glm-5.3-flash",
+        "thinking": "low"
+      },
       "cheap": "cliproxy/deepseek-v4.1-flash"
     }
   },
@@ -33,6 +40,10 @@
   },
   "executor": {
     "humanWaitRefs": ["extensions.ask", "extensions.ask_user_question"]
+  },
+  "mesh": {
+    "enabled": true,
+    "peerNotices": false
   },
   "configVersion": 4
 }

@@ -5,15 +5,97 @@ repo-level context file to keep auto-loaded agent context lean. `AGENTS.md` §
 "Non-obvious requirements" carries the short must-not-break rules and points
 here.
 
+- **Fleet upgrade (2026-11-02):** Pi 1.5.0 and Fabric 0.131.4 are a matched
+  set: Fabric's worker SDK, chord, pi-durable and pi-codemode use 1.5.0.
+  Vendored pi-lens is 4.4.8; rpiv-web-tools and rpiv-ask-user-question are
+  2.15.0. The agent-root Pi dependencies are also pinned at 1.5.0, with
+  rpiv-config 2.15.0. Preserve each machine's model/auth/Fabric settings.
+  Linux uses `npm install -g @earendil-works/pi-coding-agent@1.5.0`.
+  Native Windows uses its existing managed launcher under
+  `~/.pi/agent/bin`; `pi update --self` updates the managed release, not a
+  separate global npm installation. Its local `pi-launcher.js` supplies
+  `PI_FABRIC_PI_BINARY` with its own JavaScript path for Fabric children:
+  Windows batch launchers truncate multiline role/schema arguments. Preserve
+  this override if replacing the managed launcher.
+  **Startup repair:** Pi 1.5.0 fixes npm's ever-deeper lockfile paths when
+  `~/.pi/agent` is symlinked into dotfiles (upstream issue 11358). Existing
+  damaged dependencies still need rebuilding: retain a rollback copy, then
+  install from the agent/npm directory's resolved real path, using
+  `--legacy-peer-deps --no-audit --no-fund`. Run only one installer per
+  dependency directory at a time. `--offline` makes diagnostic startup probes
+  skip automatic package installs; it does not disable model requests.
+  Validate npm lockfiles with Node's `JSON.parse`: Windows PowerShell 5.1's
+  `ConvertFrom-Json` rejects their empty root-package key.
+- **verify-final disabled in Pi (2026-11-03):** retain
+  `.pi/agent/extensions/verify-final.ts`, but exclude it with
+  `"-extensions/verify-final.ts"` in every machine's global `settings.json`
+  and in `settings.json.template`. This unloads the whole extension, including
+  its checks and cleanup gates; `VERIFY_FINAL=0` alone does not unload it.
+  Existing pi sessions need `/reload` or a fresh session. The standalone
+  verify-final CLI and Claude/Codex hook integrations are unchanged. Fabric's
+  automatic reviewers are disabled separately as described below.
+- **Automatic Fabric helpers disabled for now (2026-11-04):** keep
+  `"-extensions/fabric-auto-start.ts"` in every active machine's global
+  `settings.json` and in `settings.json.template`. Retain the source; Fabric
+  itself, manual agents, mesh and code-analysis helpers stay enabled. Existing
+  sessions need `/reload` or restart; stopping their automatic actors through
+  `/fabric stop <id>` silences reviews without closing a session. Do not
+  re-enable the automatic reviewers without James asking. The following
+  describes the retained implementation, not the current startup policy.
+- **Automatic Fabric session helper implementation (2026-11-03):** mesh stays enabled because
+  actors only receive host events with it on; peer notices are off. `.pi/agent/extensions/fabric-auto-start.ts` starts native, read-only
+  `advisor`, `supervisor` and `specialist` actors in trusted Main TypeScript
+  TUI/RPC sessions. Metadata/help probes, child agents and print mode do not
+  start reviewers. All three have only read/grep/find/ls tools, no child
+  extensions, and session scope. The specialist has no automatic event
+  subscriptions: it receives one focused API/version, security or platform
+  review request only when relevant changed-source versions warrant it.
+  Unrelated changes and repeated idle events do not start another specialist
+  review. Only the supervisor may wake an idle Main; other feedback is passive.
+  **Models:** `session-advisor` uses `cliproxy/glm-5.3-flash`; `reviewer` and
+  `oracle` use `cliproxy/glm-5.3`. Main and unrelated scout/worker/planner/
+  researcher/cheap choices are unchanged. Compatible session observers refresh
+  their instructions and model bindings without losing history; project-wide,
+  incompatible or manually stopped actors are not replaced.
+  **Evidence:** `extensions/lib/fabric-session-evidence.ts` records Main's real
+  native tool events, including nested Fabric calls. It retains runner labels,
+  command digests, structured exit codes and content freshness, never raw
+  command arguments or output. Git snapshots include untracked changes; runtime
+  caches and secret-bearing paths are excluded. Non-Git, opaque/remote, resumed
+  or incomplete evidence is explicitly partial/unknown. A process returning 0
+  is not proof of every requirement, and a missing ledger row is not proof that
+  a child, operator or remote check never ran. The recorder does not execute
+  tests. It uses bounded read-only Git metadata and file hashing. Records live
+  in Pi custom session entries, remain available across compaction, and are
+  marked freshness-unknown after a process reload until newly observed.
+  **Superpowers:** the supervisor is given the actual installed plugin root
+  and consults that version's applicable skill before alleging a violation;
+  plugin copies are not upgraded or rewritten. It follows selected phases,
+  legitimate fast paths, user opt-outs, TDD evidence, task/final review
+  requirements and verification-before-completion. It does not impose a full
+  design/plan pipeline on every small request or count generated text as user
+  approval. Approved specs become requirement-to-evidence checklists; the actor
+  reads the full referenced workspace file. Approval is bound to the document
+  bytes, not its filename. The ledger tracks precise external-operator
+  confirmations after an approval question, or explicit approval of a named
+  file. This is normal Pi-session evidence, not cryptographic identity proof or
+  a permissions gate. Ambient reviews do not replace formal Superpowers reviews.
+  `/session-evidence` shows the current redacted ledger. `/session-spec <path>`
+  selects a candidate; `/session-spec approve <path>` explicitly approves it;
+  `/session-spec clear` detaches it. Each command requires a UI confirmation in
+  a trusted workspace. Selection/approval displays the path and SHA-256 digest;
+  changed or unreadable files are rejected after confirmation. Cancellation
+  leaves the prior selection and approval untouched. Slash commands run before
+  Pi's input event, so the confirmation dialog supplies the operator boundary,
+  not the command's unobservable origin. Injected feedback alone cannot approve.
+  Use `/fabric actors` for status and `/fabric stop <id>` to stop a helper. Reload existing sessions once with `/reload`. No new dependency,
+  background test runner or replacement review framework is installed.
 - **pi-fabric (2026-10-16): the orchestration runtime, and its rollback.**
-  `npm:pi-fabric@0.117.1` replaces the overlapping extensions with one
-  package. It is the deliberate exception to vendoring: it is installed with
-  `pi install` into `~/.pi/agent/npm` on each machine. Pinned at 0.117.1
-  because 0.117.2 depends on `@earendil-works/{pi-durable,chord}` 1.3.0 and
-  the machines run Pi 1.2.0; bump the pin together with Pi itself. The
-  `packages` entry in `settings.json` and the template is the object form,
-  which drops the bundled Coral Bricks provider (its maintainers work there):
-  `{"source": "npm:pi-fabric@0.117.1", "extensions": ["!node_modules/pi-coralbricks-provider/**"]}`.
+  `npm:pi-fabric@0.131.4` replaces the overlapping extensions with one
+  package. It is installed with `pi install` into `~/.pi/agent/npm` on each
+  machine. Upgrade it together with Pi, rather than lifting one pin alone.
+  Preserve the object-form `packages` entry and its provider exclusion:
+  `{"source": "npm:pi-fabric@0.131.4", "extensions": ["!node_modules/pi-coralbricks-provider/**"]}`.
   `pi install` rewrites it as a plain string, so restore the object form
   after any reinstall; check with `pi list` (shows `(filtered)`) and
   `pi --list-models | grep -c coralbricks` (0).
@@ -112,7 +194,7 @@ here.
 - Pi was renamed upstream from `@mariozechner/pi-coding-agent` to
   `@earendil-works/pi-coding-agent` (same maintainers). All vendored extensions
   peer-depend on `@earendil-works/*`, and `.pi/agent/package.json` pins
-  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at `^0.80.6`. Install globally with
+  `@earendil-works/{pi-ai,pi-coding-agent,pi-tui}` at `1.5.0`. Install globally with
   `npm install -g @earendil-works/pi-coding-agent`. If a stale `/usr/bin/pi`
   symlink remains from a prior root-level install of the old package, it can
   shadow the new user-prefix binary — `install.sh` detects and reports this.
@@ -202,7 +284,7 @@ here.
   churn again — re-add it.
 - `pi-lens` (real-time code feedback: LSP/linters/formatters/ast-grep) is a
   synced vendored extension at `.pi/agent/extensions/pi-lens/` (re-enabled
-  2026-10-12 at 4.4.3, via auto-discovery). Do not `pi install npm:pi-lens`;
+  2026-10-12, upgraded to 4.4.8 on 2026-11-02, via auto-discovery). Do not `pi install npm:pi-lens`;
   use the repo copy. Since **3.8.74** it is vendored in upstream's **prebuilt npm
   form** — `pi.extensions: ["./dist/index.js"]` (a single ~2.8 MB bundled
   `dist/index.js`) plus vendored `grammars/*.wasm` — NOT the pre-3.8.74
@@ -297,7 +379,7 @@ here.
   .pi/agent/extensions/` and re-add the pin — but prefer pi-advisor-flow
   going forward.
 - Pi `rpiv-web-tools` is a synced vendored extension at
-  `.pi/agent/extensions/rpiv-web-tools` (fresh 2.13.8, 2026-10-12).
+  `.pi/agent/extensions/rpiv-web-tools` (2.15.0, upgraded 2026-11-02).
   Install/repair it with `bash install.sh`, or
   `INSTALL_PI_NPM=always bash install.sh` if deps are stale. Do not use
   `pi install npm:@juicesharp/rpiv-web-tools`; use the repo copy. Keep

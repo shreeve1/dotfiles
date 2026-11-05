@@ -12,6 +12,8 @@ In Pi 1.5.0, `AgentSession.prompt()` tries `_tryExecuteExtensionCommand(text)` b
 
 An extension cannot require its `input` handler to set an operator-origin flag before a registered slash-command handler: real dispatch never sets that flag. Tests that manually emit `input` before invoking the command do not model Pi's ordering. `ExtensionCommandContext` has no input-source field; removing the gate is not evidence of operator origin. Approval-sensitive command behavior needs a separately verified confirmation boundary and a test through real dispatch.
 
+James chose explicit UI confirmation for `/session-spec` on 2026-11-05. Keep this boundary when maintaining the retained helper; the choice does not authorize enabling automatic helpers. The command behavior is documented in `docs/pi-extensions.md` and regression-tested through Pi's actual `AgentSession.prompt()` dispatcher.
+
 ## Related
 
 - [Fabric host program messages](memory/docs/knowledge/fabric-host-program-run-messages.md): another Pi/Fabric lifecycle detail that custom helper extensions must account for.
