@@ -14,4 +14,5 @@ topics: [workstation]
 - Measured 2026-11-05 on wsl with three trivial commands: in `~/Documents/itastack` (~11k files) each command took 1.3-1.6 s with pi-lens, against 25-35 ms without it. In a small repo it is about 40 ms. `~/.pi-lens/latency.log` showed 660 s of prescan in 38 minutes across the open itastack sessions.
 - Also slow: lint and format after each edit or write (median about 1.7 s).
 - `pi -p --no-lens` in itastack exits after ~1.8 s with no tool calls and no answer, so don't use it for A/B timing. Exclude the extension with `--no-extensions` plus `-e` for every other extension instead.
+- Fixed for itastack 2026-11-05 (James): `~/Documents/itastack/.pi/pi-lens.json` sets `lens.enabled: false`, read through the global `.pi/agent/pi-lens-project-off.ts` (docs/pi-extensions.md). Code repos keep pi-lens. Project-level extensions load after pi-lens reads its config and can't do this, and pi refuses a second extension registering `--no-lens`.
 - With pi-lens excluded, pi's per-step model time is close to dsh's (Opus median about 6-7 s per step for both). What's left is the bigger system prompt and extensions loading at startup (about 1.2 s).
