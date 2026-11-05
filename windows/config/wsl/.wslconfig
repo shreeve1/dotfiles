@@ -3,3 +3,7 @@
 [wsl2]
 networkingMode=mirrored
 vmIdleTimeout=86400000
+
+[experimental]
+# Lets Windows reach WSL listeners on the host's other IPs (e.g. the NetBird IP), not only 127.0.0.1.
+hostAddressLoopback=true
