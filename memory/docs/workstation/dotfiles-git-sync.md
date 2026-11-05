@@ -4,7 +4,7 @@ summary: Any machine may commit to dotfiles, so pull --rebase --autostash before
 type: doc
 status: promoted
 created: 2026-10-31
-updated: 2026-11-04
+updated: 2026-11-05
 topics: [workstation]
 ---
 
@@ -21,6 +21,13 @@ topics: [workstation]
 - Reaching the Windows checkouts: from wsl, drive wrk Windows through interop (`"/mnt/c/Program Files/Git/cmd/git.exe" -C C:/Users/james/dotfiles ...`); wsl has no known_hosts entry for wrk Windows sshd, so `ssh james@100.95.235.60` fails host-key verification. Over ssh to surftop, write the git.exe path with forward slashes: backslashes are stripped in the ssh-to-cmd hop (`C:Program`).
 - A pull blocked by an uncommitted root `AGENTS.md` edit (the same pi-fabric pin line on every machine, 2026-11-04): `git stash push -- AGENTS.md`, `git pull --ff-only`, `git stash pop`; check the edit applies on origin/main first.
 - `.agents/skills/ego-browser` remains git-ignored, not tracked. James had the skill removed from all active systems on 2026-11-04; do not restore it during sync. Ego may recreate Windows junctions to `C:\Users\james\.local\share\ego\ego-skills`; unlink the junction itself, never delete through it into the app. Tracking it briefly (`d71fda81` to its removal) made pulls fail with `Invalid argument`. [Removal and retained CLI access](memory/docs/workstation/ego-browser-wsl-access.md) records the scope.
+
+## Dirty checkout gotchas
+
+- Fleet upgrades can leave hundreds of uncommitted vendored files that already match `origin/main`, alongside genuinely older helper/policy files and unrelated local work. Compare bytes (allowing CRLF-only differences) before reconciling. The 2026-11-05 sync retained verified originals and manifests outside the checkout under `~/.local/state/dotfiles-sync/` on itan8n and `C:/Users/james/.local/state/dotfiles-sync/` on Windows; live settings/auth/models and unrelated files were hash-verified unchanged. A clean HEAD is not a clean working tree or proof that dependencies are installed.
+- On wrk Windows, a restored `.pi/agent/npm/package-lock.json` showed no `git diff` and its `git hash-object` equalled `HEAD:<path>`, but `git diff-files --raw` still marked it modified and `merge --ff-only` refused it. `core.autocrlf=true` produced a CRLF working copy. After verifying exact normalized content, path-scoped `git add -- .pi/agent/npm/package-lock.json` refreshed it without a staged content change and the fast-forward succeeded; `update-index --refresh` alone did not. Do not apply this to a genuinely changed lockfile.
+- A tracked npm pin is not package enablement: check each live `settings.json` `packages` list before treating a missing `node_modules` package as a fault. On 2026-11-05, `@trevonistrevon/pi-loop@0.7.19` was pinned in the shared npm manifest but enabled only on WSL; the other three machines intentionally had neither the settings entry nor the installed package. No fleet install was needed.
+- Preserve the [automatic-helper exclusions and mesh policy](memory/docs/workstation/pi-fabric-mesh-preference.md) while syncing; tracked templates do not replace machine-local settings.
 
 ## Related
 
