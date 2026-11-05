@@ -4,7 +4,7 @@
 #
 # Checks, in order:
 #   1. every link_path/seed_path source named in install.sh exists in the repo
-#   2. tracked shell files parse (bash -n)
+#   2. tracked shell files parse (bash -n; zsh files with zsh -n)
 #   3. tracked Python files parse (compile())
 #   4. tracked JSON files parse
 #   5. installed ~/... symlinks that point into this repo still resolve
@@ -57,20 +57,36 @@ fi
 
 # ─── 2. shell syntax ───────────────────────────────────────
 # Selected by CONTENT, not extension. Extension globbing missed exactly the
-# files that matter most: bin/* are extension-less (gralph drives the ralph
-# loop), and .zshrc/.bashrc have neither extension nor shebang
-# because they are sourced, not executed. Demonstrated 2026-09-03: a syntax
+# files that matter most: bin/* are extension-less (style-check, chrome-cdp),
+# and .zshrc/.bashrc have neither extension nor shebang because they are
+# sourced, not executed. Demonstrated 2026-09-03: a syntax
 # error in either passed the old gate with exit 0, and a broken .bashrc breaks
 # every new shell on both machines.
 #
 # ONE list, built once, used for both the check and its own coverage guard --
 # two copies of the selector would drift apart, which is the defect class this
 # repo has been filing cards about all session.
+#
+# A shebang counts only on a file's FIRST line. git grep matches any line, so a
+# script that embeds another script in a heredoc (tests/verify-final-*.test.sh
+# write a python file) was selected as that other language and failed to parse.
+shebang_files() {
+  git grep -l -I -E "$1" -- ':!*.md' 2>/dev/null | while IFS= read -r f; do
+    [ -f "$f" ] && head -n 1 "$f" | grep -qE "$1" && printf '%s\n' "$f"
+  done
+}
+
 shell_files() {
   {
-    git ls-files '*.sh' '*.bash' '.bashrc' '.zshrc' '.bash_profile' '.zprofile'
-    git grep -l -I -E '^#!.*\b(bash|sh|dash)\b' -- ':!*.md' 2>/dev/null
+    git ls-files '*.sh' '*.bash' '.bashrc' '.bash_profile'
+    shebang_files '^#!.*\b(bash|sh|dash)\b'
   } | sort -u
+}
+
+# zsh syntax (e.g. the glob qualifier in "*.zsh(N)") is not valid bash, so zsh
+# files are parsed by zsh, never by bash -n.
+zsh_files() {
+  git ls-files '*.zsh' '.zshrc' '.zprofile' '.zshenv' | sort -u
 }
 
 checked_sh=0
@@ -79,6 +95,18 @@ while read -r f; do
   checked_sh=$((checked_sh + 1))
   err="$(bash -n "$f" 2>&1)" || fail "shell syntax: $f: $err"
 done < <(shell_files)
+
+if command -v zsh >/dev/null 2>&1; then
+  while read -r f; do
+    [ -n "$f" ] && [ -f "$f" ] || continue
+    checked_sh=$((checked_sh + 1))
+    err="$(zsh -n "$f" 2>&1)" || fail "zsh syntax: $f: $err"
+  done < <(zsh_files)
+  list="$(zsh_files)"
+  grep -qxF .zshrc <<<"$list" || fail "zsh-file scan no longer reaches .zshrc — the selector is broken, not the repo"
+else
+  echo "skip: zsh not installed; zsh files not syntax-checked"
+fi
 
 # A typo in the selector would silently shrink coverage to zero and still
 # report ok. Assert it still reaches the extension-less files this check
@@ -95,12 +123,13 @@ while read -r must; do
     fail "coverage guard names $must, which does not exist — rename it here too, or the guard is dead"
     continue
   fi
-  shell_files | grep -qxF "$must" ||
+  # Capture first: under pipefail, grep -q exiting early SIGPIPEs the producer.
+  list="$(shell_files)"
+  grep -qxF "$must" <<<"$list" ||
     fail "shell-file scan no longer reaches $must — the selector is broken, not the repo"
 done <<'MUST'
-bin/gralph
+bin/style-check
 .bashrc
-.zshrc
 MUST
 
 if [ "$checked_sh" -eq 0 ]; then
@@ -124,7 +153,7 @@ fi
 python_files() {
   {
     git ls-files '*.py'
-    git grep -l -I -E '^#!.*\bpython[0-9.]*\b' -- ':!*.md' 2>/dev/null
+    shebang_files '^#!.*\bpython[0-9.]*\b'
   } | sort -u
 }
 
@@ -151,7 +180,8 @@ while read -r must; do
     fail "coverage guard names $must, which does not exist — rename it here too, or the guard is dead"
     continue
   fi
-  python_files | grep -qxF "$must" ||
+  list="$(python_files)"
+  grep -qxF "$must" <<<"$list" ||
     fail "python-file scan no longer reaches $must — the selector is broken, not the repo"
 done <<'MUST'
 bin/prune-dead-links
@@ -169,7 +199,14 @@ fi
 checked_json=0
 while read -r f; do
   checked_json=$((checked_json + 1))
-  err="$(jq empty "$f" 2>&1)" || fail "invalid JSON: $f: $err"
+  case "$f" in
+  # Vendored upstream file that ships // comment lines (JSONC); drop them, then
+  # validate the rest as JSON. Every other .json must be plain JSON.
+  .pi/agent/extensions/pi-lens/config/dependency-cruiser-eager-allowlist.json)
+    err="$(sed '/^[[:space:]]*\/\//d' "$f" | jq empty 2>&1)" || fail "invalid JSON: $f: $err"
+    ;;
+  *) err="$(jq empty "$f" 2>&1)" || fail "invalid JSON: $f: $err" ;;
+  esac
 done < <(git ls-files '*.json' '*.json.template' | grep -v -e 'lock\.json$' -e '/node_modules/')
 
 # ─── 5. currently-declared links still resolve ─────────────
