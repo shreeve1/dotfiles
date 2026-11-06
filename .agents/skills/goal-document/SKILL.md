@@ -15,7 +15,7 @@ Read the project's instructions (`AGENTS.md`, `CLAUDE.md`), README, any policy, 
 
 ## 2. Draw out the intent
 
-Ask only what you need to reach a shared understanding with the owner: one question at a time, open-ended and in the owner's words, with no example answers until you know the why. Stop asking once the ground below is covered and confirmed. Build each question on their last answer or on friction you found ("Three tickets escalated over a self-clearing job queue. Is a small, explained data change something you want to hear about?"). Ground to cover, never read out as a list:
+Ask only what you need to reach a shared understanding with the owner: open-ended questions in the owner's words, with no example answers until you know the why. Stop asking once the ground below is covered and confirmed. Build each question on their last answer or on friction you found ("Three tickets escalated over a self-clearing job queue. Is a small, explained data change something you want to hear about?"). Ground to cover, never read out as a list:
 
 - **Who it serves** and what each of them would notice going wrong.
 - **What is irreplaceable**: the data, setup time or trust that can't be rebuilt. This usually outranks uptime.
