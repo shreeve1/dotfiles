@@ -4,13 +4,14 @@ summary: dsh 0.2.1-rc.3 on wsl to test dsh-superagent; profile superagent, port 
 type: doc
 status: promoted
 created: 2026-11-03
-updated: 2026-11-04
+updated: 2026-11-05
 topics: [workstation]
 ---
 
 ## Active memory
 
 - Console down or 502: run `~/src/dsh-superagent/scripts/dsh-superagent status` first (exit 0 running, 1 stopped, 2 component error, 3 waiting for setup); `start` relaunches it. User timer `dsh-superagent-recover.timer` (wsl, `~/.config/systemd/user/`, added 2026-11-04) runs `start --respect-stop` every 2 min, so dsh comes back by itself unless stopped with the script's `stop`. Restarting from inside a dsh session: `memory/preferences/dsh-restart-via-herdr.md`.
+- Session stuck "running" that won't stop: when an ssh drop orphans a bash tool call (no process left locally or remotely), dsh never closes the call, and both Stop and `session_bridge_cancel` are accepted but do nothing. Only a dsh restart clears it; afterwards the session resumes by itself on its next wake (2026-11-05).
 - James approved reinstalling dsh on wsl on 2026-11-03, as a test only, to try `deepseek-ai/dsh-superagent-prototype`. The fleet note "dsh is retired" still describes the long-term state; update it if James keeps dsh.
 - Plugins: profile `~/.dsh/profiles/superagent/package.json` is the list. James first asked for `dsh-superagent` only (linked from `~/src/dsh-superagent`); by 2026-11-04 it also held `dsh-genui`, `dsh-better-sidebar`, `dsh-plugin`, `dsh-ego-browser`, `dsh-sentinel`, `dsh-session-bridge` `@clxzl/dsh-mobile-adapt` (approved; phone layout, loads without a restart) and `@shiqyka/dsh-ssh-workspace@0.2.8` (2026-11-04: mounts `ssh://itan8n/<path>` as a workspace; it needs `ssh2: false` and `cpu-features: false` under `allowBuilds` in the profile's `pnpm-workspace.yaml`, and authenticates through `~/.ssh/config` plus `id_ed25519`). Leave dsh's 12 `dsh-experimental-*` bundles off; don't reinstall the old aidev set from `archive/docs/deepseek-harness.md`.
 - Superpowers skills: `~/.dsh/skills` symlinks `~/src/superpowers/skills` (James, 2026-11-03), so every dsh profile sees them. dsh has no session-start hook, so `using-superpowers` is listed, not injected. Update with `git -C ~/src/superpowers pull`; remove by deleting the symlink.

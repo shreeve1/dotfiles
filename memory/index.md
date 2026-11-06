@@ -13,7 +13,7 @@
 | [dsh-superagent Halo Project Watching](memory/docs/workstation/dsh-superagent-projects.md) | doc | Superagent Halo project watching: live per-project tickets, silent in project channels, drafts only. | 2026-11-04 |
 | [dsh Permanent Browser Login](memory/docs/workstation/dsh-browser-login.md) | doc | Private permanent login bookmark; local dsh auth patch needs reapplying after upgrades. | 2026-11-04 |
 | [dsh ssh-workspace picker patch](memory/docs/workstation/dsh-ssh-workspace-picker-patch.md) | doc | Local plugin patch; verify served plugin clients via the plugins/ rev URL. | 2026-11-04 |
-| [dsh-superagent Test Install on wsl](memory/docs/workstation/dsh-superagent-test.md) | doc | dsh test install on wsl for dsh-superagent; console down → `status`, a recovery timer restarts it. | 2026-11-04 |
+| [dsh-superagent Test Install on wsl](memory/docs/workstation/dsh-superagent-test.md) | doc | dsh test install on wsl for dsh-superagent; console down → `status`, a recovery timer restarts it; an orphaned tool call needs a restart. | 2026-11-05 |
 | [herdr Worktree Remove vs Live pi Cache](memory/docs/workstation/herdr-worktree-remove-pi-cache.md) | doc | Live pi cache can block herdr worktree removal. | 2026-11-04 |
 | [pi-lens bash Prescan](memory/docs/workstation/pi-lens-bash-prescan.md) | doc | pi-lens scans the cwd before every bash call; ~1.3 s per command in itastack, the main cause of pi feeling slower than dsh. | 2026-11-05 |
 | [Rakazo Stopped](memory/docs/workstation/rakazo-stopped.md) | doc | Stopped, not removed; stale Chromium sessions had used ~2 cores. | 2026-11-02 |
