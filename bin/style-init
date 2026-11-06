@@ -74,7 +74,9 @@ fi
 # --- which template files this repo needs -----------------------------------
 # .editorconfig always; a language's config only when the repo has that
 # language and style-check finds no config of its own for it.
-has_lang() { git ls-files -- "$@" | grep -q .; }
+# grep must read all of git's output: grep -q exits at the first match, git gets
+# SIGPIPE, and pipefail then reports "no such language" in a big repo.
+has_lang() { git ls-files -- "$@" | grep . >/dev/null; }
 missing=()
 [ -f .editorconfig ] || missing+=(.editorconfig)
 configured() { bash "$HERE/style-check" --has-config "$1"; }
