@@ -10,7 +10,6 @@ path:~/pi-durable
 path:~/aws
 path:~/pi-durable-template
 path:~/durable-bot
-# The itastack workspace has no origin on omarchy: each machine's copy is kept
-# level with offload-sync. It is a different repo from itanoc/itastack on
-# itan8n (different root commit).
+# ITAStack is Git-less and synced by Syncthing; use style-init --no-git.
+# itan8n's itanoc/itastack checkout is separate and still uses normal Git mode.
 path:~/Documents/itastack

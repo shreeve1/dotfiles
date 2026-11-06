@@ -5,6 +5,8 @@
 #
 #   style-check [--fix] [--format-only] [--only SURFACE] [FILE...]
 #                     check (or fix) the repo; SURFACE is shell|python|ts|markdown
+#   style-check --no-git FOLDER [--fix] [--format-only] [FILE...]
+#                     no-Git checks; fixes require named files relative to FOLDER
 #   style-check --doctor   show tool versions vs pins
 #   style-check --has-config SURFACE   exit 0 when the repo configures it
 #
@@ -33,9 +35,20 @@ FORMAT_ONLY=0
 DOCTOR=0
 ONLY=
 HAS_CONFIG=
+NO_GIT=0
+WORKSPACE=
 FILES=()
 while [ $# -gt 0 ]; do
   case "$1" in
+  --no-git)
+    NO_GIT=1
+    WORKSPACE="${2-}"
+    if [ -z "$WORKSPACE" ] || [[ "$WORKSPACE" == -* ]]; then
+      echo 'style-check: --no-git requires FOLDER' >&2
+      exit 2
+    fi
+    shift
+    ;;
   --fix) MODE=fix ;;
   --format-only) FORMAT_ONLY=1 ;;
   --doctor) DOCTOR=1 ;;
@@ -103,10 +116,16 @@ if [ "$DOCTOR" = 1 ]; then
   exit "$bad"
 fi
 
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
-  echo "style-check: not inside a git repository" >&2
-  exit 2
-}
+if [ "$NO_GIT" = 1 ]; then
+  # shellcheck source=style-workspace.sh
+  . "$STYLE_DIR/../../bin/style-workspace.sh"
+  style_workspace_root "$WORKSPACE" || exit 2
+else
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "style-check: not inside a git repository" >&2
+    exit 2
+  }
+fi
 cd "$ROOT"
 
 # The one definition of "this repo declares a surface": pi-lens's gate, and
@@ -143,7 +162,14 @@ ignored() {
   return 1
 }
 
-if [ ${#FILES[@]} -eq 0 ]; then
+if [ "$NO_GIT" = 1 ]; then
+  if [ "$MODE" = fix ] && [ ${#FILES[@]} -eq 0 ]; then
+    echo 'style-check: no-Git --fix requires explicit filenames (no bulk formatting)' >&2
+    exit 2
+  fi
+  style_workspace_files "${FILES[@]}" || exit 2
+  FILES=("${WORKSPACE_FILES[@]}")
+elif [ ${#FILES[@]} -eq 0 ]; then
   mapfile -t FILES < <(git ls-files)
 else
   rel=()
@@ -206,7 +232,12 @@ if [ ${#SH[@]} -gt 0 ]; then
     if [ "$MODE" = fix ]; then
       run "shfmt" shfmt -w "${SH[@]}"
     else
-      drift="$(shfmt -l "${SH[@]}" || true)"
+      rc=0
+      drift="$(shfmt -l "${SH[@]}" 2>&1)" || rc=$?
+      if [ "$rc" != 0 ]; then
+        printf '%s\n' "$drift" >&2
+        FAILED+=("shfmt")
+      fi
       if [ -n "$drift" ]; then
         printf 'shfmt: not formatted (fix: style-check --fix):\n%s\n' "$drift" | sed '2,$s/^/  /'
         FAILED+=("shfmt")
@@ -230,8 +261,14 @@ if [ ${#PY[@]} -gt 0 ]; then
       run "ruff format" ruff format --force-exclude --quiet "${PY[@]}"
     else
       # One line per file, like shfmt -l; the full --check diff buries the summary.
-      drift="$(ruff format --check --force-exclude --output-format concise "${PY[@]}" 2>&1 |
-        sed -n -E 's/^([^:]+\.pyi?):[0-9]+:[0-9]+: unformatted.*/\1/p' | sort -u || true)"
+      rc=0
+      output="$(ruff format --check --force-exclude --output-format concise "${PY[@]}" 2>&1)" || rc=$?
+      drift="$(printf '%s\n' "$output" |
+        sed -n -E 's/^([^:]+\.pyi?):[0-9]+:[0-9]+: unformatted.*/\1/p' | sort -u)"
+      if [ "$rc" != 0 ] && { [ "$rc" != 1 ] || [ -z "$drift" ]; }; then
+        printf '%s\n' "$output" >&2
+        FAILED+=("ruff format")
+      fi
       if [ -n "$drift" ]; then
         printf 'ruff format: not formatted (fix: style-check --fix):\n%s\n' "$drift" | sed '2,$s/^/  /'
         FAILED+=("ruff format")
@@ -247,19 +284,21 @@ fi
 if [ ${#JS[@]} -gt 0 ]; then
   if [ -f biome.json ] || [ -f biome.jsonc ]; then
     need biome
+    BIOME_ARGS=()
+    [ "$NO_GIT" = 0 ] || BIOME_ARGS+=(--vcs-enabled=false)
     sub=check
     [ "$FORMAT_ONLY" = 1 ] && sub=format
     if [ "$MODE" = fix ]; then
       # biome is not always idempotent: a long chain can need a second pass to
       # settle (seen on pi-durable). Repeat until a check finds nothing, so the
       # tree is stable under pi-lens's single pass and under the next check.
-      run "biome $sub --write" biome "$sub" --write --no-errors-on-unmatched --diagnostic-level=error "${JS[@]}"
+      run "biome $sub --write" biome "$sub" "${BIOME_ARGS[@]}" --write --no-errors-on-unmatched --diagnostic-level=error "${JS[@]}"
       for _ in 1 2; do
-        biome format --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 && break
-        biome format --write --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 || true
+        biome format "${BIOME_ARGS[@]}" --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 && break
+        biome format "${BIOME_ARGS[@]}" --write --no-errors-on-unmatched "${JS[@]}" >/dev/null 2>&1 || true
       done
     else
-      run "biome $sub" biome "$sub" --no-errors-on-unmatched --diagnostic-level=error --reporter=concise "${JS[@]}"
+      run "biome $sub" biome "$sub" "${BIOME_ARGS[@]}" --no-errors-on-unmatched --diagnostic-level=error --reporter=concise "${JS[@]}"
     fi
   else
     SKIPPED+=("ts/js (no biome.json; a prettier setup is the repo's own, not run here)")

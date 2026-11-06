@@ -2,6 +2,7 @@
 # style-init: adopt the standard style contract in one of your repos.
 #
 #   style-init [--check] [--yes] [REPO]
+#   style-init --no-git FOLDER [--check]   copy missing configs only, no reformat
 #
 #   --check  report only: exit 0 when REPO already has the standard files,
 #            3 when it is an owned repo that is missing some, 4 when it is not
@@ -26,8 +27,20 @@ TEMPLATE="$STYLE_DIR/template"
 CHECK=0
 YES=0
 REPO=.
+NO_GIT=0
+REPO_SET=0
 while [ $# -gt 0 ]; do
   case "$1" in
+  --no-git)
+    NO_GIT=1
+    if [ "$REPO_SET" = 1 ] || [ -z "${2-}" ] || [[ "$2" == -* ]]; then
+      echo 'style-init: --no-git requires one explicit FOLDER' >&2
+      exit 2
+    fi
+    REPO="$2"
+    REPO_SET=1
+    shift
+    ;;
   --check) CHECK=1 ;;
   --yes) YES=1 ;;
   -h | --help)
@@ -38,26 +51,41 @@ while [ $# -gt 0 ]; do
     echo "style-init: unknown option $1" >&2
     exit 2
     ;;
-  *) REPO="$1" ;;
+  *)
+    if [ "$NO_GIT" = 1 ]; then
+      echo 'style-init: unexpected extra workspace argument' >&2
+      exit 2
+    fi
+    REPO="$1"
+    REPO_SET=1
+    ;;
   esac
   shift
 done
 
-ROOT="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || {
-  echo "style-init: $REPO is not inside a git repository" >&2
-  exit 2
-}
+if [ "$NO_GIT" = 1 ]; then
+  # shellcheck source=style-workspace.sh
+  . "$HERE/style-workspace.sh"
+  style_workspace_root "$REPO" || exit 2
+else
+  ROOT="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "style-init: $REPO is not inside a git repository" >&2
+    exit 2
+  }
+fi
 cd "$ROOT"
 
 # --- ownership --------------------------------------------------------------
 owned() {
   local url owner line rel
-  url="$(git remote get-url origin 2>/dev/null || true)"
+  url=
+  [ "$NO_GIT" = 1 ] || url="$(git remote get-url origin 2>/dev/null || true)"
   owner="$(printf '%s' "$url" | sed -n -E 's#^.*github[^:/]*[:/]([^/]+)/[^/]+$#\1#p')"
   rel="~${ROOT#"$HOME"}"
   while IFS= read -r line; do
     line="${line%%#*}"
-    line="${line//[[:space:]]/}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
     case "$line" in
     owner:*) [ -n "$owner" ] && [ "${line#owner:}" = "$owner" ] && return 0 ;;
     path:*) [ "${line#path:}" = "$rel" ] && return 0 ;;
@@ -76,13 +104,42 @@ fi
 # language and style-check finds no config of its own for it.
 # grep must read all of git's output: grep -q exits at the first match, git gets
 # SIGPIPE, and pipefail then reports "no such language" in a big repo.
-has_lang() { git ls-files -- "$@" | grep . >/dev/null; }
+if [ "$NO_GIT" = 1 ]; then
+  style_workspace_files || exit 2
+fi
+has_lang() {
+  if [ "$NO_GIT" = 0 ]; then
+    git ls-files -- "$@" | grep . >/dev/null
+    return $?
+  fi
+  local file pattern
+  for file in "${WORKSPACE_FILES[@]}"; do
+    for pattern in "$@"; do
+      # shellcheck disable=SC2053 # Match language globs, not literal names.
+      [[ "$file" == $pattern ]] && return 0
+    done
+  done
+  return 1
+}
 missing=()
 [ -f .editorconfig ] || missing+=(.editorconfig)
-configured() { bash "$HERE/style-check" --has-config "$1"; }
+configured() {
+  if [ "$NO_GIT" = 1 ]; then
+    bash "$HERE/style-check" --no-git "$ROOT" --has-config "$1"
+  else
+    bash "$HERE/style-check" --has-config "$1"
+  fi
+}
 has_lang '*.py' '*.pyi' && ! configured python && missing+=(ruff.toml)
-has_lang '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' && ! configured ts && missing+=(biome.json)
+has_lang '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' && ! configured ts && missing+=(biome.json)
 has_lang '*.md' && ! configured markdown && missing+=(.markdownlint-cli2.jsonc)
+# A dangling config symlink is existing data, not a missing file to overwrite.
+for f in "${missing[@]}"; do
+  if [ -e "$f" ] || [ -L "$f" ]; then
+    echo "style-init: expected a regular config file, leaving existing path alone: $f" >&2
+    exit 2
+  fi
+done
 if [ "$CHECK" = 1 ]; then
   if [ ${#missing[@]} -eq 0 ]; then
     echo "style-init: $ROOT already has the standard files"
@@ -90,6 +147,18 @@ if [ "$CHECK" = 1 ]; then
   fi
   echo "style-init: $ROOT is missing: ${missing[*]}"
   exit 3
+fi
+if [ "$NO_GIT" = 1 ]; then
+  for f in "${missing[@]}"; do
+    # No-clobber protects a config another session creates after discovery.
+    (
+      set -o noclobber
+      printf '%s\n' "$(<"$TEMPLATE/$f")" >"$f"
+    ) || exit 2
+    echo "copied: $f"
+  done
+  echo 'style-init: no-Git configs ready; no source formatting or commits performed'
+  exit 0
 fi
 if [ ${#missing[@]} -eq 0 ] && bash "$HERE/style-check" --format-only >/dev/null 2>&1; then
   echo "style-init: $ROOT already has the standard files and is formatted"

@@ -4,13 +4,14 @@ summary: Since 2026-10-22 itastack has no git; on wrk agents work in the WSL cop
 type: doc
 status: promoted
 created: 2026-10-25
-updated: 2026-10-26
+updated: 2026-11-05
 topics: [projects]
 ---
 
 ## Active memory
 
 - Since 2026-10-22 the itastack workspace has no git. Agents do not commit, and `sd.py` has no commit command.
+- The operator approved explicit no-Git style support. ITAStack has the standard EditorConfig, Ruff, Biome and Markdown configs; pi-lens remains deliberately disabled. `style-init --no-git <workspace>` is config-only, and `style-check --no-git <workspace>` reports existing findings. Fixes require named files; no baseline reformat or Git metadata is created. The contract and exclusions are in `docs/adr/0022-one-style-contract.md`.
 - On wrk, agents work in the WSL copy `~/Documents/itastack`, not `/mnt/c`. A WSL Syncthing (user service, device `wrk-wsl`, GUI `127.0.0.1:8385`, listen 22001) syncs it with the Windows folder Obsidian uses.
 - The only undo is Syncthing's `.stversions` on the Windows copy (30 days). History up to commit `43d70a9` is archived on wrk at `~/itastack-git-archive-2026-10-22.tar.gz`.
 - Recorded from wrk; not checkable from aidev. Re-check on wrk before relying on it.

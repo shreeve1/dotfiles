@@ -35,7 +35,7 @@
 | [OpenRouter Key Inventory Across Machines](memory/docs/workstation/openrouter-key-inventory.md) | doc | Where OpenRouter keys sit per machine, who consumes them, one leaked into git history. | 2026-10-30 |
 | [LLM Credential Cleanup List](memory/docs/workstation/llm-credential-cleanup.md) | doc | Fingerprint of every LLM key in the fleet and which copies go once traffic runs through CLIProxy. | 2026-10-30 |
 | [OpenCode Plugin Edits Need a Server Restart](memory/docs/knowledge/opencode-plugin-reload.md) | doc | Edited OpenCode plugins run only after the server restarts: systemctl --user restart opencode-server on Linux; on Windows end opencode-cli.exe. | 2026-10-25 |
-| [itastack Workspace Has No Git, Synced by Syncthing](memory/docs/projects/itastack-workspace-sync.md) | doc | No Git; WSL/Windows copies use Syncthing, with .stversions for undo. | 2026-10-26 |
+| [itastack Workspace Has No Git, Synced by Syncthing](memory/docs/projects/itastack-workspace-sync.md) | doc | Syncthing, no Git; explicit no-Git style commands, named-file fixes only, lens remains off. | 2026-11-05 |
 | [Fabric Host Program Runs Post to Chat and Context](memory/docs/knowledge/fabric-host-program-run-messages.md) | doc | pi-fabric posts every host program run into the chat and model context; fabric-auto-start hides its own setup runs. | 2026-11-03 |
 | [Fabric Child Model Tiers](memory/docs/knowledge/fabric-child-model-tiers.md) | doc | A fabric child with no model runs on Main's model; skill tiers map cheap->cheap, standard->reviewer, most capable->oracle. | 2026-10-26 |
 | [Starter-agent Skill Source](memory/docs/knowledge/starter-agent-skill-source.md) | doc | personal-memory, memory-setup, and drawio are edited in starter-agent, then synced into dotfiles. | 2026-10-27 |

@@ -18,6 +18,26 @@ The contract: **a tool runs only from the repo's own config file, and every call
 - **The skill's table as the truth, with pi-lens features disabled to match.** Fights the tool that runs on every edit, and needs overrides kept up in a vendored extension.
 - **Format on touch, no baseline.** A one-line edit arrives with a whole-file reformat, and the push check could only ever cover files changed on the branch.
 
+## Git-less workspaces
+
+Syncthing-managed workspaces such as ITAStack opt in explicitly, without restoring Git:
+
+```sh
+style-init --no-git "$HOME/Documents/itastack" --check
+style-init --no-git "$HOME/Documents/itastack"
+style-check --no-git "$HOME/Documents/itastack"
+style-check --no-git "$HOME/Documents/itastack" --format-only
+style-check --no-git "$HOME/Documents/itastack" --fix --format-only path/to/file.py
+```
+
+`style-init --no-git` uses the `path:` ownership entries and copies only missing language configs, never existing ones. It does not format sources, create Git metadata, commit or write blame-ignore files. `--check` stays read-only (0 ready, 3 missing configs, 4 not owned). Both commands require an explicit existing folder and refuse Git checkouts, so this cannot bypass dirty-tree safeguards.
+
+Named files are relative to the chosen workspace (absolute paths inside it also work). A no-Git fix requires explicit regular filenames: directories, missing files, symlinks, files outside the workspace and files inside nested Git repositories are refused before formatting starts. Prefix option-like filenames with `--`. No whole-workspace `--fix` is permitted. Markdown is linted, never auto-formatted; use `--format-only` when lint changes are not intended.
+
+Both no-Git commands share the same file selection. Scans do not follow symlinks or enter nested Git repositories. At any depth they exclude `.git`, `node_modules`, `.venv`, `venv`, `__pycache__`, `.stversions`, `.cache`, `.ruff_cache`, `.pytest_cache`, `.mypy_cache`, `.superpowers`, `vendor`, `dist`, `build`, `tmp`, `artifacts`, `.sessions`, `.sync`, and `.pi/fabric` runtime directories. `.styleignore` adds root-relative globs using the existing one-pattern-per-line format. These exclusions also apply to named files; ignore files belonging to other tools are not a substitute for this scope. Biome's Git integration is disabled for no-Git invocations; its formatter and lint rules still come from the workspace config.
+
+Tradeoff: no baseline means existing format and lint findings remain until intentionally addressed. Configuration adoption is not a claim that every file is clean. A one-line source edit may still need a whole-file format. Automatic pi-lens processing remains separately controlled; ITAStack's deliberate lens-off override is not changed by adoption.
+
 ## Consequences
 
 - Bumping a tool is a one-line edit to `tools.env` followed by `install.sh` on wsl and itan8n and `install-win.ps1` on wrk Windows and surftop. `style-check --doctor` and the push hook report a machine whose tools are not at the pins.
