@@ -43,4 +43,5 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Finding where an OpenRouter key lives or which app uses it | | `memory/docs/workstation/openrouter-key-inventory.md` |
 | Standardizing LLM use through CLIProxy, or deciding which credential copies to delete | | `memory/docs/workstation/llm-credential-cleanup.md` | | |
 | Scanning git history or a public repo for leaked credentials | | `memory/docs/projects/public-repo-secret-exposure.md` | |
+| Running style-init or adopting the style contract in a repo | | `memory/docs/knowledge/style-init-adoption-gotchas.md` | |
 | Saving, pruning or checking memory | skill `personal-memory` | | |
