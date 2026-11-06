@@ -7,7 +7,7 @@ description: Use when creating or revising a project's goal document (what the p
 
 A goal document is the project's **commander's intent**: one page saying what the project is for and why, so an agent facing a call nobody wrote a rule for decides the way the owner would. It states the destination, never the route. Rules keep only the hard limits; everything else is judgement guided by this page.
 
-Background and sources: `references/research.md`.
+Background: `references/research.md`. When the owner asks why this approach, or wants an example, open the matching article in `references/sources/`.
 
 ## 1. Look before asking
 
