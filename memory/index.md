@@ -5,7 +5,7 @@
 | Page | Type | Summary | Updated |
 |------|------|---------|---------|
 | [Pi Slash Command Dispatch](memory/docs/knowledge/pi-slash-command-input-order.md) | doc | Registered slash commands run before input events; handlers have no input-origin field. | 2026-11-05 |
-| [REA Off](memory/decisions/workstation/decision-rea-disabled-by-default.md) | decision | REA off; analysis on. | 2026-11-04 |
+| [REA Only in ~/rea-lab](memory/decisions/workstation/decision-rea-disabled-by-default.md) | decision | REA only in ~/rea-lab; Codex config leaked it into pi. | 2026-11-05 |
 | [Ego](memory/docs/workstation/ego-browser-wsl-access.md) | doc | Removed. | 2026-11-04 |
 | [GitHub SSH](memory/docs/workstation/team-computer-github-ssh.md) | doc | Mounted GitHub SSH config; check clone hooks. | 2026-11-02 |
 | [WSL Clipboard Image Paste in pi](memory/docs/workstation/wsl-clipboard-image-paste.md) | doc | WSL image paste needs powershell.exe on herdr's PATH. | 2026-11-02 |

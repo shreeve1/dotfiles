@@ -21,7 +21,7 @@ Read at session start. Load every Always row now. Before each task, load every r
 | Pasting images into pi fails, or a Windows .exe is not found in a herdr pane on WSL | | `memory/docs/workstation/wsl-clipboard-image-paste.md` | |
 | pi feels slow, or a bash call in pi takes over a second | | `memory/docs/workstation/pi-lens-bash-prescan.md` | |
 | WSL slowness, Vmmem CPU or a repo under /mnt/c | | `memory/docs/workstation/pi-footer-git-polling.md` | |
-| Setting up or enabling REA MCP, or reducing Pi helper memory | | `memory/decisions/workstation/decision-rea-disabled-by-default.md` | |
+| Reverse engineering, REA MCP, or reducing Pi helper memory | | `memory/decisions/workstation/decision-rea-disabled-by-default.md` | |
 | A [pi-fabric-program-run] block shows in pi, or an extension runs Fabric host programs | | `memory/docs/knowledge/fabric-host-program-run-messages.md` | |
 | Changing Pi Fabric automatic helpers, mesh or peer notices | | `memory/docs/workstation/pi-fabric-mesh-preference.md` | |
 | Changing pi's default model or settings.json | | `memory/docs/workstation/pi-default-model-per-machine.md` | |
