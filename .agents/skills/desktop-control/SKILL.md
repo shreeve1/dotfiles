@@ -5,7 +5,7 @@ description: Use when an agent needs Windows desktop UI access from WSL on wrk, 
 
 # Desktop control on wrk
 
-Use Cua Driver for native Windows UI. **Preserve James's pointer, focus and clipboard.**
+Use Cua Driver for native Windows UI. **Prefer background input; never use James's clipboard.**
 
 ## Start
 
@@ -28,8 +28,8 @@ Use Cua Driver for native Windows UI. **Preserve James's pointer, focus and clip
 
 - Record the exact `pid`, `window_id` and title. Read `get_window_state` with **both IDs**, `include_screenshot:false`, and a unique public `session` label. Repeat that label on state/action calls to retain the CLI token cache.
 - Before typing, verify the intended window **and element** in the current tree. Prefer element-index actions: row `[N]` becomes `element_token:"<snapshot_id>:N"`. Use `set_value` for supported fields and background input otherwise; never use the operator's clipboard.
-- Keep `delivery_mode:"background"`; leave `foreground_fallback` off. Use `run_steps` with `observe:{}` for known actions plus readback. Read the resulting state/text, not just the success flag. Refresh targets after UI changes.
-- Use screenshot-coordinate clicks only when the tree lacks the target. If background input fails or is a verified no-op, ask James before moving his pointer or taking focus; fallback is not permission.
+- Try `delivery_mode:"background"` first. Use `run_steps` with `observe:{}` for known actions plus readback; apply the separate-call sequence below for Live Connect. Verify resulting state/text, not just success flags; refresh targets after UI changes.
+- Use screenshot-coordinate clicks only when the tree lacks the target. Live Connect has standing foreground approval below; other focus-taking work still needs James's go-ahead.
 
 ## Recovery and finish
 
@@ -44,4 +44,9 @@ Use Cua Driver for native Windows UI. **Preserve James's pointer, focus and clip
 
 ## Live Connect
 
-Read `/home/james/Documents/itastack/memory/workflows/workstation/drive-kaseya-live-connect-from-wrk.md` before client-console work. Confirm the selected `Document "<host> - Commands"` matches the task before typing; never send input to an unnamed client tab. After reconnect, re-check endpoint, shell and execution context; do not assume the previous command ran. Destructive client actions require James's explicit go-ahead.
+Read `/home/james/Documents/itastack/memory/workflows/workstation/drive-kaseya-live-connect-from-wrk.md` before client-console work. Confirm selected `Document "<host> - Commands"` matches the named endpoint before typing; never send input to an unnamed client tab.
+
+1. Background sequence: `run_steps` click the named `TabItem`; separately `run_steps` click `role:"Edit"`; re-check the selected Document; a **separate `type_text` call** sends the command with exact `pid`/`window_id`; then `run_steps` sends `press_key` with `key:"return"`. Retain the same session throughout. Read fresh console rows for command **and new output/prompt**; old output is not proof. A combined element-token click/type/Return batch can silently do nothing.
+2. If background is refused or a **verified no-op**, James's standing OK allows foreground control **for Live Connect**: retry only the undelivered action with `delivery_mode:"foreground"` or `foreground_fallback:true`. Activate the exact Live Connect window if needed, without typing. Before **each foreground keystroke action**, re-read the selected Document and compare Live Connect's `window_id` (HWND) with Win32 `GetForegroundWindow` (not merely an activation success flag). If either check fails, send nothing. Keep foreground time minimal and state in the result that focus was taken. Inspect partial input first to avoid duplicate commands.
+
+After reconnect, re-check endpoint, shell and execution context; do not assume the previous command ran. Destructive client actions still require James's explicit go-ahead.
