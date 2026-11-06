@@ -29,7 +29,11 @@
         "model": "cliproxy/glm-5.3-flash",
         "thinking": "low"
       },
-      "cheap": "cliproxy/deepseek-v4.1-flash"
+      "cheap": "cliproxy/deepseek-v4.1-flash",
+      "computer": {
+        "model": "cliproxy/gpt-6.1-sol",
+        "thinking": "medium"
+      }
     }
   },
   "mcp": {
