@@ -36,4 +36,4 @@
 
 ## Hard limits
 
-<!-- Pointer to where the fixed rules live (change window, irreversible actions, shared systems). Do not restate them. -->
+<!-- Pointer to where the fixed rules live (change window, irreversible actions, shared systems). Do not restate them. If no rules file exists, list the few limits here briefly. -->
