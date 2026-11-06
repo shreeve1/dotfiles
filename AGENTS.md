@@ -34,7 +34,7 @@ When one machine "can't find" another, it's a name, not the network:
 
 - **Read `docs/pi-extensions.md` before touching, upgrading or re-syncing any vendored pi extension.** Don't `pi install` vendored extensions; pi-lens needs `--ignore-scripts`; disabling needs a `-extensions/<name>/index.ts` exclusion and the `packages` entry removed; don't fight pi-lens autoformat.
 - **pi-fabric** is pinned at `0.131.4` with Pi `1.5.0`; preserve package filters in each machine's `settings.json`. Role models: `.pi/agent/fabric.json`. Upgrade and rollback: `docs/pi-extensions.md`.
-- **Formatting and linting:** run `style-check`, not a formatter with your own flags (`docs/adr/0022-one-style-contract.md`). Tool versions are pinned in `.config/style/tools.env`; after a bump re-run `install.sh` (surftop: `install-win.ps1`) on every machine.
+- **Formatting and linting:** run `style-check`, not a formatter with your own flags (`docs/adr/0022-one-style-contract.md`). Tool versions are pinned in `.config/style/tools.env`; after a bump re-run `install.sh` (Windows: `install-win.ps1`, or `-StyleToolsOnly` for just the tools) on every machine.
 - **Checks:** `bash tests/run-all.sh`. The pre-push hook runs only `--fast`, so run the full suite before pushing.
 - **graphify** was removed fleet-wide on 2026-10-31 (skill, CLI, global commit hook and guard extension); there is nothing to install on any machine.
 

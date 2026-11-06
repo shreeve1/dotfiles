@@ -3,7 +3,9 @@
 
 [CmdletBinding()]
 param(
-    [string]$DotfilesDir = $(if ($env:DOTFILES_DIR) { $env:DOTFILES_DIR } else { $PSScriptRoot })
+    [string]$DotfilesDir = $(if ($env:DOTFILES_DIR) { $env:DOTFILES_DIR } else { $PSScriptRoot }),
+    # Install only the pinned style tools (.config/style/tools.env) and stop.
+    [switch]$StyleToolsOnly
 )
 
 Set-StrictMode -Version Latest
@@ -171,6 +173,106 @@ function Install-NpmDepsIfNeeded {
     }
 }
 
+# Pinned style tools (.config/style/tools.env) into ~/.local/bin, like bin/style-tools-install
+# on Linux: idempotent, a tool already at its pin is left alone. shfmt, shellcheck, ruff and biome
+# are release binaries; markdownlint-cli2 goes into a private npm prefix with a shim in ~/.local/bin.
+# shfmt has no ARM64 Windows build and shellcheck is x86_64 only, so both run emulated on ARM64.
+function Install-StyleTools {
+    $pins = @{}
+    foreach ($line in Get-Content -LiteralPath (Convert-RepoPath ".config/style/tools.env")) {
+        if ($line -match '^([A-Z0-9_]+)=(\S+)$') { $pins[$Matches[1]] = $Matches[2] }
+    }
+    $bin = Convert-HomePath ".local/bin"
+    $prefix = Convert-HomePath ".local/share/style-tools"
+    New-Item -ItemType Directory -Force -Path $bin | Out-Null
+
+    $arm = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Runtime.InteropServices.Architecture]::Arm64
+    $ruffAsset = if ($arm) { "aarch64" } else { "x86_64" }
+    $biomeAsset = if ($arm) { "arm64" } else { "x64" }
+
+    function Test-Pin {
+        param([string]$Tool, [string]$Version)
+        $exe = Join-Path $bin "$Tool.exe"
+        if ($Tool -eq "markdownlint-cli2") { $exe = Join-Path $bin "$Tool.cmd" }
+        if (-not (Test-Path -LiteralPath $exe)) { return $false }
+        # markdownlint-cli2 has no --version; its --help banner carries it.
+        $flag = if ($Tool -eq "markdownlint-cli2") { "--help" } else { "--version" }
+        $saved = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try { $out = (& $exe $flag 2>&1 | Out-String) } catch { $out = "" } finally { $ErrorActionPreference = $saved }
+        return $out.Substring(0, [Math]::Min(400, $out.Length)).Contains($Version)
+    }
+
+    function Get-Download {
+        param([string]$Url, [string]$Dest)
+        $ProgressPreference = "SilentlyContinue"
+        Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Dest
+    }
+
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) "style-tools-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+    try {
+        $v = $pins.SHFMT_VERSION
+        if (Test-Pin shfmt $v) { Write-Host "ok: shfmt $v" } else {
+            Get-Download "https://github.com/mvdan/sh/releases/download/v$v/shfmt_v${v}_windows_amd64.exe" (Join-Path $bin "shfmt.exe")
+            Write-Host "ok: installed shfmt $v"
+        }
+
+        $v = $pins.SHELLCHECK_VERSION
+        if (Test-Pin shellcheck $v) { Write-Host "ok: shellcheck $v" } else {
+            Get-Download "https://github.com/koalaman/shellcheck/releases/download/v$v/shellcheck-v$v.zip" (Join-Path $tmp "sc.zip")
+            Expand-Archive -LiteralPath (Join-Path $tmp "sc.zip") -DestinationPath (Join-Path $tmp "sc") -Force
+            Copy-Item -LiteralPath (Join-Path $tmp "sc/shellcheck.exe") -Destination $bin -Force
+            Write-Host "ok: installed shellcheck $v"
+        }
+
+        $v = $pins.RUFF_VERSION
+        if (Test-Pin ruff $v) { Write-Host "ok: ruff $v" } else {
+            Get-Download "https://github.com/astral-sh/ruff/releases/download/$v/ruff-$ruffAsset-pc-windows-msvc.zip" (Join-Path $tmp "ruff.zip")
+            Expand-Archive -LiteralPath (Join-Path $tmp "ruff.zip") -DestinationPath (Join-Path $tmp "ruff") -Force
+            Copy-Item -LiteralPath (Join-Path $tmp "ruff/ruff.exe") -Destination $bin -Force
+            Write-Host "ok: installed ruff $v"
+        }
+
+        $v = $pins.BIOME_VERSION
+        if (Test-Pin biome $v) { Write-Host "ok: biome $v" } else {
+            Get-Download "https://github.com/biomejs/biome/releases/download/%40biomejs%2Fbiome%40$v/biome-win32-$biomeAsset.exe" (Join-Path $bin "biome.exe")
+            Write-Host "ok: installed biome $v"
+        }
+
+        $v = $pins.MARKDOWNLINT_CLI2_VERSION
+        if (Test-Pin markdownlint-cli2 $v) { Write-Host "ok: markdownlint-cli2 $v" } elseif (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
+            Write-Warning "npm not found; cannot pin markdownlint-cli2 $v"
+        } else {
+            & npm.cmd install --silent --no-fund --no-audit --prefix $prefix "markdownlint-cli2@$v" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "npm install markdownlint-cli2@$v failed" }
+            $entry = Join-Path $prefix "node_modules/markdownlint-cli2/markdownlint-cli2-bin.mjs"
+            # .cmd for cmd and PowerShell, an extensionless sh script for Git Bash.
+            [IO.File]::WriteAllText((Join-Path $bin "markdownlint-cli2.cmd"), "@node `"$entry`" %*`r`n")
+            $entryUnix = $entry -replace '\\', '/'
+            [IO.File]::WriteAllText((Join-Path $bin "markdownlint-cli2"), "#!/bin/sh`nexec node '$entryUnix' `"`$@`"`n")
+            Write-Host "ok: installed markdownlint-cli2 $v"
+        }
+    } finally {
+        Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # pi-lens resolves formatters by PATH, so ~/.local/bin must come first.
+    foreach ($tool in @("shfmt", "shellcheck", "ruff", "biome", "markdownlint-cli2")) {
+        $first = Get-Command $tool -All -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $first) {
+            Write-Warning "$tool is not on PATH; put $(Get-DisplayPath $bin) on the user PATH"
+        } elseif ((Split-Path -Parent $first.Source) -ine $bin) {
+            Write-Warning "$tool resolves to $($first.Source), not $(Get-DisplayPath $bin); move ~/.local/bin earlier on PATH"
+        }
+    }
+}
+
+if ($StyleToolsOnly) {
+    Install-StyleTools
+    return
+}
+
 Link-Path ".zshrc" ".zshrc"
 
 # XDG-style config used by the Windows builds of these tools where supported.
@@ -311,5 +413,7 @@ if (Test-Path -LiteralPath $codexSkills) {
         Link-Path ".codex/skills/$($_.Name)" ".codex/skills/$($_.Name)"
     }
 }
+
+Install-StyleTools
 
 Write-Host "done: Windows dotfiles links installed"
