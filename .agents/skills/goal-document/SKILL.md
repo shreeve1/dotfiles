@@ -36,13 +36,11 @@ Use `goal-template.md`. Keep it to about one page: intent, people, priorities an
 
 ## 5. Point agents at it
 
-Add one line to the project's instructions file (`AGENTS.md`, or `CLAUDE.md` when it is a separate file), near the top, with a leading trigger:
+Add one line to the project's instructions file (`AGENTS.md`, or `CLAUDE.md` when it is a separate file), near the top, with a leading trigger. It loads on every run, so keep it to this one line:
 
 ```
 **Before any judgement call** (a tradeoff, a risk call, whether to escalate, anything no rule covers): read `GOALS.md` and decide as it directs.
 ```
-
-Then find every agent that never reads that file: agent definitions, system prompts, bot settings, scheduled-job prompts. List them for the owner with the line each needs. Changing a running agent's definition or prompt is a live change: the owner says yes first.
 
 ## 6. Name what it replaces
 
