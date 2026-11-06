@@ -4,7 +4,7 @@ summary: James's chosen design for superagent watching Halo projects - live per-
 type: doc
 status: promoted
 created: 2026-11-04
-updated: 2026-11-04
+updated: 2026-11-06
 topics: [workstation]
 ---
 
@@ -32,6 +32,7 @@ topics: [workstation]
 - Watcher and startday (James, 2026-11-05, option A): `watch.py` keeps its own copy of startday's Halo rules (`classify`, `REASONS`, `LEFT_QUEUE`, status constants; fork `d29b27e`) and imports only startday's `halo.py` and `sd.py`. Nothing asks Jev: workers drop the noise. Why: itastack removed `dispatch.py` on 2026-11-05 and every round crashed from 13:45. A grep inside itastack can't see the watcher, so the itastack session owning that cleanup (w12:pC) was sent the list of `halo.py`/`sd.py` names it uses. Rounds run only 07:00-17:00 Mon-Fri; to test outside those hours, run `watch.py round` on copies of the state and spool in `/tmp` with `--now` set inside them.
 - Gotcha: `check_recent_mail` returns the newest 100 Inbox messages, so when mail leaves the Inbox, months-old mail moves into view. The watcher skips mail received more than 1 h before its last good round.
 - Gotcha: the ITAStack 3CX `calls.list` tool answers a window with no calls with an empty body (`text: ""`, no structured content), not `[]`; startday's `halo.py` turns that into "MCP returned no JSON payload". The watcher treats it as no calls (fork commit `1d38f3b`).
+- Noise fixes (fork `302d4c2`, 2026-11-06, after the dry-run review `~/Documents/itastack/artifacts/superagent/dry-run-review-2026-11-06.md`): Inbox mail echoing a Halo end-user note is dropped; call bursts per client/number merge (held 45 min); `book` skips tickets with an appointment started or ended in the last 7 days; `overdue_task` fires once per fix-by date; NDR/auto-reply actions are not end-user news and IVR-only calls are dropped. James (2026-11-06): a task past its fix-by date still fires `overdue_task` once even right after a visit. Rounds take about 75 s-2 min (per-ticket appointment lookups; parallel Halo calls tested and not worth it).
 
 ## Related
 
