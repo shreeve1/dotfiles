@@ -8,6 +8,8 @@ owner:shreeve1
 owner:itanoc
 path:~/pi-durable
 path:~/aws
+path:~/pi-durable-template
+path:~/durable-bot
 # The itastack workspace has no origin on omarchy: each machine's copy is kept
 # level with offload-sync. It is a different repo from itanoc/itastack on
 # itan8n (different root commit).
