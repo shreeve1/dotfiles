@@ -18,4 +18,4 @@ Keep `mesh.enabled: true` and `mesh.peerNotices: false`; disabling the reviewers
 
 ## Related
 
-- [REA Off by Default](memory/decisions/workstation/decision-rea-disabled-by-default.md): separate REA MCP disabling; neither policy disables code-analysis helpers.
+- [REA Only in ~/rea-lab](memory/decisions/workstation/decision-rea-disabled-by-default.md): REA MCP scoped to one folder; neither policy disables code-analysis helpers.
