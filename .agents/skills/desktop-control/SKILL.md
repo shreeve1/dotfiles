@@ -10,7 +10,7 @@ Use Cua Driver for native Windows UI. **Prefer background input; never use James
 ## Start
 
 1. Try the matching connector/API first (ITAStack for client operations); desktop is last resort. For web pages, use **browser-cdp**. Use shell/API file operations: File Explorer renames steal focus.
-2. Desktop agents must run on `cliproxy/gpt-6.1-sol`. Name that model when spawning; Fabric alias `computer` selects it with medium thinking. Otherwise hand desktop work to that model before acting.
+2. Desktop agents must run on `cliproxy/gpt-6.1-sol`. Name that model when spawning; Fabric alias `computer` selects it with medium thinking. If `$PI_MODEL` is already `gpt-6.1-sol`, carry on yourself; otherwise hand desktop work to that model before acting.
 3. Find the per-user install for your shell. Repeat the setup line in each fresh shell:
 
    ```bash
