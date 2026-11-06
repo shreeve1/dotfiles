@@ -125,6 +125,7 @@ Checked by labels: `live` (ran it for real and saw it work), `test` (a targeted 
 exercises the change and passes), `build-only` (only builds or type-checks),
 `not-checked`, `blocked-from-checking` (the environment stopped the check; say why).
 Pick the strongest label your evidence supports; never round a blocked check up.
+Make the last line `Result: <status> · Checked by: <label>`; readers may see only the end.
 ```
 
 **`handoff` brief** - everything needed to carry on. The focus decides what comes
