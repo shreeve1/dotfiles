@@ -48,4 +48,4 @@ List the existing rules the goal document now makes redundant, or that conflict 
 
 ## 7. Finish
 
-Commit only your own paths if the project uses git. Tell the owner where the document is, which instructions point at it, which agents still need a pointer, and which rules are candidates to cut.
+Commit only your own paths if the project uses git. Tell the owner where the document is, which instructions point at it, and which rules are candidates to cut.
