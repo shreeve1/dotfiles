@@ -160,16 +160,19 @@ session can search it if it needs more:
 
 ## 3. Pick the model
 
-Pick the new session's model from the brief. If the user named one of these four, use it.
+There is no default model: choose from the brief, task complexity, capabilities and
+availability. Consider GLM-5.3 first for suitable text-only work, including coding;
+it is not limited to trivial edits. Choose a GPT option when the task calls for it.
+If the user named one of these four, use it.
 Claude models are not allowed for handoffs or tasks, including fallback and recovery;
 ask for a supported model instead of honoring a Claude request.
 
 | Model | Fits |
 | --- | --- |
-| `glm-5.3` | small, clear work: config or doc edits, lookups, simple fixes. Text only: never for a brief that needs images |
-| `gpt-6.1-sol` | the usual pick: ordinary coding, debugging, carrying on current work; also hard reasoning and high-stakes work |
-| `gpt-6.1-terra` | an alternative GPT option when requested or Sol is unavailable |
-| `gpt-6-luna` | quick, bounded tasks with clear verification; prefer Sol for hard or high-stakes work |
+| `glm-5.3` | first consideration for text-only coding, debugging, docs, config and lookups when it fits the brief. Never for a brief that needs images |
+| `gpt-6.1-sol` | an option for coding, debugging, continuation, hard reasoning and high-stakes work |
+| `gpt-6.1-terra` | another GPT option; choose by task fit, user preference and availability, not only as a fallback |
+| `gpt-6-luna` | quick, bounded tasks with clear verification; choose a stronger fit for hard or high-stakes work |
 
 ## 4. Spawn
 

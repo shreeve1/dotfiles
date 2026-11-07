@@ -13,8 +13,9 @@ Load `herdr-handoff` for launch/recovery and safe merge/cleanup, `independent-re
 for review policy, and [contracts](references/contracts.md) before dispatching.
 Invocation: `/skill:herdr-fanout <plan-path or bounded goal>`.
 
-Use handoff's model choices for workers: Sol by default, Terra as an alternative,
-Luna for quick bounded work, and GLM for small text-only work. No Claude models
+Use handoff's task-based model selection with no fixed default. Consider GLM-5.3
+first for suitable text-only work, including coding; Sol, Terra and Luna remain
+options based on task fit, capabilities and availability. No Claude models
 for workers, reviewers, replacements or fallbacks. Reviewers still follow
 `independent-review`'s different-family requirement; Sol, Terra and Luna are all GPT.
 

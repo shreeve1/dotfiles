@@ -273,6 +273,9 @@ review="$ROOT/.agents/skills/independent-review/SKILL.md"
 for model in gpt-6.1-sol gpt-6.1-terra gpt-6-luna glm-5.3; do
   check "handoff-doc-$model" grep -Fq "$model" "$handoff"
 done
+check handoff-flexible-selection grep -Fq 'There is no default model' "$handoff"
+check handoff-glm-priority grep -Fq 'Consider GLM-5.3 first' "$handoff"
+check fanout-flexible-selection grep -Fq 'no fixed default' "$ROOT/.agents/skills/herdr-fanout/SKILL.md"
 check review-no-claude-selection bash -c '! grep -Eq "cliproxy/(claude|anthropic)" "$1"' _ "$review"
 check review-family-filter grep -Fq 'against the author families before launch' "$review"
 check review-quick-family-filter grep -Fq 'Quick mode must also exclude the author family' "$review"
