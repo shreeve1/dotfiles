@@ -33,6 +33,9 @@ task) focus=--no-focus ;;
 handoff) focus=--focus ;;
 *) die "mode must be task or handoff" ;;
 esac
+case ${model,,} in
+*claude* | *anthropic*) die "Claude models are disabled for herdr handoff and tasks" ;;
+esac
 # pi starts on an unknown model id and fails only at the first prompt, so check it here.
 model_file="$HOME/.pi/agent/models.json"
 [ -e "$model_file" ] || die "model file missing: $model_file"

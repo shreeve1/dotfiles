@@ -161,13 +161,15 @@ session can search it if it needs more:
 ## 3. Pick the model
 
 Pick the new session's model from the brief. If the user named one of these four, use it.
+Claude models are not allowed for handoffs or tasks, including fallback and recovery;
+ask for a supported model instead of honoring a Claude request.
 
 | Model | Fits |
 | --- | --- |
 | `glm-5.3` | small, clear work: config or doc edits, lookups, simple fixes. Text only: never for a brief that needs images |
-| `claude-sonnet-5-5` | the usual pick: ordinary coding, debugging, carrying on current work |
-| `gpt-6.1-sol` | hard reasoning: stubborn bugs, design decisions, careful review |
-| `claude-opus-5-5` | large or high-stakes work: long multi-file builds, writing where quality matters most |
+| `gpt-6.1-sol` | the usual pick: ordinary coding, debugging, carrying on current work; also hard reasoning and high-stakes work |
+| `gpt-6.1-terra` | an alternative GPT option when requested or Sol is unavailable |
+| `gpt-6-luna` | quick, bounded tasks with clear verification; prefer Sol for hard or high-stakes work |
 
 ## 4. Spawn
 

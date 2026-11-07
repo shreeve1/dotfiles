@@ -75,6 +75,23 @@ error_case() {
   check "$name diagnostic" grep -Fq "$message" <<<"$OUT"
   check "$name safe diagnostic" test "${OUT#*SENSITIVE_FIXTURE}" = "$OUT"
 }
+# Model policy applies before any herdr calls, even to configured Claude IDs.
+models
+for mode in task handoff; do
+  for model in claude-sonnet-5-5 claude-opus-5-5; do
+    printf '%s\n' "{\"providers\":{\"cliproxy\":{\"models\":[{\"id\":\"$model\"}]}}}" >"$HOME/.pi/agent/models.json"
+    run_spawn "$mode" "$model"
+    check "$mode-$model-refused" test "$RC" -ne 0
+    check "$mode-$model-no-herdr" test ! -s "$MOCK_LOG"
+    check "$mode-$model-diagnostic" grep -Fq 'Claude models are disabled' <<<"$OUT"
+  done
+done
+for model in gpt-6.1-sol gpt-6.1-terra gpt-6-luna glm-5.3; do
+  printf '%s\n' "{\"providers\":{\"cliproxy\":{\"models\":[{\"id\":\"$model\"}]}}}" >"$HOME/.pi/agent/models.json"
+  run_spawn task "$model"
+  check "$model-allowed" test "$RC" -eq 0
+  check "$model-exact" grep -Fq -- "--model cliproxy/$model" "$MOCK_LOG"
+done
 models
 run_spawn task gpt-6-luna
 check installed-reviewer-model test "$RC" -eq 0
@@ -251,5 +268,14 @@ check final-merge-fast-forward-only grep -Fq 'Final destination integration uses
 check destination-race-blocks grep -Fq 'A failed fast-forward returns to candidate reassembly' "$contracts"
 check sender-global-sequence grep -Fq 'one increasing counter per sender session across all workstreams' "$contracts"
 check report-write-template-override grep -Fq "Replace the template's blanket read-only sentence" "$ROOT/.agents/skills/independent-review/references/herdr.md"
+handoff="$ROOT/.agents/skills/herdr-handoff/SKILL.md"
+review="$ROOT/.agents/skills/independent-review/SKILL.md"
+for model in gpt-6.1-sol gpt-6.1-terra gpt-6-luna glm-5.3; do
+  check "handoff-doc-$model" grep -Fq "$model" "$handoff"
+done
+check review-no-claude-selection bash -c '! grep -Eq "cliproxy/(claude|anthropic)" "$1"' _ "$review"
+check review-family-filter grep -Fq 'against the author families before launch' "$review"
+check review-quick-family-filter grep -Fq 'Quick mode must also exclude the author family' "$review"
+check fanout-no-claude grep -Fq 'No Claude models' "$ROOT/.agents/skills/herdr-fanout/SKILL.md"
 printf 'herdr-fanout: %s passed, %s failed\n' "$PASS" "$FAIL"
 test "$FAIL" -eq 0

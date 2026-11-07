@@ -76,11 +76,17 @@ Gaps is always included. It is the lens behind "did we miss anything".
 
 Check your own model (`PI_MODEL`) and give each lens a model from a different family. Spread lenses across different models when more than one is available.
 
+Never select Claude/Anthropic models, including explicit requests, quick/eval mode,
+herdr tabs, unknown-id recovery and provider-error fallbacks. Filter every candidate
+against the author families before launch. Sol, Terra and Luna are all GPT, not
+independent families. Quick mode must also exclude the author family, not just the
+exact author model. If no eligible model remains, report the lens as not reviewed.
+
 | You are | Reviewer models |
 | --- | --- |
 | Claude | `cliproxy/gpt-6.1-sol`, `cliproxy/gpt-6-luna`, `cliproxy/minimax-m3`, `cliproxy/glm-5.3` |
-| GPT | `cliproxy/claude-opus-5-5`, `cliproxy/minimax-m3`, `cliproxy/glm-5.3` |
-| Anything else | `cliproxy/claude-opus-5-5`, `cliproxy/gpt-6.1-sol` |
+| GPT | `cliproxy/minimax-m3`, `cliproxy/glm-5.3`, `cliproxy/deepseek-v4.1-flash` |
+| Anything else | `cliproxy/gpt-6.1-sol`, `cliproxy/gpt-6.1-terra`, `cliproxy/gpt-6-luna`, `cliproxy/minimax-m3`, `cliproxy/glm-5.3` |
 
 Each row is an ordered fallback list. If a reviewer fails with a **quota, rate-limit (429), or provider error**, re-run that same lens on the next model in the row automatically — do not ask the user. If the row is exhausted, mark the lens **not reviewed** in the verdict, naming each model tried and its error, and base the verdict on the remaining lenses.
 
