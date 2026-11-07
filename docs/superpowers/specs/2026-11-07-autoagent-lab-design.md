@@ -120,6 +120,14 @@ Only while the run is paused. Refresh, `git -C target fetch` the new checkpoint,
 
 The same path applies to any target: a skill, harness or other part of a project.
 
+### Safety details (from GPT Sol quick review, 2026-11-07)
+
+- Symlinks in the original that point outside its folder are refused at refresh, or copied as real files on request, so a copy can never write into the original through a link.
+- One project lock around refresh and run creation; each new run checks out the exact checkpoint it records.
+- One lock per original around `apply --write`; each file is re-checked just before it is written, and a change aborts the rest.
+- `apply --write` refuses while any conflict is unresolved.
+- A loop stopped between saving a change and scoring it is recovered on continue: the unscored change is undone and logged as `interrupted`.
+
 ### Skill changes
 
 - **autoagent:** replace the "Workspace Convention" (`.autoagent-runs/` inside the system's own repo) with the lab layout and the operations above (refresh, intake, continue, what changed, update, apply). RunLoop runs its git commands with `git -C target`; its pre-flight checks `target/`. Remove the "sequential, one repo" and worktree escape-hatch text; keep the live-system rule. Adapters and templates change their path wording to match.
